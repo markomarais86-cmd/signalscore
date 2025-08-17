@@ -23,8 +23,9 @@ const coreItems = [
 ];
 
 const intelligenceItems = [
-  { title: "ICP + TAM Intelligence", url: "/icp-tam", icon: Target },
-  { title: "Signal Intelligence Index", url: "/signal-index", icon: Database },
+  { title: "ICP Analysis", url: "/icp-analysis", icon: Target },
+  { title: "ICP + TAM Intelligence", url: "/icp-tam", icon: BarChart3 },
+  { title: "ICP Manager", url: "/icp-manager", icon: Database },
   { title: "AI Agents & ML", url: "/ai-agents", icon: Bot },
 ];
 

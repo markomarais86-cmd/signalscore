@@ -14,6 +14,7 @@ import PersonaSegments from "./pages/PersonaSegments";
 import CapitalEfficiency from "./pages/CapitalEfficiency";
 import ICPManager from "./pages/ICPManager";
 import { ICPTAMIntelligence } from "./pages/ICPTAMIntelligence";
+import ICPAnalysisDashboard from "./pages/ICPAnalysisDashboard";
 import Leads from "./pages/Leads";
 import DataUpload from "./pages/DataUpload";
 import AIAgents from "./pages/AIAgents";
@@ -97,6 +98,16 @@ const App = () => (
                 <ProtectedRoute>
                   <Layout>
                     <ICPManager />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/icp-analysis"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ICPAnalysisDashboard />
                   </Layout>
                 </ProtectedRoute>
               }

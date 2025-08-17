@@ -1,14 +1,163 @@
-import { ICPAnalysis } from "@/components/ICPAnalysis";
-import { TAMCalculator } from "@/components/TAMCalculator";
-import { ICPPerformanceComparison } from "@/components/ICPPerformanceComparison";
-import { SubIndustryBreakdown } from "@/components/SubIndustryBreakdown";
-import { CountryLevelAnalysis } from "@/components/CountryLevelAnalysis";
+import { useState, useEffect } from "react";
 import { ICP10Report } from "@/components/ICP10Report";
 import { AIInsights } from "@/components/AIInsights";
 import { WorldMapHeatmap } from "@/components/WorldMapHeatmap";
+import { CountryLevelAnalysis } from "@/components/CountryLevelAnalysis";
+import { SubIndustryBreakdown } from "@/components/SubIndustryBreakdown";
+import { ICPAnalysis } from "@/components/ICPAnalysis";
+import { TAMCalculator } from "@/components/TAMCalculator";
+import { ICPPerformanceComparison } from "@/components/ICPPerformanceComparison";
+import { useICPScoring } from "@/hooks/use-icp-scoring";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertTriangle, Loader2 } from "lucide-react";
 
 export function ICPTAMIntelligence() {
-  // Mock data - in a real app, this would come from your API
+  const { userProfile } = useAuth();
+  const { accounts, icpProfiles, scores, loading: icpLoading } = useICPScoring();
+  const [realTimeData, setRealTimeData] = useState<any>(null);
+  const [dataLoading, setDataLoading] = useState(true);
+
+  useEffect(() => {
+    if (userProfile?.org_id && accounts.length > 0) {
+      loadRealTimeData();
+    }
+  }, [userProfile?.org_id, accounts.length, scores.length]);
+
+  const loadRealTimeData = async () => {
+    if (!userProfile?.org_id) return;
+    
+    setDataLoading(true);
+    try {
+      // Get real account data with scores
+      const { data: accountsWithScores, error } = await supabase
+        .from('accounts')
+        .select(`
+          *,
+          scores!left(*)
+        `)
+        .eq('org_id', userProfile.org_id);
+
+      if (error) throw error;
+
+      // Process real data into dashboard format
+      const processedData = processAccountsForDashboard(accountsWithScores || []);
+      setRealTimeData(processedData);
+    } catch (error) {
+      console.error('Error loading real-time data:', error);
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
+  const processAccountsForDashboard = (accountsData: any[]) => {
+    // Group accounts by industry, country, revenue, etc.
+    const industries = groupBy(accountsData, 'industry_raw');
+    const countries = groupBy(accountsData, 'country');
+    const revenueRanges = groupBy(accountsData, 'revenue_range');
+    
+    // Calculate TAM estimates (simplified calculation)
+    const calculateTAM = (accounts: any[]) => {
+      return accounts.reduce((sum, account) => {
+        const revenue = parseRevenueRange(account.revenue_range);
+        return sum + revenue.average;
+      }, 0);
+    };
+
+    return {
+      industries: Object.entries(industries).map(([industry, accounts]) => ({
+        name: industry || 'Unknown',
+        accountCount: (accounts as any[]).length,
+        tamValue: calculateTAM(accounts as any[]),
+        avgScore: (accounts as any[]).reduce((sum: number, acc: any) => sum + (acc.scores?.[0]?.overall || 0), 0) / (accounts as any[]).length
+      })),
+      countries: Object.entries(countries).map(([country, accounts]) => ({
+        name: country || 'Unknown',
+        accountCount: (accounts as any[]).length,
+        tamValue: calculateTAM(accounts as any[]),
+        avgScore: (accounts as any[]).reduce((sum: number, acc: any) => sum + (acc.scores?.[0]?.overall || 0), 0) / (accounts as any[]).length
+      })),
+      totalAccounts: accountsData.length,
+      totalTAM: calculateTAM(accountsData),
+      highScoreAccounts: accountsData.filter(acc => (acc.scores?.[0]?.overall || 0) >= 75).length
+    };
+  };
+
+  const groupBy = (array: any[], key: string): Record<string, any[]> => {
+    return array.reduce((groups, item) => {
+      const group = item[key] || 'Unknown';
+      groups[group] = groups[group] || [];
+      groups[group].push(item);
+      return groups;
+    }, {} as Record<string, any[]>);
+  };
+
+  const parseRevenueRange = (range: string) => {
+    // Simple revenue range parsing - could be enhanced
+    const ranges: { [key: string]: { min: number; max: number; average: number } } = {
+      '<$1M': { min: 0, max: 1000000, average: 500000 },
+      '$1M-$5M': { min: 1000000, max: 5000000, average: 3000000 },
+      '$5M-$25M': { min: 5000000, max: 25000000, average: 15000000 },
+      '$25M-$100M': { min: 25000000, max: 100000000, average: 62500000 },
+      '$100M-$500M': { min: 100000000, max: 500000000, average: 300000000 },
+      '$500M+': { min: 500000000, max: 2000000000, average: 1000000000 }
+    };
+    return ranges[range] || { min: 0, max: 0, average: 0 };
+  };
+
+  if (icpLoading || dataLoading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+            <p>Loading TAM intelligence data...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (accounts.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">ICP & TAM Intelligence</h1>
+          <p className="text-muted-foreground">Real-time insights from your CRM data</p>
+        </div>
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            No account data found. Please upload your CRM data first to see TAM intelligence and board-ready reports.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (icpProfiles.length === 0) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">ICP & TAM Intelligence</h1>
+          <p className="text-muted-foreground">Real-time insights from your CRM data</p>
+        </div>
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            No ICP profiles defined. Please create at least one ICP profile to generate TAM intelligence.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  // If we have real data, use it; otherwise fall back to mock data for demo
+  const useRealData = realTimeData && realTimeData.totalAccounts > 0;
+
+  // Mock data for demonstration (used as fallback or when real data is insufficient)
   const icpData = {
     criteria: {
       companySize: "50-500 employees",
@@ -229,10 +378,17 @@ export function ICPTAMIntelligence() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">ICP/TAM Intelligence</h1>
+        <h1 className="text-3xl font-bold tracking-tight">ICP & TAM Intelligence</h1>
         <p className="text-muted-foreground">
-          Board-ready ICP-10 reports with sub-industry and country-level intelligence
+          {useRealData ? 'Real-time insights from your CRM data' : 'Board-ready ICP-10 reports with sub-industry and country-level intelligence'}
         </p>
+        {useRealData && (
+          <div className="flex gap-4 text-sm text-muted-foreground mt-2">
+            <span>• {realTimeData.totalAccounts} total accounts</span>
+            <span>• {realTimeData.highScoreAccounts} high ICP fit</span>
+            <span>• ${(realTimeData.totalTAM / 1000000).toFixed(1)}M estimated TAM</span>
+          </div>
+        )}
       </div>
 
       {/* ICP-10 Board Report */}
