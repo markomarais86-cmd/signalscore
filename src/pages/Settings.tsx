@@ -29,10 +29,19 @@ import {
   Upload,
   Zap,
   Mail,
-  Webhook
+  Webhook,
+  GitBranch,
+  BarChart3,
+  Bot,
+  Target
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import IntegrationManager from "@/components/settings/IntegrationManager";
+import DataMapping from "@/components/settings/DataMapping";
+import ScoringConfiguration from "@/components/settings/ScoringConfiguration";
+import BenchmarkSettings from "@/components/settings/BenchmarkSettings";
+import AIAgentSettings from "@/components/settings/AIAgentSettings";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TeamMember {
@@ -295,7 +304,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-10">
           <TabsTrigger value="account" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Account
@@ -308,6 +317,22 @@ export default function Settings() {
             <Database className="h-4 w-4" />
             Integrations
           </TabsTrigger>
+          <TabsTrigger value="data-mapping" className="flex items-center gap-2">
+            <GitBranch className="h-4 w-4" />
+            Data Mapping
+          </TabsTrigger>
+          <TabsTrigger value="scoring" className="flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Scoring
+          </TabsTrigger>
+          <TabsTrigger value="benchmarks" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Benchmarks
+          </TabsTrigger>
+          <TabsTrigger value="ai-agents" className="flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            AI Agents
+          </TabsTrigger>
           <TabsTrigger value="notifications" className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
             Notifications
@@ -315,10 +340,6 @@ export default function Settings() {
           <TabsTrigger value="api" className="flex items-center gap-2">
             <Key className="h-4 w-4" />
             API
-          </TabsTrigger>
-          <TabsTrigger value="billing" className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
-            Billing
           </TabsTrigger>
           <TabsTrigger value="security" className="flex items-center gap-2">
             <Shield className="h-4 w-4" />
@@ -500,79 +521,27 @@ export default function Settings() {
 
         {/* Integrations */}
         <TabsContent value="integrations" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Data Sources</CardTitle>
-              <CardDescription>Connect your CRM and other data sources</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-4">
-                {integrations.map((integration) => (
-                  <Card key={integration.id}>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                            <Database className="h-5 w-5 text-primary" />
-                          </div>
-                          <div>
-                            <h4 className="font-medium">{integration.name}</h4>
-                            <p className="text-sm text-muted-foreground">{integration.type.toUpperCase()}</p>
-                          </div>
-                        </div>
-                        {getStatusBadge(integration.status)}
-                      </div>
-                      
-                      {integration.last_sync && (
-                        <p className="text-xs text-muted-foreground mb-4">
-                          Last sync: {new Date(integration.last_sync).toLocaleString()}
-                        </p>
-                      )}
-                      
-                      <div className="flex gap-2">
-                        {integration.status === 'connected' ? (
-                          <>
-                            <Button variant="outline" size="sm">Configure</Button>
-                            <Button variant="outline" size="sm">Disconnect</Button>
-                          </>
-                        ) : (
-                          <Button size="sm">Connect</Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-                
-                <Card className="border-dashed">
-                  <CardContent className="pt-6 text-center">
-                    <Plus className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                    <h4 className="font-medium mb-1">Add Integration</h4>
-                    <p className="text-sm text-muted-foreground mb-4">Connect a new data source</p>
-                    <Button variant="outline" size="sm">Browse Integrations</Button>
-                  </CardContent>
-                </Card>
-              </div>
-            </CardContent>
-          </Card>
+          <IntegrationManager />
+        </TabsContent>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Webhooks</CardTitle>
-              <CardDescription>Configure webhooks for real-time data sync</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between p-4 border border-dashed rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Webhook className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium">No webhooks configured</p>
-                    <p className="text-sm text-muted-foreground">Set up webhooks to receive real-time updates</p>
-                  </div>
-                </div>
-                <Button variant="outline">Configure Webhooks</Button>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Data Mapping */}
+        <TabsContent value="data-mapping" className="space-y-6">
+          <DataMapping />
+        </TabsContent>
+
+        {/* Scoring Configuration */}
+        <TabsContent value="scoring" className="space-y-6">
+          <ScoringConfiguration />
+        </TabsContent>
+
+        {/* Benchmarks */}
+        <TabsContent value="benchmarks" className="space-y-6">
+          <BenchmarkSettings />
+        </TabsContent>
+
+        {/* AI Agents */}
+        <TabsContent value="ai-agents" className="space-y-6">
+          <AIAgentSettings />
         </TabsContent>
 
         {/* Notifications */}
