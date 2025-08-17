@@ -8,6 +8,9 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Layout } from "@/components/Layout";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import PipelineEfficiency from "./pages/PipelineEfficiency";
+import PersonaSegments from "./pages/PersonaSegments";
+import CapitalEfficiency from "./pages/CapitalEfficiency";
 import ICPManager from "./pages/ICPManager";
 import Leads from "./pages/Leads";
 import DataUpload from "./pages/DataUpload";
@@ -31,6 +34,56 @@ const App = () => (
                 <ProtectedRoute>
                   <Layout>
                     <Index />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/pipeline"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <PipelineEfficiency />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/personas"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <PersonaSegments />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/capital"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <CapitalEfficiency />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/icp-tam"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ICPManager />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/signal-index"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <DataUpload />
                   </Layout>
                 </ProtectedRoute>
               }

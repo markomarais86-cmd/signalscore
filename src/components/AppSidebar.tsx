@@ -1,4 +1,4 @@
-import { BarChart3, Users, Target, Upload, Bot, LogOut } from "lucide-react";
+import { BarChart3, Users, Target, Upload, Bot, LogOut, TrendingUp, Layers, Database, Activity } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -15,12 +15,22 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 
-const items = [
-  { title: "Dashboard", url: "/", icon: BarChart3 },
-  { title: "ICP Manager", url: "/icp-manager", icon: Target },
-  { title: "Leads", url: "/leads", icon: Users },
+const coreItems = [
+  { title: "SignalScore Overview", url: "/", icon: Activity },
+  { title: "Pipeline Efficiency", url: "/pipeline", icon: TrendingUp },
+  { title: "Persona & Segments", url: "/personas", icon: Users },
+  { title: "Capital Efficiency", url: "/capital", icon: BarChart3 },
+];
+
+const intelligenceItems = [
+  { title: "ICP + TAM Intelligence", url: "/icp-tam", icon: Target },
+  { title: "Signal Intelligence Index", url: "/signal-index", icon: Database },
+  { title: "AI Agents & ML", url: "/ai-agents", icon: Bot },
+];
+
+const dataItems = [
   { title: "Data Upload", url: "/data-upload", icon: Upload },
-  { title: "AI Agents", url: "/ai-agents", icon: Bot },
+  { title: "Leads Management", url: "/leads", icon: Layers },
 ];
 
 export function AppSidebar() {
@@ -45,16 +55,62 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-sm font-semibold text-sidebar-foreground px-3 py-2">
-            SignalScore
+            Core Dashboards
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {coreItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink 
                       to={item.url} 
                       end={item.url === "/"}
+                      className={getNavCls(item.url)}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-sm font-semibold text-sidebar-foreground px-3 py-2">
+            Intelligence Layer
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {intelligenceItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink 
+                      to={item.url} 
+                      className={getNavCls(item.url)}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-sm font-semibold text-sidebar-foreground px-3 py-2">
+            Data Management
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {dataItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink 
+                      to={item.url} 
                       className={getNavCls(item.url)}
                     >
                       <item.icon className="h-4 w-4" />
