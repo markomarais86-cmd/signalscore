@@ -18,6 +18,7 @@ import ICPAnalysisDashboard from "./pages/ICPAnalysisDashboard";
 import Leads from "./pages/Leads";
 import DataUpload from "./pages/DataUpload";
 import AIAgents from "./pages/AIAgents";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -138,6 +139,16 @@ const App = () => (
                 <ProtectedRoute>
                   <Layout>
                     <AIAgents />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Settings />
                   </Layout>
                 </ProtectedRoute>
               }

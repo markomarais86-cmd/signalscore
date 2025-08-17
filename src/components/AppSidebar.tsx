@@ -1,4 +1,4 @@
-import { BarChart3, Users, Target, Upload, Bot, LogOut, TrendingUp, Layers, Database, Activity } from "lucide-react";
+import { BarChart3, Users, Target, Upload, Bot, LogOut, TrendingUp, Layers, Database, Activity, Settings } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -32,6 +32,7 @@ const intelligenceItems = [
 const dataItems = [
   { title: "Data Upload", url: "/data-upload", icon: Upload },
   { title: "Leads Management", url: "/leads", icon: Layers },
+  { title: "Settings", url: "/settings", icon: Settings },
 ];
 
 export function AppSidebar() {
