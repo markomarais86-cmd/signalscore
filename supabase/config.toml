@@ -1,1 +1,4 @@
 project_id = "dhyfbaptcprxxixgnpby"
+
+[functions.score-account]
+verify_jwt = false
