@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               if (error) {
                 console.error('Error fetching user profile:', error);
               } else {
-                setUserProfile(profile);
+                setUserProfile(profile as UserProfile);
               }
             } catch (error) {
               console.error('Error in profile fetch:', error);

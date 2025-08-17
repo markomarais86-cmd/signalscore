@@ -15,13 +15,13 @@ import { Label } from "@/components/ui/label";
 interface Lead {
   id: string;
   external_id: string;
-  name: string;
-  domain: string;
-  industry_raw: string;
-  industry_norm: string;
-  employee_count: number;
-  revenue_range: string;
-  country: string;
+  name: string | null;
+  domain: string | null;
+  industry_raw: string | null;
+  industry_norm: string | null;
+  employee_count: number | null;
+  revenue_range: string | null;
+  country: string | null;
   updated_at: string;
   score?: {
     overall: number;
@@ -29,20 +29,20 @@ interface Lead {
     intent: number;
     reachability: number;
     reasons: any;
-  };
+  } | null;
   contacts?: Contact[];
 }
 
 interface Contact {
   id: string;
   external_id: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  title_raw: string;
-  persona: string;
-  level: string;
-  country: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  title_raw: string | null;
+  persona: string | null;
+  level: string | null;
+  country: string | null;
 }
 
 export default function Leads() {
@@ -97,11 +97,33 @@ export default function Leads() {
             .eq('org_id', userProfile.org_id)
             .eq('account_external_id', account.external_id);
 
-          return {
-            ...account,
-            score: account.scores?.[0] || null,
+          // Transform the account data to match Lead interface
+          const scoreData = account.scores && Array.isArray(account.scores) && account.scores.length > 0 
+            ? account.scores[0] 
+            : null;
+          
+          const lead: Lead = {
+            id: account.id,
+            external_id: account.external_id,
+            name: account.name,
+            domain: account.domain,
+            industry_raw: account.industry_raw,
+            industry_norm: account.industry_norm,
+            employee_count: account.employee_count,
+            revenue_range: account.revenue_range,
+            country: account.country,
+            updated_at: account.updated_at,
+            score: scoreData && typeof scoreData === 'object' && scoreData.overall !== undefined ? {
+              overall: scoreData.overall,
+              fit: scoreData.fit,
+              intent: scoreData.intent,
+              reachability: scoreData.reachability,
+              reasons: scoreData.reasons
+            } : null,
             contacts: contacts || []
           };
+
+          return lead;
         })
       );
 
@@ -230,7 +252,7 @@ export default function Leads() {
               <SelectContent>
                 <SelectItem value="all">All Leads</SelectItem>
                 <SelectItem value="qualified">Qualified (≥70)</SelectItem>
-                <SelectItem value="unqualified">Scored (<70)</SelectItem>
+                <SelectItem value="unqualified">Scored (&lt;70)</SelectItem>
                 <SelectItem value="unscored">Unscored</SelectItem>
               </SelectContent>
             </Select>

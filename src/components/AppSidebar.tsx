@@ -11,7 +11,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarTrigger,
-  useSidebar,
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
@@ -25,7 +24,6 @@ const items = [
 ];
 
 export function AppSidebar() {
-  const { collapsed } = useSidebar();
   const location = useLocation();
   const { signOut, userProfile } = useAuth();
   const currentPath = location.pathname;
@@ -41,13 +39,13 @@ export function AppSidebar() {
     isActive(path) ? "bg-accent text-accent-foreground font-medium" : "hover:bg-accent/50";
 
   return (
-    <Sidebar className={collapsed ? "w-14" : "w-60"} collapsible>
+    <Sidebar collapsible="icon">
       <SidebarTrigger className="m-2 self-end" />
       
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel className="text-sm font-semibold text-sidebar-foreground px-3 py-2">
-            {!collapsed && "SignalScore"}
+            SignalScore
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -60,7 +58,7 @@ export function AppSidebar() {
                       className={getNavCls(item.url)}
                     >
                       <item.icon className="h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
+                      <span>{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -71,34 +69,20 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        {!collapsed && (
-          <div className="px-3 py-2 border-t">
-            <div className="text-xs text-muted-foreground mb-2">
-              {userProfile?.full_name} ({userProfile?.role})
-            </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => signOut()}
-              className="w-full justify-start h-8"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </Button>
+        <div className="px-3 py-2 border-t">
+          <div className="text-xs text-muted-foreground mb-2">
+            {userProfile?.full_name} ({userProfile?.role})
           </div>
-        )}
-        {collapsed && (
-          <div className="px-3 py-2 border-t">
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => signOut()}
-              className="w-full justify-center p-2"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => signOut()}
+            className="w-full justify-start h-8"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
+        </div>
       </SidebarFooter>
     </Sidebar>
   );
