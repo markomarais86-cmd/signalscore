@@ -13,6 +13,7 @@ import PipelineEfficiency from "./pages/PipelineEfficiency";
 import PersonaSegments from "./pages/PersonaSegments";
 import CapitalEfficiency from "./pages/CapitalEfficiency";
 import ICPManager from "./pages/ICPManager";
+import { ICPTAMIntelligence } from "./pages/ICPTAMIntelligence";
 import Leads from "./pages/Leads";
 import DataUpload from "./pages/DataUpload";
 import AIAgents from "./pages/AIAgents";
@@ -75,7 +76,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <ICPManager />
+                    <ICPTAMIntelligence />
                   </Layout>
                 </ProtectedRoute>
               }
