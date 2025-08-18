@@ -29,7 +29,11 @@ const INDUSTRIES = [
 
 const COMPANY_SIZES = [1, 10, 50, 100, 500, 1000, 5000, 10000];
 const REVENUE_RANGES = ["<$1M", "$1M-$5M", "$5M-$25M", "$25M-$100M", "$100M-$500M", "$500M+"];
-const GEOGRAPHIES = ["North America", "Europe", "Asia Pacific", "Latin America", "Middle East", "Africa"];
+const COUNTRIES = [
+  "United States", "Canada", "United Kingdom", "Germany", "France", "Netherlands", 
+  "Switzerland", "Sweden", "Denmark", "Norway", "Australia", "Japan", "Singapore", 
+  "South Korea", "Brazil", "Mexico", "India", "China", "Italy", "Spain"
+];
 
 export default function ICPManager() {
   const [icps, setIcps] = useState<ICP[]>([]);
@@ -273,21 +277,21 @@ export default function ICPManager() {
               </div>
 
               <div>
-                <Label>Geographies</Label>
+                <Label>Countries</Label>
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {formData.geographies.map((geo, index) => (
+                  {formData.geographies.map((country, index) => (
                     <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('geographies', index)}>
-                      {geo} ×
+                      {country} ×
                     </Badge>
                   ))}
                 </div>
                 <Select onValueChange={(value) => addToArray('geographies', value)}>
                   <SelectTrigger className="mt-2">
-                    <SelectValue placeholder="Add geography" />
+                    <SelectValue placeholder="Add country" />
                   </SelectTrigger>
                   <SelectContent>
-                    {GEOGRAPHIES.filter(g => !formData.geographies.includes(g)).map(geo => (
-                      <SelectItem key={geo} value={geo}>{geo}</SelectItem>
+                    {COUNTRIES.filter(c => !formData.geographies.includes(c)).map(country => (
+                      <SelectItem key={country} value={country}>{country}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -379,6 +383,24 @@ export default function ICPManager() {
                     {icp.revenue_ranges.length > 2 && (
                       <Badge variant="outline" className="text-xs">
                         +{icp.revenue_ranges.length - 2} more
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {icp.geographies?.length > 0 && (
+                <div>
+                  <Label className="text-sm font-medium">Countries</Label>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {icp.geographies.slice(0, 2).map((country, index) => (
+                      <Badge key={index} variant="outline" className="text-xs">
+                        {country}
+                      </Badge>
+                    ))}
+                    {icp.geographies.length > 2 && (
+                      <Badge variant="outline" className="text-xs">
+                        +{icp.geographies.length - 2} more
                       </Badge>
                     )}
                   </div>
