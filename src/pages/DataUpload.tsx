@@ -151,6 +151,37 @@ export default function DataUpload() {
     return { valid, errors };
   };
 
+  const detectDuplicates = (rawData: any[], mapping: FieldMapping, type: 'accounts' | 'contacts', issues: ValidationIssue[]): number => {
+    const keyField = type === 'accounts' ? 'external_id' : 'external_id';
+    const csvKeyField = Object.keys(mapping).find(key => mapping[key] === keyField);
+    
+    if (!csvKeyField) return 0;
+    
+    const seenValues = new Set<string>();
+    let duplicateCount = 0;
+    
+    rawData.forEach((row, index) => {
+      const keyValue = row[csvKeyField];
+      if (keyValue) {
+        if (seenValues.has(keyValue)) {
+          duplicateCount++;
+          issues.push({
+            row: index + 2,
+            field: csvKeyField,
+            type: 'warning',
+            message: 'Duplicate identifier found',
+            value: keyValue,
+            suggestion: 'Ensure all IDs are unique or the later entry will overwrite the earlier one'
+          });
+        } else {
+          seenValues.add(keyValue);
+        }
+      }
+    });
+    
+    return duplicateCount;
+  };
+
   const analyzeCSVStructure = async (file: File, type: 'accounts' | 'contacts') => {
     try {
       const text = await file.text();
@@ -171,8 +202,8 @@ export default function DataUpload() {
     } catch (error) {
       console.error('Error analyzing CSV:', error);
       toast({
-        title: "Error",
-        description: "Failed to analyze CSV structure",
+        title: "CSV Analysis Failed",
+        description: "Unable to read the CSV file. Please check the file format and try again.",
         variant: "destructive"
       });
     }
@@ -330,6 +361,9 @@ export default function DataUpload() {
       return sum + Object.keys(mapping).filter(field => row[field]).length;
     }, 0);
     
+    // Implement duplicate detection
+    const duplicateCount = detectDuplicates(rawData, mapping, type, issues);
+    
     const completeness = (filledFields / (rawData.length * totalFields)) * 100;
     const accuracy = ((validCount + warningCount) / rawData.length) * 100;
     const consistency = 100 - (issues.filter(i => i.message.includes('format')).length / rawData.length) * 100;
@@ -342,7 +376,7 @@ export default function DataUpload() {
       details: {
         missingValues: rawData.length * totalFields - filledFields,
         invalidFormats: issues.filter(i => i.message.includes('format')).length,
-        duplicates: 0 // TODO: Implement duplicate detection
+        duplicates: duplicateCount
       }
     };
 
@@ -465,8 +499,10 @@ export default function DataUpload() {
     } catch (error) {
       console.error('Upload error:', error);
       toast({
-        title: "Upload failed",
-        description: error.message || "An error occurred during upload",
+        title: "Data Upload Failed",
+        description: error.message?.includes('duplicate key') 
+          ? "Some records already exist. Data was updated where possible."
+          : "Unable to save your data. Please check your file format and try again.",
         variant: "destructive"
       });
     } finally {
