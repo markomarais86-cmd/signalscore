@@ -242,7 +242,11 @@ export default function AIAgentSettings() {
       type: agent.type,
       description: agent.description,
       parameters: JSON.stringify(agent.parameters, null, 2),
-      schedule: agent.schedule
+      schedule: {
+        frequency: agent.schedule.frequency,
+        time: agent.schedule.time || '09:00',
+        days: agent.schedule.days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+      }
     });
     setIsEditDialogOpen(true);
   };

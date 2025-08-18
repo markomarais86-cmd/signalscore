@@ -197,9 +197,8 @@ export default function IntegrationManager() {
                                 variant="outline" 
                                 size="sm"
                                 onClick={() => handleSync(integration)}
-                              disabled={integration.status === 'syncing'}
-                            >
-                              <RefreshCw className={`h-4 w-4 mr-2 ${integration.status === 'syncing' ? 'animate-spin' : ''}`} />
+                              >
+                               <RefreshCw className="h-4 w-4 mr-2" />
                                 Sync
                               </Button>
                               <Button 
