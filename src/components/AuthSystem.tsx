@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 export function AuthSystem() {
   const { signIn, signUp } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -73,6 +75,8 @@ export function AuthSystem() {
           title: "Welcome back!",
           description: "You've been signed in successfully."
         });
+        // Redirect to dashboard after successful sign-in
+        navigate('/dashboard');
       }
     } catch (err) {
       console.error('Sign in error:', err);
