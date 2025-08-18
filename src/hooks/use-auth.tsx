@@ -112,10 +112,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) {
+      console.error('Sign in error:', error);
+      let errorMessage = error.message;
+      
+      // Provide more helpful error messages
+      if (error.message.includes('Invalid login credentials')) {
+        errorMessage = 'Invalid email or password. Try resetting your password if you recently changed it.';
+      } else if (error.message.includes('Email not confirmed')) {
+        errorMessage = 'Please check your email and click the confirmation link before signing in.';
+      }
+      
       toast({
         title: "Sign in failed",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Welcome back!",
+        description: "You have been signed in successfully."
       });
     }
 
