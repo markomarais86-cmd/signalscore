@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Bot, Play, Edit, Trash2, Clock, CheckCircle } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { EdgeFunctionTest } from "@/components/EdgeFunctionTest";
 
 interface Agent {
   id: string;
@@ -465,6 +466,17 @@ export default function AIAgents() {
           </CardContent>
         </Card>
       )}
+
+      {/* Edge Function Testing */}
+      <Card>
+        <CardHeader>
+          <CardTitle>System Validation</CardTitle>
+          <CardDescription>Test core AI functions and integrations</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <EdgeFunctionTest />
+        </CardContent>
+      </Card>
     </div>
   );
 }
