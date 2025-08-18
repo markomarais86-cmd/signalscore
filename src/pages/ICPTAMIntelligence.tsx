@@ -365,9 +365,48 @@ export function ICPTAMIntelligence() {
     }
   ];
 
+  const processRealDataIntoICP10 = () => {
+    if (!realTimeData || !accounts.length || !scores.length) return icp10Data;
+    
+    // Process real CRM data into ICP-10 format
+    const accountsWithScores = accounts
+      .map(account => {
+        const accountScores = scores.filter((s: any) => s.account_external_id === account.external_id);
+        const latestScore = accountScores.sort((a: any, b: any) => 
+          new Date(b.computed_at || 0).getTime() - new Date(a.computed_at || 0).getTime()
+        )[0];
+        
+        return {
+          ...account,
+          signalScore: (latestScore as any)?.overall || 0,
+          persona: 'CXO', // This would come from contacts data
+          subIndustry: account.industry_raw || 'Unknown'
+        };
+      })
+      .filter((account: any) => account.signalScore > 60) // Only high-scoring accounts
+      .sort((a: any, b: any) => b.signalScore - a.signalScore)
+      .slice(0, 10);
+    
+    return accountsWithScores.map((account: any, index: number) => ({
+      rank: index + 1,
+      persona: account.persona,
+      subIndustry: account.subIndustry,
+      country: account.country || 'Unknown',
+      companySize: account.revenue_range || 'Unknown',
+      revenueRange: account.revenue_range || 'Unknown',
+      employeeRange: account.employee_count ? `${account.employee_count}` : 'Unknown',
+      signalScore: account.signalScore,
+      accountCount: 1, // Individual account
+      tamValue: parseRevenueRange(account.revenue_range || '').average,
+      conversionRate: Math.floor(Math.random() * 15) + 10, // Mock conversion rate
+      avgDealSize: Math.floor(parseRevenueRange(account.revenue_range || '').average * 0.1),
+      salesCycle: Math.floor(Math.random() * 30) + 30
+    }));
+  };
+
   const handleExportICP10 = (format: 'pdf' | 'csv') => {
-    console.log(`Exporting ICP-10 report as ${format.toUpperCase()}`);
-    // Implement export logic
+    // This is handled by the ICP10Report component now
+    console.log(`Export initiated for ${format.toUpperCase()}`);
   };
 
   const handleApplyRecommendation = (insightId: string) => {
@@ -392,7 +431,10 @@ export function ICPTAMIntelligence() {
       </div>
 
       {/* ICP-10 Board Report */}
-      <ICP10Report data={icp10Data} onExport={handleExportICP10} />
+      <ICP10Report 
+        data={useRealData ? processRealDataIntoICP10() : icp10Data} 
+        onExport={handleExportICP10} 
+      />
 
       {/* AI Insights */}
       <AIInsights insights={aiInsights} onApplyRecommendation={handleApplyRecommendation} />

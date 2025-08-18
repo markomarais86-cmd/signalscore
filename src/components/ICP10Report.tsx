@@ -39,6 +39,127 @@ export function ICP10Report({ data, onExport }: ICP10ReportProps) {
     return "bg-gradient-to-r from-orange-400 to-orange-600";
   };
 
+  const generateCSV = () => {
+    const headers = [
+      'Rank',
+      'Persona/Title',
+      'Sub-Industry', 
+      'Country',
+      'Revenue Range',
+      'Employee Range',
+      'SignalScore',
+      'Account Count',
+      'TAM Value',
+      'Conversion Rate',
+      'Avg Deal Size',
+      'Sales Cycle'
+    ];
+    
+    const csvData = [
+      headers.join(','),
+      ...data.map(entry => [
+        entry.rank,
+        `"${entry.persona}"`,
+        `"${entry.subIndustry}"`,
+        `"${entry.country}"`,
+        `"${entry.revenueRange}"`,
+        `"${entry.employeeRange}"`,
+        entry.signalScore,
+        entry.accountCount,
+        entry.tamValue,
+        entry.conversionRate,
+        entry.avgDealSize,
+        entry.salesCycle
+      ].join(','))
+    ].join('\n');
+    
+    return csvData;
+  };
+
+  const handleExport = (format: 'pdf' | 'csv') => {
+    if (format === 'csv') {
+      const csvContent = generateCSV();
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `ICP-10-Report-${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } else if (format === 'pdf') {
+      // For PDF, we'll create a formatted HTML version that can be printed
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>ICP-10 Board Report</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; }
+              .header { text-align: center; margin-bottom: 30px; }
+              .summary { display: flex; justify-content: space-around; margin-bottom: 30px; background: #f5f5f5; padding: 15px; }
+              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+              th { background-color: #f2f2f2; }
+              .rank { text-align: center; font-weight: bold; }
+              @media print { body { margin: 0; } }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>ICP-10 Board Report</h1>
+              <p>Top 10 Ideal Customer Profile Segments</p>
+              <p>Generated: ${new Date().toLocaleDateString()}</p>
+            </div>
+            <div class="summary">
+              <div><strong>Total TAM:</strong> ${formatCurrency(totalTAM)}</div>
+              <div><strong>Total Accounts:</strong> ${totalAccounts.toLocaleString()}</div>
+              <div><strong>Avg Score:</strong> ${avgSignalScore}</div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Persona/Title</th>
+                  <th>Sub-Industry</th>
+                  <th>Country</th>
+                  <th>Company Size</th>
+                  <th>Score</th>
+                  <th>TAM</th>
+                  <th>Accounts</th>
+                  <th>Conversion</th>
+                  <th>Deal Size</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${data.map(entry => `
+                  <tr>
+                    <td class="rank">#${entry.rank}</td>
+                    <td>${entry.persona}</td>
+                    <td>${entry.subIndustry}</td>
+                    <td>${entry.country}</td>
+                    <td>${entry.revenueRange}<br><small>${entry.employeeRange} employees</small></td>
+                    <td>${entry.signalScore}</td>
+                    <td>${formatCurrency(entry.tamValue)}</td>
+                    <td>${entry.accountCount.toLocaleString()}</td>
+                    <td>${entry.conversionRate}%</td>
+                    <td>${formatCurrency(entry.avgDealSize)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </body>
+          </html>
+        `);
+        printWindow.document.close();
+        printWindow.print();
+      }
+    }
+    
+    onExport?.(format);
+  };
+
   const totalTAM = data.reduce((sum, item) => sum + item.tamValue, 0);
   const totalAccounts = data.reduce((sum, item) => sum + item.accountCount, 0);
   const avgSignalScore = Math.round(data.reduce((sum, item) => sum + item.signalScore, 0) / data.length);
@@ -55,7 +176,7 @@ export function ICP10Report({ data, onExport }: ICP10ReportProps) {
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => onExport?.('csv')}
+              onClick={() => handleExport('csv')}
               className="flex items-center gap-1"
             >
               <Download className="h-3 w-3" />
@@ -64,7 +185,7 @@ export function ICP10Report({ data, onExport }: ICP10ReportProps) {
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => onExport?.('pdf')}
+              onClick={() => handleExport('pdf')}
               className="flex items-center gap-1"
             >
               <Download className="h-3 w-3" />
