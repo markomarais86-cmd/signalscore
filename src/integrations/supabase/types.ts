@@ -393,15 +393,27 @@ export type Database = {
       Leads: {
         Row: {
           created_at: string
+          external_id: string | null
           id: number
+          name: string | null
+          org_id: string | null
+          status: string | null
         }
         Insert: {
           created_at?: string
+          external_id?: string | null
           id?: number
+          name?: string | null
+          org_id?: string | null
+          status?: string | null
         }
         Update: {
           created_at?: string
+          external_id?: string | null
           id?: number
+          name?: string | null
+          org_id?: string | null
+          status?: string | null
         }
         Relationships: []
       }
@@ -672,6 +684,14 @@ export type Database = {
       }
     }
     Functions: {
+      calculate_account_score: {
+        Args: {
+          account_external_id: string
+          icp_id: string
+          org_id_param: string
+        }
+        Returns: Json
+      }
       get_current_user_org_id: {
         Args: Record<PropertyKey, never>
         Returns: string

@@ -143,36 +143,55 @@ export function useICPScoring() {
     setLoading(true);
     const newScores: ICPScore[] = [];
 
-    // Score each account against each ICP profile
-    for (const account of accounts) {
-      for (const icp of icpProfiles) {
-        const score = calculateICPScore(account, icp);
-        newScores.push(score);
-
-        // Store score in database
-        try {
-          await supabase
-            .from('scores')
-            .upsert({
-              org_id: userProfile.org_id,
+    try {
+      // Score each account against each ICP profile using database function
+      for (const account of accounts) {
+        for (const icp of icpProfiles) {
+          const { data: scoreResult, error } = await supabase
+            .rpc('calculate_account_score', {
               account_external_id: account.external_id,
-              overall: score.overall_score,
-              fit: score.fit_score,
-              intent: 50, // Default intent score
-              reachability: 75, // Default reachability score
-              reasons: score.reasons,
-              scoring_version: 'icp_v1.0'
-            }, {
-              onConflict: 'org_id,account_external_id'
+              icp_id: icp.id,
+              org_id_param: userProfile.org_id
             });
-        } catch (error) {
-          console.error('Error storing score:', error);
+
+          if (error) {
+            console.error('Error calculating score:', error);
+            continue;
+          }
+
+          if (scoreResult) {
+            const score: ICPScore = {
+              account_id: account.id,
+              icp_id: icp.id,
+              overall_score: (scoreResult as any).overall || 0,
+              fit_score: (scoreResult as any).fit || 0,
+              reasons: (scoreResult as any).breakdown || {}
+            };
+            newScores.push(score);
+
+            // Store score in database
+            await supabase
+              .from('scores')
+              .upsert({
+                org_id: userProfile.org_id,
+                account_external_id: account.external_id,
+                overall: (scoreResult as any).overall || 0,
+                fit: (scoreResult as any).fit || 0,
+                intent: (scoreResult as any).intent || 50,
+                reachability: (scoreResult as any).reachability || 70,
+                reasons: (scoreResult as any).breakdown || {},
+                scoring_version: 'icp_v2.0'
+              });
+          }
         }
       }
-    }
 
-    setScores(newScores);
-    setLoading(false);
+      setScores(newScores);
+    } catch (error) {
+      console.error('Error in scoreAllAccounts:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getICPFitAnalysis = () => {
