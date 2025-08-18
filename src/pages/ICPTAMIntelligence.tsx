@@ -13,6 +13,10 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Loader2 } from "lucide-react";
+import { DrilldownNavigation } from "@/components/executive/DrilldownNavigation";
+import { ExecutiveMetricCard } from "@/components/executive/ExecutiveMetricCard";
+import { StatusIndicator } from "@/components/executive/StatusIndicator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function ICPTAMIntelligence() {
   const { userProfile } = useAuth();
@@ -405,8 +409,13 @@ export function ICPTAMIntelligence() {
   };
 
   const handleExportICP10 = (format: 'pdf' | 'csv') => {
-    // This is handled by the ICP10Report component now
     console.log(`Export initiated for ${format.toUpperCase()}`);
+    // TODO: Implement actual ICP10 export functionality
+  };
+
+  const handleExportDrilldown = (format: 'pdf' | 'pptx' | 'csv') => {
+    console.log(`Exporting drill-down ${format.toUpperCase()} report...`);
+    // TODO: Implement drill-down export functionality
   };
 
   const handleApplyRecommendation = (insightId: string) => {
@@ -415,46 +424,118 @@ export function ICPTAMIntelligence() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">ICP & TAM Intelligence</h1>
-        <p className="text-muted-foreground">
-          {useRealData ? 'Real-time insights from your CRM data' : 'Board-ready ICP-10 reports with sub-industry and country-level intelligence'}
-        </p>
-        {useRealData && (
-          <div className="flex gap-4 text-sm text-muted-foreground mt-2">
-            <span>• {realTimeData.totalAccounts} total accounts</span>
-            <span>• {realTimeData.highScoreAccounts} high ICP fit</span>
-            <span>• ${(realTimeData.totalTAM / 1000000).toFixed(1)}M estimated TAM</span>
+    <div className="space-y-8 max-w-7xl mx-auto p-6">
+      {/* Executive Header */}
+      <div className="flex justify-between items-start">
+        <div className="space-y-2">
+          <h1 className="text-4xl font-bold tracking-tight">ICP & TAM Intelligence</h1>
+          <p className="text-lg text-muted-foreground">
+            {useRealData ? 'Real-time insights from your CRM data' : 'Board-ready market intelligence with drill-down analysis'}
+          </p>
+          
+          {useRealData && (
+            <div className="flex items-center gap-4 mt-4">
+              <StatusIndicator
+                value={Math.round(((realTimeData.highScoreAccounts / realTimeData.totalAccounts) * 100))}
+                threshold={{ low: 20, medium: 40, high: 60 }}
+                showTrend={true}
+                trend={12}
+                size="md"
+              />
+              <div className="flex gap-6 text-sm text-muted-foreground">
+                <span><strong>{realTimeData.totalAccounts}</strong> total accounts</span>
+                <span><strong>{realTimeData.highScoreAccounts}</strong> high ICP fit</span>
+                <span><strong>${(realTimeData.totalTAM / 1000000).toFixed(1)}M</strong> estimated TAM</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Executive Summary Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <ExecutiveMetricCard
+          title="Total TAM"
+          value={useRealData ? `$${(realTimeData.totalTAM / 1000000000).toFixed(1)}B` : "$30.5B"}
+          subtitle="addressable market"
+          status={{ 
+            value: 82, 
+            threshold: { low: 40, medium: 65, high: 80 } 
+          }}
+          trend={{ value: 15, period: "YoY growth" }}
+        />
+        
+        <ExecutiveMetricCard
+          title="ICP Match Rate"
+          value={useRealData ? `${Math.round((realTimeData.highScoreAccounts / realTimeData.totalAccounts) * 100)}%` : "68%"}
+          subtitle="high-fit accounts"
+          status={{ 
+            value: useRealData ? Math.round((realTimeData.highScoreAccounts / realTimeData.totalAccounts) * 100) : 68, 
+            threshold: { low: 30, medium: 50, high: 70 } 
+          }}
+          trend={{ value: 8, period: "vs benchmark" }}
+        />
+
+        <ExecutiveMetricCard
+          title="Market Segments"
+          value={useRealData ? realTimeData.industries.length : "12"}
+          subtitle="industries analyzed"
+          status={{ 
+            value: 75, 
+            threshold: { low: 40, medium: 65, high: 80 } 
+          }}
+          trend={{ value: 22, period: "coverage increase" }}
+        />
+
+        <ExecutiveMetricCard
+          title="Conversion Rate"
+          value="18.5%"
+          subtitle="ICP to opportunity"
+          status={{ 
+            value: 85, 
+            threshold: { low: 40, medium: 65, high: 80 } 
+          }}
+          trend={{ value: 12, period: "vs industry avg" }}
+        />
+      </div>
+
+      {/* Tabbed Interface for Different Views */}
+      <Tabs defaultValue="drilldown" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="drilldown">Market Drill-Down</TabsTrigger>
+          <TabsTrigger value="icp10">ICP-10 Report</TabsTrigger>
+          <TabsTrigger value="geographic">Geographic Analysis</TabsTrigger>
+          <TabsTrigger value="performance">Performance Comparison</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="drilldown" className="space-y-6">
+          <DrilldownNavigation onExport={handleExportDrilldown} />
+        </TabsContent>
+
+        <TabsContent value="icp10" className="space-y-6">
+          <ICP10Report 
+            data={useRealData ? processRealDataIntoICP10() : icp10Data} 
+            onExport={handleExportICP10} 
+          />
+          <AIInsights insights={aiInsights} onApplyRecommendation={handleApplyRecommendation} />
+        </TabsContent>
+
+        <TabsContent value="geographic" className="space-y-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <WorldMapHeatmap data={worldMapData} />
+            <CountryLevelAnalysis data={countryData} />
           </div>
-        )}
-      </div>
+          <SubIndustryBreakdown data={subIndustryData} />
+        </TabsContent>
 
-      {/* ICP-10 Board Report */}
-      <ICP10Report 
-        data={useRealData ? processRealDataIntoICP10() : icp10Data} 
-        onExport={handleExportICP10} 
-      />
-
-      {/* AI Insights */}
-      <AIInsights insights={aiInsights} onApplyRecommendation={handleApplyRecommendation} />
-
-      {/* World Map and Geographic Analysis */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <WorldMapHeatmap data={worldMapData} />
-        <CountryLevelAnalysis data={countryData} />
-      </div>
-
-      {/* Sub-Industry Breakdown */}
-      <SubIndustryBreakdown data={subIndustryData} />
-
-      {/* Original Components */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ICPAnalysis data={icpData} />
-        <TAMCalculator data={tamData} />
-      </div>
-
-      <ICPPerformanceComparison data={performanceData} />
+        <TabsContent value="performance" className="space-y-6">
+          <ICPPerformanceComparison data={performanceData} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ICPAnalysis data={icpData} />
+            <TAMCalculator data={tamData} />
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

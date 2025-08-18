@@ -10,6 +10,9 @@ import { SignalScoreDisplay } from "@/components/SignalScoreDisplay";
 import { BenchmarkComparison } from "@/components/BenchmarkComparison";
 import { SampleDataGenerator } from "@/components/SampleDataGenerator";
 import { Button } from "@/components/ui/button";
+import { ExecutiveMetricCard } from "@/components/executive/ExecutiveMetricCard";
+import { StatusIndicator } from "@/components/executive/StatusIndicator";
+import { ExportToPdf } from "@/components/executive/ExportToPdf";
 
 const chartConfig = {
   leads: {
@@ -136,13 +139,10 @@ export default function Dashboard() {
     }
   };
 
-  const refreshViews = async () => {
-    try {
-      await supabase.rpc('refresh_reporting_views');
-      loadDashboardData();
-    } catch (error) {
-      console.error('Error refreshing views:', error);
-    }
+  const handleExport = (format: 'pdf' | 'pptx' | 'csv') => {
+    console.log(`Exporting ${format.toUpperCase()} report...`);
+    // TODO: Implement actual export functionality
+    // This would typically call a backend service or generate client-side
   };
 
   const benchmarkData = [
@@ -152,17 +152,30 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">SignalScore Overview</h1>
-          <p className="text-muted-foreground">Board-ready Signal Intelligence Dashboard</p>
+    <div className="space-y-8 max-w-7xl mx-auto p-6">
+      {/* Executive Header */}
+      <div className="flex justify-between items-start">
+        <div className="space-y-2">
+          <h1 className="text-4xl font-bold tracking-tight">Executive Dashboard</h1>
+          <p className="text-lg text-muted-foreground">Strategic Signal Intelligence Overview</p>
+          
+          {/* Overall Status Indicator */}
+          <div className="flex items-center gap-4 mt-4">
+            <StatusIndicator
+              value={stats.signalScore}
+              threshold={{ low: 40, medium: 65, high: 80 }}
+              showTrend={true}
+              trend={stats.signalTrend}
+              size="md"
+            />
+            <div className="text-sm text-muted-foreground">
+              Overall Signal Health: <span className="font-semibold">{stats.signalScore}/100</span>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm">
-            <FileText className="h-4 w-4 mr-2" />
-            Export Report
-          </Button>
+        
+        <div className="flex gap-3">
+          <ExportToPdf onExport={handleExport} />
           <Select value={timeFilter} onValueChange={setTimeFilter}>
             <SelectTrigger className="w-40">
               <SelectValue />
@@ -183,59 +196,121 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Only show dashboard content when we have data */}
+      {/* Executive Metrics Grid */}
       {!showSampleDataGenerator && (
         <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <ExecutiveMetricCard
+              title="Pipeline Value"
+              value="$2.1M"
+              subtitle="USD"
+              icon={DollarSign}
+              status={{ 
+                value: 85, 
+                threshold: { low: 40, medium: 65, high: 80 } 
+              }}
+              trend={{ value: 12, period: "vs last month" }}
+            />
+            
+            <ExecutiveMetricCard
+              title="High-Signal Accounts"
+              value={stats.qualifiedLeads}
+              subtitle="accounts"
+              icon={Target}
+              status={{ 
+                value: stats.conversionRate, 
+                threshold: { low: 15, medium: 25, high: 40 } 
+              }}
+              trend={{ value: stats.signalTrend, period: "vs benchmark" }}
+            />
+
+            <ExecutiveMetricCard
+              title="Conversion Rate"
+              value={`${stats.conversionRate}%`}
+              subtitle="lead to opportunity"
+              icon={TrendingUp}
+              status={{ 
+                value: stats.conversionRate, 
+                threshold: { low: 15, medium: 25, high: 35 } 
+              }}
+              trend={{ value: 8, period: "vs industry avg" }}
+            />
+
+            <ExecutiveMetricCard
+              title="Sales Velocity"
+              value={`${stats.salesVelocity}`}
+              subtitle="days to close"
+              icon={Zap}
+              status={{ 
+                value: 100 - stats.salesVelocity, 
+                threshold: { low: 40, medium: 60, high: 80 } 
+              }}
+              trend={{ value: -15, period: "faster than avg" }}
+            />
+          </div>
+
           {/* Primary SignalScore Display */}
           <div className="grid gap-6 md:grid-cols-3">
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              Current SignalScore
-            </CardTitle>
-            <CardDescription>
-              Real-time intelligence across your entire pipeline
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <SignalScoreDisplay 
-                score={stats.signalScore} 
-                size="xl" 
-                trend={stats.signalTrend}
-              />
-              <div className="text-right">
-                <div className="text-sm text-muted-foreground mb-1">Industry Benchmark</div>
-                <div className="text-2xl font-bold text-muted-foreground">65</div>
-                <div className="text-xs text-[hsl(var(--signal-high))]">
-                  +{stats.signalScore - 65} vs avg
+            <Card className="md:col-span-2 border-0 shadow-[var(--shadow-card)]">
+              <CardHeader className="pb-4">
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Activity className="h-5 w-5" />
+                  Current SignalScore
+                </CardTitle>
+                <CardDescription className="text-base">
+                  Real-time intelligence across your entire pipeline
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <SignalScoreDisplay 
+                    score={stats.signalScore} 
+                    size="xl" 
+                    trend={stats.signalTrend}
+                  />
+                  <div className="text-right space-y-2">
+                    <div className="text-sm text-muted-foreground">Industry Benchmark</div>
+                    <div className="text-3xl font-bold text-muted-foreground">65</div>
+                    <StatusIndicator
+                      value={stats.signalScore}
+                      threshold={{ low: 40, medium: 65, high: 80 }}
+                      size="sm"
+                    />
+                  </div>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
+
+            <BenchmarkComparison 
+              data={benchmarkData}
+              title="Performance vs Peers"
+              description="Key metrics benchmarked against industry"
+            />
+          </div>
+
+      {/* SignalScore Trend - Simplified for Executives */}
+      <Card className="border-0 shadow-[var(--shadow-card)]">
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Gauge className="h-5 w-5" />
+                SignalScore Evolution
+              </CardTitle>
+              <CardDescription className="text-base">
+                30-day performance trend with industry benchmark
+              </CardDescription>
             </div>
-          </CardContent>
-        </Card>
-
-        <BenchmarkComparison 
-          data={benchmarkData}
-          title="Performance vs Peers"
-          description="Key metrics benchmarked against industry"
-        />
-      </div>
-
-      {/* SignalScore Trend */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Gauge className="h-5 w-5" />
-            SignalScore Trend
-          </CardTitle>
-          <CardDescription>
-            30-day SignalScore evolution with industry benchmark
-          </CardDescription>
+            <StatusIndicator
+              value={stats.signalScore}
+              threshold={{ low: 40, medium: 65, high: 80 }}
+              showTrend={true}
+              trend={stats.signalTrend}
+            />
+          </div>
         </CardHeader>
         <CardContent>
-          <ChartContainer config={chartConfig} className="h-[300px]">
+          <ChartContainer config={chartConfig} className="h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trendData}>
                 <defs>
@@ -244,9 +319,17 @@ export default function Dashboard() {
                     <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis domain={[0, 100]} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 12 }}
+                  stroke="hsl(var(--muted-foreground))"
+                />
+                <YAxis 
+                  domain={[0, 100]} 
+                  tick={{ fontSize: 12 }}
+                  stroke="hsl(var(--muted-foreground))"
+                />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Area 
                   type="monotone" 
@@ -271,90 +354,42 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Quick Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pipeline Value</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$2.1M</div>
-            <p className="text-xs text-muted-foreground">
-              +12% from last month
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">High-Signal Accounts</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.qualifiedLeads}</div>
-            <p className="text-xs text-muted-foreground">
-              Score ≥ 80
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Conversion Efficiency</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.conversionRate}%</div>
-            <p className="text-xs text-muted-foreground">
-              Above 25% benchmark
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pipeline Velocity</CardTitle>
-            <Zap className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.salesVelocity} days</div>
-            <p className="text-xs text-muted-foreground">
-              15% faster than avg
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Weekly Leads Trend</CardTitle>
-            <CardDescription>
-              Lead volume and qualification over time
+      {/* Simplified Charts for Executive View */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="border-0 shadow-[var(--shadow-card)]">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl">Pipeline Performance</CardTitle>
+            <CardDescription className="text-base">
+              Weekly lead generation and qualification trends
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={weeklyData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="week" />
-                  <YAxis />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis 
+                    dataKey="week" 
+                    tick={{ fontSize: 12 }}
+                    stroke="hsl(var(--muted-foreground))"
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 12 }}
+                    stroke="hsl(var(--muted-foreground))"
+                  />
                   <ChartTooltip content={<ChartTooltipContent />} />
                   <Line 
                     type="monotone" 
                     dataKey="leads" 
                     stroke="var(--color-leads)" 
-                    strokeWidth={2}
+                    strokeWidth={3}
                     name="Total Leads"
                   />
                   <Line 
                     type="monotone" 
                     dataKey="qualified" 
                     stroke="var(--color-qualified)" 
-                    strokeWidth={2}
+                    strokeWidth={3}
                     name="Qualified Leads"
                   />
                 </LineChart>
@@ -363,11 +398,11 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Score Distribution</CardTitle>
-            <CardDescription>
-              Account scores by decile
+        <Card className="border-0 shadow-[var(--shadow-card)]">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl">Account Distribution</CardTitle>
+            <CardDescription className="text-base">
+              SignalScore distribution across all accounts
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -380,9 +415,10 @@ export default function Dashboard() {
                     cy="50%"
                     labelLine={false}
                     label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                    outerRadius={80}
+                    outerRadius={100}
                     fill="#8884d8"
                     dataKey="value"
+                    strokeWidth={2}
                   >
                     {scoreDistribution.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.fill} />

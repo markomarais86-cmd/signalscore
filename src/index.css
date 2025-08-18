@@ -54,6 +54,23 @@ All colors MUST be HSL.
     --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(217 91% 45%));
     --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 28%));
     --gradient-warning: linear-gradient(135deg, hsl(39 85% 59%), hsl(39 85% 48%));
+    
+    /* Executive dashboard styling */
+    --executive-green: 142 76% 36%; /* Green */
+    --executive-amber: 39 85% 59%;  /* Amber */
+    --executive-red: 355 85% 63%;   /* Red */
+    --executive-blue: 217 91% 60%;  /* Blue */
+    --executive-gray: 215 16% 47%;  /* Neutral gray */
+    
+    /* Status indicators */
+    --status-success: 142 76% 36%;
+    --status-warning: 39 85% 59%;
+    --status-danger: 355 85% 63%;
+    --status-info: 217 91% 60%;
+    
+    /* Board-ready shadows */
+    --shadow-executive: 0 4px 20px -2px hsl(var(--primary) / 0.1);
+    --shadow-card: 0 2px 10px -2px hsl(215 25% 27% / 0.1);
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
