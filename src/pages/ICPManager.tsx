@@ -2,15 +2,12 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Edit, Trash2, Target } from "lucide-react";
+import { Plus, Target, Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { ICPWizard } from "@/components/icp/ICPWizard";
+import { ICPProfile } from "@/types/icp";
 
 interface ICP {
   id: string;
@@ -36,9 +33,9 @@ const COUNTRIES = [
 ];
 
 export default function ICPManager() {
-  const [icps, setIcps] = useState<ICP[]>([]);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingIcp, setEditingIcp] = useState<ICP | null>(null);
+  const [icps, setIcps] = useState<ICPProfile[]>([]);
+  const [isWizardOpen, setIsWizardOpen] = useState(false);
+  const [editingIcp, setEditingIcp] = useState<ICPProfile | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     industries: [] as string[],

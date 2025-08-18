@@ -154,34 +154,118 @@ export type Database = {
       }
       icp_profiles: {
         Row: {
+          budget_indicators: string[] | null
+          buying_triggers: string[] | null
+          cities: string[] | null
           company_sizes: number[] | null
+          company_stages: string[] | null
+          confidence_score: number | null
           created_at: string | null
+          description: string | null
+          excluded_companies: string[] | null
+          excluded_industries: string[] | null
+          funding_status: string[] | null
           geographies: string[] | null
+          growth_stage: string[] | null
           id: string
           industries: string[] | null
+          intent_signals: string[] | null
+          last_validated_at: string | null
+          match_count: number | null
           name: string
           org_id: string
+          persona_decision_roles: string[] | null
+          persona_departments: string[] | null
+          persona_job_titles: string[] | null
+          persona_seniority_levels: string[] | null
+          regions: string[] | null
           revenue_ranges: string[] | null
+          seasonal_patterns: string[] | null
+          status: string | null
+          sub_industries: string[] | null
+          tags: string[] | null
+          tam_estimate: number | null
+          tech_stack: string[] | null
+          template_source: string | null
+          timezones: string[] | null
+          use_case: string | null
+          version: number | null
         }
         Insert: {
+          budget_indicators?: string[] | null
+          buying_triggers?: string[] | null
+          cities?: string[] | null
           company_sizes?: number[] | null
+          company_stages?: string[] | null
+          confidence_score?: number | null
           created_at?: string | null
+          description?: string | null
+          excluded_companies?: string[] | null
+          excluded_industries?: string[] | null
+          funding_status?: string[] | null
           geographies?: string[] | null
+          growth_stage?: string[] | null
           id?: string
           industries?: string[] | null
+          intent_signals?: string[] | null
+          last_validated_at?: string | null
+          match_count?: number | null
           name: string
           org_id: string
+          persona_decision_roles?: string[] | null
+          persona_departments?: string[] | null
+          persona_job_titles?: string[] | null
+          persona_seniority_levels?: string[] | null
+          regions?: string[] | null
           revenue_ranges?: string[] | null
+          seasonal_patterns?: string[] | null
+          status?: string | null
+          sub_industries?: string[] | null
+          tags?: string[] | null
+          tam_estimate?: number | null
+          tech_stack?: string[] | null
+          template_source?: string | null
+          timezones?: string[] | null
+          use_case?: string | null
+          version?: number | null
         }
         Update: {
+          budget_indicators?: string[] | null
+          buying_triggers?: string[] | null
+          cities?: string[] | null
           company_sizes?: number[] | null
+          company_stages?: string[] | null
+          confidence_score?: number | null
           created_at?: string | null
+          description?: string | null
+          excluded_companies?: string[] | null
+          excluded_industries?: string[] | null
+          funding_status?: string[] | null
           geographies?: string[] | null
+          growth_stage?: string[] | null
           id?: string
           industries?: string[] | null
+          intent_signals?: string[] | null
+          last_validated_at?: string | null
+          match_count?: number | null
           name?: string
           org_id?: string
+          persona_decision_roles?: string[] | null
+          persona_departments?: string[] | null
+          persona_job_titles?: string[] | null
+          persona_seniority_levels?: string[] | null
+          regions?: string[] | null
           revenue_ranges?: string[] | null
+          seasonal_patterns?: string[] | null
+          status?: string | null
+          sub_industries?: string[] | null
+          tags?: string[] | null
+          tam_estimate?: number | null
+          tech_stack?: string[] | null
+          template_source?: string | null
+          timezones?: string[] | null
+          use_case?: string | null
+          version?: number | null
         }
         Relationships: [
           {
@@ -189,6 +273,119 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      icp_templates: {
+        Row: {
+          category: string
+          company_sizes: number[] | null
+          company_stages: string[] | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          geographies: string[] | null
+          id: string
+          industries: string[] | null
+          is_public: boolean | null
+          name: string
+          persona_departments: string[] | null
+          persona_job_titles: string[] | null
+          persona_seniority_levels: string[] | null
+          revenue_ranges: string[] | null
+          sub_industries: string[] | null
+          tech_stack: string[] | null
+          updated_at: string | null
+          use_cases: string[] | null
+        }
+        Insert: {
+          category: string
+          company_sizes?: number[] | null
+          company_stages?: string[] | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          geographies?: string[] | null
+          id?: string
+          industries?: string[] | null
+          is_public?: boolean | null
+          name: string
+          persona_departments?: string[] | null
+          persona_job_titles?: string[] | null
+          persona_seniority_levels?: string[] | null
+          revenue_ranges?: string[] | null
+          sub_industries?: string[] | null
+          tech_stack?: string[] | null
+          updated_at?: string | null
+          use_cases?: string[] | null
+        }
+        Update: {
+          category?: string
+          company_sizes?: number[] | null
+          company_stages?: string[] | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          geographies?: string[] | null
+          id?: string
+          industries?: string[] | null
+          is_public?: boolean | null
+          name?: string
+          persona_departments?: string[] | null
+          persona_job_titles?: string[] | null
+          persona_seniority_levels?: string[] | null
+          revenue_ranges?: string[] | null
+          sub_industries?: string[] | null
+          tech_stack?: string[] | null
+          updated_at?: string | null
+          use_cases?: string[] | null
+        }
+        Relationships: []
+      }
+      icp_validation_results: {
+        Row: {
+          created_at: string | null
+          data_quality_score: number | null
+          icp_id: string
+          id: string
+          org_id: string
+          tam_estimate: number | null
+          top_matches: Json | null
+          total_matches: number | null
+          validation_date: string | null
+          validation_details: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_quality_score?: number | null
+          icp_id: string
+          id?: string
+          org_id: string
+          tam_estimate?: number | null
+          top_matches?: Json | null
+          total_matches?: number | null
+          validation_date?: string | null
+          validation_details?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          data_quality_score?: number | null
+          icp_id?: string
+          id?: string
+          org_id?: string
+          tam_estimate?: number | null
+          top_matches?: Json | null
+          total_matches?: number | null
+          validation_date?: string | null
+          validation_details?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "icp_validation_results_icp_id_fkey"
+            columns: ["icp_id"]
+            isOneToOne: false
+            referencedRelation: "icp_profiles"
             referencedColumns: ["id"]
           },
         ]
