@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { SignalScoreDisplay } from "@/components/SignalScoreDisplay";
 import { BenchmarkComparison } from "@/components/BenchmarkComparison";
+import { SampleDataGenerator } from "@/components/SampleDataGenerator";
 import { Button } from "@/components/ui/button";
 
 const chartConfig = {
@@ -46,6 +47,7 @@ export default function Dashboard() {
   const [weeklyData, setWeeklyData] = useState([]);
   const [scoreDistribution, setScoreDistribution] = useState([]);
   const [trendData, setTrendData] = useState([]);
+  const [showSampleDataGenerator, setShowSampleDataGenerator] = useState(false);
   const { userProfile } = useAuth();
 
   useEffect(() => {
@@ -72,6 +74,9 @@ export default function Dashboard() {
       const totalLeads = accounts?.length || 0;
       const qualifiedLeads = scores?.filter(s => s.overall >= 70).length || 0;
       const conversionRate = totalLeads > 0 ? (qualifiedLeads / totalLeads) * 100 : 0;
+      
+      // Show sample data generator if no accounts exist
+      setShowSampleDataGenerator(totalLeads === 0);
       
       // Calculate overall SignalScore (weighted average)
       const avgScore = scores?.length > 0 
@@ -171,8 +176,18 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Primary SignalScore Display */}
-      <div className="grid gap-6 md:grid-cols-3">
+      {/* Sample Data Generator - Show when no data exists */}
+      {showSampleDataGenerator && (
+        <div className="max-w-2xl mx-auto">
+          <SampleDataGenerator />
+        </div>
+      )}
+
+      {/* Only show dashboard content when we have data */}
+      {!showSampleDataGenerator && (
+        <>
+          {/* Primary SignalScore Display */}
+          <div className="grid gap-6 md:grid-cols-3">
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -380,6 +395,8 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+        </>
+      )}
     </div>
   );
 }

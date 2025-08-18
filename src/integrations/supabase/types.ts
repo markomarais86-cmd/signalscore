@@ -692,6 +692,10 @@ export type Database = {
         }
         Returns: Json
       }
+      generate_sample_data: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       get_current_user_org_id: {
         Args: Record<PropertyKey, never>
         Returns: string
