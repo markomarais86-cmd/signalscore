@@ -63,12 +63,17 @@ export function AuthSystem() {
       const { error } = await signIn(signInData.email, signInData.password);
       
       if (error) {
+        // Provide more specific and helpful error messages
         if (error.message.includes('Invalid login credentials')) {
-          setError('Invalid email or password. Please try again.');
+          setError('Invalid email or password. If you recently signed up, please check your email and click the confirmation link first. You can also try resetting your password.');
         } else if (error.message.includes('Email not confirmed')) {
-          setError('Please check your email and click the confirmation link before signing in.');
+          setError('Please check your email and click the confirmation link before signing in. Check your spam folder if you don\'t see the email.');
+        } else if (error.message.includes('Too many requests')) {
+          setError('Too many sign in attempts. Please wait a few minutes before trying again.');
+        } else if (error.message.includes('Signup is disabled')) {
+          setError('This account may not be properly set up. Please contact support.');
         } else {
-          setError(error.message);
+          setError(`Sign in failed: ${error.message}`);
         }
       } else {
         toast({
@@ -80,7 +85,7 @@ export function AuthSystem() {
       }
     } catch (err) {
       console.error('Sign in error:', err);
-      setError('An unexpected error occurred. Please try again.');
+      setError('An unexpected error occurred. Please try again or contact support.');
     } finally {
       setIsLoading(false);
     }
@@ -117,8 +122,6 @@ export function AuthSystem() {
     }
 
     try {
-      const redirectUrl = `${window.location.origin}/`;
-      
       const { error } = await signUp(
         signUpData.email, 
         signUpData.password,
@@ -126,19 +129,26 @@ export function AuthSystem() {
       );
 
       if (error) {
+        // Handle specific error cases
         if (error.message.includes('User already registered')) {
-          setError('An account with this email already exists. Please sign in instead.');
+          setError('An account with this email already exists. Please sign in instead or try resetting your password.');
+        } else if (error.message.includes('signup_disabled')) {
+          setError('New account registration is currently disabled.');
         } else if (error.message.includes('Password should be at least 6 characters')) {
           setError('Password must be at least 6 characters long');
+        } else if (error.message.includes('Invalid email')) {
+          setError('Please enter a valid email address');
         } else {
-          setError(error.message);
+          setError(`Sign up failed: ${error.message}`);
         }
       } else {
+        // Success - show clear instructions
         toast({
-          title: "Account created!",
-          description: "Please check your email for a confirmation link before signing in."
+          title: "Account created successfully!",
+          description: "Please check your email inbox and click the confirmation link before signing in. Check your spam folder if you don't see it.",
         });
-        // Reset form
+        
+        // Reset form and switch to sign in tab
         setSignUpData({
           email: '',
           password: '',
@@ -146,10 +156,16 @@ export function AuthSystem() {
           fullName: '',
           company: ''
         });
+        
+        // Auto-switch to sign-in tab after 2 seconds
+        setTimeout(() => {
+          const signInTab = document.querySelector('[value="signin"]') as HTMLButtonElement;
+          if (signInTab) signInTab.click();
+        }, 2000);
       }
     } catch (err) {
       console.error('Sign up error:', err);
-      setError('An unexpected error occurred. Please try again.');
+      setError('An unexpected error occurred. Please try again or contact support.');
     } finally {
       setIsLoading(false);
     }
@@ -347,7 +363,14 @@ export function AuthSystem() {
             </TabsContent>
           </Tabs>
 
-          <div className="mt-6 text-center text-sm text-muted-foreground">
+          <div className="mt-6 space-y-4 text-center text-sm text-muted-foreground">
+            <div className="bg-muted/50 p-4 rounded-lg">
+              <p className="font-medium mb-2">📧 Important: Email Confirmation Required</p>
+              <p>
+                After signing up, you <strong>must</strong> check your email and click the confirmation link before you can sign in. 
+                Check your spam folder if you don't see the email within a few minutes.
+              </p>
+            </div>
             <p>By signing in, you agree to our Terms of Service and Privacy Policy.</p>
           </div>
         </CardContent>
