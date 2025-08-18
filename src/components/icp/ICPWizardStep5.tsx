@@ -13,7 +13,10 @@ import {
   BarChart3,
   Lightbulb,
   Eye,
-  Download
+  Download,
+  Crown,
+  Trophy,
+  Medal
 } from 'lucide-react';
 import { ICPFormData } from '@/types/icp';
 import { supabase } from '@/integrations/supabase/client';
@@ -35,6 +38,19 @@ interface ValidationResult {
     overall: number;
   };
   recommendations: string[];
+  icp10List: ICP10Entry[];
+}
+
+interface ICP10Entry {
+  rank: number;
+  accountName: string;
+  industry: string;
+  geography: string;
+  companySize: string;
+  signalScore: number;
+  tamContribution: number;
+  conversionRate: number;
+  dealSize: number;
 }
 
 export function ICPWizardStep5({ formData, onValidate }: ICPWizardStep5Props) {
@@ -56,8 +72,9 @@ export function ICPWizardStep5({ formData, onValidate }: ICPWizardStep5Props) {
       const advancedScore = calculateAdvancedCompleteness();
       const overallScore = Math.round((basicScore + personaScore + advancedScore) / 3);
 
-      // Simulate account matching (in real implementation, this would query the database)
+      // Simulate account matching and generate ICP-10
       const accountMatches = await simulateAccountMatching();
+      const icp10List = await generateICP10List();
       
       // Generate recommendations
       const recommendations = generateRecommendations();
@@ -72,7 +89,8 @@ export function ICPWizardStep5({ formData, onValidate }: ICPWizardStep5Props) {
           advanced: advancedScore,
           overall: overallScore
         },
-        recommendations
+        recommendations,
+        icp10List
       });
     } catch (error) {
       console.error('Error calculating validation:', error);
@@ -130,6 +148,88 @@ export function ICPWizardStep5({ formData, onValidate }: ICPWizardStep5Props) {
       total: baseMatches,
       tamEstimate: tamEstimate
     };
+  };
+
+  const generateICP10List = async (): Promise<ICP10Entry[]> => {
+    if (!userProfile?.org_id) return [];
+
+    try {
+      // Get top accounts based on current ICP criteria
+      const { data: accounts, error } = await supabase
+        .from('accounts')
+        .select('*')
+        .eq('org_id', userProfile.org_id)
+        .limit(50);
+
+      if (error) throw error;
+
+      // Score and rank accounts
+      const scoredAccounts = accounts
+        .map(account => {
+          // Calculate fit score based on formData criteria
+          let score = 0;
+          let matches = 0;
+
+          // Industry match
+          if (formData.industries.length > 0 && account.industry_norm) {
+            if (formData.industries.includes(account.industry_norm)) {
+              score += 25;
+            }
+            matches++;
+          }
+
+          // Geography match
+          if (formData.geographies.length > 0 && account.country) {
+            if (formData.geographies.includes(account.country)) {
+              score += 25;
+            }
+            matches++;
+          }
+
+          // Company size match
+          if (formData.company_sizes.length > 0 && account.employee_count) {
+            const matchesSize = formData.company_sizes.some(size => 
+              account.employee_count >= size && account.employee_count < size * 2
+            );
+            if (matchesSize) score += 25;
+            matches++;
+          }
+
+          // Add some randomization for demo purposes
+          score += Math.random() * 25;
+
+          const tamContribution = Math.floor(Math.random() * 5000000) + 500000;
+          const conversionRate = Math.floor(Math.random() * 30) + 10;
+          const dealSize = Math.floor(Math.random() * 500000) + 50000;
+
+          return {
+            account,
+            signalScore: Math.min(100, Math.floor(score)),
+            tamContribution,
+            conversionRate,
+            dealSize
+          };
+        })
+        .sort((a, b) => b.signalScore - a.signalScore)
+        .slice(0, 10);
+
+      // Convert to ICP10Entry format
+      return scoredAccounts.map((item, index) => ({
+        rank: index + 1,
+        accountName: item.account.name || `Account ${index + 1}`,
+        industry: item.account.industry_norm || 'Unknown',
+        geography: item.account.country || 'Unknown',
+        companySize: item.account.employee_count ? 
+          `${item.account.employee_count}+ employees` : 'Unknown',
+        signalScore: item.signalScore,
+        tamContribution: item.tamContribution,
+        conversionRate: item.conversionRate,
+        dealSize: item.dealSize
+      }));
+    } catch (error) {
+      console.error('Error generating ICP-10:', error);
+      return [];
+    }
   };
 
   const generateRecommendations = (): string[] => {
@@ -410,6 +510,60 @@ export function ICPWizardStep5({ formData, onValidate }: ICPWizardStep5Props) {
         </CardContent>
       </Card>
 
+      {/* ICP-10 List */}
+      {validation?.icp10List && validation.icp10List.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-yellow-500" />
+              ICP-10 Top Prospects
+            </CardTitle>
+            <CardDescription>
+              Your highest-scoring accounts based on this ICP profile
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {validation.icp10List.map((entry) => (
+                <div 
+                  key={entry.rank}
+                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      {entry.rank === 1 && <Crown className="h-4 w-4 text-yellow-500" />}
+                      {entry.rank === 2 && <Medal className="h-4 w-4 text-gray-400" />}
+                      {entry.rank === 3 && <Medal className="h-4 w-4 text-amber-600" />}
+                      <span className="font-medium text-sm">#{entry.rank}</span>
+                    </div>
+                    <div>
+                      <p className="font-medium">{entry.accountName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {entry.industry} • {entry.geography} • {entry.companySize}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="text-center">
+                      <div className="font-medium">{entry.signalScore}</div>
+                      <div className="text-xs text-muted-foreground">Signal</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-medium">{formatCurrency(entry.tamContribution)}</div>
+                      <div className="text-xs text-muted-foreground">TAM</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="font-medium">{entry.conversionRate}%</div>
+                      <div className="text-xs text-muted-foreground">Conv Rate</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Action Buttons */}
       <div className="flex justify-between items-center">
         <Button variant="outline" onClick={calculateValidation} disabled={isValidating}>
@@ -418,7 +572,7 @@ export function ICPWizardStep5({ formData, onValidate }: ICPWizardStep5Props) {
         <div className="flex gap-2">
           <Button variant="outline" className="flex items-center gap-2">
             <Download className="h-4 w-4" />
-            Export Preview
+            Export ICP-10 Report
           </Button>
           {onValidate && (
             <Button onClick={onValidate} className="flex items-center gap-2">

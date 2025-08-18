@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Target, Info, Lightbulb } from 'lucide-react';
 import { ICPFormData } from '@/types/icp';
 import { ICP_USE_CASES } from '@/constants/icp';
+import { AIInsightsPanel } from './AIInsightsPanel';
 
 interface ICPWizardStep1Props {
   formData: ICPFormData;
@@ -54,6 +55,12 @@ export function ICPWizardStep1({ formData, onUpdateFormData, errors }: ICPWizard
           </p>
         </div>
       </div>
+
+      {/* AI Insights Panel */}
+      <AIInsightsPanel 
+        formData={formData}
+        onApplyRecommendation={onUpdateFormData}
+      />
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
