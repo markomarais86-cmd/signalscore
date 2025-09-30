@@ -19,6 +19,7 @@ import ICPManager from "./pages/ICPManager";
 import { ICPTAMIntelligence } from "./pages/ICPTAMIntelligence";
 import ICPAnalysisDashboard from "./pages/ICPAnalysisDashboard";
 import Leads from "./pages/Leads";
+import Accounts from "./pages/Accounts";
 import DataUpload from "./pages/DataUpload";
 import AIAgents from "./pages/AIAgents";
 import Settings from "./pages/Settings";
@@ -115,6 +116,16 @@ function App() {
                     <ProtectedRoute>
                       <Layout>
                         <ICPAnalysisDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/accounts"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Accounts />
                       </Layout>
                     </ProtectedRoute>
                   }

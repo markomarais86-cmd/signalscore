@@ -142,7 +142,8 @@ export default function Leads() {
   };
 
   const filterLeads = () => {
-    let filtered = leads;
+    // Only show high-scoring accounts (70+)
+    let filtered = leads.filter(lead => (lead.score?.overall || 0) >= 70);
 
     if (searchTerm) {
       filtered = filtered.filter(lead =>
@@ -150,22 +151,6 @@ export default function Leads() {
         lead.domain?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         lead.industry_raw?.toLowerCase().includes(searchTerm.toLowerCase())
       );
-    }
-
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(lead => {
-        const score = lead.score?.overall || 0;
-        switch (statusFilter) {
-          case "qualified":
-            return score >= 70;
-          case "unqualified":
-            return score < 70 && score > 0;
-          case "unscored":
-            return score === 0 || !lead.score;
-          default:
-            return true;
-        }
-      });
     }
 
     setFilteredLeads(filtered);
@@ -238,7 +223,7 @@ export default function Leads() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Leads</h1>
-          <p className="text-muted-foreground mt-2">Manage and qualify your account pipeline</p>
+          <p className="text-muted-foreground mt-2">High-signal opportunities (ICP score ≥70)</p>
         </div>
       </div>
 
@@ -254,31 +239,17 @@ export default function Leads() {
         />
       )}
 
-      {/* Filters */}
+      {/* Search */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex gap-4 items-center">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search accounts..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-48">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Leads</SelectItem>
-                <SelectItem value="qualified">Qualified (≥70)</SelectItem>
-                <SelectItem value="unqualified">Scored (&lt;70)</SelectItem>
-                <SelectItem value="unscored">Unscored</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search qualified leads..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
           </div>
         </CardContent>
       </Card>
@@ -286,9 +257,9 @@ export default function Leads() {
       {/* Leads Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Accounts ({filteredLeads.length})</CardTitle>
+          <CardTitle>Qualified Leads ({filteredLeads.length})</CardTitle>
           <CardDescription>
-            Click on any row to view detailed account information
+            High-scoring accounts ready for outreach - Click any row to view details and ICP fit reasons
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -299,9 +270,9 @@ export default function Leads() {
                 <TableHead>Industry</TableHead>
                 <TableHead>Size</TableHead>
                 <TableHead>Location</TableHead>
-                <TableHead>Score</TableHead>
+                <TableHead>ICP Score</TableHead>
+                <TableHead>Fit Breakdown</TableHead>
                 <TableHead>Contacts</TableHead>
-                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -323,20 +294,23 @@ export default function Leads() {
                         </div>
                       </TableCell>
                       <TableCell>{lead.country}</TableCell>
-                      <TableCell>{getScoreBadge(lead.score?.overall)}</TableCell>
-                      <TableCell>{lead.contacts?.length || 0}</TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRescore(lead);
-                          }}
-                        >
-                          <RotateCcw className="h-4 w-4" />
-                        </Button>
+                        <Badge className="bg-success">{lead.score?.overall || 0}</Badge>
                       </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Badge variant="outline" className="text-xs">
+                            F: {lead.score?.fit || 0}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            I: {lead.score?.intent || 0}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            R: {lead.score?.reachability || 0}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell>{lead.contacts?.length || 0}</TableCell>
                     </TableRow>
                   </SheetTrigger>
                   <SheetContent className="w-[600px] sm:w-[700px]">
@@ -355,7 +329,7 @@ export default function Leads() {
                         )}
                       </SheetTitle>
                       <SheetDescription>
-                        Account details and contact information
+                        Qualified lead - High ICP match score
                       </SheetDescription>
                     </SheetHeader>
 
@@ -383,29 +357,60 @@ export default function Leads() {
                         </div>
                       </div>
 
-                      {/* Scoring */}
+                      {/* ICP Fit Reasons */}
                       {lead.score && (
                         <div>
-                          <h3 className="text-lg font-semibold mb-3">Scoring Breakdown</h3>
-                          <div className="space-y-2">
-                            <div className="flex justify-between">
-                              <span>Overall Score:</span>
-                              <Badge variant={lead.score.overall >= 70 ? "default" : "secondary"}>
-                                {lead.score.overall}/100
-                              </Badge>
+                          <h3 className="text-lg font-semibold mb-3">Why This Lead Qualifies</h3>
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center p-3 bg-success/10 rounded-lg">
+                              <span className="font-medium">Overall ICP Score:</span>
+                              <Badge className="bg-success text-lg">{lead.score.overall}/100</Badge>
                             </div>
-                            <div className="flex justify-between">
-                              <span>Fit:</span>
-                              <span>{lead.score.fit}/100</span>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div className="text-center p-2 border rounded">
+                                <div className="text-sm text-muted-foreground">Fit</div>
+                                <div className="text-xl font-bold">{lead.score.fit}</div>
+                              </div>
+                              <div className="text-center p-2 border rounded">
+                                <div className="text-sm text-muted-foreground">Intent</div>
+                                <div className="text-xl font-bold">{lead.score.intent}</div>
+                              </div>
+                              <div className="text-center p-2 border rounded">
+                                <div className="text-sm text-muted-foreground">Reach</div>
+                                <div className="text-xl font-bold">{lead.score.reachability}</div>
+                              </div>
                             </div>
-                            <div className="flex justify-between">
-                              <span>Intent:</span>
-                              <span>{lead.score.intent}/100</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Reachability:</span>
-                              <span>{lead.score.reachability}/100</span>
-                            </div>
+                            {lead.score.reasons && (
+                              <div className="space-y-2">
+                                <p className="text-sm font-medium">Match Factors:</p>
+                                <div className="space-y-1">
+                                  {lead.score.reasons.industry_match && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <CheckCircle className="h-4 w-4 text-success" />
+                                      <span>Industry matches ICP</span>
+                                    </div>
+                                  )}
+                                  {lead.score.reasons.size_match && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <CheckCircle className="h-4 w-4 text-success" />
+                                      <span>Company size matches ICP</span>
+                                    </div>
+                                  )}
+                                  {lead.score.reasons.revenue_match && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <CheckCircle className="h-4 w-4 text-success" />
+                                      <span>Revenue range matches ICP</span>
+                                    </div>
+                                  )}
+                                  {lead.score.reasons.geography_match && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <CheckCircle className="h-4 w-4 text-success" />
+                                      <span>Geography matches ICP</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -446,23 +451,19 @@ export default function Leads() {
                         )}
                       </div>
 
-                      {/* Actions */}
-                      <div className="flex gap-2 pt-4 border-t">
-                        <Button 
-                          variant="default"
-                          onClick={() => handleRescore(lead)}
-                        >
-                          <RotateCcw className="h-4 w-4 mr-2" />
-                          Rescore Account
-                        </Button>
-                        <Button variant="outline">
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          Qualify
-                        </Button>
-                        <Button variant="outline">
-                          <XCircle className="h-4 w-4 mr-2" />
-                          Disqualify
-                        </Button>
+                      {/* Quick Actions */}
+                      <div className="pt-4 border-t">
+                        <h3 className="text-sm font-semibold mb-3">Quick Actions</h3>
+                        <div className="flex flex-col gap-2">
+                          <Button className="w-full justify-start">
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Add to Outreach Sequence
+                          </Button>
+                          <Button variant="outline" className="w-full justify-start">
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            View Full Account in CRM
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </SheetContent>

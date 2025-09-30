@@ -1,4 +1,4 @@
-import { Building2, BarChart3, TrendingUp, DollarSign, Users, Brain, Inbox, Upload, Settings, LogOut, LayoutDashboard, ChevronDown, Target } from "lucide-react";
+import { Building2, BarChart3, TrendingUp, DollarSign, Users, Brain, Inbox, Upload, Settings, LogOut, LayoutDashboard, ChevronDown, Target, Database } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
@@ -25,6 +25,7 @@ const coreTools = [
   { title: "Data Upload", url: "/data-upload", icon: Upload },
   { title: "ICP Builder", url: "/icp-manager", icon: Target },
   { title: "TAM Intelligence", url: "/icp-tam", icon: TrendingUp },
+  { title: "Accounts", url: "/accounts", icon: Database },
   { title: "Leads", url: "/leads", icon: Inbox },
 ];
 
