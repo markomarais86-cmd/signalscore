@@ -92,7 +92,7 @@ export function DrilldownableCard({
                       "text-xs",
                       item.trend > 0 ? "text-[hsl(var(--executive-green))]" : "text-[hsl(var(--executive-red))]"
                     )}>
-                      {item.trend > 0 ? "+" : ""}{item.trend}%
+                      {item.trend > 0 ? "+" : ""}{item.trend.toFixed(2)}%
                     </div>
                   )}
                 </div>

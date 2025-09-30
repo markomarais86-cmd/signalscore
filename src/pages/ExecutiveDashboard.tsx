@@ -99,10 +99,10 @@ export default function ExecutiveDashboard() {
         icpCount,
         highFitAccounts,
         estimatedTAM: Math.floor(avgICPTAM),
-        tamCoverageTrend: ((tamCoverage - previousTamCoverage) / previousTamCoverage) * 100,
-        icpMatchTrend: ((icpMatchQuality - previousIcpMatch) / (previousIcpMatch || 1)) * 100,
-        whitespaceTrend: ((Math.floor(avgICPTAM - totalAccounts) - previousWhitespace) / (previousWhitespace || 1)) * 100,
-        dataCompletenessTrend: ((dataCompleteness - previousDataQuality) / (previousDataQuality || 1)) * 100,
+        tamCoverageTrend: Number((((tamCoverage - previousTamCoverage) / previousTamCoverage) * 100).toFixed(2)),
+        icpMatchTrend: Number((((icpMatchQuality - previousIcpMatch) / (previousIcpMatch || 1)) * 100).toFixed(2)),
+        whitespaceTrend: Number((((Math.floor(avgICPTAM - totalAccounts) - previousWhitespace) / (previousWhitespace || 1)) * 100).toFixed(2)),
+        dataCompletenessTrend: Number((((dataCompleteness - previousDataQuality) / (previousDataQuality || 1)) * 100).toFixed(2)),
       });
 
       // Coverage trend (last 90 days)

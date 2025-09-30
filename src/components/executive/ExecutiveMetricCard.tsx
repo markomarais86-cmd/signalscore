@@ -79,7 +79,7 @@ export function ExecutiveMetricCard({
                 ? "text-secondary bg-secondary/10" 
                 : "text-destructive bg-destructive/10"
             )}>
-              {trend.value > 0 ? "+" : ""}{trend.value}% {trend.period}
+              {trend.value > 0 ? "+" : ""}{trend.value.toFixed(2)}% {trend.period}
             </div>
           )}
         </div>

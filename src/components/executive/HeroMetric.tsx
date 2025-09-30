@@ -74,7 +74,7 @@ export function HeroMetric({
             {trend && (
               <div className={`flex items-center gap-1 text-sm font-medium ${getTrendColor()}`}>
                 {getTrendIcon()}
-                <span>{Math.abs(trend.value)}% vs {trend.period}</span>
+                <span>{Math.abs(trend.value).toFixed(2)}% vs {trend.period}</span>
               </div>
             )}
           </div>

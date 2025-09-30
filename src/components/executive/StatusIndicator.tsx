@@ -65,7 +65,7 @@ export function StatusIndicator({
             "text-xs font-medium",
             trend > 0 ? "text-[hsl(var(--executive-green))]" : "text-[hsl(var(--executive-red))]"
           )}>
-            {trend > 0 ? "+" : ""}{Math.abs(trend)}%
+            {trend > 0 ? "+" : ""}{Math.abs(trend).toFixed(2)}%
           </span>
         </div>
       )}
