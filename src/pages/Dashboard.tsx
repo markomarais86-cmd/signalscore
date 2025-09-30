@@ -62,10 +62,22 @@ export default function Dashboard() {
   const [showSampleDataGenerator, setShowSampleDataGenerator] = useState(false);
   const [segmentationInsights, setSegmentationInsights] = useState<any>(null);
   const [icpCoverage, setICPCoverage] = useState<any>(null);
-  const { userProfile } = useAuth();
+  const { userProfile, loading: authLoading } = useAuth();
   const { flags } = useFeatureFlags();
   const { toast } = useToast();
   const { stats: dataSourceStats, loading: dataSourceLoading } = useDataSources();
+
+  // Show loading state while authentication is in progress
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     if (!userProfile?.org_id) return;
