@@ -182,7 +182,6 @@ export default function ExecutiveDashboard() {
           subtitle="high-fit accounts missing"
           trend={{ value: -12, period: 'improvement' }}
           status="warning"
-          icon={Sparkles}
         />
         <HeroMetric
           label="Data Completeness"
@@ -190,7 +189,6 @@ export default function ExecutiveDashboard() {
           subtitle={`${metrics.totalAccounts} accounts tracked`}
           trend={{ value: 5, period: 'data quality' }}
           status={metrics.dataCompleteness >= 80 ? 'success' : 'warning'}
-          icon={Database}
         />
       </div>
 
