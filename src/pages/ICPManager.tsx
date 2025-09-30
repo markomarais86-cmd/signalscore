@@ -10,6 +10,9 @@ import { useOnboarding } from "@/hooks/use-onboarding";
 import { ICPWizard } from "@/components/icp/ICPWizard";
 import { ICPProfile } from "@/types/icp";
 import { HeroMetric } from "@/components/executive/HeroMetric";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { DEMO_ICP_PROFILES } from "@/data/mockData";
+import { DemoModeBanner } from "@/components/DemoModeBanner";
 
 export default function ICPManager() {
   const [icps, setIcps] = useState<ICPProfile[]>([]);
@@ -18,6 +21,7 @@ export default function ICPManager() {
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
+  const { flags } = useFeatureFlags();
 
   useEffect(() => {
     if (userProfile?.org_id) {
@@ -29,6 +33,18 @@ export default function ICPManager() {
     if (!userProfile?.org_id) return;
     
     try {
+      // Use demo data if demo mode is enabled
+      if (flags.demo_mode) {
+        const demoICPs: ICPProfile[] = DEMO_ICP_PROFILES.map(profile => ({
+          ...profile,
+          org_id: userProfile.org_id,
+          created_at: new Date().toISOString(),
+          status: 'active' as const
+        }));
+        setIcps(demoICPs);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('icp_profiles')
         .select('*')
@@ -116,6 +132,7 @@ export default function ICPManager() {
   return (
     <>
       <div className="space-y-6">
+        <DemoModeBanner />
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">ICP Manager</h1>

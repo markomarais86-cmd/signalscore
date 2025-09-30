@@ -8,12 +8,16 @@ import { Upload, Target, BarChart3, ArrowRight, Database } from "lucide-react";
 import { StatusOverview } from "@/components/StatusOverview";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { DEMO_ACCOUNTS, DEMO_ICP_PROFILES } from "@/data/mockData";
+import { DemoModeBanner } from "@/components/DemoModeBanner";
 
 export default function ICPAnalysisDashboard() {
   const navigate = useNavigate();
   const { userProfile } = useAuth();
   const [stats, setStats] = useState({ accounts: 0, icps: 0, dataCompleteness: 0 });
   const [loading, setLoading] = useState(true);
+  const { flags } = useFeatureFlags();
 
   useEffect(() => {
     if (userProfile?.org_id) {
@@ -25,6 +29,17 @@ export default function ICPAnalysisDashboard() {
     if (!userProfile?.org_id) return;
     
     try {
+      // Use demo data if demo mode is enabled
+      if (flags.demo_mode) {
+        setStats({
+          accounts: DEMO_ACCOUNTS.length,
+          icps: DEMO_ICP_PROFILES.length,
+          dataCompleteness: 95
+        });
+        setLoading(false);
+        return;
+      }
+
       const [accountsRes, icpsRes] = await Promise.all([
         supabase.from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id),
         supabase.from('icp_profiles').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id)
@@ -92,6 +107,7 @@ export default function ICPAnalysisDashboard() {
 
   return (
     <div className="space-y-6">
+      <DemoModeBanner />
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">

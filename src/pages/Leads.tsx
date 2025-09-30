@@ -12,6 +12,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { HeroMetric } from "@/components/executive/HeroMetric";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { DEMO_ACCOUNTS } from "@/data/mockData";
+import { DemoModeBanner } from "@/components/DemoModeBanner";
 
 interface Lead {
   id: string;
@@ -58,6 +61,7 @@ export default function Leads() {
   const [loading, setLoading] = useState(true);
   const { userProfile } = useAuth();
   const { toast } = useToast();
+  const { flags } = useFeatureFlags();
 
   // Pagination
   const {
@@ -84,6 +88,48 @@ export default function Leads() {
     
     setLoading(true);
     try {
+      // Use demo data if demo mode is enabled
+      if (flags.demo_mode) {
+        const demoLeads: Lead[] = DEMO_ACCOUNTS.map(account => ({
+          id: account.id,
+          external_id: account.id,
+          name: account.name,
+          domain: account.domain,
+          industry_raw: account.industry_raw,
+          industry_norm: account.industry_norm,
+          employee_count: account.employee_count,
+          revenue_range: account.revenue_range,
+          country: account.country,
+          updated_at: new Date().toISOString(),
+          score: {
+            overall: account.score.overall,
+            fit: account.score.fit,
+            intent: account.score.intent,
+            reachability: account.score.reachability,
+            reasons: {
+              industry_match: account.score.fit > 70,
+              size_match: account.score.fit > 70,
+              revenue_match: account.score.fit > 70,
+              geography_match: account.score.fit > 70
+            }
+          },
+          contacts: account.contacts.map(contact => ({
+            id: contact.id,
+            external_id: contact.id,
+            first_name: contact.first_name,
+            last_name: contact.last_name,
+            email: contact.email,
+            title_raw: contact.title_raw,
+            persona: null,
+            level: null,
+            country: account.country
+          }))
+        }));
+        setLeads(demoLeads);
+        setLoading(false);
+        return;
+      }
+
       // Load accounts
       const { data: accountsData, error: accountsError } = await supabase
         .from('accounts')
@@ -240,6 +286,7 @@ export default function Leads() {
 
   return (
     <div className="space-y-6">
+      <DemoModeBanner />
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Leads</h1>
