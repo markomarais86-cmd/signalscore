@@ -40,9 +40,9 @@ function App() {
               <TooltipProvider>
                 <ErrorBoundary>
                   <Toaster />
-                  <OnboardingWizard />
                   <BrowserRouter>
-              <Routes>
+                    <OnboardingWizard />
+                    <Routes>
                 <Route path="/landing" element={<Landing />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
@@ -177,9 +177,9 @@ function App() {
                   }
                 />
                 <Route path="*" element={<NotFound />} />
-              </Routes>
-              </BrowserRouter>
-            </ErrorBoundary>
+                    </Routes>
+                  </BrowserRouter>
+                </ErrorBoundary>
           </TooltipProvider>
         </FeatureFlagsProvider>
       </OnboardingProvider>
