@@ -45,6 +45,7 @@ import AIAgentSettings from "@/components/settings/AIAgentSettings";
 import { FeatureToggles } from "@/components/settings/FeatureToggles";
 import { AccountExclusions } from "@/components/settings/AccountExclusions";
 import { ZapierIntegration } from "@/components/settings/ZapierIntegration";
+import { APIKeyManager } from "@/components/settings/APIKeyManager";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TeamMember {
@@ -538,6 +539,7 @@ export default function Settings() {
         {/* Integrations */}
         <TabsContent value="integrations" className="space-y-6">
           <IntegrationManager />
+          <APIKeyManager />
         </TabsContent>
 
         {/* Zapier Integration */}
