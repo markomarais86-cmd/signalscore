@@ -42,6 +42,7 @@ import DataMapping from "@/components/settings/DataMapping";
 import ScoringConfiguration from "@/components/settings/ScoringConfiguration";
 import BenchmarkSettings from "@/components/settings/BenchmarkSettings";
 import AIAgentSettings from "@/components/settings/AIAgentSettings";
+import { FeatureToggles } from "@/components/settings/FeatureToggles";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TeamMember {
@@ -304,7 +305,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-10">
+        <TabsList className="grid w-full grid-cols-11">
           <TabsTrigger value="account" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Account
@@ -312,6 +313,10 @@ export default function Settings() {
           <TabsTrigger value="team" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Team
+          </TabsTrigger>
+          <TabsTrigger value="features" className="flex items-center gap-2">
+            <Zap className="h-4 w-4" />
+            Features
           </TabsTrigger>
           <TabsTrigger value="integrations" className="flex items-center gap-2">
             <Database className="h-4 w-4" />
@@ -432,6 +437,11 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Feature Toggles */}
+        <TabsContent value="features" className="space-y-6">
+          <FeatureToggles />
         </TabsContent>
 
         {/* Team Management */}
