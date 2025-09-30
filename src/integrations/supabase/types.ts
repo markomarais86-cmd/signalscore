@@ -152,6 +152,33 @@ export type Database = {
           },
         ]
       }
+      feature_flags: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          feature_key: string
+          id: string
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          feature_key: string
+          id?: string
+          org_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          feature_key?: string
+          id?: string
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       icp_profiles: {
         Row: {
           budget_indicators: string[] | null
@@ -699,6 +726,10 @@ export type Database = {
       get_current_user_org_id: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      initialize_feature_flags: {
+        Args: { target_org_id: string }
+        Returns: undefined
       }
       is_current_user_admin: {
         Args: Record<PropertyKey, never>
