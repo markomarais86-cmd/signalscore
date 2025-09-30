@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp } from "lucide-react";
+import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -284,6 +284,74 @@ export default function Leads() {
 
   const highSignalLeads = leads.filter(lead => (lead.score?.overall || 0) >= 70);
 
+  const exportToCSV = () => {
+    if (filteredLeads.length === 0) {
+      toast({
+        title: "No data to export",
+        description: "No qualified leads match your current filters",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const headers = [
+      'Company Name',
+      'Domain',
+      'Industry',
+      'Employee Count',
+      'Revenue Range',
+      'Country',
+      'Overall Score',
+      'Fit Score',
+      'Intent Score',
+      'Reachability Score',
+      'Contact Count',
+      'Primary Contact',
+      'Contact Email',
+      'External ID'
+    ];
+
+    const rows = filteredLeads.map(lead => {
+      const primaryContact = lead.contacts && lead.contacts.length > 0 ? lead.contacts[0] : null;
+      return [
+        lead.name || '',
+        lead.domain || '',
+        lead.industry_norm || lead.industry_raw || '',
+        lead.employee_count || '',
+        lead.revenue_range || '',
+        lead.country || '',
+        lead.score?.overall || '',
+        lead.score?.fit || '',
+        lead.score?.intent || '',
+        lead.score?.reachability || '',
+        lead.contacts?.length || 0,
+        primaryContact ? `${primaryContact.first_name || ''} ${primaryContact.last_name || ''}`.trim() : '',
+        primaryContact?.email || '',
+        lead.external_id
+      ];
+    });
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `qualified_leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Export successful",
+      description: `Exported ${filteredLeads.length} qualified leads to CSV`
+    });
+  };
+
   return (
     <div className="space-y-6">
       <DemoModeBanner />
@@ -292,6 +360,10 @@ export default function Leads() {
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Leads</h1>
           <p className="text-muted-foreground mt-2">High-signal opportunities (ICP score ≥70)</p>
         </div>
+        <Button onClick={exportToCSV} variant="outline">
+          <Download className="h-4 w-4 mr-2" />
+          Export to CSV
+        </Button>
       </div>
 
       {/* Hero Metric */}

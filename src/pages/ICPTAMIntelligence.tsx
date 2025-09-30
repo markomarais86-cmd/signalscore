@@ -20,6 +20,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { DEMO_ACCOUNTS, DEMO_ICP_PROFILES } from "@/data/mockData";
 import { DemoModeBanner } from "@/components/DemoModeBanner";
+import { calculateTAM, generateTAMInsights, formatCurrency } from "@/utils/tam-calculator";
+import { generateTAMReport } from "@/utils/pdf-export";
+import { useToast } from "@/hooks/use-toast";
 
 export function ICPTAMIntelligence() {
   const { userProfile } = useAuth();
@@ -27,6 +30,7 @@ export function ICPTAMIntelligence() {
   const [realTimeData, setRealTimeData] = useState<any>(null);
   const [dataLoading, setDataLoading] = useState(true);
   const { flags } = useFeatureFlags();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (userProfile?.org_id && accounts.length > 0) {
@@ -447,12 +451,124 @@ export function ICPTAMIntelligence() {
 
   const handleExportICP10 = (format: 'pdf' | 'csv') => {
     console.log(`Export initiated for ${format.toUpperCase()}`);
-    // TODO: Implement actual ICP10 export functionality
+    if (format === 'csv') {
+      // Export ICP-10 to CSV
+      const icp10List = processRealDataIntoICP10();
+      const headers = [
+        'Rank', 'Persona', 'Sub-Industry', 'Country', 'Company Size',
+        'Revenue Range', 'Employee Range', 'Signal Score', 'Account Count',
+        'TAM Value', 'Conversion Rate %', 'Avg Deal Size', 'Sales Cycle Days'
+      ];
+      
+      const rows = icp10List.map(item => [
+        item.rank,
+        item.persona,
+        item.subIndustry,
+        item.country,
+        item.companySize,
+        item.revenueRange,
+        item.employeeRange,
+        item.signalScore,
+        item.accountCount,
+        item.tamValue,
+        item.conversionRate,
+        item.avgDealSize,
+        item.salesCycle
+      ]);
+      
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `ICP10_Export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast({
+        title: "Export successful",
+        description: "ICP-10 list exported to CSV"
+      });
+    } else {
+      toast({
+        title: "Coming soon",
+        description: "PDF export for ICP-10 will be available soon"
+      });
+    }
   };
 
-  const handleExportDrilldown = (format: 'pdf' | 'pptx' | 'csv') => {
+  const handleExportDrilldown = async (format: 'pdf' | 'pptx' | 'csv') => {
     console.log(`Exporting drill-down ${format.toUpperCase()} report...`);
-    // TODO: Implement drill-down export functionality
+    
+    if (format === 'pdf') {
+      try {
+        // Load comprehensive data for export
+        const { data: accountsData } = await supabase
+          .from('accounts')
+          .select('*')
+          .eq('org_id', userProfile!.org_id);
+        
+        const { data: scoresData } = await supabase
+          .from('scores')
+          .select('*')
+          .eq('org_id', userProfile!.org_id);
+        
+        const { data: leadsData } = await supabase
+          .from('Leads')
+          .select('*')
+          .eq('org_id', userProfile!.org_id);
+        
+        // Calculate TAM using utility
+        const tamBreakdown = calculateTAM(
+          accountsData || [],
+          scoresData || [],
+          leadsData || [],
+          75000 // Average deal size
+        );
+        
+        // Generate insights
+        const { insights, recommendations } = generateTAMInsights(tamBreakdown);
+        
+        // Generate PDF
+        await generateTAMReport(
+          {
+            ...tamBreakdown,
+            insights,
+            recommendations
+          },
+          userProfile?.org_id || 'Organization'
+        );
+        
+        toast({
+          title: "Export successful",
+          description: "TAM Intelligence Report downloaded as PDF"
+        });
+      } catch (error) {
+        console.error('Export error:', error);
+        toast({
+          title: "Export failed",
+          description: "Failed to generate PDF report",
+          variant: "destructive"
+        });
+      }
+    } else if (format === 'csv') {
+      // Export comprehensive CSV
+      toast({
+        title: "Coming soon",
+        description: "CSV export will be available soon"
+      });
+    } else {
+      toast({
+        title: "Coming soon",
+        description: "PowerPoint export will be available soon"
+      });
+    }
   };
 
   const handleApplyRecommendation = (insightId: string) => {

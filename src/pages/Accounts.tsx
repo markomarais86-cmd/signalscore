@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -189,11 +190,13 @@ export default function Accounts() {
     return <Badge variant="outline">Low Quality</Badge>;
   };
 
-  const exportToCSV = () => {
-    if (filteredAccounts.length === 0) {
+  const exportToCSV = (exportAll: boolean = false) => {
+    const dataToExport = exportAll ? accounts : filteredAccounts;
+    
+    if (dataToExport.length === 0) {
       toast({
         title: "No data to export",
-        description: "No accounts match your current filters",
+        description: exportAll ? "No accounts in database" : "No accounts match your current filters",
         variant: "destructive"
       });
       return;
@@ -203,7 +206,8 @@ export default function Accounts() {
     const headers = [
       'Company Name',
       'Domain',
-      'Industry',
+      'Industry (Normalized)',
+      'Industry (Raw)',
       'Employee Count',
       'Revenue Range',
       'Country',
@@ -213,14 +217,16 @@ export default function Accounts() {
       'Reachability Score',
       'Contact Count',
       'Data Completeness %',
-      'External ID'
+      'External ID',
+      'Last Updated'
     ];
 
     // Convert accounts to CSV rows
-    const rows = filteredAccounts.map(account => [
+    const rows = dataToExport.map(account => [
       account.name || '',
       account.domain || '',
-      account.industry_norm || account.industry_raw || '',
+      account.industry_norm || '',
+      account.industry_raw || '',
       account.employee_count || '',
       account.revenue_range || '',
       account.country || '',
@@ -230,7 +236,8 @@ export default function Accounts() {
       account.score?.reachability || '',
       account.contacts?.length || 0,
       calculateDataCompleteness(account),
-      account.external_id
+      account.external_id,
+      account.updated_at
     ]);
 
     // Create CSV content
@@ -244,7 +251,10 @@ export default function Accounts() {
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `accounts_export_${new Date().toISOString().split('T')[0]}.csv`);
+    const filename = exportAll 
+      ? `all_accounts_export_${new Date().toISOString().split('T')[0]}.csv`
+      : `filtered_accounts_export_${new Date().toISOString().split('T')[0]}.csv`;
+    link.setAttribute('download', filename);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -252,7 +262,7 @@ export default function Accounts() {
 
     toast({
       title: "Export successful",
-      description: `Exported ${filteredAccounts.length} accounts to CSV`
+      description: `Exported ${dataToExport.length} accounts to CSV`
     });
   };
 
@@ -283,10 +293,22 @@ export default function Accounts() {
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Accounts</h1>
           <p className="text-muted-foreground mt-2">Complete CRM database view</p>
         </div>
-        <Button onClick={exportToCSV} variant="outline">
-          <Download className="h-4 w-4 mr-2" />
-          Export to CSV
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline">
+              <Download className="h-4 w-4 mr-2" />
+              Export to CSV
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => exportToCSV(false)}>
+              Export Filtered ({filteredAccounts.length} accounts)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => exportToCSV(true)}>
+              Export All ({accounts.length} accounts)
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Summary Cards */}
