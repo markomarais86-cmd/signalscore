@@ -67,11 +67,27 @@ serve(async (req) => {
 
     console.log(`Found ${icpProfiles.length} ICP profiles to score against`);
 
-    // Calculate score using the database function for best ICP match
+    // Calculate score using the database function and correlation weights
     let bestScore = null;
     let bestIcpId = null;
+    let correlationWeights: any = null;
+
+    // Try to get correlation weights for smarter scoring
+    try {
+      const { data: correlationData } = await supabase.functions.invoke('analyze-correlations', {
+        body: { org_id }
+      });
+      
+      if (correlationData?.correlations) {
+        correlationWeights = correlationData.correlations;
+        console.log('Using correlation-based weights:', correlationWeights);
+      }
+    } catch (corrError) {
+      console.log('Falling back to equal weights (no correlation data available)');
+    }
 
     for (const icp of icpProfiles) {
+      // Get base score from database function
       const { data: scoreResult, error: scoreError } = await supabase
         .rpc('calculate_account_score', {
           account_external_id,
@@ -84,8 +100,44 @@ serve(async (req) => {
         continue;
       }
 
-      if (scoreResult && (!bestScore || scoreResult.overall > bestScore.overall)) {
-        bestScore = scoreResult;
+      if (!scoreResult) continue;
+
+      // Apply correlation-based weighting if available
+      let adjustedScore = scoreResult;
+      
+      if (correlationWeights) {
+        const breakdown = scoreResult.breakdown || {};
+        
+        // Recalculate overall score using correlation weights
+        const industryScore = breakdown.industry_score || 0;
+        const sizeScore = breakdown.size_score || 0;
+        const revenueScore = breakdown.revenue_score || 0;
+        const geoScore = breakdown.geo_score || 0;
+        
+        const weightedOverall = Math.round(
+          (industryScore * (correlationWeights.industry?.weight || 25) / 25) +
+          (sizeScore * (correlationWeights.size?.weight || 25) / 25) +
+          (revenueScore * (correlationWeights.revenue?.weight || 25) / 25) +
+          (geoScore * (correlationWeights.geography?.weight || 25) / 25)
+        );
+        
+        adjustedScore = {
+          ...scoreResult,
+          overall: weightedOverall,
+          correlation_adjusted: true,
+          weights_used: {
+            industry: correlationWeights.industry?.weight || 25,
+            size: correlationWeights.size?.weight || 25,
+            revenue: correlationWeights.revenue?.weight || 25,
+            geography: correlationWeights.geography?.weight || 25
+          }
+        };
+        
+        console.log(`Adjusted score from ${scoreResult.overall} to ${weightedOverall} using correlations`);
+      }
+
+      if (!bestScore || adjustedScore.overall > bestScore.overall) {
+        bestScore = adjustedScore;
         bestIcpId = icp.id;
       }
     }
