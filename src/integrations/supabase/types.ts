@@ -674,6 +674,42 @@ export type Database = {
           },
         ]
       }
+      zapier_webhooks: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          is_active: boolean
+          last_triggered_at: string | null
+          name: string
+          org_id: string
+          updated_at: string
+          webhook_url: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          is_active?: boolean
+          last_triggered_at?: string | null
+          name: string
+          org_id: string
+          updated_at?: string
+          webhook_url: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          is_active?: boolean
+          last_triggered_at?: string | null
+          name?: string
+          org_id?: string
+          updated_at?: string
+          webhook_url?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       mv_leads_by_week: {

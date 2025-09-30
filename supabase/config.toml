@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.enrich-technology-insights]
 verify_jwt = true
+
+[functions.zapier-sync]
+verify_jwt = true

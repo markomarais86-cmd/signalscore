@@ -44,6 +44,7 @@ import BenchmarkSettings from "@/components/settings/BenchmarkSettings";
 import AIAgentSettings from "@/components/settings/AIAgentSettings";
 import { FeatureToggles } from "@/components/settings/FeatureToggles";
 import { AccountExclusions } from "@/components/settings/AccountExclusions";
+import { ZapierIntegration } from "@/components/settings/ZapierIntegration";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TeamMember {
@@ -323,6 +324,10 @@ export default function Settings() {
             <Database className="h-4 w-4" />
             Integrations
           </TabsTrigger>
+          <TabsTrigger value="zapier" className="flex items-center gap-2">
+            <Webhook className="h-4 w-4" />
+            Zapier
+          </TabsTrigger>
           <TabsTrigger value="data-mapping" className="flex items-center gap-2">
             <GitBranch className="h-4 w-4" />
             Data Mapping
@@ -350,10 +355,6 @@ export default function Settings() {
           <TabsTrigger value="api" className="flex items-center gap-2">
             <Key className="h-4 w-4" />
             API
-          </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            Security
           </TabsTrigger>
         </TabsList>
 
@@ -537,6 +538,11 @@ export default function Settings() {
         {/* Integrations */}
         <TabsContent value="integrations" className="space-y-6">
           <IntegrationManager />
+        </TabsContent>
+
+        {/* Zapier Integration */}
+        <TabsContent value="zapier" className="space-y-6">
+          <ZapierIntegration />
         </TabsContent>
 
         {/* Data Mapping */}
