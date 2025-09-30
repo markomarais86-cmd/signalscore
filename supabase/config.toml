@@ -1,5 +1,8 @@
 project_id = "dhyfbaptcprxxixgnpby"
 
+[functions.analyze-closed-won]
+verify_jwt = true
+
 [functions.score-account]
 verify_jwt = false
 
