@@ -103,8 +103,8 @@ export default function ExecutiveDashboard() {
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Executive Dashboard</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-4xl font-bold tracking-tight">Executive Dashboard</h1>
+          <p className="text-base text-muted-foreground mt-1">
             Strategic overview of sales intelligence and pipeline performance
           </p>
         </div>
@@ -126,12 +126,12 @@ export default function ExecutiveDashboard() {
               <SelectItem value="12m">Last 12 months</SelectItem>
             </SelectContent>
           </Select>
-          <ExportToPdf onExport={handleExport} />
+          <ExportToPdf onExport={handleExport} variant="default" />
         </div>
       </div>
 
       {/* Key Metrics Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <ExecutiveMetricCard
           title="Pipeline Value"
           value={`$${(metrics.pipelineValue / 1000000).toFixed(1)}M`}
@@ -206,11 +206,11 @@ export default function ExecutiveDashboard() {
       </div>
 
       {/* Charts Row */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2">
         {/* Performance Trend */}
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>ROAS Performance Trend</CardTitle>
+            <CardTitle className="text-xl">ROAS Performance Trend</CardTitle>
             <CardDescription>Return on ad spend vs industry benchmark</CardDescription>
           </CardHeader>
           <CardContent>
@@ -230,7 +230,7 @@ export default function ExecutiveDashboard() {
                   contentStyle={{
                     backgroundColor: "hsl(var(--card))",
                     border: "1px solid hsl(var(--border))",
-                    borderRadius: "6px"
+                    borderRadius: "8px"
                   }}
                 />
                 <Legend />
@@ -238,15 +238,15 @@ export default function ExecutiveDashboard() {
                   type="monotone" 
                   dataKey="value" 
                   stroke="hsl(var(--primary))" 
-                  fill="hsl(var(--primary) / 0.2)" 
+                  fill="hsl(var(--primary) / 0.1)" 
                   name="Your ROAS"
-                  strokeWidth={2}
+                  strokeWidth={3}
                 />
                 <Area 
                   type="monotone" 
                   dataKey="benchmark" 
                   stroke="hsl(var(--muted-foreground))" 
-                  fill="hsl(var(--muted) / 0.2)" 
+                  fill="transparent" 
                   name="Industry Avg"
                   strokeWidth={2}
                   strokeDasharray="5 5"
@@ -257,9 +257,9 @@ export default function ExecutiveDashboard() {
         </Card>
 
         {/* Benchmark Comparison */}
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle>Performance vs Peers</CardTitle>
+            <CardTitle className="text-xl">Performance vs Peers</CardTitle>
             <CardDescription>Key metrics compared to industry average</CardDescription>
           </CardHeader>
           <CardContent>
@@ -279,7 +279,7 @@ export default function ExecutiveDashboard() {
                   contentStyle={{
                     backgroundColor: "hsl(var(--card))",
                     border: "1px solid hsl(var(--border))",
-                    borderRadius: "6px"
+                    borderRadius: "8px"
                   }}
                 />
                 <Legend />
@@ -287,13 +287,13 @@ export default function ExecutiveDashboard() {
                   dataKey="company" 
                   fill="hsl(var(--primary))" 
                   name="Your Company"
-                  radius={[4, 4, 0, 0]}
+                  radius={[6, 6, 0, 0]}
                 />
                 <Bar 
                   dataKey="industry" 
-                  fill="hsl(var(--muted-foreground) / 0.5)" 
+                  fill="hsl(var(--muted-foreground) / 0.3)" 
                   name="Industry Avg"
-                  radius={[4, 4, 0, 0]}
+                  radius={[6, 6, 0, 0]}
                 />
               </BarChart>
             </ResponsiveContainer>
