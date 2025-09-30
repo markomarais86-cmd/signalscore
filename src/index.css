@@ -9,123 +9,123 @@ All colors MUST be HSL.
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 221 83% 23%;
+    --foreground: 239 84% 24%;
 
     --card: 0 0% 100%;
-    --card-foreground: 221 83% 23%;
+    --card-foreground: 239 84% 24%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 221 83% 23%;
+    --popover-foreground: 239 84% 24%;
 
-    --primary: 221 83% 23%;
+    --primary: 239 84% 67%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 166 76% 46%;
+    --secondary: 188 94% 43%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 221 20% 96%;
-    --muted-foreground: 221 30% 45%;
+    --muted: 240 10% 96%;
+    --muted-foreground: 239 20% 50%;
 
-    --accent: 221 83% 23%;
+    --accent: 188 94% 43%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 221 20% 88%;
-    --input: 221 20% 88%;
-    --ring: 221 83% 23%;
+    --border: 240 10% 90%;
+    --input: 240 10% 90%;
+    --ring: 239 84% 67%;
 
     --radius: 0.5rem;
 
-    /* Enterprise chart colors - BAM primary color family */
-    --chart-1: 221 83% 23%; /* BAM Primary - Deep Blue */
-    --chart-2: 221 70% 35%; /* BAM Light */
-    --chart-3: 221 60% 50%; /* BAM Medium */
-    --chart-4: 221 50% 65%; /* BAM Lighter */
-    --chart-5: 221 40% 75%; /* BAM Pale */
+    /* Intelligence Purple chart colors */
+    --chart-1: 239 84% 67%; /* Primary Purple */
+    --chart-2: 239 70% 55%; /* Purple Medium */
+    --chart-3: 239 60% 45%; /* Purple Dark */
+    --chart-4: 188 94% 43%; /* Cyan Accent */
+    --chart-5: 239 50% 75%; /* Purple Light */
     
     /* Signal scoring colors */
-    --signal-high: 166 76% 46%; /* Teal for 80-100 */
-    --signal-medium: 45 93% 47%; /* Yellow for 50-79 */
-    --signal-low: 0 72% 51%; /* Red for 0-49 */
+    --signal-high: 142 71% 45%; /* Emerald Green */
+    --signal-medium: 43 96% 56%; /* Amber */
+    --signal-low: 0 84% 60%; /* Rose */
     
     /* Professional gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(221 83% 23%), hsl(221 83% 18%));
-    --gradient-success: linear-gradient(135deg, hsl(166 76% 46%), hsl(166 76% 38%));
-    --gradient-warning: linear-gradient(135deg, hsl(45 93% 47%), hsl(45 93% 40%));
+    --gradient-primary: linear-gradient(135deg, hsl(239 84% 67%), hsl(239 84% 55%));
+    --gradient-success: linear-gradient(135deg, hsl(142 71% 45%), hsl(142 71% 35%));
+    --gradient-accent: linear-gradient(135deg, hsl(188 94% 43%), hsl(188 94% 35%));
     
     /* Executive dashboard styling */
-    --executive-green: 166 76% 46%; /* Teal */
-    --executive-amber: 45 93% 47%;  /* Yellow */
-    --executive-red: 0 72% 51%;   /* Red */
-    --executive-blue: 221 83% 23%;  /* Navy */
-    --executive-gray: 215 16% 47%;  /* Neutral gray */
+    --executive-green: 142 71% 45%; /* Emerald */
+    --executive-amber: 43 96% 56%;  /* Amber */
+    --executive-red: 0 84% 60%;     /* Rose */
+    --executive-purple: 239 84% 67%; /* Primary Purple */
+    --executive-cyan: 188 94% 43%;  /* Accent Cyan */
     
     /* Status indicators - signals only */
-    --status-success: 166 76% 46%; /* Green for positive signals */
-    --status-warning: 45 93% 47%;  /* Yellow for caution */
-    --status-danger: 0 72% 51%;    /* Red for negative signals */
-    --status-info: 221 83% 23%;    /* BAM primary for info */
+    --status-success: 142 71% 45%; /* Emerald for positive signals */
+    --status-warning: 43 96% 56%;  /* Amber for caution */
+    --status-danger: 0 84% 60%;    /* Rose for negative signals */
+    --status-info: 239 84% 67%;    /* Purple primary for info */
     
     /* Board-ready shadows */
     --shadow-executive: 0 4px 20px -2px hsl(221 83% 23% / 0.15);
     --shadow-card: 0 2px 10px -2px hsl(221 83% 23% / 0.08);
 
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 221 83% 23%;
-    --sidebar-primary: 221 83% 23%;
+    --sidebar-foreground: 239 84% 24%;
+    --sidebar-primary: 239 84% 67%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 221 83% 95%;
-    --sidebar-accent-foreground: 221 83% 23%;
-    --sidebar-border: 221 20% 88%;
-    --sidebar-ring: 221 83% 23%;
+    --sidebar-accent: 239 90% 96%;
+    --sidebar-accent-foreground: 239 84% 67%;
+    --sidebar-border: 240 10% 90%;
+    --sidebar-ring: 239 84% 67%;
   }
 
   .dark {
-    --background: 221 83% 8%;
+    --background: 239 84% 10%;
     --foreground: 0 0% 98%;
 
-    --card: 221 60% 12%;
+    --card: 239 60% 15%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 221 60% 12%;
+    --popover: 239 60% 15%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 221 83% 65%;
-    --primary-foreground: 221 83% 8%;
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 166 76% 46%;
+    --secondary: 188 94% 43%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 221 50% 18%;
-    --muted-foreground: 221 20% 65%;
+    --muted: 239 50% 20%;
+    --muted-foreground: 239 20% 70%;
 
-    --accent: 221 83% 65%;
-    --accent-foreground: 221 83% 8%;
+    --accent: 188 94% 43%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 221 50% 20%;
-    --input: 221 50% 20%;
-    --ring: 221 83% 65%;
+    --border: 239 50% 25%;
+    --input: 239 50% 25%;
+    --ring: 239 84% 67%;
 
-    /* Chart colors for analytics - dark mode - BAM color family */
-    --chart-1: 221 83% 65%; /* BAM Primary (lighter for dark) */
-    --chart-2: 221 70% 55%; /* BAM Medium */
-    --chart-3: 221 60% 45%; /* BAM Darker */
-    --chart-4: 221 50% 35%; /* BAM Dark */
-    --chart-5: 221 40% 30%; /* BAM Darkest */
+    /* Chart colors for analytics - dark mode */
+    --chart-1: 239 84% 67%; /* Purple Primary */
+    --chart-2: 239 70% 55%; /* Purple Medium */
+    --chart-3: 239 60% 45%; /* Purple Dark */
+    --chart-4: 188 94% 43%; /* Cyan Accent */
+    --chart-5: 239 50% 75%; /* Purple Light */
 
-    --sidebar-background: 221 83% 8%;
+    --sidebar-background: 239 84% 10%;
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 221 83% 65%;
-    --sidebar-primary-foreground: 221 83% 8%;
-    --sidebar-accent: 221 70% 20%;
-    --sidebar-accent-foreground: 221 83% 65%;
-    --sidebar-border: 221 50% 20%;
-    --sidebar-ring: 221 83% 65%;
+    --sidebar-primary: 239 84% 67%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 239 70% 20%;
+    --sidebar-accent-foreground: 239 84% 67%;
+    --sidebar-border: 239 50% 25%;
+    --sidebar-ring: 239 84% 67%;
   }
 }
 
