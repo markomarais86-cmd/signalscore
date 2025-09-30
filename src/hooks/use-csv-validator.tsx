@@ -110,7 +110,7 @@ export function useCSVValidator() {
       let rowHasErrors = false;
       let rowHasWarnings = false;
 
-      Object.entries(mapping).forEach(([csvField, schemaField]) => {
+      Object.entries(mapping).forEach(([csvField, schemaField]: [string, string]) => {
         if (!schemaField) return;
         
         const value = row[csvField];

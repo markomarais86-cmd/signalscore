@@ -1,291 +1,228 @@
-import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle, AlertTriangle, ArrowRight } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CheckCircle2, AlertTriangle, ArrowRight, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
+
+export interface FieldMapping {
+  [csvColumn: string]: string;
+}
+
+interface FieldMappingData {
+  csvColumn: string;
+  systemField: string;
+  confidence: number;
+  required: boolean;
+}
 
 interface FieldMappingDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (mapping: FieldMapping) => void;
+  onConfirm: (mappings: FieldMapping) => void;
   csvHeaders: string[];
   dataType: 'accounts' | 'contacts';
   sampleData?: any[];
 }
 
-export interface FieldMapping {
-  [csvHeader: string]: string | null; // Maps CSV header to our schema field
-}
-
-const SCHEMA_FIELDS = {
+const SYSTEM_FIELDS = {
   accounts: [
-    { key: 'external_id', label: 'External ID', required: true, description: 'Unique identifier (required)' },
-    { key: 'name', label: 'Company Name', required: false, description: 'Company or account name' },
-    { key: 'domain', label: 'Website Domain', required: false, description: 'Company website (e.g., company.com)' },
-    { key: 'industry_raw', label: 'Industry', required: false, description: 'Industry or vertical' },
-    { key: 'employee_count', label: 'Employee Count', required: false, description: 'Number of employees (numeric)' },
-    { key: 'revenue_range', label: 'Revenue Range', required: false, description: 'Annual revenue range' },
-    { key: 'country', label: 'Country', required: false, description: 'Primary location/country' },
+    { value: 'external_id', label: 'Account ID', required: true },
+    { value: 'name', label: 'Company Name', required: true },
+    { value: 'domain', label: 'Domain', required: false },
+    { value: 'industry_raw', label: 'Industry', required: false },
+    { value: 'employee_count', label: 'Employee Count', required: false },
+    { value: 'revenue_range', label: 'Revenue Range', required: false },
+    { value: 'country', label: 'Country', required: false },
   ],
   contacts: [
-    { key: 'external_id', label: 'External ID', required: true, description: 'Unique contact identifier (required)' },
-    { key: 'account_external_id', label: 'Account ID', required: true, description: 'Link to account (required)' },
-    { key: 'first_name', label: 'First Name', required: false, description: 'Contact first name' },
-    { key: 'last_name', label: 'Last Name', required: false, description: 'Contact last name' },
-    { key: 'email', label: 'Email', required: false, description: 'Contact email address' },
-    { key: 'title_raw', label: 'Job Title', required: false, description: 'Job title or position' },
-    { key: 'country', label: 'Country', required: false, description: 'Contact location' },
-  ]
+    { value: 'external_id', label: 'Contact ID', required: true },
+    { value: 'account_external_id', label: 'Account ID', required: true },
+    { value: 'first_name', label: 'First Name', required: true },
+    { value: 'last_name', label: 'Last Name', required: true },
+    { value: 'email', label: 'Email', required: false },
+    { value: 'title_raw', label: 'Job Title', required: false },
+    { value: 'country', label: 'Country', required: false },
+  ],
 };
 
-export function FieldMappingDialog({ 
-  isOpen, 
-  onClose, 
-  onConfirm, 
-  csvHeaders, 
-  dataType, 
-  sampleData 
-}: FieldMappingDialogProps) {
-  const [mapping, setMapping] = useState<FieldMapping>({});
-  const [autoMapped, setAutoMapped] = useState<string[]>([]);
+// Smart mapping algorithm
+const autoDetectMapping = (csvColumn: string, systemFields: typeof SYSTEM_FIELDS.accounts): { field: string; confidence: number } | null => {
+  const normalized = csvColumn.toLowerCase().trim();
+  
+  const patterns: Record<string, string[]> = {
+    external_id: ['id', 'external_id', 'account_id', 'company_id', 'crm_id', 'salesforce_id'],
+    account_external_id: ['account_id', 'company_id', 'account', 'company'],
+    name: ['name', 'company_name', 'company', 'account_name', 'organization'],
+    first_name: ['first_name', 'firstname', 'fname', 'given_name'],
+    last_name: ['last_name', 'lastname', 'lname', 'surname', 'family_name'],
+    email: ['email', 'email_address', 'mail', 'e-mail'],
+    domain: ['domain', 'website', 'url', 'web', 'site'],
+    industry_raw: ['industry', 'sector', 'vertical', 'business_type'],
+    employee_count: ['employee_count', 'employees', 'headcount', 'size', 'company_size'],
+    revenue_range: ['revenue', 'revenue_range', 'annual_revenue', 'arr', 'sales'],
+    country: ['country', 'nation', 'location', 'region'],
+    title_raw: ['title', 'job_title', 'position', 'role', 'job_position'],
+  };
 
-  const schemaFields = SCHEMA_FIELDS[dataType];
+  let bestMatch: { field: string; confidence: number } | null = null;
+
+  for (const field of systemFields) {
+    const fieldPatterns = patterns[field.value] || [];
+    
+    // Exact match
+    if (fieldPatterns.includes(normalized)) {
+      return { field: field.value, confidence: 100 };
+    }
+
+    // Partial match
+    for (const pattern of fieldPatterns) {
+      if (normalized.includes(pattern) || pattern.includes(normalized)) {
+        const confidence = Math.round((pattern.length / Math.max(normalized.length, pattern.length)) * 90);
+        if (!bestMatch || confidence > bestMatch.confidence) {
+          bestMatch = { field: field.value, confidence };
+        }
+      }
+    }
+  }
+
+  return bestMatch;
+};
+
+export function FieldMappingDialog({ isOpen, onClose, onConfirm, csvHeaders, dataType, sampleData }: FieldMappingDialogProps) {
+  const [mappings, setMappings] = useState<FieldMapping>({});
+  const [autoDetected, setAutoDetected] = useState<FieldMappingData[]>([]);
+  const systemFields = SYSTEM_FIELDS[dataType];
 
   useEffect(() => {
     if (isOpen && csvHeaders.length > 0) {
-      autoMapFields();
-    }
-  }, [isOpen, csvHeaders]);
+      const detected: FieldMappingData[] = [];
+      const initialMappings: FieldMapping = {};
 
-  const autoMapFields = () => {
-    const newMapping: FieldMapping = {};
-    const mapped: string[] = [];
-
-    // Auto-mapping logic based on common field names
-    csvHeaders.forEach(csvHeader => {
-      const cleanHeader = csvHeader.toLowerCase().trim();
-      
-      // Find matching schema field
-      const matchedField = schemaFields.find(field => {
-        const fieldAliases = getFieldAliases(field.key);
-        return fieldAliases.some(alias => 
-          cleanHeader.includes(alias) || alias.includes(cleanHeader)
-        );
+      csvHeaders.forEach(csvCol => {
+        const match = autoDetectMapping(csvCol, systemFields);
+        if (match && match.confidence >= 70) {
+          const systemField = systemFields.find(f => f.value === match.field);
+          detected.push({
+            csvColumn: csvCol,
+            systemField: match.field,
+            confidence: match.confidence,
+            required: systemField?.required || false,
+          });
+          initialMappings[csvCol] = match.field;
+        }
       });
 
-      if (matchedField) {
-        newMapping[csvHeader] = matchedField.key;
-        mapped.push(csvHeader);
-      } else {
-        newMapping[csvHeader] = null;
-      }
-    });
+      setAutoDetected(detected);
+      setMappings(initialMappings);
+    }
+  }, [isOpen, csvHeaders, dataType]);
 
-    setMapping(newMapping);
-    setAutoMapped(mapped);
-  };
-
-  const getFieldAliases = (fieldKey: string): string[] => {
-    const aliases: { [key: string]: string[] } = {
-      external_id: ['id', 'external_id', 'account_id', 'contact_id', 'unique_id'],
-      name: ['name', 'company', 'company_name', 'account_name', 'organization'],
-      domain: ['domain', 'website', 'url', 'web', 'site'],
-      industry_raw: ['industry', 'vertical', 'sector', 'business_type'],
-      employee_count: ['employees', 'employee_count', 'headcount', 'size', 'team_size'],
-      revenue_range: ['revenue', 'annual_revenue', 'arr', 'turnover', 'sales'],
-      country: ['country', 'location', 'region', 'nation'],
-      account_external_id: ['account_id', 'company_id', 'account_external_id', 'parent_id'],
-      first_name: ['first_name', 'firstname', 'fname', 'given_name'],
-      last_name: ['last_name', 'lastname', 'lname', 'surname', 'family_name'],
-      email: ['email', 'email_address', 'contact_email', 'work_email'],
-      title_raw: ['title', 'job_title', 'position', 'role', 'designation'],
-    };
-    
-    return aliases[fieldKey] || [fieldKey];
-  };
-
-  const getValidationStatus = () => {
-    const requiredFields = schemaFields.filter(field => field.required);
-    const mappedRequiredFields = requiredFields.filter(field => 
-      Object.values(mapping).includes(field.key)
-    );
-    
-    return {
-      isValid: mappedRequiredFields.length === requiredFields.length,
-      missingRequired: requiredFields.filter(field => 
-        !Object.values(mapping).includes(field.key)
-      ),
-      totalMapped: Object.values(mapping).filter(value => value !== null).length,
-      totalFields: csvHeaders.length
-    };
-  };
-
-  const handleMappingChange = (csvHeader: string, schemaField: string | null) => {
-    setMapping(prev => ({
+  const handleMappingChange = (csvColumn: string, systemField: string) => {
+    setMappings(prev => ({
       ...prev,
-      [csvHeader]: schemaField
+      [csvColumn]: systemField,
     }));
   };
 
-  const handleConfirm = () => {
-    const validation = getValidationStatus();
-    if (validation.isValid) {
-      onConfirm(mapping);
-    }
+  const getMappedFields = () => {
+    return new Set(Object.values(mappings));
   };
 
-  const validation = getValidationStatus();
+  const getUnmappedRequired = () => {
+    const mapped = getMappedFields();
+    return systemFields.filter(f => f.required && !mapped.has(f.value));
+  };
+
+  const canConfirm = getUnmappedRequired().length === 0;
+
+  const getConfidenceBadge = (confidence: number) => {
+    if (confidence >= 90) return <Badge className="bg-[hsl(var(--signal-high))]">High Match</Badge>;
+    if (confidence >= 70) return <Badge className="bg-[hsl(var(--signal-medium))]">Good Match</Badge>;
+    return <Badge variant="secondary">Low Match</Badge>;
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Map CSV Fields to SignalScore Schema</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Smart Field Mapping
+          </DialogTitle>
           <DialogDescription>
-            Map your CSV columns to SignalScore fields. Required fields must be mapped to proceed.
+            We've automatically detected field matches. Review and adjust as needed.
           </DialogDescription>
         </DialogHeader>
 
+        {autoDetected.length > 0 && (
+          <Alert>
+            <CheckCircle2 className="h-4 w-4" />
+            <AlertDescription>
+              Automatically mapped {autoDetected.length} of {csvHeaders.length} columns
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="space-y-4">
-          {/* Validation Status */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Mapping Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {validation.isValid ? (
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <AlertTriangle className="h-4 w-4 text-amber-500" />
-                  )}
-                  <span className="text-sm">
-                    {validation.totalMapped} of {validation.totalFields} fields mapped
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <Badge variant="outline">{autoMapped.length} auto-mapped</Badge>
-                  {validation.missingRequired.length > 0 && (
-                    <Badge variant="destructive">{validation.missingRequired.length} required missing</Badge>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="space-y-3">
+            {csvHeaders.map(csvCol => {
+              const currentMapping = mappings[csvCol];
+              const autoDetection = autoDetected.find(d => d.csvColumn === csvCol);
 
-          {/* Missing Required Fields Alert */}
-          {validation.missingRequired.length > 0 && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Required fields not mapped:</strong>{' '}
-                {validation.missingRequired.map(field => field.label).join(', ')}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Field Mapping Grid */}
-          <div className="grid gap-3">
-            <div className="grid grid-cols-12 gap-2 text-sm font-medium text-muted-foreground border-b pb-2">
-              <div className="col-span-5">Your CSV Column</div>
-              <div className="col-span-1 text-center">→</div>
-              <div className="col-span-5">SignalScore Field</div>
-              <div className="col-span-1">Sample</div>
-            </div>
-            
-            {csvHeaders.map((csvHeader, index) => {
-              const currentMapping = mapping[csvHeader];
-              const isAutoMapped = autoMapped.includes(csvHeader);
-              const sampleValue = sampleData?.[0]?.[csvHeader];
-              
               return (
-                <div key={csvHeader} className="grid grid-cols-12 gap-2 items-center py-2 border rounded-lg px-3">
-                  <div className="col-span-5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{csvHeader}</span>
-                      {isAutoMapped && (
-                        <Badge variant="secondary" className="text-xs">auto-mapped</Badge>
-                      )}
-                    </div>
+                <div key={csvCol} className="flex items-center gap-4 p-3 border rounded-lg">
+                  <div className="flex-1">
+                    <div className="font-medium text-sm">{csvCol}</div>
+                    {autoDetection && (
+                      <div className="flex items-center gap-2 mt-1">
+                        {getConfidenceBadge(autoDetection.confidence)}
+                      </div>
+                    )}
                   </div>
-                  
-                  <div className="col-span-1 text-center">
-                    <ArrowRight className="h-3 w-3 text-muted-foreground mx-auto" />
-                  </div>
-                  
-                  <div className="col-span-5">
+
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+
+                  <div className="flex-1">
                     <Select
                       value={currentMapping || ""}
-                      onValueChange={(value) => handleMappingChange(csvHeader, value === "none" ? null : value)}
+                      onValueChange={(value) => handleMappingChange(csvCol, value)}
                     >
-                      <SelectTrigger className="h-8">
+                      <SelectTrigger>
                         <SelectValue placeholder="Select field..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">
-                          <span className="text-muted-foreground">Don't map</span>
-                        </SelectItem>
-                        {schemaFields.map(field => (
-                          <SelectItem key={field.key} value={field.key}>
-                            <div className="flex items-center gap-2">
-                              <span>{field.label}</span>
-                              {field.required && (
-                                <Badge variant="destructive" className="text-xs">Required</Badge>
-                              )}
-                            </div>
+                        <SelectItem value="__skip__">Skip this column</SelectItem>
+                        {systemFields.map(field => (
+                          <SelectItem key={field.value} value={field.value}>
+                            {field.label} {field.required && '*'}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                  </div>
-                  
-                  <div className="col-span-1">
-                    {sampleValue && (
-                      <div className="text-xs text-muted-foreground truncate max-w-16" title={sampleValue}>
-                        {String(sampleValue).substring(0, 10)}
-                        {String(sampleValue).length > 10 && '...'}
-                      </div>
-                    )}
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Schema Field Guide */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Field Descriptions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-3 text-sm">
-                {schemaFields.map(field => (
-                  <div key={field.key} className="flex justify-between items-start">
-                    <div>
-                      <span className="font-medium">{field.label}</span>
-                      {field.required && (
-                        <Badge variant="destructive" className="text-xs ml-1">Required</Badge>
-                      )}
-                      <div className="text-xs text-muted-foreground mt-1">{field.description}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {getUnmappedRequired().length > 0 && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Required fields not mapped: {getUnmappedRequired().map(f => f.label).join(', ')}
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button 
-            onClick={handleConfirm}
-            disabled={!validation.isValid}
-          >
-            Import with Mapping ({validation.totalMapped} fields)
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={() => onConfirm(mappings)} disabled={!canConfirm}>
+            Confirm Mapping
           </Button>
         </DialogFooter>
       </DialogContent>

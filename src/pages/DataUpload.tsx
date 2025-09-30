@@ -104,18 +104,18 @@ export default function DataUpload() {
       const transformedData = rawData.map(row => {
         const transformed: any = { org_id: userProfile.org_id };
         
-        Object.entries(mapping).forEach(([csvField, schemaField]) => {
-          if (schemaField && row[csvField] !== undefined) {
-            let value = row[csvField];
-            
-            if (schemaField === 'employee_count' && value) {
-              const num = parseInt(value);
-              value = isNaN(num) ? null : num;
-            }
-            
-            transformed[schemaField] = value || null;
+      Object.entries(mapping).forEach(([csvField, schemaField]: [string, string]) => {
+        if (schemaField && row[csvField] !== undefined) {
+          let value = row[csvField];
+          
+          if (schemaField === 'employee_count' && value) {
+            const num = parseInt(value);
+            value = isNaN(num) ? null : num;
           }
-        });
+          
+          transformed[schemaField] = value || null;
+        }
+      });
         
         transformed.updated_at = new Date().toISOString();
         return transformed;

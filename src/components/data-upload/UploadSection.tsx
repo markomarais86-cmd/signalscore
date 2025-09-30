@@ -151,7 +151,7 @@ export function UploadSection({
             )}
           </div>
         )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
   );
 }
