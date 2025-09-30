@@ -782,6 +782,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      trigger_zapier_webhook: {
+        Args: {
+          data_param: Json
+          event_type_param: string
+          org_id_param: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
