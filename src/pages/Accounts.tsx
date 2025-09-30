@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Search, Database, ExternalLink, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Search, Database, ExternalLink, AlertCircle, CheckCircle2, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -143,6 +143,73 @@ export default function Accounts() {
     return <Badge variant="outline">Low Quality</Badge>;
   };
 
+  const exportToCSV = () => {
+    if (filteredAccounts.length === 0) {
+      toast({
+        title: "No data to export",
+        description: "No accounts match your current filters",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Define CSV headers
+    const headers = [
+      'Company Name',
+      'Domain',
+      'Industry',
+      'Employee Count',
+      'Revenue Range',
+      'Country',
+      'Overall Score',
+      'Fit Score',
+      'Intent Score',
+      'Reachability Score',
+      'Contact Count',
+      'Data Completeness %',
+      'External ID'
+    ];
+
+    // Convert accounts to CSV rows
+    const rows = filteredAccounts.map(account => [
+      account.name || '',
+      account.domain || '',
+      account.industry_norm || account.industry_raw || '',
+      account.employee_count || '',
+      account.revenue_range || '',
+      account.country || '',
+      account.score?.overall || '',
+      account.score?.fit || '',
+      account.score?.intent || '',
+      account.score?.reachability || '',
+      account.contacts?.length || 0,
+      calculateDataCompleteness(account),
+      account.external_id
+    ]);
+
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `accounts_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Export successful",
+      description: `Exported ${filteredAccounts.length} accounts to CSV`
+    });
+  };
+
   const uniqueIndustries = Array.from(new Set(accounts.map(a => a.industry_norm).filter(Boolean)));
 
   if (loading) {
@@ -168,6 +235,10 @@ export default function Accounts() {
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Accounts</h1>
           <p className="text-muted-foreground mt-2">Complete CRM database view</p>
         </div>
+        <Button onClick={exportToCSV} variant="outline">
+          <Download className="h-4 w-4 mr-2" />
+          Export to CSV
+        </Button>
       </div>
 
       {/* Summary Cards */}
