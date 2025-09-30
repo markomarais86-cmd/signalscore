@@ -6,6 +6,7 @@ import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useOnboarding } from "@/hooks/use-onboarding";
 import { ICPWizard } from "@/components/icp/ICPWizard";
 import { ICPProfile } from "@/types/icp";
 import { HeroMetric } from "@/components/executive/HeroMetric";
@@ -16,6 +17,7 @@ export default function ICPManager() {
   const [editingIcp, setEditingIcp] = useState<ICPProfile | null>(null);
   const { userProfile } = useAuth();
   const { toast } = useToast();
+  const { completeStep } = useOnboarding();
 
   useEffect(() => {
     if (userProfile?.org_id) {
@@ -88,6 +90,7 @@ export default function ICPManager() {
     loadICPs();
     setIsWizardOpen(false);
     setEditingIcp(null);
+    completeStep('create_icp');
   };
 
   const handleWizardClose = () => {

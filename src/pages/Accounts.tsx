@@ -10,6 +10,7 @@ import { Search, Database, ExternalLink, AlertCircle, CheckCircle2, Download } f
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useOnboarding } from "@/hooks/use-onboarding";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { AITechnologyInsights } from "@/components/AITechnologyInsights";
@@ -42,6 +43,7 @@ export default function Accounts() {
   const [loading, setLoading] = useState(true);
   const { userProfile } = useAuth();
   const { toast } = useToast();
+  const { completeStep } = useOnboarding();
 
   useEffect(() => {
     if (userProfile?.org_id) {
@@ -103,6 +105,11 @@ export default function Accounts() {
       );
 
       setAccounts(accountsWithContacts);
+      
+      // Mark step complete if we have scores
+      if (accountsWithContacts.some(a => a.score !== null)) {
+        completeStep('view_scores');
+      }
     } catch (error) {
       console.error('Error loading accounts:', error);
       toast({

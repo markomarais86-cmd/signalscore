@@ -6,12 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
 import { TrendingUp, TrendingDown, Target, Database, AlertCircle, Download, ArrowUpRight, MapPin, Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useOnboarding } from "@/hooks/use-onboarding";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { HeroMetric } from "@/components/executive/HeroMetric";
+import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 
 export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
+  const { completeStep } = useOnboarding();
   const navigate = useNavigate();
   const [metrics, setMetrics] = useState({
     tamCoverage: 0,
@@ -144,6 +147,8 @@ export default function ExecutiveDashboard() {
           .slice(0, 5)
       );
 
+      completeStep('explore_dashboard');
+
     } catch (error: any) {
       console.error('Error loading TAM data:', error);
       toast.error('Failed to load TAM intelligence data');
@@ -171,6 +176,9 @@ export default function ExecutiveDashboard() {
           Export Report
         </Button>
       </div>
+
+      {/* Onboarding Progress */}
+      <OnboardingProgress />
 
       {/* Hero Metrics */}
       <div className="grid md:grid-cols-4 gap-4">

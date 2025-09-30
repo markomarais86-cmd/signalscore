@@ -4,10 +4,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./hooks/use-auth";
 import { FeatureFlagsProvider } from "./hooks/use-feature-flags";
+import { OnboardingProvider } from "./hooks/use-onboarding";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { Layout } from "./components/Layout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
@@ -33,11 +35,13 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
         <AuthProvider>
-          <FeatureFlagsProvider>
-            <TooltipProvider>
-              <ErrorBoundary>
-                <Toaster />
-                <BrowserRouter>
+          <OnboardingProvider>
+            <FeatureFlagsProvider>
+              <TooltipProvider>
+                <ErrorBoundary>
+                  <Toaster />
+                  <OnboardingWizard />
+                  <BrowserRouter>
               <Routes>
                 <Route path="/landing" element={<Landing />} />
                 <Route path="/auth" element={<Auth />} />
@@ -178,6 +182,7 @@ function App() {
             </ErrorBoundary>
           </TooltipProvider>
         </FeatureFlagsProvider>
+      </OnboardingProvider>
       </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

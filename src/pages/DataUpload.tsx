@@ -5,6 +5,7 @@ import { Database, FileCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useOnboarding } from "@/hooks/use-onboarding";
 import { FieldMappingDialog, FieldMapping } from "@/components/data-upload/FieldMappingDialog";
 import { DataValidationReport } from "@/components/data-upload/DataValidationReport";
 import { HeroMetric } from "@/components/executive/HeroMetric";
@@ -32,6 +33,7 @@ export default function DataUpload() {
   const [totalRecords, setTotalRecords] = useState(0);
   const { userProfile } = useAuth();
   const { toast } = useToast();
+  const { completeStep } = useOnboarding();
   const { validationResult, validateDataWithMapping, setValidationResult } = useCSVValidator();
 
   useEffect(() => {
@@ -172,6 +174,7 @@ export default function DataUpload() {
       });
 
       await loadTotalRecords();
+      completeStep('upload_data');
 
     } catch (error: any) {
       console.error('Upload error:', error);
