@@ -223,9 +223,25 @@ export default function DataUpload() {
         return !rowIssues.some(issue => issue.type === 'error');
       });
       
+      // Remove duplicates based on external_id (keep last occurrence)
+      const uniqueData = validData.reduce((acc, row) => {
+        const existingIndex = acc.findIndex(r => r.external_id === row.external_id);
+        if (existingIndex >= 0) {
+          // Replace existing with newer data
+          acc[existingIndex] = row;
+        } else {
+          acc.push(row);
+        }
+        return acc;
+      }, [] as any[]);
+      
+      const duplicatesRemoved = validData.length - uniqueData.length;
+      
       console.log('✅ Filtered data:', { 
         totalRows: transformedData.length, 
         validRows: validData.length,
+        uniqueRows: uniqueData.length,
+        duplicatesRemoved,
         rejectedRows: transformedData.length - validData.length 
       });
 
@@ -233,16 +249,16 @@ export default function DataUpload() {
 
       let inserted = 0;
 
-      if (validData.length > 0) {
+      if (uniqueData.length > 0) {
         const tableName = pendingFile.type === 'accounts' ? 'accounts' : 
                          pendingFile.type === 'contacts' ? 'contacts' : 'Leads';
         
-        console.log('💾 Upserting to database:', { table: tableName, records: validData.length });
-        console.log('📊 Sample record:', validData[0]);
+        console.log('💾 Upserting to database:', { table: tableName, records: uniqueData.length });
+        console.log('📊 Sample record:', uniqueData[0]);
         
         const { data: upsertData, error: upsertError } = await supabase
           .from(tableName)
-          .upsert(validData, { 
+          .upsert(uniqueData, { 
             onConflict: pendingFile.type === 'leads' ? 'org_id,external_id' : 'org_id,external_id'
           })
           .select();
@@ -264,7 +280,7 @@ export default function DataUpload() {
           throw new Error(errorMessage);
         }
         
-        inserted = validData.length;
+        inserted = uniqueData.length;
         console.log('✅ Successfully inserted/updated records:', inserted);
       } else {
         console.warn('⚠️ No valid data to upload after filtering');
@@ -303,9 +319,13 @@ export default function DataUpload() {
       console.log('🎉 Upload complete:', result);
       setUploadResult(result);
 
+      const successMsg = duplicatesRemoved > 0 
+        ? `Imported ${inserted} records (${duplicatesRemoved} duplicates removed)`
+        : `Imported ${inserted} records`;
+      
       toast({
         title: "Upload completed",
-        description: `Processed ${rawData.length} rows, imported ${inserted} valid records`,
+        description: successMsg,
         variant: inserted > 0 ? "default" : "destructive"
       });
 
