@@ -87,14 +87,16 @@ export function ClosedWonUpload() {
       let rejectedCount = 0;
 
       if (mode === 'easy') {
-        // Easy mode: Match domains to existing accounts and pull firmographics
+        // Easy mode: Match domains to existing accounts
+        // Firmographics (industry, revenue, employee count, sub-industries, etc.) 
+        // will be automatically pulled from the accounts table during analysis
         const domains = rawData.map(row => row.domain?.trim().toLowerCase()).filter(Boolean);
         console.log('ClosedWonUpload: Processing domains:', domains);
         
-        // Fetch accounts with full firmographic data
+        // Fetch accounts matching these domains
         const { data: accounts, error: accountError } = await supabase
           .from('accounts')
-          .select('external_id, domain, industry_norm, employee_count, revenue_range, country')
+          .select('external_id, domain')
           .eq('org_id', userProfile.org_id)
           .in('domain', domains);
 
@@ -103,77 +105,30 @@ export function ClosedWonUpload() {
 
         setUploadProgress(50);
 
-        // Function to estimate deal value based on firmographics
-        const estimateDealValue = (account: any): number => {
-          let baseValue = 25000; // Default base value
-          
-          // Adjust by company size
-          if (account.employee_count) {
-            if (account.employee_count >= 5000) baseValue = 150000;
-            else if (account.employee_count >= 1000) baseValue = 100000;
-            else if (account.employee_count >= 500) baseValue = 75000;
-            else if (account.employee_count >= 200) baseValue = 50000;
-          }
-          
-          // Adjust by revenue range
-          if (account.revenue_range) {
-            if (account.revenue_range.includes('$500M+')) baseValue *= 2;
-            else if (account.revenue_range.includes('$100M-$500M')) baseValue *= 1.5;
-            else if (account.revenue_range.includes('$50M-$100M')) baseValue *= 1.2;
-          }
-          
-          // Industry multipliers
-          const highValueIndustries = ['Financial Services', 'Technology', 'Healthcare'];
-          if (account.industry_norm && highValueIndustries.includes(account.industry_norm)) {
-            baseValue *= 1.3;
-          }
-          
-          return Math.round(baseValue);
-        };
-
-        // Estimate sales cycle based on deal size
-        const estimateSalesCycle = (dealValue: number): number => {
-          if (dealValue >= 150000) return 90;
-          if (dealValue >= 75000) return 60;
-          if (dealValue >= 50000) return 45;
-          return 30;
-        };
-
-        // Create a map with full account data
-        const accountMap = new Map(
-          accounts?.map(acc => [
-            acc.domain?.toLowerCase(), 
-            { 
-              external_id: acc.external_id,
-              deal_value: estimateDealValue(acc),
-              sales_cycle: estimateSalesCycle(estimateDealValue(acc))
-            }
-          ]) || []
+        // Create a map of domain to account_external_id
+        const domainMap = new Map(
+          accounts?.map(acc => [acc.domain?.toLowerCase(), acc.external_id]) || []
         );
 
-        // Transform data with estimated values
+        // Transform data - firmographics will be pulled from accounts table during analysis
         const today = new Date().toISOString().split('T')[0];
         transformedData = rawData
           .filter(row => {
             const domain = row.domain?.trim().toLowerCase();
-            const hasMatch = domain && accountMap.has(domain);
+            const hasMatch = domain && domainMap.has(domain);
             if (!hasMatch) rejectedCount++;
             return hasMatch;
           })
-          .map(row => {
-            const domain = row.domain.trim().toLowerCase();
-            const accountData = accountMap.get(domain)!;
-            return {
-              org_id: userProfile.org_id,
-              account_external_id: accountData.external_id,
-              deal_value: accountData.deal_value,
-              close_date: today,
-              sales_cycle_days: accountData.sales_cycle,
-              created_at: new Date().toISOString()
-            };
-          });
+          .map(row => ({
+            org_id: userProfile.org_id,
+            account_external_id: domainMap.get(row.domain.trim().toLowerCase()),
+            deal_value: 0, // Placeholder - actual value not needed for firmographic analysis
+            close_date: today,
+            sales_cycle_days: null,
+            created_at: new Date().toISOString()
+          }));
 
-        console.log('ClosedWonUpload: Estimated deal values based on firmographics');
+        console.log('ClosedWonUpload: Matched domains to accounts, firmographics will be pulled from accounts table');
       } else {
         // Detailed mode: Use provided data
         const validData = rawData.filter(row => {
@@ -276,11 +231,11 @@ export function ClosedWonUpload() {
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription>
-                <strong>Easy Mode:</strong> Upload just website domains. We'll match them to your existing accounts and automatically estimate deal values based on firmographics (company size, revenue, industry).
+                <strong>Easy Mode:</strong> Upload just website domains. We'll match them to your existing accounts and automatically pull all firmographics (industry, revenue, employee count, sub-industries, etc.) from your CRM data for analysis.
                 <br />
                 <strong>Required header:</strong> {EASY_MODE_HEADERS.join(', ')}
                 <br />
-                <span className="text-xs text-muted-foreground">Deal values are estimated using AI-powered algorithms based on company characteristics</span>
+                <span className="text-xs text-muted-foreground">ICP recommendations will be generated from the actual firmographic data in your accounts</span>
               </AlertDescription>
             </Alert>
 
