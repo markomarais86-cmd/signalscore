@@ -138,9 +138,44 @@ export default function DataUpload() {
       
       setUploadProgress(20);
 
-      if (pendingFile.type === 'leads') {
-        // SEQUENTIAL UPLOAD: accounts → contacts → leads
-        console.log('🔄 Starting sequential upload for leads...');
+      // Use edge function for large uploads (>5000 records)
+      if (rawData.length > 5000) {
+        console.log(`🚀 Using edge function for bulk upload of ${rawData.length} records`);
+        
+        toast({
+          title: "Large Upload Detected",
+          description: `Processing ${rawData.length} records in the background for optimal performance...`,
+        });
+
+        const { data, error } = await supabase.functions.invoke('bulk-upload', {
+          body: {
+            data: rawData,
+            mapping: mapping,
+            type: pendingFile.type,
+            orgId: orgId
+          }
+        });
+
+        if (error) throw error;
+
+        insertedLeads = data.insertedLeads || 0;
+        insertedAccounts = data.insertedAccounts || 0;
+        insertedContacts = data.insertedContacts || 0;
+        totalProcessed = insertedLeads + insertedAccounts + insertedContacts;
+        errors.push(...(data.errors || []));
+
+        setUploadProgress(100);
+
+        toast({
+          title: "Upload Complete!",
+          description: pendingFile.type === 'leads' 
+            ? `Uploaded ${insertedLeads} leads, ${insertedAccounts} accounts, ${insertedContacts} contacts`
+            : `Uploaded ${totalProcessed} ${pendingFile.type}`,
+        });
+
+      } else if (pendingFile.type === 'leads') {
+        // OPTIMIZED PARALLEL UPLOAD for smaller datasets
+        console.log(`⚡ Starting optimized parallel upload for ${rawData.length} leads...`);
         
         // Create reverse mapping: dbField -> csvColumn
         const reverseMapping: Record<string, string> = {};
@@ -148,21 +183,22 @@ export default function DataUpload() {
           if (dbField) reverseMapping[dbField] = csvCol;
         });
         
-        const batchSize = 100;
+        // Increased batch size from 100 to 2000
+        const batchSize = 2000;
         
-        for (let i = 0; i < rawData.length; i += batchSize) {
-          const batch = rawData.slice(i, Math.min(i + batchSize, rawData.length));
-          console.log(`Processing batch ${Math.floor(i / batchSize) + 1}: rows ${i + 1} to ${i + batch.length}`);
-
-          // STEP 1: Insert Accounts
-          const accountsData = batch.map((row, idx) => {
-            const accountId = `acc_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`;
-            
-            return {
+        // Pre-process unique companies for deduplication
+        const uniqueCompanies = new Map<string, any>();
+        rawData.forEach((row, idx) => {
+          const company = (reverseMapping.company && row[reverseMapping.company]) || 'Unknown Company';
+          const domain = (reverseMapping.website && row[reverseMapping.website]) || null;
+          const key = domain || company.toLowerCase();
+          
+          if (!uniqueCompanies.has(key)) {
+            uniqueCompanies.set(key, {
               org_id: orgId,
-              external_id: accountId,
-              name: (reverseMapping.company && row[reverseMapping.company]) || 'Unknown Company',
-              domain: (reverseMapping.website && row[reverseMapping.website]) || null,
+              external_id: `acc_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 9)}`,
+              name: company,
+              domain: domain,
               industry_raw: (reverseMapping.industry && row[reverseMapping.industry]) || null,
               industry_norm: (reverseMapping.industry && row[reverseMapping.industry]) || null,
               employee_count: (reverseMapping.employee_count && row[reverseMapping.employee_count]) ? parseInt(row[reverseMapping.employee_count]) : null,
@@ -172,39 +208,29 @@ export default function DataUpload() {
               phone: (reverseMapping.phone && row[reverseMapping.phone]) || null,
               data_source: 'crm',
               updated_at: new Date().toISOString()
+            });
+          }
+        });
+        
+        console.log(`📊 Deduplicated to ${uniqueCompanies.size} unique companies from ${rawData.length} records`);
+        
+        for (let i = 0; i < rawData.length; i += batchSize) {
+          const batch = rawData.slice(i, Math.min(i + batchSize, rawData.length));
+          console.log(`Processing batch ${Math.floor(i / batchSize) + 1}: rows ${i + 1} to ${i + batch.length}`);
+
+          // Prepare all data structures
+          const accountsData = batch.map((row, idx) => {
+            const company = (reverseMapping.company && row[reverseMapping.company]) || 'Unknown Company';
+            const domain = (reverseMapping.website && row[reverseMapping.website]) || null;
+            const key = domain || company.toLowerCase();
+            const uniqueAccount = uniqueCompanies.get(key)!;
+            
+            return {
+              ...uniqueAccount,
+              external_id: `acc_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`
             };
           });
 
-          console.log(`📤 Inserting ${accountsData.length} accounts...`);
-          const { data: accountsResult, error: accountsError } = await supabase
-            .from('accounts')
-            .upsert(accountsData, { onConflict: 'org_id,external_id' })
-            .select('id, external_id');
-
-          if (accountsError) {
-            const msg = `Accounts failed: ${accountsError.message} | Code: ${accountsError.code} | Details: ${accountsError.details}`;
-            console.error('❌ ACCOUNTS ERROR:', {
-              message: accountsError.message,
-              code: accountsError.code,
-              details: accountsError.details,
-              hint: accountsError.hint,
-              sampleData: accountsData[0]
-            });
-            toast({ 
-              title: "Accounts Upload Failed", 
-              description: `${accountsError.message} (${accountsError.code})`,
-              variant: "destructive",
-              duration: 10000
-            });
-            errors.push(msg);
-            continue; // Skip this batch
-          }
-
-          insertedAccounts += accountsResult?.length || 0;
-          console.log(`✅ Inserted ${accountsResult?.length} accounts`);
-          setUploadProgress(20 + Math.round((i / rawData.length) * 30));
-
-          // STEP 2: Insert Contacts
           const contactsData = batch
             .filter((row) => 
               (reverseMapping.first_name && row[reverseMapping.first_name]) || 
@@ -227,37 +253,6 @@ export default function DataUpload() {
               updated_at: new Date().toISOString()
             }));
 
-          if (contactsData.length > 0) {
-            console.log(`📤 Inserting ${contactsData.length} contacts...`);
-            const { data: contactsResult, error: contactsError } = await supabase
-              .from('contacts')
-              .upsert(contactsData, { onConflict: 'org_id,external_id' })
-              .select('id, external_id');
-
-            if (contactsError) {
-              const msg = `Contacts failed: ${contactsError.message}`;
-              console.error('❌ CONTACTS ERROR:', {
-                message: contactsError.message,
-                code: contactsError.code,
-                details: contactsError.details,
-                sampleData: contactsData[0]
-              });
-              toast({ 
-                title: "Contacts Upload Failed", 
-                description: `${contactsError.message} (${contactsError.code})`,
-                variant: "destructive",
-                duration: 10000
-              });
-              errors.push(msg);
-            } else {
-              insertedContacts += contactsResult?.length || 0;
-              console.log(`✅ Inserted ${contactsResult?.length} contacts`);
-            }
-          }
-
-          setUploadProgress(50 + Math.round((i / rawData.length) * 30));
-
-          // STEP 3: Insert Leads
           const leadsData = batch.map((row, idx) => {
             const firstName = reverseMapping.first_name && row[reverseMapping.first_name];
             const lastName = reverseMapping.last_name && row[reverseMapping.last_name];
@@ -287,34 +282,44 @@ export default function DataUpload() {
             };
           });
 
-          console.log(`📤 Inserting ${leadsData.length} leads...`);
-          const { data: leadsResult, error: leadsError } = await supabase
-            .from('Leads')
-            .upsert(leadsData, { onConflict: 'org_id,external_id' })
-            .select('id');
+          // PARALLEL EXECUTION - All three operations at once!
+          console.log(`⚡ Parallel insert: ${accountsData.length} accounts, ${contactsData.length} contacts, ${leadsData.length} leads`);
+          
+          const [accountsResult, contactsResult, leadsResult] = await Promise.all([
+            supabase.from('accounts').upsert(accountsData, { onConflict: 'org_id,external_id' }).select('id, external_id'),
+            contactsData.length > 0 
+              ? supabase.from('contacts').upsert(contactsData, { onConflict: 'org_id,external_id' }).select('id, external_id')
+              : Promise.resolve({ data: [], error: null }),
+            supabase.from('Leads').upsert(leadsData, { onConflict: 'org_id,external_id' }).select('id')
+          ]);
 
-          if (leadsError) {
-            const msg = `Leads failed: ${leadsError.message}`;
-            console.error('❌ LEADS ERROR:', {
-              message: leadsError.message,
-              code: leadsError.code,
-              details: leadsError.details,
-              sampleData: leadsData[0]
-            });
-            toast({ 
-              title: "Leads Upload Failed", 
-              description: `${leadsError.message} (${leadsError.code})`,
-              variant: "destructive",
-              duration: 10000
-            });
-            errors.push(msg);
+          // Handle results
+          if (accountsResult.error) {
+            console.error('❌ Accounts error:', accountsResult.error);
+            errors.push(`Batch ${Math.floor(i / batchSize) + 1} accounts: ${accountsResult.error.message}`);
           } else {
-            insertedLeads += leadsResult?.length || 0;
-            console.log(`✅ Inserted ${leadsResult?.length} leads`);
+            insertedAccounts += accountsResult.data?.length || 0;
+            console.log(`✅ Inserted ${accountsResult.data?.length} accounts`);
+          }
+
+          if (contactsResult.error) {
+            console.error('❌ Contacts error:', contactsResult.error);
+            errors.push(`Batch ${Math.floor(i / batchSize) + 1} contacts: ${contactsResult.error.message}`);
+          } else {
+            insertedContacts += contactsResult.data?.length || 0;
+            console.log(`✅ Inserted ${contactsResult.data?.length} contacts`);
+          }
+
+          if (leadsResult.error) {
+            console.error('❌ Leads error:', leadsResult.error);
+            errors.push(`Batch ${Math.floor(i / batchSize) + 1} leads: ${leadsResult.error.message}`);
+          } else {
+            insertedLeads += leadsResult.data?.length || 0;
+            console.log(`✅ Inserted ${leadsResult.data?.length} leads`);
           }
 
           totalProcessed += batch.length;
-          setUploadProgress(80 + Math.round((i / rawData.length) * 20));
+          setUploadProgress(20 + Math.round((i / rawData.length) * 80));
         }
 
         toast({
@@ -323,41 +328,49 @@ export default function DataUpload() {
         });
 
       } else {
-        // Single table upload for accounts/contacts
+        // Optimized single table upload for accounts/contacts with larger batches
         const tableName = pendingFile.type === 'accounts' ? 'accounts' : 'contacts';
+        const batchSize = 2000;
         
-        const transformedData = rawData.map((row, idx) => {
-          const transformed: any = { 
-            org_id: orgId,
-            data_source: 'crm',
-            updated_at: new Date().toISOString()
-          };
+        for (let i = 0; i < rawData.length; i += batchSize) {
+          const batch = rawData.slice(i, Math.min(i + batchSize, rawData.length));
           
-          Object.entries(mapping).forEach(([csvField, dbField]) => {
-            if (dbField && row[csvField] !== undefined && row[csvField] !== '') {
-              transformed[dbField] = row[csvField];
+          const transformedData = batch.map((row, idx) => {
+            const transformed: any = { 
+              org_id: orgId,
+              data_source: 'crm',
+              updated_at: new Date().toISOString()
+            };
+            
+            Object.entries(mapping).forEach(([csvField, dbField]) => {
+              if (dbField && row[csvField] !== undefined && row[csvField] !== '') {
+                transformed[dbField] = row[csvField];
+              }
+            });
+
+            if (!transformed.external_id) {
+              transformed.external_id = `${tableName.substring(0, 3)}_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`;
             }
+            
+            return transformed;
           });
 
-          if (!transformed.external_id) {
-            transformed.external_id = `${tableName.substring(0, 3)}_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 9)}`;
+          console.log(`📤 Inserting batch ${Math.floor(i / batchSize) + 1}: ${transformedData.length} ${tableName}...`);
+          const { data: result, error } = await supabase
+            .from(tableName)
+            .upsert(transformedData, { onConflict: 'org_id,external_id' })
+            .select();
+
+          if (error) {
+            console.error(`❌ ${tableName} error:`, error);
+            errors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${error.message}`);
+          } else {
+            totalProcessed += result?.length || 0;
+            console.log(`✅ Inserted ${result?.length} ${tableName}`);
           }
           
-          return transformed;
-        });
-
-        console.log(`📤 Inserting ${transformedData.length} ${tableName}...`);
-        const { data: result, error } = await supabase
-          .from(tableName)
-          .upsert(transformedData, { onConflict: 'org_id,external_id' })
-          .select();
-
-        if (error) {
-          throw new Error(`${tableName} upload failed: ${error.message}`);
+          setUploadProgress(20 + Math.round((i / rawData.length) * 80));
         }
-
-        totalProcessed = result?.length || 0;
-        console.log(`✅ Inserted ${totalProcessed} ${tableName}`);
         
         toast({
           title: "Upload Complete!",
