@@ -8,7 +8,7 @@ export function useCSVValidator() {
   const detectDuplicates = (
     rawData: any[], 
     mapping: FieldMapping, 
-    type: 'accounts' | 'contacts', 
+    type: 'accounts' | 'contacts' | 'leads', 
     issues: ValidationIssue[]
   ): number => {
     const keyField = 'external_id';
@@ -44,7 +44,7 @@ export function useCSVValidator() {
   const validateDataWithMapping = (
     rawData: any[], 
     mapping: FieldMapping, 
-    type: 'accounts' | 'contacts'
+    type: 'accounts' | 'contacts' | 'leads'
   ): ValidationResult => {
     const issues: ValidationIssue[] = [];
     let validCount = 0;

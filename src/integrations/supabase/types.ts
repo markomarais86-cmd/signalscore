@@ -27,9 +27,12 @@ export type Database = {
           id: string
           industry_norm: string | null
           industry_raw: string | null
+          mobile: string | null
           name: string | null
           org_id: string
+          phone: string | null
           revenue_range: string | null
+          state_province: string | null
           updated_at: string | null
         }
         Insert: {
@@ -44,9 +47,12 @@ export type Database = {
           id?: string
           industry_norm?: string | null
           industry_raw?: string | null
+          mobile?: string | null
           name?: string | null
           org_id: string
+          phone?: string | null
           revenue_range?: string | null
+          state_province?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -61,9 +67,12 @@ export type Database = {
           id?: string
           industry_norm?: string | null
           industry_raw?: string | null
+          mobile?: string | null
           name?: string | null
           org_id?: string
+          phone?: string | null
           revenue_range?: string | null
+          state_province?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -205,8 +214,11 @@ export type Database = {
           id: string
           last_name: string | null
           level: string | null
+          mobile: string | null
           org_id: string
           persona: string | null
+          phone: string | null
+          state_province: string | null
           title_raw: string | null
           updated_at: string | null
         }
@@ -223,8 +235,11 @@ export type Database = {
           id?: string
           last_name?: string | null
           level?: string | null
+          mobile?: string | null
           org_id: string
           persona?: string | null
+          phone?: string | null
+          state_province?: string | null
           title_raw?: string | null
           updated_at?: string | null
         }
@@ -241,8 +256,11 @@ export type Database = {
           id?: string
           last_name?: string | null
           level?: string | null
+          mobile?: string | null
           org_id?: string
           persona?: string | null
+          phone?: string | null
+          state_province?: string | null
           title_raw?: string | null
           updated_at?: string | null
         }
@@ -640,28 +658,73 @@ export type Database = {
       }
       Leads: {
         Row: {
+          account_external_id: string | null
+          company: string | null
+          contact_external_id: string | null
+          country: string | null
           created_at: string
+          email: string | null
+          employee_count: number | null
           external_id: string | null
+          first_name: string | null
           id: number
+          industry: string | null
+          last_name: string | null
+          mobile: string | null
           name: string | null
           org_id: string | null
+          phone: string | null
+          revenue_range: string | null
+          state_province: string | null
           status: string | null
+          title: string | null
+          website: string | null
         }
         Insert: {
+          account_external_id?: string | null
+          company?: string | null
+          contact_external_id?: string | null
+          country?: string | null
           created_at?: string
+          email?: string | null
+          employee_count?: number | null
           external_id?: string | null
+          first_name?: string | null
           id?: number
+          industry?: string | null
+          last_name?: string | null
+          mobile?: string | null
           name?: string | null
           org_id?: string | null
+          phone?: string | null
+          revenue_range?: string | null
+          state_province?: string | null
           status?: string | null
+          title?: string | null
+          website?: string | null
         }
         Update: {
+          account_external_id?: string | null
+          company?: string | null
+          contact_external_id?: string | null
+          country?: string | null
           created_at?: string
+          email?: string | null
+          employee_count?: number | null
           external_id?: string | null
+          first_name?: string | null
           id?: number
+          industry?: string | null
+          last_name?: string | null
+          mobile?: string | null
           name?: string | null
           org_id?: string | null
+          phone?: string | null
+          revenue_range?: string | null
+          state_province?: string | null
           status?: string | null
+          title?: string | null
+          website?: string | null
         }
         Relationships: [
           {

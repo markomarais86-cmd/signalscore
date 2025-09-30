@@ -15,7 +15,7 @@ interface UploadResult {
 }
 
 interface UploadSectionProps {
-  type: 'accounts' | 'contacts';
+  type: 'accounts' | 'contacts' | 'leads';
   headers: string[];
   uploading: boolean;
   uploadProgress: number;
@@ -42,12 +42,14 @@ export function UploadSection({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <FileText className="h-5 w-5" />
-          Upload {type === 'accounts' ? 'Accounts' : 'Contacts'}
+          Upload {type === 'accounts' ? 'Accounts' : type === 'contacts' ? 'Contacts' : 'Leads'}
         </CardTitle>
         <CardDescription>
           {type === 'accounts' 
             ? 'Import company/account data to build your pipeline'
-            : 'Import contact data linked to your accounts'
+            : type === 'contacts'
+            ? 'Import contact data linked to your accounts'
+            : 'Import lead data with contact and company information'
           }
         </CardDescription>
       </CardHeader>

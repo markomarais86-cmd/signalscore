@@ -14,7 +14,7 @@ import { HeroMetric } from "@/components/executive/HeroMetric";
 import { UploadSection } from "@/components/data-upload/UploadSection";
 import { ClosedWonUpload } from "@/components/data-upload/ClosedWonUpload";
 import { useCSVValidator } from "@/hooks/use-csv-validator";
-import { parseCSV, ACCOUNTS_HEADERS, CONTACTS_HEADERS, generateCSVTemplate } from "@/utils/csv-parser";
+import { parseCSV, ACCOUNTS_HEADERS, CONTACTS_HEADERS, LEADS_HEADERS, generateCSVTemplate } from "@/utils/csv-parser";
 
 interface UploadResult {
   total: number;
@@ -34,7 +34,7 @@ export default function DataUpload() {
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [showFieldMapping, setShowFieldMapping] = useState(false);
-  const [pendingFile, setPendingFile] = useState<{ file: File; type: 'accounts' | 'contacts' } | null>(null);
+  const [pendingFile, setPendingFile] = useState<{ file: File; type: 'accounts' | 'contacts' | 'leads' } | null>(null);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [sampleData, setSampleData] = useState<any[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -60,7 +60,7 @@ export default function DataUpload() {
     setTotalRecords((accountsRes.count || 0) + (contactsRes.count || 0));
   };
 
-  const analyzeCSVStructure = async (file: File, type: 'accounts' | 'contacts') => {
+  const analyzeCSVStructure = async (file: File, type: 'accounts' | 'contacts' | 'leads') => {
     try {
       const text = await file.text();
       const rawData = parseCSV(text);
@@ -150,11 +150,12 @@ export default function DataUpload() {
       let inserted = 0;
 
       if (validData.length > 0) {
-        const tableName = pendingFile.type === 'accounts' ? 'accounts' : 'contacts';
+        const tableName = pendingFile.type === 'accounts' ? 'accounts' : 
+                         pendingFile.type === 'contacts' ? 'contacts' : 'Leads';
         const { error: upsertError } = await supabase
           .from(tableName)
           .upsert(validData, { 
-            onConflict: pendingFile.type === 'accounts' ? 'org_id,external_id' : 'org_id,external_id'
+            onConflict: pendingFile.type === 'leads' ? 'org_id,external_id' : 'org_id,external_id'
           });
 
         if (upsertError) throw upsertError;
@@ -230,7 +231,7 @@ export default function DataUpload() {
     }
   };
 
-  const downloadTemplate = (type: 'accounts' | 'contacts') => {
+  const downloadTemplate = (type: 'accounts' | 'contacts' | 'leads') => {
     const csvContent = generateCSVTemplate(type);
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -291,6 +292,7 @@ export default function DataUpload() {
         <TabsList>
           <TabsTrigger value="accounts">Accounts</TabsTrigger>
           <TabsTrigger value="contacts">Contacts</TabsTrigger>
+          <TabsTrigger value="leads">Leads</TabsTrigger>
           <TabsTrigger value="closed-won">Closed Won</TabsTrigger>
         </TabsList>
 
@@ -316,6 +318,19 @@ export default function DataUpload() {
             uploadResult={uploadResult}
             onFileSelect={(file) => analyzeCSVStructure(file, 'contacts')}
             onDownloadTemplate={() => downloadTemplate('contacts')}
+            onDownloadRejections={downloadRejections}
+          />
+        </TabsContent>
+
+        <TabsContent value="leads" className="space-y-6">
+          <UploadSection
+            type="leads"
+            headers={['external_id', 'first_name', 'last_name', 'email', 'phone', 'mobile', 'title', 'company', 'website', 'industry', 'revenue_range', 'employee_count', 'country', 'state_province', 'status']}
+            uploading={uploading}
+            uploadProgress={uploadProgress}
+            uploadResult={uploadResult}
+            onFileSelect={(file) => analyzeCSVStructure(file, 'leads')}
+            onDownloadTemplate={() => downloadTemplate('leads')}
             onDownloadRejections={downloadRejections}
           />
         </TabsContent>
