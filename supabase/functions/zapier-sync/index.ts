@@ -9,6 +9,7 @@ const corsHeaders = {
 interface ZapierSyncRequest {
   event_type: 'account_created' | 'contact_created' | 'lead_created' | 'score_updated';
   data: any;
+  org_id?: string; // For database trigger calls
 }
 
 serve(async (req) => {
@@ -18,37 +19,49 @@ serve(async (req) => {
   }
 
   try {
-    const { event_type, data }: ZapierSyncRequest = await req.json();
+    const { event_type, data, org_id: providedOrgId }: ZapierSyncRequest = await req.json();
     
+    // Use service role key for database trigger calls, anon key for user calls
+    const isServiceCall = providedOrgId !== undefined;
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      {
+      isServiceCall ? (Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '') : (Deno.env.get('SUPABASE_ANON_KEY') ?? ''),
+      isServiceCall ? {} : {
         global: { headers: { Authorization: req.headers.get('Authorization')! } }
       }
     );
 
-    // Get user's org_id
-    const { data: { user } } = await supabaseClient.auth.getUser();
-    if (!user) {
-      throw new Error('Unauthorized');
+    let orgId = providedOrgId;
+
+    // If not a service call, get user's org_id
+    if (!isServiceCall) {
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (!user) {
+        throw new Error('Unauthorized');
+      }
+
+      const { data: userProfile } = await supabaseClient
+        .from('user_profiles')
+        .select('org_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!userProfile) {
+        throw new Error('User profile not found');
+      }
+
+      orgId = userProfile.org_id;
     }
 
-    const { data: userProfile } = await supabaseClient
-      .from('user_profiles')
-      .select('org_id')
-      .eq('user_id', user.id)
-      .single();
-
-    if (!userProfile) {
-      throw new Error('User profile not found');
+    if (!orgId) {
+      throw new Error('Organization ID not found');
     }
 
     // Get active webhooks for this event type
     const { data: webhooks, error: webhooksError } = await supabaseClient
       .from('zapier_webhooks')
       .select('*')
-      .eq('org_id', userProfile.org_id)
+      .eq('org_id', orgId)
       .eq('event_type', event_type)
       .eq('is_active', true);
 
