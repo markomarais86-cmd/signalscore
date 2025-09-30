@@ -4,13 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
-import { TrendingUp, TrendingDown, Target, Database, AlertCircle, Download, ArrowUpRight, MapPin, Sparkles } from "lucide-react";
+import { TrendingUp, TrendingDown, Target, Database, AlertCircle, Download, ArrowUpRight, MapPin, Sparkles, Share2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { HeroMetric } from "@/components/executive/HeroMetric";
 import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
+import { ExportToPdf } from "@/components/executive/ExportToPdf";
 
 export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
@@ -155,8 +156,116 @@ export default function ExecutiveDashboard() {
     }
   };
 
-  const handleExport = () => {
-    toast.success('Exporting TAM report...');
+  const handleExport = async (format: 'pdf' | 'pptx' | 'csv') => {
+    try {
+      if (format === 'pdf') {
+        const { default: jsPDF } = await import('jspdf');
+        
+        toast.loading('Generating PDF report...');
+        
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const margin = 20;
+        let yPos = margin;
+
+        // Header
+        pdf.setFillColor(59, 130, 246);
+        pdf.rect(0, 0, pageWidth, 40, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(24);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('TAM Health Report', margin, 20);
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Generated: ${new Date().toLocaleDateString()}`, margin, 30);
+
+        yPos = 50;
+
+        // Key Metrics
+        pdf.setTextColor(0, 0, 0);
+        pdf.setFontSize(16);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Executive Summary', margin, yPos);
+        yPos += 10;
+
+        const metricsData = [
+          { label: 'TAM Coverage', value: `${metrics.tamCoverage.toFixed(2)}%`, trend: metrics.tamCoverageTrend },
+          { label: 'ICP Match Quality', value: `${metrics.icpMatchQuality.toFixed(2)}%`, trend: metrics.icpMatchTrend },
+          { label: 'Whitespace Opportunity', value: metrics.whitespaceOpportunity.toLocaleString(), trend: metrics.whitespaceTrend },
+          { label: 'Data Completeness', value: `${metrics.dataCompleteness.toFixed(2)}%`, trend: metrics.dataCompletenessTrend },
+        ];
+
+        metricsData.forEach((metric) => {
+          pdf.setFillColor(249, 250, 251);
+          pdf.rect(margin, yPos, pageWidth - (margin * 2), 20, 'F');
+          pdf.setFontSize(10);
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(metric.label, margin + 5, yPos + 8);
+          pdf.setFontSize(14);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(metric.value, margin + 5, yPos + 15);
+          const trendColor: [number, number, number] = metric.trend >= 0 ? [34, 197, 94] : [239, 68, 68];
+          pdf.setTextColor(...trendColor);
+          pdf.setFontSize(8);
+          pdf.text(`${metric.trend >= 0 ? '↑' : '↓'} ${Math.abs(metric.trend).toFixed(2)}%`, pageWidth - margin - 20, yPos + 12);
+          pdf.setTextColor(0, 0, 0);
+          yPos += 25;
+        });
+
+        yPos += 10;
+
+        // Account Overview
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Account Overview', margin, yPos);
+        yPos += 8;
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        const overviewText = [
+          `Total Accounts: ${metrics.totalAccounts.toLocaleString()}`,
+          `Active ICPs: ${metrics.icpCount}`,
+          `High-Fit Accounts: ${metrics.highFitAccounts}`,
+          `Estimated TAM: ${metrics.estimatedTAM.toLocaleString()} accounts`,
+        ];
+        overviewText.forEach((text) => {
+          pdf.text(`• ${text}`, margin + 5, yPos);
+          yPos += 6;
+        });
+
+        const filename = `TAM-Health-Report-${new Date().toISOString().split('T')[0]}.pdf`;
+        pdf.save(filename);
+
+        toast.success('PDF report downloaded successfully!');
+      } else if (format === 'csv') {
+        // Export raw data as CSV
+        const csvData = [
+          ['Metric', 'Value', 'Trend'],
+          ['TAM Coverage', `${metrics.tamCoverage.toFixed(2)}%`, `${metrics.tamCoverageTrend.toFixed(2)}%`],
+          ['ICP Match Quality', `${metrics.icpMatchQuality.toFixed(2)}%`, `${metrics.icpMatchTrend.toFixed(2)}%`],
+          ['Whitespace Opportunity', metrics.whitespaceOpportunity.toString(), `${metrics.whitespaceTrend.toFixed(2)}%`],
+          ['Data Completeness', `${metrics.dataCompleteness.toFixed(2)}%`, `${metrics.dataCompletenessTrend.toFixed(2)}%`],
+          ['Total Accounts', metrics.totalAccounts.toString(), ''],
+          ['High Fit Accounts', metrics.highFitAccounts.toString(), ''],
+        ].map(row => row.join(',')).join('\n');
+
+        const blob = new Blob([csvData], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `TAM-Data-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast.success('CSV data exported successfully!');
+      } else {
+        toast.info('PowerPoint export coming soon!');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export report');
+    }
   };
 
   return (
@@ -171,10 +280,21 @@ export default function ExecutiveDashboard() {
             Market coverage, ICP fit, and whitespace opportunities
           </p>
         </div>
-        <Button onClick={handleExport} variant="outline">
-          <Download className="h-4 w-4 mr-2" />
-          Export Report
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => {
+              const url = `${window.location.origin}/executive-dashboard`;
+              navigator.clipboard.writeText(url);
+              toast.success('Dashboard link copied to clipboard!');
+            }}
+            variant="outline"
+            size="sm"
+          >
+            <Share2 className="h-4 w-4 mr-2" />
+            Share Dashboard
+          </Button>
+          <ExportToPdf onExport={handleExport} variant="outline" size="sm" />
+        </div>
       </div>
 
       {/* Onboarding Progress */}
