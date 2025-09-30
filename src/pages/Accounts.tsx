@@ -58,22 +58,27 @@ export default function Accounts() {
     
     setLoading(true);
     try {
+      // Fetch accounts
       const { data: accountsData, error: accountsError } = await supabase
         .from('accounts')
-        .select(`
-          *,
-          scores!left (
-            overall,
-            fit,
-            intent,
-            reachability
-          )
-        `)
+        .select('*')
         .eq('org_id', userProfile.org_id)
         .order('name', { ascending: true });
 
       if (accountsError) throw accountsError;
 
+      // Fetch scores separately (no foreign key relationship exists)
+      const { data: scoresData } = await supabase
+        .from('scores')
+        .select('*')
+        .eq('org_id', userProfile.org_id);
+
+      // Create a map for quick score lookup
+      const scoresMap = new Map(
+        (scoresData || []).map(score => [score.account_external_id, score])
+      );
+
+      // Combine accounts with scores and contacts
       const accountsWithContacts = await Promise.all(
         (accountsData || []).map(async (account) => {
           const { data: contacts } = await supabase
@@ -82,13 +87,16 @@ export default function Accounts() {
             .eq('org_id', userProfile.org_id)
             .eq('account_external_id', account.external_id);
 
-          const scoreData = account.scores && Array.isArray(account.scores) && account.scores.length > 0 
-            ? account.scores[0] 
-            : null;
+          const scoreData = scoresMap.get(account.external_id);
           
           return {
             ...account,
-            score: scoreData && typeof scoreData === 'object' ? scoreData : null,
+            score: scoreData ? {
+              overall: scoreData.overall,
+              fit: scoreData.fit,
+              intent: scoreData.intent,
+              reachability: scoreData.reachability
+            } : null,
             contacts: contacts || []
           };
         })
