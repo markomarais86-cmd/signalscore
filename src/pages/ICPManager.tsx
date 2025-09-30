@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp } from "lucide-react";
+import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,8 @@ import { HeroMetric } from "@/components/executive/HeroMetric";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { DEMO_ICP_PROFILES } from "@/data/mockData";
 import { DemoModeBanner } from "@/components/DemoModeBanner";
+import { Link } from "react-router-dom";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function ICPManager() {
   const [icps, setIcps] = useState<ICPProfile[]>([]);
@@ -133,16 +135,35 @@ export default function ICPManager() {
     <>
       <div className="space-y-6">
         <DemoModeBanner />
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-start">
           <div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">ICP Manager</h1>
-            <p className="text-muted-foreground mt-2">Create and manage your Ideal Customer Profiles</p>
+            <p className="text-muted-foreground mt-2">Create, manage, and activate your Ideal Customer Profiles</p>
           </div>
-          <Button onClick={handleCreateNew} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Create ICP
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={handleCreateNew} className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Create ICP
+            </Button>
+          </div>
         </div>
+
+        {/* Info Alert - What Happens Next */}
+        {icps.length > 0 && activeCount > 0 && (
+          <Alert className="border-primary/50 bg-primary/5">
+            <Target className="h-4 w-4 text-primary" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>
+                <strong>{activeCount} active ICP{activeCount > 1 ? 's' : ''}</strong> ready to analyze your accounts and generate TAM intelligence
+              </span>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/icp-tam" className="flex items-center gap-1">
+                  View Intelligence <ArrowRight className="h-3 w-3" />
+                </Link>
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Hero Metric */}
         {icps.length > 0 && (
@@ -223,13 +244,20 @@ export default function ICPManager() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button variant="ghost" size="sm" onClick={() => handleEdit(icp)}>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => handleEdit(icp)} className="opacity-0 group-hover:opacity-100 transition-opacity">
                       <Edit className="h-4 w-4" />
                     </Button>
                     {userProfile?.role === 'admin' && (
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(icp.id)}>
+                      <Button variant="ghost" size="sm" onClick={() => handleDelete(icp.id)} className="opacity-0 group-hover:opacity-100 transition-opacity">
                         <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {icp.status === 'active' && (
+                      <Button variant="outline" size="sm" asChild>
+                        <Link to="/icp-tam">
+                          <BarChart3 className="h-4 w-4" />
+                        </Link>
                       </Button>
                     )}
                   </div>
@@ -401,9 +429,9 @@ export default function ICPManager() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <div className="font-medium">3. Validate & Activate</div>
+                  <div className="font-medium">3. Score & Analyze</div>
                   <div className="text-sm text-muted-foreground">
-                    Review matching accounts, TAM estimates, and activate for campaigns
+                    Activate your ICP to score accounts, generate TAM intelligence, and identify qualified leads
                   </div>
                 </div>
               </div>

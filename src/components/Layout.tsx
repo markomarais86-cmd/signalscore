@@ -32,9 +32,9 @@ export function Layout({ children }: LayoutProps) {
           <footer className="border-t bg-card px-6 py-3 text-xs text-muted-foreground">
             <div className="flex items-center justify-between">
               <span>© 2025 LaunchPulse. All rights reserved.</span>
-              <a href="#" className="hover:text-primary transition-colors font-medium">
+              <button className="hover:text-primary transition-colors font-medium">
                 Consulting Services
-              </a>
+              </button>
             </div>
           </footer>
         </main>
