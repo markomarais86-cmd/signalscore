@@ -35,7 +35,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Store score in database
+    // Store score in database with proper conflict resolution
     const { error: scoreError } = await supabase
       .from('scores')
       .upsert({
@@ -49,7 +49,8 @@ serve(async (req) => {
         scoring_version: mockScore.scoring_version,
         computed_at: mockScore.computed_at
       }, {
-        onConflict: 'org_id,account_external_id,scoring_version'
+        onConflict: 'org_id,account_external_id,scoring_version',
+        ignoreDuplicates: false
       });
 
     if (scoreError) {

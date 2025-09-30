@@ -169,8 +169,8 @@ export function useICPScoring() {
             };
             newScores.push(score);
 
-            // Store score in database
-            await supabase
+            // Store score in database with proper conflict resolution
+            const { error: upsertError } = await supabase
               .from('scores')
               .upsert({
                 org_id: userProfile.org_id,
@@ -180,8 +180,16 @@ export function useICPScoring() {
                 intent: (scoreResult as any).intent || 50,
                 reachability: (scoreResult as any).reachability || 70,
                 reasons: (scoreResult as any).breakdown || {},
-                scoring_version: 'icp_v2.0'
+                scoring_version: 'icp_v2.0',
+                computed_at: new Date().toISOString()
+              }, {
+                onConflict: 'org_id,account_external_id,scoring_version',
+                ignoreDuplicates: false
               });
+
+            if (upsertError) {
+              console.error('Error upserting score:', upsertError);
+            }
           }
         }
       }
