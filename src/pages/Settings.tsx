@@ -316,7 +316,7 @@ export default function Settings() {
           </TabsTrigger>
           <TabsTrigger value="features" className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
-            Features
+            Labs
           </TabsTrigger>
           <TabsTrigger value="integrations" className="flex items-center gap-2">
             <Database className="h-4 w-4" />
