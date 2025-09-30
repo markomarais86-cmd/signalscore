@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,13 +11,20 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 
 export function AuthSystem() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user, loading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+
+  // Redirect authenticated users to dashboard
+  useEffect(() => {
+    if (!loading && user) {
+      navigate('/dashboard');
+    }
+  }, [user, loading, navigate]);
 
   // Sign In Form
   const [signInData, setSignInData] = useState({
