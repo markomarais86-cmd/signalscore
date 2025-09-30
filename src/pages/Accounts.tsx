@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Database, ExternalLink, AlertCircle, CheckCircle2, Download, TrendingUp } from "lucide-react";
+import { Search, Database, ExternalLink, AlertCircle, CheckCircle2, Download, TrendingUp, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,8 @@ import { usePagination } from "@/hooks/use-pagination";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { DemoModeBanner } from "@/components/DemoModeBanner";
 import { DEMO_ACCOUNTS } from "@/data/mockData";
+import { EnrichmentDialog } from "@/components/EnrichmentDialog";
+import { getSourceLabel, getSourceBadgeVariant } from "@/utils/data-source-attribution";
 
 interface Account {
   id: string;
@@ -34,6 +36,10 @@ interface Account {
   revenue_range: string | null;
   country: string | null;
   updated_at: string;
+  data_source?: 'crm' | 'database' | 'both';
+  external_database_match?: boolean;
+  enriched_from?: string | null;
+  enriched_at?: string | null;
   score?: {
     overall: number;
     fit: number;
@@ -53,6 +59,8 @@ export default function Accounts() {
   const [selectedAccountForDetail, setSelectedAccountForDetail] = useState<Account | null>(null);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
+  const [selectedAccountsForEnrichment, setSelectedAccountsForEnrichment] = useState<string[]>([]);
+  const [showEnrichmentDialog, setShowEnrichmentDialog] = useState(false);
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
@@ -124,6 +132,7 @@ export default function Accounts() {
           
           return {
             ...account,
+            data_source: (account.data_source || 'crm') as 'crm' | 'database' | 'both',
             score: scoreData ? {
               overall: scoreData.overall,
               fit: scoreData.fit,
@@ -413,9 +422,11 @@ export default function Accounts() {
                 <TableHead>Industry</TableHead>
                 <TableHead>Size</TableHead>
                 <TableHead>Location</TableHead>
+                <TableHead>Source</TableHead>
                 <TableHead>Data Quality</TableHead>
                 <TableHead>Contacts</TableHead>
                 <TableHead>Score</TableHead>
+                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -444,6 +455,11 @@ export default function Accounts() {
                       </div>
                     </TableCell>
                     <TableCell>{account.country || '-'}</TableCell>
+                    <TableCell>
+                      <Badge variant={getSourceBadgeVariant(account.data_source || 'crm')}>
+                        {getSourceLabel(account.data_source || 'crm')}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Progress value={completeness} className="w-16 h-2" />
@@ -497,6 +513,24 @@ export default function Accounts() {
                         <span className="text-muted-foreground text-sm">No score</span>
                       )}
                     </TableCell>
+                    <TableCell>
+                      {account.external_database_match && account.data_source === 'database' ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedAccountsForEnrichment([account.id]);
+                            setShowEnrichmentDialog(true);
+                          }}
+                        >
+                          <Sparkles className="h-4 w-4 mr-2" />
+                          Enrich
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -539,6 +573,16 @@ export default function Accounts() {
         onViewScore={(account) => {
           setSelectedAccountForScore(account);
           setShowScoreDialog(true);
+        }}
+      />
+
+      <EnrichmentDialog
+        open={showEnrichmentDialog}
+        onOpenChange={setShowEnrichmentDialog}
+        selectedAccounts={selectedAccountsForEnrichment}
+        onEnrichmentComplete={() => {
+          setShowEnrichmentDialog(false);
+          loadAccounts();
         }}
       />
     </div>
