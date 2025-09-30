@@ -71,27 +71,34 @@ export default function Leads() {
     
     setLoading(true);
     try {
-      // Load accounts with their scores
+      // Load accounts
       const { data: accountsData, error: accountsError } = await supabase
         .from('accounts')
-        .select(`
-          *,
-          scores!left (
-            overall,
-            fit,
-            intent,
-            reachability,
-            reasons
-          )
-        `)
+        .select('*')
         .eq('org_id', userProfile.org_id)
         .order('updated_at', { ascending: false });
 
       if (accountsError) throw accountsError;
 
+      // Load scores
+      const { data: scoresData, error: scoresError } = await supabase
+        .from('scores')
+        .select('overall, fit, intent, reachability, reasons, account_external_id')
+        .eq('org_id', userProfile.org_id);
+
+      if (scoresError) throw scoresError;
+
+      // Join accounts with their scores
+      const accountsWithScores = (accountsData || []).map(account => ({
+        ...account,
+        scores: (scoresData || []).filter(score => 
+          score.account_external_id === account.external_id
+        )
+      }));
+
       // Load contacts for each account
       const leadsWithContacts = await Promise.all(
-        (accountsData || []).map(async (account) => {
+        (accountsWithScores || []).map(async (account) => {
           const { data: contacts } = await supabase
             .from('contacts')
             .select('*')

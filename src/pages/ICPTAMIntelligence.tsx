@@ -35,19 +35,32 @@ export function ICPTAMIntelligence() {
     
     setDataLoading(true);
     try {
-      // Get real account data with scores
-      const { data: accountsWithScores, error } = await supabase
+      // Get accounts data
+      const { data: accountsData, error: accountsError } = await supabase
         .from('accounts')
-        .select(`
-          *,
-          scores!left(*)
-        `)
+        .select('*')
         .eq('org_id', userProfile.org_id);
 
-      if (error) throw error;
+      if (accountsError) throw accountsError;
+
+      // Get scores data
+      const { data: scoresData, error: scoresError } = await supabase
+        .from('scores')
+        .select('*')
+        .eq('org_id', userProfile.org_id);
+
+      if (scoresError) throw scoresError;
+
+      // Join accounts with their scores
+      const accountsWithScores = (accountsData || []).map(account => ({
+        ...account,
+        scores: (scoresData || []).filter(score => 
+          score.account_external_id === account.external_id
+        )
+      }));
 
       // Process real data into dashboard format
-      const processedData = processAccountsForDashboard(accountsWithScores || []);
+      const processedData = processAccountsForDashboard(accountsWithScores);
       setRealTimeData(processedData);
     } catch (error) {
       console.error('Error loading real-time data:', error);
