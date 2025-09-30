@@ -176,12 +176,12 @@ export default function DataUpload() {
           }
         });
         
-        // Auto-populate employee_range from employee_count if missing
-        if (!transformed.employee_range && transformed.employee_count) {
+        // Auto-populate employee_range from employee_count for accounts only
+        if (pendingFile.type === 'accounts' && !transformed.employee_range && transformed.employee_count) {
           transformed.employee_range = getEmployeeRange(transformed.employee_count);
         }
         
-        // Auto-populate revenue_range from revenue if missing
+        // Auto-populate revenue_range from revenue if missing (for accounts and leads)
         if (!transformed.revenue_range) {
           // Try to find any revenue-related field in the raw row
           const revenueFields = ['revenue', 'annual_revenue', 'annual_revenue_number'];
@@ -248,8 +248,20 @@ export default function DataUpload() {
           .select();
 
         if (upsertError) {
-          console.error('❌ Database upsert error:', upsertError);
-          throw upsertError;
+          console.error('❌ Database upsert error:', {
+            message: upsertError.message,
+            code: upsertError.code,
+            details: upsertError.details,
+            hint: upsertError.hint
+          });
+          
+          // Provide specific error message for column errors
+          let errorMessage = upsertError.message;
+          if (upsertError.message?.includes('column') && upsertError.message?.includes('does not exist')) {
+            errorMessage = `Database schema error: ${upsertError.message}. Please check that your CSV fields match the database columns.`;
+          }
+          
+          throw new Error(errorMessage);
         }
         
         inserted = validData.length;
