@@ -40,23 +40,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (session?.user) {
           // Fetch user profile after successful auth
-          setTimeout(async () => {
-            try {
-              const { data: profile, error } = await supabase
-                .from('user_profiles')
-                .select('*')
-                .eq('user_id', session.user.id)
-                .single();
-              
-              if (error) {
-                console.error('Error fetching user profile:', error);
-              } else {
-                setUserProfile(profile as UserProfile);
-              }
-            } catch (error) {
-              console.error('Error in profile fetch:', error);
+          console.log('Auth: Fetching profile for user:', session.user.id);
+          try {
+            const { data: profile, error } = await supabase
+              .from('user_profiles')
+              .select('*')
+              .eq('user_id', session.user.id)
+              .maybeSingle();
+            
+            if (error) {
+              console.error('Error fetching user profile:', error);
+            } else if (profile) {
+              console.log('Auth: Profile loaded for org:', profile.org_id);
+              setUserProfile(profile as UserProfile);
+            } else {
+              console.warn('Auth: No profile found for user');
             }
-          }, 0);
+          } catch (error) {
+            console.error('Error in profile fetch:', error);
+          }
         } else {
           setUserProfile(null);
         }

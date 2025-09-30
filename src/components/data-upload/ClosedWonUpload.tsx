@@ -35,7 +35,7 @@ export function ClosedWonUpload() {
   const [showTroubleshooting, setShowTroubleshooting] = useState(false);
   const fileRefEasy = useRef<HTMLInputElement>(null);
   const fileRefDetailed = useRef<HTMLInputElement>(null);
-  const { userProfile } = useAuth();
+  const { userProfile, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
 
   // Check database connection and prerequisites on mount
@@ -44,9 +44,14 @@ export function ClosedWonUpload() {
   }, [userProfile?.org_id]);
 
   const checkDatabaseConnection = async () => {
+    console.log('ClosedWonUpload: Checking DB connection. Auth loading:', authLoading, 'User:', !!user, 'Profile:', !!userProfile, 'Org ID:', userProfile?.org_id);
+    
     if (!userProfile?.org_id) {
-      setDbConnectionStatus('error');
-      setDbError('User profile not loaded. Please sign in again.');
+      // Don't set error if we're still loading auth
+      if (!authLoading && user) {
+        setDbConnectionStatus('error');
+        setDbError('User profile not found. Please sign out and sign back in.');
+      }
       return;
     }
 
@@ -262,8 +267,39 @@ export function ClosedWonUpload() {
 
   return (
     <div className="space-y-6">
+      {/* Loading State */}
+      {(authLoading || (user && !userProfile)) && (
+        <Alert>
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          <AlertTitle>Loading user profile...</AlertTitle>
+          <AlertDescription>
+            Please wait while we load your account information.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Not Authenticated */}
+      {!authLoading && !user && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Authentication Required</AlertTitle>
+          <AlertDescription>
+            Please sign in to upload closed won data.
+            <div className="mt-3">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => window.location.href = '/auth'}
+              >
+                Sign In
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Database Connection Status */}
-      {dbConnectionStatus === 'checking' && (
+      {dbConnectionStatus === 'checking' && userProfile && (
         <Alert>
           <RefreshCw className="h-4 w-4 animate-spin" />
           <AlertTitle>Checking database connection...</AlertTitle>
@@ -472,7 +508,7 @@ export function ClosedWonUpload() {
                 />
                 <Button 
                   onClick={() => fileRefEasy.current?.click()}
-                  disabled={uploading || dbConnectionStatus !== 'connected' || accountCount === 0}
+              disabled={uploading || !userProfile || dbConnectionStatus !== 'connected' || accountCount === 0}
                 >
                   <Trophy className="h-4 w-4 mr-2" />
                   {uploading ? 'Processing...' : 'Upload Domains'}
@@ -514,7 +550,7 @@ export function ClosedWonUpload() {
                 />
                 <Button 
                   onClick={() => fileRefDetailed.current?.click()}
-                  disabled={uploading || dbConnectionStatus !== 'connected' || accountCount === 0}
+                  disabled={uploading || !userProfile || dbConnectionStatus !== 'connected' || accountCount === 0}
                 >
                   <Trophy className="h-4 w-4 mr-2" />
                   {uploading ? 'Processing...' : 'Upload Deal Data'}
