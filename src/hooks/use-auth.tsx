@@ -32,77 +32,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
+    let mounted = true;
+    
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth: State change event:', event);
+        if (!mounted) return;
+        
         setSession(session);
         setUser(session?.user ?? null);
+        setLoading(false); // Set loading false immediately when auth state changes
         
         if (session?.user) {
-          // Fetch user profile after successful auth
+          // Fetch user profile in background (don't block)
           console.log('Auth: Fetching profile for user:', session.user.id);
-          try {
-            const { data: profile, error } = await supabase
-              .from('user_profiles')
-              .select('*')
-              .eq('user_id', session.user.id)
-              .maybeSingle();
-            
-            if (error) {
-              console.error('Auth: Error fetching user profile:', error);
-              setUserProfile(null);
-            } else if (profile) {
-              console.log('Auth: Profile loaded successfully for org:', profile.org_id);
-              setUserProfile(profile as UserProfile);
-            } else {
-              console.warn('Auth: No profile found for user, may need to create one');
-              setUserProfile(null);
-            }
-          } catch (error) {
-            console.error('Auth: Exception in profile fetch:', error);
-            setUserProfile(null);
-          } finally {
-            // Only set loading false after profile fetch completes
-            setLoading(false);
-          }
+          supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .maybeSingle()
+            .then(({ data: profile, error }) => {
+              if (!mounted) return;
+              
+              if (error) {
+                console.error('Auth: Error fetching user profile:', error);
+              } else if (profile) {
+                console.log('Auth: Profile loaded successfully for org:', profile.org_id);
+                setUserProfile(profile as UserProfile);
+              } else {
+                console.warn('Auth: No profile found for user');
+              }
+            });
         } else {
           setUserProfile(null);
-          setLoading(false);
         }
       }
     );
 
     // Check for existing session on mount
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      
       console.log('Auth: Initial session check:', !!session);
       setSession(session);
       setUser(session?.user ?? null);
+      setLoading(false);
       
       if (session?.user) {
         console.log('Auth: Fetching initial profile for user:', session.user.id);
-        try {
-          const { data: profile, error } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-          
-          if (error) {
-            console.error('Auth: Error fetching initial profile:', error);
-          } else if (profile) {
-            console.log('Auth: Initial profile loaded for org:', profile.org_id);
-            setUserProfile(profile as UserProfile);
-          }
-        } catch (error) {
-          console.error('Auth: Exception fetching initial profile:', error);
-        }
+        supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .maybeSingle()
+          .then(({ data: profile, error }) => {
+            if (!mounted) return;
+            
+            if (error) {
+              console.error('Auth: Error fetching initial profile:', error);
+            } else if (profile) {
+              console.log('Auth: Initial profile loaded for org:', profile.org_id);
+              setUserProfile(profile as UserProfile);
+            }
+          });
       }
-      
-      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string) => {
