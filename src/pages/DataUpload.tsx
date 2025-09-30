@@ -164,7 +164,7 @@ export default function DataUpload() {
               country: row[mapping.country] || null,
               state_province: row[mapping.state_province] || null,
               phone: row[mapping.phone] || null,
-              data_source: 'csv_upload',
+              data_source: 'crm',
               updated_at: new Date().toISOString()
             };
           });
@@ -202,7 +202,7 @@ export default function DataUpload() {
               phone: row[mapping.phone] || null,
               country: row[mapping.country] || null,
               state_province: row[mapping.state_province] || null,
-              data_source: 'csv_upload',
+              data_source: 'crm',
               updated_at: new Date().toISOString()
             }));
 
@@ -287,7 +287,7 @@ export default function DataUpload() {
         const transformedData = rawData.map((row, idx) => {
           const transformed: any = { 
             org_id: orgId,
-            data_source: 'csv_upload',
+            data_source: 'crm',
             updated_at: new Date().toISOString()
           };
           
