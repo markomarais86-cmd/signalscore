@@ -33,13 +33,25 @@ serve(async (req) => {
 
     console.log('Analyzing correlations for org:', org_id);
 
-    // Get accounts with scores
+    // Get closed won leads with their accounts
+    const { data: leads, error: leadsError } = await supabase
+      .from('Leads')
+      .select('external_id, status')
+      .eq('org_id', org_id)
+      .in('status', ['won', 'closed_won', 'qualified']);
+
+    if (leadsError) throw leadsError;
+
+    const wonLeadIds = new Set(
+      (leads || [])
+        .filter(l => l.status === 'won' || l.status === 'closed_won')
+        .map(l => l.external_id)
+    );
+
+    // Get all accounts with their associated lead status
     const { data: accounts, error: accountsError } = await supabase
       .from('accounts')
-      .select(`
-        *,
-        scores:scores(overall, fit, intent, reachability)
-      `)
+      .select('*')
       .eq('org_id', org_id);
 
     if (accountsError) throw accountsError;
@@ -51,7 +63,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Analyzing ${accounts.length} accounts`);
+    console.log(`Analyzing ${accounts.length} accounts, ${wonLeadIds.size} closed won`);
 
     // Get contacts to measure reachability
     const { data: contacts, error: contactsError } = await supabase
@@ -87,10 +99,10 @@ serve(async (req) => {
       );
     }
 
-    // Prepare data for AI analysis
+    // Prepare data for statistical analysis
     const analysisData = accounts.map(account => {
-      const score = Array.isArray(account.scores) ? account.scores[0] : null;
       const contactCount = contactCounts[account.external_id] || 0;
+      const isClosedWon = wonLeadIds.has(account.external_id);
       
       return {
         name: account.name,
@@ -98,8 +110,7 @@ serve(async (req) => {
         employee_count: account.employee_count,
         revenue_range: account.revenue_range,
         country: account.country,
-        score: score?.overall || 0,
-        fit_score: score?.fit || 0,
+        is_closed_won: isClosedWon,
         has_contacts: contactCount > 0,
         contact_count: contactCount,
         data_completeness: [
@@ -111,49 +122,123 @@ serve(async (req) => {
       };
     });
 
+    // Calculate actual statistical correlations
+    const closedWonCount = analysisData.filter(a => a.is_closed_won).length;
+    
+    // Helper to calculate point-biserial correlation (for binary outcome)
+    const calculateCorrelation = (criterion: string, getValue: (item: any) => boolean) => {
+      const matches = analysisData.filter(getValue);
+      const matchWonRate = matches.filter(a => a.is_closed_won).length / matches.length;
+      const noMatchWonRate = analysisData.filter(a => !getValue(a)).filter(a => a.is_closed_won).length / 
+                              analysisData.filter(a => !getValue(a)).length;
+      
+      const correlation = matchWonRate - noMatchWonRate;
+      const n = analysisData.length;
+      
+      // Simple significance test (chi-square approximation)
+      const matchWon = matches.filter(a => a.is_closed_won).length;
+      const matchTotal = matches.length;
+      const noMatchWon = closedWonCount - matchWon;
+      const noMatchTotal = n - matchTotal;
+      
+      const expected1 = (matchTotal * closedWonCount) / n;
+      const expected2 = (noMatchTotal * closedWonCount) / n;
+      
+      const chiSquare = expected1 > 0 && expected2 > 0 ? 
+        Math.pow(matchWon - expected1, 2) / expected1 + 
+        Math.pow(noMatchWon - expected2, 2) / expected2 : 0;
+      
+      // Approximate p-value (chi-square with 1 df)
+      const pValue = chiSquare > 3.841 ? 0.05 : chiSquare > 6.635 ? 0.01 : 0.1;
+      
+      return {
+        r: Math.max(-1, Math.min(1, correlation)),
+        p: pValue,
+        matchWonRate,
+        noMatchWonRate,
+        sampleSize: matchTotal
+      };
+    };
+
+    const industryCorr = calculateCorrelation('industry', 
+      (a) => icp.industries?.includes(a.industry) || false);
+    const sizeCorr = calculateCorrelation('size', 
+      (a) => icp.company_sizes?.includes(a.employee_count) || false);
+    const revenueCorr = calculateCorrelation('revenue', 
+      (a) => icp.revenue_ranges?.includes(a.revenue_range) || false);
+    const geoCorr = calculateCorrelation('geography', 
+      (a) => icp.geographies?.includes(a.country) || false);
+    const contactsCorr = calculateCorrelation('contacts', (a) => a.has_contacts);
+    const dataQualityCorr = calculateCorrelation('data_quality', (a) => a.data_completeness >= 0.75);
+
     // Use Lovable AI to analyze correlations
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY not configured');
     }
 
-    const aiPrompt = `You are a data scientist analyzing ICP (Ideal Customer Profile) correlations.
+    const aiPrompt = `You are a statistician analyzing ICP (Ideal Customer Profile) effectiveness based on ACTUAL CLOSED WON DEALS.
 
-Given this data:
+STATISTICAL CORRELATION ANALYSIS:
 - Total accounts: ${analysisData.length}
-- ICP criteria: Industries [${icp.industries?.join(', ')}], Company sizes [${icp.company_sizes?.join(', ')}], Revenue ranges [${icp.revenue_ranges?.join(', ')}], Geographies [${icp.geographies?.join(', ')}]
-- Account distribution: ${JSON.stringify(analysisData.slice(0, 20))}
+- Closed won deals: ${closedWonCount}
+- Win rate: ${((closedWonCount / analysisData.length) * 100).toFixed(1)}%
 
-Analyze the correlation between each ICP criterion and actual account scores. Calculate:
+ICP CRITERIA CORRELATIONS (with closed won outcomes):
 
-1. **Industry Correlation**: How well does industry match correlate with high scores?
-2. **Size Correlation**: How well does company size match correlate with high scores?
-3. **Revenue Correlation**: How well does revenue range match correlate with high scores?
-4. **Geography Correlation**: How well does geography match correlate with high scores?
-5. **Contact Availability**: How does having contacts correlate with scores?
-6. **Data Quality**: How does data completeness affect scoring?
+1. **Industry Match** → Closed Won
+   - R = ${industryCorr.r.toFixed(3)}, P = ${industryCorr.p.toFixed(3)}
+   - Win rate when matched: ${(industryCorr.matchWonRate * 100).toFixed(1)}%
+   - Win rate when not matched: ${(industryCorr.noMatchWonRate * 100).toFixed(1)}%
+   - Sample size: ${industryCorr.sampleSize}
 
-Return a JSON object with this structure:
+2. **Company Size Match** → Closed Won
+   - R = ${sizeCorr.r.toFixed(3)}, P = ${sizeCorr.p.toFixed(3)}
+   - Win rate when matched: ${(sizeCorr.matchWonRate * 100).toFixed(1)}%
+   - Win rate when not matched: ${(sizeCorr.noMatchWonRate * 100).toFixed(1)}%
+   - Sample size: ${sizeCorr.sampleSize}
+
+3. **Revenue Range Match** → Closed Won
+   - R = ${revenueCorr.r.toFixed(3)}, P = ${revenueCorr.p.toFixed(3)}
+   - Win rate when matched: ${(revenueCorr.matchWonRate * 100).toFixed(1)}%
+   - Win rate when not matched: ${(revenueCorr.noMatchWonRate * 100).toFixed(1)}%
+   - Sample size: ${revenueCorr.sampleSize}
+
+4. **Geography Match** → Closed Won
+   - R = ${geoCorr.r.toFixed(3)}, P = ${geoCorr.p.toFixed(3)}
+   - Win rate when matched: ${(geoCorr.matchWonRate * 100).toFixed(1)}%
+   - Win rate when not matched: ${(geoCorr.noMatchWonRate * 100).toFixed(1)}%
+   - Sample size: ${geoCorr.sampleSize}
+
+5. **Contact Availability** → Closed Won
+   - R = ${contactsCorr.r.toFixed(3)}, P = ${contactsCorr.p.toFixed(3)}
+   - Win rate with contacts: ${(contactsCorr.matchWonRate * 100).toFixed(1)}%
+   - Win rate without contacts: ${(contactsCorr.noMatchWonRate * 100).toFixed(1)}%
+
+6. **Data Quality** → Closed Won
+   - R = ${dataQualityCorr.r.toFixed(3)}, P = ${dataQualityCorr.p.toFixed(3)}
+   - Win rate with complete data: ${(dataQualityCorr.matchWonRate * 100).toFixed(1)}%
+   - Win rate with incomplete data: ${(dataQualityCorr.noMatchWonRate * 100).toFixed(1)}%
+
+Based on these STATISTICAL CORRELATIONS, assign weights that sum to 100. Higher R values (closer to 1) and lower P values (< 0.05 = significant) should get MORE weight.
+
+Return JSON:
 {
   "correlations": {
-    "industry": { "coefficient": 0.0-1.0, "weight": 0-100, "strength": "weak/moderate/strong" },
-    "size": { "coefficient": 0.0-1.0, "weight": 0-100, "strength": "weak/moderate/strong" },
-    "revenue": { "coefficient": 0.0-1.0, "weight": 0-100, "strength": "weak/moderate/strong" },
-    "geography": { "coefficient": 0.0-1.0, "weight": 0-100, "strength": "weak/moderate/strong" },
-    "contacts": { "coefficient": 0.0-1.0, "weight": 0-100, "strength": "weak/moderate/strong" },
-    "data_quality": { "coefficient": 0.0-1.0, "weight": 0-100, "strength": "weak/moderate/strong" }
+    "industry": { "coefficient": ${industryCorr.r}, "p_value": ${industryCorr.p}, "weight": 0-100, "strength": "weak/moderate/strong", "significant": boolean },
+    "size": { "coefficient": ${sizeCorr.r}, "p_value": ${sizeCorr.p}, "weight": 0-100, "strength": "weak/moderate/strong", "significant": boolean },
+    "revenue": { "coefficient": ${revenueCorr.r}, "p_value": ${revenueCorr.p}, "weight": 0-100, "strength": "weak/moderate/strong", "significant": boolean },
+    "geography": { "coefficient": ${geoCorr.r}, "p_value": ${geoCorr.p}, "weight": 0-100, "strength": "weak/moderate/strong", "significant": boolean },
+    "contacts": { "coefficient": ${contactsCorr.r}, "p_value": ${contactsCorr.p}, "weight": 0-100, "strength": "weak/moderate/strong", "significant": boolean },
+    "data_quality": { "coefficient": ${dataQualityCorr.r}, "p_value": ${dataQualityCorr.p}, "weight": 0-100, "strength": "weak/moderate/strong", "significant": boolean }
   },
-  "recommendations": [
-    "string: actionable insight 1",
-    "string: actionable insight 2",
-    "string: actionable insight 3"
-  ],
+  "recommendations": ["insight 1", "insight 2", "insight 3"],
   "top_predictors": ["criterion1", "criterion2"],
   "weak_predictors": ["criterion1"],
   "model_accuracy": 0.0-1.0
 }
 
-Base weights on actual correlation strength. Total weights should sum to 100.`;
+Mark significant=true if p < 0.05. Strength: strong if |r| > 0.5, moderate if > 0.3, else weak.`;
 
     console.log('Calling Lovable AI for correlation analysis...');
 
@@ -198,16 +283,13 @@ Base weights on actual correlation strength. Total weights should sum to 100.`;
       throw new Error('Failed to parse AI response');
     }
 
-    // Store correlation weights in database for future use
+    // Store correlation weights and statistics in database
     const { error: updateError } = await supabase
       .from('icp_profiles')
       .update({
         tam_estimate: accounts.length,
         confidence_score: Math.round((correlationAnalysis.model_accuracy || 0.5) * 100),
-        match_count: accounts.filter(a => {
-          const score = Array.isArray(a.scores) ? a.scores[0] : null;
-          return (score?.overall || 0) >= 70;
-        }).length
+        match_count: closedWonCount
       })
       .eq('id', icp.id);
 
@@ -238,6 +320,8 @@ Base weights on actual correlation strength. Total weights should sum to 100.`;
         icp_id: icp.id,
         icp_name: icp.name,
         accounts_analyzed: accounts.length,
+        closed_won_count: closedWonCount,
+        win_rate: closedWonCount / accounts.length,
         correlations: correlationAnalysis.correlations,
         recommendations: correlationAnalysis.recommendations,
         top_predictors: correlationAnalysis.top_predictors,

@@ -14,8 +14,10 @@ interface CorrelationData {
   correlations: {
     [key: string]: {
       coefficient: number;
+      p_value: number;
       weight: number;
       strength: 'weak' | 'moderate' | 'strong';
+      significant: boolean;
     };
   };
   recommendations: string[];
@@ -23,6 +25,8 @@ interface CorrelationData {
   weak_predictors: string[];
   model_accuracy: number;
   accounts_analyzed: number;
+  closed_won_count: number;
+  win_rate: number;
 }
 
 export function CorrelationInsights() {
@@ -56,7 +60,7 @@ export function CorrelationInsights() {
         setCorrelationData(data);
         toast({
           title: "Analysis Complete!",
-          description: `Analyzed ${data.accounts_analyzed} accounts with ${Math.round(data.model_accuracy * 100)}% accuracy`
+          description: `Analyzed ${data.accounts_analyzed} accounts (${data.closed_won_count} closed won) with ${Math.round(data.model_accuracy * 100)}% accuracy`
         });
       } else {
         throw new Error(data.error || 'Analysis failed');
@@ -83,13 +87,18 @@ export function CorrelationInsights() {
     }
   };
 
-  const getStrengthBadge = (strength: string) => {
+  const getStrengthBadge = (strength: string, significant: boolean) => {
     const colors = {
       strong: 'bg-[hsl(var(--signal-high))]',
       moderate: 'bg-[hsl(var(--signal-medium))]',
       weak: 'bg-[hsl(var(--signal-low))]'
     };
-    return <Badge className={colors[strength as keyof typeof colors]}>{strength.toUpperCase()}</Badge>;
+    return (
+      <div className="flex gap-1">
+        <Badge className={colors[strength as keyof typeof colors]}>{strength.toUpperCase()}</Badge>
+        {significant && <Badge variant="outline" className="text-xs">p&lt;0.05</Badge>}
+      </div>
+    );
   };
 
   const chartData = correlationData ? Object.entries(correlationData.correlations).map(([key, value]) => ({
@@ -112,16 +121,16 @@ export function CorrelationInsights() {
       </CardHeader>
       <CardContent className="space-y-6">
         {!correlationData && !isAnalyzing && (
-          <Alert>
+            <Alert>
             <Sparkles className="h-4 w-4" />
             <AlertDescription>
-              This analysis uses AI to identify which factors in your ICP (industry, size, revenue, geography) 
-              actually correlate with high-scoring accounts. It will:
+              This analysis uses statistical correlation (R and P values) to identify which ICP factors 
+              actually predict <strong>closed won deals</strong>. It will:
               <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>Calculate statistical correlations for each criterion</li>
-                <li>Assign intelligent weights based on predictive power</li>
-                <li>Provide actionable recommendations</li>
-                <li>Improve scoring accuracy over time</li>
+                <li>Calculate R (correlation coefficient) and P-values for each criterion</li>
+                <li>Identify statistically significant predictors (p &lt; 0.05)</li>
+                <li>Assign weights based on actual win rates</li>
+                <li>Provide data-driven recommendations</li>
               </ul>
             </AlertDescription>
           </Alert>
@@ -139,16 +148,29 @@ export function CorrelationInsights() {
 
         {correlationData && (
           <div className="space-y-6">
-            {/* Model Accuracy */}
-            <div className="p-4 border rounded-lg bg-primary/5">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Model Accuracy</span>
-                <Badge className="bg-primary">{Math.round(correlationData.model_accuracy * 100)}%</Badge>
+            {/* Statistical Summary */}
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="p-4 border rounded-lg bg-primary/5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Win Rate</span>
+                  <Badge className="bg-primary">{(correlationData.win_rate * 100).toFixed(1)}%</Badge>
+                </div>
+                <Progress value={correlationData.win_rate * 100} className="h-2" />
+                <p className="text-xs text-muted-foreground mt-2">
+                  {correlationData.closed_won_count} closed won / {correlationData.accounts_analyzed} total
+                </p>
               </div>
-              <Progress value={correlationData.model_accuracy * 100} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-2">
-                Based on {correlationData.accounts_analyzed} accounts
-              </p>
+              
+              <div className="p-4 border rounded-lg bg-primary/5">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium">Model Accuracy</span>
+                  <Badge className="bg-primary">{Math.round(correlationData.model_accuracy * 100)}%</Badge>
+                </div>
+                <Progress value={correlationData.model_accuracy * 100} className="h-2" />
+                <p className="text-xs text-muted-foreground mt-2">
+                  Based on statistical correlations
+                </p>
+              </div>
             </div>
 
             {/* Correlation Weights Chart */}
@@ -193,16 +215,17 @@ export function CorrelationInsights() {
 
             {/* Detailed Correlations */}
             <div className="space-y-3">
-              <h4 className="text-sm font-semibold">Correlation Breakdown</h4>
+              <h4 className="text-sm font-semibold">Statistical Correlation Analysis</h4>
               {Object.entries(correlationData.correlations).map(([key, value]) => (
                 <div key={key} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="font-medium capitalize">{key.replace('_', ' ')}</span>
-                      {getStrengthBadge(value.strength)}
+                      {getStrengthBadge(value.strength, value.significant)}
                     </div>
                     <div className="flex gap-4 text-sm text-muted-foreground">
-                      <span>Coefficient: {(value.coefficient * 100).toFixed(1)}%</span>
+                      <span>R: {value.coefficient.toFixed(3)}</span>
+                      <span>P: {value.p_value.toFixed(3)}</span>
                       <span>Weight: {value.weight}%</span>
                     </div>
                   </div>
@@ -276,7 +299,7 @@ export function CorrelationInsights() {
 
         {correlationData && (
           <p className="text-xs text-muted-foreground text-center">
-            Analysis completed. Scoring engine will now use these correlation-based weights automatically.
+            Analysis completed. Scoring engine now uses R and P value-based weights from closed won deals.
           </p>
         )}
       </CardContent>
