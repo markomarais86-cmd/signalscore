@@ -122,20 +122,36 @@ export default function DataUpload() {
       const transformedData = rawData.map(row => {
         const transformed: any = { org_id: userProfile.org_id };
         
-      Object.entries(mapping).forEach(([csvField, schemaField]: [string, string]) => {
-        if (schemaField && row[csvField] !== undefined) {
-          let value = row[csvField];
-          
-          if (schemaField === 'employee_count' && value) {
-            const num = parseInt(value);
-            value = isNaN(num) ? null : num;
+        Object.entries(mapping).forEach(([csvField, schemaField]: [string, string]) => {
+          if (schemaField && row[csvField] !== undefined) {
+            let value = row[csvField];
+            
+            if (schemaField === 'employee_count' && value) {
+              const num = parseInt(value);
+              value = isNaN(num) ? null : num;
+            }
+            
+            transformed[schemaField] = value || null;
           }
-          
-          transformed[schemaField] = value || null;
-        }
-      });
+        });
         
-        transformed.updated_at = new Date().toISOString();
+        // Add updated_at only for accounts and contacts (not for leads)
+        if (pendingFile.type !== 'leads') {
+          transformed.updated_at = new Date().toISOString();
+        }
+        
+        // For leads, ensure name and status fields
+        if (pendingFile.type === 'leads') {
+          if (!transformed.name) {
+            const firstName = transformed.first_name || '';
+            const lastName = transformed.last_name || '';
+            transformed.name = `${firstName} ${lastName}`.trim() || null;
+          }
+          if (!transformed.status) {
+            transformed.status = 'open';
+          }
+        }
+        
         return transformed;
       });
 
