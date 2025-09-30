@@ -182,9 +182,20 @@ export default function DataUpload() {
             .select('id, external_id');
 
           if (accountsError) {
-            const msg = `Accounts failed: ${accountsError.message}`;
-            console.error('❌', msg, accountsError);
-            toast({ title: "Accounts Upload Failed", description: msg, variant: "destructive" });
+            const msg = `Accounts failed: ${accountsError.message} | Code: ${accountsError.code} | Details: ${accountsError.details}`;
+            console.error('❌ ACCOUNTS ERROR:', {
+              message: accountsError.message,
+              code: accountsError.code,
+              details: accountsError.details,
+              hint: accountsError.hint,
+              sampleData: accountsData[0]
+            });
+            toast({ 
+              title: "Accounts Upload Failed", 
+              description: `${accountsError.message} (${accountsError.code})`,
+              variant: "destructive",
+              duration: 10000
+            });
             errors.push(msg);
             continue; // Skip this batch
           }
@@ -225,8 +236,18 @@ export default function DataUpload() {
 
             if (contactsError) {
               const msg = `Contacts failed: ${contactsError.message}`;
-              console.error('❌', msg, contactsError);
-              toast({ title: "Contacts Upload Failed", description: msg, variant: "destructive" });
+              console.error('❌ CONTACTS ERROR:', {
+                message: contactsError.message,
+                code: contactsError.code,
+                details: contactsError.details,
+                sampleData: contactsData[0]
+              });
+              toast({ 
+                title: "Contacts Upload Failed", 
+                description: `${contactsError.message} (${contactsError.code})`,
+                variant: "destructive",
+                duration: 10000
+              });
               errors.push(msg);
             } else {
               insertedContacts += contactsResult?.length || 0;
@@ -274,8 +295,18 @@ export default function DataUpload() {
 
           if (leadsError) {
             const msg = `Leads failed: ${leadsError.message}`;
-            console.error('❌', msg, leadsError);
-            toast({ title: "Leads Upload Failed", description: msg, variant: "destructive" });
+            console.error('❌ LEADS ERROR:', {
+              message: leadsError.message,
+              code: leadsError.code,
+              details: leadsError.details,
+              sampleData: leadsData[0]
+            });
+            toast({ 
+              title: "Leads Upload Failed", 
+              description: `${leadsError.message} (${leadsError.code})`,
+              variant: "destructive",
+              duration: 10000
+            });
             errors.push(msg);
           } else {
             insertedLeads += leadsResult?.length || 0;
