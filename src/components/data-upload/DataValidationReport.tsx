@@ -262,7 +262,7 @@ export function DataValidationReport({
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">{field.dataType}</Badge>
                       <span className="text-sm text-muted-foreground">
-                        {field.completeness}% complete
+                        {field.completeness.toFixed(2)}% complete
                       </span>
                     </div>
                   </div>

@@ -63,7 +63,7 @@ export function useCSVValidator() {
       
       const values = rawData.map(row => row[csvField]).filter(v => v !== null && v !== undefined && v !== '');
       const uniqueValues = [...new Set(values)];
-      const completeness = (values.length / rawData.length) * 100;
+      const completeness = Number(((values.length / rawData.length) * 100).toFixed(2));
       
       const analysis: FieldAnalysis = {
         field: csvField,
@@ -198,9 +198,9 @@ export function useCSVValidator() {
     
     const duplicateCount = detectDuplicates(rawData, mapping, type, issues);
     
-    const completeness = (filledFields / (rawData.length * totalFields)) * 100;
-    const accuracy = ((validCount + warningCount) / rawData.length) * 100;
-    const consistency = 100 - (issues.filter(i => i.message.includes('format')).length / rawData.length) * 100;
+    const completeness = Number(((filledFields / (rawData.length * totalFields)) * 100).toFixed(2));
+    const accuracy = Number((((validCount + warningCount) / rawData.length) * 100).toFixed(2));
+    const consistency = Number((100 - (issues.filter(i => i.message.includes('format')).length / rawData.length) * 100).toFixed(2));
     
     const dataQuality: DataQualityScore = {
       overall: Math.round((completeness + accuracy + consistency) / 3),
