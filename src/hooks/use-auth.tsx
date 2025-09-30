@@ -35,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth: State change event:', event);
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -49,28 +50,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               .maybeSingle();
             
             if (error) {
-              console.error('Error fetching user profile:', error);
+              console.error('Auth: Error fetching user profile:', error);
+              setUserProfile(null);
             } else if (profile) {
-              console.log('Auth: Profile loaded for org:', profile.org_id);
+              console.log('Auth: Profile loaded successfully for org:', profile.org_id);
               setUserProfile(profile as UserProfile);
             } else {
-              console.warn('Auth: No profile found for user');
+              console.warn('Auth: No profile found for user, may need to create one');
+              setUserProfile(null);
             }
           } catch (error) {
-            console.error('Error in profile fetch:', error);
+            console.error('Auth: Exception in profile fetch:', error);
+            setUserProfile(null);
+          } finally {
+            // Only set loading false after profile fetch completes
+            setLoading(false);
           }
         } else {
           setUserProfile(null);
+          setLoading(false);
         }
-        
-        setLoading(false);
       }
     );
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Check for existing session on mount
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      console.log('Auth: Initial session check:', !!session);
       setSession(session);
       setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        console.log('Auth: Fetching initial profile for user:', session.user.id);
+        try {
+          const { data: profile, error } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+          
+          if (error) {
+            console.error('Auth: Error fetching initial profile:', error);
+          } else if (profile) {
+            console.log('Auth: Initial profile loaded for org:', profile.org_id);
+            setUserProfile(profile as UserProfile);
+          }
+        } catch (error) {
+          console.error('Auth: Exception fetching initial profile:', error);
+        }
+      }
+      
       setLoading(false);
     });
 
