@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { TrendingUp, DollarSign, Clock, Target, Sparkles, Building, Users, MapPin, ChevronRight } from 'lucide-react';
+import { TrendingUp, DollarSign, Clock, Target, Sparkles, Building, Users, MapPin, ChevronRight, Upload } from 'lucide-react';
 import { useClosedWonAnalysis, ICPRecommendation } from '@/hooks/use-closed-won-analysis';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -12,6 +13,7 @@ interface ClosedWonInsightsProps {
 }
 
 export function ClosedWonInsights({ onCreateICP }: ClosedWonInsightsProps) {
+  const navigate = useNavigate();
   const { loading, analysis, analyzeClosedWon, createICPFromRecommendation } = useClosedWonAnalysis();
   const [autoAnalyzed, setAutoAnalyzed] = useState(false);
 
@@ -48,12 +50,23 @@ export function ClosedWonInsights({ onCreateICP }: ClosedWonInsightsProps) {
 
   if (!analysis?.success) {
     return (
-      <Alert>
-        <Target className="h-4 w-4" />
-        <AlertDescription>
-          {analysis?.message || 'No closed won data available. Upload closed won deals to generate data-driven ICP recommendations.'}
-        </AlertDescription>
-      </Alert>
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col items-center justify-center text-center py-12 space-y-4">
+            <Target className="h-12 w-12 text-muted-foreground" />
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold">No Closed Won Data Found</h3>
+              <p className="text-sm text-muted-foreground max-w-md">
+                Upload your closed won deals to generate data-driven ICP recommendations based on your actual wins.
+              </p>
+            </div>
+            <Button onClick={() => navigate('/data-upload?tab=closed-won')} size="lg" className="mt-4">
+              <Upload className="h-4 w-4 mr-2" />
+              Upload Closed Won Data
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
