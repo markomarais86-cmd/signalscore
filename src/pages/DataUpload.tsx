@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Database, FileCheck } from "lucide-react";
+import { Database, FileCheck, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -270,6 +271,15 @@ export default function DataUpload() {
           status={uploadResult?.errors?.length === 0 ? 'success' : 'default'}
         />
       )}
+
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription className="flex items-center justify-between">
+          <div>
+            <strong>Quick Start:</strong> Download a template CSV with sample data to get started quickly.
+          </div>
+        </AlertDescription>
+      </Alert>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
