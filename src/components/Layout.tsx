@@ -1,26 +1,13 @@
 import { ReactNode } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { WorkflowStepper } from "@/components/WorkflowStepper";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { useLocation } from "react-router-dom";
 
 interface LayoutProps {
   children: ReactNode;
 }
 
-const stepMap: Record<string, number> = {
-  "/data-upload": 1,
-  "/icp-analysis": 2,
-  "/icp-tam": 3,
-  "/pipeline": 4,
-  "/": 5,
-};
-
 export function Layout({ children }: LayoutProps) {
-  const location = useLocation();
-  const currentStep = stepMap[location.pathname] || 0;
-  const showWorkflow = currentStep > 0;
 
   return (
     <SidebarProvider>
@@ -38,11 +25,6 @@ export function Layout({ children }: LayoutProps) {
               </div>
               <ThemeToggle />
             </div>
-            {showWorkflow && (
-              <div className="border-t bg-muted/30 px-6">
-                <WorkflowStepper currentStep={currentStep} />
-              </div>
-            )}
           </header>
           <div className="flex-1 p-6 overflow-auto bg-muted/20">
             {children}
