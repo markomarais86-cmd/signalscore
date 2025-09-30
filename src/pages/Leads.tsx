@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink } from "lucide-react";
+import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
+import { HeroMetric } from "@/components/executive/HeroMetric";
 
 interface Lead {
   id: string;
@@ -216,20 +217,42 @@ export default function Leads() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Leads</h1>
+          <p className="text-muted-foreground mt-2">Manage and qualify your account pipeline</p>
+        </div>
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
+
+  const highSignalLeads = leads.filter(lead => (lead.score?.overall || 0) >= 70);
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Leads</h1>
-          <p className="text-muted-foreground">Manage and qualify your account pipeline</p>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Leads</h1>
+          <p className="text-muted-foreground mt-2">Manage and qualify your account pipeline</p>
         </div>
       </div>
+
+      {/* Hero Metric */}
+      {leads.length > 0 && (
+        <HeroMetric
+          label="High-Signal Accounts"
+          value={highSignalLeads.length}
+          subtitle={`${Math.round((highSignalLeads.length / leads.length) * 100)}% of total pipeline`}
+          icon={TrendingUp}
+          trend={{ value: 8, period: 'last week' }}
+          status={highSignalLeads.length > 0 ? 'success' : 'warning'}
+        />
+      )}
 
       {/* Filters */}
       <Card>

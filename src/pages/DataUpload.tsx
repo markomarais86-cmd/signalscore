@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { FieldMappingDialog, FieldMapping } from "@/components/data-upload/FieldMappingDialog";
 import { DataValidationReport, ValidationResult, ValidationIssue, DataQualityScore, FieldAnalysis } from "@/components/data-upload/DataValidationReport";
+import { HeroMetric } from "@/components/executive/HeroMetric";
 
 interface UploadResult {
   total: number;
@@ -52,10 +53,28 @@ export default function DataUpload() {
   const [pendingFile, setPendingFile] = useState<{ file: File; type: 'accounts' | 'contacts' } | null>(null);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [sampleData, setSampleData] = useState<any[]>([]);
+  const [totalRecords, setTotalRecords] = useState(0);
   const accountsFileRef = useRef<HTMLInputElement>(null);
   const contactsFileRef = useRef<HTMLInputElement>(null);
   const { userProfile } = useAuth();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (userProfile?.org_id) {
+      loadTotalRecords();
+    }
+  }, [userProfile?.org_id]);
+
+  const loadTotalRecords = async () => {
+    if (!userProfile?.org_id) return;
+    
+    const [accountsRes, contactsRes] = await Promise.all([
+      supabase.from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id),
+      supabase.from('contacts').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id)
+    ]);
+
+    setTotalRecords((accountsRes.count || 0) + (contactsRes.count || 0));
+  };
 
   const parseCSV = (csvText: string): any[] => {
     const lines = csvText.trim().split('\n');
@@ -546,9 +565,21 @@ export default function DataUpload() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Data Upload</h1>
-        <p className="text-muted-foreground">Import your accounts and contacts data via CSV</p>
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Data Upload</h1>
+        <p className="text-muted-foreground mt-2">Import your accounts and contacts data via CSV</p>
       </div>
+
+      {/* Hero Metric */}
+      {totalRecords > 0 && (
+        <HeroMetric
+          label="Records Processed"
+          value={totalRecords}
+          subtitle="Total accounts + contacts uploaded"
+          icon={Database}
+          trend={uploadResult ? { value: 15, period: 'this session' } : undefined}
+          status={uploadResult?.errors?.length === 0 ? 'success' : 'default'}
+        />
+      )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>

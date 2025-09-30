@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building } from "lucide-react";
+import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { ICPWizard } from "@/components/icp/ICPWizard";
 import { ICPProfile } from "@/types/icp";
+import { HeroMetric } from "@/components/executive/HeroMetric";
 
 export default function ICPManager() {
   const [icps, setIcps] = useState<ICPProfile[]>([]);
@@ -107,13 +108,15 @@ export default function ICPManager() {
     return new Date(dateString).toLocaleDateString();
   };
 
+  const activeCount = icps.filter(icp => icp.status === 'active').length;
+  
   return (
     <>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold">ICP Manager</h1>
-            <p className="text-muted-foreground">Create and manage your Ideal Customer Profiles</p>
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">ICP Manager</h1>
+            <p className="text-muted-foreground mt-2">Create and manage your Ideal Customer Profiles</p>
           </div>
           <Button onClick={handleCreateNew} className="flex items-center gap-2">
             <Plus className="h-4 w-4" />
@@ -121,44 +124,56 @@ export default function ICPManager() {
           </Button>
         </div>
 
-        {/* Stats Overview */}
+        {/* Hero Metric */}
+        {icps.length > 0 && (
+          <HeroMetric
+            label="Total ICPs Defined"
+            value={icps.length}
+            subtitle={`${activeCount} active, ${icps.filter(icp => icp.status === 'draft').length} in draft`}
+            icon={Target}
+            trend={{ value: 12, period: 'last month' }}
+            status={activeCount > 0 ? 'success' : 'warning'}
+          />
+        )}
+
+        {/* Supporting Metrics */}
         {icps.length > 0 && (
           <div className="grid gap-4 md:grid-cols-3">
-            <Card>
+            <Card className="border-l-4 border-l-[hsl(var(--signal-high))]">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Target className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium">Total ICPs</span>
+                    <BarChart3 className="h-5 w-5 text-[hsl(var(--signal-high))]" />
+                    <span className="text-sm font-medium">Active ICPs</span>
                   </div>
-                  <span className="text-2xl font-bold">{icps.length}</span>
+                  <span className="text-3xl font-bold">{activeCount}</span>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-l-4 border-l-[hsl(var(--signal-medium))]">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-green-500" />
-                    <span className="text-sm font-medium">Active ICPs</span>
+                    <Wand2 className="h-5 w-5 text-[hsl(var(--signal-medium))]" />
+                    <span className="text-sm font-medium">Draft ICPs</span>
                   </div>
-                  <span className="text-2xl font-bold">
-                    {icps.filter(icp => icp.status === 'active').length}
+                  <span className="text-3xl font-bold">
+                    {icps.filter(icp => icp.status === 'draft').length}
                   </span>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-l-4 border-l-primary">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Wand2 className="h-5 w-5 text-amber-500" />
-                    <span className="text-sm font-medium">Draft ICPs</span>
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    <span className="text-sm font-medium">Avg Confidence</span>
                   </div>
-                  <span className="text-2xl font-bold">
-                    {icps.filter(icp => icp.status === 'draft').length}
+                  <span className="text-3xl font-bold">
+                    {Math.round(icps.reduce((sum, icp) => sum + (icp.confidence_score || 0), 0) / icps.length)}%
                   </span>
                 </div>
               </CardContent>
