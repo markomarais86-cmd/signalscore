@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { analyzeSegmentationGaps, calculateICPCoverage } from "@/utils/segmentation-analysis";
 import { useDataSources } from "@/hooks/use-data-sources";
 import { formatCoverage } from "@/utils/data-source-attribution";
+import { EmptyDataState } from "@/components/EmptyDataState";
 import jsPDF from 'jspdf';
 
 const chartConfig = {
@@ -220,6 +221,24 @@ export default function Dashboard() {
     { metric: "Signal Accuracy", value: 87, benchmark: 72, unit: "%", trend: 2 }
   ];
 
+  // Show empty state if no accounts exist
+  if (showSampleDataGenerator) {
+    return (
+      <div className="space-y-8 max-w-7xl mx-auto p-6">
+        <div>
+          <h1 className="text-4xl font-bold tracking-tight">Executive Dashboard</h1>
+          <p className="text-lg text-muted-foreground">Strategic Signal Intelligence Overview</p>
+        </div>
+        <EmptyDataState 
+          title="No Data Available"
+          description="Upload your CRM data (accounts and contacts) to start seeing insights and analytics on your dashboard."
+          actionLabel="Upload Data"
+          actionRoute="/data-upload"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto p-6">
       
@@ -259,17 +278,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Sample Data Generator - Show when no data exists */}
-      {showSampleDataGenerator && (
-        <div className="max-w-2xl mx-auto">
-          <SampleDataGenerator />
-        </div>
-      )}
-
       {/* Executive Metrics Grid */}
-      {!showSampleDataGenerator && (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             <ExecutiveMetricCard
               title="Pipeline Value"
               value="$2.1M"
@@ -551,7 +561,7 @@ export default function Dashboard() {
       </div>
 
       {/* ICP Coverage & Segmentation Insights */}
-      {!showSampleDataGenerator && segmentationInsights && (
+      {segmentationInsights && (
         <>
           {/* ICP Coverage Metrics */}
           {icpCoverage && (
@@ -704,8 +714,6 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           )}
-        </>
-      )}
         </>
       )}
     </div>
