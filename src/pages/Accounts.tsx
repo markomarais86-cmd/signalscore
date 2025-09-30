@@ -14,6 +14,7 @@ import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { Progress } from "@/components/ui/progress";
 import { ScoreBreakdownDialog } from "@/components/scoring/ScoreBreakdownDialog";
 import { AccountDetailDrawer } from "@/components/accounts/AccountDetailDrawer";
+import { BulkScoring } from "@/components/BulkScoring";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { usePagination } from "@/hooks/use-pagination";
 import { PaginationControls } from "@/components/ui/pagination-controls";
@@ -338,6 +339,9 @@ export default function Accounts() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Bulk Scoring */}
+      <BulkScoring onComplete={loadAccounts} />
 
       {/* Filters */}
       <Card>

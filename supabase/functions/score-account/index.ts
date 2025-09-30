@@ -6,28 +6,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+interface ScoreRequest {
+  org_id: string;
+  account_external_id: string;
+  icp_id?: string;
+  version_hint?: string;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { org_id, account_external_id, features, version_hint } = await req.json();
+    const { org_id, account_external_id, icp_id, version_hint }: ScoreRequest = await req.json();
 
-    // Mock scoring logic - replace with actual scoring service
-    const mockScore = {
-      overall: Math.floor(Math.random() * 40) + 60, // 60-100 range
-      fit: Math.floor(Math.random() * 30) + 70,
-      intent: Math.floor(Math.random() * 50) + 50,
-      reachability: Math.floor(Math.random() * 40) + 60,
-      reasons: [
-        "Company size matches ICP criteria",
-        "Industry alignment detected",
-        "Recent funding activity observed"
-      ],
-      scoring_version: version_hint || 'v1',
-      computed_at: new Date().toISOString()
-    };
+    if (!org_id || !account_external_id) {
+      return new Response(
+        JSON.stringify({ error: 'Missing required fields: org_id and account_external_id' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+      );
+    }
 
     // Initialize Supabase client
     const supabase = createClient(
@@ -35,25 +34,88 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Store score in database with proper conflict resolution
+    console.log('Scoring account:', account_external_id, 'for org:', org_id);
+
+    // Get account data
+    const { data: account, error: accountError } = await supabase
+      .from('accounts')
+      .select('*')
+      .eq('org_id', org_id)
+      .eq('external_id', account_external_id)
+      .single();
+
+    if (accountError || !account) {
+      throw new Error(`Account not found: ${account_external_id}`);
+    }
+
+    // Get ICP profiles (use specific one if provided, otherwise get all active)
+    const icpQuery = supabase
+      .from('icp_profiles')
+      .select('*')
+      .eq('org_id', org_id)
+      .eq('status', 'active');
+    
+    if (icp_id) {
+      icpQuery.eq('id', icp_id);
+    }
+
+    const { data: icpProfiles, error: icpError } = await icpQuery;
+
+    if (icpError || !icpProfiles || icpProfiles.length === 0) {
+      throw new Error('No active ICP profiles found for organization');
+    }
+
+    console.log(`Found ${icpProfiles.length} ICP profiles to score against`);
+
+    // Calculate score using the database function for best ICP match
+    let bestScore = null;
+    let bestIcpId = null;
+
+    for (const icp of icpProfiles) {
+      const { data: scoreResult, error: scoreError } = await supabase
+        .rpc('calculate_account_score', {
+          account_external_id,
+          icp_id: icp.id,
+          org_id_param: org_id
+        });
+
+      if (scoreError) {
+        console.error('Score calculation error:', scoreError);
+        continue;
+      }
+
+      if (scoreResult && (!bestScore || scoreResult.overall > bestScore.overall)) {
+        bestScore = scoreResult;
+        bestIcpId = icp.id;
+      }
+    }
+
+    if (!bestScore) {
+      throw new Error('Failed to calculate score');
+    }
+
+    console.log('Best score calculated:', bestScore);
+
+    // Store score in database
+    const scoringVersion = version_hint || 'icp_v2.0';
     const { error: scoreError } = await supabase
       .from('scores')
       .upsert({
         org_id,
         account_external_id,
-        overall: mockScore.overall,
-        fit: mockScore.fit,
-        intent: mockScore.intent,
-        reachability: mockScore.reachability,
-        reasons: mockScore.reasons,
-        scoring_version: mockScore.scoring_version,
-        computed_at: mockScore.computed_at
+        overall: bestScore.overall,
+        fit: bestScore.fit,
+        intent: bestScore.intent,
+        reachability: bestScore.reachability,
+        reasons: bestScore.breakdown || {},
+        scoring_version: scoringVersion,
+        computed_at: new Date().toISOString()
       }, {
-        onConflict: 'org_id,account_external_id,scoring_version',
-        ignoreDuplicates: false
+        onConflict: 'org_id,account_external_id'
       });
 
     if (scoreError) {
+      console.error('Error storing score:', scoreError);
       throw scoreError;
     }
 
@@ -62,12 +124,15 @@ serve(async (req) => {
       .from('audit_logs')
       .insert({
         org_id,
-        actor: 'scoring_api',
+        actor: 'scoring_engine',
         action: 'account_scored',
         meta: {
           account_external_id,
-          score: mockScore.overall,
-          version: mockScore.scoring_version
+          account_name: account.name,
+          icp_id: bestIcpId,
+          score: bestScore.overall,
+          fit: bestScore.fit,
+          version: scoringVersion
         }
       });
 
@@ -75,17 +140,21 @@ serve(async (req) => {
       console.error('Audit log error:', auditError);
     }
 
+    console.log('Score stored successfully');
+
     return new Response(
       JSON.stringify({
-        overall: mockScore.overall,
+        success: true,
+        overall: bestScore.overall,
         components: {
-          fit: mockScore.fit,
-          intent: mockScore.intent,
-          reachability: mockScore.reachability
+          fit: bestScore.fit,
+          intent: bestScore.intent,
+          reachability: bestScore.reachability
         },
-        reasons: mockScore.reasons,
-        scoring_version: mockScore.scoring_version,
-        computed_at: mockScore.computed_at
+        breakdown: bestScore.breakdown || {},
+        icp_id: bestIcpId,
+        scoring_version: scoringVersion,
+        computed_at: new Date().toISOString()
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
