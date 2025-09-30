@@ -6,7 +6,7 @@ import { AuthProvider } from "./hooks/use-auth";
 import { Layout } from "./components/Layout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
-import Index from "./pages/Index";
+import ExecutiveDashboard from "./pages/ExecutiveDashboard";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
@@ -40,7 +40,7 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Layout>
-                        <Index />
+                        <ExecutiveDashboard />
                       </Layout>
                     </ProtectedRoute>
                   }

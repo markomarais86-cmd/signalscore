@@ -1,4 +1,4 @@
-import { BarChart3, Users, Target, Upload, Bot, LogOut, TrendingUp, Layers, Database, Activity, Settings } from "lucide-react";
+import { Building2, BarChart3, TrendingUp, DollarSign, Users, Brain, Inbox, Upload, Settings, LogOut, LayoutDashboard, ChevronDown } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -10,28 +10,31 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarTrigger,
   SidebarFooter,
 } from "@/components/ui/sidebar";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 
-const coreItems = [
-  { title: "SignalScore Overview", url: "/", icon: Activity },
-  { title: "Pipeline Efficiency", url: "/pipeline", icon: TrendingUp },
-  { title: "Persona & Segments", url: "/personas", icon: Users },
-  { title: "Capital Efficiency", url: "/capital", icon: BarChart3 },
+// Navigation items organized by layer
+const strategyItems = [
+  { title: "ICP Analysis", url: "/icp-analysis", icon: Building2 },
+  { title: "ICP + TAM", url: "/icp-tam", icon: TrendingUp },
+  { title: "Pipeline Efficiency", url: "/pipeline", icon: BarChart3 },
+  { title: "Capital Efficiency", url: "/capital", icon: DollarSign },
 ];
 
-const intelligenceItems = [
-  { title: "ICP Analysis", url: "/icp-analysis", icon: Target },
-  { title: "ICP + TAM Intelligence", url: "/icp-tam", icon: BarChart3 },
-  { title: "ICP Manager", url: "/icp-manager", icon: Database },
-  { title: "AI Agents & ML", url: "/ai-agents", icon: Bot },
+const executionItems = [
+  { title: "Personas & Segments", url: "/personas", icon: Users },
+  { title: "AI Agents & ML", url: "/ai-agents", icon: Brain },
+  { title: "Leads Management", url: "/leads", icon: Inbox },
 ];
 
-const dataItems = [
+const adminItems = [
   { title: "Data Upload", url: "/data-upload", icon: Upload },
-  { title: "Leads Management", url: "/leads", icon: Layers },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
@@ -52,78 +55,119 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarTrigger className="m-2 self-end" />
-      
       <SidebarContent>
+        {/* Executive Dashboard - Always visible */}
         <SidebarGroup>
-          <SidebarGroupLabel className="text-sm font-semibold text-sidebar-foreground px-3 py-2">
-            Core Dashboards
-          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {coreItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      end={item.url === "/"}
-                      className={getNavCls(item.url)}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <NavLink
+                    to="/"
+                    end
+                    className={getNavCls("/")}
+                  >
+                    <LayoutDashboard className="h-4 w-4" />
+                    <span>Executive Dashboard</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-sm font-semibold text-sidebar-foreground px-3 py-2">
-            Intelligence Layer
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {intelligenceItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      className={getNavCls(item.url)}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Strategy Layer */}
+        <Collapsible defaultOpen className="group/collapsible">
+          <SidebarGroup>
+            <SidebarGroupLabel asChild>
+              <CollapsibleTrigger className="flex w-full items-center justify-between text-sm font-semibold text-sidebar-foreground px-3 py-2 hover:bg-sidebar-accent rounded-md">
+                Strategy Layer
+                <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+              </CollapsibleTrigger>
+            </SidebarGroupLabel>
+            <CollapsibleContent>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {strategyItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={item.url}
+                          className={getNavCls(item.url)}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </CollapsibleContent>
+          </SidebarGroup>
+        </Collapsible>
 
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-sm font-semibold text-sidebar-foreground px-3 py-2">
-            Data Management
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {dataItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      className={getNavCls(item.url)}
-                    >
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {/* Execution Layer */}
+        <Collapsible defaultOpen className="group/collapsible">
+          <SidebarGroup>
+            <SidebarGroupLabel asChild>
+              <CollapsibleTrigger className="flex w-full items-center justify-between text-sm font-semibold text-sidebar-foreground px-3 py-2 hover:bg-sidebar-accent rounded-md">
+                Execution Layer
+                <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+              </CollapsibleTrigger>
+            </SidebarGroupLabel>
+            <CollapsibleContent>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {executionItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={item.url}
+                          className={getNavCls(item.url)}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </CollapsibleContent>
+          </SidebarGroup>
+        </Collapsible>
+
+        {/* Admin Layer */}
+        <Collapsible defaultOpen className="group/collapsible">
+          <SidebarGroup>
+            <SidebarGroupLabel asChild>
+              <CollapsibleTrigger className="flex w-full items-center justify-between text-sm font-semibold text-sidebar-foreground px-3 py-2 hover:bg-sidebar-accent rounded-md">
+                Admin Layer
+                <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+              </CollapsibleTrigger>
+            </SidebarGroupLabel>
+            <CollapsibleContent>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {adminItems.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={item.url}
+                          className={getNavCls(item.url)}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </CollapsibleContent>
+          </SidebarGroup>
+        </Collapsible>
       </SidebarContent>
 
       <SidebarFooter>
