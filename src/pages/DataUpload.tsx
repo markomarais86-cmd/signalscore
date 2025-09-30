@@ -99,24 +99,11 @@ export default function DataUpload() {
   };
 
   const handleFileUpload = async (mapping: FieldMapping) => {
-    console.log('🚀 Starting upload process', { 
-      type: pendingFile?.type, 
-      orgId: userProfile?.org_id,
-      userProfile: userProfile 
-    });
-    
-    if (!pendingFile) {
-      console.error('❌ No file selected');
-      toast({ title: "Error", description: "No file selected", variant: "destructive" });
-      return;
-    }
-
-    if (!userProfile?.org_id) {
-      console.error('❌ User profile or org_id not loaded', { userProfile });
-      toast({ 
-        title: "Authentication Error", 
-        description: "Unable to determine your organization. Please refresh and try again.", 
-        variant: "destructive" 
+    if (!pendingFile || !userProfile?.org_id) {
+      toast({
+        title: "Upload Error",
+        description: !pendingFile ? "No file selected" : "Authentication required",
+        variant: "destructive",
       });
       return;
     }
@@ -126,370 +113,224 @@ export default function DataUpload() {
     setUploadResult(null);
     setShowFieldMapping(false);
 
+    const orgId = userProfile.org_id;
+    let insertedLeads = 0;
+    let insertedAccounts = 0;
+    let insertedContacts = 0;
+    let totalProcessed = 0;
+    const errors: string[] = [];
+
     try {
-      console.log('📄 Reading file:', pendingFile.file.name);
+      // Parse CSV
       const text = await pendingFile.file.text();
       const rawData = parseCSV(text);
-      console.log('✅ Parsed CSV data:', { 
-        rows: rawData.length, 
-        type: pendingFile.type,
-        sampleRow: rawData[0]
-      });
+      console.log(`📊 Parsed ${rawData.length} rows from CSV`);
       
-      setUploadProgress(25);
-
-      console.log('🔍 Validating data with mapping...');
-      const validation = validateDataWithMapping(rawData, mapping, pendingFile.type);
-      console.log('✅ Validation complete:', { 
-        total: validation.total, 
-        valid: validation.valid, 
-        errors: validation.errors,
-        warnings: validation.warnings 
-      });
-      setUploadProgress(50);
-
-      // Helper function to convert employee count to range
-      const getEmployeeRange = (count: number): string => {
-        if (count < 50) return '1-49';
-        if (count < 100) return '50-99';
-        if (count < 250) return '100-249';
-        if (count < 500) return '250-499';
-        if (count < 1000) return '500-999';
-        if (count < 2500) return '1000-2499';
-        if (count < 5000) return '2500-4999';
-        if (count < 10000) return '5000-9999';
-        return '10000+';
-      };
-
-      // Helper function to convert revenue to range
-      const getRevenueRange = (revenue: number): string => {
-        if (revenue < 1000000) return '<$1M';
-        if (revenue < 5000000) return '$1M-$5M';
-        if (revenue < 10000000) return '$5M-$10M';
-        if (revenue < 25000000) return '$10M-$25M';
-        if (revenue < 50000000) return '$25M-$50M';
-        if (revenue < 100000000) return '$50M-$100M';
-        if (revenue < 250000000) return '$100M-$250M';
-        if (revenue < 500000000) return '$250M-$500M';
-        if (revenue < 1000000000) return '$500M-$1B';
-        if (revenue < 10000000000) return '$1B-$10B';
-        return '$10B+';
-      };
-
-      // Transform data using mapping
-      const transformedData = rawData.map(row => {
-        const transformed: any = { org_id: userProfile.org_id };
-        
-        Object.entries(mapping).forEach(([csvField, schemaField]: [string, string]) => {
-          if (schemaField && row[csvField] !== undefined) {
-            let value = row[csvField];
-            
-            if (schemaField === 'employee_count' && value) {
-              const num = parseInt(value);
-              value = isNaN(num) ? null : num;
-            }
-            
-            transformed[schemaField] = value || null;
-          }
-        });
-        
-        // Auto-populate employee_range from employee_count for accounts only
-        if (pendingFile.type === 'accounts' && !transformed.employee_range && transformed.employee_count) {
-          transformed.employee_range = getEmployeeRange(transformed.employee_count);
-        }
-        
-        // Auto-populate revenue_range from revenue if missing (for accounts and leads)
-        if (!transformed.revenue_range) {
-          // Try to find any revenue-related field in the raw row
-          const revenueFields = ['revenue', 'annual_revenue', 'annual_revenue_number'];
-          for (const field of revenueFields) {
-            const revenueValue = row[field];
-            if (revenueValue) {
-              const num = parseFloat(String(revenueValue).replace(/[^0-9.]/g, ''));
-              if (!isNaN(num) && num > 0) {
-                transformed.revenue_range = getRevenueRange(num);
-                break;
-              }
-            }
-          }
-        }
-        
-        // Add updated_at only for accounts and contacts (not for leads)
-        if (pendingFile.type !== 'leads') {
-          transformed.updated_at = new Date().toISOString();
-        }
-        
-        // For leads, ensure name and status fields
-        if (pendingFile.type === 'leads') {
-          if (!transformed.name) {
-            const firstName = transformed.first_name || '';
-            const lastName = transformed.last_name || '';
-            transformed.name = `${firstName} ${lastName}`.trim() || null;
-          }
-          if (!transformed.status) {
-            transformed.status = 'open';
-          }
-        }
-        
-        return transformed;
-      });
-
-      // Filter out rows with errors
-      const validData = transformedData.filter((_, index) => {
-        const rowIssues = validation.issues.filter(issue => issue.row === index + 2);
-        return !rowIssues.some(issue => issue.type === 'error');
-      });
-      
-      // Remove duplicates based on external_id (keep last occurrence)
-      const uniqueData = validData.reduce((acc, row) => {
-        const existingIndex = acc.findIndex(r => r.external_id === row.external_id);
-        if (existingIndex >= 0) {
-          // Replace existing with newer data
-          acc[existingIndex] = row;
-        } else {
-          acc.push(row);
-        }
-        return acc;
-      }, [] as any[]);
-      
-      const duplicatesRemoved = validData.length - uniqueData.length;
-      
-      console.log('✅ Filtered data:', { 
-        totalRows: transformedData.length, 
-        validRows: validData.length,
-        uniqueRows: uniqueData.length,
-        duplicatesRemoved,
-        rejectedRows: transformedData.length - validData.length 
-      });
-
-      setUploadProgress(75);
-
-      let inserted = 0;
-
-      if (uniqueData.length > 0) {
-        // For leads, populate all three tables: Leads, accounts, and contacts
-        if (pendingFile.type === 'leads') {
-          console.log('💾 Upserting leads to Leads, accounts, and contacts tables:', { 
-            records: uniqueData.length,
-            org_id: userProfile.org_id 
-          });
-          console.log('📊 Sample record before transformation:', uniqueData[0]);
-          
-          try {
-            // 1. Insert into Leads table
-            const leadsData = uniqueData.map(row => {
-              const leadRecord = {
-                org_id: userProfile.org_id,
-                external_id: row.external_id || `lead_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                name: row.name || `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.company || 'Unnamed Lead',
-                status: row.status || 'open',
-                company: row.company || row.name,
-                email: row.email || null,
-                phone: row.phone || null,
-                mobile: row.mobile || null,
-                website: row.website || null,
-                industry: row.industry_raw || row.industry || null,
-                revenue_range: row.revenue_range || null,
-                employee_count: row.employee_count || null,
-                country: row.country || null,
-                state_province: row.state_province || null,
-                title: row.title_raw || row.title || null,
-                first_name: row.first_name || null,
-                last_name: row.last_name || null,
-                account_external_id: row.account_external_id || row.external_id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                contact_external_id: row.contact_external_id || `cont_${row.external_id || Date.now()}`
-              };
-              console.log('🔍 Lead record prepared:', leadRecord);
-              return leadRecord;
-            });
-            
-            console.log('📤 Inserting into Leads table:', { count: leadsData.length, sample: leadsData[0] });
-            const { data: leadsResult, error: leadsError } = await supabase
-              .from('Leads')
-              .upsert(leadsData, { onConflict: 'org_id,external_id' })
-              .select();
-            
-            if (leadsError) {
-              console.error('❌ Leads table error:', {
-                message: leadsError.message,
-                code: leadsError.code,
-                details: leadsError.details,
-                hint: leadsError.hint
-              });
-              throw new Error(`Leads table: ${leadsError.message}`);
-            }
-            console.log('✅ Leads inserted successfully:', leadsResult?.length);
-            
-            // 2. Insert into accounts table (company info)
-            const accountsData = uniqueData.map(row => ({
-              org_id: userProfile.org_id,
-              external_id: row.account_external_id || row.external_id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              name: row.company || row.name || 'Unnamed Company',
-              domain: row.website ? row.website.replace(/^https?:\/\//, '').replace(/\/$/, '') : null,
-              industry_raw: row.industry_raw || row.industry || null,
-              industry_norm: row.industry_norm || row.industry || null,
-              employee_count: row.employee_count || null,
-              revenue_range: row.revenue_range || null,
-              country: row.country || null,
-              state_province: row.state_province || null,
-              phone: row.phone || null,
-              data_source: 'crm',
-              updated_at: new Date().toISOString()
-            }));
-            
-            console.log('📤 Inserting into accounts table:', { count: accountsData.length, sample: accountsData[0] });
-            const { data: accountsResult, error: accountsError } = await supabase
-              .from('accounts')
-              .upsert(accountsData, { onConflict: 'org_id,external_id' })
-              .select();
-            
-            if (accountsError) {
-              console.error('❌ Accounts table error:', {
-                message: accountsError.message,
-                code: accountsError.code,
-                details: accountsError.details,
-                hint: accountsError.hint
-              });
-              throw new Error(`Accounts table: ${accountsError.message}`);
-            }
-            console.log('✅ Accounts inserted successfully:', accountsResult?.length);
-            
-            // 3. Insert into contacts table (person info)
-            const contactsData = uniqueData
-              .filter(row => row.first_name || row.last_name || row.email)
-              .map(row => ({
-                org_id: userProfile.org_id,
-                external_id: row.contact_external_id || `cont_${row.external_id || Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                account_external_id: row.account_external_id || row.external_id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                first_name: row.first_name || null,
-                last_name: row.last_name || null,
-                email: row.email || null,
-                title_raw: row.title_raw || row.title || null,
-                mobile: row.mobile || null,
-                phone: row.phone || null,
-                country: row.country || null,
-                state_province: row.state_province || null,
-                data_source: 'crm',
-                updated_at: new Date().toISOString()
-              }));
-            
-            if (contactsData.length > 0) {
-              console.log('📤 Inserting into contacts table:', { count: contactsData.length, sample: contactsData[0] });
-              const { data: contactsResult, error: contactsError } = await supabase
-                .from('contacts')
-                .upsert(contactsData, { onConflict: 'org_id,external_id' })
-                .select();
-              
-              if (contactsError) {
-                console.error('❌ Contacts table error:', {
-                  message: contactsError.message,
-                  code: contactsError.code,
-                  details: contactsError.details,
-                  hint: contactsError.hint
-                });
-                throw new Error(`Contacts table: ${contactsError.message}`);
-              }
-              console.log('✅ Contacts inserted successfully:', contactsResult?.length);
-            } else {
-              console.log('⚠️ No contact data to insert (no first_name, last_name, or email)');
-            }
-            
-            inserted = uniqueData.length;
-            console.log('✅ ALL TABLES UPDATED:', { 
-              leads: leadsData.length, 
-              accounts: accountsData.length, 
-              contacts: contactsData.length 
-            });
-            
-            toast({
-              title: "Upload Complete!",
-              description: `Successfully uploaded ${leadsData.length} leads, ${accountsData.length} accounts, and ${contactsData.length} contacts`,
-            });
-            
-          } catch (tableError: any) {
-            console.error('❌ Table insert failed:', tableError);
-            throw tableError;
-          }
-          
-        } else {
-          // For accounts and contacts, use single table insert
-          const tableName = pendingFile.type === 'accounts' ? 'accounts' : 'contacts';
-          
-          console.log('💾 Upserting to database:', { table: tableName, records: uniqueData.length });
-          console.log('📊 Sample record:', uniqueData[0]);
-          
-          const { data: upsertData, error: upsertError } = await supabase
-            .from(tableName)
-            .upsert(uniqueData, { 
-              onConflict: 'org_id,external_id'
-            })
-            .select();
-
-          if (upsertError) {
-            console.error('❌ Database upsert error:', {
-              message: upsertError.message,
-              code: upsertError.code,
-              details: upsertError.details,
-              hint: upsertError.hint
-            });
-            
-            // Provide specific error message for column errors
-            let errorMessage = upsertError.message;
-            if (upsertError.message?.includes('column') && upsertError.message?.includes('does not exist')) {
-              errorMessage = `Database schema error: ${upsertError.message}. Please check that your CSV fields match the database columns.`;
-            }
-            
-            throw new Error(errorMessage);
-          }
-          
-          inserted = uniqueData.length;
-        }
-        console.log('✅ Successfully inserted/updated records:', inserted);
-      } else {
-        console.warn('⚠️ No valid data to upload after filtering');
+      if (rawData.length === 0) {
+        throw new Error("No data found in CSV file");
       }
 
-      // Create sync job record
-      console.log('📝 Creating sync job record...');
-      const { error: syncError } = await supabase
-        .from('sync_jobs')
-        .insert({
-          org_id: userProfile.org_id,
-          source_system: 'csv_upload',
-          job_type: pendingFile.type,
-          received: rawData.length,
-          inserted,
-          updated: 0,
-          rejected: validation.errors,
-          status: 'completed',
-          finished_at: new Date().toISOString()
-        });
+      setUploadProgress(10);
+
+      // Validate data
+      const validation = validateDataWithMapping(rawData, mapping, pendingFile.type);
+      console.log(`✅ Validation: ${validation.valid} valid, ${validation.errors} errors`);
       
-      if (syncError) {
-        console.error('⚠️ Failed to create sync job record (non-fatal):', syncError);
+      setUploadProgress(20);
+
+      if (pendingFile.type === 'leads') {
+        // SEQUENTIAL UPLOAD: accounts → contacts → leads
+        console.log('🔄 Starting sequential upload for leads...');
+        
+        const batchSize = 100;
+        
+        for (let i = 0; i < rawData.length; i += batchSize) {
+          const batch = rawData.slice(i, Math.min(i + batchSize, rawData.length));
+          console.log(`Processing batch ${Math.floor(i / batchSize) + 1}: rows ${i + 1} to ${i + batch.length}`);
+
+          // STEP 1: Insert Accounts
+          const accountsData = batch.map((row, idx) => {
+            const accountId = `acc_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`;
+            
+            return {
+              org_id: orgId,
+              external_id: accountId,
+              name: row[mapping.company] || 'Unknown Company',
+              domain: row[mapping.website] || null,
+              industry_raw: row[mapping.industry] || null,
+              industry_norm: row[mapping.industry] || null,
+              employee_count: row[mapping.employee_count] ? parseInt(row[mapping.employee_count]) : null,
+              revenue_range: row[mapping.revenue_range] || null,
+              country: row[mapping.country] || null,
+              state_province: row[mapping.state_province] || null,
+              phone: row[mapping.phone] || null,
+              data_source: 'csv_upload',
+              updated_at: new Date().toISOString()
+            };
+          });
+
+          console.log(`📤 Inserting ${accountsData.length} accounts...`);
+          const { data: accountsResult, error: accountsError } = await supabase
+            .from('accounts')
+            .upsert(accountsData, { onConflict: 'org_id,external_id' })
+            .select('id, external_id');
+
+          if (accountsError) {
+            const msg = `Accounts failed: ${accountsError.message}`;
+            console.error('❌', msg, accountsError);
+            toast({ title: "Accounts Upload Failed", description: msg, variant: "destructive" });
+            errors.push(msg);
+            continue; // Skip this batch
+          }
+
+          insertedAccounts += accountsResult?.length || 0;
+          console.log(`✅ Inserted ${accountsResult?.length} accounts`);
+          setUploadProgress(20 + Math.round((i / rawData.length) * 30));
+
+          // STEP 2: Insert Contacts
+          const contactsData = batch
+            .filter((row) => row[mapping.first_name] || row[mapping.last_name] || row[mapping.email])
+            .map((row, idx) => ({
+              org_id: orgId,
+              external_id: `cont_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`,
+              account_external_id: accountsData[idx].external_id,
+              first_name: row[mapping.first_name] || null,
+              last_name: row[mapping.last_name] || null,
+              email: row[mapping.email] || null,
+              title_raw: row[mapping.title] || null,
+              mobile: row[mapping.mobile] || null,
+              phone: row[mapping.phone] || null,
+              country: row[mapping.country] || null,
+              state_province: row[mapping.state_province] || null,
+              data_source: 'csv_upload',
+              updated_at: new Date().toISOString()
+            }));
+
+          if (contactsData.length > 0) {
+            console.log(`📤 Inserting ${contactsData.length} contacts...`);
+            const { data: contactsResult, error: contactsError } = await supabase
+              .from('contacts')
+              .upsert(contactsData, { onConflict: 'org_id,external_id' })
+              .select('id, external_id');
+
+            if (contactsError) {
+              const msg = `Contacts failed: ${contactsError.message}`;
+              console.error('❌', msg, contactsError);
+              toast({ title: "Contacts Upload Failed", description: msg, variant: "destructive" });
+              errors.push(msg);
+            } else {
+              insertedContacts += contactsResult?.length || 0;
+              console.log(`✅ Inserted ${contactsResult?.length} contacts`);
+            }
+          }
+
+          setUploadProgress(50 + Math.round((i / rawData.length) * 30));
+
+          // STEP 3: Insert Leads
+          const leadsData = batch.map((row, idx) => {
+            const leadName = row[mapping.first_name] && row[mapping.last_name]
+              ? `${row[mapping.first_name]} ${row[mapping.last_name]}`
+              : row[mapping.company] || 'Unknown Lead';
+
+            return {
+              org_id: orgId,
+              external_id: row[mapping.external_id] || `lead_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`,
+              name: leadName,
+              status: row[mapping.status] || 'open',
+              company: row[mapping.company] || null,
+              email: row[mapping.email] || null,
+              phone: row[mapping.phone] || null,
+              mobile: row[mapping.mobile] || null,
+              website: row[mapping.website] || null,
+              industry: row[mapping.industry] || null,
+              revenue_range: row[mapping.revenue_range] || null,
+              employee_count: row[mapping.employee_count] ? parseInt(row[mapping.employee_count]) : null,
+              country: row[mapping.country] || null,
+              state_province: row[mapping.state_province] || null,
+              title: row[mapping.title] || null,
+              first_name: row[mapping.first_name] || null,
+              last_name: row[mapping.last_name] || null,
+              account_external_id: accountsData[idx].external_id,
+              contact_external_id: contactsData[idx]?.external_id || null
+            };
+          });
+
+          console.log(`📤 Inserting ${leadsData.length} leads...`);
+          const { data: leadsResult, error: leadsError } = await supabase
+            .from('Leads')
+            .upsert(leadsData, { onConflict: 'org_id,external_id' })
+            .select('id');
+
+          if (leadsError) {
+            const msg = `Leads failed: ${leadsError.message}`;
+            console.error('❌', msg, leadsError);
+            toast({ title: "Leads Upload Failed", description: msg, variant: "destructive" });
+            errors.push(msg);
+          } else {
+            insertedLeads += leadsResult?.length || 0;
+            console.log(`✅ Inserted ${leadsResult?.length} leads`);
+          }
+
+          totalProcessed += batch.length;
+          setUploadProgress(80 + Math.round((i / rawData.length) * 20));
+        }
+
+        toast({
+          title: "Upload Complete!",
+          description: `Uploaded ${insertedLeads} leads, ${insertedAccounts} accounts, ${insertedContacts} contacts`,
+        });
+
+      } else {
+        // Single table upload for accounts/contacts
+        const tableName = pendingFile.type === 'accounts' ? 'accounts' : 'contacts';
+        
+        const transformedData = rawData.map((row, idx) => {
+          const transformed: any = { 
+            org_id: orgId,
+            data_source: 'csv_upload',
+            updated_at: new Date().toISOString()
+          };
+          
+          Object.entries(mapping).forEach(([csvField, dbField]) => {
+            if (dbField && row[csvField] !== undefined && row[csvField] !== '') {
+              transformed[dbField] = row[csvField];
+            }
+          });
+
+          if (!transformed.external_id) {
+            transformed.external_id = `${tableName.substring(0, 3)}_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 9)}`;
+          }
+          
+          return transformed;
+        });
+
+        console.log(`📤 Inserting ${transformedData.length} ${tableName}...`);
+        const { data: result, error } = await supabase
+          .from(tableName)
+          .upsert(transformedData, { onConflict: 'org_id,external_id' })
+          .select();
+
+        if (error) {
+          throw new Error(`${tableName} upload failed: ${error.message}`);
+        }
+
+        totalProcessed = result?.length || 0;
+        console.log(`✅ Inserted ${totalProcessed} ${tableName}`);
+        
+        toast({
+          title: "Upload Complete!",
+          description: `Uploaded ${totalProcessed} ${tableName}`,
+        });
       }
 
       setUploadProgress(100);
 
-      const result = {
+      setUploadResult({
         total: rawData.length,
-        inserted,
+        inserted: pendingFile.type === 'leads' ? insertedLeads : totalProcessed,
         updated: 0,
-        rejected: validation.errors,
-        errors: validation.issues.filter(i => i.type === 'error').map(i => i.message)
-      };
-      
-      console.log('🎉 Upload complete:', result);
-      setUploadResult(result);
-
-      const successMsg = duplicatesRemoved > 0 
-        ? `Imported ${inserted} records (${duplicatesRemoved} duplicates removed)`
-        : `Imported ${inserted} records`;
-      
-      toast({
-        title: "Upload completed",
-        description: successMsg,
-        variant: inserted > 0 ? "default" : "destructive"
+        rejected: errors.length,
+        errors
       });
 
       await loadTotalRecords();
@@ -497,53 +338,22 @@ export default function DataUpload() {
 
     } catch (error: any) {
       console.error('❌ Upload error:', error);
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-        stack: error.stack
-      });
-      
-      let errorMessage = "Unable to save your data. Please check your file format and try again.";
-      let errorTitle = "Data Upload Failed";
-      
-      if (error.message?.includes('duplicate key')) {
-        errorMessage = "Some records already exist. Data was updated where possible.";
-        errorTitle = "Partial Upload";
-      } else if (error.message?.includes('foreign key')) {
-        errorMessage = "Some records reference accounts that don't exist. Make sure to upload accounts before contacts.";
-      } else if (error.message?.includes('permission denied') || error.message?.includes('JWT')) {
-        errorMessage = "You don't have permission to upload data. Please contact your administrator.";
-      } else if (error.message?.includes('column') && error.message?.includes('does not exist')) {
-        errorMessage = `Database column error: ${error.message}. Please contact support.`;
-      } else if (error.code) {
-        errorMessage = `Database error (${error.code}): ${error.message}`;
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      console.log('📢 Showing error to user:', { errorTitle, errorMessage });
       
       toast({
-        title: errorTitle,
-        description: errorMessage,
+        title: "Upload Failed",
+        description: error.message || "An unexpected error occurred",
         variant: "destructive",
         duration: 10000
       });
-      
-      const errorResult = {
+
+      setUploadResult({
         total: 0,
         inserted: 0,
         updated: 0,
-        rejected: 0,
-        errors: [errorMessage]
-      };
-      
-      console.log('Setting error result:', errorResult);
-      setUploadResult(errorResult);
+        rejected: 1,
+        errors: [error.message]
+      });
     } finally {
-      console.log('🏁 Upload process finished');
       setUploading(false);
       setPendingFile(null);
     }
