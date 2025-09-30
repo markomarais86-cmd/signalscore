@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +12,7 @@ import { HeroMetric } from "@/components/executive/HeroMetric";
 
 export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
+  const navigate = useNavigate();
   const [metrics, setMetrics] = useState({
     tamCoverage: 0,
     icpMatchQuality: 0,
@@ -349,19 +351,31 @@ export default function ExecutiveDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-3 gap-4">
-            <Button variant="outline" className="justify-start h-auto py-4">
+            <Button 
+              variant="outline" 
+              className="justify-start h-auto py-4"
+              onClick={() => navigate('/data-upload')}
+            >
               <div className="text-left">
                 <p className="font-semibold">Upload more accounts</p>
                 <p className="text-xs text-muted-foreground">Improve TAM coverage by {(100 - metrics.tamCoverage).toFixed(0)}%</p>
               </div>
             </Button>
-            <Button variant="outline" className="justify-start h-auto py-4">
+            <Button 
+              variant="outline" 
+              className="justify-start h-auto py-4"
+              onClick={() => navigate('/icp-manager')}
+            >
               <div className="text-left">
                 <p className="font-semibold">Define new ICP</p>
                 <p className="text-xs text-muted-foreground">Target {missingSegments[0]?.segment} segment</p>
               </div>
             </Button>
-            <Button variant="outline" className="justify-start h-auto py-4">
+            <Button 
+              variant="outline" 
+              className="justify-start h-auto py-4"
+              onClick={() => navigate('/icp-tam')}
+            >
               <div className="text-left">
                 <p className="font-semibold">Review whitespace</p>
                 <p className="text-xs text-muted-foreground">{metrics.whitespaceOpportunity.toLocaleString()} high-fit accounts missing</p>
