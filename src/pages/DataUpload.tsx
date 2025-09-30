@@ -118,6 +118,34 @@ export default function DataUpload() {
       const validation = validateDataWithMapping(rawData, mapping, pendingFile.type);
       setUploadProgress(50);
 
+      // Helper function to convert employee count to range
+      const getEmployeeRange = (count: number): string => {
+        if (count < 50) return '1-49';
+        if (count < 100) return '50-99';
+        if (count < 250) return '100-249';
+        if (count < 500) return '250-499';
+        if (count < 1000) return '500-999';
+        if (count < 2500) return '1000-2499';
+        if (count < 5000) return '2500-4999';
+        if (count < 10000) return '5000-9999';
+        return '10000+';
+      };
+
+      // Helper function to convert revenue to range
+      const getRevenueRange = (revenue: number): string => {
+        if (revenue < 1000000) return '<$1M';
+        if (revenue < 5000000) return '$1M-$5M';
+        if (revenue < 10000000) return '$5M-$10M';
+        if (revenue < 25000000) return '$10M-$25M';
+        if (revenue < 50000000) return '$25M-$50M';
+        if (revenue < 100000000) return '$50M-$100M';
+        if (revenue < 250000000) return '$100M-$250M';
+        if (revenue < 500000000) return '$250M-$500M';
+        if (revenue < 1000000000) return '$500M-$1B';
+        if (revenue < 10000000000) return '$1B-$10B';
+        return '$10B+';
+      };
+
       // Transform data using mapping
       const transformedData = rawData.map(row => {
         const transformed: any = { org_id: userProfile.org_id };
@@ -134,6 +162,27 @@ export default function DataUpload() {
             transformed[schemaField] = value || null;
           }
         });
+        
+        // Auto-populate employee_range from employee_count if missing
+        if (!transformed.employee_range && transformed.employee_count) {
+          transformed.employee_range = getEmployeeRange(transformed.employee_count);
+        }
+        
+        // Auto-populate revenue_range from revenue if missing
+        if (!transformed.revenue_range) {
+          // Try to find any revenue-related field in the raw row
+          const revenueFields = ['revenue', 'annual_revenue', 'annual_revenue_number'];
+          for (const field of revenueFields) {
+            const revenueValue = row[field];
+            if (revenueValue) {
+              const num = parseFloat(String(revenueValue).replace(/[^0-9.]/g, ''));
+              if (!isNaN(num) && num > 0) {
+                transformed.revenue_range = getRevenueRange(num);
+                break;
+              }
+            }
+          }
+        }
         
         // Add updated_at only for accounts and contacts (not for leads)
         if (pendingFile.type !== 'leads') {
