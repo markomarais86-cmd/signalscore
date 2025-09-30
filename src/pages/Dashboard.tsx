@@ -99,6 +99,8 @@ export default function Dashboard() {
       const qualifiedLeads = scores?.filter(s => s.overall >= 70).length || 0;
       const conversionRate = totalLeads > 0 ? (qualifiedLeads / totalLeads) * 100 : 0;
       
+      console.log('Dashboard data loaded:', { totalLeads, accounts: accounts?.length, showEmpty: totalLeads === 0 });
+      
       // Show sample data generator if no accounts exist
       setShowSampleDataGenerator(totalLeads === 0);
       
