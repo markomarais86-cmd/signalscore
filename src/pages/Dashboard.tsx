@@ -6,6 +6,8 @@ import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Responsive
 import { TrendingUp, Users, Target, Zap, Activity, Gauge, DollarSign, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
+import { useToast } from "@/hooks/use-toast";
 import { SignalScoreDisplay } from "@/components/SignalScoreDisplay";
 import { BenchmarkComparison } from "@/components/BenchmarkComparison";
 import { SampleDataGenerator } from "@/components/SampleDataGenerator";
@@ -13,6 +15,9 @@ import { Button } from "@/components/ui/button";
 import { ExecutiveMetricCard } from "@/components/executive/ExecutiveMetricCard";
 import { StatusIndicator } from "@/components/executive/StatusIndicator";
 import { ExportToPdf } from "@/components/executive/ExportToPdf";
+import { DemoModeBanner } from "@/components/DemoModeBanner";
+import { DEMO_ACCOUNTS } from "@/data/mockData";
+import jsPDF from 'jspdf';
 
 const chartConfig = {
   leads: {
@@ -52,6 +57,8 @@ export default function Dashboard() {
   const [trendData, setTrendData] = useState([]);
   const [showSampleDataGenerator, setShowSampleDataGenerator] = useState(false);
   const { userProfile } = useAuth();
+  const { flags } = useFeatureFlags();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (!userProfile?.org_id) return;
@@ -63,7 +70,52 @@ export default function Dashboard() {
     if (!userProfile?.org_id) return;
 
     try {
-      // Get basic stats
+      // Demo mode: use mock data
+      if (flags.demo_mode) {
+        const totalLeads = DEMO_ACCOUNTS.length;
+        const qualifiedLeads = DEMO_ACCOUNTS.filter(a => (a.score?.overall || 0) >= 70).length;
+        const conversionRate = (qualifiedLeads / totalLeads) * 100;
+        const avgScore = DEMO_ACCOUNTS.reduce((sum, a) => sum + (a.score?.overall || 0), 0) / totalLeads;
+
+        setStats({
+          totalLeads,
+          qualifiedLeads,
+          conversionRate: Math.round(conversionRate),
+          salesVelocity: 28,
+          signalScore: Math.round(avgScore),
+          signalTrend: 8
+        });
+
+        // Mock weekly data
+        const mockWeeklyData = Array.from({ length: 8 }, (_, i) => ({
+          week: new Date(Date.now() - (7 - i) * 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          leads: Math.floor(Math.random() * 20) + 30,
+          qualified: Math.floor(Math.random() * 15) + 15,
+        }));
+        setWeeklyData(mockWeeklyData);
+
+        // Mock score distribution
+        setScoreDistribution([
+          { name: '80-100', value: 2, fill: SCORE_COLORS[0] },
+          { name: '60-79', value: 2, fill: SCORE_COLORS[1] },
+          { name: '40-59', value: 1, fill: SCORE_COLORS[2] },
+          { name: '20-39', value: 0, fill: SCORE_COLORS[3] },
+          { name: '0-19', value: 0, fill: SCORE_COLORS[4] },
+        ]);
+
+        // Mock trend data
+        const mockTrendData = Array.from({ length: 30 }, (_, i) => ({
+          date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          score: Math.round(avgScore + (Math.random() - 0.5) * 20),
+          benchmark: 65
+        }));
+        setTrendData(mockTrendData);
+
+        setShowSampleDataGenerator(false);
+        return;
+      }
+
+      // Real data mode
       const { data: accounts } = await supabase
         .from('accounts')
         .select('id, external_id')
@@ -139,10 +191,49 @@ export default function Dashboard() {
     }
   };
 
-  const handleExport = (format: 'pdf' | 'pptx' | 'csv') => {
-    console.log(`Exporting ${format.toUpperCase()} report...`);
-    // TODO: Implement actual export functionality
-    // This would typically call a backend service or generate client-side
+  const handleExport = async (format: 'pdf' | 'pptx' | 'csv') => {
+    if (format === 'pdf') {
+      try {
+        const doc = new jsPDF('p', 'mm', 'a4');
+        const pageWidth = doc.internal.pageSize.getWidth();
+        
+        doc.setFontSize(20);
+        doc.text('Executive Dashboard Report', pageWidth / 2, 20, { align: 'center' });
+        
+        doc.setFontSize(10);
+        doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageWidth / 2, 30, { align: 'center' });
+        
+        doc.setFontSize(12);
+        let yPos = 45;
+        doc.text('Key Metrics Summary', 15, yPos);
+        yPos += 10;
+        
+        doc.setFontSize(10);
+        doc.text(`• Total Accounts: ${stats.totalLeads}`, 20, yPos);
+        yPos += 7;
+        doc.text(`• High-Signal Accounts: ${stats.qualifiedLeads}`, 20, yPos);
+        yPos += 7;
+        doc.text(`• SignalScore: ${stats.signalScore}/100`, 20, yPos);
+        
+        doc.save(`dashboard-report-${new Date().toISOString().split('T')[0]}.pdf`);
+        
+        toast({
+          title: "Export successful",
+          description: "Dashboard report exported to PDF"
+        });
+      } catch (error) {
+        toast({
+          title: "Export failed",
+          description: "Failed to generate PDF",
+          variant: "destructive"
+        });
+      }
+    } else {
+      toast({
+        title: "Coming soon",
+        description: `${format.toUpperCase()} export will be available soon`
+      });
+    }
   };
 
   const benchmarkData = [
@@ -153,6 +244,8 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto p-6">
+      <DemoModeBanner />
+      
       {/* Executive Header */}
       <div className="flex justify-between items-start">
         <div className="space-y-2">

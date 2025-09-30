@@ -10,9 +10,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useOnboarding } from "@/hooks/use-onboarding";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { Progress } from "@/components/ui/progress";
 import { ScoreBreakdownDialog } from "@/components/scoring/ScoreBreakdownDialog";
 import { AccountDetailDrawer } from "@/components/accounts/AccountDetailDrawer";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { usePagination } from "@/hooks/use-pagination";
+import { PaginationControls } from "@/components/ui/pagination-controls";
+import { DemoModeBanner } from "@/components/DemoModeBanner";
+import { DEMO_ACCOUNTS } from "@/data/mockData";
 
 interface Account {
   id: string;
@@ -34,10 +40,6 @@ interface Account {
   contacts?: any[];
 }
 
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { usePagination } from "@/hooks/use-pagination";
-import { PaginationControls } from "@/components/ui/pagination-controls";
-
 export default function Accounts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [filteredAccounts, setFilteredAccounts] = useState<Account[]>([]);
@@ -51,6 +53,7 @@ export default function Accounts() {
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
+  const { flags } = useFeatureFlags();
 
   // Pagination
   const {
@@ -77,6 +80,14 @@ export default function Accounts() {
     
     setLoading(true);
     try {
+      // Demo mode: use mock data
+      if (flags.demo_mode) {
+        setAccounts(DEMO_ACCOUNTS as any);
+        setLoading(false);
+        return;
+      }
+
+      // Real data mode
       // Fetch accounts
       const { data: accountsData, error: accountsError } = await supabase
         .from('accounts')
@@ -263,6 +274,8 @@ export default function Accounts() {
 
   return (
     <div className="space-y-6">
+      <DemoModeBanner />
+      
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Accounts</h1>

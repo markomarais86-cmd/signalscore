@@ -33,11 +33,11 @@ export function ExportToPdf({
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onExport('pptx')}>
           <Presentation className="h-4 w-4 mr-2" />
-          PowerPoint Slides
+          PowerPoint (Soon)
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onExport('csv')}>
           <Download className="h-4 w-4 mr-2" />
-          Raw Data (CSV)
+          Raw Data CSV (Soon)
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
