@@ -99,12 +99,25 @@ export default function DataUpload() {
   };
 
   const handleFileUpload = async (mapping: FieldMapping) => {
-    console.log('🚀 Starting upload process', { type: pendingFile?.type, orgId: userProfile?.org_id });
+    console.log('🚀 Starting upload process', { 
+      type: pendingFile?.type, 
+      orgId: userProfile?.org_id,
+      userProfile: userProfile 
+    });
     
-    if (!pendingFile || !userProfile?.org_id) {
-      const errorMsg = !pendingFile ? "No file selected" : "User profile not loaded";
-      console.error('❌ Upload validation failed:', errorMsg);
-      toast({ title: "Error", description: errorMsg, variant: "destructive" });
+    if (!pendingFile) {
+      console.error('❌ No file selected');
+      toast({ title: "Error", description: "No file selected", variant: "destructive" });
+      return;
+    }
+
+    if (!userProfile?.org_id) {
+      console.error('❌ User profile or org_id not loaded', { userProfile });
+      toast({ 
+        title: "Authentication Error", 
+        description: "Unable to determine your organization. Please refresh and try again.", 
+        variant: "destructive" 
+      });
       return;
     }
 
@@ -117,7 +130,11 @@ export default function DataUpload() {
       console.log('📄 Reading file:', pendingFile.file.name);
       const text = await pendingFile.file.text();
       const rawData = parseCSV(text);
-      console.log('✅ Parsed CSV data:', { rows: rawData.length, type: pendingFile.type });
+      console.log('✅ Parsed CSV data:', { 
+        rows: rawData.length, 
+        type: pendingFile.type,
+        sampleRow: rawData[0]
+      });
       
       setUploadProgress(25);
 
@@ -252,106 +269,147 @@ export default function DataUpload() {
       if (uniqueData.length > 0) {
         // For leads, populate all three tables: Leads, accounts, and contacts
         if (pendingFile.type === 'leads') {
-          console.log('💾 Upserting leads to Leads, accounts, and contacts tables:', { records: uniqueData.length });
-          console.log('📊 Sample record:', uniqueData[0]);
+          console.log('💾 Upserting leads to Leads, accounts, and contacts tables:', { 
+            records: uniqueData.length,
+            org_id: userProfile.org_id 
+          });
+          console.log('📊 Sample record before transformation:', uniqueData[0]);
           
-          // 1. Insert into Leads table
-          const leadsData = uniqueData.map(row => ({
-            org_id: row.org_id,
-            external_id: row.external_id,
-            name: row.name || `${row.first_name || ''} ${row.last_name || ''}`.trim() || null,
-            status: row.status || 'open',
-            company: row.company || row.name,
-            email: row.email,
-            phone: row.phone,
-            mobile: row.mobile,
-            website: row.website,
-            industry: row.industry_raw || row.industry,
-            revenue_range: row.revenue_range,
-            employee_count: row.employee_count,
-            country: row.country,
-            state_province: row.state_province,
-            title: row.title_raw || row.title,
-            first_name: row.first_name,
-            last_name: row.last_name,
-            account_external_id: row.account_external_id || row.external_id,
-            contact_external_id: row.contact_external_id || `${row.external_id}_contact`
-          }));
-          
-          const { error: leadsError } = await supabase
-            .from('Leads')
-            .upsert(leadsData, { onConflict: 'org_id,external_id' })
-            .select();
-          
-          if (leadsError) {
-            console.error('❌ Leads table error:', leadsError);
-            throw new Error(`Leads table: ${leadsError.message}`);
-          }
-          
-          // 2. Insert into accounts table (company info)
-          const accountsData = uniqueData.map(row => ({
-            org_id: row.org_id,
-            external_id: row.account_external_id || row.external_id,
-            name: row.company || row.name,
-            domain: row.website?.replace(/^https?:\/\//, '').replace(/\/$/, ''),
-            industry_raw: row.industry_raw || row.industry,
-            industry_norm: row.industry_norm || row.industry,
-            employee_count: row.employee_count,
-            revenue_range: row.revenue_range,
-            country: row.country,
-            state_province: row.state_province,
-            phone: row.phone,
-            data_source: 'crm',
-            updated_at: new Date().toISOString()
-          }));
-          
-          const { error: accountsError } = await supabase
-            .from('accounts')
-            .upsert(accountsData, { onConflict: 'org_id,external_id' })
-            .select();
-          
-          if (accountsError) {
-            console.error('❌ Accounts table error:', accountsError);
-            throw new Error(`Accounts table: ${accountsError.message}`);
-          }
-          
-          // 3. Insert into contacts table (person info)
-          const contactsData = uniqueData
-            .filter(row => row.first_name || row.last_name || row.email)
-            .map(row => ({
-              org_id: row.org_id,
-              external_id: row.contact_external_id || `${row.external_id}_contact`,
-              account_external_id: row.account_external_id || row.external_id,
-              first_name: row.first_name,
-              last_name: row.last_name,
-              email: row.email,
-              title_raw: row.title_raw || row.title,
-              mobile: row.mobile,
-              phone: row.phone,
-              country: row.country,
-              state_province: row.state_province,
+          try {
+            // 1. Insert into Leads table
+            const leadsData = uniqueData.map(row => {
+              const leadRecord = {
+                org_id: userProfile.org_id,
+                external_id: row.external_id || `lead_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                name: row.name || `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.company || 'Unnamed Lead',
+                status: row.status || 'open',
+                company: row.company || row.name,
+                email: row.email || null,
+                phone: row.phone || null,
+                mobile: row.mobile || null,
+                website: row.website || null,
+                industry: row.industry_raw || row.industry || null,
+                revenue_range: row.revenue_range || null,
+                employee_count: row.employee_count || null,
+                country: row.country || null,
+                state_province: row.state_province || null,
+                title: row.title_raw || row.title || null,
+                first_name: row.first_name || null,
+                last_name: row.last_name || null,
+                account_external_id: row.account_external_id || row.external_id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                contact_external_id: row.contact_external_id || `cont_${row.external_id || Date.now()}`
+              };
+              console.log('🔍 Lead record prepared:', leadRecord);
+              return leadRecord;
+            });
+            
+            console.log('📤 Inserting into Leads table:', { count: leadsData.length, sample: leadsData[0] });
+            const { data: leadsResult, error: leadsError } = await supabase
+              .from('Leads')
+              .upsert(leadsData, { onConflict: 'org_id,external_id' })
+              .select();
+            
+            if (leadsError) {
+              console.error('❌ Leads table error:', {
+                message: leadsError.message,
+                code: leadsError.code,
+                details: leadsError.details,
+                hint: leadsError.hint
+              });
+              throw new Error(`Leads table: ${leadsError.message}`);
+            }
+            console.log('✅ Leads inserted successfully:', leadsResult?.length);
+            
+            // 2. Insert into accounts table (company info)
+            const accountsData = uniqueData.map(row => ({
+              org_id: userProfile.org_id,
+              external_id: row.account_external_id || row.external_id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              name: row.company || row.name || 'Unnamed Company',
+              domain: row.website ? row.website.replace(/^https?:\/\//, '').replace(/\/$/, '') : null,
+              industry_raw: row.industry_raw || row.industry || null,
+              industry_norm: row.industry_norm || row.industry || null,
+              employee_count: row.employee_count || null,
+              revenue_range: row.revenue_range || null,
+              country: row.country || null,
+              state_province: row.state_province || null,
+              phone: row.phone || null,
               data_source: 'crm',
               updated_at: new Date().toISOString()
             }));
-          
-          if (contactsData.length > 0) {
-            const { error: contactsError } = await supabase
-              .from('contacts')
-              .upsert(contactsData, { onConflict: 'org_id,external_id' })
+            
+            console.log('📤 Inserting into accounts table:', { count: accountsData.length, sample: accountsData[0] });
+            const { data: accountsResult, error: accountsError } = await supabase
+              .from('accounts')
+              .upsert(accountsData, { onConflict: 'org_id,external_id' })
               .select();
             
-            if (contactsError) {
-              console.error('❌ Contacts table error:', contactsError);
-              throw new Error(`Contacts table: ${contactsError.message}`);
+            if (accountsError) {
+              console.error('❌ Accounts table error:', {
+                message: accountsError.message,
+                code: accountsError.code,
+                details: accountsError.details,
+                hint: accountsError.hint
+              });
+              throw new Error(`Accounts table: ${accountsError.message}`);
             }
+            console.log('✅ Accounts inserted successfully:', accountsResult?.length);
+            
+            // 3. Insert into contacts table (person info)
+            const contactsData = uniqueData
+              .filter(row => row.first_name || row.last_name || row.email)
+              .map(row => ({
+                org_id: userProfile.org_id,
+                external_id: row.contact_external_id || `cont_${row.external_id || Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                account_external_id: row.account_external_id || row.external_id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                first_name: row.first_name || null,
+                last_name: row.last_name || null,
+                email: row.email || null,
+                title_raw: row.title_raw || row.title || null,
+                mobile: row.mobile || null,
+                phone: row.phone || null,
+                country: row.country || null,
+                state_province: row.state_province || null,
+                data_source: 'crm',
+                updated_at: new Date().toISOString()
+              }));
+            
+            if (contactsData.length > 0) {
+              console.log('📤 Inserting into contacts table:', { count: contactsData.length, sample: contactsData[0] });
+              const { data: contactsResult, error: contactsError } = await supabase
+                .from('contacts')
+                .upsert(contactsData, { onConflict: 'org_id,external_id' })
+                .select();
+              
+              if (contactsError) {
+                console.error('❌ Contacts table error:', {
+                  message: contactsError.message,
+                  code: contactsError.code,
+                  details: contactsError.details,
+                  hint: contactsError.hint
+                });
+                throw new Error(`Contacts table: ${contactsError.message}`);
+              }
+              console.log('✅ Contacts inserted successfully:', contactsResult?.length);
+            } else {
+              console.log('⚠️ No contact data to insert (no first_name, last_name, or email)');
+            }
+            
+            inserted = uniqueData.length;
+            console.log('✅ ALL TABLES UPDATED:', { 
+              leads: leadsData.length, 
+              accounts: accountsData.length, 
+              contacts: contactsData.length 
+            });
+            
+            toast({
+              title: "Upload Complete!",
+              description: `Successfully uploaded ${leadsData.length} leads, ${accountsData.length} accounts, and ${contactsData.length} contacts`,
+            });
+            
+          } catch (tableError: any) {
+            console.error('❌ Table insert failed:', tableError);
+            throw tableError;
           }
-          
-          inserted = uniqueData.length;
-          console.log('✅ Successfully inserted into all tables:', { 
-            leads: leadsData.length, 
-            accounts: accountsData.length, 
-            contacts: contactsData.length 
-          });
           
         } else {
           // For accounts and contacts, use single table insert
