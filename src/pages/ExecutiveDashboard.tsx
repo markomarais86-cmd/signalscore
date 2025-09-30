@@ -184,7 +184,7 @@ export default function ExecutiveDashboard() {
       <div className="grid md:grid-cols-4 gap-4">
         <HeroMetric
           label="TAM Coverage"
-          value={`${metrics.tamCoverage.toFixed(1)}%`}
+          value={`${metrics.tamCoverage.toFixed(2)}%`}
           subtitle={`${metrics.totalAccounts} of ${metrics.estimatedTAM} accounts`}
           trend={{ value: metrics.tamCoverageTrend, period: 'last quarter' }}
           status="success"
@@ -195,7 +195,7 @@ export default function ExecutiveDashboard() {
         />
         <HeroMetric
           label="ICP Match Quality"
-          value={`${metrics.icpMatchQuality.toFixed(0)}%`}
+          value={`${metrics.icpMatchQuality.toFixed(2)}%`}
           subtitle={`${metrics.highFitAccounts} high-fit accounts`}
           trend={{ value: metrics.icpMatchTrend, period: 'last month' }}
           status="success"
@@ -209,7 +209,7 @@ export default function ExecutiveDashboard() {
         />
         <HeroMetric
           label="Data Completeness"
-          value={`${metrics.dataCompleteness.toFixed(0)}%`}
+          value={`${metrics.dataCompleteness.toFixed(2)}%`}
           subtitle={`${metrics.totalAccounts} accounts tracked`}
           trend={{ value: metrics.dataCompletenessTrend, period: 'data quality' }}
           status={metrics.dataCompleteness >= 80 ? 'success' : 'warning'}
@@ -232,7 +232,7 @@ export default function ExecutiveDashboard() {
                 <span className="text-sm font-medium">TAM Coverage</span>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-primary">{metrics.tamCoverage.toFixed(1)}%</div>
+                    <div className="text-2xl font-bold text-primary">{metrics.tamCoverage.toFixed(2)}%</div>
                     <div className="text-xs text-muted-foreground">Your coverage</div>
                   </div>
                   <div className="text-right">
@@ -263,7 +263,7 @@ export default function ExecutiveDashboard() {
                 <span className="text-sm font-medium">ICP Match Quality</span>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <div className="text-2xl font-bold text-primary">{metrics.icpMatchQuality.toFixed(0)}%</div>
+                    <div className="text-2xl font-bold text-primary">{metrics.icpMatchQuality.toFixed(2)}%</div>
                     <div className="text-xs text-muted-foreground">Your quality</div>
                   </div>
                   <div className="text-right">
@@ -526,7 +526,7 @@ export default function ExecutiveDashboard() {
                   <Badge className="mb-2" variant="outline">Data Quality</Badge>
                   <p className="font-semibold">Improve data completeness</p>
                   <p className="text-xs text-muted-foreground">
-                    Currently at {metrics.dataCompleteness.toFixed(0)}% - aim for 80%+
+                    Currently at {metrics.dataCompleteness.toFixed(2)}% - aim for 80%+
                   </p>
                 </div>
               </Button>

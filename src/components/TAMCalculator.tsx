@@ -59,7 +59,7 @@ export function TAMCalculator({ data }: TAMCalculatorProps) {
             </div>
             <div className="text-center">
               <div className={`text-2xl font-bold ${getGrowthColor(avgGrowth)}`}>
-                +{avgGrowth.toFixed(1)}%
+                +{avgGrowth.toFixed(2)}%
               </div>
               <div className="text-sm text-muted-foreground">Avg Growth</div>
             </div>
@@ -94,7 +94,7 @@ export function TAMCalculator({ data }: TAMCalculatorProps) {
                     className="h-2"
                   />
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Market Share: {((segment.value / totalValue) * 100).toFixed(1)}%</span>
+                    <span className="text-xs">Market Share: {((segment.value / totalValue) * 100).toFixed(2)}%</span>
                     <span>Growth Rate: +{segment.growth}%</span>
                   </div>
                 </div>

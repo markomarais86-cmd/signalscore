@@ -125,7 +125,7 @@ export function ICPPerformanceComparison({ data }: ICPPerformanceComparisonProps
                     <span className="font-medium">{metric.label}</span>
                   </div>
                   <div className={`text-xs font-medium ${getImprovementColor(metric.improvement)}`}>
-                    {metric.improvement > 0 ? '+' : ''}{metric.improvement.toFixed(1)}% 
+                    {metric.improvement > 0 ? '+' : ''}{metric.improvement.toFixed(2)}% 
                     {metric.inverse ? ' better' : ' higher'}
                   </div>
                 </div>
@@ -173,10 +173,10 @@ export function ICPPerformanceComparison({ data }: ICPPerformanceComparisonProps
               Key Insights
             </h4>
             <ul className="text-sm space-y-1 text-muted-foreground">
-              <li>• ICP accounts convert {(data.icp.conversionRate / data.nonIcp.conversionRate).toFixed(1)}x better</li>
-              <li>• Average deal size is {((data.icp.avgDealSize / data.nonIcp.avgDealSize) * 100).toFixed(0)}% higher for ICP</li>
-              <li>• Sales cycles are {Math.round(((data.nonIcp.salesCycle - data.icp.salesCycle) / data.nonIcp.salesCycle) * 100)}% shorter</li>
-              <li>• Churn rate is {((data.nonIcp.churnRate / data.icp.churnRate)).toFixed(1)}x lower for ICP accounts</li>
+              <li>• ICP accounts convert {(data.icp.conversionRate / data.nonIcp.conversionRate).toFixed(2)}x better</li>
+              <li>• Average deal size is {((data.icp.avgDealSize / data.nonIcp.avgDealSize) * 100).toFixed(2)}% higher for ICP</li>
+              <li>• Sales cycles are {(((data.nonIcp.salesCycle - data.icp.salesCycle) / data.nonIcp.salesCycle) * 100).toFixed(2)}% shorter</li>
+              <li>• Churn rate is {((data.nonIcp.churnRate / data.icp.churnRate)).toFixed(2)}x lower for ICP accounts</li>
             </ul>
           </div>
         </div>

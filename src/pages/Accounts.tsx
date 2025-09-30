@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Search, Database, ExternalLink, AlertCircle, CheckCircle2, Download } from "lucide-react";
+import { Search, Database, ExternalLink, AlertCircle, CheckCircle2, Download, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +14,7 @@ import { useOnboarding } from "@/hooks/use-onboarding";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { AITechnologyInsights } from "@/components/AITechnologyInsights";
+import { ScoreBreakdownDialog } from "@/components/scoring/ScoreBreakdownDialog";
 
 interface Account {
   id: string;
@@ -41,6 +42,8 @@ export default function Accounts() {
   const [searchTerm, setSearchTerm] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [selectedAccountForScore, setSelectedAccountForScore] = useState<Account | null>(null);
+  const [showScoreDialog, setShowScoreDialog] = useState(false);
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
@@ -279,7 +282,7 @@ export default function Accounts() {
               {accounts.filter(a => (a.contacts?.length || 0) > 0).length}
             </div>
             <p className="text-xs text-muted-foreground">
-              {Math.round((accounts.filter(a => (a.contacts?.length || 0) > 0).length / accounts.length) * 100)}% have contact data
+              {((accounts.filter(a => (a.contacts?.length || 0) > 0).length / accounts.length) * 100).toFixed(2)}% have contact data
             </p>
           </CardContent>
         </Card>
@@ -290,7 +293,7 @@ export default function Accounts() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {Math.round(accounts.reduce((sum, a) => sum + calculateDataCompleteness(a), 0) / accounts.length)}%
+              {(accounts.reduce((sum, a) => sum + calculateDataCompleteness(a), 0) / accounts.length).toFixed(2)}%
             </div>
             <p className="text-xs text-muted-foreground">Average completeness</p>
           </CardContent>
@@ -394,11 +397,19 @@ export default function Accounts() {
                         <TableCell>
                           {account.score?.overall ? (
                             <div className="flex items-center gap-2">
-                              <div className={`flex items-center justify-center w-14 h-14 rounded-lg font-bold text-lg ${
-                                account.score.overall >= 80 ? 'bg-[hsl(var(--signal-high))]/20 text-[hsl(var(--signal-high))]' :
-                                account.score.overall >= 60 ? 'bg-[hsl(var(--signal-medium))]/20 text-[hsl(var(--signal-medium))]' :
-                                'bg-[hsl(var(--signal-low))]/20 text-[hsl(var(--signal-low))]'
-                              }`}>
+                              <div 
+                                className={`flex items-center justify-center w-14 h-14 rounded-lg font-bold text-lg cursor-pointer transition-all hover:scale-105 ${
+                                  account.score.overall >= 80 ? 'bg-[hsl(var(--signal-high))]/20 text-[hsl(var(--signal-high))]' :
+                                  account.score.overall >= 60 ? 'bg-[hsl(var(--signal-medium))]/20 text-[hsl(var(--signal-medium))]' :
+                                  'bg-[hsl(var(--signal-low))]/20 text-[hsl(var(--signal-low))]'
+                                }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedAccountForScore(account);
+                                  setShowScoreDialog(true);
+                                }}
+                                title="Click for score breakdown"
+                              >
                                 {account.score.overall}
                               </div>
                               <div className="text-xs">
@@ -410,6 +421,19 @@ export default function Accounts() {
                                   <span className="text-muted-foreground">Intent:</span>
                                   <span className="font-medium">{account.score.intent}</span>
                                 </div>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  className="h-5 text-xs mt-1 px-1"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedAccountForScore(account);
+                                    setShowScoreDialog(true);
+                                  }}
+                                >
+                                  <TrendingUp className="h-3 w-3 mr-1" />
+                                  Details
+                                </Button>
                               </div>
                             </div>
                           ) : (
@@ -554,6 +578,24 @@ export default function Accounts() {
           </Table>
         </CardContent>
       </Card>
+
+      <ScoreBreakdownDialog
+        isOpen={showScoreDialog}
+        onClose={() => setShowScoreDialog(false)}
+        account={selectedAccountForScore ? {
+          name: selectedAccountForScore.name || 'Unknown',
+          overall: selectedAccountForScore.score?.overall || 0,
+          fit: selectedAccountForScore.score?.fit || 0,
+          intent: selectedAccountForScore.score?.intent || 0,
+          reachability: selectedAccountForScore.score?.reachability || 0,
+          reasons: {
+            fit_positives: selectedAccountForScore.industry_norm ? [`Industry: ${selectedAccountForScore.industry_norm}`] : [],
+            fit_negatives: !selectedAccountForScore.employee_count ? ['Missing employee count data'] : [],
+            intent_signals: [],
+            reachability_factors: selectedAccountForScore.contacts && selectedAccountForScore.contacts.length > 0 ? [`${selectedAccountForScore.contacts.length} contacts available`] : ['No contacts available']
+          }
+        } : null}
+      />
     </div>
   );
 }

@@ -93,7 +93,7 @@ export function DataValidationReport({
               <span className="text-2xl font-bold text-green-600">{result.valid}</span>
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              {((result.valid / result.total) * 100).toFixed(1)}% of total
+              {((result.valid / result.total) * 100).toFixed(2)}% of total
             </div>
           </CardContent>
         </Card>
