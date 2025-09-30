@@ -142,6 +142,12 @@ export default function DataUpload() {
         // SEQUENTIAL UPLOAD: accounts → contacts → leads
         console.log('🔄 Starting sequential upload for leads...');
         
+        // Create reverse mapping: dbField -> csvColumn
+        const reverseMapping: Record<string, string> = {};
+        Object.entries(mapping).forEach(([csvCol, dbField]) => {
+          if (dbField) reverseMapping[dbField] = csvCol;
+        });
+        
         const batchSize = 100;
         
         for (let i = 0; i < rawData.length; i += batchSize) {
@@ -155,15 +161,15 @@ export default function DataUpload() {
             return {
               org_id: orgId,
               external_id: accountId,
-              name: row[mapping.company] || 'Unknown Company',
-              domain: row[mapping.website] || null,
-              industry_raw: row[mapping.industry] || null,
-              industry_norm: row[mapping.industry] || null,
-              employee_count: row[mapping.employee_count] ? parseInt(row[mapping.employee_count]) : null,
-              revenue_range: row[mapping.revenue_range] || null,
-              country: row[mapping.country] || null,
-              state_province: row[mapping.state_province] || null,
-              phone: row[mapping.phone] || null,
+              name: (reverseMapping.company && row[reverseMapping.company]) || 'Unknown Company',
+              domain: (reverseMapping.website && row[reverseMapping.website]) || null,
+              industry_raw: (reverseMapping.industry && row[reverseMapping.industry]) || null,
+              industry_norm: (reverseMapping.industry && row[reverseMapping.industry]) || null,
+              employee_count: (reverseMapping.employee_count && row[reverseMapping.employee_count]) ? parseInt(row[reverseMapping.employee_count]) : null,
+              revenue_range: (reverseMapping.revenue_range && row[reverseMapping.revenue_range]) || null,
+              country: (reverseMapping.country && row[reverseMapping.country]) || null,
+              state_province: (reverseMapping.state_province && row[reverseMapping.state_province]) || null,
+              phone: (reverseMapping.phone && row[reverseMapping.phone]) || null,
               data_source: 'crm',
               updated_at: new Date().toISOString()
             };
@@ -189,19 +195,23 @@ export default function DataUpload() {
 
           // STEP 2: Insert Contacts
           const contactsData = batch
-            .filter((row) => row[mapping.first_name] || row[mapping.last_name] || row[mapping.email])
+            .filter((row) => 
+              (reverseMapping.first_name && row[reverseMapping.first_name]) || 
+              (reverseMapping.last_name && row[reverseMapping.last_name]) || 
+              (reverseMapping.email && row[reverseMapping.email])
+            )
             .map((row, idx) => ({
               org_id: orgId,
               external_id: `cont_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`,
               account_external_id: accountsData[idx].external_id,
-              first_name: row[mapping.first_name] || null,
-              last_name: row[mapping.last_name] || null,
-              email: row[mapping.email] || null,
-              title_raw: row[mapping.title] || null,
-              mobile: row[mapping.mobile] || null,
-              phone: row[mapping.phone] || null,
-              country: row[mapping.country] || null,
-              state_province: row[mapping.state_province] || null,
+              first_name: (reverseMapping.first_name && row[reverseMapping.first_name]) || null,
+              last_name: (reverseMapping.last_name && row[reverseMapping.last_name]) || null,
+              email: (reverseMapping.email && row[reverseMapping.email]) || null,
+              title_raw: (reverseMapping.title && row[reverseMapping.title]) || null,
+              mobile: (reverseMapping.mobile && row[reverseMapping.mobile]) || null,
+              phone: (reverseMapping.phone && row[reverseMapping.phone]) || null,
+              country: (reverseMapping.country && row[reverseMapping.country]) || null,
+              state_province: (reverseMapping.state_province && row[reverseMapping.state_province]) || null,
               data_source: 'crm',
               updated_at: new Date().toISOString()
             }));
@@ -228,28 +238,29 @@ export default function DataUpload() {
 
           // STEP 3: Insert Leads
           const leadsData = batch.map((row, idx) => {
-            const leadName = row[mapping.first_name] && row[mapping.last_name]
-              ? `${row[mapping.first_name]} ${row[mapping.last_name]}`
-              : row[mapping.company] || 'Unknown Lead';
+            const firstName = reverseMapping.first_name && row[reverseMapping.first_name];
+            const lastName = reverseMapping.last_name && row[reverseMapping.last_name];
+            const company = reverseMapping.company && row[reverseMapping.company];
+            const leadName = firstName && lastName ? `${firstName} ${lastName}` : company || 'Unknown Lead';
 
             return {
               org_id: orgId,
-              external_id: row[mapping.external_id] || `lead_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`,
+              external_id: (reverseMapping.external_id && row[reverseMapping.external_id]) || `lead_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`,
               name: leadName,
-              status: row[mapping.status] || 'open',
-              company: row[mapping.company] || null,
-              email: row[mapping.email] || null,
-              phone: row[mapping.phone] || null,
-              mobile: row[mapping.mobile] || null,
-              website: row[mapping.website] || null,
-              industry: row[mapping.industry] || null,
-              revenue_range: row[mapping.revenue_range] || null,
-              employee_count: row[mapping.employee_count] ? parseInt(row[mapping.employee_count]) : null,
-              country: row[mapping.country] || null,
-              state_province: row[mapping.state_province] || null,
-              title: row[mapping.title] || null,
-              first_name: row[mapping.first_name] || null,
-              last_name: row[mapping.last_name] || null,
+              status: (reverseMapping.status && row[reverseMapping.status]) || 'open',
+              company: company || null,
+              email: (reverseMapping.email && row[reverseMapping.email]) || null,
+              phone: (reverseMapping.phone && row[reverseMapping.phone]) || null,
+              mobile: (reverseMapping.mobile && row[reverseMapping.mobile]) || null,
+              website: (reverseMapping.website && row[reverseMapping.website]) || null,
+              industry: (reverseMapping.industry && row[reverseMapping.industry]) || null,
+              revenue_range: (reverseMapping.revenue_range && row[reverseMapping.revenue_range]) || null,
+              employee_count: (reverseMapping.employee_count && row[reverseMapping.employee_count]) ? parseInt(row[reverseMapping.employee_count]) : null,
+              country: (reverseMapping.country && row[reverseMapping.country]) || null,
+              state_province: (reverseMapping.state_province && row[reverseMapping.state_province]) || null,
+              title: (reverseMapping.title && row[reverseMapping.title]) || null,
+              first_name: firstName || null,
+              last_name: lastName || null,
               account_external_id: accountsData[idx].external_id,
               contact_external_id: contactsData[idx]?.external_id || null
             };
