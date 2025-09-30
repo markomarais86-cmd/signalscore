@@ -46,6 +46,9 @@ interface Contact {
   country: string | null;
 }
 
+import { usePagination } from "@/hooks/use-pagination";
+import { PaginationControls } from "@/components/ui/pagination-controls";
+
 export default function Leads() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
@@ -55,6 +58,16 @@ export default function Leads() {
   const [loading, setLoading] = useState(true);
   const { userProfile } = useAuth();
   const { toast } = useToast();
+
+  // Pagination
+  const {
+    currentPage,
+    pageSize,
+    totalPages,
+    paginatedData,
+    handlePageChange,
+    handlePageSizeChange,
+  } = usePagination({ data: filteredLeads, initialPageSize: 25 });
 
   useEffect(() => {
     if (userProfile?.org_id) {
@@ -283,7 +296,7 @@ export default function Leads() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredLeads.map((lead) => (
+              {paginatedData.map((lead) => (
                 <Sheet key={lead.id}>
                   <SheetTrigger asChild>
                     <TableRow className="cursor-pointer hover:bg-muted/50">
@@ -487,6 +500,17 @@ export default function Leads() {
                   : "No leads found. Upload some data to get started."}
               </p>
             </div>
+          )}
+
+          {filteredLeads.length > 0 && (
+            <PaginationControls
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={filteredLeads.length}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
           )}
         </CardContent>
       </Card>

@@ -70,11 +70,22 @@ export default function DataUpload() {
       setPendingFile({ file, type });
       setShowFieldMapping(true);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error analyzing CSV:', error);
+      
+      let errorMessage = "Unable to read the CSV file. Please check the file format and try again.";
+      
+      if (error.message?.includes('Invalid CSV')) {
+        errorMessage = "The file appears to be corrupted or not a valid CSV file.";
+      } else if (error.message?.includes('encoding')) {
+        errorMessage = "File encoding not supported. Please save as UTF-8 and try again.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "CSV Analysis Failed",
-        description: "Unable to read the CSV file. Please check the file format and try again.",
+        description: errorMessage,
         variant: "destructive"
       });
     }
@@ -178,12 +189,33 @@ export default function DataUpload() {
 
     } catch (error: any) {
       console.error('Upload error:', error);
+      
+      let errorMessage = "Unable to save your data. Please check your file format and try again.";
+      let errorTitle = "Data Upload Failed";
+      
+      if (error.message?.includes('duplicate key')) {
+        errorMessage = "Some records already exist. Data was updated where possible.";
+        errorTitle = "Partial Upload";
+      } else if (error.message?.includes('foreign key')) {
+        errorMessage = "Some records reference accounts that don't exist. Make sure to upload accounts before contacts.";
+      } else if (error.message?.includes('permission denied') || error.message?.includes('JWT')) {
+        errorMessage = "You don't have permission to upload data. Please contact your administrator.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       toast({
-        title: "Data Upload Failed",
-        description: error.message?.includes('duplicate key') 
-          ? "Some records already exist. Data was updated where possible."
-          : "Unable to save your data. Please check your file format and try again.",
+        title: errorTitle,
+        description: errorMessage,
         variant: "destructive"
+      });
+      
+      setUploadResult({
+        total: 0,
+        inserted: 0,
+        updated: 0,
+        rejected: 0,
+        errors: [errorMessage]
       });
     } finally {
       setUploading(false);

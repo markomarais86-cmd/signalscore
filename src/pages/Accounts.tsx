@@ -34,6 +34,10 @@ interface Account {
   contacts?: any[];
 }
 
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { usePagination } from "@/hooks/use-pagination";
+import { PaginationControls } from "@/components/ui/pagination-controls";
+
 export default function Accounts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [filteredAccounts, setFilteredAccounts] = useState<Account[]>([]);
@@ -47,6 +51,16 @@ export default function Accounts() {
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
+
+  // Pagination
+  const {
+    currentPage,
+    pageSize,
+    totalPages,
+    paginatedData,
+    handlePageChange,
+    handlePageSizeChange,
+  } = usePagination({ data: filteredAccounts, initialPageSize: 25 });
 
   useEffect(() => {
     if (userProfile?.org_id) {
@@ -362,7 +376,7 @@ export default function Accounts() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredAccounts.map((account) => {
+              {paginatedData.map((account) => {
                 const completeness = calculateDataCompleteness(account);
                 return (
                   <TableRow 
@@ -445,6 +459,15 @@ export default function Accounts() {
               })}
             </TableBody>
           </Table>
+
+          <PaginationControls
+            currentPage={currentPage}
+            totalPages={totalPages}
+            pageSize={pageSize}
+            totalItems={filteredAccounts.length}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+          />
         </CardContent>
       </Card>
 
