@@ -53,7 +53,9 @@ export function AppSidebar() {
   };
 
   const getNavCls = (path: string) =>
-    isActive(path) ? "bg-accent text-accent-foreground font-medium" : "hover:bg-accent/50";
+    isActive(path) 
+      ? "bg-primary/10 text-primary font-semibold border-l-4 border-primary" 
+      : "hover:bg-primary/5 hover:text-primary border-l-4 border-transparent";
 
   // Filter items based on feature flags
   const filteredStrategyItems = strategyItems.filter(item => !item.flagKey || flags[item.flagKey]);
@@ -87,7 +89,7 @@ export function AppSidebar() {
           <Collapsible defaultOpen className="group/collapsible">
             <SidebarGroup>
               <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex w-full items-center justify-between text-sm font-semibold text-sidebar-foreground px-3 py-2 hover:bg-sidebar-accent rounded-md">
+                <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-bold text-muted-foreground uppercase tracking-wider px-3 py-2 hover:text-primary transition-colors">
                   Strategy Layer
                   <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
                 </CollapsibleTrigger>
@@ -120,7 +122,7 @@ export function AppSidebar() {
           <Collapsible defaultOpen className="group/collapsible">
             <SidebarGroup>
               <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex w-full items-center justify-between text-sm font-semibold text-sidebar-foreground px-3 py-2 hover:bg-sidebar-accent rounded-md">
+                <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-bold text-muted-foreground uppercase tracking-wider px-3 py-2 hover:text-primary transition-colors">
                   Execution Layer
                   <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
                 </CollapsibleTrigger>
@@ -152,7 +154,7 @@ export function AppSidebar() {
         <Collapsible defaultOpen className="group/collapsible">
           <SidebarGroup>
             <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex w-full items-center justify-between text-sm font-semibold text-sidebar-foreground px-3 py-2 hover:bg-sidebar-accent rounded-md">
+              <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-bold text-muted-foreground uppercase tracking-wider px-3 py-2 hover:text-primary transition-colors">
                 Admin Layer
                 <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
               </CollapsibleTrigger>

@@ -8,42 +8,42 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 222 47% 11%;
+    --background: 0 0% 100%;
+    --foreground: 221 83% 23%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 221 83% 23%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 221 83% 23%;
 
     --primary: 221 83% 23%;
-    --primary-foreground: 210 40% 98%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 166 76% 46%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 221 20% 96%;
+    --muted-foreground: 221 30% 45%;
 
-    --accent: 166 76% 46%;
+    --accent: 221 83% 23%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
+    --border: 221 20% 88%;
+    --input: 221 20% 88%;
     --ring: 221 83% 23%;
 
     --radius: 0.5rem;
 
-    /* Enterprise chart colors - single color families */
-    --chart-1: 221 83% 23%; /* Primary navy */
-    --chart-2: 221 70% 35%; /* Light navy */
-    --chart-3: 221 60% 50%; /* Medium navy */
-    --chart-4: 166 76% 46%; /* Accent teal (for highlights) */
-    --chart-5: 221 50% 65%; /* Lighter navy */
+    /* Enterprise chart colors - BAM primary color family */
+    --chart-1: 221 83% 23%; /* BAM Primary - Deep Blue */
+    --chart-2: 221 70% 35%; /* BAM Light */
+    --chart-3: 221 60% 50%; /* BAM Medium */
+    --chart-4: 221 50% 65%; /* BAM Lighter */
+    --chart-5: 221 40% 75%; /* BAM Pale */
     
     /* Signal scoring colors */
     --signal-high: 166 76% 46%; /* Teal for 80-100 */
@@ -62,70 +62,70 @@ All colors MUST be HSL.
     --executive-blue: 221 83% 23%;  /* Navy */
     --executive-gray: 215 16% 47%;  /* Neutral gray */
     
-    /* Status indicators */
-    --status-success: 166 76% 46%;
-    --status-warning: 45 93% 47%;
-    --status-danger: 0 72% 51%;
-    --status-info: 221 83% 23%;
+    /* Status indicators - signals only */
+    --status-success: 166 76% 46%; /* Green for positive signals */
+    --status-warning: 45 93% 47%;  /* Yellow for caution */
+    --status-danger: 0 72% 51%;    /* Red for negative signals */
+    --status-info: 221 83% 23%;    /* BAM primary for info */
     
     /* Board-ready shadows */
     --shadow-executive: 0 4px 20px -2px hsl(221 83% 23% / 0.15);
     --shadow-card: 0 2px 10px -2px hsl(221 83% 23% / 0.08);
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 221 83% 23%;
+    --sidebar-primary: 221 83% 23%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 221 83% 95%;
+    --sidebar-accent-foreground: 221 83% 23%;
+    --sidebar-border: 221 20% 88%;
+    --sidebar-ring: 221 83% 23%;
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    --background: 221 83% 8%;
+    --foreground: 0 0% 98%;
 
-    --card: 221 39% 14%;
-    --card-foreground: 210 40% 98%;
+    --card: 221 60% 12%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 221 39% 14%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 221 60% 12%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 221 83% 23%;
+    --primary: 221 83% 65%;
+    --primary-foreground: 221 83% 8%;
 
     --secondary: 166 76% 46%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 217 33% 18%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 221 50% 18%;
+    --muted-foreground: 221 20% 65%;
 
-    --accent: 166 76% 46%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 221 83% 65%;
+    --accent-foreground: 221 83% 8%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 217 33% 18%;
-    --input: 217 33% 18%;
-    --ring: 212 27% 84%;
+    --border: 221 50% 20%;
+    --input: 221 50% 20%;
+    --ring: 221 83% 65%;
 
-    /* Chart colors for analytics - dark mode - single color families */
-    --chart-1: 221 70% 60%; /* Light navy */
-    --chart-2: 221 60% 70%; /* Lighter navy */
-    --chart-3: 221 50% 80%; /* Very light navy */
-    --chart-4: 166 76% 46%; /* Accent teal (for highlights) */
-    --chart-5: 221 40% 85%; /* Pale navy */
+    /* Chart colors for analytics - dark mode - BAM color family */
+    --chart-1: 221 83% 65%; /* BAM Primary (lighter for dark) */
+    --chart-2: 221 70% 55%; /* BAM Medium */
+    --chart-3: 221 60% 45%; /* BAM Darker */
+    --chart-4: 221 50% 35%; /* BAM Dark */
+    --chart-5: 221 40% 30%; /* BAM Darkest */
 
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 221 83% 8%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 221 83% 65%;
+    --sidebar-primary-foreground: 221 83% 8%;
+    --sidebar-accent: 221 70% 20%;
+    --sidebar-accent-foreground: 221 83% 65%;
+    --sidebar-border: 221 50% 20%;
+    --sidebar-ring: 221 83% 65%;
   }
 }
 
