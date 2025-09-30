@@ -245,17 +245,10 @@ export default function ICPManager() {
           </div>
         )}
 
-        {/* Main Content Tabs */}
-        <Tabs defaultValue="icps" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="icps">Active ICPs</TabsTrigger>
-            <TabsTrigger value="insights">Win-Based Insights</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="icps" className="space-y-6">
-            {/* ICP Grid */}
-            {icps.length > 0 && (
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* ICP Content */}
+        {/* ICP Grid */}
+        {icps.length > 0 && (
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                 {icps.map((icp) => (
                   <Card key={icp.id} className="relative group">
                     <CardHeader>
@@ -421,11 +414,11 @@ export default function ICPManager() {
                     </CardContent>
                   </Card>
                 ))}
-              </div>
-            )}
+          </div>
+        )}
 
-            {/* Empty State */}
-            {icps.length === 0 && (
+        {/* Empty State */}
+        {icps.length === 0 && (
               <Card className="border-dashed">
                 <CardContent className="flex flex-col items-center justify-center py-16">
                   <Target className="h-16 w-16 text-muted-foreground mb-4" />
@@ -439,11 +432,11 @@ export default function ICPManager() {
                     Create Your First ICP
                   </Button>
                 </CardContent>
-              </Card>
-            )}
+          </Card>
+        )}
 
-            {/* Getting Started Tips */}
-            {icps.length === 0 && (
+        {/* Getting Started Tips */}
+        {icps.length === 0 && (
               <Card className="bg-muted/30">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -472,15 +465,9 @@ export default function ICPManager() {
                       </div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="insights">
-            <ClosedWonInsights onCreateICP={() => loadICPs()} />
-          </TabsContent>
-        </Tabs>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* ICP Wizard Dialog */}

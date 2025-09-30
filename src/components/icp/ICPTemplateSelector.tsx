@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Target, Users, Building, MapPin } from 'lucide-react';
+import { Search, Target, Users, Building, MapPin, TrendingUp, Sparkles } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { ICPTemplate, ICPFormData } from '@/types/icp';
 import { ICP_TEMPLATES_CATEGORIES } from '@/constants/icp';
@@ -12,9 +12,10 @@ import { ICP_TEMPLATES_CATEGORIES } from '@/constants/icp';
 interface ICPTemplateSelectorProps {
   onSelectTemplate: (template: ICPTemplate, formData: ICPFormData) => void;
   onSkip: () => void;
+  onSelectClosedWon?: () => void;
 }
 
-export function ICPTemplateSelector({ onSelectTemplate, onSkip }: ICPTemplateSelectorProps) {
+export function ICPTemplateSelector({ onSelectTemplate, onSkip, onSelectClosedWon }: ICPTemplateSelectorProps) {
   const [templates, setTemplates] = useState<ICPTemplate[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -147,6 +148,24 @@ export function ICPTemplateSelector({ onSelectTemplate, onSkip }: ICPTemplateSel
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* Create from Closed Won Data - Featured Option */}
+        {onSelectClosedWon && (
+          <Card className="border-2 border-primary cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-primary/5 to-transparent" onClick={onSelectClosedWon}>
+            <CardContent className="flex flex-col items-center justify-center py-8 relative">
+              <Badge className="absolute top-3 right-3 bg-primary">Recommended</Badge>
+              <Sparkles className="h-8 w-8 text-primary mb-2" />
+              <CardTitle className="text-lg text-center">Create from Wins</CardTitle>
+              <CardDescription className="text-center mt-1">
+                AI-generated ICP based on your closed won deals
+              </CardDescription>
+              <div className="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+                <TrendingUp className="h-3 w-3" />
+                Data-driven insights
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Create from scratch option */}
         <Card className="border-dashed cursor-pointer hover:border-primary transition-colors" onClick={onSkip}>
           <CardContent className="flex flex-col items-center justify-center py-8">

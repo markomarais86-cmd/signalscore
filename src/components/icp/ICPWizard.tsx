@@ -10,6 +10,7 @@ import { ICPWizardStep2 } from './ICPWizardStep2';
 import { ICPWizardStep3 } from './ICPWizardStep3';
 import { ICPWizardStep4 } from './ICPWizardStep4';
 import { ICPWizardStep5 } from './ICPWizardStep5';
+import { ClosedWonInsights } from './ClosedWonInsights';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -80,6 +81,7 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<ICPFormData>(initialFormData);
   const [selectedTemplate, setSelectedTemplate] = useState<ICPTemplate | null>(null);
+  const [showClosedWonFlow, setShowClosedWonFlow] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { userProfile } = useAuth();
@@ -130,6 +132,7 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
       // Reset for new ICP creation
       setFormData(initialFormData);
       setSelectedTemplate(null);
+      setShowClosedWonFlow(false);
       setCurrentStep(0);
     }
   }, [editingICP, isOpen]);
@@ -151,7 +154,19 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
   const handleSkipTemplate = () => {
     setSelectedTemplate(null);
     setFormData(initialFormData);
+    setShowClosedWonFlow(false);
     setCurrentStep(1);
+  };
+
+  const handleSelectClosedWon = () => {
+    setShowClosedWonFlow(true);
+    setSelectedTemplate(null);
+    setCurrentStep(0); // Stay on step 0 to show ClosedWonInsights
+  };
+
+  const handleBackFromClosedWon = () => {
+    setShowClosedWonFlow(false);
+    setCurrentStep(0);
   };
 
   const validateCurrentStep = (): boolean => {
@@ -256,12 +271,25 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
   };
 
   const renderCurrentStep = () => {
+    // Show ClosedWonInsights if in that flow
+    if (showClosedWonFlow) {
+      return (
+        <ClosedWonInsights 
+          onCreateICP={(recommendation) => {
+            onComplete();
+            onClose();
+          }} 
+        />
+      );
+    }
+
     switch (currentStep) {
       case 0:
         return (
           <ICPTemplateSelector 
             onSelectTemplate={handleTemplateSelection}
             onSkip={handleSkipTemplate}
+            onSelectClosedWon={handleSelectClosedWon}
           />
         );
       case 1:
@@ -332,18 +360,22 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
                 <div className="h-6 border-l border-border"></div>
                 <div>
                   <h1 className="text-xl font-semibold">
-                    {editingICP ? 'Edit ICP Profile' : 'Create ICP Profile'}
+                    {editingICP ? 'Edit ICP Profile' : showClosedWonFlow ? 'Create ICP from Wins' : 'Create ICP Profile'}
                   </h1>
                   <p className="text-sm text-muted-foreground">
-                    {STEP_TITLES[currentStep]}
+                    {showClosedWonFlow ? 'AI-generated ICP based on closed won deals' : STEP_TITLES[currentStep]}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <div className="text-sm text-muted-foreground">
-                  Step {currentStep + (editingICP ? 0 : 1)} of {STEP_TITLES.length - (editingICP ? 1 : 0)}
-                </div>
-                <Progress value={getProgress()} className="w-32" />
+                {!showClosedWonFlow && (
+                  <>
+                    <div className="text-sm text-muted-foreground">
+                      Step {currentStep + (editingICP ? 0 : 1)} of {STEP_TITLES.length - (editingICP ? 1 : 0)}
+                    </div>
+                    <Progress value={getProgress()} className="w-32" />
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -358,7 +390,7 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
           </Card>
 
           {/* Navigation */}
-          {currentStep > 0 && (
+          {currentStep > 0 && !showClosedWonFlow && (
             <div className="flex justify-between items-center mt-8">
               <Button 
                 variant="outline" 
