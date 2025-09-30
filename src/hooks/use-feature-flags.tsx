@@ -22,12 +22,14 @@ interface FeatureFlagsContextType {
 const FeatureFlagsContext = createContext<FeatureFlagsContextType | undefined>(undefined);
 
 const defaultFlags: FeatureFlags = {
+  // Phase 1 - MVP (Always enabled)
   icp_manager: true,
   icp_tam_intelligence: true,
-  personas_segments: true,
-  pipeline_efficiency: true,
-  capital_efficiency: true,
-  ai_agents: true,
+  // Phase 2-4 (Disabled by default, toggle in Labs)
+  personas_segments: false,
+  pipeline_efficiency: false,
+  capital_efficiency: false,
+  ai_agents: false,
   demo_mode: false,
 };
 
