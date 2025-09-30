@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,7 +12,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useOnboarding } from "@/hooks/use-onboarding";
-import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { Progress } from "@/components/ui/progress";
 import { ScoreBreakdownDialog } from "@/components/scoring/ScoreBreakdownDialog";
 import { AccountDetailDrawer } from "@/components/accounts/AccountDetailDrawer";
@@ -20,10 +20,9 @@ import { CorrelationInsights } from "@/components/CorrelationInsights";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { usePagination } from "@/hooks/use-pagination";
 import { PaginationControls } from "@/components/ui/pagination-controls";
-import { DemoModeBanner } from "@/components/DemoModeBanner";
-import { DEMO_ACCOUNTS } from "@/data/mockData";
 import { EnrichmentDialog } from "@/components/EnrichmentDialog";
 import { getSourceLabel, getSourceBadgeVariant } from "@/utils/data-source-attribution";
+import { EmptyDataState } from "@/components/EmptyDataState";
 
 interface Account {
   id: string;
@@ -64,7 +63,6 @@ export default function Accounts() {
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
-  const { flags } = useFeatureFlags();
 
   // Pagination
   const {
@@ -91,12 +89,7 @@ export default function Accounts() {
     
     setLoading(true);
     try {
-      // Demo mode: use mock data
-      if (flags.demo_mode) {
-        setAccounts(DEMO_ACCOUNTS as any);
-        setLoading(false);
-        return;
-      }
+      // Real data mode only - no demo mode
 
       // Real data mode
       // Fetch accounts
@@ -295,7 +288,6 @@ export default function Accounts() {
 
   return (
     <div className="space-y-6">
-      <DemoModeBanner />
       
       <div className="flex justify-between items-center">
         <div>

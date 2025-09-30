@@ -17,9 +17,6 @@ import { DrilldownNavigation } from "@/components/executive/DrilldownNavigation"
 import { ExecutiveMetricCard } from "@/components/executive/ExecutiveMetricCard";
 import { StatusIndicator } from "@/components/executive/StatusIndicator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useFeatureFlags } from "@/hooks/use-feature-flags";
-import { DEMO_ACCOUNTS, DEMO_ICP_PROFILES } from "@/data/mockData";
-import { DemoModeBanner } from "@/components/DemoModeBanner";
 import { calculateTAM, generateTAMInsights, formatCurrency } from "@/utils/tam-calculator";
 import { generateTAMReport } from "@/utils/pdf-export";
 import { useToast } from "@/hooks/use-toast";
@@ -29,7 +26,6 @@ export function ICPTAMIntelligence() {
   const { accounts, icpProfiles, scores, loading: icpLoading } = useICPScoring();
   const [realTimeData, setRealTimeData] = useState<any>(null);
   const [dataLoading, setDataLoading] = useState(true);
-  const { flags } = useFeatureFlags();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -43,23 +39,7 @@ export function ICPTAMIntelligence() {
     
     setDataLoading(true);
     try {
-      // Use demo data if demo mode is enabled
-      if (flags.demo_mode) {
-        const demoAccountsWithScores = DEMO_ACCOUNTS.map(account => ({
-          ...account,
-          scores: [{
-            overall: account.score.overall,
-            fit: account.score.fit,
-            intent: account.score.intent,
-            reachability: account.score.reachability
-          }]
-        }));
-        
-        const processedData = processAccountsForDashboard(demoAccountsWithScores);
-        setRealTimeData(processedData);
-        setDataLoading(false);
-        return;
-      }
+  // Remove demo mode entirely - only show real data
 
       // Get accounts data
       const { data: accountsData, error: accountsError } = await supabase
@@ -163,10 +143,9 @@ export function ICPTAMIntelligence() {
     );
   }
 
-  if (accounts.length === 0 && !flags.demo_mode) {
+  if (accounts.length === 0) {
     return (
       <div className="space-y-6">
-        <DemoModeBanner />
         <div>
           <h1 className="text-3xl font-bold">ICP & TAM Intelligence</h1>
           <p className="text-muted-foreground">Real-time insights from your CRM data</p>
@@ -181,10 +160,9 @@ export function ICPTAMIntelligence() {
     );
   }
 
-  if (icpProfiles.length === 0 && !flags.demo_mode) {
+  if (icpProfiles.length === 0) {
     return (
       <div className="space-y-6">
-        <DemoModeBanner />
         <div>
           <h1 className="text-3xl font-bold">ICP & TAM Intelligence</h1>
           <p className="text-muted-foreground">Real-time insights from your CRM data</p>
@@ -578,7 +556,6 @@ export function ICPTAMIntelligence() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto p-6">
-      <DemoModeBanner />
       {/* Executive Header */}
       <div className="flex justify-between items-start">
         <div className="space-y-2">

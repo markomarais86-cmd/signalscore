@@ -11,6 +11,7 @@ import { FieldMappingDialog, FieldMapping } from "@/components/data-upload/Field
 import { DataValidationReport } from "@/components/data-upload/DataValidationReport";
 import { HeroMetric } from "@/components/executive/HeroMetric";
 import { UploadSection } from "@/components/data-upload/UploadSection";
+import { ClosedWonUpload } from "@/components/data-upload/ClosedWonUpload";
 import { useCSVValidator } from "@/hooks/use-csv-validator";
 import { parseCSV, ACCOUNTS_HEADERS, CONTACTS_HEADERS, generateCSVTemplate } from "@/utils/csv-parser";
 
@@ -285,6 +286,7 @@ export default function DataUpload() {
         <TabsList>
           <TabsTrigger value="accounts">Accounts</TabsTrigger>
           <TabsTrigger value="contacts">Contacts</TabsTrigger>
+          <TabsTrigger value="closed-won">Closed Won</TabsTrigger>
         </TabsList>
 
         <TabsContent value="accounts" className="space-y-6">
@@ -311,6 +313,10 @@ export default function DataUpload() {
             onDownloadTemplate={() => downloadTemplate('contacts')}
             onDownloadRejections={downloadRejections}
           />
+        </TabsContent>
+
+        <TabsContent value="closed-won" className="space-y-6">
+          <ClosedWonUpload />
         </TabsContent>
       </Tabs>
 

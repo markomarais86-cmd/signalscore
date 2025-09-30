@@ -161,6 +161,36 @@ export type Database = {
           },
         ]
       }
+      closed_won_deals: {
+        Row: {
+          account_external_id: string
+          close_date: string
+          created_at: string
+          deal_value: number
+          id: string
+          org_id: string
+          sales_cycle_days: number | null
+        }
+        Insert: {
+          account_external_id: string
+          close_date: string
+          created_at?: string
+          deal_value: number
+          id?: string
+          org_id: string
+          sales_cycle_days?: number | null
+        }
+        Update: {
+          account_external_id?: string
+          close_date?: string
+          created_at?: string
+          deal_value?: number
+          id?: string
+          org_id?: string
+          sales_cycle_days?: number | null
+        }
+        Relationships: []
+      }
       contacts: {
         Row: {
           account_external_id: string | null

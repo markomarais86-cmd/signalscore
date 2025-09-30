@@ -15,8 +15,6 @@ import { Button } from "@/components/ui/button";
 import { ExecutiveMetricCard } from "@/components/executive/ExecutiveMetricCard";
 import { StatusIndicator } from "@/components/executive/StatusIndicator";
 import { ExportToPdf } from "@/components/executive/ExportToPdf";
-import { DemoModeBanner } from "@/components/DemoModeBanner";
-import { DEMO_ACCOUNTS } from "@/data/mockData";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { analyzeSegmentationGaps, calculateICPCoverage } from "@/utils/segmentation-analysis";
@@ -78,50 +76,7 @@ export default function Dashboard() {
     if (!userProfile?.org_id) return;
 
     try {
-      // Demo mode: use mock data
-      if (flags.demo_mode) {
-        const totalLeads = DEMO_ACCOUNTS.length;
-        const qualifiedLeads = DEMO_ACCOUNTS.filter(a => (a.score?.overall || 0) >= 70).length;
-        const conversionRate = (qualifiedLeads / totalLeads) * 100;
-        const avgScore = DEMO_ACCOUNTS.reduce((sum, a) => sum + (a.score?.overall || 0), 0) / totalLeads;
-
-        setStats({
-          totalLeads,
-          qualifiedLeads,
-          conversionRate: Math.round(conversionRate),
-          salesVelocity: 28,
-          signalScore: Math.round(avgScore),
-          signalTrend: 8
-        });
-
-        // Mock weekly data
-        const mockWeeklyData = Array.from({ length: 8 }, (_, i) => ({
-          week: new Date(Date.now() - (7 - i) * 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          leads: Math.floor(Math.random() * 20) + 30,
-          qualified: Math.floor(Math.random() * 15) + 15,
-        }));
-        setWeeklyData(mockWeeklyData);
-
-        // Mock score distribution
-        setScoreDistribution([
-          { name: '80-100', value: 2, fill: SCORE_COLORS[0] },
-          { name: '60-79', value: 2, fill: SCORE_COLORS[1] },
-          { name: '40-59', value: 1, fill: SCORE_COLORS[2] },
-          { name: '20-39', value: 0, fill: SCORE_COLORS[3] },
-          { name: '0-19', value: 0, fill: SCORE_COLORS[4] },
-        ]);
-
-        // Mock trend data
-        const mockTrendData = Array.from({ length: 30 }, (_, i) => ({
-          date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-          score: Math.round(avgScore + (Math.random() - 0.5) * 20),
-          benchmark: 65
-        }));
-        setTrendData(mockTrendData);
-
-        setShowSampleDataGenerator(false);
-        return;
-      }
+      // Real data mode only - no demo mode
 
       // Real data mode
       const { data: accounts } = await supabase
@@ -267,7 +222,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto p-6">
-      <DemoModeBanner />
       
       {/* Executive Header */}
       <div className="flex justify-between items-start">
