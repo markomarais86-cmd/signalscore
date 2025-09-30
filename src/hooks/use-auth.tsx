@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { useNavigate } from 'react-router-dom';
 
 interface AuthContextType {
   user: User | null;
@@ -31,7 +30,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const navigate = useNavigate();
 
   useEffect(() => {
     let mounted = true;
@@ -185,8 +183,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: "You have been signed out successfully."
       });
       
-      // Explicitly navigate to auth page
-      navigate('/auth', { replace: true });
+      // Redirect to auth page using window.location
+      window.location.href = '/auth';
     } catch (error) {
       console.error('Sign out error:', error);
       toast({
@@ -194,7 +192,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: "Please try again.",
         variant: "destructive"
       });
-    } finally {
       setLoading(false);
     }
   };
