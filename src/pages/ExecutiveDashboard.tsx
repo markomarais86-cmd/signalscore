@@ -126,13 +126,9 @@ export default function ExecutiveDashboard() {
         { name: 'Low Fit', value: lowFit, color: 'hsl(var(--executive-red))' },
       ]);
 
-      // Top missing segments (mock data based on ICP definitions)
-      setMissingSegments([
-        { segment: 'Enterprise Technology', missing: 324, potential: '$81M TAM' },
-        { segment: 'Financial Services', missing: 289, potential: '$72M TAM' },
-        { segment: 'Healthcare Tech', missing: 156, potential: '$39M TAM' },
-        { segment: 'Manufacturing', missing: 98, potential: '$24M TAM' },
-      ]);
+      // Top missing segments - only show if we have real data
+      // TODO: Calculate real missing segments based on ICP definitions and external data
+      setMissingSegments([]);
 
       // Geographic distribution
       const geoCounts = accounts?.reduce((acc, a) => {
@@ -515,64 +511,68 @@ export default function ExecutiveDashboard() {
 
       {/* Top Missing Segments & Geographic Distribution */}
       <div className="grid md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Top Missing Segments</CardTitle>
-                <CardDescription>High-value whitespace opportunities</CardDescription>
+        {missingSegments.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Top Missing Segments</CardTitle>
+                  <CardDescription>High-value whitespace opportunities</CardDescription>
+                </div>
+                <Badge variant="secondary">
+                  <AlertCircle className="h-3 w-3 mr-1" />
+                  {missingSegments.length} segments
+                </Badge>
               </div>
-              <Badge variant="secondary">
-                <AlertCircle className="h-3 w-3 mr-1" />
-                {missingSegments.length} segments
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {missingSegments.map((segment, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 rounded-lg border bg-card">
-                  <div className="flex-1">
-                    <p className="font-semibold text-sm">{segment.segment}</p>
-                    <p className="text-xs text-muted-foreground">{segment.potential}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-primary">{segment.missing}</p>
-                    <p className="text-xs text-muted-foreground">accounts</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Geographic Distribution</CardTitle>
-            <CardDescription>Where your accounts are located</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {geoData.map((geo, idx) => (
-                <div key={idx} className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium">{geo.country}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-primary rounded-full" 
-                        style={{ width: `${(geo.count / metrics.totalAccounts) * 100}%` }}
-                      />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {missingSegments.map((segment, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm">{segment.segment}</p>
+                      <p className="text-xs text-muted-foreground">{segment.potential}</p>
                     </div>
-                    <span className="text-sm font-semibold w-12 text-right">{geo.count}</span>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-primary">{segment.missing}</p>
+                      <p className="text-xs text-muted-foreground">accounts</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {geoData.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Geographic Distribution</CardTitle>
+              <CardDescription>Where your accounts are located</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {geoData.map((geo, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">{geo.country}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-primary rounded-full" 
+                          style={{ width: `${(geo.count / metrics.totalAccounts) * 100}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-semibold w-12 text-right">{geo.count}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Quick Actions - Dynamic Recommendations */}
