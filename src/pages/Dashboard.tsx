@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Area, AreaChart } from "recharts";
-import { TrendingUp, Users, Target, Zap, Activity, Gauge, DollarSign, FileText } from "lucide-react";
+import { TrendingUp, Users, Target, Zap, Activity, Gauge, DollarSign, FileText, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
@@ -17,6 +17,9 @@ import { StatusIndicator } from "@/components/executive/StatusIndicator";
 import { ExportToPdf } from "@/components/executive/ExportToPdf";
 import { DemoModeBanner } from "@/components/DemoModeBanner";
 import { DEMO_ACCOUNTS } from "@/data/mockData";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { analyzeSegmentationGaps, calculateICPCoverage } from "@/utils/segmentation-analysis";
 import jsPDF from 'jspdf';
 
 const chartConfig = {
@@ -56,6 +59,8 @@ export default function Dashboard() {
   const [scoreDistribution, setScoreDistribution] = useState([]);
   const [trendData, setTrendData] = useState([]);
   const [showSampleDataGenerator, setShowSampleDataGenerator] = useState(false);
+  const [segmentationInsights, setSegmentationInsights] = useState<any>(null);
+  const [icpCoverage, setICPCoverage] = useState<any>(null);
   const { userProfile } = useAuth();
   const { flags } = useFeatureFlags();
   const { toast } = useToast();
@@ -118,12 +123,17 @@ export default function Dashboard() {
       // Real data mode
       const { data: accounts } = await supabase
         .from('accounts')
-        .select('id, external_id')
+        .select('id, external_id, name, industry_norm, employee_count, revenue_range, country')
         .eq('org_id', userProfile.org_id);
 
       const { data: scores } = await supabase
         .from('scores')
-        .select('overall, account_external_id')
+        .select('overall, account_external_id, fit, intent, reachability')
+        .eq('org_id', userProfile.org_id);
+
+      const { data: icpProfiles } = await supabase
+        .from('icp_profiles')
+        .select('*')
         .eq('org_id', userProfile.org_id);
 
       const totalLeads = accounts?.length || 0;
@@ -137,6 +147,16 @@ export default function Dashboard() {
       const avgScore = scores?.length > 0 
         ? scores.reduce((sum, s) => sum + (s.overall || 0), 0) / scores.length 
         : 0;
+
+      // Analyze segmentation gaps
+      if (accounts && scores && icpProfiles) {
+        const analysis = analyzeSegmentationGaps(accounts, scores, icpProfiles);
+        setSegmentationInsights(analysis);
+        
+        const activeICP = icpProfiles.find(icp => icp.status === 'active');
+        const coverage = calculateICPCoverage(accounts, scores, activeICP || null);
+        setICPCoverage(coverage);
+      }
 
       setStats({
         totalLeads,
@@ -524,6 +544,163 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ICP Coverage & Segmentation Insights */}
+      {!showSampleDataGenerator && segmentationInsights && (
+        <>
+          {/* ICP Coverage Metrics */}
+          {icpCoverage && (
+            <Card className="border-0 shadow-[var(--shadow-card)]">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5" />
+                  ICP Coverage Analysis
+                </CardTitle>
+                <CardDescription>
+                  How well your current accounts align with your Ideal Customer Profile
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-primary">{icpCoverage.totalCoverage}%</div>
+                    <div className="text-sm text-muted-foreground mt-1">Total Coverage</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold">{icpCoverage.industryCoverage}%</div>
+                    <div className="text-sm text-muted-foreground mt-1">Industry Match</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold">{icpCoverage.geographyCoverage}%</div>
+                    <div className="text-sm text-muted-foreground mt-1">Geographic Match</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold">{icpCoverage.sizeCoverage}%</div>
+                    <div className="text-sm text-muted-foreground mt-1">Size Match</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold">{icpCoverage.qualityCoverage}%</div>
+                    <div className="text-sm text-muted-foreground mt-1">Quality Score</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Missing Segments & Gaps */}
+          {segmentationInsights.gaps.length > 0 && (
+            <Card className="border-0 shadow-[var(--shadow-card)]">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                  Missing ICP Segments
+                </CardTitle>
+                <CardDescription>
+                  Target segments from your ICP that need attention
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {segmentationInsights.gaps.slice(0, 5).map((gap: any, index: number) => (
+                    <Alert key={index} variant={gap.priority === 'high' ? 'destructive' : 'default'}>
+                      <AlertDescription>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="font-semibold flex items-center gap-2">
+                              {gap.segment}
+                              <Badge variant={gap.priority === 'high' ? 'destructive' : 'secondary'}>
+                                {gap.priority} priority
+                              </Badge>
+                            </div>
+                            <div className="text-sm text-muted-foreground mt-1">{gap.reason}</div>
+                          </div>
+                          <div className="text-right ml-4">
+                            <div className="text-sm font-medium">{gap.currentAccounts} accounts</div>
+                            {gap.avgScore > 0 && (
+                              <div className="text-xs text-muted-foreground">Avg score: {gap.avgScore}</div>
+                            )}
+                          </div>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Strategic Insights */}
+          {segmentationInsights.insights.length > 0 && (
+            <Card className="border-0 shadow-[var(--shadow-card)]">
+              <CardHeader>
+                <CardTitle>Strategic Insights</CardTitle>
+                <CardDescription>
+                  Data-driven recommendations based on your CRM performance
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {segmentationInsights.insights.slice(0, 5).map((insight: any, index: number) => (
+                    <Alert 
+                      key={index}
+                      variant={
+                        insight.type === 'warning' ? 'destructive' : 
+                        insight.type === 'success' ? 'default' : 
+                        'default'
+                      }
+                    >
+                      <AlertDescription>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="font-semibold">{insight.title}</div>
+                            <div className="text-sm mt-1">{insight.description}</div>
+                            <div className="text-xs text-muted-foreground mt-2">
+                              Impact: {insight.impact}
+                            </div>
+                          </div>
+                          <Badge 
+                            variant={
+                              insight.type === 'warning' ? 'destructive' : 
+                              insight.type === 'success' ? 'default' : 
+                              'secondary'
+                            }
+                          >
+                            {insight.type}
+                          </Badge>
+                        </div>
+                      </AlertDescription>
+                    </Alert>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Recommendations */}
+          {segmentationInsights.recommendations.length > 0 && (
+            <Card className="border-0 shadow-[var(--shadow-card)]">
+              <CardHeader>
+                <CardTitle>Next Steps</CardTitle>
+                <CardDescription>
+                  Recommended actions to improve ICP alignment
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {segmentationInsights.recommendations.map((rec: string, index: number) => (
+                    <li key={index} className="flex items-start gap-2">
+                      <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span className="text-xs font-bold text-primary">{index + 1}</span>
+                      </div>
+                      <span className="text-sm">{rec}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
         </>
       )}
     </div>

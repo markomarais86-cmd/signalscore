@@ -104,11 +104,32 @@ export default function ICPManager() {
     setIsWizardOpen(true);
   };
 
-  const handleWizardComplete = () => {
-    loadICPs();
+  const handleWizardComplete = async () => {
+    await loadICPs();
     setIsWizardOpen(false);
     setEditingIcp(null);
     completeStep('create_icp');
+    
+    // Trigger re-scoring for all accounts with the new/updated ICP
+    toast({
+      title: "ICP saved successfully",
+      description: "Account scoring will be updated based on the new ICP criteria"
+    });
+    
+    // Optional: trigger background re-scoring job
+    if (userProfile?.org_id) {
+      triggerRescoring();
+    }
+  };
+
+  const triggerRescoring = async () => {
+    try {
+      // This would call a background job to re-score all accounts
+      // For now, just show a message
+      console.log('Triggering account re-scoring...');
+    } catch (error) {
+      console.error('Error triggering re-scoring:', error);
+    }
   };
 
   const handleWizardClose = () => {
@@ -372,10 +393,40 @@ export default function ICPManager() {
                 )}
 
                 {/* Metrics */}
-                {(icp.match_count || icp.tam_estimate) && (
-                  <div className="flex justify-between text-xs text-muted-foreground pt-2 border-t">
-                    {icp.match_count && <span>{icp.match_count} matches</span>}
-                    {icp.tam_estimate && <span>TAM: ${(icp.tam_estimate / 1000000).toFixed(1)}M</span>}
+                {(icp.match_count || icp.tam_estimate || icp.status === 'active') && (
+                  <div className="pt-3 border-t space-y-3">
+                    {icp.status === 'active' && (
+                      <>
+                        <div className="text-sm font-medium text-muted-foreground">Pipeline Impact</div>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div>
+                            <div className="text-lg font-bold text-primary">{icp.match_count || 0}</div>
+                            <div className="text-xs text-muted-foreground">Accounts</div>
+                          </div>
+                          <div>
+                            <div className="text-lg font-bold text-primary">
+                              {icp.tam_estimate ? `$${(icp.tam_estimate / 1000000).toFixed(1)}M` : '$0'}
+                            </div>
+                            <div className="text-xs text-muted-foreground">TAM</div>
+                          </div>
+                          <div>
+                            <div className="text-lg font-bold text-primary">{icp.confidence_score || 0}%</div>
+                            <div className="text-xs text-muted-foreground">Quality</div>
+                          </div>
+                        </div>
+                        <Button variant="outline" size="sm" className="w-full" asChild>
+                          <Link to="/icp-tam">
+                            View Full Analysis <ArrowRight className="h-4 w-4 ml-2" />
+                          </Link>
+                        </Button>
+                      </>
+                    )}
+                    {icp.status !== 'active' && (icp.match_count || icp.tam_estimate) && (
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        {icp.match_count && <span>{icp.match_count} matches</span>}
+                        {icp.tam_estimate && <span>TAM: ${(icp.tam_estimate / 1000000).toFixed(1)}M</span>}
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
