@@ -1,15 +1,17 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trophy, Download, Info, CheckCircle, AlertCircle, Zap, ListChecks } from "lucide-react";
+import { Trophy, Download, Info, CheckCircle, AlertCircle, Zap, ListChecks, Database, HelpCircle, RefreshCw, FileQuestion } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { parseCSV } from "@/utils/csv-parser";
+import { SampleDataGenerator } from "@/components/SampleDataGenerator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 // CSV headers for different modes
 const EASY_MODE_HEADERS = ['domain'];
@@ -27,10 +29,65 @@ export function ClosedWonUpload() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
+  const [dbConnectionStatus, setDbConnectionStatus] = useState<'checking' | 'connected' | 'error' | null>(null);
+  const [dbError, setDbError] = useState<string | null>(null);
+  const [accountCount, setAccountCount] = useState<number>(0);
+  const [showTroubleshooting, setShowTroubleshooting] = useState(false);
   const fileRefEasy = useRef<HTMLInputElement>(null);
   const fileRefDetailed = useRef<HTMLInputElement>(null);
   const { userProfile } = useAuth();
   const { toast } = useToast();
+
+  // Check database connection and prerequisites on mount
+  useEffect(() => {
+    checkDatabaseConnection();
+  }, [userProfile?.org_id]);
+
+  const checkDatabaseConnection = async () => {
+    if (!userProfile?.org_id) {
+      setDbConnectionStatus('error');
+      setDbError('User profile not loaded. Please sign in again.');
+      return;
+    }
+
+    setDbConnectionStatus('checking');
+    try {
+      // Test 1: Check if we can query accounts table
+      const { data: accounts, error: accountsError } = await supabase
+        .from('accounts')
+        .select('id', { count: 'exact' })
+        .eq('org_id', userProfile.org_id)
+        .limit(1);
+
+      if (accountsError) {
+        throw new Error(`Database connection error: ${accountsError.message}`);
+      }
+
+      // Test 2: Check if closed_won_deals table exists
+      const { error: tableError } = await supabase
+        .from('closed_won_deals')
+        .select('id')
+        .limit(0);
+
+      if (tableError && tableError.message?.includes('does not exist')) {
+        throw new Error('Closed won deals table not configured. Contact support to enable this feature.');
+      }
+
+      // Test 3: Get account count for validation
+      const { count } = await supabase
+        .from('accounts')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id);
+
+      setAccountCount(count || 0);
+      setDbConnectionStatus('connected');
+      setDbError(null);
+    } catch (error: any) {
+      console.error('Database connection check failed:', error);
+      setDbConnectionStatus('error');
+      setDbError(error.message || 'Unknown database error');
+    }
+  };
 
   const downloadTemplate = (mode: 'easy' | 'detailed') => {
     const template = mode === 'easy'
@@ -204,17 +261,172 @@ export function ClosedWonUpload() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Trophy className="h-5 w-5" />
-          Upload Closed Won Data
-        </CardTitle>
-        <CardDescription>
-          Import historical closed won deals to analyze your ideal customer profile based on actual wins
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <div className="space-y-6">
+      {/* Database Connection Status */}
+      {dbConnectionStatus === 'checking' && (
+        <Alert>
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          <AlertTitle>Checking database connection...</AlertTitle>
+        </Alert>
+      )}
+
+      {dbConnectionStatus === 'error' && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Database Connection Issue</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>{dbError}</p>
+            <div className="flex gap-2 mt-3">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={checkDatabaseConnection}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry Connection
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowTroubleshooting(!showTroubleshooting)}
+              >
+                <HelpCircle className="h-4 w-4 mr-2" />
+                Troubleshooting
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {showTroubleshooting && (
+        <Card className="border-amber-500/50 bg-amber-500/5">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <HelpCircle className="h-5 w-5" />
+              Troubleshooting Guide
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div>
+              <h4 className="font-semibold mb-1">Common Issues:</h4>
+              <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                <li><strong>Not signed in:</strong> Sign out and sign back in to refresh your session</li>
+                <li><strong>No accounts:</strong> Upload CRM accounts data first before uploading closed won deals</li>
+                <li><strong>Table not found:</strong> Contact support to enable closed won tracking for your organization</li>
+                <li><strong>Network issues:</strong> Check your internet connection and try again</li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold mb-1">Try These Steps:</h4>
+              <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                <li>Refresh this page</li>
+                <li>Check that you have uploaded account data</li>
+                <li>Try using demo data to test the system</li>
+                <li>Contact support if the issue persists</li>
+              </ol>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* No Accounts Warning */}
+      {dbConnectionStatus === 'connected' && accountCount === 0 && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>No Accounts Found</AlertTitle>
+          <AlertDescription className="space-y-3">
+            <p>You need to upload account data before uploading closed won deals.</p>
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">You have two options:</p>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm mb-2">1. Generate sample data to explore the platform:</p>
+                  <SampleDataGenerator />
+                </div>
+                <div>
+                  <p className="text-sm">2. Upload your own account data first:</p>
+                  <Button 
+                    variant="outline"
+                    onClick={() => window.location.href = '/data-upload?tab=accounts'}
+                  >
+                    <Database className="h-4 w-4 mr-2" />
+                    Upload Accounts
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Data Preparation Guide */}
+      {dbConnectionStatus === 'connected' && accountCount > 0 && (
+        <Collapsible>
+          <Card className="border-primary/20">
+            <CardHeader>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-0 hover:bg-transparent">
+                  <div className="flex items-center gap-2">
+                    <FileQuestion className="h-5 w-5 text-primary" />
+                    <CardTitle className="text-base">Data Preparation Guide</CardTitle>
+                  </div>
+                  <Info className="h-4 w-4" />
+                </Button>
+              </CollapsibleTrigger>
+            </CardHeader>
+            <CollapsibleContent>
+              <CardContent className="space-y-3 text-sm pt-0">
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    <strong>You have {accountCount} accounts</strong> in your database. Here's how to prepare your closed won data:
+                  </AlertDescription>
+                </Alert>
+                
+                <div>
+                  <h4 className="font-semibold mb-2">Easy Mode (Recommended):</h4>
+                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                    <li>Simply list the website domains of companies you've won</li>
+                    <li>We'll automatically match them to your existing accounts</li>
+                    <li>All firmographics will be pulled from your account data</li>
+                    <li>Best for quick analysis without deal-specific details</li>
+                  </ul>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold mb-2">Detailed Mode (Advanced):</h4>
+                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                    <li>Include deal value, close date, and sales cycle length</li>
+                    <li>Use the exact account_external_id from your CRM</li>
+                    <li>Enables revenue and velocity analysis</li>
+                    <li>Best for comprehensive sales intelligence</li>
+                  </ul>
+                </div>
+
+                <div className="bg-muted/50 p-3 rounded-md">
+                  <p className="font-semibold mb-1">Pro Tip:</p>
+                  <p className="text-muted-foreground">
+                    Start with Easy Mode to quickly identify patterns. You can always upload detailed data later for deeper insights.
+                  </p>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      )}
+
+      {/* Main Upload Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="h-5 w-5" />
+            Upload Closed Won Data
+          </CardTitle>
+          <CardDescription>
+            Import historical closed won deals to analyze your ideal customer profile based on actual wins
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
         <Tabs value={uploadMode} onValueChange={(v) => setUploadMode(v as 'easy' | 'detailed')}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="easy" className="flex items-center gap-2">
@@ -260,7 +472,7 @@ export function ClosedWonUpload() {
                 />
                 <Button 
                   onClick={() => fileRefEasy.current?.click()}
-                  disabled={uploading}
+                  disabled={uploading || dbConnectionStatus !== 'connected' || accountCount === 0}
                 >
                   <Trophy className="h-4 w-4 mr-2" />
                   {uploading ? 'Processing...' : 'Upload Domains'}
@@ -302,7 +514,7 @@ export function ClosedWonUpload() {
                 />
                 <Button 
                   onClick={() => fileRefDetailed.current?.click()}
-                  disabled={uploading}
+                  disabled={uploading || dbConnectionStatus !== 'connected' || accountCount === 0}
                 >
                   <Trophy className="h-4 w-4 mr-2" />
                   {uploading ? 'Processing...' : 'Upload Deal Data'}
@@ -311,6 +523,16 @@ export function ClosedWonUpload() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Disable uploads if database not ready */}
+        {dbConnectionStatus === 'error' && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Uploads are disabled due to database connection issues. Please resolve the issues above before uploading.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {uploading && (
           <div className="space-y-2">
@@ -355,7 +577,8 @@ export function ClosedWonUpload() {
             )}
           </div>
         )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
