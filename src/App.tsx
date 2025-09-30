@@ -55,7 +55,7 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Layout>
-                        <Dashboard />
+                        <ExecutiveDashboard />
                       </Layout>
                     </ProtectedRoute>
                   }
