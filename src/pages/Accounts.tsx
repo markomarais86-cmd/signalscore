@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { AITechnologyInsights } from "@/components/AITechnologyInsights";
 
 interface Account {
   id: string;
@@ -242,7 +243,7 @@ export default function Accounts() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Accounts</CardTitle>
@@ -279,7 +280,24 @@ export default function Accounts() {
             <p className="text-xs text-muted-foreground">Average completeness</p>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">High-Fit Accounts</CardTitle>
+            <CheckCircle2 className="h-4 w-4 text-success" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {accounts.filter(a => (a.score?.overall || 0) >= 70).length}
+            </div>
+            <p className="text-xs text-muted-foreground">Score 70+</p>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* AI Technology Insights */}
+      <AITechnologyInsights 
+        accountIds={filteredAccounts.slice(0, 5).map(a => a.external_id)}
+      />
 
       {/* Filters */}
       <Card>

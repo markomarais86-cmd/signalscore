@@ -2,3 +2,6 @@ project_id = "dhyfbaptcprxxixgnpby"
 
 [functions.score-account]
 verify_jwt = false
+
+[functions.enrich-technology-insights]
+verify_jwt = true

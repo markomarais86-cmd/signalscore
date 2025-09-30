@@ -43,6 +43,7 @@ import ScoringConfiguration from "@/components/settings/ScoringConfiguration";
 import BenchmarkSettings from "@/components/settings/BenchmarkSettings";
 import AIAgentSettings from "@/components/settings/AIAgentSettings";
 import { FeatureToggles } from "@/components/settings/FeatureToggles";
+import { AccountExclusions } from "@/components/settings/AccountExclusions";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TeamMember {
@@ -305,7 +306,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-11">
+        <TabsList className="grid w-full grid-cols-12">
           <TabsTrigger value="account" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Account
@@ -337,6 +338,10 @@ export default function Settings() {
           <TabsTrigger value="ai-agents" className="flex items-center gap-2">
             <Bot className="h-4 w-4" />
             AI Agents
+          </TabsTrigger>
+          <TabsTrigger value="exclusions" className="flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            Exclusions
           </TabsTrigger>
           <TabsTrigger value="notifications" className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
@@ -552,6 +557,11 @@ export default function Settings() {
         {/* AI Agents */}
         <TabsContent value="ai-agents" className="space-y-6">
           <AIAgentSettings />
+        </TabsContent>
+
+        {/* Exclusions */}
+        <TabsContent value="exclusions" className="space-y-6">
+          <AccountExclusions />
         </TabsContent>
 
         {/* Notifications */}
