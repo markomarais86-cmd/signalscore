@@ -254,73 +254,236 @@ export default function ICPManager() {
 
           <TabsContent value="icps" className="space-y-6">
             {/* ICP Grid */}
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {icps.map((icp) => (
-                <Card key={icp.id} className="relative group">
-...
-                </CardContent>
-              </Card>
-              ))}
-
-              {/* Empty State */}
-              {icps.length === 0 && (
-                <div className="col-span-full">
-                  <Card className="border-dashed">
-                    <CardContent className="flex flex-col items-center justify-center py-16">
-                      <Target className="h-16 w-16 text-muted-foreground mb-4" />
-                      <CardTitle className="text-xl mb-2">No ICP Profiles Yet</CardTitle>
-                      <CardDescription className="text-center mb-6 max-w-md">
-                        Create your first Ideal Customer Profile using our guided wizard. 
-                        Start with a template or build from scratch with advanced targeting criteria.
-                      </CardDescription>
-                      <div className="flex gap-2">
-                        <Button onClick={handleCreateNew} className="flex items-center gap-2">
-                          <Plus className="h-4 w-4" />
-                          Create Your First ICP
-                        </Button>
+            {icps.length > 0 && (
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {icps.map((icp) => (
+                  <Card key={icp.id} className="relative group">
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-start gap-2">
+                          <Target className="h-5 w-5 text-primary mt-0.5" />
+                          <div>
+                            <CardTitle className="text-lg">{icp.name}</CardTitle>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant={getStatusBadgeColor(icp.status || 'draft')}>
+                                {icp.status || 'draft'}
+                              </Badge>
+                              {icp.confidence_score && (
+                                <Badge variant="outline" className="text-xs">
+                                  {icp.confidence_score}% confidence
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(icp)} className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          {userProfile?.role === 'admin' && (
+                            <Button variant="ghost" size="sm" onClick={() => handleDelete(icp.id)} className="opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {icp.status === 'active' && (
+                            <Button variant="outline" size="sm" asChild>
+                              <Link to="/icp-tam">
+                                <BarChart3 className="h-4 w-4" />
+                              </Link>
+                            </Button>
+                          )}
+                        </div>
                       </div>
+                      <CardDescription>
+                        {icp.description || `Created ${formatDate(icp.created_at)}`}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {/* Industries */}
+                      {icp.industries && icp.industries.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Building className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">Industries</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {icp.industries.slice(0, 3).map((industry, index) => (
+                              <Badge key={index} variant="outline" className="text-xs">
+                                {industry}
+                              </Badge>
+                            ))}
+                            {icp.industries.length > 3 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{icp.industries.length - 3} more
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Company Sizes */}
+                      {icp.company_sizes && icp.company_sizes.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">Company Sizes</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {icp.company_sizes.slice(0, 2).map((size, index) => (
+                              <Badge key={index} variant="outline" className="text-xs">
+                                {size}+ employees
+                              </Badge>
+                            ))}
+                            {icp.company_sizes.length > 2 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{icp.company_sizes.length - 2} more
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Geographies */}
+                      {icp.geographies && icp.geographies.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">Geographies</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {icp.geographies.slice(0, 2).map((geo, index) => (
+                              <Badge key={index} variant="outline" className="text-xs">
+                                {geo}
+                              </Badge>
+                            ))}
+                            {icp.geographies.length > 2 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{icp.geographies.length - 2} more
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Job Titles */}
+                      {icp.persona_job_titles && icp.persona_job_titles.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <Target className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">Target Roles</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {icp.persona_job_titles.slice(0, 2).map((title, index) => (
+                              <Badge key={index} variant="secondary" className="text-xs">
+                                {title}
+                              </Badge>
+                            ))}
+                            {icp.persona_job_titles.length > 2 && (
+                              <Badge variant="secondary" className="text-xs">
+                                +{icp.persona_job_titles.length - 2} more
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Metrics */}
+                      {(icp.match_count || icp.tam_estimate || icp.status === 'active') && (
+                        <div className="pt-3 border-t space-y-3">
+                          {icp.status === 'active' && (
+                            <>
+                              <div className="text-sm font-medium text-muted-foreground">Pipeline Impact</div>
+                              <div className="grid grid-cols-3 gap-2 text-center">
+                                <div>
+                                  <div className="text-lg font-bold text-primary">{icp.match_count || 0}</div>
+                                  <div className="text-xs text-muted-foreground">Accounts</div>
+                                </div>
+                                <div>
+                                  <div className="text-lg font-bold text-primary">
+                                    {icp.tam_estimate ? `$${(icp.tam_estimate / 1000000).toFixed(1)}M` : '$0'}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">TAM</div>
+                                </div>
+                                <div>
+                                  <div className="text-lg font-bold text-primary">{icp.confidence_score || 0}%</div>
+                                  <div className="text-xs text-muted-foreground">Quality</div>
+                                </div>
+                              </div>
+                              <Button variant="outline" size="sm" className="w-full" asChild>
+                                <Link to="/icp-tam">
+                                  View Full Analysis <ArrowRight className="h-4 w-4 ml-2" />
+                                </Link>
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
-                </div>
-              )}
-            </div>
+                ))}
+              </div>
+            )}
+
+            {/* Empty State */}
+            {icps.length === 0 && (
+              <Card className="border-dashed">
+                <CardContent className="flex flex-col items-center justify-center py-16">
+                  <Target className="h-16 w-16 text-muted-foreground mb-4" />
+                  <CardTitle className="text-xl mb-2">No ICP Profiles Yet</CardTitle>
+                  <CardDescription className="text-center mb-6 max-w-md">
+                    Create your first Ideal Customer Profile using our guided wizard. 
+                    Start with a template or build from scratch with advanced targeting criteria.
+                  </CardDescription>
+                  <Button onClick={handleCreateNew} className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Create Your First ICP
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Getting Started Tips */}
             {icps.length === 0 && (
-          <Card className="bg-muted/30">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Wand2 className="h-5 w-5 text-primary" />
-                Getting Started with ICP Profiles
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <div className="font-medium">1. Choose a Template</div>
-                  <div className="text-sm text-muted-foreground">
-                    Start with pre-built templates for common industries and use cases
+              <Card className="bg-muted/30">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Wand2 className="h-5 w-5 text-primary" />
+                    Getting Started with ICP Profiles
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <div className="font-medium">1. Choose a Template</div>
+                      <div className="text-sm text-muted-foreground">
+                        Start with pre-built templates for common industries and use cases
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="font-medium">2. Define Your Ideal Customer</div>
+                      <div className="text-sm text-muted-foreground">
+                        Add company characteristics, persona details, and advanced targeting criteria
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="font-medium">3. Score & Analyze</div>
+                      <div className="text-sm text-muted-foreground">
+                        Activate your ICP to score accounts, generate TAM intelligence, and identify qualified leads
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="font-medium">2. Define Your Ideal Customer</div>
-                  <div className="text-sm text-muted-foreground">
-                    Add company characteristics, persona details, and advanced targeting criteria
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="font-medium">3. Score & Analyze</div>
-                  <div className="text-sm text-muted-foreground">
-                    Activate your ICP to score accounts, generate TAM intelligence, and identify qualified leads
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="insights">
+            <ClosedWonInsights onCreateICP={() => loadICPs()} />
+          </TabsContent>
+        </Tabs>
       </div>
 
-      {/* ICP Wizard */}
+      {/* ICP Wizard Dialog */}
       <ICPWizard
         isOpen={isWizardOpen}
         onClose={handleWizardClose}
