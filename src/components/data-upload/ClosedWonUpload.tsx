@@ -47,7 +47,10 @@ export function ClosedWonUpload() {
   };
 
   const handleFileSelect = async (file: File) => {
+    console.log('ClosedWonUpload: handleFileSelect called with file:', file.name);
+    
     if (!userProfile?.org_id) {
+      console.log('ClosedWonUpload: No org_id found');
       toast({
         title: "Error",
         description: "User profile not loaded",
@@ -56,13 +59,16 @@ export function ClosedWonUpload() {
       return;
     }
 
+    console.log('ClosedWonUpload: Starting upload for org:', userProfile.org_id);
     setUploading(true);
     setUploadProgress(0);
     setUploadResult(null);
 
     try {
       const text = await file.text();
+      console.log('ClosedWonUpload: File read, parsing CSV...');
       const rawData = parseCSV(text);
+      console.log('ClosedWonUpload: Parsed rows:', rawData.length);
       
       setUploadProgress(25);
 
@@ -170,13 +176,22 @@ export function ClosedWonUpload() {
               type="file"
               accept=".csv"
               onChange={(e) => {
+                console.log('ClosedWonUpload: File input changed', e.target.files);
                 const file = e.target.files?.[0];
-                if (file) handleFileSelect(file);
+                if (file) {
+                  console.log('ClosedWonUpload: File selected:', file.name);
+                  handleFileSelect(file);
+                } else {
+                  console.log('ClosedWonUpload: No file selected');
+                }
               }}
               className="hidden"
             />
             <Button 
-              onClick={() => fileRef.current?.click()}
+              onClick={() => {
+                console.log('ClosedWonUpload: Button clicked, triggering file input');
+                fileRef.current?.click();
+              }}
               disabled={uploading}
             >
               <Trophy className="h-4 w-4 mr-2" />
