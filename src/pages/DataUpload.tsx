@@ -99,8 +99,12 @@ export default function DataUpload() {
   };
 
   const handleFileUpload = async (mapping: FieldMapping) => {
+    console.log('🚀 Starting upload process', { type: pendingFile?.type, orgId: userProfile?.org_id });
+    
     if (!pendingFile || !userProfile?.org_id) {
-      toast({ title: "Error", description: "No file selected or user profile not loaded", variant: "destructive" });
+      const errorMsg = !pendingFile ? "No file selected" : "User profile not loaded";
+      console.error('❌ Upload validation failed:', errorMsg);
+      toast({ title: "Error", description: errorMsg, variant: "destructive" });
       return;
     }
 
@@ -110,12 +114,21 @@ export default function DataUpload() {
     setShowFieldMapping(false);
 
     try {
+      console.log('📄 Reading file:', pendingFile.file.name);
       const text = await pendingFile.file.text();
       const rawData = parseCSV(text);
+      console.log('✅ Parsed CSV data:', { rows: rawData.length, type: pendingFile.type });
       
       setUploadProgress(25);
 
+      console.log('🔍 Validating data with mapping...');
       const validation = validateDataWithMapping(rawData, mapping, pendingFile.type);
+      console.log('✅ Validation complete:', { 
+        total: validation.total, 
+        valid: validation.valid, 
+        errors: validation.errors,
+        warnings: validation.warnings 
+      });
       setUploadProgress(50);
 
       // Helper function to convert employee count to range
@@ -209,6 +222,12 @@ export default function DataUpload() {
         const rowIssues = validation.issues.filter(issue => issue.row === index + 2);
         return !rowIssues.some(issue => issue.type === 'error');
       });
+      
+      console.log('✅ Filtered data:', { 
+        totalRows: transformedData.length, 
+        validRows: validData.length,
+        rejectedRows: transformedData.length - validData.length 
+      });
 
       setUploadProgress(75);
 
@@ -217,18 +236,31 @@ export default function DataUpload() {
       if (validData.length > 0) {
         const tableName = pendingFile.type === 'accounts' ? 'accounts' : 
                          pendingFile.type === 'contacts' ? 'contacts' : 'Leads';
-        const { error: upsertError } = await supabase
+        
+        console.log('💾 Upserting to database:', { table: tableName, records: validData.length });
+        console.log('📊 Sample record:', validData[0]);
+        
+        const { data: upsertData, error: upsertError } = await supabase
           .from(tableName)
           .upsert(validData, { 
             onConflict: pendingFile.type === 'leads' ? 'org_id,external_id' : 'org_id,external_id'
-          });
+          })
+          .select();
 
-        if (upsertError) throw upsertError;
+        if (upsertError) {
+          console.error('❌ Database upsert error:', upsertError);
+          throw upsertError;
+        }
+        
         inserted = validData.length;
+        console.log('✅ Successfully inserted/updated records:', inserted);
+      } else {
+        console.warn('⚠️ No valid data to upload after filtering');
       }
 
       // Create sync job record
-      await supabase
+      console.log('📝 Creating sync job record...');
+      const { error: syncError } = await supabase
         .from('sync_jobs')
         .insert({
           org_id: userProfile.org_id,
@@ -241,27 +273,42 @@ export default function DataUpload() {
           status: 'completed',
           finished_at: new Date().toISOString()
         });
+      
+      if (syncError) {
+        console.error('⚠️ Failed to create sync job record (non-fatal):', syncError);
+      }
 
       setUploadProgress(100);
 
-      setUploadResult({
+      const result = {
         total: rawData.length,
         inserted,
         updated: 0,
         rejected: validation.errors,
         errors: validation.issues.filter(i => i.type === 'error').map(i => i.message)
-      });
+      };
+      
+      console.log('🎉 Upload complete:', result);
+      setUploadResult(result);
 
       toast({
         title: "Upload completed",
-        description: `Processed ${rawData.length} rows, imported ${inserted} valid records`
+        description: `Processed ${rawData.length} rows, imported ${inserted} valid records`,
+        variant: inserted > 0 ? "default" : "destructive"
       });
 
       await loadTotalRecords();
       completeStep('upload_data');
 
     } catch (error: any) {
-      console.error('Upload error:', error);
+      console.error('❌ Upload error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        stack: error.stack
+      });
       
       let errorMessage = "Unable to save your data. Please check your file format and try again.";
       let errorTitle = "Data Upload Failed";
@@ -273,24 +320,35 @@ export default function DataUpload() {
         errorMessage = "Some records reference accounts that don't exist. Make sure to upload accounts before contacts.";
       } else if (error.message?.includes('permission denied') || error.message?.includes('JWT')) {
         errorMessage = "You don't have permission to upload data. Please contact your administrator.";
+      } else if (error.message?.includes('column') && error.message?.includes('does not exist')) {
+        errorMessage = `Database column error: ${error.message}. Please contact support.`;
+      } else if (error.code) {
+        errorMessage = `Database error (${error.code}): ${error.message}`;
       } else if (error.message) {
         errorMessage = error.message;
       }
       
+      console.log('📢 Showing error to user:', { errorTitle, errorMessage });
+      
       toast({
         title: errorTitle,
         description: errorMessage,
-        variant: "destructive"
+        variant: "destructive",
+        duration: 10000
       });
       
-      setUploadResult({
+      const errorResult = {
         total: 0,
         inserted: 0,
         updated: 0,
         rejected: 0,
         errors: [errorMessage]
-      });
+      };
+      
+      console.log('Setting error result:', errorResult);
+      setUploadResult(errorResult);
     } finally {
+      console.log('🏁 Upload process finished');
       setUploading(false);
       setPendingFile(null);
     }
