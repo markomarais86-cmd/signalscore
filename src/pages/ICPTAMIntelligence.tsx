@@ -19,6 +19,7 @@ import { StatusIndicator } from "@/components/executive/StatusIndicator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { calculateTAM, generateTAMInsights, formatCurrency } from "@/utils/tam-calculator";
 import { generateTAMReport } from "@/utils/pdf-export";
+import { generateICP10PDF } from "@/utils/icp10-pdf-export";
 import { useToast } from "@/hooks/use-toast";
 
 export function ICPTAMIntelligence() {
@@ -427,7 +428,7 @@ export function ICPTAMIntelligence() {
     }));
   };
 
-  const handleExportICP10 = (format: 'pdf' | 'csv') => {
+  const handleExportICP10 = async (format: 'pdf' | 'csv') => {
     console.log(`Export initiated for ${format.toUpperCase()}`);
     if (format === 'csv') {
       // Export ICP-10 to CSV
@@ -473,11 +474,23 @@ export function ICPTAMIntelligence() {
         title: "Export successful",
         description: "ICP-10 list exported to CSV"
       });
-    } else {
-      toast({
-        title: "Coming soon",
-        description: "PDF export for ICP-10 will be available soon"
-      });
+    } else if (format === 'pdf') {
+      try {
+        const icp10List = processRealDataIntoICP10();
+        const orgName = userProfile?.org_id || 'Organization';
+        await generateICP10PDF(icp10List, orgName);
+        toast({
+          title: "Export successful",
+          description: "ICP-10 report exported to PDF"
+        });
+      } catch (error) {
+        console.error('PDF export error:', error);
+        toast({
+          title: "Export failed",
+          description: "Failed to generate PDF report",
+          variant: "destructive"
+        });
+      }
     }
   };
 
