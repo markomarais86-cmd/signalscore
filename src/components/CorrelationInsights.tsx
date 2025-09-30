@@ -224,8 +224,8 @@ export function CorrelationInsights() {
                       {getStrengthBadge(value.strength, value.significant)}
                     </div>
                     <div className="flex gap-4 text-sm text-muted-foreground">
-                      <span>R: {value.coefficient.toFixed(3)}</span>
-                      <span>P: {value.p_value.toFixed(3)}</span>
+                      <span>R: {typeof value.coefficient === 'number' ? value.coefficient.toFixed(3) : '0.000'}</span>
+                      <span>P: {typeof value.p_value === 'number' ? value.p_value.toFixed(3) : '0.100'}</span>
                       <span>Weight: {value.weight}%</span>
                     </div>
                   </div>

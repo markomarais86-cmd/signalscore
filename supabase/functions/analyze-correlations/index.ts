@@ -151,11 +151,16 @@ serve(async (req) => {
       // Approximate p-value (chi-square with 1 df)
       const pValue = chiSquare > 3.841 ? 0.05 : chiSquare > 6.635 ? 0.01 : 0.1;
       
+      // Handle NaN and invalid values
+      const r = isNaN(correlation) ? 0 : Math.max(-1, Math.min(1, correlation));
+      const matchRate = isNaN(matchWonRate) ? 0 : matchWonRate;
+      const noMatchRate = isNaN(noMatchWonRate) ? 0 : noMatchWonRate;
+      
       return {
-        r: Math.max(-1, Math.min(1, correlation)),
+        r,
         p: pValue,
-        matchWonRate,
-        noMatchWonRate,
+        matchWonRate: matchRate,
+        noMatchWonRate: noMatchRate,
         sampleSize: matchTotal
       };
     };
