@@ -208,6 +208,98 @@ export default function ExecutiveDashboard() {
         />
       </div>
 
+      {/* Benchmark Comparison */}
+      <Card className="border-l-4 border-l-primary">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" />
+            Benchmark Comparison
+          </CardTitle>
+          <CardDescription>How you compare to industry averages</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">TAM Coverage</span>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-primary">{metrics.tamCoverage.toFixed(1)}%</div>
+                    <div className="text-xs text-muted-foreground">Your coverage</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-muted-foreground">45%</div>
+                    <div className="text-xs text-muted-foreground">Industry avg</div>
+                  </div>
+                </div>
+              </div>
+              <div className="relative h-3 bg-muted rounded-full overflow-hidden">
+                <div 
+                  className="absolute h-full bg-primary/30 rounded-full" 
+                  style={{ width: '45%' }}
+                />
+                <div 
+                  className="absolute h-full bg-primary rounded-full transition-all duration-500" 
+                  style={{ width: `${Math.min(metrics.tamCoverage, 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                {metrics.tamCoverage < 45 
+                  ? `${(45 - metrics.tamCoverage).toFixed(1)}% below industry average`
+                  : `${(metrics.tamCoverage - 45).toFixed(1)}% above industry average`}
+              </p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">ICP Match Quality</span>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-primary">{metrics.icpMatchQuality.toFixed(0)}%</div>
+                    <div className="text-xs text-muted-foreground">Your quality</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl font-bold text-muted-foreground">62%</div>
+                    <div className="text-xs text-muted-foreground">Industry avg</div>
+                  </div>
+                </div>
+              </div>
+              <div className="relative h-3 bg-muted rounded-full overflow-hidden">
+                <div 
+                  className="absolute h-full bg-secondary/30 rounded-full" 
+                  style={{ width: '62%' }}
+                />
+                <div 
+                  className="absolute h-full bg-secondary rounded-full transition-all duration-500" 
+                  style={{ width: `${Math.min(metrics.icpMatchQuality, 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                {metrics.icpMatchQuality < 62
+                  ? `${(62 - metrics.icpMatchQuality).toFixed(0)}% below industry average`
+                  : `${(metrics.icpMatchQuality - 62).toFixed(0)}% above industry average`}
+              </p>
+            </div>
+
+            <div className="pt-4 border-t">
+              <div className="flex items-start gap-3">
+                <Sparkles className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-sm">Revenue Impact</p>
+                  <p className="text-sm text-muted-foreground">
+                    Reaching industry-average TAM coverage could unlock{' '}
+                    <span className="font-semibold text-foreground">
+                      ${((metrics.estimatedTAM * 0.45 - metrics.totalAccounts) * 50000).toLocaleString()}
+                    </span>
+                    {' '}in additional pipeline opportunity
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* ICP Fit Distribution */}
       <div className="grid md:grid-cols-2 gap-6">
         <Card>
@@ -355,46 +447,99 @@ export default function ExecutiveDashboard() {
         </Card>
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions - Dynamic Recommendations */}
       <Card className="border-primary/20 bg-primary/5">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Target className="h-5 w-5 text-primary" />
             Recommended Next Steps
           </CardTitle>
+          <CardDescription>Prioritized actions based on your current metrics</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-3 gap-4">
-            <Button 
-              variant="outline" 
-              className="justify-start h-auto py-4"
-              onClick={() => navigate('/data-upload')}
-            >
-              <div className="text-left">
-                <p className="font-semibold">Upload more accounts</p>
-                <p className="text-xs text-muted-foreground">Improve TAM coverage by {(100 - metrics.tamCoverage).toFixed(0)}%</p>
-              </div>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="justify-start h-auto py-4"
-              onClick={() => navigate('/icp-manager')}
-            >
-              <div className="text-left">
-                <p className="font-semibold">Define new ICP</p>
-                <p className="text-xs text-muted-foreground">Target {missingSegments[0]?.segment} segment</p>
-              </div>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="justify-start h-auto py-4"
-              onClick={() => navigate('/icp-tam')}
-            >
-              <div className="text-left">
-                <p className="font-semibold">Review whitespace</p>
-                <p className="text-xs text-muted-foreground">{metrics.whitespaceOpportunity.toLocaleString()} high-fit accounts missing</p>
-              </div>
-            </Button>
+            {/* Dynamic action 1: Based on TAM coverage */}
+            {metrics.tamCoverage < 50 && (
+              <Button 
+                variant="outline" 
+                className="justify-start h-auto py-4 border-2 border-primary/30"
+                onClick={() => navigate('/data-upload')}
+              >
+                <div className="text-left">
+                  <Badge className="mb-2" variant="default">High Priority</Badge>
+                  <p className="font-semibold">Upload {Math.ceil((metrics.estimatedTAM * 0.50) - metrics.totalAccounts)} more accounts</p>
+                  <p className="text-xs text-muted-foreground">To reach 50% TAM coverage (industry minimum)</p>
+                </div>
+              </Button>
+            )}
+            
+            {/* Dynamic action 2: Based on ICP count */}
+            {metrics.icpCount < 3 && (
+              <Button 
+                variant="outline" 
+                className="justify-start h-auto py-4"
+                onClick={() => navigate('/icp-manager')}
+              >
+                <div className="text-left">
+                  <Badge className="mb-2" variant="secondary">Medium Priority</Badge>
+                  <p className="font-semibold">Define {3 - metrics.icpCount} more ICP{3 - metrics.icpCount > 1 ? 's' : ''}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {missingSegments[0]?.segment ? `Start with ${missingSegments[0]?.segment} segment` : 'Expand market coverage'}
+                  </p>
+                </div>
+              </Button>
+            )}
+
+            {/* Dynamic action 3: Based on whitespace */}
+            {metrics.whitespaceOpportunity > 100 && (
+              <Button 
+                variant="outline" 
+                className="justify-start h-auto py-4"
+                onClick={() => navigate('/icp-tam')}
+              >
+                <div className="text-left">
+                  <Badge className="mb-2" variant="outline">Opportunity</Badge>
+                  <p className="font-semibold">Explore whitespace</p>
+                  <p className="text-xs text-muted-foreground">
+                    {metrics.whitespaceOpportunity.toLocaleString()} high-fit accounts not in pipeline
+                  </p>
+                </div>
+              </Button>
+            )}
+
+            {/* Dynamic action 4: Based on data quality */}
+            {metrics.dataCompleteness < 80 && (
+              <Button 
+                variant="outline" 
+                className="justify-start h-auto py-4"
+                onClick={() => navigate('/accounts')}
+              >
+                <div className="text-left">
+                  <Badge className="mb-2" variant="outline">Data Quality</Badge>
+                  <p className="font-semibold">Improve data completeness</p>
+                  <p className="text-xs text-muted-foreground">
+                    Currently at {metrics.dataCompleteness.toFixed(0)}% - aim for 80%+
+                  </p>
+                </div>
+              </Button>
+            )}
+
+            {/* Dynamic action 5: If doing well */}
+            {metrics.tamCoverage >= 50 && metrics.icpMatchQuality >= 70 && (
+              <Button 
+                variant="outline" 
+                className="justify-start h-auto py-4"
+                onClick={() => navigate('/settings')}
+              >
+                <div className="text-left">
+                  <Badge className="mb-2 bg-success">On Track</Badge>
+                  <p className="font-semibold">Optimize scoring model</p>
+                  <p className="text-xs text-muted-foreground">
+                    Fine-tune weights for better precision
+                  </p>
+                </div>
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>

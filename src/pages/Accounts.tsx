@@ -360,11 +360,27 @@ export default function Accounts() {
                         <TableCell>{account.contacts?.length || 0}</TableCell>
                         <TableCell>
                           {account.score?.overall ? (
-                            <Badge variant={account.score.overall >= 70 ? "default" : "outline"}>
-                              {account.score.overall}
-                            </Badge>
+                            <div className="flex items-center gap-2">
+                              <div className={`flex items-center justify-center w-14 h-14 rounded-lg font-bold text-lg ${
+                                account.score.overall >= 80 ? 'bg-[hsl(var(--signal-high))]/20 text-[hsl(var(--signal-high))]' :
+                                account.score.overall >= 60 ? 'bg-[hsl(var(--signal-medium))]/20 text-[hsl(var(--signal-medium))]' :
+                                'bg-[hsl(var(--signal-low))]/20 text-[hsl(var(--signal-low))]'
+                              }`}>
+                                {account.score.overall}
+                              </div>
+                              <div className="text-xs">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-muted-foreground">Fit:</span>
+                                  <span className="font-medium">{account.score.fit}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-muted-foreground">Intent:</span>
+                                  <span className="font-medium">{account.score.intent}</span>
+                                </div>
+                              </div>
+                            </div>
                           ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
+                            <span className="text-muted-foreground text-sm">No score</span>
                           )}
                         </TableCell>
                       </TableRow>
