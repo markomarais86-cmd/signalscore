@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Area, AreaChart } from "recharts";
-import { TrendingUp, Users, Target, Zap, Activity, Gauge, DollarSign, FileText, AlertTriangle } from "lucide-react";
+import { TrendingUp, Users, Target, Zap, Activity, Gauge, DollarSign, FileText, AlertTriangle, Database } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
@@ -20,6 +20,8 @@ import { DEMO_ACCOUNTS } from "@/data/mockData";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { analyzeSegmentationGaps, calculateICPCoverage } from "@/utils/segmentation-analysis";
+import { useDataSources } from "@/hooks/use-data-sources";
+import { formatCoverage } from "@/utils/data-source-attribution";
 import jsPDF from 'jspdf';
 
 const chartConfig = {
@@ -64,6 +66,7 @@ export default function Dashboard() {
   const { userProfile } = useAuth();
   const { flags } = useFeatureFlags();
   const { toast } = useToast();
+  const { stats: dataSourceStats, loading: dataSourceLoading } = useDataSources();
 
   useEffect(() => {
     if (!userProfile?.org_id) return;
@@ -360,6 +363,54 @@ export default function Dashboard() {
               }}
               trend={{ value: -15, period: "faster than avg" }}
             />
+          </div>
+
+          {/* Phase 3: Dual-Source Data Intelligence */}
+          <div className="grid gap-6 md:grid-cols-3">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">CRM Coverage</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {dataSourceLoading ? '...' : dataSourceStats.crmAccounts.toLocaleString()}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {dataSourceLoading ? '...' : formatCoverage(dataSourceStats.coveragePercentage)} of database
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">External Database</CardTitle>
+                <Database className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {dataSourceLoading ? '...' : dataSourceStats.databaseAccounts.toLocaleString()}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Total accounts available
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Whitespace Opportunity</CardTitle>
+                <Target className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {dataSourceLoading ? '...' : dataSourceStats.whitespaceAccounts.toLocaleString()}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Enrichment opportunities
+                </p>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Primary SignalScore Display */}

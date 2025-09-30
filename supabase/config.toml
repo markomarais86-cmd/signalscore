@@ -14,3 +14,12 @@ verify_jwt = true
 
 [functions.generate-api-key]
 verify_jwt = true
+
+[functions.generate-icp-recommendations]
+verify_jwt = true
+
+[functions.match-external-data]
+verify_jwt = true
+
+[functions.enrich-accounts]
+verify_jwt = true

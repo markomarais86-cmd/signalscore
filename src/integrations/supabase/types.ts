@@ -17,8 +17,12 @@ export type Database = {
       accounts: {
         Row: {
           country: string | null
+          data_source: string | null
           domain: string | null
           employee_count: number | null
+          enriched_at: string | null
+          enriched_from: string | null
+          external_database_match: boolean | null
           external_id: string
           id: string
           industry_norm: string | null
@@ -30,8 +34,12 @@ export type Database = {
         }
         Insert: {
           country?: string | null
+          data_source?: string | null
           domain?: string | null
           employee_count?: number | null
+          enriched_at?: string | null
+          enriched_from?: string | null
+          external_database_match?: boolean | null
           external_id: string
           id?: string
           industry_norm?: string | null
@@ -43,8 +51,12 @@ export type Database = {
         }
         Update: {
           country?: string | null
+          data_source?: string | null
           domain?: string | null
           employee_count?: number | null
+          enriched_at?: string | null
+          enriched_from?: string | null
+          external_database_match?: boolean | null
           external_id?: string
           id?: string
           industry_norm?: string | null
@@ -153,7 +165,11 @@ export type Database = {
         Row: {
           account_external_id: string | null
           country: string | null
+          data_source: string | null
           email: string | null
+          enriched_at: string | null
+          enriched_from: string | null
+          external_database_match: boolean | null
           external_id: string
           first_name: string | null
           id: string
@@ -167,7 +183,11 @@ export type Database = {
         Insert: {
           account_external_id?: string | null
           country?: string | null
+          data_source?: string | null
           email?: string | null
+          enriched_at?: string | null
+          enriched_from?: string | null
+          external_database_match?: boolean | null
           external_id: string
           first_name?: string | null
           id?: string
@@ -181,7 +201,11 @@ export type Database = {
         Update: {
           account_external_id?: string | null
           country?: string | null
+          data_source?: string | null
           email?: string | null
+          enriched_at?: string | null
+          enriched_from?: string | null
+          external_database_match?: boolean | null
           external_id?: string
           first_name?: string | null
           id?: string
@@ -195,6 +219,115 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "contacts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      enrichment_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          enriched_records: number | null
+          error_message: string | null
+          failed_records: number | null
+          filter_criteria: Json | null
+          id: string
+          job_type: string
+          org_id: string
+          processed_records: number | null
+          provider: string
+          started_at: string | null
+          status: string | null
+          total_records: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          enriched_records?: number | null
+          error_message?: string | null
+          failed_records?: number | null
+          filter_criteria?: Json | null
+          id?: string
+          job_type: string
+          org_id: string
+          processed_records?: number | null
+          provider: string
+          started_at?: string | null
+          status?: string | null
+          total_records?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          enriched_records?: number | null
+          error_message?: string | null
+          failed_records?: number | null
+          filter_criteria?: Json | null
+          id?: string
+          job_type?: string
+          org_id?: string
+          processed_records?: number | null
+          provider?: string
+          started_at?: string | null
+          status?: string | null
+          total_records?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_jobs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      external_data_sources: {
+        Row: {
+          api_key_configured: boolean | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          last_synced_at: string | null
+          org_id: string
+          provider: string
+          total_accounts: number | null
+          total_contacts: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          api_key_configured?: boolean | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          org_id: string
+          provider: string
+          total_accounts?: number | null
+          total_contacts?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          api_key_configured?: boolean | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          org_id?: string
+          provider?: string
+          total_accounts?: number | null
+          total_contacts?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "external_data_sources_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
