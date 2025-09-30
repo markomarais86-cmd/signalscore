@@ -21,29 +21,19 @@ import {
 import { Button } from "@/components/ui/button";
 
 // Navigation items organized by MVP phases
-const mvpItems = [
-  { title: "ICP Analysis", url: "/icp-analysis", icon: Building2, description: "View CRM → ICP fit" },
-  { title: "ICP Manager", url: "/icp-manager", icon: Target, description: "Build & manage ICPs" },
-  { title: "TAM Intelligence", url: "/icp-tam", icon: TrendingUp, description: "Coverage & whitespace" },
-  { title: "Leads", url: "/leads", icon: Inbox, description: "Scored accounts" },
+const coreTools = [
+  { title: "Data Upload", url: "/data-upload", icon: Upload },
+  { title: "ICP Builder", url: "/icp-manager", icon: Target },
+  { title: "TAM Intelligence", url: "/icp-tam", icon: TrendingUp },
+  { title: "Leads", url: "/leads", icon: Inbox },
 ];
 
-const phase2Items = [
+const labsItems = [
+  { title: "ICP Analysis", url: "/icp-analysis", icon: Building2, flagKey: 'icp_manager' as const },
   { title: "Personas & Segments", url: "/personas", icon: Users, flagKey: 'personas_segments' as const },
-];
-
-const phase3Items = [
   { title: "Pipeline Efficiency", url: "/pipeline", icon: BarChart3, flagKey: 'pipeline_efficiency' as const },
   { title: "Capital Efficiency", url: "/capital", icon: DollarSign, flagKey: 'capital_efficiency' as const },
-];
-
-const phase4Items = [
   { title: "AI Agents & ML", url: "/ai-agents", icon: Brain, flagKey: 'ai_agents' as const },
-];
-
-const adminItems = [
-  { title: "Data Upload", url: "/data-upload", icon: Upload, flagKey: null },
-  { title: "Settings", url: "/settings", icon: Settings, flagKey: null },
 ];
 
 export function AppSidebar() {
@@ -64,15 +54,13 @@ export function AppSidebar() {
       ? "bg-primary/10 text-primary font-semibold border-l-4 border-primary" 
       : "hover:bg-primary/5 hover:text-primary border-l-4 border-transparent";
 
-  // Filter phase items based on feature flags
-  const filteredPhase2Items = phase2Items.filter(item => !item.flagKey || flags[item.flagKey]);
-  const filteredPhase3Items = phase3Items.filter(item => !item.flagKey || flags[item.flagKey]);
-  const filteredPhase4Items = phase4Items.filter(item => !item.flagKey || flags[item.flagKey]);
+  // Filter Labs items based on feature flags
+  const filteredLabsItems = labsItems.filter(item => !item.flagKey || flags[item.flagKey]);
   
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
-        {/* Executive Dashboard - Always visible */}
+        {/* Overview (Executive Dashboard) */}
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -84,7 +72,7 @@ export function AppSidebar() {
                     className={getNavCls("/")}
                   >
                     <LayoutDashboard className="h-4 w-4" />
-                    <span>Executive Dashboard</span>
+                    <span>Overview</span>
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -92,19 +80,19 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* MVP Core - Always visible */}
+        {/* Core Tools - Always visible */}
         <Collapsible defaultOpen className="group/collapsible">
           <SidebarGroup>
             <SidebarGroupLabel asChild>
-              <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-bold text-primary uppercase tracking-wider px-3 py-2 hover:text-primary/80 transition-colors">
-                Phase 1 - MVP Core
+              <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-bold text-muted-foreground uppercase tracking-wider px-3 py-2 hover:text-primary transition-colors">
+                Core Tools
                 <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
               </CollapsibleTrigger>
             </SidebarGroupLabel>
             <CollapsibleContent>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {mvpItems.map((item) => (
+                  {coreTools.map((item) => (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild>
                         <NavLink
@@ -123,20 +111,20 @@ export function AppSidebar() {
           </SidebarGroup>
         </Collapsible>
 
-        {/* Phase 2 - Scoring & Reporting (Labs) */}
-        {filteredPhase2Items.length > 0 && (
+        {/* Labs - Togglable features */}
+        {filteredLabsItems.length > 0 && (
           <Collapsible className="group/collapsible">
             <SidebarGroup>
               <SidebarGroupLabel asChild>
                 <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-bold text-muted-foreground uppercase tracking-wider px-3 py-2 hover:text-primary transition-colors">
-                  Phase 2 - Labs
+                  Labs
                   <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
                 </CollapsibleTrigger>
               </SidebarGroupLabel>
               <CollapsibleContent>
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {filteredPhase2Items.map((item) => (
+                    {filteredLabsItems.map((item) => (
                       <SidebarMenuItem key={item.title}>
                         <SidebarMenuButton asChild>
                           <NavLink
@@ -156,97 +144,29 @@ export function AppSidebar() {
           </Collapsible>
         )}
 
-        {/* Phase 3 - Pipeline Intelligence (Labs) */}
-        {filteredPhase3Items.length > 0 && (
-          <Collapsible className="group/collapsible">
-            <SidebarGroup>
-              <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-bold text-muted-foreground uppercase tracking-wider px-3 py-2 hover:text-primary transition-colors">
-                  Phase 3 - Labs
-                  <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
-                </CollapsibleTrigger>
-              </SidebarGroupLabel>
-              <CollapsibleContent>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {filteredPhase3Items.map((item) => (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton asChild>
-                          <NavLink
-                            to={item.url}
-                            className={getNavCls(item.url)}
-                          >
-                            <item.icon className="h-4 w-4" />
-                            <span>{item.title}</span>
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </CollapsibleContent>
-            </SidebarGroup>
-          </Collapsible>
-        )}
-
-        {/* Phase 4 - AI Propensity (Labs) */}
-        {filteredPhase4Items.length > 0 && (
-          <Collapsible className="group/collapsible">
-            <SidebarGroup>
-              <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-bold text-muted-foreground uppercase tracking-wider px-3 py-2 hover:text-primary transition-colors">
-                  Phase 4 - Labs
-                  <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
-                </CollapsibleTrigger>
-              </SidebarGroupLabel>
-              <CollapsibleContent>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {filteredPhase4Items.map((item) => (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton asChild>
-                          <NavLink
-                            to={item.url}
-                            className={getNavCls(item.url)}
-                          >
-                            <item.icon className="h-4 w-4" />
-                            <span>{item.title}</span>
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </CollapsibleContent>
-            </SidebarGroup>
-          </Collapsible>
-        )}
-
-        {/* Admin Layer */}
+        {/* Settings */}
         <Collapsible defaultOpen className="group/collapsible">
           <SidebarGroup>
             <SidebarGroupLabel asChild>
               <CollapsibleTrigger className="flex w-full items-center justify-between text-xs font-bold text-muted-foreground uppercase tracking-wider px-3 py-2 hover:text-primary transition-colors">
-                Configuration
+                Settings
                 <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
               </CollapsibleTrigger>
             </SidebarGroupLabel>
             <CollapsibleContent>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {adminItems.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild>
-                        <NavLink
-                          to={item.url}
-                          className={getNavCls(item.url)}
-                        >
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to="/settings"
+                        className={getNavCls("/settings")}
+                      >
+                        <Settings className="h-4 w-4" />
+                        <span>Settings</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </SidebarMenu>
               </SidebarGroupContent>
             </CollapsibleContent>

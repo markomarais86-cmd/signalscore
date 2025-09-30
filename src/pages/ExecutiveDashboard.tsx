@@ -1,117 +1,141 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { AreaChart, Area, BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { TrendingUp, TrendingDown, DollarSign, Target, Zap, Download, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
+import { TrendingUp, TrendingDown, Target, Database, AlertCircle, Download, ArrowUpRight, MapPin, Sparkles } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { HeroMetric } from "@/components/executive/HeroMetric";
 
 export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
-  const [timeFilter, setTimeFilter] = useState<string>("30d");
   const [metrics, setMetrics] = useState({
-    signalScore: 78,
-    signalScoreTrend: 12,
-    highSignalAccounts: 0,
-    conversionRate: 0,
-    pipelineValue: 0,
-    salesVelocity: 45,
-    cacPayback: 8.5,
-    roas: 4.2,
+    tamCoverage: 0,
+    icpMatchQuality: 0,
+    whitespaceOpportunity: 0,
+    dataCompleteness: 0,
+    totalAccounts: 0,
+    icpCount: 0,
+    highFitAccounts: 0,
+    estimatedTAM: 0,
   });
-  const [trendData, setTrendData] = useState<any[]>([]);
-  const [performanceData, setPerformanceData] = useState<any[]>([]);
-  const [benchmarkData, setBenchmarkData] = useState<any[]>([]);
+  const [coverageTrend, setCoverageTrend] = useState<any[]>([]);
+  const [fitDistribution, setFitDistribution] = useState<any[]>([]);
+  const [missingSegments, setMissingSegments] = useState<any[]>([]);
+  const [geoData, setGeoData] = useState<any[]>([]);
 
   useEffect(() => {
     if (userProfile?.org_id) {
-      loadDashboardData();
+      loadTAMData();
     }
-  }, [userProfile, timeFilter]);
+  }, [userProfile]);
 
-  const loadDashboardData = async () => {
+  const loadTAMData = async () => {
     try {
+      // Load accounts
       const { data: accounts, error: accountsError } = await supabase
-        .from('scores')
-        .select('*')
-        .eq('org_id', userProfile?.org_id)
-        .gte('overall', 70);
-
-      if (accountsError) throw accountsError;
-
-      const { data: allAccounts, error: allAccountsError } = await supabase
         .from('accounts')
         .select('*')
         .eq('org_id', userProfile?.org_id);
 
-      if (allAccountsError) throw allAccountsError;
+      if (accountsError) throw accountsError;
 
-      const { data: leads, error: leadsError } = await supabase
-        .from('Leads')
+      // Load ICPs
+      const { data: icps, error: icpsError } = await supabase
+        .from('icp_profiles')
         .select('*')
         .eq('org_id', userProfile?.org_id);
 
-      if (leadsError) throw leadsError;
+      if (icpsError) throw icpsError;
 
-      const highSignalCount = accounts?.length || 0;
-      const totalAccounts = allAccounts?.length || 1;
-      const qualifiedLeads = leads?.filter(l => l.status === 'qualified').length || 0;
-      const totalLeads = leads?.length || 1;
+      // Load scores
+      const { data: scores, error: scoresError } = await supabase
+        .from('scores')
+        .select('*')
+        .eq('org_id', userProfile?.org_id);
+
+      if (scoresError) throw scoresError;
+
+      const totalAccounts = accounts?.length || 0;
+      const icpCount = icps?.length || 0;
+      const highFitAccounts = scores?.filter(s => s.overall >= 70).length || 0;
+
+      // Calculate data completeness
+      const completeFields = accounts?.filter(a => 
+        a.industry_norm && a.employee_count && a.country && a.revenue_range
+      ).length || 0;
+      const dataCompleteness = totalAccounts > 0 ? (completeFields / totalAccounts) * 100 : 0;
+
+      // Calculate ICP match quality
+      const icpMatchQuality = totalAccounts > 0 ? (highFitAccounts / totalAccounts) * 100 : 0;
+
+      // Estimated TAM (simplified calculation)
+      const avgICPTAM = icps?.reduce((sum, icp) => sum + (icp.tam_estimate || 0), 0) / (icpCount || 1);
+      const tamCoverage = avgICPTAM > 0 ? (totalAccounts / avgICPTAM) * 100 : 0;
 
       setMetrics({
-        signalScore: 78,
-        signalScoreTrend: 12,
-        highSignalAccounts: highSignalCount,
-        conversionRate: (qualifiedLeads / totalLeads) * 100,
-        pipelineValue: highSignalCount * 250000,
-        salesVelocity: 45,
-        cacPayback: 8.5,
-        roas: 4.2,
+        tamCoverage: Math.min(tamCoverage, 100),
+        icpMatchQuality,
+        whitespaceOpportunity: Math.floor(avgICPTAM - totalAccounts),
+        dataCompleteness,
+        totalAccounts,
+        icpCount,
+        highFitAccounts,
+        estimatedTAM: Math.floor(avgICPTAM),
       });
 
-      // 30-day trend data
-      setTrendData([
-        { day: 'Day 1', score: 68 },
-        { day: 'Day 5', score: 70 },
-        { day: 'Day 10', score: 72 },
-        { day: 'Day 15', score: 74 },
-        { day: 'Day 20', score: 76 },
-        { day: 'Day 25', score: 77 },
-        { day: 'Day 30', score: 78 },
+      // Coverage trend (last 90 days)
+      setCoverageTrend([
+        { date: '60d ago', coverage: 15 },
+        { date: '45d ago', coverage: 18 },
+        { date: '30d ago', coverage: 20 },
+        { date: '15d ago', coverage: 22 },
+        { date: 'Today', coverage: tamCoverage },
       ]);
 
-      setPerformanceData([
-        { month: 'Jan', value: 2.8, benchmark: 3.5 },
-        { month: 'Feb', value: 3.2, benchmark: 3.5 },
-        { month: 'Mar', value: 3.8, benchmark: 3.5 },
-        { month: 'Apr', value: 4.2, benchmark: 3.5 },
+      // Fit distribution
+      const highFit = scores?.filter(s => s.overall >= 70).length || 0;
+      const medFit = scores?.filter(s => s.overall >= 40 && s.overall < 70).length || 0;
+      const lowFit = scores?.filter(s => s.overall < 40).length || 0;
+
+      setFitDistribution([
+        { name: 'High Fit', value: highFit, color: 'hsl(var(--executive-green))' },
+        { name: 'Medium Fit', value: medFit, color: 'hsl(var(--executive-amber))' },
+        { name: 'Low Fit', value: lowFit, color: 'hsl(var(--executive-red))' },
       ]);
 
-      setBenchmarkData([
-        { metric: 'Win Rate', company: 68, industry: 52 },
-        { metric: 'Velocity', company: 45, industry: 62 },
-        { metric: 'Deal Size', company: 250, industry: 180 },
-        { metric: 'CAC Payback', company: 8.5, industry: 12 },
+      // Top missing segments (mock data based on ICP definitions)
+      setMissingSegments([
+        { segment: 'Enterprise Technology', missing: 324, potential: '$81M TAM' },
+        { segment: 'Financial Services', missing: 289, potential: '$72M TAM' },
+        { segment: 'Healthcare Tech', missing: 156, potential: '$39M TAM' },
+        { segment: 'Manufacturing', missing: 98, potential: '$24M TAM' },
       ]);
+
+      // Geographic distribution
+      const geoCounts = accounts?.reduce((acc, a) => {
+        const country = a.country || 'Unknown';
+        acc[country] = (acc[country] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      setGeoData(
+        Object.entries(geoCounts || {})
+          .map(([country, count]) => ({ country, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 5)
+      );
 
     } catch (error: any) {
-      console.error('Error loading dashboard data:', error);
-      toast.error('Failed to load dashboard data');
+      console.error('Error loading TAM data:', error);
+      toast.error('Failed to load TAM intelligence data');
     }
   };
 
   const handleExport = () => {
-    toast.success('Exporting report...');
-  };
-
-  const TrendIcon = ({ value }: { value: number }) => {
-    if (value > 0) return <ArrowUpRight className="h-5 w-5 text-[hsl(var(--executive-green))]" />;
-    if (value < 0) return <ArrowDownRight className="h-5 w-5 text-[hsl(var(--executive-red))]" />;
-    return <Minus className="h-5 w-5 text-muted-foreground" />;
+    toast.success('Exporting TAM report...');
   };
 
   return (
@@ -119,343 +143,235 @@ export default function ExecutiveDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Intelligence Command Center
+          <h1 className="text-4xl font-bold tracking-tight">
+            TAM Intelligence Overview
           </h1>
           <p className="text-base text-muted-foreground mt-2">
-            Real-time GTM performance and signal intelligence
+            Market coverage, ICP fit, and whitespace opportunities
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <Select value={timeFilter} onValueChange={setTimeFilter}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7d">Last 7 days</SelectItem>
-              <SelectItem value="30d">Last 30 days</SelectItem>
-              <SelectItem value="90d">Last 90 days</SelectItem>
-              <SelectItem value="12m">Last 12 months</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button onClick={handleExport} variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-        </div>
+        <Button onClick={handleExport} variant="outline">
+          <Download className="h-4 w-4 mr-2" />
+          Export Report
+        </Button>
       </div>
 
-      {/* Hero Metric - SignalScore */}
-      <Card className="border-2 border-primary/20 shadow-lg overflow-hidden relative">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5" />
-        <CardContent className="pt-8 pb-6 relative">
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Left: Big Number */}
-            <div className="space-y-4">
+      {/* Hero Metrics */}
+      <div className="grid md:grid-cols-4 gap-4">
+        <HeroMetric
+          label="TAM Coverage"
+          value={`${metrics.tamCoverage.toFixed(1)}%`}
+          subtitle={`${metrics.totalAccounts} of ${metrics.estimatedTAM} accounts`}
+          trend={{ value: 15, period: 'last quarter' }}
+          status="success"
+          chart={{
+            data: coverageTrend.map(d => ({ value: d.coverage })),
+            color: 'hsl(var(--primary))',
+          }}
+        />
+        <HeroMetric
+          label="ICP Match Quality"
+          value={`${metrics.icpMatchQuality.toFixed(0)}%`}
+          subtitle={`${metrics.highFitAccounts} high-fit accounts`}
+          trend={{ value: 8, period: 'last month' }}
+          status="success"
+        />
+        <HeroMetric
+          label="Whitespace Opportunity"
+          value={metrics.whitespaceOpportunity.toLocaleString()}
+          subtitle="high-fit accounts missing"
+          trend={{ value: -12, period: 'improvement' }}
+          status="warning"
+          icon={Sparkles}
+        />
+        <HeroMetric
+          label="Data Completeness"
+          value={`${metrics.dataCompleteness.toFixed(0)}%`}
+          subtitle={`${metrics.totalAccounts} accounts tracked`}
+          trend={{ value: 5, period: 'data quality' }}
+          status={metrics.dataCompleteness >= 80 ? 'success' : 'warning'}
+          icon={Database}
+        />
+      </div>
+
+      {/* ICP Fit Distribution */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>ICP Fit Distribution</CardTitle>
+            <CardDescription>How well your accounts match your ICPs</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={fitDistribution}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis 
+                  dataKey="name" 
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                  tickLine={false}
+                />
+                <YAxis 
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                  tickLine={false}
+                />
+                <Tooltip 
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px"
+                  }}
+                />
+                <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                  {fitDistribution.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Coverage Trend</CardTitle>
+            <CardDescription>TAM coverage improvement over time</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={coverageTrend}>
+                <defs>
+                  <linearGradient id="coverageGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis 
+                  dataKey="date" 
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                  tickLine={false}
+                />
+                <YAxis 
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                  tickLine={false}
+                />
+                <Tooltip 
+                  contentStyle={{
+                    backgroundColor: "hsl(var(--card))",
+                    border: "1px solid hsl(var(--border))",
+                    borderRadius: "8px"
+                  }}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="coverage" 
+                  stroke="hsl(var(--primary))" 
+                  fill="url(#coverageGradient)"
+                  strokeWidth={3}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Top Missing Segments & Geographic Distribution */}
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                  Overall SignalScore
-                </p>
-                <div className="flex items-baseline gap-4">
-                  <span className="text-7xl font-bold text-primary">
-                    {metrics.signalScore}
-                  </span>
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[hsl(var(--executive-green))]/10">
-                    <TrendIcon value={metrics.signalScoreTrend} />
-                    <span className="text-lg font-bold text-[hsl(var(--executive-green))]">
-                      +{metrics.signalScoreTrend}%
-                    </span>
+                <CardTitle>Top Missing Segments</CardTitle>
+                <CardDescription>High-value whitespace opportunities</CardDescription>
+              </div>
+              <Badge variant="secondary">
+                <AlertCircle className="h-3 w-3 mr-1" />
+                {missingSegments.length} segments
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {missingSegments.map((segment, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm">{segment.segment}</p>
+                    <p className="text-xs text-muted-foreground">{segment.potential}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-primary">{segment.missing}</p>
+                    <p className="text-xs text-muted-foreground">accounts</p>
                   </div>
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  vs last period • Industry benchmark: 65
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-                    High-Signal Accounts
-                  </p>
-                  <p className="text-3xl font-bold text-foreground">
-                    {metrics.highSignalAccounts}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
-                    Conversion Rate
-                  </p>
-                  <p className="text-3xl font-bold text-foreground">
-                    {metrics.conversionRate.toFixed(0)}%
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
+          </CardContent>
+        </Card>
 
-            {/* Right: Trend Visualization */}
-            <div className="flex flex-col justify-center">
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={trendData}>
-                  <defs>
-                    <linearGradient id="scoreGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis 
-                    dataKey="day" 
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis 
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                      fontSize: "12px"
-                    }}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="score" 
-                    stroke="hsl(var(--primary))" 
-                    fill="url(#scoreGradient)"
-                    strokeWidth={3}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+        <Card>
+          <CardHeader>
+            <CardTitle>Geographic Distribution</CardTitle>
+            <CardDescription>Where your accounts are located</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {geoData.map((geo, idx) => (
+                <div key={idx} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{geo.country}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-primary rounded-full" 
+                        style={{ width: `${(geo.count / metrics.totalAccounts) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-semibold w-12 text-right">{geo.count}</span>
+                  </div>
+                </div>
+              ))}
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-5 w-5 text-primary" />
+            Recommended Next Steps
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid md:grid-cols-3 gap-4">
+            <Button variant="outline" className="justify-start h-auto py-4">
+              <div className="text-left">
+                <p className="font-semibold">Upload more accounts</p>
+                <p className="text-xs text-muted-foreground">Improve TAM coverage by {(100 - metrics.tamCoverage).toFixed(0)}%</p>
+              </div>
+            </Button>
+            <Button variant="outline" className="justify-start h-auto py-4">
+              <div className="text-left">
+                <p className="font-semibold">Define new ICP</p>
+                <p className="text-xs text-muted-foreground">Target {missingSegments[0]?.segment} segment</p>
+              </div>
+            </Button>
+            <Button variant="outline" className="justify-start h-auto py-4">
+              <div className="text-left">
+                <p className="font-semibold">Review whitespace</p>
+                <p className="text-xs text-muted-foreground">{metrics.whitespaceOpportunity.toLocaleString()} high-fit accounts missing</p>
+              </div>
+            </Button>
           </div>
         </CardContent>
       </Card>
-
-      {/* Supporting Metrics - Horizontal Cards */}
-      <div className="grid md:grid-cols-4 gap-4">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Pipeline Value
-              </p>
-              <DollarSign className="h-4 w-4 text-muted-foreground/60" />
-            </div>
-            <p className="text-3xl font-bold text-foreground mb-1">
-              ${(metrics.pipelineValue / 1000000).toFixed(1)}M
-            </p>
-            <div className="flex items-center gap-1">
-              <TrendIcon value={12} />
-              <span className="text-xs font-semibold text-[hsl(var(--executive-green))]">
-                +12%
-              </span>
-              <span className="text-xs text-muted-foreground">vs last month</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Sales Velocity
-              </p>
-              <Zap className="h-4 w-4 text-muted-foreground/60" />
-            </div>
-            <p className="text-3xl font-bold text-foreground mb-1">
-              {metrics.salesVelocity} days
-            </p>
-            <div className="flex items-center gap-1">
-              <TrendIcon value={-5} />
-              <span className="text-xs font-semibold text-[hsl(var(--executive-green))]">
-                -5%
-              </span>
-              <span className="text-xs text-muted-foreground">faster close</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                CAC Payback
-              </p>
-              <Target className="h-4 w-4 text-muted-foreground/60" />
-            </div>
-            <p className="text-3xl font-bold text-foreground mb-1">
-              {metrics.cacPayback} mo
-            </p>
-            <div className="flex items-center gap-1">
-              <TrendIcon value={-2} />
-              <span className="text-xs font-semibold text-[hsl(var(--executive-green))]">
-                -2%
-              </span>
-              <span className="text-xs text-muted-foreground">improvement</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                ROAS
-              </p>
-              <TrendingUp className="h-4 w-4 text-muted-foreground/60" />
-            </div>
-            <p className="text-3xl font-bold text-foreground mb-1">
-              {metrics.roas}x
-            </p>
-            <div className="flex items-center gap-1">
-              <TrendIcon value={15} />
-              <span className="text-xs font-semibold text-[hsl(var(--executive-green))]">
-                +15%
-              </span>
-              <span className="text-xs text-muted-foreground">growth</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Deep Dive Section with Tabs */}
-      <Tabs defaultValue="performance" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-12 bg-muted">
-          <TabsTrigger value="performance" className="font-semibold">
-            Performance Analysis
-          </TabsTrigger>
-          <TabsTrigger value="benchmarks" className="font-semibold">
-            Competitive Benchmarks
-          </TabsTrigger>
-          <TabsTrigger value="trends" className="font-semibold">
-            Market Trends
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="performance" className="mt-6">
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-2xl">ROAS Performance Trend</CardTitle>
-              <CardDescription>Return on ad spend vs industry benchmark</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <AreaChart data={performanceData}>
-                  <defs>
-                    <linearGradient id="performanceGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.2}/>
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis 
-                    dataKey="month" 
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={12}
-                    tickLine={false}
-                  />
-                  <YAxis 
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={12}
-                    tickLine={false}
-                  />
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px"
-                    }}
-                  />
-                  <Legend />
-                  <Area 
-                    type="monotone" 
-                    dataKey="value" 
-                    stroke="hsl(var(--primary))" 
-                    fill="url(#performanceGradient)"
-                    name="Your ROAS"
-                    strokeWidth={3}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="benchmark" 
-                    stroke="hsl(var(--muted-foreground))" 
-                    name="Industry Avg"
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    dot={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="benchmarks" className="mt-6">
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-2xl">Performance vs Peers</CardTitle>
-              <CardDescription>Key metrics compared to industry average</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={benchmarkData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis 
-                    dataKey="metric" 
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={12}
-                    tickLine={false}
-                  />
-                  <YAxis 
-                    stroke="hsl(var(--muted-foreground))"
-                    fontSize={12}
-                    tickLine={false}
-                  />
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px"
-                    }}
-                  />
-                  <Legend />
-                  <Bar 
-                    dataKey="company" 
-                    fill="hsl(var(--primary))" 
-                    name="Your Company"
-                    radius={[8, 8, 0, 0]}
-                  />
-                  <Bar 
-                    dataKey="industry" 
-                    fill="hsl(var(--muted-foreground) / 0.3)" 
-                    name="Industry Avg"
-                    radius={[8, 8, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="trends" className="mt-6">
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-2xl">Market Intelligence Trends</CardTitle>
-              <CardDescription>Emerging patterns in your target market</CardDescription>
-            </CardHeader>
-            <CardContent className="h-96 flex items-center justify-center">
-              <p className="text-muted-foreground">Market trend analysis coming soon</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }
