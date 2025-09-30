@@ -1082,14 +1082,6 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
-      trigger_zapier_webhook: {
-        Args: {
-          data_param: Json
-          event_type_param: string
-          org_id_param: string
-        }
-        Returns: undefined
-      }
       validate_api_key: {
         Args: { key_to_validate: string }
         Returns: {
