@@ -22,9 +22,9 @@ import { Button } from "@/components/ui/button";
 
 // Reorganized navigation for better user flow
 const dataSection = [
-  { title: "Data Upload", url: "/data-upload", icon: Upload },
   { title: "Accounts", url: "/accounts", icon: Database },
   { title: "Leads", url: "/leads", icon: Inbox },
+  { title: "Data Upload", url: "/data-upload", icon: Upload },
 ];
 
 const icpSection = [
