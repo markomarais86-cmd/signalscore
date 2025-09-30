@@ -73,11 +73,7 @@ export function WorkflowStepper({ currentStep, className }: WorkflowStepperProps
                     : "bg-muted text-muted-foreground"
                 )}
               >
-                {step.completed ? (
-                  <Check className="h-5 w-5" />
-                ) : (
-                  step.number
-                )}
+                {step.number}
               </div>
               <div className="mt-2 text-center">
                 <div
