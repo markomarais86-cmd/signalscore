@@ -28,13 +28,13 @@ export default function DataUpload() {
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => {
     const tabParam = searchParams.get('tab');
-    return tabParam === 'closed-won' ? 'closed-won' : 'accounts';
+    return tabParam === 'closed-won' ? 'closed-won' : 'leads';
   });
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [showFieldMapping, setShowFieldMapping] = useState(false);
-  const [pendingFile, setPendingFile] = useState<{ file: File; type: 'accounts' | 'contacts' | 'leads' } | null>(null);
+  const [pendingFile, setPendingFile] = useState<{ file: File; type: 'leads' } | null>(null);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [sampleData, setSampleData] = useState<any[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -52,15 +52,15 @@ export default function DataUpload() {
   const loadTotalRecords = async () => {
     if (!userProfile?.org_id) return;
     
-    const [accountsRes, contactsRes] = await Promise.all([
-      supabase.from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id),
-      supabase.from('contacts').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id)
-    ]);
+    const leadsRes = await supabase
+      .from('Leads')
+      .select('*', { count: 'exact', head: true })
+      .eq('org_id', userProfile.org_id);
 
-    setTotalRecords((accountsRes.count || 0) + (contactsRes.count || 0));
+    setTotalRecords(leadsRes.count || 0);
   };
 
-  const analyzeCSVStructure = async (file: File, type: 'accounts' | 'contacts' | 'leads') => {
+  const analyzeCSVStructure = async (file: File, type: 'leads') => {
     try {
       const text = await file.text();
       const rawData = parseCSV(text);
@@ -115,9 +115,6 @@ export default function DataUpload() {
 
     const orgId = userProfile.org_id;
     let insertedLeads = 0;
-    let insertedAccounts = 0;
-    let insertedContacts = 0;
-    let totalProcessed = 0;
     const errors: string[] = [];
 
     try {
@@ -133,25 +130,24 @@ export default function DataUpload() {
       setUploadProgress(10);
 
       // Validate data
-      const validation = validateDataWithMapping(rawData, mapping, pendingFile.type);
+      const validation = validateDataWithMapping(rawData, mapping, 'leads');
       console.log(`✅ Validation: ${validation.valid} valid, ${validation.errors} errors`);
       
       setUploadProgress(20);
 
       // Use edge function for large uploads (>5000 records)
       if (rawData.length > 5000) {
-        console.log(`🚀 Using edge function for bulk upload of ${rawData.length} records`);
+        console.log(`🚀 Using edge function for bulk upload of ${rawData.length} leads`);
         
         toast({
           title: "Large Upload Detected",
-          description: `Processing ${rawData.length} records in the background for optimal performance...`,
+          description: `Processing ${rawData.length} leads in the background for optimal performance...`,
         });
 
         const { data, error } = await supabase.functions.invoke('bulk-upload', {
           body: {
             data: rawData,
             mapping: mapping,
-            type: pendingFile.type,
             orgId: orgId
           }
         });
@@ -159,23 +155,18 @@ export default function DataUpload() {
         if (error) throw error;
 
         insertedLeads = data.insertedLeads || 0;
-        insertedAccounts = data.insertedAccounts || 0;
-        insertedContacts = data.insertedContacts || 0;
-        totalProcessed = insertedLeads + insertedAccounts + insertedContacts;
         errors.push(...(data.errors || []));
 
         setUploadProgress(100);
 
         toast({
           title: "Upload Complete!",
-          description: pendingFile.type === 'leads' 
-            ? `Uploaded ${insertedLeads} leads, ${insertedAccounts} accounts, ${insertedContacts} contacts`
-            : `Uploaded ${totalProcessed} ${pendingFile.type}`,
+          description: `Uploaded ${insertedLeads} leads`,
         });
 
-      } else if (pendingFile.type === 'leads') {
-        // OPTIMIZED PARALLEL UPLOAD for smaller datasets
-        console.log(`⚡ Starting optimized parallel upload for ${rawData.length} leads...`);
+      } else {
+        // Optimized upload for smaller datasets
+        console.log(`⚡ Starting upload for ${rawData.length} leads...`);
         
         // Create reverse mapping: dbField -> csvColumn
         const reverseMapping: Record<string, string> = {};
@@ -183,75 +174,11 @@ export default function DataUpload() {
           if (dbField) reverseMapping[dbField] = csvCol;
         });
         
-        // Reduced batch size to 1000 for better performance
         const batchSize = 1000;
-        
-        // Pre-process unique companies for deduplication
-        const uniqueCompanies = new Map<string, any>();
-        rawData.forEach((row, idx) => {
-          const company = (reverseMapping.company && row[reverseMapping.company]) || 'Unknown Company';
-          const domain = (reverseMapping.website && row[reverseMapping.website]) || null;
-          const key = domain || company.toLowerCase();
-          
-          if (!uniqueCompanies.has(key)) {
-            uniqueCompanies.set(key, {
-              org_id: orgId,
-              external_id: `acc_${Date.now()}_${idx}_${Math.random().toString(36).substr(2, 9)}`,
-              name: company,
-              domain: domain,
-              industry_raw: (reverseMapping.industry && row[reverseMapping.industry]) || null,
-              industry_norm: (reverseMapping.industry && row[reverseMapping.industry]) || null,
-              employee_count: (reverseMapping.employee_count && row[reverseMapping.employee_count]) ? parseInt(row[reverseMapping.employee_count]) : null,
-              revenue_range: (reverseMapping.revenue_range && row[reverseMapping.revenue_range]) || null,
-              country: (reverseMapping.country && row[reverseMapping.country]) || null,
-              state_province: (reverseMapping.state_province && row[reverseMapping.state_province]) || null,
-              phone: (reverseMapping.phone && row[reverseMapping.phone]) || null,
-              data_source: 'crm',
-              updated_at: new Date().toISOString()
-            });
-          }
-        });
-        
-        console.log(`📊 Deduplicated to ${uniqueCompanies.size} unique companies from ${rawData.length} records`);
         
         for (let i = 0; i < rawData.length; i += batchSize) {
           const batch = rawData.slice(i, Math.min(i + batchSize, rawData.length));
           console.log(`Processing batch ${Math.floor(i / batchSize) + 1}: rows ${i + 1} to ${i + batch.length}`);
-
-          // Prepare all data structures
-          const accountsData = batch.map((row, idx) => {
-            const company = (reverseMapping.company && row[reverseMapping.company]) || 'Unknown Company';
-            const domain = (reverseMapping.website && row[reverseMapping.website]) || null;
-            const key = domain || company.toLowerCase();
-            const uniqueAccount = uniqueCompanies.get(key)!;
-            
-            return {
-              ...uniqueAccount,
-              external_id: `acc_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`
-            };
-          });
-
-          const contactsData = batch
-            .filter((row) => 
-              (reverseMapping.first_name && row[reverseMapping.first_name]) || 
-              (reverseMapping.last_name && row[reverseMapping.last_name]) || 
-              (reverseMapping.email && row[reverseMapping.email])
-            )
-            .map((row, idx) => ({
-              org_id: orgId,
-              external_id: `cont_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`,
-              account_external_id: accountsData[idx].external_id,
-              first_name: (reverseMapping.first_name && row[reverseMapping.first_name]) || null,
-              last_name: (reverseMapping.last_name && row[reverseMapping.last_name]) || null,
-              email: (reverseMapping.email && row[reverseMapping.email]) || null,
-              title_raw: (reverseMapping.title && row[reverseMapping.title]) || null,
-              mobile: (reverseMapping.mobile && row[reverseMapping.mobile]) || null,
-              phone: (reverseMapping.phone && row[reverseMapping.phone]) || null,
-              country: (reverseMapping.country && row[reverseMapping.country]) || null,
-              state_province: (reverseMapping.state_province && row[reverseMapping.state_province]) || null,
-              data_source: 'crm',
-              updated_at: new Date().toISOString()
-            }));
 
           // Deduplicate leads by external_id within this batch
           const leadsMap = new Map<string, any>();
@@ -282,110 +209,33 @@ export default function DataUpload() {
                 state_province: (reverseMapping.state_province && row[reverseMapping.state_province]) || null,
                 title: (reverseMapping.title && row[reverseMapping.title]) || null,
                 first_name: firstName || null,
-                last_name: lastName || null,
-                account_external_id: accountsData[idx].external_id,
-                contact_external_id: contactsData[idx]?.external_id || null
+                last_name: lastName || null
               });
             }
           });
           
           const leadsData = Array.from(leadsMap.values());
 
-          // PARALLEL EXECUTION - All three operations at once!
-          console.log(`⚡ Parallel insert: ${accountsData.length} accounts, ${contactsData.length} contacts, ${leadsData.length} leads`);
-          
-          const [accountsResult, contactsResult, leadsResult] = await Promise.all([
-            supabase.from('accounts').upsert(accountsData, { onConflict: 'org_id,external_id', ignoreDuplicates: false }).select('id, external_id'),
-            contactsData.length > 0 
-              ? supabase.from('contacts').upsert(contactsData, { onConflict: 'org_id,external_id', ignoreDuplicates: false }).select('id, external_id')
-              : Promise.resolve({ data: [], error: null }),
-            leadsData.length > 0
-              ? supabase.from('Leads').upsert(leadsData, { onConflict: 'org_id,external_id', ignoreDuplicates: false }).select('id')
-              : Promise.resolve({ data: [], error: null })
-          ]);
-
-          // Handle results
-          if (accountsResult.error) {
-            console.error('❌ Accounts error:', accountsResult.error);
-            errors.push(`Batch ${Math.floor(i / batchSize) + 1} accounts: ${accountsResult.error.message}`);
-          } else {
-            insertedAccounts += accountsResult.data?.length || 0;
-            console.log(`✅ Inserted ${accountsResult.data?.length} accounts`);
-          }
-
-          if (contactsResult.error) {
-            console.error('❌ Contacts error:', contactsResult.error);
-            errors.push(`Batch ${Math.floor(i / batchSize) + 1} contacts: ${contactsResult.error.message}`);
-          } else {
-            insertedContacts += contactsResult.data?.length || 0;
-            console.log(`✅ Inserted ${contactsResult.data?.length} contacts`);
-          }
-
-          if (leadsResult.error) {
-            console.error('❌ Leads error:', leadsResult.error);
-            errors.push(`Batch ${Math.floor(i / batchSize) + 1} leads: ${leadsResult.error.message}`);
-          } else {
-            insertedLeads += leadsResult.data?.length || 0;
-            console.log(`✅ Inserted ${leadsResult.data?.length} leads`);
-          }
-
-          totalProcessed += batch.length;
-          setUploadProgress(20 + Math.round((i / rawData.length) * 80));
-        }
-
-        toast({
-          title: "Upload Complete!",
-          description: `Uploaded ${insertedLeads} leads, ${insertedAccounts} accounts, ${insertedContacts} contacts`,
-        });
-
-      } else {
-        // Optimized single table upload for accounts/contacts with larger batches
-        const tableName = pendingFile.type === 'accounts' ? 'accounts' : 'contacts';
-        const batchSize = 2000;
-        
-        for (let i = 0; i < rawData.length; i += batchSize) {
-          const batch = rawData.slice(i, Math.min(i + batchSize, rawData.length));
-          
-          const transformedData = batch.map((row, idx) => {
-            const transformed: any = { 
-              org_id: orgId,
-              data_source: 'crm',
-              updated_at: new Date().toISOString()
-            };
-            
-            Object.entries(mapping).forEach(([csvField, dbField]) => {
-              if (dbField && row[csvField] !== undefined && row[csvField] !== '') {
-                transformed[dbField] = row[csvField];
-              }
-            });
-
-            if (!transformed.external_id) {
-              transformed.external_id = `${tableName.substring(0, 3)}_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`;
-            }
-            
-            return transformed;
-          });
-
-          console.log(`📤 Inserting batch ${Math.floor(i / batchSize) + 1}: ${transformedData.length} ${tableName}...`);
+          // Insert leads
           const { data: result, error } = await supabase
-            .from(tableName)
-            .upsert(transformedData, { onConflict: 'org_id,external_id' })
-            .select();
+            .from('Leads')
+            .upsert(leadsData, { onConflict: 'org_id,external_id', ignoreDuplicates: false })
+            .select('id');
 
           if (error) {
-            console.error(`❌ ${tableName} error:`, error);
+            console.error('❌ Leads error:', error);
             errors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${error.message}`);
           } else {
-            totalProcessed += result?.length || 0;
-            console.log(`✅ Inserted ${result?.length} ${tableName}`);
+            insertedLeads += result?.length || 0;
+            console.log(`✅ Inserted ${result?.length} leads`);
           }
-          
+
           setUploadProgress(20 + Math.round((i / rawData.length) * 80));
         }
-        
+
         toast({
           title: "Upload Complete!",
-          description: `Uploaded ${totalProcessed} ${tableName}`,
+          description: `Uploaded ${insertedLeads} leads`,
         });
       }
 
@@ -393,7 +243,7 @@ export default function DataUpload() {
 
       setUploadResult({
         total: rawData.length,
-        inserted: pendingFile.type === 'leads' ? insertedLeads : totalProcessed,
+        inserted: insertedLeads,
         updated: 0,
         rejected: errors.length,
         errors
@@ -425,7 +275,7 @@ export default function DataUpload() {
     }
   };
 
-  const downloadTemplate = (type: 'accounts' | 'contacts' | 'leads') => {
+  const downloadTemplate = (type: 'leads') => {
     const csvContent = generateCSVTemplate(type);
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -459,14 +309,14 @@ export default function DataUpload() {
     <div className="space-y-6">
       <div>
         <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Data Upload</h1>
-        <p className="text-muted-foreground mt-2">Import your accounts and contacts data via CSV</p>
+        <p className="text-muted-foreground mt-2">Import your leads data via CSV - accounts will be auto-generated after ICP setup</p>
       </div>
 
       {totalRecords > 0 && (
         <HeroMetric
-          label="Records Processed"
+          label="Leads Uploaded"
           value={totalRecords}
-          subtitle="Total accounts + contacts uploaded"
+          subtitle="Total leads in your database"
           icon={Database}
           trend={uploadResult ? { value: 15, period: 'this session' } : undefined}
           status={uploadResult?.errors?.length === 0 ? 'success' : 'default'}
@@ -484,37 +334,9 @@ export default function DataUpload() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          <TabsTrigger value="accounts">Accounts</TabsTrigger>
-          <TabsTrigger value="contacts">Contacts</TabsTrigger>
           <TabsTrigger value="leads">Leads</TabsTrigger>
           <TabsTrigger value="closed-won">Closed Won</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="accounts" className="space-y-6">
-          <UploadSection
-            type="accounts"
-            headers={ACCOUNTS_HEADERS}
-            uploading={uploading}
-            uploadProgress={uploadProgress}
-            uploadResult={uploadResult}
-            onFileSelect={(file) => analyzeCSVStructure(file, 'accounts')}
-            onDownloadTemplate={() => downloadTemplate('accounts')}
-            onDownloadRejections={downloadRejections}
-          />
-        </TabsContent>
-
-        <TabsContent value="contacts" className="space-y-6">
-          <UploadSection
-            type="contacts"
-            headers={CONTACTS_HEADERS}
-            uploading={uploading}
-            uploadProgress={uploadProgress}
-            uploadResult={uploadResult}
-            onFileSelect={(file) => analyzeCSVStructure(file, 'contacts')}
-            onDownloadTemplate={() => downloadTemplate('contacts')}
-            onDownloadRejections={downloadRejections}
-          />
-        </TabsContent>
 
         <TabsContent value="leads" className="space-y-6">
           <UploadSection
@@ -624,7 +446,7 @@ export default function DataUpload() {
         }}
         onConfirm={handleFileUpload}
         csvHeaders={csvHeaders}
-        dataType={pendingFile?.type || 'accounts'}
+        dataType={pendingFile?.type || 'leads'}
         sampleData={sampleData}
       />
     </div>
