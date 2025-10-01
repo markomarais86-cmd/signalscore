@@ -616,6 +616,84 @@ export function ClosedWonUpload() {
                 </AlertDescription>
               </Alert>
             )}
+
+            {uploadResult.inserted > 0 && (
+              <Card className="border-primary/20 bg-primary/5">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-[hsl(var(--signal-high))]" />
+                    What's Next?
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Your closed won data has been uploaded. Here's what you can do now:
+                  </p>
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="bg-primary/10 rounded-full p-2">
+                        <span className="text-sm font-bold text-primary">1</span>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-sm mb-1">Generate ICP Recommendations</h4>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          Analyze your closed won deals to discover patterns and create ideal customer profiles
+                        </p>
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          onClick={() => window.location.href = '/icp-manager'}
+                        >
+                          <Trophy className="h-4 w-4 mr-2" />
+                          Go to ICP Manager
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="bg-primary/10 rounded-full p-2">
+                        <span className="text-sm font-bold text-primary">2</span>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-sm mb-1">View Analysis Dashboard</h4>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          See detailed breakdown of your closed won accounts by industry, size, and geography
+                        </p>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => window.location.href = '/icp-tam-intelligence'}
+                        >
+                          <Database className="h-4 w-4 mr-2" />
+                          View ICP Analysis
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <div className="bg-primary/10 rounded-full p-2">
+                        <span className="text-sm font-bold text-primary">3</span>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-sm mb-1">Score Your Accounts</h4>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          Once you create an ICP, score all your accounts to prioritize your pipeline
+                        </p>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => window.location.href = '/accounts'}
+                        >
+                          <ListChecks className="h-4 w-4 mr-2" />
+                          View Accounts
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
         </CardContent>
