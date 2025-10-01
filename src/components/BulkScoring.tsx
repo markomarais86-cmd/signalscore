@@ -1,161 +1,169 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Zap, CheckCircle2, AlertTriangle, TrendingUp } from "lucide-react";
+import { Zap, TrendingUp, TrendingDown, Minus, RefreshCw, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 
 interface BulkScoringProps {
   onComplete?: () => void;
 }
 
+interface ScoringJob {
+  id: string;
+  total_accounts: number;
+  processed_accounts: number;
+  successful_scores: number;
+  failed_scores: number;
+  current_chunk: number;
+  total_chunks: number;
+  status: string;
+}
+
 export function BulkScoring({ onComplete }: BulkScoringProps) {
   const { userProfile } = useAuth();
-  const { toast } = useToast();
   const [isScoring, setIsScoring] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [currentBatch, setCurrentBatch] = useState<string>("");
-  const [estimatedTime, setEstimatedTime] = useState<string>("");
+  const [currentJob, setCurrentJob] = useState<ScoringJob | null>(null);
   const [stats, setStats] = useState<{
     total: number;
     completed: number;
-    failed: number;
     avgScore: number;
+    failures: number;
   } | null>(null);
+
+  // Poll for active job status
+  useEffect(() => {
+    if (!userProfile?.org_id || !isScoring) return;
+
+    const pollInterval = setInterval(async () => {
+      const { data: jobs } = await supabase
+        .from("bulk_scoring_jobs")
+        .select("*")
+        .eq("org_id", userProfile.org_id)
+        .eq("status", "processing")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (jobs && jobs.length > 0) {
+        const job = jobs[0] as ScoringJob;
+        setCurrentJob(job);
+        const progressPercent = (job.processed_accounts / job.total_accounts) * 100;
+        setProgress(progressPercent);
+      }
+    }, 2000);
+
+    return () => clearInterval(pollInterval);
+  }, [userProfile?.org_id, isScoring]);
+
+  const processNextChunk = async (jobId: string, chunkIndex: number) => {
+    if (!userProfile?.org_id) return;
+
+    try {
+      const { data, error } = await supabase.functions.invoke("bulk-score-accounts", {
+        body: {
+          org_id: userProfile.org_id,
+          job_id: jobId,
+          chunk_index: chunkIndex,
+          chunk_size: 2000,
+        },
+      });
+
+      if (error) throw error;
+
+      // If not the last chunk, continue processing
+      if (!data.is_last_chunk) {
+        setTimeout(() => processNextChunk(jobId, chunkIndex + 1), 1000);
+      } else {
+        // Job complete
+        setIsScoring(false);
+        setProgress(100);
+        
+        // Fetch final statistics
+        const { data: scores } = await supabase
+          .from("scores")
+          .select("overall")
+          .eq("org_id", userProfile.org_id);
+
+        const avgScore = scores?.length 
+          ? Math.round(scores.reduce((sum, s) => sum + (s.overall || 0), 0) / scores.length)
+          : 0;
+
+        setStats({
+          total: data.total_accounts,
+          completed: data.total_processed,
+          avgScore,
+          failures: data.failed_scores,
+        });
+
+        toast.success(`Successfully scored ${data.total_processed} accounts!`);
+        onComplete?.();
+      }
+    } catch (error) {
+      console.error("Chunk processing error:", error);
+      toast.error(`Failed to process chunk ${chunkIndex + 1}`);
+      setIsScoring(false);
+    }
+  };
 
   const runBulkScoring = async () => {
     if (!userProfile?.org_id) {
-      toast({
-        title: "Error",
-        description: "User profile not loaded",
-        variant: "destructive"
-      });
+      toast.error("Organization not found");
       return;
     }
 
-    setIsScoring(true);
-    setProgress(0);
-    setCurrentBatch("");
-    setEstimatedTime("");
-    setStats(null);
-
     try {
-      // Check for active ICP profiles
-      const { data: icpProfiles, error: icpError } = await supabase
-        .from('icp_profiles')
-        .select('id, name, status')
-        .eq('org_id', userProfile.org_id)
-        .eq('status', 'active');
+      setIsScoring(true);
+      setProgress(0);
+      setStats(null);
+      setCurrentJob(null);
 
-      if (icpError) throw icpError;
+      // Check for existing active job
+      const { data: existingJobs } = await supabase
+        .from("bulk_scoring_jobs")
+        .select("*")
+        .eq("org_id", userProfile.org_id)
+        .eq("status", "processing")
+        .order("created_at", { ascending: false })
+        .limit(1);
 
-      if (!icpProfiles || icpProfiles.length === 0) {
-        toast({
-          title: "No ICP Profiles",
-          description: "Please create at least one active ICP profile before scoring accounts.",
-          variant: "destructive"
-        });
+      if (existingJobs && existingJobs.length > 0) {
+        const job = existingJobs[0] as ScoringJob;
+        setCurrentJob(job);
+        toast.info("Resuming existing scoring job...");
+        processNextChunk(job.id, job.current_chunk);
+        return;
+      }
+
+      // Get total accounts and ICPs
+      const { count: accountCount } = await supabase
+        .from("accounts")
+        .select("*", { count: "exact", head: true })
+        .eq("org_id", userProfile.org_id);
+
+      const { data: icps } = await supabase
+        .from("icp_profiles")
+        .select("id")
+        .eq("org_id", userProfile.org_id)
+        .eq("status", "active");
+
+      if (!accountCount || !icps?.length) {
+        toast.error("No accounts or active ICP profiles found");
         setIsScoring(false);
         return;
       }
 
-      // Get all accounts count
-      const { count: accountsCount, error: accountsError } = await supabase
-        .from('accounts')
-        .select('*', { count: 'exact', head: true })
-        .eq('org_id', userProfile.org_id);
+      toast.info(`Starting to score ${accountCount.toLocaleString()} accounts...`);
 
-      if (accountsError) throw accountsError;
-
-      if (!accountsCount || accountsCount === 0) {
-        toast({
-          title: "No Accounts",
-          description: "Please upload accounts data before running scoring.",
-          variant: "destructive"
-        });
-        setIsScoring(false);
-        return;
-      }
-
-      const totalOperations = accountsCount * icpProfiles.length;
-      const batchSize = 500;
-      const estimatedBatches = Math.ceil(accountsCount / batchSize);
-      const estimatedSeconds = estimatedBatches * 8; // ~8 seconds per batch with parallelization
-      const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
-      
-      console.log(`Starting bulk scoring: ${accountsCount} accounts × ${icpProfiles.length} ICPs = ${totalOperations} scoring operations`);
-      console.log(`Estimated time: ${estimatedMinutes} minute(s) (${estimatedBatches} batches @ ~8s each)`);
-
-      setCurrentBatch(`Starting... (${estimatedBatches} batches)`);
-      setEstimatedTime(`~${estimatedMinutes} min`);
-      setProgress(5);
-
-      const startTime = Date.now();
-
-      // Call the bulk scoring edge function with larger batch size
-      const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
-        body: {
-          org_id: userProfile.org_id,
-          batch_size: batchSize // Process in batches of 500 accounts with parallel processing
-        }
-      });
-
-      if (error) {
-        console.error('Edge function error:', error);
-        throw error;
-      }
-
-      console.log('Bulk scoring response:', data);
-      
-      const actualTime = Math.round((Date.now() - startTime) / 1000);
-      console.log(`Completed in ${actualTime}s (estimated ${estimatedSeconds}s)`);
-
-      setProgress(100);
-      setCurrentBatch("Complete!");
-      setEstimatedTime(`Finished in ${Math.ceil(actualTime / 60)} min`);
-
-      // Get actual scores to calculate real average
-      const { data: scoresData } = await supabase
-        .from('scores')
-        .select('overall')
-        .eq('org_id', userProfile.org_id);
-
-      const avgScore = scoresData && scoresData.length > 0
-        ? Math.round(scoresData.reduce((sum, s) => sum + (s.overall || 0), 0) / scoresData.length)
-        : 0;
-
-      setStats({
-        total: accountsCount,
-        completed: data.scores_calculated,
-        failed: data.errors || 0,
-        avgScore
-      });
-
-      toast({
-        title: "Scoring Complete!",
-        description: `Successfully scored ${data.scores_calculated} out of ${totalOperations} operations. Success rate: ${data.success_rate}%`
-      });
-
-      if (data.sample_errors && data.sample_errors.length > 0) {
-        console.warn('Sample errors from scoring:', data.sample_errors);
-      }
-
-      if (onComplete) {
-        onComplete();
-      }
-
-    } catch (error: any) {
-      console.error('Bulk scoring error:', error);
-      toast({
-        title: "Scoring Failed",
-        description: error.message || "An error occurred during bulk scoring. Check console for details.",
-        variant: "destructive"
-      });
-    } finally {
+      // Start first chunk
+      processNextChunk("", 0);
+    } catch (error) {
+      console.error("Bulk scoring error:", error);
+      toast.error("Failed to start bulk scoring");
       setIsScoring(false);
     }
   };
@@ -168,7 +176,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           Bulk Scoring Engine
         </CardTitle>
         <CardDescription>
-          Score all accounts against your active ICP profiles to identify best-fit opportunities
+          Score all accounts against your active ICP profiles using chunked processing
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -176,7 +184,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           <Alert>
             <TrendingUp className="h-4 w-4" />
             <AlertDescription>
-              This will calculate ICP match scores for all your accounts. The process evaluates:
+              This will calculate ICP match scores for all your accounts using a reliable chunked processing system. The process evaluates:
               <ul className="list-disc list-inside mt-2 space-y-1">
                 <li>Industry alignment</li>
                 <li>Company size fit</li>
@@ -187,20 +195,29 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           </Alert>
         )}
 
-        {isScoring && (
-          <div className="space-y-3">
-            <Progress value={progress} className="w-full" />
-            <div className="flex justify-between items-center text-sm">
+        {isScoring && currentJob && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
-                {currentBatch || "Initializing..."}
+                Processing chunk {currentJob.current_chunk + 1} of {currentJob.total_chunks}
               </span>
-              <span className="text-muted-foreground font-medium">
-                {estimatedTime || "Calculating..."}
-              </span>
+              <span className="font-medium">{Math.round(progress)}%</span>
             </div>
-            <p className="text-xs text-center text-muted-foreground">
-              Processing in parallel batches of 500 accounts for maximum speed
-            </p>
+            <Progress value={progress} className="h-2" />
+            <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground">
+              <div>
+                <p className="font-medium">Progress</p>
+                <p>{currentJob.processed_accounts.toLocaleString()} / {currentJob.total_accounts.toLocaleString()} accounts</p>
+              </div>
+              <div>
+                <p className="font-medium">Success Rate</p>
+                <p>
+                  {currentJob.successful_scores > 0 
+                    ? `${((currentJob.successful_scores / (currentJob.successful_scores + currentJob.failed_scores)) * 100).toFixed(1)}%`
+                    : "Calculating..."}
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -209,75 +226,68 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
             <Alert className="bg-primary/10 border-primary">
               <CheckCircle2 className="h-4 w-4 text-primary" />
               <AlertDescription>
-                <strong>Scoring Complete!</strong> Successfully scored {stats.completed} accounts.
+                <strong>Scoring Complete!</strong> Successfully scored {stats.completed.toLocaleString()} accounts.
               </AlertDescription>
             </Alert>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-2xl font-bold">{stats.total}</div>
+                <div className="text-2xl font-bold">{stats.total.toLocaleString()}</div>
                 <div className="text-sm text-muted-foreground">Total Accounts</div>
               </div>
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-2xl font-bold text-[hsl(var(--signal-high))]">{stats.completed}</div>
-                <div className="text-sm text-muted-foreground">Scored</div>
+                <div className="text-2xl font-bold text-green-600">{stats.completed.toLocaleString()}</div>
+                <div className="text-sm text-muted-foreground">Completed</div>
               </div>
               <div className="text-center p-4 border rounded-lg">
                 <div className="text-2xl font-bold">{stats.avgScore}</div>
                 <div className="text-sm text-muted-foreground">Avg Score</div>
               </div>
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-2xl font-bold text-[hsl(var(--signal-low))]">{stats.failed}</div>
-                <div className="text-sm text-muted-foreground">Failed</div>
+                <div className="text-2xl font-bold text-red-600">{stats.failures}</div>
+                <div className="text-sm text-muted-foreground">Failures</div>
               </div>
             </div>
 
             {stats.avgScore >= 75 && (
-              <Badge className="w-full justify-center bg-[hsl(var(--signal-high))]">
-                Excellent ICP Fit - High quality accounts!
+              <Badge className="w-full justify-center py-2" variant="default">
+                <TrendingUp className="mr-2 h-4 w-4" />
+                Excellent ICP Match Quality
               </Badge>
             )}
             {stats.avgScore >= 50 && stats.avgScore < 75 && (
-              <Badge className="w-full justify-center bg-[hsl(var(--signal-medium))]">
-                Good ICP Fit - Solid opportunities
+              <Badge className="w-full justify-center py-2" variant="secondary">
+                <Minus className="mr-2 h-4 w-4" />
+                Good ICP Match Quality
               </Badge>
             )}
             {stats.avgScore < 50 && (
-              <Badge variant="secondary" className="w-full justify-center">
-                Consider refining your ICP criteria
+              <Badge className="w-full justify-center py-2" variant="outline">
+                <TrendingDown className="mr-2 h-4 w-4" />
+                Consider Refining ICP Criteria
               </Badge>
-            )}
-
-            {stats.failed > 0 && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  {stats.failed} account(s) could not be scored. Check the console for details.
-                </AlertDescription>
-              </Alert>
             )}
           </div>
         )}
 
-        <div className="flex gap-2">
-          <Button
-            onClick={runBulkScoring}
-            disabled={isScoring}
-            className="flex-1"
-          >
-            {isScoring ? (
-              <>
-                <Zap className="h-4 w-4 mr-2 animate-pulse" />
-                Scoring...
-              </>
-            ) : (
-              <>
-                <Zap className="h-4 w-4 mr-2" />
-                {stats ? 'Re-run Scoring' : 'Start Scoring'}
-              </>
-            )}
-          </Button>
-        </div>
+        <Button
+          onClick={runBulkScoring}
+          disabled={isScoring}
+          className="w-full"
+          size="lg"
+        >
+          {isScoring ? (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              Scoring in Progress...
+            </>
+          ) : (
+            <>
+              <Zap className="mr-2 h-4 w-4" />
+              Run Bulk Scoring
+            </>
+          )}
+        </Button>
       </CardContent>
     </Card>
   );

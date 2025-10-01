@@ -170,6 +170,84 @@ export type Database = {
           },
         ]
       }
+      bulk_scoring_jobs: {
+        Row: {
+          chunk_size: number
+          completed_at: string | null
+          created_at: string
+          current_chunk: number
+          error_details: Json | null
+          error_message: string | null
+          failed_scores: number
+          icp_id: string | null
+          id: string
+          last_processed_at: string | null
+          org_id: string
+          processed_accounts: number
+          started_at: string | null
+          status: string
+          successful_scores: number
+          total_accounts: number
+          total_chunks: number
+          updated_at: string
+        }
+        Insert: {
+          chunk_size?: number
+          completed_at?: string | null
+          created_at?: string
+          current_chunk?: number
+          error_details?: Json | null
+          error_message?: string | null
+          failed_scores?: number
+          icp_id?: string | null
+          id?: string
+          last_processed_at?: string | null
+          org_id: string
+          processed_accounts?: number
+          started_at?: string | null
+          status?: string
+          successful_scores?: number
+          total_accounts?: number
+          total_chunks?: number
+          updated_at?: string
+        }
+        Update: {
+          chunk_size?: number
+          completed_at?: string | null
+          created_at?: string
+          current_chunk?: number
+          error_details?: Json | null
+          error_message?: string | null
+          failed_scores?: number
+          icp_id?: string | null
+          id?: string
+          last_processed_at?: string | null
+          org_id?: string
+          processed_accounts?: number
+          started_at?: string | null
+          status?: string
+          successful_scores?: number
+          total_accounts?: number
+          total_chunks?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bulk_scoring_jobs_icp_id_fkey"
+            columns: ["icp_id"]
+            isOneToOne: false
+            referencedRelation: "icp_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bulk_scoring_jobs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       closed_won_deals: {
         Row: {
           account_external_id: string
