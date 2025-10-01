@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { parseCSV } from "@/utils/csv-parser";
+import { normalizeDomain, createNormalizedDomainMap } from "@/utils/domain-normalizer";
 import { SampleDataGenerator } from "@/components/SampleDataGenerator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -149,48 +150,52 @@ export function ClosedWonUpload() {
       let rejectedCount = 0;
 
       if (mode === 'easy') {
-        // Easy mode: Match domains to existing accounts
+        // Easy mode: Match domains to existing accounts using normalized domain matching
         // Firmographics (industry, revenue, employee count, sub-industries, etc.) 
         // will be automatically pulled from the accounts table during analysis
-        const domains = rawData.map(row => row.domain?.trim().toLowerCase()).filter(Boolean);
-        console.log('ClosedWonUpload: Processing domains:', domains);
+        const normalizedDomains = rawData
+          .map(row => normalizeDomain(row.domain))
+          .filter(Boolean);
+        console.log('ClosedWonUpload: Processing normalized domains:', normalizedDomains);
         
-        // Fetch accounts matching these domains
+        // Fetch ALL accounts for this org (we'll normalize and match in-memory)
         const { data: accounts, error: accountError } = await supabase
           .from('accounts')
           .select('external_id, domain')
           .eq('org_id', userProfile.org_id)
-          .in('domain', domains);
+          .not('domain', 'is', null);
 
         if (accountError) throw accountError;
         console.log('ClosedWonUpload: Found accounts:', accounts?.length);
 
         setUploadProgress(50);
 
-        // Create a map of domain to account_external_id
-        const domainMap = new Map(
-          accounts?.map(acc => [acc.domain?.toLowerCase(), acc.external_id]) || []
-        );
+        // Create a map of normalized domain to account_external_id
+        const domainMap = createNormalizedDomainMap(accounts || []);
+        console.log('ClosedWonUpload: Created normalized domain map with', domainMap.size, 'entries');
 
         // Transform data - firmographics will be pulled from accounts table during analysis
         const today = new Date().toISOString().split('T')[0];
         transformedData = rawData
           .filter(row => {
-            const domain = row.domain?.trim().toLowerCase();
-            const hasMatch = domain && domainMap.has(domain);
-            if (!hasMatch) rejectedCount++;
+            const normalizedDomain = normalizeDomain(row.domain);
+            const hasMatch = normalizedDomain && domainMap.has(normalizedDomain);
+            if (!hasMatch && normalizedDomain) {
+              console.log('ClosedWonUpload: No match found for normalized domain:', normalizedDomain, 'from original:', row.domain);
+              rejectedCount++;
+            }
             return hasMatch;
           })
           .map(row => ({
             org_id: userProfile.org_id,
-            account_external_id: domainMap.get(row.domain.trim().toLowerCase()),
+            account_external_id: domainMap.get(normalizeDomain(row.domain)),
             deal_value: 0, // Placeholder - actual value not needed for firmographic analysis
             close_date: today,
             sales_cycle_days: null,
             created_at: new Date().toISOString()
           }));
 
-        console.log('ClosedWonUpload: Matched domains to accounts, firmographics will be pulled from accounts table');
+        console.log('ClosedWonUpload: Matched', transformedData.length, 'domains to accounts using normalized matching');
       } else {
         // Detailed mode: Use provided data
         const validData = rawData.filter(row => {
