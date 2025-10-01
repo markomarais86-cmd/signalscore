@@ -48,7 +48,8 @@ export default function ExecutiveDashboard() {
       const { data: accounts, error: accountsError } = await supabase
         .from('accounts')
         .select('*')
-        .eq('org_id', userProfile?.org_id);
+        .eq('org_id', userProfile?.org_id)
+        .limit(50000);
 
       if (accountsError) throw accountsError;
 
@@ -64,7 +65,8 @@ export default function ExecutiveDashboard() {
       const { data: scores, error: scoresError } = await supabase
         .from('scores')
         .select('*')
-        .eq('org_id', userProfile?.org_id);
+        .eq('org_id', userProfile?.org_id)
+        .limit(50000);
 
       if (scoresError) throw scoresError;
 
