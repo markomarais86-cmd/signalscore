@@ -47,7 +47,7 @@ export default function ExecutiveDashboard() {
     try {
       setLoading(true);
       
-      // First get the total count of accounts to know how much data we have
+      // First get the total count of accounts
       const { count: totalAccountCount } = await supabase
         .from('accounts')
         .select('*', { count: 'exact', head: true })
@@ -55,17 +55,37 @@ export default function ExecutiveDashboard() {
 
       console.log('ExecutiveDashboard - Total accounts in database:', totalAccountCount);
 
-      // Load all data using range to bypass default 1000 limit
-      // Supabase defaults to max 1000 rows, so we must use range() for more
-      const [
-        { data: accounts, error: accountsError },
-        { data: icps, error: icpsError },
-        { data: scores, error: scoresError }
-      ] = await Promise.all([
-        supabase.from('accounts').select('*').eq('org_id', userProfile?.org_id).range(0, (totalAccountCount || 50000) - 1),
+      // Supabase has a hard limit of 1000 rows per request
+      // We need to fetch accounts in batches using pagination
+      const PAGE_SIZE = 1000;
+      const totalPages = Math.ceil((totalAccountCount || 0) / PAGE_SIZE);
+      
+      console.log(`ExecutiveDashboard - Fetching ${totalPages} pages of accounts...`);
+      
+      // Fetch all pages in parallel
+      const accountPromises = [];
+      for (let page = 0; page < totalPages; page++) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        accountPromises.push(
+          supabase
+            .from('accounts')
+            .select('*')
+            .eq('org_id', userProfile?.org_id)
+            .range(from, to)
+        );
+      }
+
+      // Also fetch ICPs and scores in parallel
+      const [accountResults, { data: icps, error: icpsError }, { data: scores, error: scoresError }] = await Promise.all([
+        Promise.all(accountPromises),
         supabase.from('icp_profiles').select('*').eq('org_id', userProfile?.org_id),
         supabase.from('scores').select('*').eq('org_id', userProfile?.org_id).range(0, 50000)
       ]);
+
+      // Combine all account pages
+      const accounts = accountResults.flatMap(result => result.data || []);
+      const accountsError = accountResults.find(r => r.error)?.error;
 
       if (accountsError) throw accountsError;
       if (icpsError) throw icpsError;
@@ -158,7 +178,7 @@ export default function ExecutiveDashboard() {
 
       setGeoData(
         Object.entries(geoCounts || {})
-          .map(([country, count]) => ({ country, count }))
+          .map(([country, count]) => ({ country, count: count as number }))
           .sort((a, b) => b.count - a.count)
           .slice(0, 5)
       );
