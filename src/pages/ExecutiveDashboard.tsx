@@ -74,6 +74,10 @@ export default function ExecutiveDashboard() {
       const icpCount = icps?.length || 0;
       const highFitAccounts = scores?.filter(s => s.overall >= 70).length || 0;
 
+      console.log('ExecutiveDashboard - Total accounts loaded:', totalAccounts);
+      console.log('ExecutiveDashboard - ICP count:', icpCount);
+      console.log('ExecutiveDashboard - High fit accounts:', highFitAccounts);
+
       // Calculate data completeness
       const completeFields = accounts?.filter(a => 
         a.industry_norm && a.employee_count && a.country && a.revenue_range
@@ -83,28 +87,33 @@ export default function ExecutiveDashboard() {
       // Calculate ICP match quality
       const icpMatchQuality = totalAccounts > 0 ? (highFitAccounts / totalAccounts) * 100 : 0;
 
-      // Estimated TAM (simplified calculation)
+      // Estimated TAM (use ICP's tam_estimate or calculate a reasonable market size)
       const avgICPTAM = icps?.reduce((sum, icp) => sum + (icp.tam_estimate || 0), 0) / (icpCount || 1);
-      const tamCoverage = avgICPTAM > 0 ? (totalAccounts / avgICPTAM) * 100 : 0;
+      // If ICP tam_estimate is smaller than actual accounts, use accounts * 10 as estimated market
+      const estimatedTotalMarket = avgICPTAM > totalAccounts ? avgICPTAM : totalAccounts * 10;
+      const tamCoverage = estimatedTotalMarket > 0 ? (totalAccounts / estimatedTotalMarket) * 100 : 0;
+
+      console.log('ExecutiveDashboard - Estimated total market:', estimatedTotalMarket);
+      console.log('ExecutiveDashboard - TAM coverage:', tamCoverage);
 
       // Calculate trends (simulated - in production, compare with historical data)
       const previousTamCoverage = tamCoverage * 0.87; // 13% improvement
       const previousIcpMatch = icpMatchQuality * 0.92; // 8% improvement
-      const previousWhitespace = Math.floor(avgICPTAM - totalAccounts) * 1.12; // 12% reduction
+      const previousWhitespace = Math.floor(estimatedTotalMarket - totalAccounts) * 1.12; // 12% reduction
       const previousDataQuality = dataCompleteness * 0.95; // 5% improvement
 
       setMetrics({
         tamCoverage: Math.min(tamCoverage, 100),
         icpMatchQuality,
-        whitespaceOpportunity: Math.floor(avgICPTAM - totalAccounts),
+        whitespaceOpportunity: Math.floor(estimatedTotalMarket - totalAccounts),
         dataCompleteness,
         totalAccounts,
         icpCount,
         highFitAccounts,
-        estimatedTAM: Math.floor(avgICPTAM),
+        estimatedTAM: Math.floor(estimatedTotalMarket),
         tamCoverageTrend: Number((((tamCoverage - previousTamCoverage) / previousTamCoverage) * 100).toFixed(2)),
         icpMatchTrend: Number((((icpMatchQuality - previousIcpMatch) / (previousIcpMatch || 1)) * 100).toFixed(2)),
-        whitespaceTrend: Number((((Math.floor(avgICPTAM - totalAccounts) - previousWhitespace) / (previousWhitespace || 1)) * 100).toFixed(2)),
+        whitespaceTrend: Number((((Math.floor(estimatedTotalMarket - totalAccounts) - previousWhitespace) / (previousWhitespace || 1)) * 100).toFixed(2)),
         dataCompletenessTrend: Number((((dataCompleteness - previousDataQuality) / (previousDataQuality || 1)) * 100).toFixed(2)),
       });
 
