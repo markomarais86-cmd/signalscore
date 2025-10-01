@@ -35,6 +35,7 @@ export default function ExecutiveDashboard() {
   const [fitDistribution, setFitDistribution] = useState<any[]>([]);
   const [missingSegments, setMissingSegments] = useState<any[]>([]);
   const [geoData, setGeoData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (userProfile?.org_id) {
@@ -44,39 +45,45 @@ export default function ExecutiveDashboard() {
 
   const loadTAMData = async () => {
     try {
-      // Load accounts
-      const { data: accounts, error: accountsError } = await supabase
+      setLoading(true);
+      
+      // First get the total count of accounts to know how much data we have
+      const { count: totalAccountCount } = await supabase
         .from('accounts')
-        .select('*')
-        .eq('org_id', userProfile?.org_id)
-        .limit(50000);
-
-      if (accountsError) throw accountsError;
-
-      // Load ICPs
-      const { data: icps, error: icpsError } = await supabase
-        .from('icp_profiles')
-        .select('*')
+        .select('*', { count: 'exact', head: true })
         .eq('org_id', userProfile?.org_id);
 
+      console.log('ExecutiveDashboard - Total accounts in database:', totalAccountCount);
+
+      // Load all data using range to bypass default 1000 limit
+      // Supabase defaults to max 1000 rows, so we must use range() for more
+      const [
+        { data: accounts, error: accountsError },
+        { data: icps, error: icpsError },
+        { data: scores, error: scoresError }
+      ] = await Promise.all([
+        supabase.from('accounts').select('*').eq('org_id', userProfile?.org_id).range(0, (totalAccountCount || 50000) - 1),
+        supabase.from('icp_profiles').select('*').eq('org_id', userProfile?.org_id),
+        supabase.from('scores').select('*').eq('org_id', userProfile?.org_id).range(0, 50000)
+      ]);
+
+      if (accountsError) throw accountsError;
       if (icpsError) throw icpsError;
-
-      // Load scores
-      const { data: scores, error: scoresError } = await supabase
-        .from('scores')
-        .select('*')
-        .eq('org_id', userProfile?.org_id)
-        .limit(50000);
-
       if (scoresError) throw scoresError;
 
       const totalAccounts = accounts?.length || 0;
+      const totalScores = scores?.length || 0;
       const icpCount = icps?.length || 0;
       const highFitAccounts = scores?.filter(s => s.overall >= 70).length || 0;
 
-      console.log('ExecutiveDashboard - Total accounts loaded:', totalAccounts);
+      console.log('ExecutiveDashboard - Accounts loaded:', totalAccounts, 'of', totalAccountCount, 'total');
+      console.log('ExecutiveDashboard - Scores loaded:', totalScores);
       console.log('ExecutiveDashboard - ICP count:', icpCount);
       console.log('ExecutiveDashboard - High fit accounts:', highFitAccounts);
+      
+      if (totalAccounts !== totalAccountCount) {
+        console.warn('WARNING: Not all accounts were loaded!', totalAccounts, 'vs', totalAccountCount);
+      }
 
       // Calculate data completeness
       const completeFields = accounts?.filter(a => 
@@ -87,14 +94,15 @@ export default function ExecutiveDashboard() {
       // Calculate ICP match quality
       const icpMatchQuality = totalAccounts > 0 ? (highFitAccounts / totalAccounts) * 100 : 0;
 
-      // Estimated TAM (use ICP's tam_estimate or calculate a reasonable market size)
+      // Estimated TAM (use realistic market sizing based on actual account data)
       const avgICPTAM = icps?.reduce((sum, icp) => sum + (icp.tam_estimate || 0), 0) / (icpCount || 1);
-      // If ICP tam_estimate is smaller than actual accounts, use accounts * 10 as estimated market
-      const estimatedTotalMarket = avgICPTAM > totalAccounts ? avgICPTAM : totalAccounts * 10;
+      // Calculate realistic TAM: If ICP estimate is unrealistic, extrapolate from actual account coverage
+      // Assume we've penetrated about 5-10% of the market, so multiply by 15 for realistic TAM
+      const estimatedTotalMarket = avgICPTAM > totalAccounts * 5 ? avgICPTAM : totalAccounts * 15;
       const tamCoverage = estimatedTotalMarket > 0 ? (totalAccounts / estimatedTotalMarket) * 100 : 0;
 
       console.log('ExecutiveDashboard - Estimated total market:', estimatedTotalMarket);
-      console.log('ExecutiveDashboard - TAM coverage:', tamCoverage);
+      console.log('ExecutiveDashboard - TAM coverage:', tamCoverage.toFixed(2) + '%');
 
       // Calculate trends (simulated - in production, compare with historical data)
       const previousTamCoverage = tamCoverage * 0.87; // 13% improvement
@@ -160,6 +168,8 @@ export default function ExecutiveDashboard() {
     } catch (error: any) {
       console.error('Error loading TAM data:', error);
       toast.error('Failed to load TAM intelligence data');
+    } finally {
+      setLoading(false);
     }
   };
 
