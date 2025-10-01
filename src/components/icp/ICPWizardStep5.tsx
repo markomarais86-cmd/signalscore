@@ -8,8 +8,6 @@ import { useEffect } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Label } from '@/components/ui/label';
-import { Progress } from '@/components/ui/progress';
-import { Separator } from '@/components/ui/separator';
 
 interface ICPWizardStep5Props {
   formData: ICPFormData;
@@ -195,87 +193,15 @@ export function ICPWizardStep5({ formData, onValidate }: ICPWizardStep5Props) {
         </CardContent>
       </Card>
 
-      {/* ICP-10 List */}
-      {validation?.icp10List && validation.icp10List.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-yellow-500" />
-              ICP-10 Top Prospects
-            </CardTitle>
-            <CardDescription>
-              Your highest-scoring accounts based on this ICP profile
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {validation.icp10List.map((entry) => (
-                <div 
-                  key={entry.rank}
-                  className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      {entry.rank === 1 && <Crown className="h-4 w-4 text-yellow-500" />}
-                      {entry.rank === 2 && <Medal className="h-4 w-4 text-gray-400" />}
-                      {entry.rank === 3 && <Medal className="h-4 w-4 text-amber-600" />}
-                      <span className="font-medium text-sm">#{entry.rank}</span>
-                    </div>
-                    <div>
-                      <p className="font-medium">{entry.accountName}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {entry.industry} • {entry.geography} • {entry.companySize}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="text-center">
-                      <div className="font-medium">{entry.signalScore}</div>
-                      <div className="text-xs text-muted-foreground">Signal</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="font-medium">{formatCurrency(entry.tamContribution)}</div>
-                      <div className="text-xs text-muted-foreground">TAM</div>
-                    </div>
-                    <div className="text-center">
-                      <div className="font-medium">{entry.conversionRate}%</div>
-                      <div className="text-xs text-muted-foreground">Conv Rate</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Action Buttons */}
-      <div className="flex justify-between items-center">
-        <Button variant="outline" onClick={calculateValidation} disabled={isValidating}>
-          {isValidating ? 'Validating...' : 'Re-validate'}
-        </Button>
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex items-center gap-2">
-            <Download className="h-4 w-4" />
-            Export ICP-10 Report
+      {/* Action Button */}
+      {onValidate && (
+        <div className="flex justify-end">
+          <Button onClick={onValidate} className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4" />
+            Continue
           </Button>
-          {onValidate && (
-            <Button onClick={onValidate} className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4" />
-              Looks Good
-            </Button>
-          )}
         </div>
-      </div>
+      )}
     </div>
-  );
-}
-
-// Helper Label component since we're using it
-function Label({ className, children, ...props }: { className?: string; children: React.ReactNode }) {
-  return (
-    <label className={`text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${className || ''}`} {...props}>
-      {children}
-    </label>
   );
 }
