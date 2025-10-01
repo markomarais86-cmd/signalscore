@@ -178,8 +178,29 @@ export function ICPTAMIntelligence() {
     );
   }
 
-  // If we have real data, use it; otherwise fall back to mock data for demo
-  const useRealData = realTimeData && realTimeData.totalAccounts > 0;
+  // If we have real data AND scores exist, use real data; otherwise show a message
+  const hasScores = scores.length > 0;
+  const useRealData = realTimeData && realTimeData.totalAccounts > 0 && hasScores;
+
+  // If no scores exist yet, show a helpful message
+  if (accounts.length > 0 && !hasScores) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">ICP & TAM Intelligence</h1>
+          <p className="text-muted-foreground">Real-time insights from your CRM data</p>
+        </div>
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Accounts detected but not yet scored.</strong><br />
+            You have {accounts.length} accounts and {icpProfiles.length} ICP profile(s), but no scores have been calculated yet.
+            Please go to the Accounts page and run the "Bulk Scoring Engine" to calculate ICP match scores for all your accounts.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   // Mock data for demonstration (used as fallback or when real data is insufficient)
   const icpData = {

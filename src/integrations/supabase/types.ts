@@ -421,12 +421,15 @@ export type Database = {
       icp_profiles: {
         Row: {
           budget_indicators: string[] | null
+          buying_signals: string[] | null
           buying_triggers: string[] | null
           cities: string[] | null
           company_sizes: number[] | null
           company_stages: string[] | null
+          competitive_landscape: string[] | null
           confidence_score: number | null
           created_at: string | null
+          decision_process: string | null
           description: string | null
           excluded_companies: string[] | null
           excluded_industries: string[] | null
@@ -440,6 +443,7 @@ export type Database = {
           match_count: number | null
           name: string
           org_id: string
+          pain_points: string[] | null
           persona_decision_roles: string[] | null
           persona_departments: string[] | null
           persona_job_titles: string[] | null
@@ -459,12 +463,15 @@ export type Database = {
         }
         Insert: {
           budget_indicators?: string[] | null
+          buying_signals?: string[] | null
           buying_triggers?: string[] | null
           cities?: string[] | null
           company_sizes?: number[] | null
           company_stages?: string[] | null
+          competitive_landscape?: string[] | null
           confidence_score?: number | null
           created_at?: string | null
+          decision_process?: string | null
           description?: string | null
           excluded_companies?: string[] | null
           excluded_industries?: string[] | null
@@ -478,6 +485,7 @@ export type Database = {
           match_count?: number | null
           name: string
           org_id: string
+          pain_points?: string[] | null
           persona_decision_roles?: string[] | null
           persona_departments?: string[] | null
           persona_job_titles?: string[] | null
@@ -497,12 +505,15 @@ export type Database = {
         }
         Update: {
           budget_indicators?: string[] | null
+          buying_signals?: string[] | null
           buying_triggers?: string[] | null
           cities?: string[] | null
           company_sizes?: number[] | null
           company_stages?: string[] | null
+          competitive_landscape?: string[] | null
           confidence_score?: number | null
           created_at?: string | null
+          decision_process?: string | null
           description?: string | null
           excluded_companies?: string[] | null
           excluded_industries?: string[] | null
@@ -516,6 +527,7 @@ export type Database = {
           match_count?: number | null
           name?: string
           org_id?: string
+          pain_points?: string[] | null
           persona_decision_roles?: string[] | null
           persona_departments?: string[] | null
           persona_job_titles?: string[] | null

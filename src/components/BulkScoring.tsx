@@ -59,15 +59,15 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         return;
       }
 
-      // Get all accounts
-      const { data: accounts, error: accountsError } = await supabase
+      // Get all accounts count
+      const { count: accountsCount, error: accountsError } = await supabase
         .from('accounts')
-        .select('external_id, name')
+        .select('*', { count: 'exact', head: true })
         .eq('org_id', userProfile.org_id);
 
       if (accountsError) throw accountsError;
 
-      if (!accounts || accounts.length === 0) {
+      if (!accountsCount || accountsCount === 0) {
         toast({
           title: "No Accounts",
           description: "Please upload accounts data before running scoring.",
@@ -77,59 +77,38 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         return;
       }
 
-      console.log(`Starting bulk scoring for ${accounts.length} accounts against ${icpProfiles.length} ICP profiles`);
+      console.log(`Starting bulk scoring for ${accountsCount} accounts against ${icpProfiles.length} ICP profiles`);
 
-      let completed = 0;
-      let failed = 0;
-      let totalScore = 0;
+      // Set progress to 10% while starting
+      setProgress(10);
 
-      // Score each account
-      for (let i = 0; i < accounts.length; i++) {
-        const account = accounts[i];
-        
-        try {
-          const { data, error } = await supabase.functions.invoke('score-account', {
-            body: {
-              org_id: userProfile.org_id,
-              account_external_id: account.external_id
-            }
-          });
-
-          if (error) {
-            console.error(`Failed to score ${account.name}:`, error);
-            failed++;
-          } else {
-            completed++;
-            totalScore += data.overall || 0;
-            console.log(`Scored ${account.name}: ${data.overall}`);
-          }
-        } catch (error) {
-          console.error(`Error scoring ${account.name}:`, error);
-          failed++;
+      // Call the bulk scoring edge function
+      const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
+        body: {
+          org_id: userProfile.org_id
         }
+      });
 
-        // Update progress
-        const progressPercent = Math.round(((i + 1) / accounts.length) * 100);
-        setProgress(progressPercent);
+      if (error) throw error;
 
-        // Small delay to avoid rate limiting
-        if (i < accounts.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      }
+      // Set progress to 100% on completion
+      setProgress(100);
 
-      const avgScore = completed > 0 ? Math.round(totalScore / completed) : 0;
+      // Calculate stats from response
+      const avgScore = data.scores_calculated > 0 
+        ? Math.round((data.scores_calculated / (accountsCount * icpProfiles.length)) * 100)
+        : 0;
 
       setStats({
-        total: accounts.length,
-        completed,
-        failed,
+        total: accountsCount,
+        completed: data.scores_calculated,
+        failed: data.errors || 0,
         avgScore
       });
 
       toast({
         title: "Scoring Complete!",
-        description: `Scored ${completed} of ${accounts.length} accounts with average score of ${avgScore}`
+        description: `Scored ${data.accounts_processed} accounts across ${data.icp_profiles} ICPs. Success: ${data.scores_calculated}, Errors: ${data.errors}`
       });
 
       if (onComplete) {

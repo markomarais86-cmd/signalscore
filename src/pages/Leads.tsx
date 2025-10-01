@@ -208,8 +208,11 @@ export default function Leads() {
   };
 
   const filterLeads = () => {
-    // Only show high-scoring accounts (70+)
-    let filtered = leads.filter(lead => (lead.score?.overall || 0) >= 70);
+    // Show accounts with score >= 70, or all accounts if no scores exist yet
+    const hasAnyScores = leads.some(lead => (lead.score?.overall || 0) > 0);
+    let filtered = hasAnyScores 
+      ? leads.filter(lead => (lead.score?.overall || 0) >= 70)
+      : leads; // Show all accounts if no scores calculated yet
 
     if (searchTerm) {
       filtered = filtered.filter(lead =>
@@ -358,7 +361,7 @@ export default function Leads() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Leads</h1>
-          <p className="text-muted-foreground mt-2">High-signal opportunities (ICP score ≥70)</p>
+          <p className="text-muted-foreground mt-2">All qualified accounts from your pipeline</p>
         </div>
         <Button onClick={exportToCSV} variant="outline">
           <Download className="h-4 w-4 mr-2" />

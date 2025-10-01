@@ -99,7 +99,13 @@ export function useFirmographicAnalysis() {
           geographies: selectedGeographies,
           status: 'active',
           confidence_score: 75,
-          match_count: analysis?.analysis?.total_accounts || 0
+          match_count: analysis?.analysis?.total_accounts || 0,
+          // Initialize new fields
+          tech_stack: [],
+          buying_signals: [],
+          budget_indicators: [],
+          competitive_landscape: [],
+          pain_points: []
         })
         .select()
         .single();

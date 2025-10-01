@@ -60,6 +60,8 @@ export default function Accounts() {
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
   const [selectedAccountsForEnrichment, setSelectedAccountsForEnrichment] = useState<string[]>([]);
   const [showEnrichmentDialog, setShowEnrichmentDialog] = useState(false);
+  const [hasActiveICP, setHasActiveICP] = useState(false);
+  const [needsScoring, setNeedsScoring] = useState(false);
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
@@ -106,6 +108,20 @@ export default function Accounts() {
         .from('scores')
         .select('*')
         .eq('org_id', userProfile.org_id);
+
+      // Check for active ICP profiles
+      const { data: icpData } = await supabase
+        .from('icp_profiles')
+        .select('id')
+        .eq('org_id', userProfile.org_id)
+        .eq('status', 'active');
+
+      const hasICP = (icpData?.length || 0) > 0;
+      const hasScores = (scoresData?.length || 0) > 0;
+      const hasAccounts = (accountsData?.length || 0) > 0;
+
+      setHasActiveICP(hasICP);
+      setNeedsScoring(hasAccounts && hasICP && !hasScores);
 
       // Create a map for quick score lookup
       const scoresMap = new Map(
@@ -363,6 +379,17 @@ export default function Accounts() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Scoring Alert */}
+      {needsScoring && (
+        <Alert className="border-primary bg-primary/5">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <AlertDescription>
+            <strong>Ready to score your accounts!</strong> You have {accounts.length} accounts and an active ICP profile. 
+            Use the Bulk Scoring Engine below to calculate ICP match scores for all accounts.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Correlation Analysis */}
       <CorrelationInsights />
