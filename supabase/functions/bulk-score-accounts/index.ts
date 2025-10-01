@@ -37,19 +37,40 @@ serve(async (req) => {
     console.log('Batch Size:', batch_size);
     console.log('Timestamp:', new Date().toISOString());
 
-    // Get all accounts for the organization (explicitly set high limit to bypass default 1000 row limit)
-    const { data: accounts, error: accountsError } = await supabase
-      .from('accounts')
-      .select('external_id, name')
-      .eq('org_id', org_id)
-      .limit(100000); // Set explicit high limit to get all accounts
+    // Fetch ALL accounts using pagination to bypass any default limits
+    console.log('Fetching all accounts using pagination...');
+    let allAccounts: Array<{ external_id: string; name: string }> = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
 
-    if (accountsError || !accounts) {
-      console.error('Failed to fetch accounts:', accountsError);
-      throw new Error(`Failed to fetch accounts: ${accountsError?.message}`);
+    while (hasMore) {
+      const { data: accountPage, error: accountsError } = await supabase
+        .from('accounts')
+        .select('external_id, name')
+        .eq('org_id', org_id)
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (accountsError) {
+        console.error('Failed to fetch accounts:', accountsError);
+        throw new Error(`Failed to fetch accounts: ${accountsError?.message}`);
+      }
+
+      if (!accountPage || accountPage.length === 0) {
+        hasMore = false;
+      } else {
+        allAccounts = allAccounts.concat(accountPage);
+        console.log(`  Fetched page ${page + 1}: ${accountPage.length} accounts (total: ${allAccounts.length})`);
+        
+        if (accountPage.length < pageSize) {
+          hasMore = false;
+        }
+        page++;
+      }
     }
 
-    console.log(`✓ Found ${accounts.length} accounts to score`);
+    const accounts = allAccounts;
+    console.log(`✓ Successfully fetched ALL ${accounts.length} accounts to score`);
 
     // Get ICP profiles
     const icpQuery = supabase
