@@ -39,6 +39,8 @@ interface UploadResult {
   inserted: number;
   rejected: number;
   errors: string[];
+  accountsCreated?: number;
+  accountsMatched?: number;
 }
 
 export function ClosedWonUpload() {
@@ -173,11 +175,13 @@ export function ClosedWonUpload() {
 
       let transformedData: any[] = [];
       let rejectedCount = 0;
+      let accountsCreated = 0;
+      let accountsMatched = 0;
 
       if (mode === 'easy') {
         // Easy mode: Match domains to existing accounts using normalized domain matching
-        // Firmographics (industry, revenue, employee count, sub-industries, etc.) 
-        // will be automatically pulled from the accounts table during analysis
+        // If no match found, automatically create a new account record
+        // Firmographics will be automatically pulled from the accounts table during analysis
         
         // Find the domain column name
         const domainColumnName = rawData.length > 0 ? findDomainColumn(rawData[0]) : null;
@@ -203,34 +207,104 @@ export function ClosedWonUpload() {
         if (accountError) throw accountError;
         console.log('ClosedWonUpload: Found accounts:', accounts?.length);
 
-        setUploadProgress(50);
+        setUploadProgress(40);
 
         // Create a map of normalized domain to account_external_id
         const domainMap = createNormalizedDomainMap(accounts || []);
         console.log('ClosedWonUpload: Created normalized domain map with', domainMap.size, 'entries');
 
-        // Transform data - firmographics will be pulled from accounts table during analysis
-        const today = new Date().toISOString().split('T')[0];
-        transformedData = rawData
-          .filter(row => {
-            const normalizedDomain = normalizeDomain(row[domainColumnName]);
-            const hasMatch = normalizedDomain && domainMap.has(normalizedDomain);
-            if (!hasMatch && normalizedDomain) {
-              console.log('ClosedWonUpload: No match found for normalized domain:', normalizedDomain, 'from original:', row[domainColumnName]);
-              rejectedCount++;
+        // Helper function to derive company name from domain
+        const deriveCompanyName = (domain: string): string => {
+          // Remove TLD and clean up
+          const cleaned = domain.split('.')[0];
+          // Capitalize first letter
+          return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+        };
+
+        // Separate matched and unmatched domains
+        const matchedRows: any[] = [];
+        const unmatchedRows: any[] = [];
+        
+        for (const row of rawData) {
+          const originalDomain = row[domainColumnName];
+          const normalizedDomain = normalizeDomain(originalDomain);
+          
+          if (normalizedDomain && domainMap.has(normalizedDomain)) {
+            matchedRows.push({ row, normalizedDomain, accountExternalId: domainMap.get(normalizedDomain) });
+          } else if (normalizedDomain) {
+            unmatchedRows.push({ row, normalizedDomain, originalDomain });
+          } else {
+            rejectedCount++;
+          }
+        }
+
+        console.log('ClosedWonUpload: Matched:', matchedRows.length, 'Unmatched:', unmatchedRows.length, 'Rejected:', rejectedCount);
+
+        setUploadProgress(50);
+
+        // Create new accounts for unmatched domains
+        const newAccountsToCreate = unmatchedRows.map(({ normalizedDomain, originalDomain }) => ({
+          org_id: userProfile.org_id,
+          external_id: `CW_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          domain: normalizedDomain,
+          name: deriveCompanyName(normalizedDomain),
+          data_source: 'closed_won',
+          created_at: new Date().toISOString()
+        }));
+
+        if (newAccountsToCreate.length > 0) {
+          console.log('ClosedWonUpload: Creating', newAccountsToCreate.length, 'new accounts');
+          const { data: createdAccounts, error: createError } = await supabase
+            .from('accounts')
+            .insert(newAccountsToCreate)
+            .select('external_id, domain');
+
+          if (createError) {
+            console.error('Error creating accounts:', createError);
+            // Don't throw - just log and continue with matched accounts
+            toast({
+              title: "Partial Success",
+              description: `Created accounts but some failed. ${createError.message}`,
+              variant: "destructive"
+            });
+          } else if (createdAccounts) {
+            accountsCreated = createdAccounts.length;
+            console.log('ClosedWonUpload: Successfully created', accountsCreated, 'accounts');
+            
+            // Add created accounts to the domain map
+            for (const account of createdAccounts) {
+              const normalized = normalizeDomain(account.domain);
+              if (normalized) {
+                domainMap.set(normalized, account.external_id);
+              }
             }
+          }
+        }
+
+        setUploadProgress(70);
+
+        // Now transform all data (both matched and newly created)
+        const today = new Date().toISOString().split('T')[0];
+        transformedData = [...matchedRows, ...unmatchedRows]
+          .filter(item => {
+            const hasMatch = item.normalizedDomain && domainMap.has(item.normalizedDomain);
             return hasMatch;
           })
-          .map(row => ({
-            org_id: userProfile.org_id,
-            account_external_id: domainMap.get(normalizeDomain(row[domainColumnName])),
-            deal_value: 0, // Placeholder - actual value not needed for firmographic analysis
-            close_date: today,
-            sales_cycle_days: null,
-            created_at: new Date().toISOString()
-          }));
+          .map(item => {
+            const isMatched = matchedRows.some(m => m.normalizedDomain === item.normalizedDomain);
+            if (isMatched) accountsMatched++;
+            
+            return {
+              org_id: userProfile.org_id,
+              account_external_id: domainMap.get(item.normalizedDomain),
+              deal_value: 0,
+              close_date: today,
+              sales_cycle_days: null,
+              created_at: new Date().toISOString()
+            };
+          });
 
-        console.log('ClosedWonUpload: Matched', transformedData.length, 'domains to accounts using normalized matching');
+        console.log('ClosedWonUpload: Final transformed data:', transformedData.length, 'records. Matched:', accountsMatched, 'Created:', accountsCreated);
       } else {
         // Detailed mode: Use provided data
         const validData = rawData.filter(row => {
@@ -266,9 +340,11 @@ export function ClosedWonUpload() {
         total: rawData.length,
         inserted: transformedData.length,
         rejected: rejectedCount,
+        accountsCreated,
+        accountsMatched,
         errors: rejectedCount > 0 
           ? mode === 'easy'
-            ? [`${rejectedCount} domains could not be matched to existing accounts`]
+            ? [`${rejectedCount} domains were invalid or missing`]
             : [`${rejectedCount} rows missing required fields`]
           : []
       });
@@ -638,13 +714,44 @@ export function ClosedWonUpload() {
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-[hsl(var(--signal-high))]">{uploadResult.inserted}</div>
-                <div className="text-sm text-muted-foreground">Inserted</div>
+                <div className="text-sm text-muted-foreground">Processed</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold text-[hsl(var(--signal-low))]">{uploadResult.rejected}</div>
                 <div className="text-sm text-muted-foreground">Rejected</div>
               </div>
             </div>
+
+            {/* Enhanced Domain Matching Summary */}
+            {uploadMode === 'easy' && (uploadResult.accountsMatched || uploadResult.accountsCreated) && (
+              <Alert>
+                <CheckCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <p className="font-semibold">Domain Matching Results:</p>
+                    <div className="grid grid-cols-2 gap-4 mt-2">
+                      {uploadResult.accountsMatched ? (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-[hsl(var(--signal-high))]" />
+                          <span className="text-sm">{uploadResult.accountsMatched} matched to existing accounts</span>
+                        </div>
+                      ) : null}
+                      {uploadResult.accountsCreated ? (
+                        <div className="flex items-center gap-2">
+                          <Zap className="h-4 w-4 text-primary" />
+                          <span className="text-sm">{uploadResult.accountsCreated} new accounts created</span>
+                        </div>
+                      ) : null}
+                    </div>
+                    {uploadResult.accountsCreated > 0 && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        New accounts were automatically created for unmatched domains. You can enrich them with additional data from Settings → Integrations.
+                      </p>
+                    )}
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
 
             {uploadResult.errors.length > 0 && (
               <Alert variant="destructive">
