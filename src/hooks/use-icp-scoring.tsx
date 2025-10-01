@@ -59,6 +59,7 @@ export function useICPScoring() {
         .eq('org_id', userProfile.org_id);
 
       if (icpError) throw icpError;
+      console.log('Loaded ICP profiles:', icpData?.length || 0);
       setIcpProfiles(icpData || []);
 
       // Load accounts
@@ -68,7 +69,34 @@ export function useICPScoring() {
         .eq('org_id', userProfile.org_id);
 
       if (accountError) throw accountError;
+      console.log('Loaded accounts:', accountData?.length || 0);
       setAccounts(accountData || []);
+
+      // Load existing scores from database
+      const { data: scoresData, error: scoresError } = await supabase
+        .from('scores')
+        .select('id, account_external_id, overall, fit, reasons')
+        .eq('org_id', userProfile.org_id);
+
+      if (scoresError) throw scoresError;
+      
+      console.log('Loaded existing scores:', scoresData?.length || 0);
+      
+      // Transform database scores to ICPScore format
+      const transformedScores: ICPScore[] = (scoresData || []).map(score => ({
+        account_id: score.account_external_id,
+        icp_id: '', // Will be populated when we have ICP context
+        overall_score: score.overall || 0,
+        fit_score: score.fit || 0,
+        reasons: score.reasons as any || {
+          industry_match: false,
+          size_match: false,
+          revenue_match: false,
+          geography_match: false
+        }
+      }));
+      
+      setScores(transformedScores);
 
     } catch (error) {
       console.error('Error loading ICP data:', error);
