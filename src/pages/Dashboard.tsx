@@ -95,12 +95,14 @@ export default function Dashboard() {
       const { data: accounts } = await supabase
         .from('accounts')
         .select('id, external_id, name, industry_norm, employee_count, revenue_range, country')
-        .eq('org_id', userProfile.org_id);
+        .eq('org_id', userProfile.org_id)
+        .limit(50000);
 
       const { data: scores } = await supabase
         .from('scores')
         .select('overall, account_external_id, fit, intent, reachability')
-        .eq('org_id', userProfile.org_id);
+        .eq('org_id', userProfile.org_id)
+        .limit(50000);
 
       const { data: icpProfiles } = await supabase
         .from('icp_profiles')
