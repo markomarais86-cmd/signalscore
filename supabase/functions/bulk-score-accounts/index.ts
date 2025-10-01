@@ -71,7 +71,7 @@ serve(async (req) => {
 
     console.log(`Found ${icpProfiles.length} ICP profiles`);
 
-    // Score all accounts against all ICPs
+    // Score all accounts against all ICPs directly using calculate_account_score
     let successCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
@@ -79,20 +79,40 @@ serve(async (req) => {
     for (const account of accounts) {
       for (const icp of icpProfiles) {
         try {
-          // Call the scoring function for this account
-          const { data: scoreResult, error: scoreError } = await supabase.functions.invoke('score-account', {
-            body: {
-              org_id,
-              account_external_id: account.external_id,
-              icp_id: icp.id,
-              version_hint: 'icp_v2.0'
-            }
+          // Calculate score using RPC
+          const { data: scoreData, error: scoreError } = await supabase.rpc('calculate_account_score', {
+            account_external_id: account.external_id,
+            icp_id: icp.id,
+            org_id_param: org_id
           });
 
           if (scoreError) {
             console.error(`Error scoring ${account.name || account.external_id}:`, scoreError);
             errorCount++;
             errors.push(`${account.name || account.external_id}: ${scoreError.message}`);
+            continue;
+          }
+
+          // Store the score
+          const { error: upsertError } = await supabase
+            .from('scores')
+            .upsert({
+              org_id,
+              account_external_id: account.external_id,
+              overall: scoreData.overall,
+              fit: scoreData.fit,
+              intent: scoreData.intent,
+              reachability: scoreData.reachability,
+              reasons: scoreData.breakdown,
+              scoring_version: 'icp_v2.0'
+            }, {
+              onConflict: 'org_id,account_external_id'
+            });
+
+          if (upsertError) {
+            console.error(`Error storing score for ${account.name || account.external_id}:`, upsertError);
+            errorCount++;
+            errors.push(`${account.name || account.external_id}: ${upsertError.message}`);
           } else {
             successCount++;
             if (successCount % 100 === 0) {

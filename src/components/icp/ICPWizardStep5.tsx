@@ -1,432 +1,117 @@
-import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { CheckCircle, Sparkles, AlertCircle } from 'lucide-react';
+import { ICPFormData } from '@/types/icp';
+import { useICPInsights } from '@/hooks/use-icp-insights';
+import { useEffect } from 'react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import { 
-  CheckCircle, 
-  AlertCircle, 
-  TrendingUp, 
-  Users, 
-  Target,
-  BarChart3,
-  Lightbulb,
-  Eye,
-  Download,
-  Crown,
-  Trophy,
-  Medal
-} from 'lucide-react';
-import { ICPFormData } from '@/types/icp';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
 
 interface ICPWizardStep5Props {
   formData: ICPFormData;
   onValidate?: () => void;
 }
 
-interface ValidationResult {
-  totalMatches: number;
-  dataQualityScore: number;
-  tamEstimate: number;
-  completeness: {
-    basic: number;
-    persona: number;
-    advanced: number;
-    overall: number;
-  };
-  recommendations: string[];
-  icp10List: ICP10Entry[];
-}
-
-interface ICP10Entry {
-  rank: number;
-  accountName: string;
-  industry: string;
-  geography: string;
-  companySize: string;
-  signalScore: number;
-  tamContribution: number;
-  conversionRate: number;
-  dealSize: number;
-}
-
 export function ICPWizardStep5({ formData, onValidate }: ICPWizardStep5Props) {
-  const [validation, setValidation] = useState<ValidationResult | null>(null);
-  const [isValidating, setIsValidating] = useState(false);
-  const { userProfile } = useAuth();
+  const { insights, statistics, loading, generateInsights } = useICPInsights();
 
   useEffect(() => {
-    calculateValidation();
-  }, [formData]);
-
-  const calculateValidation = async () => {
-    setIsValidating(true);
-    
-    try {
-      // Calculate completeness scores
-      const basicScore = calculateBasicCompleteness();
-      const personaScore = calculatePersonaCompleteness();
-      const advancedScore = calculateAdvancedCompleteness();
-      const overallScore = Math.round((basicScore + personaScore + advancedScore) / 3);
-
-      // Simulate account matching and generate ICP-10
-      const accountMatches = await simulateAccountMatching();
-      const icp10List = await generateICP10List();
-      
-      // Generate recommendations
-      const recommendations = generateRecommendations();
-
-      setValidation({
-        totalMatches: accountMatches.total,
-        dataQualityScore: 85, // Simulated data quality score
-        tamEstimate: accountMatches.tamEstimate,
-        completeness: {
-          basic: basicScore,
-          persona: personaScore,
-          advanced: advancedScore,
-          overall: overallScore
-        },
-        recommendations,
-        icp10List
-      });
-    } catch (error) {
-      console.error('Error calculating validation:', error);
-    } finally {
-      setIsValidating(false);
-    }
-  };
-
-  const calculateBasicCompleteness = () => {
-    let score = 0;
-    let total = 5;
-
-    if (formData.name.trim()) score++;
-    if (formData.industries.length > 0) score++;
-    if (formData.company_sizes.length > 0) score++;
-    if (formData.revenue_ranges.length > 0) score++;
-    if (formData.geographies.length > 0) score++;
-
-    return Math.round((score / total) * 100);
-  };
-
-  const calculatePersonaCompleteness = () => {
-    let score = 0;
-    let total = 4;
-
-    if (formData.persona_job_titles.length > 0) score++;
-    if (formData.persona_departments.length > 0) score++;
-    if (formData.persona_seniority_levels.length > 0) score++;
-    if (formData.persona_decision_roles.length > 0) score++;
-
-    return Math.round((score / total) * 100);
-  };
-
-  const calculateAdvancedCompleteness = () => {
-    let score = 0;
-    let total = 6;
-
-    if (formData.company_stages.length > 0) score++;
-    if (formData.tech_stack.length > 0) score++;
-    if (formData.intent_signals.length > 0) score++;
-    if (formData.buying_triggers.length > 0) score++;
-    if (formData.seasonal_patterns.length > 0) score++;
-    if (formData.budget_indicators.length > 0) score++;
-
-    return Math.round((score / total) * 100);
-  };
-
-  const simulateAccountMatching = async () => {
-    // In a real implementation, this would query the accounts table
-    // For now, we'll simulate based on the criteria
-    const baseMatches = Math.floor(Math.random() * 5000) + 1000;
-    const tamEstimate = baseMatches * (Math.floor(Math.random() * 500000) + 100000);
-    
-    return {
-      total: baseMatches,
-      tamEstimate: tamEstimate
-    };
-  };
-
-  const generateICP10List = async (): Promise<ICP10Entry[]> => {
-    if (!userProfile?.org_id) return [];
-
-    try {
-      // Get top accounts based on current ICP criteria
-      const { data: accounts, error } = await supabase
-        .from('accounts')
-        .select('*')
-        .eq('org_id', userProfile.org_id)
-        .limit(50);
-
-      if (error) throw error;
-
-      // Score and rank accounts
-      const scoredAccounts = accounts
-        .map(account => {
-          // Calculate fit score based on formData criteria
-          let score = 0;
-          let matches = 0;
-
-          // Industry match
-          if (formData.industries.length > 0 && account.industry_norm) {
-            if (formData.industries.includes(account.industry_norm)) {
-              score += 25;
-            }
-            matches++;
-          }
-
-          // Geography match
-          if (formData.geographies.length > 0 && account.country) {
-            if (formData.geographies.includes(account.country)) {
-              score += 25;
-            }
-            matches++;
-          }
-
-          // Company size match
-          if (formData.company_sizes.length > 0 && account.employee_count) {
-            const matchesSize = formData.company_sizes.some(size => 
-              account.employee_count >= size && account.employee_count < size * 2
-            );
-            if (matchesSize) score += 25;
-            matches++;
-          }
-
-          // Add some randomization for demo purposes
-          score += Math.random() * 25;
-
-          const tamContribution = Math.floor(Math.random() * 5000000) + 500000;
-          const conversionRate = Math.floor(Math.random() * 30) + 10;
-          const dealSize = Math.floor(Math.random() * 500000) + 50000;
-
-          return {
-            account,
-            signalScore: Math.min(100, Math.floor(score)),
-            tamContribution,
-            conversionRate,
-            dealSize
-          };
-        })
-        .sort((a, b) => b.signalScore - a.signalScore)
-        .slice(0, 10);
-
-      // Convert to ICP10Entry format
-      return scoredAccounts.map((item, index) => ({
-        rank: index + 1,
-        accountName: item.account.name || `Account ${index + 1}`,
-        industry: item.account.industry_norm || 'Unknown',
-        geography: item.account.country || 'Unknown',
-        companySize: item.account.employee_count ? 
-          `${item.account.employee_count}+ employees` : 'Unknown',
-        signalScore: item.signalScore,
-        tamContribution: item.tamContribution,
-        conversionRate: item.conversionRate,
-        dealSize: item.dealSize
-      }));
-    } catch (error) {
-      console.error('Error generating ICP-10:', error);
-      return [];
-    }
-  };
-
-  const generateRecommendations = (): string[] => {
-    const recommendations: string[] = [];
-
-    if (formData.industries.length === 0) {
-      recommendations.push("Add at least one industry to improve targeting precision");
-    }
-
-    if (formData.persona_job_titles.length === 0) {
-      recommendations.push("Define target job titles to enhance persona targeting");
-    }
-
-    if (formData.company_sizes.length === 0) {
-      recommendations.push("Specify company sizes to focus on the right market segment");
-    }
-
-    if (formData.intent_signals.length === 0) {
-      recommendations.push("Add intent signals to identify high-propensity prospects");
-    }
-
-    if (formData.buying_triggers.length === 0) {
-      recommendations.push("Include buying triggers to time your outreach effectively");
-    }
-
-    if (formData.tech_stack.length === 0) {
-      recommendations.push("Add technology stack criteria for better qualification");
-    }
-
-    if (recommendations.length === 0) {
-      recommendations.push("Your ICP profile looks comprehensive! Consider A/B testing different variations.");
-    }
-
-    return recommendations.slice(0, 5); // Limit to 5 recommendations
-  };
-
-  const formatCurrency = (value: number) => {
-    if (value >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
-    if (value >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
-    if (value >= 1e3) return `$${(value / 1e3).toFixed(1)}K`;
-    return `$${value}`;
-  };
-
-  const formatNumber = (value: number) => {
-    if (value >= 1e6) return `${(value / 1e6).toFixed(1)}M`;
-    if (value >= 1e3) return `${(value / 1e3).toFixed(1)}K`;
-    return value.toString();
-  };
+    // Generate insights when component mounts
+    generateInsights();
+  }, []);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-primary/10 rounded-lg">
-          <CheckCircle className="h-6 w-6 text-primary" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold">Validation & Preview</h2>
-          <p className="text-muted-foreground">
-            Review your ICP profile and validation results
-          </p>
-        </div>
-      </div>
-
-      {/* Validation Results */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-blue-500" />
-                <span className="text-sm font-medium">Total Matches</span>
-              </div>
-              {isValidating ? (
-                <div className="animate-pulse w-16 h-6 bg-muted rounded"></div>
-              ) : (
-                <span className="text-2xl font-bold">{validation ? formatNumber(validation.totalMatches) : '0'}</span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-green-500" />
-                <span className="text-sm font-medium">TAM Estimate</span>
-              </div>
-              {isValidating ? (
-                <div className="animate-pulse w-16 h-6 bg-muted rounded"></div>
-              ) : (
-                <span className="text-2xl font-bold">{validation ? formatCurrency(validation.tamEstimate) : '$0'}</span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-orange-500" />
-                <span className="text-sm font-medium">Data Quality</span>
-              </div>
-              {isValidating ? (
-                <div className="animate-pulse w-16 h-6 bg-muted rounded"></div>
-              ) : (
-                <span className="text-2xl font-bold">{validation?.dataQualityScore || 0}%</span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Completeness Analysis */}
+      {/* AI Insights Section */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5" />
-            Profile Completeness
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-6 w-6 text-primary" />
+              <CardTitle>AI-Powered ICP Insights</CardTitle>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => generateInsights()}
+              disabled={loading}
+            >
+              {loading ? 'Analyzing...' : 'Refresh Insights'}
+            </Button>
+          </div>
           <CardDescription>
-            How complete is your ICP definition across different categories
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Basic Targeting</span>
-              <span className="text-sm text-muted-foreground">{validation?.completeness.basic || 0}%</span>
-            </div>
-            <Progress value={validation?.completeness.basic || 0} className="h-2" />
-          </div>
-          
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Persona Targeting</span>
-              <span className="text-sm text-muted-foreground">{validation?.completeness.persona || 0}%</span>
-            </div>
-            <Progress value={validation?.completeness.persona || 0} className="h-2" />
-          </div>
-          
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Advanced Criteria</span>
-              <span className="text-sm text-muted-foreground">{validation?.completeness.advanced || 0}%</span>
-            </div>
-            <Progress value={validation?.completeness.advanced || 0} className="h-2" />
-          </div>
-
-          <Separator />
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-medium">Overall Completeness</span>
-              <span className="font-medium">{validation?.completeness.overall || 0}%</span>
-            </div>
-            <Progress value={validation?.completeness.overall || 0} className="h-3" />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Recommendations */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Lightbulb className="h-5 w-5" />
-            Recommendations
-          </CardTitle>
-          <CardDescription>
-            Suggestions to improve your ICP targeting effectiveness
+            Based on your {statistics?.total_accounts || 0} accounts and {statistics?.total_deals || 0} closed deals
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {validation?.recommendations.map((recommendation, index) => (
-              <div key={index} className="flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
-                <span className="text-sm">{recommendation}</span>
-              </div>
-            ))}
-          </div>
+          {loading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-24 w-full" />
+            </div>
+          ) : insights.length > 0 ? (
+            <div className="space-y-3">
+              {insights.map((insight, index) => (
+                <Alert key={index}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant={insight.priority === 'high' ? 'default' : 'secondary'}>
+                          {insight.type}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {insight.confidence}% confidence
+                        </Badge>
+                        <span className="text-sm font-semibold">{insight.title}</span>
+                      </div>
+                      <AlertDescription className="text-sm">
+                        {insight.description}
+                      </AlertDescription>
+                      <p className="text-xs text-muted-foreground mt-1 italic">
+                        💡 Impact: {insight.impact}
+                      </p>
+                      {insight.relatedSegments && insight.relatedSegments.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {insight.relatedSegments.map((segment, i) => (
+                            <Badge key={i} variant="outline" className="text-xs">
+                              {segment}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Alert>
+              ))}
+            </div>
+          ) : (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                No insights available yet. Make sure your accounts are scored to generate AI-powered recommendations.
+              </AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
 
       {/* Profile Summary */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Eye className="h-5 w-5" />
-            Profile Summary
-          </CardTitle>
+          <div className="flex items-center gap-2">
+            <CheckCircle className="h-6 w-6 text-green-500" />
+            <CardTitle>Review Your ICP Profile</CardTitle>
+          </div>
           <CardDescription>
-            Overview of your ICP targeting criteria
+            Review the ideal customer profile before saving
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-3">
               <div>

@@ -9,6 +9,9 @@ verify_jwt = false
 [functions.bulk-score-accounts]
 verify_jwt = true
 
+[functions.generate-icp-insights]
+verify_jwt = true
+
 [functions.analyze-correlations]
 verify_jwt = false
 

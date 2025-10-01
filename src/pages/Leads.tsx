@@ -208,11 +208,7 @@ export default function Leads() {
   };
 
   const filterLeads = () => {
-    // Show accounts with score >= 70, or all accounts if no scores exist yet
-    const hasAnyScores = leads.some(lead => (lead.score?.overall || 0) > 0);
-    let filtered = hasAnyScores 
-      ? leads.filter(lead => (lead.score?.overall || 0) >= 70)
-      : leads; // Show all accounts if no scores calculated yet
+    let filtered = leads;
 
     if (searchTerm) {
       filtered = filtered.filter(lead =>
