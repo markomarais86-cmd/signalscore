@@ -183,8 +183,8 @@ export default function DataUpload() {
           if (dbField) reverseMapping[dbField] = csvCol;
         });
         
-        // Increased batch size from 100 to 2000
-        const batchSize = 2000;
+        // Reduced batch size to 1000 for better performance
+        const batchSize = 1000;
         
         // Pre-process unique companies for deduplication
         const uniqueCompanies = new Map<string, any>();
@@ -253,44 +253,55 @@ export default function DataUpload() {
               updated_at: new Date().toISOString()
             }));
 
-          const leadsData = batch.map((row, idx) => {
+          // Deduplicate leads by external_id within this batch
+          const leadsMap = new Map<string, any>();
+          batch.forEach((row, idx) => {
             const firstName = reverseMapping.first_name && row[reverseMapping.first_name];
             const lastName = reverseMapping.last_name && row[reverseMapping.last_name];
             const company = reverseMapping.company && row[reverseMapping.company];
             const leadName = firstName && lastName ? `${firstName} ${lastName}` : company || 'Unknown Lead';
-
-            return {
-              org_id: orgId,
-              external_id: (reverseMapping.external_id && row[reverseMapping.external_id]) || `lead_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`,
-              name: leadName,
-              status: (reverseMapping.status && row[reverseMapping.status]) || 'open',
-              company: company || null,
-              email: (reverseMapping.email && row[reverseMapping.email]) || null,
-              phone: (reverseMapping.phone && row[reverseMapping.phone]) || null,
-              mobile: (reverseMapping.mobile && row[reverseMapping.mobile]) || null,
-              website: (reverseMapping.website && row[reverseMapping.website]) || null,
-              industry: (reverseMapping.industry && row[reverseMapping.industry]) || null,
-              revenue_range: (reverseMapping.revenue_range && row[reverseMapping.revenue_range]) || null,
-              employee_count: (reverseMapping.employee_count && row[reverseMapping.employee_count]) ? parseInt(row[reverseMapping.employee_count]) : null,
-              country: (reverseMapping.country && row[reverseMapping.country]) || null,
-              state_province: (reverseMapping.state_province && row[reverseMapping.state_province]) || null,
-              title: (reverseMapping.title && row[reverseMapping.title]) || null,
-              first_name: firstName || null,
-              last_name: lastName || null,
-              account_external_id: accountsData[idx].external_id,
-              contact_external_id: contactsData[idx]?.external_id || null
-            };
+            
+            const externalId = (reverseMapping.external_id && row[reverseMapping.external_id]) || `lead_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`;
+            
+            // Only keep the first occurrence of each external_id
+            if (!leadsMap.has(externalId)) {
+              leadsMap.set(externalId, {
+                org_id: orgId,
+                external_id: externalId,
+                name: leadName,
+                status: (reverseMapping.status && row[reverseMapping.status]) || 'open',
+                company: company || null,
+                email: (reverseMapping.email && row[reverseMapping.email]) || null,
+                phone: (reverseMapping.phone && row[reverseMapping.phone]) || null,
+                mobile: (reverseMapping.mobile && row[reverseMapping.mobile]) || null,
+                website: (reverseMapping.website && row[reverseMapping.website]) || null,
+                industry: (reverseMapping.industry && row[reverseMapping.industry]) || null,
+                revenue_range: (reverseMapping.revenue_range && row[reverseMapping.revenue_range]) || null,
+                employee_count: (reverseMapping.employee_count && row[reverseMapping.employee_count]) ? parseInt(row[reverseMapping.employee_count]) : null,
+                country: (reverseMapping.country && row[reverseMapping.country]) || null,
+                state_province: (reverseMapping.state_province && row[reverseMapping.state_province]) || null,
+                title: (reverseMapping.title && row[reverseMapping.title]) || null,
+                first_name: firstName || null,
+                last_name: lastName || null,
+                account_external_id: accountsData[idx].external_id,
+                contact_external_id: contactsData[idx]?.external_id || null
+              });
+            }
           });
+          
+          const leadsData = Array.from(leadsMap.values());
 
           // PARALLEL EXECUTION - All three operations at once!
           console.log(`⚡ Parallel insert: ${accountsData.length} accounts, ${contactsData.length} contacts, ${leadsData.length} leads`);
           
           const [accountsResult, contactsResult, leadsResult] = await Promise.all([
-            supabase.from('accounts').upsert(accountsData, { onConflict: 'org_id,external_id' }).select('id, external_id'),
+            supabase.from('accounts').upsert(accountsData, { onConflict: 'org_id,external_id', ignoreDuplicates: false }).select('id, external_id'),
             contactsData.length > 0 
-              ? supabase.from('contacts').upsert(contactsData, { onConflict: 'org_id,external_id' }).select('id, external_id')
+              ? supabase.from('contacts').upsert(contactsData, { onConflict: 'org_id,external_id', ignoreDuplicates: false }).select('id, external_id')
               : Promise.resolve({ data: [], error: null }),
-            supabase.from('Leads').upsert(leadsData, { onConflict: 'org_id,external_id' }).select('id')
+            leadsData.length > 0
+              ? supabase.from('Leads').upsert(leadsData, { onConflict: 'org_id,external_id', ignoreDuplicates: false }).select('id')
+              : Promise.resolve({ data: [], error: null })
           ]);
 
           // Handle results
