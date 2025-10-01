@@ -18,6 +18,22 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 const EASY_MODE_HEADERS = ['domain'];
 const DETAILED_MODE_HEADERS = ['account_external_id', 'deal_value', 'close_date', 'sales_cycle_days'];
 
+// Common domain column name variations (case-insensitive)
+const DOMAIN_COLUMN_VARIATIONS = ['domain', 'website', 'url', 'company_domain', 'company_website', 'site'];
+
+// Helper function to find the domain column name in the CSV data
+function findDomainColumn(row: any): string | null {
+  if (!row) return null;
+  const keys = Object.keys(row);
+  for (const key of keys) {
+    const lowerKey = key.toLowerCase().trim();
+    if (DOMAIN_COLUMN_VARIATIONS.includes(lowerKey)) {
+      return key; // Return the actual key name (with original casing)
+    }
+  }
+  return null;
+}
+
 interface UploadResult {
   total: number;
   inserted: number;
@@ -153,8 +169,18 @@ export function ClosedWonUpload() {
         // Easy mode: Match domains to existing accounts using normalized domain matching
         // Firmographics (industry, revenue, employee count, sub-industries, etc.) 
         // will be automatically pulled from the accounts table during analysis
+        
+        // Find the domain column name
+        const domainColumnName = rawData.length > 0 ? findDomainColumn(rawData[0]) : null;
+        
+        if (!domainColumnName) {
+          throw new Error(`No domain column found. Expected one of: ${DOMAIN_COLUMN_VARIATIONS.join(', ')}. Found columns: ${rawData.length > 0 ? Object.keys(rawData[0]).join(', ') : 'none'}`);
+        }
+        
+        console.log('ClosedWonUpload: Using column name:', domainColumnName);
+        
         const normalizedDomains = rawData
-          .map(row => normalizeDomain(row.domain))
+          .map(row => normalizeDomain(row[domainColumnName]))
           .filter(Boolean);
         console.log('ClosedWonUpload: Processing normalized domains:', normalizedDomains);
         
@@ -178,17 +204,17 @@ export function ClosedWonUpload() {
         const today = new Date().toISOString().split('T')[0];
         transformedData = rawData
           .filter(row => {
-            const normalizedDomain = normalizeDomain(row.domain);
+            const normalizedDomain = normalizeDomain(row[domainColumnName]);
             const hasMatch = normalizedDomain && domainMap.has(normalizedDomain);
             if (!hasMatch && normalizedDomain) {
-              console.log('ClosedWonUpload: No match found for normalized domain:', normalizedDomain, 'from original:', row.domain);
+              console.log('ClosedWonUpload: No match found for normalized domain:', normalizedDomain, 'from original:', row[domainColumnName]);
               rejectedCount++;
             }
             return hasMatch;
           })
           .map(row => ({
             org_id: userProfile.org_id,
-            account_external_id: domainMap.get(normalizeDomain(row.domain)),
+            account_external_id: domainMap.get(normalizeDomain(row[domainColumnName])),
             deal_value: 0, // Placeholder - actual value not needed for firmographic analysis
             close_date: today,
             sales_cycle_days: null,
