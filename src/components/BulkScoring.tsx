@@ -77,26 +77,38 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         return;
       }
 
-      console.log(`Starting bulk scoring for ${accountsCount} accounts against ${icpProfiles.length} ICP profiles`);
+      const totalOperations = accountsCount * icpProfiles.length;
+      console.log(`Starting bulk scoring: ${accountsCount} accounts × ${icpProfiles.length} ICPs = ${totalOperations} scoring operations`);
 
-      // Set progress to 10% while starting
-      setProgress(10);
+      // Set initial progress
+      setProgress(5);
 
-      // Call the bulk scoring edge function
+      // Call the bulk scoring edge function with batch size
       const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
         body: {
-          org_id: userProfile.org_id
+          org_id: userProfile.org_id,
+          batch_size: 250 // Process in batches of 250 accounts
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
+
+      console.log('Bulk scoring response:', data);
 
       // Set progress to 100% on completion
       setProgress(100);
 
-      // Calculate stats from response
-      const avgScore = data.scores_calculated > 0 
-        ? Math.round((data.scores_calculated / (accountsCount * icpProfiles.length)) * 100)
+      // Get actual scores to calculate real average
+      const { data: scoresData } = await supabase
+        .from('scores')
+        .select('overall')
+        .eq('org_id', userProfile.org_id);
+
+      const avgScore = scoresData && scoresData.length > 0
+        ? Math.round(scoresData.reduce((sum, s) => sum + (s.overall || 0), 0) / scoresData.length)
         : 0;
 
       setStats({
@@ -108,8 +120,12 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
 
       toast({
         title: "Scoring Complete!",
-        description: `Scored ${data.accounts_processed} accounts across ${data.icp_profiles} ICPs. Success: ${data.scores_calculated}, Errors: ${data.errors}`
+        description: `Successfully scored ${data.scores_calculated} out of ${totalOperations} operations. Success rate: ${data.success_rate}%`
       });
+
+      if (data.sample_errors && data.sample_errors.length > 0) {
+        console.warn('Sample errors from scoring:', data.sample_errors);
+      }
 
       if (onComplete) {
         onComplete();
@@ -119,7 +135,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
       console.error('Bulk scoring error:', error);
       toast({
         title: "Scoring Failed",
-        description: error.message || "An error occurred during bulk scoring",
+        description: error.message || "An error occurred during bulk scoring. Check console for details.",
         variant: "destructive"
       });
     } finally {

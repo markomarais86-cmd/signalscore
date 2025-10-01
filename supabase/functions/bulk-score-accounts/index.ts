@@ -18,7 +18,7 @@ serve(async (req) => {
   }
 
   try {
-    const { org_id, icp_id, limit }: BulkScoreRequest = await req.json();
+    const { org_id, icp_id, limit, batch_size = 250 }: BulkScoreRequest & { batch_size?: number } = await req.json();
 
     if (!org_id) {
       return new Response(
@@ -32,7 +32,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('Starting bulk scoring for org:', org_id);
+    console.log('=== BULK SCORING STARTED ===');
+    console.log('Org ID:', org_id);
+    console.log('Batch Size:', batch_size);
+    console.log('Timestamp:', new Date().toISOString());
 
     // Get all accounts for the organization
     const accountsQuery = supabase
@@ -47,10 +50,11 @@ serve(async (req) => {
     const { data: accounts, error: accountsError } = await accountsQuery;
 
     if (accountsError || !accounts) {
+      console.error('Failed to fetch accounts:', accountsError);
       throw new Error(`Failed to fetch accounts: ${accountsError?.message}`);
     }
 
-    console.log(`Found ${accounts.length} accounts to score`);
+    console.log(`✓ Found ${accounts.length} accounts to score`);
 
     // Get ICP profiles
     const icpQuery = supabase
@@ -66,68 +70,97 @@ serve(async (req) => {
     const { data: icpProfiles, error: icpError } = await icpQuery;
 
     if (icpError || !icpProfiles || icpProfiles.length === 0) {
+      console.error('No active ICP profiles found:', icpError);
       throw new Error('No active ICP profiles found');
     }
 
-    console.log(`Found ${icpProfiles.length} ICP profiles`);
+    console.log(`✓ Found ${icpProfiles.length} active ICP profile(s)`);
+    icpProfiles.forEach(icp => console.log(`  - ${icp.name} (${icp.id})`));
 
-    // Score all accounts against all ICPs directly using calculate_account_score
+    // Calculate total operations
+    const totalOperations = accounts.length * icpProfiles.length;
+    console.log(`Total scoring operations needed: ${totalOperations}`);
+
+    // Process in batches
     let successCount = 0;
     let errorCount = 0;
     const errors: string[] = [];
+    const batchCount = Math.ceil(accounts.length / batch_size);
 
-    for (const account of accounts) {
-      for (const icp of icpProfiles) {
-        try {
-          // Calculate score using RPC
-          const { data: scoreData, error: scoreError } = await supabase.rpc('calculate_account_score', {
-            account_external_id: account.external_id,
-            icp_id: icp.id,
-            org_id_param: org_id
-          });
+    console.log(`\n=== BATCH PROCESSING (${batchCount} batches) ===`);
 
-          if (scoreError) {
-            console.error(`Error scoring ${account.name || account.external_id}:`, scoreError);
-            errorCount++;
-            errors.push(`${account.name || account.external_id}: ${scoreError.message}`);
-            continue;
-          }
+    for (let batchIndex = 0; batchIndex < batchCount; batchIndex++) {
+      const batchStart = batchIndex * batch_size;
+      const batchEnd = Math.min(batchStart + batch_size, accounts.length);
+      const batchAccounts = accounts.slice(batchStart, batchEnd);
+      
+      console.log(`\n[Batch ${batchIndex + 1}/${batchCount}] Processing accounts ${batchStart + 1}-${batchEnd}`);
+      const batchStartTime = Date.now();
 
-          // Store the score
-          const { error: upsertError } = await supabase
-            .from('scores')
-            .upsert({
-              org_id,
+      for (const account of batchAccounts) {
+        for (const icp of icpProfiles) {
+          try {
+            // Calculate score using RPC
+            const { data: scoreData, error: scoreError } = await supabase.rpc('calculate_account_score', {
               account_external_id: account.external_id,
-              overall: scoreData.overall,
-              fit: scoreData.fit,
-              intent: scoreData.intent,
-              reachability: scoreData.reachability,
-              reasons: scoreData.breakdown,
-              scoring_version: 'icp_v2.0'
-            }, {
-              onConflict: 'org_id,account_external_id'
+              icp_id: icp.id,
+              org_id_param: org_id
             });
 
-          if (upsertError) {
-            console.error(`Error storing score for ${account.name || account.external_id}:`, upsertError);
-            errorCount++;
-            errors.push(`${account.name || account.external_id}: ${upsertError.message}`);
-          } else {
-            successCount++;
-            if (successCount % 100 === 0) {
-              console.log(`Progress: ${successCount}/${accounts.length * icpProfiles.length} scores calculated`);
+            if (scoreError) {
+              console.error(`✗ Error scoring ${account.name || account.external_id} against ${icp.name}:`, scoreError.message);
+              errorCount++;
+              errors.push(`${account.name || account.external_id}: ${scoreError.message}`);
+              continue;
             }
+
+            // Store the score
+            const { error: upsertError } = await supabase
+              .from('scores')
+              .upsert({
+                org_id,
+                account_external_id: account.external_id,
+                overall: scoreData.overall,
+                fit: scoreData.fit,
+                intent: scoreData.intent,
+                reachability: scoreData.reachability,
+                reasons: scoreData.breakdown,
+                scoring_version: 'icp_v2.0'
+              }, {
+                onConflict: 'org_id,account_external_id'
+              });
+
+            if (upsertError) {
+              console.error(`✗ Error storing score for ${account.name || account.external_id}:`, upsertError.message);
+              errorCount++;
+              errors.push(`${account.name || account.external_id}: ${upsertError.message}`);
+            } else {
+              successCount++;
+            }
+          } catch (error) {
+            console.error(`✗ Exception scoring ${account.name || account.external_id}:`, error.message);
+            errorCount++;
+            errors.push(`${account.name || account.external_id}: ${error.message}`);
           }
-        } catch (error) {
-          console.error(`Exception scoring ${account.name || account.external_id}:`, error);
-          errorCount++;
-          errors.push(`${account.name || account.external_id}: ${error.message}`);
         }
       }
+
+      const batchDuration = Date.now() - batchStartTime;
+      const batchSuccessRate = ((successCount / (successCount + errorCount)) * 100).toFixed(1);
+      console.log(`[Batch ${batchIndex + 1}] Complete in ${batchDuration}ms | Success: ${successCount} | Errors: ${errorCount} | Rate: ${batchSuccessRate}%`);
     }
 
-    console.log(`Bulk scoring complete: ${successCount} successful, ${errorCount} errors`);
+    const overallSuccessRate = totalOperations > 0 ? ((successCount / totalOperations) * 100).toFixed(1) : 0;
+    
+    console.log('\n=== BULK SCORING COMPLETE ===');
+    console.log(`Total Success: ${successCount}/${totalOperations} (${overallSuccessRate}%)`);
+    console.log(`Total Errors: ${errorCount}`);
+    console.log(`Timestamp: ${new Date().toISOString()}`);
+
+    if (errors.length > 0) {
+      console.log('\nSample Errors (first 5):');
+      errors.slice(0, 5).forEach(err => console.log(`  - ${err}`));
+    }
 
     // Log audit entry
     await supabase
@@ -139,9 +172,12 @@ serve(async (req) => {
         meta: {
           accounts_processed: accounts.length,
           icp_profiles: icpProfiles.length,
-          total_scores: accounts.length * icpProfiles.length,
+          total_operations: totalOperations,
           success_count: successCount,
           error_count: errorCount,
+          success_rate: overallSuccessRate,
+          batch_size,
+          batch_count: batchCount,
           sample_errors: errors.slice(0, 10)
         }
       });
@@ -151,8 +187,11 @@ serve(async (req) => {
         success: true,
         accounts_processed: accounts.length,
         icp_profiles: icpProfiles.length,
+        total_operations: totalOperations,
         scores_calculated: successCount,
         errors: errorCount,
+        success_rate: parseFloat(overallSuccessRate),
+        batch_count: batchCount,
         sample_errors: errors.slice(0, 5)
       }),
       {
@@ -162,9 +201,16 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Bulk scoring error:', error);
+    console.error('=== BULK SCORING FATAL ERROR ===');
+    console.error('Error:', error.message);
+    console.error('Stack:', error.stack);
+    console.error('Timestamp:', new Date().toISOString());
+    
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: 'Check edge function logs for more information'
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
