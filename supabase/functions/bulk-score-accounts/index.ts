@@ -37,11 +37,12 @@ serve(async (req) => {
     console.log('Batch Size:', batch_size);
     console.log('Timestamp:', new Date().toISOString());
 
-    // Get all accounts for the organization (no limit)
+    // Get all accounts for the organization (explicitly set high limit to bypass default 1000 row limit)
     const { data: accounts, error: accountsError } = await supabase
       .from('accounts')
       .select('external_id, name')
-      .eq('org_id', org_id);
+      .eq('org_id', org_id)
+      .limit(100000); // Set explicit high limit to get all accounts
 
     if (accountsError || !accounts) {
       console.error('Failed to fetch accounts:', accountsError);
