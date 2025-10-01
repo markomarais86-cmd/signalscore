@@ -42,11 +42,12 @@ export function ICPTAMIntelligence() {
     try {
   // Remove demo mode entirely - only show real data
 
-      // Get accounts data
+      // Get accounts data - load all accounts without limit
       const { data: accountsData, error: accountsError } = await supabase
         .from('accounts')
         .select('*')
-        .eq('org_id', userProfile.org_id);
+        .eq('org_id', userProfile.org_id)
+        .limit(50000);
 
       if (accountsError) throw accountsError;
 

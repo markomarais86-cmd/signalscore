@@ -62,11 +62,20 @@ export function useICPScoring() {
       console.log('Loaded ICP profiles:', icpData?.length || 0);
       setIcpProfiles(icpData || []);
 
-      // Load accounts
+      // Load accounts - get count first to handle large datasets
+      const { count } = await supabase
+        .from('accounts')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id);
+
+      console.log('Total accounts in database:', count || 0);
+
+      // Load all accounts by setting a high limit
       const { data: accountData, error: accountError } = await supabase
         .from('accounts')
         .select('*')
-        .eq('org_id', userProfile.org_id);
+        .eq('org_id', userProfile.org_id)
+        .limit(50000);
 
       if (accountError) throw accountError;
       console.log('Loaded accounts:', accountData?.length || 0);
