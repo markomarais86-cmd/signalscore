@@ -14,6 +14,7 @@ import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { ExportToPdf } from "@/components/executive/ExportToPdf";
 import { useICPInsights } from "@/hooks/use-icp-insights";
 import { Lightbulb, AlertTriangle as WarningIcon } from "lucide-react";
+import { BulkScoring } from "@/components/BulkScoring";
 
 export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
@@ -653,27 +654,9 @@ export default function ExecutiveDashboard() {
         </Card>
       )}
 
-      {/* Data Quality Alert */}
-      {metrics.tamCoverage === 0 && metrics.totalAccounts > 0 && (
-        <Card className="border-warning bg-warning/5">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-warning" />
-              Action Required: Score Your Accounts
-            </CardTitle>
-            <CardDescription>
-              You have {metrics.totalAccounts.toLocaleString()} accounts but none have been scored yet
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              To see ICP match quality and AI recommendations, visit the Accounts page and run the Bulk Scoring Engine.
-            </p>
-            <Button onClick={() => navigate('/accounts')}>
-              Go to Accounts Page
-            </Button>
-          </CardContent>
-        </Card>
+      {/* Bulk Scoring - Show if many accounts are unscored */}
+      {metrics.whitespaceOpportunity > 0 && (
+        <BulkScoring onComplete={loadTAMData} />
       )}
 
       {/* Quick Actions - Dynamic Recommendations */}
