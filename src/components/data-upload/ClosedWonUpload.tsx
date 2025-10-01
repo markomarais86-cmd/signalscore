@@ -139,6 +139,9 @@ export function ClosedWonUpload() {
   const handleFileSelect = async (file: File, mode: 'easy' | 'detailed') => {
     console.log('ClosedWonUpload: handleFileSelect called with file:', file.name, 'mode:', mode);
     
+    // Reset previous upload result
+    setUploadResult(null);
+    
     if (!userProfile?.org_id) {
       console.log('ClosedWonUpload: No org_id found');
       toast({
@@ -148,6 +151,12 @@ export function ClosedWonUpload() {
       });
       return;
     }
+    
+    // Show starting toast
+    toast({
+      title: "Upload started",
+      description: `Processing ${file.name}...`
+    });
 
     console.log('ClosedWonUpload: Starting upload for org:', userProfile.org_id);
     setUploading(true);
@@ -539,7 +548,13 @@ export function ClosedWonUpload() {
                 />
                 <Button 
                   onClick={() => fileRefEasy.current?.click()}
-              disabled={uploading || !userProfile || dbConnectionStatus !== 'connected' || accountCount === 0}
+                  disabled={uploading || !userProfile || dbConnectionStatus !== 'connected' || accountCount === 0}
+                  title={
+                    !userProfile ? "Loading user profile..." :
+                    dbConnectionStatus !== 'connected' ? "Database not connected" :
+                    accountCount === 0 ? "Please upload accounts first" :
+                    uploading ? "Processing..." : "Click to upload"
+                  }
                 >
                   <Trophy className="h-4 w-4 mr-2" />
                   {uploading ? 'Processing...' : 'Upload Domains'}
@@ -582,6 +597,12 @@ export function ClosedWonUpload() {
                 <Button 
                   onClick={() => fileRefDetailed.current?.click()}
                   disabled={uploading || !userProfile || dbConnectionStatus !== 'connected' || accountCount === 0}
+                  title={
+                    !userProfile ? "Loading user profile..." :
+                    dbConnectionStatus !== 'connected' ? "Database not connected" :
+                    accountCount === 0 ? "Please upload accounts first" :
+                    uploading ? "Processing..." : "Click to upload"
+                  }
                 >
                   <Trophy className="h-4 w-4 mr-2" />
                   {uploading ? 'Processing...' : 'Upload Deal Data'}
