@@ -212,6 +212,7 @@ export function ClosedWonUpload() {
         // Create a map of normalized domain to account_external_id
         const domainMap = createNormalizedDomainMap(accounts || []);
         console.log('ClosedWonUpload: Created normalized domain map with', domainMap.size, 'entries');
+        console.log('ClosedWonUpload: Domain map entries (first 5):', Array.from(domainMap.entries()).slice(0, 5));
 
         // Helper function to derive company name from domain
         const deriveCompanyName = (domain: string): string => {
@@ -229,6 +230,8 @@ export function ClosedWonUpload() {
           const originalDomain = row[domainColumnName];
           const normalizedDomain = normalizeDomain(originalDomain);
           
+          console.log('ClosedWonUpload: Processing row - Original:', originalDomain, 'Normalized:', normalizedDomain, 'In map?', normalizedDomain ? domainMap.has(normalizedDomain) : false);
+          
           if (normalizedDomain && domainMap.has(normalizedDomain)) {
             matchedRows.push({ row, normalizedDomain, accountExternalId: domainMap.get(normalizedDomain) });
           } else if (normalizedDomain) {
@@ -239,6 +242,8 @@ export function ClosedWonUpload() {
         }
 
         console.log('ClosedWonUpload: Matched:', matchedRows.length, 'Unmatched:', unmatchedRows.length, 'Rejected:', rejectedCount);
+        console.log('ClosedWonUpload: Sample matched rows:', matchedRows.slice(0, 2));
+        console.log('ClosedWonUpload: Sample unmatched rows:', unmatchedRows.slice(0, 2));
 
         setUploadProgress(50);
 
@@ -264,41 +269,54 @@ export function ClosedWonUpload() {
           } else if (createdAccounts) {
             accountsCreated = createdAccounts.length;
             console.log('ClosedWonUpload: Successfully created', accountsCreated, 'accounts');
+            console.log('ClosedWonUpload: Created accounts:', createdAccounts);
             
             // Add created accounts to the domain map
             for (const account of createdAccounts) {
               const normalized = normalizeDomain(account.domain);
               if (normalized) {
                 domainMap.set(normalized, account.external_id);
+                console.log('ClosedWonUpload: Added to domain map:', normalized, '->', account.external_id);
               }
             }
+            console.log('ClosedWonUpload: Domain map size after adding created accounts:', domainMap.size);
           }
         }
 
         setUploadProgress(70);
 
+        // Count accountsMatched before transformation
+        accountsMatched = matchedRows.length;
+        
         // Now transform all data (both matched and newly created)
         const today = new Date().toISOString().split('T')[0];
-        transformedData = [...matchedRows, ...unmatchedRows]
-          .filter(item => {
+        const allRows = [...matchedRows, ...unmatchedRows];
+        
+        console.log('ClosedWonUpload: About to transform', allRows.length, 'total rows');
+        console.log('ClosedWonUpload: Domain map final size:', domainMap.size);
+        
+        transformedData = allRows
+          .map((item, index) => {
             const hasMatch = item.normalizedDomain && domainMap.has(item.normalizedDomain);
-            return hasMatch;
-          })
-          .map(item => {
-            const isMatched = matchedRows.some(m => m.normalizedDomain === item.normalizedDomain);
-            if (isMatched) accountsMatched++;
+            console.log(`ClosedWonUpload: Transform row ${index} - Domain:`, item.normalizedDomain, 'Has match?', hasMatch);
+            
+            if (!hasMatch) {
+              console.warn('ClosedWonUpload: No match found for domain:', item.normalizedDomain);
+              return null;
+            }
             
             return {
               org_id: userProfile.org_id,
               account_external_id: domainMap.get(item.normalizedDomain),
               deal_value: 0,
               close_date: today,
-              sales_cycle_days: null,
-              created_at: new Date().toISOString()
+              sales_cycle_days: null
             };
-          });
+          })
+          .filter(Boolean); // Remove nulls
 
         console.log('ClosedWonUpload: Final transformed data:', transformedData.length, 'records. Matched:', accountsMatched, 'Created:', accountsCreated);
+        console.log('ClosedWonUpload: Sample transformed data:', transformedData.slice(0, 2));
       } else {
         // Detailed mode: Use provided data
         const validData = rawData.filter(row => {
