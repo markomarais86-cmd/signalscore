@@ -15,6 +15,9 @@ verify_jwt = true
 [functions.zapier-sync]
 verify_jwt = true
 
+[functions.analyze-firmographics]
+verify_jwt = true
+
 [functions.generate-api-key]
 verify_jwt = true
 
