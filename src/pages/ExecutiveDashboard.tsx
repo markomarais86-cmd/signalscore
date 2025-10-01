@@ -12,11 +12,14 @@ import { toast } from "sonner";
 import { HeroMetric } from "@/components/executive/HeroMetric";
 import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { ExportToPdf } from "@/components/executive/ExportToPdf";
+import { useICPInsights } from "@/hooks/use-icp-insights";
+import { Lightbulb, AlertTriangle as WarningIcon } from "lucide-react";
 
 export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
   const { completeStep } = useOnboarding();
   const navigate = useNavigate();
+  const { insights, statistics, loading: insightsLoading, generateInsights } = useICPInsights();
   const [metrics, setMetrics] = useState({
     tamCoverage: 0,
     icpMatchQuality: 0,
@@ -111,18 +114,16 @@ export default function ExecutiveDashboard() {
       ).length || 0;
       const dataCompleteness = totalAccounts > 0 ? (completeFields / totalAccounts) * 100 : 0;
 
-      // Calculate ICP match quality
-      const icpMatchQuality = totalAccounts > 0 ? (highFitAccounts / totalAccounts) * 100 : 0;
+      // Calculate ICP match quality - only for scored accounts
+      const icpMatchQuality = totalScores > 0 ? (highFitAccounts / totalScores) * 100 : 0;
 
-      // Estimated TAM (use realistic market sizing based on actual account data)
-      const avgICPTAM = icps?.reduce((sum, icp) => sum + (icp.tam_estimate || 0), 0) / (icpCount || 1);
-      // Calculate realistic TAM: If ICP estimate is unrealistic, extrapolate from actual account coverage
-      // Assume we've penetrated about 5-10% of the market, so multiply by 15 for realistic TAM
-      const estimatedTotalMarket = avgICPTAM > totalAccounts * 5 ? avgICPTAM : totalAccounts * 15;
-      const tamCoverage = estimatedTotalMarket > 0 ? (totalAccounts / estimatedTotalMarket) * 100 : 0;
+      // NO TAM estimates without external data - show actual coverage only
+      const estimatedTotalMarket = totalAccounts; // Real accounts, not estimates
+      const tamCoverage = 100; // We have 100% of what we have
 
-      console.log('ExecutiveDashboard - Estimated total market:', estimatedTotalMarket);
-      console.log('ExecutiveDashboard - TAM coverage:', tamCoverage.toFixed(2) + '%');
+      console.log('ExecutiveDashboard - Actual accounts in CRM:', totalAccounts);
+      console.log('ExecutiveDashboard - Scored accounts:', totalScores);
+      console.log('ExecutiveDashboard - ICP match quality:', icpMatchQuality.toFixed(2) + '%');
 
       // Calculate trends (simulated - in production, compare with historical data)
       const previousTamCoverage = tamCoverage * 0.87; // 13% improvement
@@ -131,19 +132,24 @@ export default function ExecutiveDashboard() {
       const previousDataQuality = dataCompleteness * 0.95; // 5% improvement
 
       setMetrics({
-        tamCoverage: Math.min(tamCoverage, 100),
+        tamCoverage: totalScores,
         icpMatchQuality,
-        whitespaceOpportunity: Math.floor(estimatedTotalMarket - totalAccounts),
+        whitespaceOpportunity: totalAccounts - totalScores, // Unscored accounts
         dataCompleteness,
         totalAccounts,
         icpCount,
         highFitAccounts,
-        estimatedTAM: Math.floor(estimatedTotalMarket),
+        estimatedTAM: totalAccounts,
         tamCoverageTrend: Number((((tamCoverage - previousTamCoverage) / previousTamCoverage) * 100).toFixed(2)),
         icpMatchTrend: Number((((icpMatchQuality - previousIcpMatch) / (previousIcpMatch || 1)) * 100).toFixed(2)),
         whitespaceTrend: Number((((Math.floor(estimatedTotalMarket - totalAccounts) - previousWhitespace) / (previousWhitespace || 1)) * 100).toFixed(2)),
         dataCompletenessTrend: Number((((dataCompleteness - previousDataQuality) / (previousDataQuality || 1)) * 100).toFixed(2)),
       });
+
+      // Generate AI insights if we have scores
+      if (totalScores > 0) {
+        generateInsights();
+      }
 
       // Coverage trend (last 90 days)
       setCoverageTrend([
@@ -340,29 +346,25 @@ export default function ExecutiveDashboard() {
       {/* Hero Metrics */}
       <div className="grid md:grid-cols-4 gap-4">
         <HeroMetric
-          label="TAM Coverage"
-          value={`${metrics.tamCoverage.toFixed(2)}%`}
-          subtitle={`${metrics.totalAccounts} of ${metrics.estimatedTAM} accounts`}
+          label="CRM Coverage"
+          value={metrics.totalAccounts.toLocaleString()}
+          subtitle="accounts in CRM database"
           trend={{ value: metrics.tamCoverageTrend, period: 'last quarter' }}
           status="success"
-          chart={{
-            data: coverageTrend.map(d => ({ value: d.coverage })),
-            color: 'hsl(var(--primary))',
-          }}
         />
         <HeroMetric
           label="ICP Match Quality"
-          value={`${metrics.icpMatchQuality.toFixed(2)}%`}
-          subtitle={`${metrics.highFitAccounts} high-fit accounts`}
-          trend={{ value: metrics.icpMatchTrend, period: 'last month' }}
-          status="success"
+          value={metrics.tamCoverage > 0 ? `${metrics.icpMatchQuality.toFixed(1)}%` : "Not Scored"}
+          subtitle={metrics.tamCoverage > 0 ? `${metrics.highFitAccounts} of ${metrics.tamCoverage} scored accounts` : `Score ${metrics.totalAccounts} accounts to see match`}
+          trend={metrics.tamCoverage > 0 ? { value: metrics.icpMatchTrend, period: 'last month' } : undefined}
+          status={metrics.tamCoverage === 0 ? 'warning' : metrics.icpMatchQuality >= 60 ? 'success' : 'warning'}
         />
         <HeroMetric
-          label="Whitespace Opportunity"
+          label="Accounts Needing Scoring"
           value={metrics.whitespaceOpportunity.toLocaleString()}
-          subtitle="high-fit accounts missing"
+          subtitle="unscored accounts in CRM"
           trend={{ value: metrics.whitespaceTrend, period: 'vs last quarter' }}
-          status="warning"
+          status={metrics.whitespaceOpportunity === 0 ? 'success' : 'warning'}
         />
         <HeroMetric
           label="Data Completeness"
@@ -615,6 +617,64 @@ export default function ExecutiveDashboard() {
           </Card>
         )}
       </div>
+
+      {/* AI-Powered Insights */}
+      {insights.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Lightbulb className="h-5 w-5 text-primary" />
+              AI Recommendations
+            </CardTitle>
+            <CardDescription>
+              Data-driven insights based on your CRM data
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {insights.slice(0, 3).map((insight, index) => (
+              <div key={index} className="flex items-start gap-3 p-4 rounded-lg border">
+                {insight.priority === 'high' && <TrendingUp className="h-5 w-5 text-success mt-0.5" />}
+                {insight.priority === 'medium' && <Lightbulb className="h-5 w-5 text-primary mt-0.5" />}
+                {insight.priority === 'low' && <WarningIcon className="h-5 w-5 text-warning mt-0.5" />}
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="font-semibold">{insight.title}</h4>
+                    <Badge variant={insight.priority === 'high' ? 'default' : 'secondary'}>
+                      {insight.priority}
+                    </Badge>
+                    <Badge variant="outline">{insight.confidence}% confidence</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{insight.description}</p>
+                  <p className="text-sm font-medium text-primary">{insight.impact}</p>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Data Quality Alert */}
+      {metrics.tamCoverage === 0 && metrics.totalAccounts > 0 && (
+        <Card className="border-warning bg-warning/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-warning" />
+              Action Required: Score Your Accounts
+            </CardTitle>
+            <CardDescription>
+              You have {metrics.totalAccounts.toLocaleString()} accounts but none have been scored yet
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              To see ICP match quality and AI recommendations, visit the Accounts page and run the Bulk Scoring Engine.
+            </p>
+            <Button onClick={() => navigate('/accounts')}>
+              Go to Accounts Page
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Actions - Dynamic Recommendations */}
       <Card className="border-primary/20 bg-primary/5">

@@ -91,15 +91,35 @@ export default function Accounts() {
     
     setLoading(true);
     try {
-      // Real data mode only - no demo mode
-
-      // Real data mode
-      // Fetch accounts
-      const { data: accountsData, error: accountsError } = await supabase
+      // Get total count first
+      const { count: totalCount } = await supabase
         .from('accounts')
-        .select('*')
-        .eq('org_id', userProfile.org_id)
-        .order('name', { ascending: true });
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id);
+
+      console.log('Accounts page - Total accounts:', totalCount);
+
+      // Fetch accounts in batches if needed (Supabase limit: 1000 per request)
+      const PAGE_SIZE = 1000;
+      const totalPages = Math.ceil((totalCount || 0) / PAGE_SIZE);
+      
+      const accountPromises = [];
+      for (let page = 0; page < totalPages; page++) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        accountPromises.push(
+          supabase
+            .from('accounts')
+            .select('*')
+            .eq('org_id', userProfile.org_id)
+            .range(from, to)
+            .order('name', { ascending: true })
+        );
+      }
+
+      const accountResults = await Promise.all(accountPromises);
+      const accountsData = accountResults.flatMap(result => result.data || []);
+      const accountsError = accountResults.find(r => r.error)?.error;
 
       if (accountsError) throw accountsError;
 

@@ -42,12 +42,34 @@ export function ICPTAMIntelligence() {
     try {
   // Remove demo mode entirely - only show real data
 
-      // Get accounts data - load all accounts without limit
-      const { data: accountsData, error: accountsError } = await supabase
+      // Get total count first
+      const { count: totalCount } = await supabase
         .from('accounts')
-        .select('*')
-        .eq('org_id', userProfile.org_id)
-        .limit(50000);
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id);
+
+      console.log('ICPTAMIntelligence - Total accounts:', totalCount);
+
+      // Fetch accounts in batches (Supabase limit: 1000 per request)
+      const PAGE_SIZE = 1000;
+      const totalPages = Math.ceil((totalCount || 0) / PAGE_SIZE);
+      
+      const accountPromises = [];
+      for (let page = 0; page < totalPages; page++) {
+        const from = page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
+        accountPromises.push(
+          supabase
+            .from('accounts')
+            .select('*')
+            .eq('org_id', userProfile.org_id)
+            .range(from, to)
+        );
+      }
+
+      const accountResults = await Promise.all(accountPromises);
+      const accountsData = accountResults.flatMap(result => result.data || []);
+      const accountsError = accountResults.find(r => r.error)?.error;
 
       if (accountsError) throw accountsError;
 
