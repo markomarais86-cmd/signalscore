@@ -248,8 +248,7 @@ export function ClosedWonUpload() {
           external_id: `CW_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           domain: normalizedDomain,
           name: deriveCompanyName(normalizedDomain),
-          data_source: 'closed_won',
-          created_at: new Date().toISOString()
+          data_source: 'closed_won'
         }));
 
         if (newAccountsToCreate.length > 0) {
@@ -261,12 +260,7 @@ export function ClosedWonUpload() {
 
           if (createError) {
             console.error('Error creating accounts:', createError);
-            // Don't throw - just log and continue with matched accounts
-            toast({
-              title: "Partial Success",
-              description: `Created accounts but some failed. ${createError.message}`,
-              variant: "destructive"
-            });
+            throw new Error(`Failed to create new accounts: ${createError.message}`);
           } else if (createdAccounts) {
             accountsCreated = createdAccounts.length;
             console.log('ClosedWonUpload: Successfully created', accountsCreated, 'accounts');
