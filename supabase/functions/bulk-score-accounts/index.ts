@@ -18,7 +18,7 @@ serve(async (req) => {
   }
 
   try {
-    const { org_id, icp_id, limit, batch_size = 250 }: BulkScoreRequest & { batch_size?: number } = await req.json();
+    const { org_id, icp_id, batch_size = 500 }: BulkScoreRequest & { batch_size?: number } = await req.json();
 
     if (!org_id) {
       return new Response(
@@ -37,17 +37,11 @@ serve(async (req) => {
     console.log('Batch Size:', batch_size);
     console.log('Timestamp:', new Date().toISOString());
 
-    // Get all accounts for the organization
-    const accountsQuery = supabase
+    // Get all accounts for the organization (no limit)
+    const { data: accounts, error: accountsError } = await supabase
       .from('accounts')
       .select('external_id, name')
       .eq('org_id', org_id);
-    
-    if (limit) {
-      accountsQuery.limit(limit);
-    }
-
-    const { data: accounts, error: accountsError } = await accountsQuery;
 
     if (accountsError || !accounts) {
       console.error('Failed to fetch accounts:', accountsError);
@@ -97,8 +91,9 @@ serve(async (req) => {
       console.log(`\n[Batch ${batchIndex + 1}/${batchCount}] Processing accounts ${batchStart + 1}-${batchEnd}`);
       const batchStartTime = Date.now();
 
-      for (const account of batchAccounts) {
-        for (const icp of icpProfiles) {
+      // Process all accounts in this batch in parallel
+      const batchPromises = batchAccounts.flatMap(account =>
+        icpProfiles.map(async (icp) => {
           try {
             // Calculate score using RPC
             const { data: scoreData, error: scoreError } = await supabase.rpc('calculate_account_score', {
@@ -111,7 +106,7 @@ serve(async (req) => {
               console.error(`✗ Error scoring ${account.name || account.external_id} against ${icp.name}:`, scoreError.message);
               errorCount++;
               errors.push(`${account.name || account.external_id}: ${scoreError.message}`);
-              continue;
+              return;
             }
 
             // Store the score
@@ -142,8 +137,11 @@ serve(async (req) => {
             errorCount++;
             errors.push(`${account.name || account.external_id}: ${error.message}`);
           }
-        }
-      }
+        })
+      );
+
+      // Wait for all scoring operations in this batch to complete
+      await Promise.all(batchPromises);
 
       const batchDuration = Date.now() - batchStartTime;
       const batchSuccessRate = ((successCount / (successCount + errorCount)) * 100).toFixed(1);

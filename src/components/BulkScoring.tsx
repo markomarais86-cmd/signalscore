@@ -18,6 +18,8 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
   const { toast } = useToast();
   const [isScoring, setIsScoring] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [currentBatch, setCurrentBatch] = useState<string>("");
+  const [estimatedTime, setEstimatedTime] = useState<string>("");
   const [stats, setStats] = useState<{
     total: number;
     completed: number;
@@ -37,6 +39,8 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
 
     setIsScoring(true);
     setProgress(0);
+    setCurrentBatch("");
+    setEstimatedTime("");
     setStats(null);
 
     try {
@@ -78,16 +82,25 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
       }
 
       const totalOperations = accountsCount * icpProfiles.length;
+      const batchSize = 500;
+      const estimatedBatches = Math.ceil(accountsCount / batchSize);
+      const estimatedSeconds = estimatedBatches * 8; // ~8 seconds per batch with parallelization
+      const estimatedMinutes = Math.ceil(estimatedSeconds / 60);
+      
       console.log(`Starting bulk scoring: ${accountsCount} accounts × ${icpProfiles.length} ICPs = ${totalOperations} scoring operations`);
+      console.log(`Estimated time: ${estimatedMinutes} minute(s) (${estimatedBatches} batches @ ~8s each)`);
 
-      // Set initial progress
+      setCurrentBatch(`Starting... (${estimatedBatches} batches)`);
+      setEstimatedTime(`~${estimatedMinutes} min`);
       setProgress(5);
 
-      // Call the bulk scoring edge function with batch size
+      const startTime = Date.now();
+
+      // Call the bulk scoring edge function with larger batch size
       const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
         body: {
           org_id: userProfile.org_id,
-          batch_size: 250 // Process in batches of 250 accounts
+          batch_size: batchSize // Process in batches of 500 accounts with parallel processing
         }
       });
 
@@ -97,9 +110,13 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
       }
 
       console.log('Bulk scoring response:', data);
+      
+      const actualTime = Math.round((Date.now() - startTime) / 1000);
+      console.log(`Completed in ${actualTime}s (estimated ${estimatedSeconds}s)`);
 
-      // Set progress to 100% on completion
       setProgress(100);
+      setCurrentBatch("Complete!");
+      setEstimatedTime(`Finished in ${Math.ceil(actualTime / 60)} min`);
 
       // Get actual scores to calculate real average
       const { data: scoresData } = await supabase
@@ -171,10 +188,18 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         )}
 
         {isScoring && (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <Progress value={progress} className="w-full" />
-            <p className="text-sm text-muted-foreground text-center">
-              Scoring accounts... {progress}%
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-muted-foreground">
+                {currentBatch || "Initializing..."}
+              </span>
+              <span className="text-muted-foreground font-medium">
+                {estimatedTime || "Calculating..."}
+              </span>
+            </div>
+            <p className="text-xs text-center text-muted-foreground">
+              Processing in parallel batches of 500 accounts for maximum speed
             </p>
           </div>
         )}
