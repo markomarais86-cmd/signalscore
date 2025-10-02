@@ -246,8 +246,27 @@ serve(async (req) => {
     console.log(`Accounts in Chunk: ${accounts.length}`);
     console.log(`Successful Scores: ${chunkSuccessful}`);
     console.log(`Failed Scores: ${chunkErrors}`);
-    console.log(`Success Rate: ${((chunkSuccessful / (chunkSuccessful + chunkErrors)) * 100).toFixed(1)}%`);
+    console.log(`Success Rate: ${((chunkSuccessful / (chunkErrors > 0 ? chunkSuccessful + chunkErrors : chunkSuccessful)) * 100).toFixed(1)}%`);
     console.log(`Overall Progress: ${Math.min(processedSoFar, totalAccounts || 0)} / ${totalAccounts}`);
+    console.log(`Is Last Chunk: ${isLastChunk}`);
+
+    // If not the last chunk, trigger processing of the next chunk
+    if (!isLastChunk) {
+      console.log(`\n=== TRIGGERING NEXT CHUNK ${currentChunkIndex + 1} ===`);
+      
+      // Invoke self for next chunk asynchronously (fire and forget)
+      supabase.functions.invoke('bulk-score-accounts', {
+        body: {
+          org_id,
+          job_id: currentJobId,
+          icp_id,
+          chunk_index: currentChunkIndex + 1,
+          chunk_size,
+        }
+      }).catch(err => {
+        console.error('Failed to trigger next chunk:', err);
+      });
+    }
 
     return new Response(
       JSON.stringify({

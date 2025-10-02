@@ -36,7 +36,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
     failures: number;
   } | null>(null);
 
-  // Poll for active job status
+  // Poll for job status and update UI
   useEffect(() => {
     if (!userProfile?.org_id || !isScoring) return;
 
@@ -45,73 +45,48 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         .from("bulk_scoring_jobs")
         .select("*")
         .eq("org_id", userProfile.org_id)
-        .eq("status", "processing")
+        .in("status", ["pending", "processing"])
         .order("created_at", { ascending: false })
         .limit(1);
 
       if (jobs && jobs.length > 0) {
         const job = jobs[0] as ScoringJob;
         setCurrentJob(job);
-        const progressPercent = (job.processed_accounts / job.total_accounts) * 100;
+        const progressPercent = job.total_accounts > 0 
+          ? (job.processed_accounts / job.total_accounts) * 100 
+          : 0;
         setProgress(progressPercent);
+
+        // Check if job completed
+        if (job.status === "completed") {
+          setIsScoring(false);
+          setProgress(100);
+
+          // Fetch final statistics
+          const { data: scores } = await supabase
+            .from("scores")
+            .select("overall")
+            .eq("org_id", userProfile.org_id);
+
+          const avgScore = scores?.length 
+            ? Math.round(scores.reduce((sum, s) => sum + (s.overall || 0), 0) / scores.length)
+            : 0;
+
+          setStats({
+            total: job.total_accounts,
+            completed: job.successful_scores,
+            avgScore,
+            failures: job.failed_scores,
+          });
+
+          toast.success(`Successfully scored ${job.successful_scores.toLocaleString()} accounts!`);
+          onComplete?.();
+        }
       }
     }, 2000);
 
     return () => clearInterval(pollInterval);
-  }, [userProfile?.org_id, isScoring]);
-
-  const processNextChunk = async (jobId: string, chunkIndex: number) => {
-    if (!userProfile?.org_id) return;
-
-    try {
-      const { data, error } = await supabase.functions.invoke("bulk-score-accounts", {
-        body: {
-          org_id: userProfile.org_id,
-          job_id: jobId || undefined, // Pass undefined if empty string
-          chunk_index: chunkIndex,
-          chunk_size: 2000,
-        },
-      });
-
-      if (error) throw error;
-
-      // Capture the job_id from the first chunk response
-      const actualJobId = data.job_id || jobId;
-
-      // If not the last chunk, continue processing with the captured job_id
-      if (!data.is_last_chunk) {
-        setTimeout(() => processNextChunk(actualJobId, chunkIndex + 1), 1000);
-      } else {
-        // Job complete
-        setIsScoring(false);
-        setProgress(100);
-        
-        // Fetch final statistics
-        const { data: scores } = await supabase
-          .from("scores")
-          .select("overall")
-          .eq("org_id", userProfile.org_id);
-
-        const avgScore = scores?.length 
-          ? Math.round(scores.reduce((sum, s) => sum + (s.overall || 0), 0) / scores.length)
-          : 0;
-
-        setStats({
-          total: data.total_accounts,
-          completed: data.total_processed,
-          avgScore,
-          failures: data.failed_scores,
-        });
-
-        toast.success(`Successfully scored ${data.total_processed} accounts!`);
-        onComplete?.();
-      }
-    } catch (error) {
-      console.error("Chunk processing error:", error);
-      toast.error(`Failed to process chunk ${chunkIndex + 1}`);
-      setIsScoring(false);
-    }
-  };
+  }, [userProfile?.org_id, isScoring, onComplete]);
 
   const runBulkScoring = async () => {
     if (!userProfile?.org_id) {
@@ -130,19 +105,16 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         .from("bulk_scoring_jobs")
         .select("*")
         .eq("org_id", userProfile.org_id)
-        .eq("status", "processing")
+        .in("status", ["pending", "processing"])
         .order("created_at", { ascending: false })
         .limit(1);
 
       if (existingJobs && existingJobs.length > 0) {
-        const job = existingJobs[0] as ScoringJob;
-        setCurrentJob(job);
         toast.info("Resuming existing scoring job...");
-        processNextChunk(job.id, job.current_chunk);
-        return;
+        return; // Polling will handle the rest
       }
 
-      // Get total accounts and ICPs
+      // Validate prerequisites
       const { count: accountCount } = await supabase
         .from("accounts")
         .select("*", { count: "exact", head: true })
@@ -160,10 +132,22 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         return;
       }
 
-      toast.info(`Starting to score ${accountCount.toLocaleString()} accounts...`);
+      toast.info(`Starting bulk scoring for ${accountCount.toLocaleString()} accounts...`);
 
-      // Start first chunk
-      processNextChunk("", 0);
+      // Invoke edge function once - it will handle all chunking server-side
+      const { error } = await supabase.functions.invoke("bulk-score-accounts", {
+        body: {
+          org_id: userProfile.org_id,
+          chunk_index: 0,
+          chunk_size: 2000,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // Polling will now track progress automatically
     } catch (error) {
       console.error("Bulk scoring error:", error);
       toast.error("Failed to start bulk scoring");
