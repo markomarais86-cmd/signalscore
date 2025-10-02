@@ -29,6 +29,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
   const [isScoring, setIsScoring] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentJob, setCurrentJob] = useState<ScoringJob | null>(null);
+  const [lastTriggeredChunk, setLastTriggeredChunk] = useState<number>(-1);
   const [stats, setStats] = useState<{
     total: number;
     completed: number;
@@ -36,7 +37,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
     failures: number;
   } | null>(null);
 
-  // Poll for job status and trigger next chunks
+  // Poll for job status and trigger next chunks sequentially
   useEffect(() => {
     if (!userProfile?.org_id || !isScoring) return;
 
@@ -58,12 +59,13 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         setCurrentJob(job);
         setProgress(progressPercent);
 
-        // Trigger next chunk if current one is done but not the last
+        // Trigger next chunk only if we haven't triggered it yet
         const nextChunk = job.current_chunk;
         const isLastChunk = nextChunk >= job.total_chunks;
         
-        if (!isLastChunk && job.status === "processing") {
+        if (!isLastChunk && job.status === "processing" && nextChunk !== lastTriggeredChunk) {
           console.log(`Triggering chunk ${nextChunk + 1} of ${job.total_chunks}`);
+          setLastTriggeredChunk(nextChunk);
           
           await supabase.functions.invoke("bulk-score-accounts", {
             body: {
@@ -117,6 +119,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
       setProgress(0);
       setStats(null);
       setCurrentJob(null);
+      setLastTriggeredChunk(-1);
 
       // Check for existing active job
       const { data: existingJobs } = await supabase
