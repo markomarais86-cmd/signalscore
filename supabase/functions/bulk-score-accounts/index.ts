@@ -206,32 +206,23 @@ serve(async (req) => {
       console.log(`[Batch ${batchIndex + 1}] Complete in ${batchDuration}ms | Success: ${chunkSuccessful} | Errors: ${chunkErrors} | Rate: ${successRate}%\n`);
     }
 
-    // Update job progress - ACCUMULATE scores from all chunks
+    // Update job progress atomically to prevent race conditions
     const processedSoFar = (currentChunkIndex + 1) * chunk_size;
     const isLastChunk = processedSoFar >= (totalAccounts || 0);
     
-    // Get current totals from the job to accumulate
-    const { data: currentJob } = await supabase
-      .from('bulk_scoring_jobs')
-      .select('successful_scores, failed_scores')
-      .eq('id', currentJobId)
-      .single();
-    
-    const accumulatedSuccessful = (currentJob?.successful_scores || 0) + chunkSuccessful;
-    const accumulatedFailed = (currentJob?.failed_scores || 0) + chunkErrors;
-    
-    await supabase
-      .from('bulk_scoring_jobs')
-      .update({
-        processed_accounts: Math.min(processedSoFar, totalAccounts || 0),
-        successful_scores: accumulatedSuccessful,
-        failed_scores: accumulatedFailed,
-        current_chunk: currentChunkIndex + 1,
-        status: isLastChunk ? 'completed' : 'processing',
-        completed_at: isLastChunk ? new Date().toISOString() : null,
-        last_processed_at: new Date().toISOString(),
-      })
-      .eq('id', currentJobId);
+    // Use atomic increment function to avoid race conditions
+    const { error: updateError } = await supabase.rpc('increment_bulk_scoring_job_progress', {
+      job_id_param: currentJobId,
+      chunk_successful: chunkSuccessful,
+      chunk_failed: chunkErrors,
+      processed_count: Math.min(processedSoFar, totalAccounts || 0),
+      current_chunk_num: currentChunkIndex + 1,
+      is_last_chunk: isLastChunk
+    });
+
+    if (updateError) {
+      console.error('Failed to update job progress:', updateError);
+    }
 
     // Log audit entry for this chunk
     await supabase.from('audit_logs').insert({

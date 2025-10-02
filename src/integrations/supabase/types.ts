@@ -1160,6 +1160,17 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      increment_bulk_scoring_job_progress: {
+        Args: {
+          chunk_failed: number
+          chunk_successful: number
+          current_chunk_num: number
+          is_last_chunk: boolean
+          job_id_param: string
+          processed_count: number
+        }
+        Returns: undefined
+      }
       initialize_feature_flags: {
         Args: { target_org_id: string }
         Returns: undefined
