@@ -67,7 +67,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
       const { data, error } = await supabase.functions.invoke("bulk-score-accounts", {
         body: {
           org_id: userProfile.org_id,
-          job_id: jobId,
+          job_id: jobId || undefined, // Pass undefined if empty string
           chunk_index: chunkIndex,
           chunk_size: 2000,
         },
@@ -75,9 +75,12 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
 
       if (error) throw error;
 
-      // If not the last chunk, continue processing
+      // Capture the job_id from the first chunk response
+      const actualJobId = data.job_id || jobId;
+
+      // If not the last chunk, continue processing with the captured job_id
       if (!data.is_last_chunk) {
-        setTimeout(() => processNextChunk(jobId, chunkIndex + 1), 1000);
+        setTimeout(() => processNextChunk(actualJobId, chunkIndex + 1), 1000);
       } else {
         // Job complete
         setIsScoring(false);
