@@ -36,7 +36,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
     failures: number;
   } | null>(null);
 
-  // Poll for job status and update UI
+  // Poll for job status and trigger next chunks
   useEffect(() => {
     if (!userProfile?.org_id || !isScoring) return;
 
@@ -51,11 +51,29 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
 
       if (jobs && jobs.length > 0) {
         const job = jobs[0] as ScoringJob;
-        setCurrentJob(job);
         const progressPercent = job.total_accounts > 0 
           ? (job.processed_accounts / job.total_accounts) * 100 
           : 0;
+        
+        setCurrentJob(job);
         setProgress(progressPercent);
+
+        // Trigger next chunk if current one is done but not the last
+        const nextChunk = job.current_chunk;
+        const isLastChunk = nextChunk >= job.total_chunks;
+        
+        if (!isLastChunk && job.status === "processing") {
+          console.log(`Triggering chunk ${nextChunk + 1} of ${job.total_chunks}`);
+          
+          await supabase.functions.invoke("bulk-score-accounts", {
+            body: {
+              org_id: userProfile.org_id,
+              job_id: job.id,
+              chunk_index: nextChunk,
+              chunk_size: 2000,
+            },
+          });
+        }
 
         // Check if job completed
         if (job.status === "completed") {

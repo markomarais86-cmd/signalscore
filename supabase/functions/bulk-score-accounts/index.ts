@@ -250,24 +250,6 @@ serve(async (req) => {
     console.log(`Overall Progress: ${Math.min(processedSoFar, totalAccounts || 0)} / ${totalAccounts}`);
     console.log(`Is Last Chunk: ${isLastChunk}`);
 
-    // If not the last chunk, trigger processing of the next chunk
-    if (!isLastChunk) {
-      console.log(`\n=== TRIGGERING NEXT CHUNK ${currentChunkIndex + 1} ===`);
-      
-      // Invoke self for next chunk asynchronously (fire and forget)
-      supabase.functions.invoke('bulk-score-accounts', {
-        body: {
-          org_id,
-          job_id: currentJobId,
-          icp_id,
-          chunk_index: currentChunkIndex + 1,
-          chunk_size,
-        }
-      }).catch(err => {
-        console.error('Failed to trigger next chunk:', err);
-      });
-    }
-
     return new Response(
       JSON.stringify({
         success: true,
