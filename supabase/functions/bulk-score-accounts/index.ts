@@ -38,6 +38,41 @@ serve(async (req) => {
     console.log('Chunk Size:', chunk_size);
     console.log('Timestamp:', new Date().toISOString());
 
+    // SERVER-SIDE IDEMPOTENCY: Check if this chunk has already been processed
+    if (job_id && chunk_index !== undefined) {
+      const startIndex = chunk_index * chunk_size;
+      const endIndex = startIndex + chunk_size;
+      
+      // Check if we already have scores for accounts in this range
+      const { data: existingJob } = await supabase
+        .from('bulk_scoring_jobs')
+        .select('processed_accounts, current_chunk, status')
+        .eq('id', job_id)
+        .single();
+      
+      if (existingJob) {
+        const expectedProcessed = (chunk_index + 1) * chunk_size;
+        
+        // If this chunk was already processed, skip it
+        if (existingJob.processed_accounts >= expectedProcessed) {
+          console.log(`⚠️ SKIPPING: Chunk ${chunk_index} already processed (processed: ${existingJob.processed_accounts}, expected: ${expectedProcessed})`);
+          
+          return new Response(
+            JSON.stringify({
+              success: true,
+              skipped: true,
+              reason: 'Chunk already processed',
+              job_id: job_id,
+              chunk_index: chunk_index,
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        console.log(`✓ Idempotency check passed: Processing chunk ${chunk_index} (processed: ${existingJob.processed_accounts}, expected: ${expectedProcessed})`);
+      }
+    }
+
     // If no job_id provided, create a new job
     let currentJobId = job_id;
     let currentChunkIndex = chunk_index ?? 0;

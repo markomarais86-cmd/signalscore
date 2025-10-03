@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -29,7 +29,6 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
   const [isScoring, setIsScoring] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentJob, setCurrentJob] = useState<ScoringJob | null>(null);
-  const [lastTriggeredChunk, setLastTriggeredChunk] = useState<number>(-1);
   const [stats, setStats] = useState<{
     total: number;
     completed: number;
@@ -37,7 +36,11 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
     failures: number;
   } | null>(null);
 
-  // Poll for job status and trigger next chunks sequentially
+  // Use refs for synchronous locking (prevents race conditions)
+  const isInvokingChunk = useRef(false);
+  const lastTriggeredChunk = useRef(-1);
+
+  // Poll for job status and trigger next chunks with proper locking
   useEffect(() => {
     if (!userProfile?.org_id || !isScoring) return;
 
@@ -59,22 +62,47 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         setCurrentJob(job);
         setProgress(progressPercent);
 
-        // Trigger next chunk only if we haven't triggered it yet
+        // Only trigger next chunk if:
+        // 1. Not the last chunk
+        // 2. Job is still processing
+        // 3. Not already invoking a chunk (synchronous lock)
+        // 4. Current chunk is complete (processed_accounts is on a chunk boundary)
+        // 5. Haven't already triggered this chunk
         const nextChunk = job.current_chunk;
         const isLastChunk = nextChunk >= job.total_chunks;
+        const chunkSize = 2000;
+        const isChunkComplete = job.processed_accounts > 0 && job.processed_accounts % chunkSize === 0;
+        const expectedChunk = Math.floor(job.processed_accounts / chunkSize);
         
-        if (!isLastChunk && job.status === "processing" && nextChunk !== lastTriggeredChunk) {
-          console.log(`Triggering chunk ${nextChunk + 1} of ${job.total_chunks}`);
-          setLastTriggeredChunk(nextChunk);
+        if (
+          !isLastChunk && 
+          job.status === "processing" && 
+          !isInvokingChunk.current && 
+          isChunkComplete &&
+          nextChunk === expectedChunk &&
+          nextChunk !== lastTriggeredChunk.current
+        ) {
+          console.log(`[Trigger] Chunk ${nextChunk + 1} of ${job.total_chunks} (processed: ${job.processed_accounts})`);
           
-          await supabase.functions.invoke("bulk-score-accounts", {
-            body: {
-              org_id: userProfile.org_id,
-              job_id: job.id,
-              chunk_index: nextChunk,
-              chunk_size: 2000,
-            },
-          });
+          // Set locks immediately (synchronous)
+          isInvokingChunk.current = true;
+          lastTriggeredChunk.current = nextChunk;
+          
+          try {
+            await supabase.functions.invoke("bulk-score-accounts", {
+              body: {
+                org_id: userProfile.org_id,
+                job_id: job.id,
+                chunk_index: nextChunk,
+                chunk_size: chunkSize,
+              },
+            });
+          } catch (error) {
+            console.error(`[Error] Failed to trigger chunk ${nextChunk + 1}:`, error);
+          } finally {
+            // Release lock after invocation completes
+            isInvokingChunk.current = false;
+          }
         }
 
         // Check if job completed
@@ -103,7 +131,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           onComplete?.();
         }
       }
-    }, 2000);
+    }, 3000); // Increased to 3 seconds to reduce race condition window
 
     return () => clearInterval(pollInterval);
   }, [userProfile?.org_id, isScoring, onComplete]);
@@ -119,7 +147,10 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
       setProgress(0);
       setStats(null);
       setCurrentJob(null);
-      setLastTriggeredChunk(-1);
+      
+      // Reset refs
+      isInvokingChunk.current = false;
+      lastTriggeredChunk.current = -1;
 
       // Check for existing active job
       const { data: existingJobs } = await supabase
