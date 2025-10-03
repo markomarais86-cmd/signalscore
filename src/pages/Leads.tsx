@@ -20,13 +20,30 @@ interface Lead {
   id: string;
   external_id: string;
   name: string | null;
-  domain: string | null;
-  industry_raw: string | null;
-  industry_norm: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  mobile: string | null;
+  title: string | null;
+  company: string | null;
+  website: string | null;
+  industry: string | null;
   employee_count: number | null;
   revenue_range: string | null;
   country: string | null;
-  updated_at: string;
+  state_province: string | null;
+  status: string | null;
+  account_external_id: string | null;
+  contact_external_id: string | null;
+  account?: {
+    name: string | null;
+    domain: string | null;
+    industry_norm: string | null;
+    employee_count: number | null;
+    revenue_range: string | null;
+    country: string | null;
+  } | null;
   score?: {
     overall: number;
     fit: number;
@@ -34,19 +51,6 @@ interface Lead {
     reachability: number;
     reasons: any;
   } | null;
-  contacts?: Contact[];
-}
-
-interface Contact {
-  id: string;
-  external_id: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  title_raw: string | null;
-  persona: string | null;
-  level: string | null;
-  country: string | null;
 }
 
 import { usePagination } from "@/hooks/use-pagination";
@@ -94,13 +98,30 @@ export default function Leads() {
           id: account.id,
           external_id: account.id,
           name: account.name,
-          domain: account.domain,
-          industry_raw: account.industry_raw,
-          industry_norm: account.industry_norm,
+          first_name: account.contacts[0]?.first_name || null,
+          last_name: account.contacts[0]?.last_name || null,
+          email: account.contacts[0]?.email || null,
+          phone: null,
+          mobile: null,
+          title: account.contacts[0]?.title_raw || null,
+          company: account.name,
+          website: account.domain,
+          industry: account.industry_norm,
           employee_count: account.employee_count,
           revenue_range: account.revenue_range,
           country: account.country,
-          updated_at: new Date().toISOString(),
+          state_province: null,
+          status: 'qualified',
+          account_external_id: account.id,
+          contact_external_id: account.contacts[0]?.id || null,
+          account: {
+            name: account.name,
+            domain: account.domain,
+            industry_norm: account.industry_norm,
+            employee_count: account.employee_count,
+            revenue_range: account.revenue_range,
+            country: account.country
+          },
           score: {
             overall: account.score.overall,
             fit: account.score.fit,
@@ -112,112 +133,122 @@ export default function Leads() {
               revenue_match: account.score.fit > 70,
               geography_match: account.score.fit > 70
             }
-          },
-          contacts: account.contacts.map(contact => ({
-            id: contact.id,
-            external_id: contact.id,
-            first_name: contact.first_name,
-            last_name: contact.last_name,
-            email: contact.email,
-            title_raw: contact.title_raw,
-            persona: null,
-            level: null,
-            country: account.country
-          }))
+          }
         }));
         setLeads(demoLeads);
         setLoading(false);
         return;
       }
 
-      // Get total count first
+      // Get total count of leads
       const { count: totalCount } = await supabase
-        .from('accounts')
+        .from('Leads')
         .select('*', { count: 'exact', head: true })
         .eq('org_id', userProfile.org_id);
 
-      console.log('Leads page - Total accounts:', totalCount);
+      console.log('Leads page - Total leads:', totalCount);
 
-      // Fetch accounts in batches (Supabase limit: 1000 per request)
+      // Fetch leads in batches (Supabase limit: 1000 per request)
       const PAGE_SIZE = 1000;
       const totalPages = Math.ceil((totalCount || 0) / PAGE_SIZE);
       
-      const accountPromises = [];
+      const leadPromises = [];
       for (let page = 0; page < totalPages; page++) {
         const from = page * PAGE_SIZE;
         const to = from + PAGE_SIZE - 1;
-        accountPromises.push(
+        leadPromises.push(
           supabase
-            .from('accounts')
+            .from('Leads')
             .select('*')
             .eq('org_id', userProfile.org_id)
             .range(from, to)
-            .order('updated_at', { ascending: false })
+            .order('created_at', { ascending: false })
         );
       }
 
-      const accountResults = await Promise.all(accountPromises);
-      const accountsData = accountResults.flatMap(result => result.data || []);
-      const accountsError = accountResults.find(r => r.error)?.error;
+      const leadResults = await Promise.all(leadPromises);
+      const leadsData = leadResults.flatMap(result => result.data || []);
+      const leadsError = leadResults.find(r => r.error)?.error;
+
+      if (leadsError) throw leadsError;
+
+      // Get unique account external IDs that have a link
+      const linkedAccountIds = [...new Set(
+        leadsData
+          .filter(lead => lead.account_external_id)
+          .map(lead => lead.account_external_id)
+      )];
+
+      // Batch fetch accounts
+      const { data: accountsData, error: accountsError } = await supabase
+        .from('accounts')
+        .select('external_id, name, domain, industry_norm, employee_count, revenue_range, country')
+        .eq('org_id', userProfile.org_id)
+        .in('external_id', linkedAccountIds);
 
       if (accountsError) throw accountsError;
 
-      // Load scores
+      // Create a Map for O(1) lookups
+      const accountsMap = new Map(
+        (accountsData || []).map(acc => [acc.external_id, acc])
+      );
+
+      // Batch fetch all scores for linked accounts
       const { data: scoresData, error: scoresError } = await supabase
         .from('scores')
         .select('overall, fit, intent, reachability, reasons, account_external_id')
-        .eq('org_id', userProfile.org_id);
+        .eq('org_id', userProfile.org_id)
+        .in('account_external_id', linkedAccountIds);
 
       if (scoresError) throw scoresError;
 
-      // Join accounts with their scores
-      const accountsWithScores = (accountsData || []).map(account => ({
-        ...account,
-        scores: (scoresData || []).filter(score => 
-          score.account_external_id === account.external_id
-        )
-      }));
-
-      // Load contacts for each account
-      const leadsWithContacts = await Promise.all(
-        (accountsWithScores || []).map(async (account) => {
-          const { data: contacts } = await supabase
-            .from('contacts')
-            .select('*')
-            .eq('org_id', userProfile.org_id)
-            .eq('account_external_id', account.external_id);
-
-          // Transform the account data to match Lead interface
-          const scoreData = account.scores && Array.isArray(account.scores) && account.scores.length > 0 
-            ? account.scores[0] 
-            : null;
-          
-          const lead: Lead = {
-            id: account.id,
-            external_id: account.external_id,
-            name: account.name,
-            domain: account.domain,
-            industry_raw: account.industry_raw,
-            industry_norm: account.industry_norm,
-            employee_count: account.employee_count,
-            revenue_range: account.revenue_range,
-            country: account.country,
-            updated_at: account.updated_at,
-            score: scoreData && typeof scoreData === 'object' && scoreData.overall !== undefined ? {
-              overall: scoreData.overall,
-              fit: scoreData.fit,
-              intent: scoreData.intent,
-              reachability: scoreData.reachability,
-              reasons: scoreData.reasons
-            } : null,
-            contacts: contacts || []
-          };
-
-          return lead;
-        })
+      // Create a Map for scores
+      const scoresMap = new Map(
+        (scoresData || []).map(score => [score.account_external_id, score])
       );
 
-      setLeads(leadsWithContacts);
+      // Combine leads with their account and score data
+      const enrichedLeads: Lead[] = leadsData.map(lead => {
+        const linkedAccount = lead.account_external_id 
+          ? accountsMap.get(lead.account_external_id) 
+          : null;
+        
+        const scoreData = lead.account_external_id 
+          ? scoresMap.get(lead.account_external_id) 
+          : null;
+
+        return {
+          id: lead.id?.toString() || lead.external_id,
+          external_id: lead.external_id,
+          name: lead.name,
+          first_name: lead.first_name,
+          last_name: lead.last_name,
+          email: lead.email,
+          phone: lead.phone,
+          mobile: lead.mobile,
+          title: lead.title,
+          company: lead.company || linkedAccount?.name,
+          website: lead.website || linkedAccount?.domain,
+          industry: lead.industry || linkedAccount?.industry_norm,
+          employee_count: lead.employee_count || linkedAccount?.employee_count,
+          revenue_range: lead.revenue_range || linkedAccount?.revenue_range,
+          country: lead.country || linkedAccount?.country,
+          state_province: lead.state_province,
+          status: lead.status,
+          account_external_id: lead.account_external_id,
+          contact_external_id: lead.contact_external_id,
+          account: linkedAccount || null,
+          score: scoreData ? {
+            overall: scoreData.overall,
+            fit: scoreData.fit,
+            intent: scoreData.intent,
+            reachability: scoreData.reachability,
+            reasons: scoreData.reasons
+          } : null
+        };
+      });
+
+      setLeads(enrichedLeads);
     } catch (error) {
       console.error('Error loading leads:', error);
       toast({
@@ -234,11 +265,19 @@ export default function Leads() {
     let filtered = leads;
 
     if (searchTerm) {
-      filtered = filtered.filter(lead =>
-        lead.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        lead.domain?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        lead.industry_raw?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      filtered = filtered.filter(lead => {
+        const fullName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim();
+        return (
+          fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          lead.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          lead.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          lead.industry?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      });
+    }
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(lead => lead.status === statusFilter);
     }
 
     setFilteredLeads(filtered);
@@ -256,7 +295,7 @@ export default function Leads() {
           org_id: userProfile?.org_id,
           account_external_id: lead.external_id,
           features: {
-            industry: lead.industry_norm,
+            industry: lead.industry,
             employee_count: lead.employee_count,
             revenue_range: lead.revenue_range,
             country: lead.country
@@ -310,45 +349,53 @@ export default function Leads() {
     if (filteredLeads.length === 0) {
       toast({
         title: "No data to export",
-        description: "No qualified leads match your current filters",
+        description: "No leads match your current filters",
         variant: "destructive"
       });
       return;
     }
 
     const headers = [
-      'Company Name',
-      'Domain',
+      'Lead Name',
+      'First Name',
+      'Last Name',
+      'Email',
+      'Phone',
+      'Title',
+      'Company',
+      'Website',
       'Industry',
       'Employee Count',
       'Revenue Range',
       'Country',
+      'State/Province',
+      'Status',
       'Overall Score',
       'Fit Score',
-      'Intent Score',
-      'Reachability Score',
-      'Contact Count',
-      'Primary Contact',
-      'Contact Email',
+      'Account Link',
       'External ID'
     ];
 
     const rows = filteredLeads.map(lead => {
-      const primaryContact = lead.contacts && lead.contacts.length > 0 ? lead.contacts[0] : null;
+      const fullName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim();
       return [
-        lead.name || '',
-        lead.domain || '',
-        lead.industry_norm || lead.industry_raw || '',
+        fullName || lead.name || '',
+        lead.first_name || '',
+        lead.last_name || '',
+        lead.email || '',
+        lead.phone || lead.mobile || '',
+        lead.title || '',
+        lead.company || '',
+        lead.website || '',
+        lead.industry || '',
         lead.employee_count || '',
         lead.revenue_range || '',
         lead.country || '',
+        lead.state_province || '',
+        lead.status || '',
         lead.score?.overall || '',
         lead.score?.fit || '',
-        lead.score?.intent || '',
-        lead.score?.reachability || '',
-        lead.contacts?.length || 0,
-        primaryContact ? `${primaryContact.first_name || ''} ${primaryContact.last_name || ''}`.trim() : '',
-        primaryContact?.email || '',
+        lead.account_external_id ? 'Yes' : 'No',
         lead.external_id
       ];
     });
@@ -362,7 +409,7 @@ export default function Leads() {
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `qualified_leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -370,7 +417,7 @@ export default function Leads() {
 
     toast({
       title: "Export successful",
-      description: `Exported ${filteredLeads.length} qualified leads to CSV`
+      description: `Exported ${filteredLeads.length} leads to CSV`
     });
   };
 
@@ -400,17 +447,30 @@ export default function Leads() {
         />
       )}
 
-      {/* Search */}
+      {/* Search and Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="relative max-w-sm">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search qualified leads..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+          <div className="flex gap-4 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search leads by name, company, email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="qualified">Qualified</SelectItem>
+                <SelectItem value="nurturing">Nurturing</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -427,81 +487,131 @@ export default function Leads() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Account</TableHead>
-                <TableHead>Industry</TableHead>
-                <TableHead>Size</TableHead>
+                <TableHead>Lead Name</TableHead>
+                <TableHead>Company</TableHead>
+                <TableHead>Title</TableHead>
+                <TableHead>Email</TableHead>
                 <TableHead>Location</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>ICP Score</TableHead>
-                <TableHead>Fit Breakdown</TableHead>
-                <TableHead>Contacts</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedData.map((lead) => (
-                <Sheet key={lead.id}>
-                  <SheetTrigger asChild>
-                    <TableRow className="cursor-pointer hover:bg-muted/50">
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{lead.name || 'Unknown Company'}</div>
-                          <div className="text-sm text-muted-foreground">{lead.domain}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{lead.industry_norm || lead.industry_raw}</TableCell>
-                      <TableCell>
-                        <div>
-                          <div>{lead.employee_count ? `${lead.employee_count} employees` : '-'}</div>
-                          <div className="text-sm text-muted-foreground">{lead.revenue_range}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{lead.country}</TableCell>
-                      <TableCell>
-                        <Badge className="bg-success">{lead.score?.overall || 0}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Badge variant="outline" className="text-xs">
-                            F: {lead.score?.fit || 0}
+              {paginatedData.map((lead) => {
+                const fullName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.name || 'Unknown Lead';
+                const statusVariant = 
+                  lead.status === 'qualified' ? 'default' : 
+                  lead.status === 'open' ? 'secondary' : 
+                  'outline';
+                
+                return (
+                  <Sheet key={lead.id}>
+                    <SheetTrigger asChild>
+                      <TableRow className="cursor-pointer hover:bg-muted/50">
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{fullName}</div>
+                            {lead.phone && (
+                              <div className="text-sm text-muted-foreground">{lead.phone}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div>{lead.company || '-'}</div>
+                            {lead.website && (
+                              <div className="text-sm text-muted-foreground">{lead.website}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>{lead.title || '-'}</TableCell>
+                        <TableCell>{lead.email || '-'}</TableCell>
+                        <TableCell>
+                          <div>
+                            <div>{lead.country || '-'}</div>
+                            {lead.state_province && (
+                              <div className="text-sm text-muted-foreground">{lead.state_province}</div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={statusVariant}>
+                            {lead.status || 'open'}
                           </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            I: {lead.score?.intent || 0}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            R: {lead.score?.reachability || 0}
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell>{lead.contacts?.length || 0}</TableCell>
-                    </TableRow>
-                  </SheetTrigger>
-                  <SheetContent className="w-[600px] sm:w-[700px]">
-                    <SheetHeader>
-                      <SheetTitle className="flex items-center gap-2">
-                        {lead.name || 'Unknown Company'}
-                        {lead.domain && (
-                          <a
-                            href={`https://${lead.domain}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:text-primary/80"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        )}
-                      </SheetTitle>
-                      <SheetDescription>
-                        Qualified lead - High ICP match score
-                      </SheetDescription>
+                        </TableCell>
+                        <TableCell>
+                          {lead.account_external_id && lead.score ? (
+                            <div className="flex gap-1">
+                              <Badge className="bg-success">{lead.score.overall}</Badge>
+                              <Badge variant="outline" className="text-xs">
+                                F: {lead.score.fit}
+                              </Badge>
+                            </div>
+                          ) : (
+                            <Badge variant="outline">No Account</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    </SheetTrigger>
+                    <SheetContent className="w-[600px] sm:w-[700px]">
+                      <SheetHeader>
+                        <SheetTitle className="flex items-center gap-2">
+                          {fullName}
+                          {lead.website && (
+                            <a
+                              href={`https://${lead.website}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:text-primary/80"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          )}
+                        </SheetTitle>
+                        <SheetDescription>
+                          Lead Details {lead.status === 'qualified' && '- Qualified Lead'}
+                        </SheetDescription>
                     </SheetHeader>
 
                     <div className="space-y-6 mt-6">
-                      {/* Account Overview */}
+                      {/* Lead Information */}
                       <div>
-                        <h3 className="text-lg font-semibold mb-3">Account Overview</h3>
+                        <h3 className="text-lg font-semibold mb-3">Lead Information</h3>
                         <div className="grid grid-cols-2 gap-4">
                           <div>
+                            <Label className="text-sm font-medium">Email</Label>
+                            <p className="text-sm">{lead.email || '-'}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">Phone</Label>
+                            <p className="text-sm">{lead.phone || lead.mobile || '-'}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">Title</Label>
+                            <p className="text-sm">{lead.title || '-'}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">Status</Label>
+                            <Badge variant={statusVariant}>{lead.status || 'open'}</Badge>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Company Information */}
+                      <div>
+                        <h3 className="text-lg font-semibold mb-3">Company Overview</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label className="text-sm font-medium">Company</Label>
+                            <p className="text-sm">{lead.company || '-'}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">Website</Label>
+                            <p className="text-sm">{lead.website || '-'}</p>
+                          </div>
+                          <div>
                             <Label className="text-sm font-medium">Industry</Label>
-                            <p className="text-sm">{lead.industry_norm || lead.industry_raw || '-'}</p>
+                            <p className="text-sm">{lead.industry || '-'}</p>
                           </div>
                           <div>
                             <Label className="text-sm font-medium">Employees</Label>
@@ -519,9 +629,9 @@ export default function Leads() {
                       </div>
 
                       {/* ICP Fit Reasons */}
-                      {lead.score && (
+                      {lead.score && lead.account_external_id ? (
                         <div>
-                          <h3 className="text-lg font-semibold mb-3">Why This Lead Qualifies</h3>
+                          <h3 className="text-lg font-semibold mb-3">ICP Qualification Score</h3>
                           <div className="space-y-3">
                             <div className="flex justify-between items-center p-3 bg-success/10 rounded-lg">
                               <span className="font-medium">Overall ICP Score:</span>
@@ -574,43 +684,12 @@ export default function Leads() {
                             )}
                           </div>
                         </div>
+                      ) : (
+                        <div>
+                          <h3 className="text-lg font-semibold mb-3">ICP Status</h3>
+                          <Badge variant="outline">Not linked to account - No ICP score available</Badge>
+                        </div>
                       )}
-
-                      {/* Contacts */}
-                      <div>
-                        <h3 className="text-lg font-semibold mb-3">Contacts ({lead.contacts?.length || 0})</h3>
-                        {lead.contacts && lead.contacts.length > 0 ? (
-                          <div className="space-y-3">
-                            {lead.contacts.map((contact) => (
-                              <Card key={contact.id}>
-                                <CardContent className="pt-4">
-                                  <div className="flex justify-between items-start">
-                                    <div>
-                                      <p className="font-medium">
-                                        {contact.first_name} {contact.last_name}
-                                      </p>
-                                      <p className="text-sm text-muted-foreground">{contact.title_raw}</p>
-                                      <p className="text-sm text-muted-foreground">{contact.email}</p>
-                                    </div>
-                                    <div className="text-right">
-                                      {contact.persona && (
-                                        <Badge variant="outline" className="mb-1">
-                                          {contact.persona}
-                                        </Badge>
-                                      )}
-                                      {contact.level && (
-                                        <p className="text-xs text-muted-foreground">{contact.level}</p>
-                                      )}
-                                    </div>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-muted-foreground">No contacts found for this account</p>
-                        )}
-                      </div>
 
                       {/* Quick Actions */}
                       <div className="pt-4 border-t">
@@ -620,16 +699,19 @@ export default function Leads() {
                             <CheckCircle className="h-4 w-4 mr-2" />
                             Add to Outreach Sequence
                           </Button>
-                          <Button variant="outline" className="w-full justify-start">
-                            <ExternalLink className="h-4 w-4 mr-2" />
-                            View Full Account in CRM
-                          </Button>
+                          {lead.account_external_id && (
+                            <Button variant="outline" className="w-full justify-start">
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              View Full Account Details
+                            </Button>
+                          )}
                         </div>
                       </div>
                     </div>
                   </SheetContent>
                 </Sheet>
-              ))}
+              );
+            })}
             </TableBody>
           </Table>
 
