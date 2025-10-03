@@ -47,6 +47,8 @@ import { AccountExclusions } from "@/components/settings/AccountExclusions";
 import { ZapierIntegration } from "@/components/settings/ZapierIntegration";
 import { APIKeyManager } from "@/components/settings/APIKeyManager";
 import { ExternalDataProviders } from "@/components/settings/ExternalDataProviders";
+import { RateLimitSettings } from "@/components/settings/RateLimitSettings";
+import { ZapierWebhookManager } from "@/components/settings/ZapierWebhookManager";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TeamMember {
@@ -539,6 +541,7 @@ export default function Settings() {
 
         {/* Integrations */}
         <TabsContent value="integrations" className="space-y-6">
+          <RateLimitSettings />
           <ExternalDataProviders />
           <IntegrationManager />
           <APIKeyManager />
@@ -546,6 +549,7 @@ export default function Settings() {
 
         {/* Zapier Integration */}
         <TabsContent value="zapier" className="space-y-6">
+          <ZapierWebhookManager />
           <ZapierIntegration />
         </TabsContent>
 

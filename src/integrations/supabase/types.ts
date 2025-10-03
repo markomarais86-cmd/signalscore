@@ -961,6 +961,42 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limits: {
+        Row: {
+          created_at: string | null
+          endpoint: string
+          id: string
+          last_request_at: string | null
+          max_requests_per_window: number | null
+          org_id: string
+          requests_count: number | null
+          window_duration_seconds: number | null
+          window_start: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          endpoint: string
+          id?: string
+          last_request_at?: string | null
+          max_requests_per_window?: number | null
+          org_id: string
+          requests_count?: number | null
+          window_duration_seconds?: number | null
+          window_start?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          endpoint?: string
+          id?: string
+          last_request_at?: string | null
+          max_requests_per_window?: number | null
+          org_id?: string
+          requests_count?: number | null
+          window_duration_seconds?: number | null
+          window_start?: string | null
+        }
+        Relationships: []
+      }
       rejections: {
         Row: {
           created_at: string | null
@@ -1005,6 +1041,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      score_history: {
+        Row: {
+          account_external_id: string
+          change_reason: string | null
+          changed_by: string | null
+          computed_at: string | null
+          created_at: string | null
+          icp_id: string | null
+          id: string
+          new_score: Json | null
+          old_score: Json | null
+          org_id: string
+        }
+        Insert: {
+          account_external_id: string
+          change_reason?: string | null
+          changed_by?: string | null
+          computed_at?: string | null
+          created_at?: string | null
+          icp_id?: string | null
+          id?: string
+          new_score?: Json | null
+          old_score?: Json | null
+          org_id: string
+        }
+        Update: {
+          account_external_id?: string
+          change_reason?: string | null
+          changed_by?: string | null
+          computed_at?: string | null
+          created_at?: string | null
+          icp_id?: string | null
+          id?: string
+          new_score?: Json | null
+          old_score?: Json | null
+          org_id?: string
+        }
+        Relationships: []
       }
       scores: {
         Row: {
@@ -1266,6 +1341,15 @@ export type Database = {
           account_external_id: string
           icp_id: string
           org_id_param: string
+        }
+        Returns: Json
+      }
+      check_rate_limit: {
+        Args: {
+          p_endpoint: string
+          p_max_requests?: number
+          p_org_id: string
+          p_window_seconds?: number
         }
         Returns: Json
       }

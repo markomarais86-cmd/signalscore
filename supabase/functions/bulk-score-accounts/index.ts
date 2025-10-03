@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0';
+import { checkRateLimit, rateLimitResponse } from '../rate-limit-helper/index.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,6 +31,13 @@ serve(async (req) => {
   try {
     const requestBody = await req.json() as BulkScoreRequest;
     const { org_id, icp_id, job_id, chunk_index, chunk_size = 2000 } = requestBody;
+    
+    // Check rate limit (10 requests per minute for bulk scoring)
+    const rateLimitResult = await checkRateLimit(supabase, org_id, 'bulk-score-accounts', 10, 60);
+    if (!rateLimitResult.allowed) {
+      console.log('Rate limit exceeded for org:', org_id);
+      return rateLimitResponse(rateLimitResult, corsHeaders);
+    }
     
     console.log('\n=== BULK SCORING CHUNK STARTED ===');
     console.log('Org ID:', org_id);
