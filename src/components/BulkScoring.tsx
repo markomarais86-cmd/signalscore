@@ -127,6 +127,17 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
             failures: job.failed_scores,
           });
 
+          // Record data quality snapshot after scoring completes
+          await supabase.rpc('record_data_quality_snapshot', {
+            org_id_param: userProfile.org_id
+          }).then(({ error: snapshotError }) => {
+            if (snapshotError) {
+              console.error('Failed to record data quality snapshot:', snapshotError);
+            } else {
+              console.log('Data quality snapshot recorded successfully');
+            }
+          });
+
           toast.success(`Successfully scored ${job.successful_scores.toLocaleString()} accounts!`);
           onComplete?.();
         }

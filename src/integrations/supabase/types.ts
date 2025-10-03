@@ -352,6 +352,59 @@ export type Database = {
           },
         ]
       }
+      data_quality_history: {
+        Row: {
+          accounts_with_contacts: number
+          accounts_with_geography: number
+          accounts_with_industry: number
+          accounts_with_revenue: number
+          accounts_with_size: number
+          created_at: string | null
+          high_fit_accounts: number
+          id: string
+          org_id: string
+          overall_completeness: number
+          scored_accounts: number
+          total_accounts: number
+        }
+        Insert: {
+          accounts_with_contacts: number
+          accounts_with_geography: number
+          accounts_with_industry: number
+          accounts_with_revenue: number
+          accounts_with_size: number
+          created_at?: string | null
+          high_fit_accounts: number
+          id?: string
+          org_id: string
+          overall_completeness: number
+          scored_accounts: number
+          total_accounts: number
+        }
+        Update: {
+          accounts_with_contacts?: number
+          accounts_with_geography?: number
+          accounts_with_industry?: number
+          accounts_with_revenue?: number
+          accounts_with_size?: number
+          created_at?: string | null
+          high_fit_accounts?: number
+          id?: string
+          org_id?: string
+          overall_completeness?: number
+          scored_accounts?: number
+          total_accounts?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_quality_history_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enrichment_jobs: {
         Row: {
           completed_at: string | null
@@ -454,6 +507,70 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "external_data_sources_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      failed_scores: {
+        Row: {
+          account_external_id: string
+          account_name: string | null
+          created_at: string | null
+          error_details: Json | null
+          error_message: string | null
+          icp_id: string | null
+          id: string
+          job_id: string | null
+          last_retry_at: string | null
+          org_id: string
+          retry_count: number | null
+        }
+        Insert: {
+          account_external_id: string
+          account_name?: string | null
+          created_at?: string | null
+          error_details?: Json | null
+          error_message?: string | null
+          icp_id?: string | null
+          id?: string
+          job_id?: string | null
+          last_retry_at?: string | null
+          org_id: string
+          retry_count?: number | null
+        }
+        Update: {
+          account_external_id?: string
+          account_name?: string | null
+          created_at?: string | null
+          error_details?: Json | null
+          error_message?: string | null
+          icp_id?: string | null
+          id?: string
+          job_id?: string | null
+          last_retry_at?: string | null
+          org_id?: string
+          retry_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "failed_scores_icp_id_fkey"
+            columns: ["icp_id"]
+            isOneToOne: false
+            referencedRelation: "icp_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "failed_scores_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_scoring_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "failed_scores_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -1178,6 +1295,10 @@ export type Database = {
       is_current_user_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
+      }
+      record_data_quality_snapshot: {
+        Args: { org_id_param: string }
+        Returns: undefined
       }
       refresh_all_materialized_views: {
         Args: Record<PropertyKey, never>

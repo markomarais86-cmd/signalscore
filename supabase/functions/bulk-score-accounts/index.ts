@@ -232,8 +232,37 @@ serve(async (req) => {
         }
       }
 
+      // Log failed scores for monitoring
       const errorResults = results.filter(r => !r.success);
       chunkErrors += errorResults.length;
+
+      if (errorResults.length > 0) {
+        const failedScoresToLog = errorResults.map(r => ({
+          org_id,
+          job_id: currentJobId,
+          account_external_id: r.account.external_id,
+          account_name: r.account.name,
+          icp_id: r.icp.id,
+          error_message: r.error?.message || 'Unknown error',
+          error_details: { 
+            error: r.error?.message,
+            hint: r.error?.hint,
+            details: r.error?.details 
+          }
+        }));
+
+        // Log failed scores (best effort, don't fail the chunk if this fails)
+        await supabase
+          .from('failed_scores')
+          .insert(failedScoresToLog)
+          .then(({ error: logError }) => {
+            if (logError) {
+              console.error('Failed to log error records:', logError);
+            } else {
+              console.log(`Logged ${failedScoresToLog.length} failed scoring attempts`);
+            }
+          });
+      }
 
       const batchDuration = Date.now() - batchStartTime;
       const successRate = ((chunkSuccessful / (chunkSuccessful + chunkErrors)) * 100).toFixed(1);

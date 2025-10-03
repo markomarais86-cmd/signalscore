@@ -11,6 +11,16 @@ interface InsightsRequest {
   icp_id?: string;
 }
 
+interface Insight {
+  type: 'revenue' | 'persona' | 'firmographic' | 'signal';
+  priority: 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  impact: string;
+  confidence: number;
+  relatedSegments?: string[];
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -106,7 +116,7 @@ serve(async (req) => {
     const highScoreAccounts = accounts?.filter(a => a.scores?.[0]?.overall >= 70) || [];
     const avgDealValue = deals?.reduce((sum, d) => sum + Number(d.deal_value), 0) / (deals?.length || 1);
 
-    // Generate insights using Lovable AI
+    // Generate insights using Lovable AI with structured output (tool calling)
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -120,11 +130,11 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: 'You are an expert B2B sales analyst. Analyze firmographic data and provide actionable ICP insights with specific recommendations for revenue ranges, personas, company characteristics, tech stack, buying signals, and budget/timing.'
+            content: 'You are an expert B2B sales analyst. Analyze firmographic data and provide actionable ICP insights with specific recommendations.'
           },
           {
             role: 'user',
-            content: `Analyze this B2B sales data and provide specific ICP recommendations:
+            content: `Analyze this B2B sales data and provide 5-7 specific ICP recommendations:
 
 Revenue Distribution: ${JSON.stringify(revenueDistribution)}
 Industry Distribution: ${JSON.stringify(industryDistribution)}
@@ -137,35 +147,89 @@ Total Accounts: ${accounts?.length || 0}
 Average Deal Value: $${avgDealValue.toFixed(0)}
 Total Closed Deals: ${deals?.length || 0}
 
-Provide 5-7 actionable insights covering:
-1. Recommended revenue ranges to target
-2. Key personas and job titles
-3. Company size sweet spots
-4. Geographic priorities
-5. Industry focus areas
-6. Buying signals to watch for
-7. Budget and timing recommendations
-
-Format each insight as: {"type": "revenue|persona|firmographic|signal", "priority": "high|medium|low", "title": "...", "description": "...", "impact": "...", "confidence": 0-100}`
+Provide insights covering: revenue ranges, key personas/titles, company size sweet spots, geographic priorities, industry focus, buying signals, and budget/timing.`
           }
         ],
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'generate_icp_insights',
+              description: 'Generate 5-7 actionable ICP insights based on sales data analysis',
+              parameters: {
+                type: 'object',
+                properties: {
+                  insights: {
+                    type: 'array',
+                    minItems: 5,
+                    maxItems: 7,
+                    items: {
+                      type: 'object',
+                      properties: {
+                        type: {
+                          type: 'string',
+                          enum: ['revenue', 'persona', 'firmographic', 'signal'],
+                          description: 'Category of the insight'
+                        },
+                        priority: {
+                          type: 'string',
+                          enum: ['high', 'medium', 'low'],
+                          description: 'Priority level'
+                        },
+                        title: {
+                          type: 'string',
+                          description: 'Short, actionable title (max 100 chars)'
+                        },
+                        description: {
+                          type: 'string',
+                          description: 'Detailed explanation with specific data points'
+                        },
+                        impact: {
+                          type: 'string',
+                          description: 'Expected business impact'
+                        },
+                        confidence: {
+                          type: 'number',
+                          minimum: 0,
+                          maximum: 100,
+                          description: 'Confidence level (0-100)'
+                        },
+                        relatedSegments: {
+                          type: 'array',
+                          items: { type: 'string' },
+                          description: 'Related segments or categories'
+                        }
+                      },
+                      required: ['type', 'priority', 'title', 'description', 'impact', 'confidence'],
+                      additionalProperties: false
+                    }
+                  }
+                },
+                required: ['insights'],
+                additionalProperties: false
+              }
+            }
+          }
+        ],
+        tool_choice: { type: 'function', function: { name: 'generate_icp_insights' } }
       }),
     });
 
-    const aiData = await aiResponse.json();
-    const insightsText = aiData.choices?.[0]?.message?.content || '';
+    if (!aiResponse.ok) {
+      throw new Error(`AI API error: ${aiResponse.status} ${await aiResponse.text()}`);
+    }
 
-    // Parse insights from AI response
-    const insights = [];
-    const insightMatches = insightsText.match(/\{[^}]+\}/g) || [];
+    const aiData = await aiResponse.json();
+    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
     
-    for (const match of insightMatches) {
-      try {
-        const insight = JSON.parse(match);
-        insights.push(insight);
-      } catch (e) {
-        console.error('Failed to parse insight:', e);
-      }
+    let insights: Insight[] = [];
+    
+    if (toolCall && toolCall.function?.name === 'generate_icp_insights') {
+      const parsedArgs = JSON.parse(toolCall.function.arguments);
+      insights = parsedArgs.insights || [];
+      console.log(`Generated ${insights.length} insights via tool calling`);
+    } else {
+      console.warn('No tool call returned, falling back to data-driven insights');
     }
 
     // Add data-driven insights
@@ -173,7 +237,7 @@ Format each insight as: {"type": "revenue|persona|firmographic|signal", "priorit
     const topIndustry = Object.entries(industryDistribution).sort((a, b) => b[1] - a[1])[0];
     const topGeo = Object.entries(geoDistribution).sort((a, b) => b[1] - a[1])[0];
 
-    if (topRevenue) {
+    if (topRevenue && insights.length < 7) {
       insights.push({
         type: 'revenue',
         priority: 'high',
@@ -185,7 +249,7 @@ Format each insight as: {"type": "revenue|persona|firmographic|signal", "priorit
       });
     }
 
-    if (topIndustry) {
+    if (topIndustry && insights.length < 7) {
       insights.push({
         type: 'firmographic',
         priority: 'high',
@@ -197,7 +261,19 @@ Format each insight as: {"type": "revenue|persona|firmographic|signal", "priorit
       });
     }
 
-    console.log(`Generated ${insights.length} insights`);
+    if (topGeo && insights.length < 7) {
+      insights.push({
+        type: 'firmographic',
+        priority: 'medium',
+        title: `Expand in ${topGeo[0]}`,
+        description: `${topGeo[1]} accounts in this region show strong engagement`,
+        impact: 'Geographic concentration advantage',
+        confidence: 80,
+        relatedSegments: [topGeo[0]]
+      });
+    }
+
+    console.log(`Returning ${insights.length} total insights`);
 
     return new Response(
       JSON.stringify({

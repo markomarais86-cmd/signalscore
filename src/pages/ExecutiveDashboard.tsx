@@ -134,8 +134,9 @@ export default function ExecutiveDashboard() {
       ).length || 0;
       const dataCompleteness = totalAccounts > 0 ? (completeFields / totalAccounts) * 100 : 0;
 
-      // Calculate ICP match quality - only for scored accounts
-      const icpMatchQuality = totalScores > 0 ? (highFitAccounts / totalScores) * 100 : 0;
+      // Calculate ICP match quality - percentage of HIGH-FIT accounts out of ALL accounts (not just scored)
+      // This gives a true picture of how many accounts in the entire database are good ICP fits
+      const icpMatchQuality = totalAccounts > 0 ? (highFitAccounts / totalAccounts) * 100 : 0;
 
       // NO TAM estimates without external data - show actual coverage only
       const estimatedTotalMarket = totalAccounts; // Real accounts, not estimates
