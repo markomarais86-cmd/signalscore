@@ -123,18 +123,22 @@ export default function Accounts() {
 
       if (accountsError) throw accountsError;
 
-      // Fetch scores separately (no foreign key relationship exists)
-      const { data: scoresData } = await supabase
-        .from('scores')
-        .select('*')
-        .eq('org_id', userProfile.org_id);
-
-      // Check for active ICP profiles
-      const { data: icpData } = await supabase
-        .from('icp_profiles')
-        .select('id')
-        .eq('org_id', userProfile.org_id)
-        .eq('status', 'active');
+      // Fetch scores and contacts in parallel (optimized batch queries)
+      const [{ data: scoresData }, { data: allContacts }, { data: icpData }] = await Promise.all([
+        supabase
+          .from('scores')
+          .select('*')
+          .eq('org_id', userProfile.org_id),
+        supabase
+          .from('contacts')
+          .select('*')
+          .eq('org_id', userProfile.org_id),
+        supabase
+          .from('icp_profiles')
+          .select('id')
+          .eq('org_id', userProfile.org_id)
+          .eq('status', 'active')
+      ]);
 
       const hasICP = (icpData?.length || 0) > 0;
       const hasScores = (scoresData?.length || 0) > 0;
@@ -143,35 +147,38 @@ export default function Accounts() {
       setHasActiveICP(hasICP);
       setNeedsScoring(hasAccounts && hasICP && !hasScores);
 
-      // Create a map for quick score lookup
+      // Create maps for quick lookups (O(1) instead of O(n))
       const scoresMap = new Map(
         (scoresData || []).map(score => [score.account_external_id, score])
       );
 
-      // Combine accounts with scores and contacts
-      const accountsWithContacts = await Promise.all(
-        (accountsData || []).map(async (account) => {
-          const { data: contacts } = await supabase
-            .from('contacts')
-            .select('*')
-            .eq('org_id', userProfile.org_id)
-            .eq('account_external_id', account.external_id);
+      // Group contacts by account_external_id
+      const contactsMap = new Map<string, any[]>();
+      (allContacts || []).forEach(contact => {
+        const accountId = contact.account_external_id;
+        if (!contactsMap.has(accountId)) {
+          contactsMap.set(accountId, []);
+        }
+        contactsMap.get(accountId)!.push(contact);
+      });
 
-          const scoreData = scoresMap.get(account.external_id);
-          
-          return {
-            ...account,
-            data_source: (account.data_source || 'crm') as 'crm' | 'database' | 'both',
-            score: scoreData ? {
-              overall: scoreData.overall,
-              fit: scoreData.fit,
-              intent: scoreData.intent,
-              reachability: scoreData.reachability
-            } : null,
-            contacts: contacts || []
-          };
-        })
-      );
+      // Combine accounts with scores and contacts (no async calls in loop)
+      const accountsWithContacts = (accountsData || []).map(account => {
+        const scoreData = scoresMap.get(account.external_id);
+        const contacts = contactsMap.get(account.external_id) || [];
+        
+        return {
+          ...account,
+          data_source: (account.data_source || 'crm') as 'crm' | 'database' | 'both',
+          score: scoreData ? {
+            overall: scoreData.overall,
+            fit: scoreData.fit,
+            intent: scoreData.intent,
+            reachability: scoreData.reachability
+          } : null,
+          contacts
+        };
+      });
 
       setAccounts(accountsWithContacts);
       

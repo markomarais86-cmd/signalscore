@@ -66,7 +66,7 @@ export default function ExecutiveDashboard() {
       
       console.log(`ExecutiveDashboard - Fetching ${totalPages} pages of accounts...`);
       
-      // Fetch all pages in parallel
+      // Fetch all pages in parallel with proper error handling
       const accountPromises = [];
       for (let page = 0; page < totalPages; page++) {
         const from = page * PAGE_SIZE;
@@ -80,16 +80,35 @@ export default function ExecutiveDashboard() {
         );
       }
 
-      // Also fetch ICPs and scores in parallel
-      const [accountResults, { data: icps, error: icpsError }, { data: scores, error: scoresError }] = await Promise.all([
+      // Fetch scores in batches to handle large datasets
+      const scorePromises = [];
+      const SCORE_BATCH_SIZE = 10000;
+      const estimatedScorePages = Math.ceil((totalAccountCount || 0) / SCORE_BATCH_SIZE);
+      
+      for (let page = 0; page < estimatedScorePages; page++) {
+        const from = page * SCORE_BATCH_SIZE;
+        const to = from + SCORE_BATCH_SIZE - 1;
+        scorePromises.push(
+          supabase
+            .from('scores')
+            .select('*')
+            .eq('org_id', userProfile?.org_id)
+            .range(from, to)
+        );
+      }
+
+      // Fetch everything in parallel
+      const [accountResults, scoreResults, { data: icps, error: icpsError }] = await Promise.all([
         Promise.all(accountPromises),
-        supabase.from('icp_profiles').select('*').eq('org_id', userProfile?.org_id),
-        supabase.from('scores').select('*').eq('org_id', userProfile?.org_id).range(0, 50000)
+        Promise.all(scorePromises),
+        supabase.from('icp_profiles').select('*').eq('org_id', userProfile?.org_id)
       ]);
 
-      // Combine all account pages
+      // Merge results and check for errors
       const accounts = accountResults.flatMap(result => result.data || []);
+      const scores = scoreResults.flatMap(result => result.data || []);
       const accountsError = accountResults.find(r => r.error)?.error;
+      const scoresError = scoreResults.find(r => r.error)?.error;
 
       if (accountsError) throw accountsError;
       if (icpsError) throw icpsError;

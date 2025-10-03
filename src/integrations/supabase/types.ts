@@ -1179,6 +1179,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      refresh_all_materialized_views: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       refresh_reporting_views: {
         Args: Record<PropertyKey, never>
         Returns: undefined
