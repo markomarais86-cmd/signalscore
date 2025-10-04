@@ -409,37 +409,6 @@ export default function ExecutiveDashboard() {
           <div className="space-y-6">
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">TAM Coverage</span>
-                <div className="flex items-center gap-4">
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-primary">{metrics.tamCoverage.toFixed(2)}%</div>
-                    <div className="text-xs text-muted-foreground">Your coverage</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-muted-foreground">45%</div>
-                    <div className="text-xs text-muted-foreground">Industry avg</div>
-                  </div>
-                </div>
-              </div>
-              <div className="relative h-3 bg-muted rounded-full overflow-hidden">
-                <div 
-                  className="absolute h-full bg-primary/30 rounded-full" 
-                  style={{ width: '45%' }}
-                />
-                <div 
-                  className="absolute h-full bg-primary rounded-full transition-all duration-500" 
-                  style={{ width: `${Math.min(metrics.tamCoverage, 100)}%` }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                {metrics.tamCoverage < 45 
-                  ? `${(45 - metrics.tamCoverage).toFixed(1)}% below industry average`
-                  : `${(metrics.tamCoverage - 45).toFixed(1)}% above industry average`}
-              </p>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium">ICP Match Quality</span>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
@@ -467,22 +436,6 @@ export default function ExecutiveDashboard() {
                   ? `${(62 - metrics.icpMatchQuality).toFixed(0)}% below industry average`
                   : `${(metrics.icpMatchQuality - 62).toFixed(0)}% above industry average`}
               </p>
-            </div>
-
-            <div className="pt-4 border-t">
-              <div className="flex items-start gap-3">
-                <Sparkles className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-sm">Revenue Impact</p>
-                  <p className="text-sm text-muted-foreground">
-                    Reaching industry-average TAM coverage could unlock{' '}
-                    <span className="font-semibold text-foreground">
-                      ${((metrics.estimatedTAM * 0.45 - metrics.totalAccounts) * 50000).toLocaleString()}
-                    </span>
-                    {' '}in additional pipeline opportunity
-                  </p>
-                </div>
-              </div>
             </div>
           </div>
         </CardContent>
@@ -529,8 +482,8 @@ export default function ExecutiveDashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Coverage Trend</CardTitle>
-            <CardDescription>TAM coverage improvement over time</CardDescription>
+            <CardTitle>Account Growth Trend</CardTitle>
+            <CardDescription>Account acquisition over time</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -674,11 +627,6 @@ export default function ExecutiveDashboard() {
         </Card>
       )}
 
-      {/* Bulk Scoring - Show if many accounts are unscored */}
-      {metrics.whitespaceOpportunity > 0 && (
-        <BulkScoring onComplete={loadTAMData} />
-      )}
-
       {/* Quick Actions - Dynamic Recommendations */}
       <Card className="border-primary/20 bg-primary/5">
         <CardHeader>
@@ -690,22 +638,7 @@ export default function ExecutiveDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid md:grid-cols-3 gap-4">
-            {/* Dynamic action 1: Based on TAM coverage */}
-            {metrics.tamCoverage < 50 && (
-              <Button 
-                variant="outline" 
-                className="justify-start h-auto py-4 border-2 border-primary/30"
-                onClick={() => navigate('/data-upload')}
-              >
-                <div className="text-left">
-                  <Badge className="mb-2" variant="default">High Priority</Badge>
-                  <p className="font-semibold">Upload {Math.ceil((metrics.estimatedTAM * 0.50) - metrics.totalAccounts)} more accounts</p>
-                  <p className="text-xs text-muted-foreground">To reach 50% TAM coverage (industry minimum)</p>
-                </div>
-              </Button>
-            )}
-            
-            {/* Dynamic action 2: Based on ICP count */}
+            {/* Dynamic action 1: Based on ICP count */}
             {metrics.icpCount < 3 && (
               <Button 
                 variant="outline" 
