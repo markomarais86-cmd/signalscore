@@ -34,7 +34,9 @@ export default function ExecutiveDashboard() {
     coverage: 0,
     totalLeads: 0,
     linkedLeads: 0,
-    unlinkedLeads: 0
+    unlinkedLeads: 0,
+    crmLeads: 0,
+    databaseLeads: 0
   });
   
   const [fitDistribution, setFitDistribution] = useState<any[]>([]);
@@ -129,6 +131,21 @@ export default function ExecutiveDashboard() {
         .eq('org_id', userProfile.org_id)
         .not('account_external_id', 'is', null);
 
+      // Get leads by source type
+      const { count: crmLeadsCount } = await supabase
+        .from('Leads')
+        .select('*, accounts!inner(data_source)', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id)
+        .not('account_external_id', 'is', null)
+        .in('accounts.data_source', ['crm', 'both']);
+
+      const { count: databaseLeadsCount } = await supabase
+        .from('Leads')
+        .select('*, accounts!inner(data_source)', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id)
+        .not('account_external_id', 'is', null)
+        .eq('accounts.data_source', 'database');
+
       const totalAccounts = accountsCount || 0;
       const totalLeads = leadsCount || 0;
       const linkedLeads = linkedLeadsCount || 0;
@@ -192,7 +209,9 @@ export default function ExecutiveDashboard() {
         campaignReadyAccounts,
         totalLeads,
         linkedLeads,
-        unlinkedLeads
+        unlinkedLeads,
+        crmLeads: crmLeadsCount || 0,
+        databaseLeads: databaseLeadsCount || 0
       };
       
       console.log('✅ Final metrics calculated:', finalMetrics);
@@ -273,43 +292,76 @@ export default function ExecutiveDashboard() {
 
       <OnboardingProgress />
 
-      {/* Hero Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-        <HeroMetric
-          label="Total Accounts"
-          value={metrics.totalAccounts.toLocaleString()}
-          subtitle="In database"
-          icon={Database}
-        />
+      {/* Hero Metrics - Three Main Blocks */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* CRM Block */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              CRM Data
+            </CardTitle>
+            <CardDescription>
+              Accounts and leads in your CRM
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Accounts</p>
+              <p className="text-3xl font-bold text-primary">{metrics.crmAccounts.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Leads</p>
+              <p className="text-3xl font-bold">{(metrics.crmLeads || 0).toLocaleString()}</p>
+            </div>
+          </CardContent>
+        </Card>
 
-        <HeroMetric
-          label="Total Leads"
-          value={metrics.totalLeads.toLocaleString()}
-          subtitle={`${metrics.linkedLeads} linked to accounts`}
-          icon={TrendingUp}
-        />
-        
-        <HeroMetric
-          label="CRM Coverage"
-          value={metrics.crmAccounts.toLocaleString()}
-          subtitle={`${metrics.coverage}% of total`}
-          icon={Building2}
-        />
+        {/* Database/Greenspace Block */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-success" />
+              Greenspace Available
+            </CardTitle>
+            <CardDescription>
+              Not yet in your CRM
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Accounts</p>
+              <p className="text-3xl font-bold text-success">{metrics.greenspaceAccounts.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Leads</p>
+              <p className="text-3xl font-bold">{(metrics.databaseLeads || 0).toLocaleString()}</p>
+            </div>
+          </CardContent>
+        </Card>
 
-        <HeroMetric
-          label="Greenspace"
-          value={metrics.greenspaceAccounts.toLocaleString()}
-          subtitle="Not yet in CRM"
-          icon={Sparkles}
-          status="success"
-        />
-
-        <HeroMetric
-          label="High-Fit Matches"
-          value={metrics.highFitAccounts.toLocaleString()}
-          subtitle={`${metrics.icpMatchQuality}% ICP quality`}
-          icon={Target}
-        />
+        {/* High Fit Block */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-primary" />
+              High-Fit ICP Matches
+            </CardTitle>
+            <CardDescription>
+              Score 70+ on ICP criteria
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground">Accounts</p>
+              <p className="text-3xl font-bold text-primary">{metrics.highFitAccounts.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Match Quality</p>
+              <p className="text-3xl font-bold">{metrics.icpMatchQuality}%</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Campaign Ready + Data Quality */}
