@@ -158,11 +158,11 @@ export default function DataUpload() {
         insertedLeads = data.insertedLeads || 0;
         errors.push(...(data.errors || []));
 
-        setUploadProgress(100);
+        setUploadProgress(80);
 
         toast({
           title: "Upload Complete!",
-          description: `Uploaded ${insertedLeads} leads`,
+          description: `Uploaded ${insertedLeads} leads. Now matching to accounts...`,
         });
 
       } else {
@@ -231,16 +231,16 @@ export default function DataUpload() {
             console.log(`✅ Inserted ${result?.length} leads`);
           }
 
-          setUploadProgress(20 + Math.round((i / rawData.length) * 80));
+          setUploadProgress(20 + Math.round((i / rawData.length) * 60));
         }
 
         toast({
           title: "Upload Complete!",
-          description: `Uploaded ${insertedLeads} leads`,
+          description: `Uploaded ${insertedLeads} leads. Now matching to accounts...`,
         });
       }
 
-      setUploadProgress(100);
+      setUploadProgress(80);
 
       setUploadResult({
         total: rawData.length,
@@ -253,11 +253,11 @@ export default function DataUpload() {
       await loadTotalRecords();
       completeStep('upload_data');
 
-      // Automatically match leads to accounts after upload (FAST SQL version)
-      console.log('🔄 Auto-matching leads to accounts with fast SQL function...');
+      // Automatically match leads to accounts after upload
+      console.log('🔄 Auto-matching leads to accounts...');
       toast({
         title: "Matching Leads to Accounts",
-        description: "This will only take a few seconds...",
+        description: "Creating account records and linking leads...",
       });
 
       try {
@@ -268,18 +268,21 @@ export default function DataUpload() {
         if (matchError) throw matchError;
 
         const result = matchData as any;
-        console.log(`✅ Lead matching complete: ${result.matched_to_existing} matched, ${result.new_accounts_created} created, ${result.accounts_scored || 0} auto-scored`);
+        console.log(`✅ Lead matching complete:`, result);
+
+        setUploadProgress(100);
 
         toast({
           title: "✓ Auto-Matching & Scoring Complete!",
-          description: `${result.total_linked.toLocaleString()} leads linked (${result.matched_to_existing.toLocaleString()} matched, ${result.new_accounts_created.toLocaleString()} new accounts) • ${result.accounts_scored || 0} accounts auto-scored`,
+          description: `${result.total_linked.toLocaleString()} leads linked to ${result.new_accounts_created.toLocaleString()} new accounts + ${result.matched_to_existing.toLocaleString()} existing • ${result.accounts_scored || 0} accounts scored`,
+          duration: 8000,
         });
 
       } catch (matchError: any) {
         console.error('Auto-matching error:', matchError);
         toast({
           title: "Matching Failed",
-          description: "Please manually match leads using the Lead-Account Matcher below",
+          description: matchError.message || "Please try re-running the matching process",
           variant: "destructive"
         });
       }
@@ -304,6 +307,50 @@ export default function DataUpload() {
     } finally {
       setUploading(false);
       setPendingFile(null);
+    }
+  };
+
+  const handleRerunMatching = async () => {
+    if (!userProfile?.org_id) {
+      toast({
+        title: "Error",
+        description: "Authentication required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      toast({
+        title: "Re-running Matching & Scoring",
+        description: "This may take a few minutes for large datasets...",
+      });
+
+      const { data: matchData, error: matchError } = await supabase.rpc('match_leads_to_accounts_fast' as any, {
+        p_org_id: userProfile.org_id
+      });
+
+      if (matchError) throw matchError;
+
+      const result = matchData as any;
+      console.log(`✅ Re-match complete:`, result);
+
+      toast({
+        title: "✓ Matching Complete!",
+        description: `${result.total_linked.toLocaleString()} leads linked • ${result.new_accounts_created.toLocaleString()} new accounts created • ${result.accounts_scored || 0} scored`,
+        duration: 8000,
+      });
+
+      await loadTotalRecords();
+
+    } catch (error: any) {
+      console.error('Re-match error:', error);
+      toast({
+        title: "Matching Failed",
+        description: error.message || "An error occurred during matching",
+        variant: "destructive",
+        duration: 10000,
+      });
     }
   };
 
@@ -380,6 +427,7 @@ export default function DataUpload() {
             onFileSelect={(file) => analyzeCSVStructure(file, 'leads')}
             onDownloadTemplate={() => downloadTemplate('leads')}
             onDownloadRejections={downloadRejections}
+            onRerunMatching={handleRerunMatching}
           />
         </TabsContent>
 

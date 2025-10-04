@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { FileText, Download, MapPin, AlertCircle, CheckCircle, Info } from "lucide-react";
+import { FileText, Download, MapPin, AlertCircle, CheckCircle, Info, RefreshCw } from "lucide-react";
 
 interface UploadResult {
   total: number;
@@ -23,6 +23,7 @@ interface UploadSectionProps {
   onFileSelect: (file: File) => void;
   onDownloadTemplate: () => void;
   onDownloadRejections: () => void;
+  onRerunMatching?: () => void;
 }
 
 export function UploadSection({
@@ -33,7 +34,8 @@ export function UploadSection({
   uploadResult,
   onFileSelect,
   onDownloadTemplate,
-  onDownloadRejections
+  onDownloadRejections,
+  onRerunMatching
 }: UploadSectionProps) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -150,6 +152,23 @@ export function UploadSection({
                   All rows were processed successfully!
                 </AlertDescription>
               </Alert>
+            )}
+
+            {type === 'leads' && onRerunMatching && (
+              <div className="pt-4 border-t space-y-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onRerunMatching}
+                  className="w-full"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Re-run Lead Matching & Scoring
+                </Button>
+                <p className="text-xs text-muted-foreground text-center">
+                  Match existing leads to accounts and auto-score them
+                </p>
+              </div>
             )}
           </div>
         )}
