@@ -576,48 +576,9 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* ICP Coverage & Segmentation Insights */}
+      {/* Segmentation Insights */}
       {segmentationInsights && (
         <>
-          {/* ICP Coverage Metrics */}
-          {icpCoverage && (
-            <Card className="border-0 shadow-[var(--shadow-card)]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="h-5 w-5" />
-                  ICP Coverage Analysis
-                </CardTitle>
-                <CardDescription>
-                  How well your current accounts align with your Ideal Customer Profile
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-primary">{icpCoverage.totalCoverage}%</div>
-                    <div className="text-sm text-muted-foreground mt-1">Total Coverage</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{icpCoverage.industryCoverage}%</div>
-                    <div className="text-sm text-muted-foreground mt-1">Industry Match</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{icpCoverage.geographyCoverage}%</div>
-                    <div className="text-sm text-muted-foreground mt-1">Geographic Match</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{icpCoverage.sizeCoverage}%</div>
-                    <div className="text-sm text-muted-foreground mt-1">Size Match</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{icpCoverage.qualityCoverage}%</div>
-                    <div className="text-sm text-muted-foreground mt-1">Quality Score</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* Missing Segments & Gaps */}
           {segmentationInsights.gaps.length > 0 && (
             <Card className="border-0 shadow-[var(--shadow-card)]">
