@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download } from "lucide-react";
+import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -537,59 +537,45 @@ export default function Leads() {
         </Button>
       </div>
 
-      {/* Quick action to merge duplicates and match leads */}
+      {/* Info: Leads auto-match on upload */}
       {!flags.demo_mode && unlinkedLeads.length > 0 && (
-        <div className="space-y-4">
-          {/* Step 1: Merge duplicates first */}
-          <div className="flex items-center justify-between p-4 border rounded-lg bg-warning/10 border-warning">
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription className="space-y-3">
             <div>
-              <h3 className="font-semibold flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-warning text-warning-foreground text-sm font-bold">1</span>
-                Merge Duplicate Accounts First
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                ~8,700 duplicate accounts found (e.g., "td.com", "www.td.com"). Merge them before matching leads.
-              </p>
+              <strong>Note:</strong> You have {unlinkedLeads.length.toLocaleString()} unlinked leads. 
             </div>
-            <Button
-              onClick={() => window.location.href = '/merge-duplicates'}
-              variant="outline"
-              size="lg"
-            >
-              Go to Merge Tool
-            </Button>
-          </div>
-
-          {/* Step 2: Match leads after merging */}
-          <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
-            <div>
-              <h3 className="font-semibold flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted-foreground text-background text-sm font-bold">2</span>
-                Link Leads to Accounts
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {unlinkedLeads.length.toLocaleString()} leads need to be matched to accounts (after merging duplicates)
-              </p>
+            <div className="text-sm space-y-2">
+              <p>Leads are automatically matched to accounts when you upload them via CSV.</p>
+              <p>If these leads were uploaded before Phase 3, you can manually match them:</p>
             </div>
-            <Button
-              onClick={handleAutoMatch}
-              disabled={isMatching}
-              size="lg"
-            >
-              {isMatching ? (
-                <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current"></div>
-                  Matching...
-                </>
-              ) : (
-                <>
-                  <Link2 className="mr-2 h-4 w-4" />
-                  Match All Leads
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => window.location.href = '/merge-duplicates'}
+                variant="outline"
+                size="sm"
+              >
+                1. Merge Duplicates
+              </Button>
+              <Button
+                onClick={handleAutoMatch}
+                disabled={isMatching}
+                size="sm"
+              >
+                {isMatching ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current"></div>
+                    Matching...
+                  </>
+                ) : (
+                  <>
+                    2. Match Leads
+                  </>
+                )}
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Unlinked Leads Alert */}

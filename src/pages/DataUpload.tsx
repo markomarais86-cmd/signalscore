@@ -253,26 +253,26 @@ export default function DataUpload() {
       await loadTotalRecords();
       completeStep('upload_data');
 
-      // Automatically match leads to accounts after upload
-      console.log('🔄 Auto-matching leads to accounts...');
+      // Automatically match leads to accounts after upload (FAST SQL version)
+      console.log('🔄 Auto-matching leads to accounts with fast SQL function...');
       toast({
         title: "Matching Leads to Accounts",
-        description: "Creating accounts from your leads...",
+        description: "This will only take a few seconds...",
       });
 
       try {
-        const { data: matchData, error: matchError } = await supabase.functions.invoke('match-leads-to-accounts', {
-          body: { orgId }
+        const { data: matchData, error: matchError } = await supabase.rpc('match_leads_to_accounts_fast' as any, {
+          p_org_id: orgId
         });
 
         if (matchError) throw matchError;
 
-        const { matched, created, failed } = matchData;
-        console.log(`✅ Lead matching complete: ${matched} matched, ${created} created, ${failed} failed`);
+        const result = matchData as any;
+        console.log(`✅ Lead matching complete: ${result.matched_to_existing} matched, ${result.new_accounts_created} created`);
 
         toast({
-          title: "Lead Matching Complete!",
-          description: `${created} accounts created, ${matched} leads linked`,
+          title: "✓ Leads Matched Successfully!",
+          description: `${result.total_linked.toLocaleString()} leads linked (${result.matched_to_existing.toLocaleString()} matched, ${result.new_accounts_created.toLocaleString()} new accounts created)`,
         });
 
         // Optionally trigger bulk scoring on newly created accounts
@@ -379,7 +379,7 @@ export default function DataUpload() {
     <div className="space-y-6">
       <div>
         <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Data Upload</h1>
-        <p className="text-muted-foreground mt-2">Import your leads data via CSV - accounts will be auto-generated after ICP setup</p>
+        <p className="text-muted-foreground mt-2">Import leads via CSV - accounts are automatically created and matched</p>
       </div>
 
       {totalRecords > 0 && (
