@@ -13,7 +13,7 @@ import { DataValidationReport } from "@/components/data-upload/DataValidationRep
 import { HeroMetric } from "@/components/executive/HeroMetric";
 import { UploadSection } from "@/components/data-upload/UploadSection";
 import { ClosedWonUpload } from "@/components/data-upload/ClosedWonUpload";
-import { LeadAccountMatcher } from "@/components/data-upload/LeadAccountMatcher";
+import { DataProcessingPipeline } from "@/components/data-upload/DataProcessingPipeline";
 import { useCSVValidator } from "@/hooks/use-csv-validator";
 import { parseCSV, ACCOUNTS_HEADERS, CONTACTS_HEADERS, LEADS_HEADERS, generateCSVTemplate } from "@/utils/csv-parser";
 
@@ -426,7 +426,7 @@ export default function DataUpload() {
         </TabsContent>
       </Tabs>
 
-      <LeadAccountMatcher />
+      <DataProcessingPipeline />
 
       {validationResult && (
         <Card>
