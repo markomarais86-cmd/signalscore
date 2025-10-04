@@ -312,7 +312,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-12">
+        <TabsList className="grid w-full grid-cols-10">
           <TabsTrigger value="account" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Account
@@ -324,14 +324,6 @@ export default function Settings() {
           <TabsTrigger value="features" className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
             Labs
-          </TabsTrigger>
-          <TabsTrigger value="integrations" className="flex items-center gap-2">
-            <Database className="h-4 w-4" />
-            Integrations
-          </TabsTrigger>
-          <TabsTrigger value="zapier" className="flex items-center gap-2">
-            <Webhook className="h-4 w-4" />
-            Zapier
           </TabsTrigger>
           <TabsTrigger value="data-mapping" className="flex items-center gap-2">
             <GitBranch className="h-4 w-4" />
@@ -538,20 +530,6 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* Integrations */}
-        <TabsContent value="integrations" className="space-y-6">
-          <RateLimitSettings />
-          <ExternalDataProviders />
-          <IntegrationManager />
-          <APIKeyManager />
-        </TabsContent>
-
-        {/* Zapier Integration */}
-        <TabsContent value="zapier" className="space-y-6">
-          <ZapierWebhookManager />
-          <ZapierIntegration />
         </TabsContent>
 
         {/* Data Mapping */}

@@ -1,4 +1,4 @@
-import { Inbox, Upload, Settings, LogOut, LayoutDashboard, ChevronDown, Target, Database } from "lucide-react";
+import { Upload, Settings, LogOut, LayoutDashboard, Target, Database } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -13,12 +13,12 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 
-// Simplified navigation structure
+// Simplified navigation structure - Real workflow
 const mainNavigation = [
   { title: "Overview", url: "/", icon: LayoutDashboard },
   { title: "ICP Manager", url: "/icp-manager", icon: Target },
+  { title: "Campaign Builder", url: "/campaign-builder", icon: Target },
   { title: "Accounts", url: "/accounts", icon: Database },
-  { title: "Leads", url: "/leads", icon: Inbox },
   { title: "Data Upload", url: "/data-upload", icon: Upload },
   { title: "Settings", url: "/settings", icon: Settings },
 ];

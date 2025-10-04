@@ -17,6 +17,7 @@ import ResetPassword from "./pages/ResetPassword";
 import ICPManager from "./pages/ICPManager";
 import Leads from "./pages/Leads";
 import Accounts from "./pages/Accounts";
+import CampaignBuilder from "./pages/CampaignBuilder";
 import DataUpload from "./pages/DataUpload";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
@@ -65,6 +66,16 @@ function App() {
                     <ProtectedRoute>
                       <Layout>
                         <Accounts />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/campaign-builder"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <CampaignBuilder />
                       </Layout>
                     </ProtectedRoute>
                   }
