@@ -103,18 +103,35 @@ export default function ExecutiveDashboard() {
 
       if (leadsError) throw leadsError;
 
+      // Get accurate counts for data sources
+      const { count: crmCount } = await supabase
+        .from('accounts')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id)
+        .in('data_source', ['crm', 'both']);
+
+      const { count: greenspaceCount } = await supabase
+        .from('accounts')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id)
+        .eq('data_source', 'database')
+        .eq('external_database_match', true);
+
+      const { count: bothCount } = await supabase
+        .from('accounts')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id)
+        .eq('data_source', 'both');
+
       const totalAccounts = accountsCount || 0;
       const totalLeads = leadsCount || 0;
       const linkedLeads = leads?.filter(l => l.account_external_id).length || 0;
       const unlinkedLeads = totalLeads - linkedLeads;
+      const crmAccounts = crmCount || 0;
+      const greenspaceAccounts = greenspaceCount || 0;
+      const bothSourcesAccounts = bothCount || 0;
       
       console.log('🔢 Total accounts:', totalAccounts, 'Total leads:', totalLeads);
-      
-      // Calculate CRM vs Greenspace split
-      const crmAccounts = accounts?.filter(a => a.data_source === 'crm' || a.data_source === 'both').length || 0;
-      const greenspaceAccounts = accounts?.filter(a => a.external_database_match && a.data_source === 'database').length || 0;
-      const bothSourcesAccounts = accounts?.filter(a => a.data_source === 'both').length || 0;
-      
       console.log('📊 CRM accounts:', crmAccounts, 'Greenspace:', greenspaceAccounts, 'Both:', bothSourcesAccounts);
       
       // Calculate ICP metrics
