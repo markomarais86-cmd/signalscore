@@ -9,6 +9,7 @@ interface UploadRequest {
   data: any[]
   mapping: Record<string, string>
   orgId: string
+  isExternalDatabase?: boolean
 }
 
 Deno.serve(async (req) => {
@@ -27,8 +28,8 @@ Deno.serve(async (req) => {
       }
     )
 
-    const { data, mapping, orgId }: UploadRequest = await req.json()
-    console.log(`🚀 Starting bulk upload: ${data.length} leads`)
+    const { data, mapping, orgId, isExternalDatabase = false }: UploadRequest = await req.json()
+    console.log(`🚀 Starting bulk upload: ${data.length} leads (External DB: ${isExternalDatabase})`)
 
     let insertedLeads = 0
     const errors: string[] = []
@@ -98,6 +99,37 @@ Deno.serve(async (req) => {
       if (!match) return null;
       
       return parseInt(match[0]);
+    };
+
+    // Helper function to enrich contact with persona
+    const mapTitleToPersona = (title: string | null): string => {
+      if (!title) return 'Unknown';
+      const t = title.toLowerCase();
+      
+      // C-Level Technical
+      if (/(cto|chief technology|chief technical|vp engineering|cio|chief information|chief digital)/i.test(t)) return 'Technical Decision Maker';
+      // C-Level Business
+      if (/(ceo|chief executive|president|founder|owner|cfo|chief financial|coo|chief operating|cmo|chief marketing)/i.test(t)) return 'Business Decision Maker';
+      // VP/Director Technical
+      if (/(director of engineering|director of technology|head of engineering|head of technology|engineering manager|director of software|head of software|director of it|head of it|it director)/i.test(t)) return 'Technical Decision Maker';
+      // VP/Director IT
+      if (/(director of information|it manager|systems manager|infrastructure manager|operations manager|director of operations|head of operations)/i.test(t)) return 'IT Decision Maker';
+      // VP/Director Business
+      if (/(vp|vice president|director of product|head of product|product director|director of strategy|head of strategy|director of sales|head of sales)/i.test(t)) return 'Business Decision Maker';
+      // Senior Technical
+      if (/(senior engineer|lead engineer|principal engineer|staff engineer|senior developer|lead developer|architect|solutions architect)/i.test(t)) return 'Technical Influencer';
+      // Senior Business
+      if (/(senior product|lead product|principal product|senior program|senior project|senior analyst|lead analyst)/i.test(t)) return 'Business Influencer';
+      // Mid-Level Technical
+      if (/(engineer|developer|programmer|devops|sre|site reliability|security engineer|qa engineer)/i.test(t)) return 'Technical Influencer';
+      // Mid-Level Business
+      if (/(product manager|program manager|project manager|business analyst|product owner|scrum master)/i.test(t)) return 'Business Influencer';
+      // IT Staff
+      if (/(it specialist|it support|help desk|desktop support|system administrator|sysadmin|network administrator|database administrator|dba)/i.test(t)) return 'IT Decision Maker';
+      // End Users
+      if (/(coordinator|assistant|associate|specialist|intern|trainee|junior)/i.test(t)) return 'End User';
+      
+      return 'Unknown';
     };
 
     // Process leads in batches

@@ -35,10 +35,11 @@ export default function DataUpload() {
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [showFieldMapping, setShowFieldMapping] = useState(false);
-  const [pendingFile, setPendingFile] = useState<{ file: File; type: 'leads' } | null>(null);
+  const [pendingFile, setPendingFile] = useState<{ file: File; type: 'leads'; isExternalDatabase?: boolean } | null>(null);
   const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
   const [sampleData, setSampleData] = useState<any[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
+  const [isExternalDatabase, setIsExternalDatabase] = useState(false);
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
@@ -61,7 +62,7 @@ export default function DataUpload() {
     setTotalRecords(leadsRes.count || 0);
   };
 
-  const analyzeCSVStructure = async (file: File, type: 'leads') => {
+  const analyzeCSVStructure = async (file: File, type: 'leads', isExternal: boolean = false) => {
     try {
       const text = await file.text();
       const rawData = parseCSV(text);
@@ -75,7 +76,7 @@ export default function DataUpload() {
       
       setCsvHeaders(headers);
       setSampleData(sampleRows);
-      setPendingFile({ file, type });
+      setPendingFile({ file, type, isExternalDatabase: isExternal });
       setShowFieldMapping(true);
       
     } catch (error: any) {
@@ -149,7 +150,8 @@ export default function DataUpload() {
           body: {
             data: rawData,
             mapping: mapping,
-            orgId: orgId
+            orgId: orgId,
+            isExternalDatabase: pendingFile.isExternalDatabase || false
           }
         });
 
@@ -262,7 +264,8 @@ export default function DataUpload() {
 
       try {
         const { data: matchData, error: matchError } = await supabase.rpc('match_leads_to_accounts_fast' as any, {
-          p_org_id: orgId
+          p_org_id: orgId,
+          p_is_external_db: pendingFile.isExternalDatabase || false
         });
 
         if (matchError) throw matchError;
@@ -272,9 +275,10 @@ export default function DataUpload() {
 
         setUploadProgress(100);
 
+        const sourceType = pendingFile.isExternalDatabase ? 'external database' : 'CRM';
         toast({
           title: "✓ Auto-Matching & Scoring Complete!",
-          description: `${result.total_linked.toLocaleString()} leads linked to ${result.new_accounts_created.toLocaleString()} new accounts + ${result.matched_to_existing.toLocaleString()} existing • ${result.accounts_scored || 0} accounts scored`,
+          description: `${result.total_linked.toLocaleString()} ${sourceType} leads linked to ${result.new_accounts_created.toLocaleString()} new + ${result.matched_to_existing.toLocaleString()} existing accounts${result.accounts_updated_to_both ? ` • ${result.accounts_updated_to_both} updated to BOTH` : ''} • ${result.accounts_scored || 0} scored`,
           duration: 8000,
         });
 
@@ -327,7 +331,8 @@ export default function DataUpload() {
       });
 
       const { data: matchData, error: matchError } = await supabase.rpc('match_leads_to_accounts_fast' as any, {
-        p_org_id: userProfile.org_id
+        p_org_id: userProfile.org_id,
+        p_is_external_db: false // Re-match is always for CRM data
       });
 
       if (matchError) throw matchError;
@@ -337,7 +342,7 @@ export default function DataUpload() {
 
       toast({
         title: "✓ Matching Complete!",
-        description: `${result.total_linked.toLocaleString()} leads linked • ${result.new_accounts_created.toLocaleString()} new accounts created • ${result.accounts_scored || 0} scored`,
+        description: `${result.total_linked.toLocaleString()} leads linked • ${result.new_accounts_created.toLocaleString()} new accounts • ${result.accounts_scored || 0} scored`,
         duration: 8000,
       });
 
@@ -424,10 +429,12 @@ export default function DataUpload() {
             uploading={uploading}
             uploadProgress={uploadProgress}
             uploadResult={uploadResult}
-            onFileSelect={(file) => analyzeCSVStructure(file, 'leads')}
+            onFileSelect={(file) => analyzeCSVStructure(file, 'leads', isExternalDatabase)}
             onDownloadTemplate={() => downloadTemplate('leads')}
             onDownloadRejections={downloadRejections}
             onRerunMatching={handleRerunMatching}
+            isExternalDatabase={isExternalDatabase}
+            onExternalDatabaseChange={setIsExternalDatabase}
           />
         </TabsContent>
 

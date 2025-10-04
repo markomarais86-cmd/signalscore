@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { FileText, Download, MapPin, AlertCircle, CheckCircle, Info, RefreshCw } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { FileText, Download, MapPin, AlertCircle, CheckCircle, Info, RefreshCw, Database } from "lucide-react";
 
 interface UploadResult {
   total: number;
@@ -24,6 +26,8 @@ interface UploadSectionProps {
   onDownloadTemplate: () => void;
   onDownloadRejections: () => void;
   onRerunMatching?: () => void;
+  isExternalDatabase?: boolean;
+  onExternalDatabaseChange?: (value: boolean) => void;
 }
 
 export function UploadSection({
@@ -35,7 +39,9 @@ export function UploadSection({
   onFileSelect,
   onDownloadTemplate,
   onDownloadRejections,
-  onRerunMatching
+  onRerunMatching,
+  isExternalDatabase = false,
+  onExternalDatabaseChange
 }: UploadSectionProps) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -68,6 +74,26 @@ export function UploadSection({
             )}
           </AlertDescription>
         </Alert>
+
+        {type === 'leads' && onExternalDatabaseChange && (
+          <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/50">
+            <Database className="h-5 w-5 text-primary" />
+            <div className="flex-1">
+              <Label htmlFor="external-db" className="text-sm font-medium">
+                External Database Upload (ZoomInfo, Apollo, Cognism)
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Enable this if uploading from an external data provider. Accounts will be marked as "database" source and matched to existing CRM accounts.
+              </p>
+            </div>
+            <Switch
+              id="external-db"
+              checked={isExternalDatabase}
+              onCheckedChange={onExternalDatabaseChange}
+              disabled={uploading}
+            />
+          </div>
+        )}
 
         <div className="flex gap-4">
           <Button 
