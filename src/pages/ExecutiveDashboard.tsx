@@ -47,6 +47,7 @@ export default function ExecutiveDashboard() {
   const loadUnifiedData = async () => {
     if (!userProfile?.org_id) return;
     
+    console.log('📊 Loading dashboard data for org:', userProfile.org_id);
     setLoading(true);
     try {
       // Fetch all accounts with data source info
@@ -55,6 +56,8 @@ export default function ExecutiveDashboard() {
         .select('*, data_source, external_database_match')
         .eq('org_id', userProfile.org_id);
 
+      console.log('📦 Accounts fetched:', accounts?.length, 'Error:', accountsError);
+
       if (accountsError) throw accountsError;
 
       // Fetch scores
@@ -62,6 +65,8 @@ export default function ExecutiveDashboard() {
         .from('scores')
         .select('*')
         .eq('org_id', userProfile.org_id);
+
+      console.log('📈 Scores fetched:', scores?.length, 'Error:', scoresError);
 
       if (scoresError) throw scoresError;
 
@@ -84,14 +89,20 @@ export default function ExecutiveDashboard() {
 
       const totalAccounts = accounts?.length || 0;
       
+      console.log('🔢 Total accounts:', totalAccounts);
+      
       // Calculate CRM vs Greenspace split
       const crmAccounts = accounts?.filter(a => a.data_source === 'crm' || a.data_source === 'both').length || 0;
       const greenspaceAccounts = accounts?.filter(a => a.external_database_match && a.data_source === 'database').length || 0;
       const bothSourcesAccounts = accounts?.filter(a => a.data_source === 'both').length || 0;
       
+      console.log('📊 CRM accounts:', crmAccounts, 'Greenspace:', greenspaceAccounts, 'Both:', bothSourcesAccounts);
+      
       // Calculate ICP metrics
       const totalScored = scores?.length || 0;
       const highFitAccounts = scores?.filter(s => s.overall >= 70).length || 0;
+      
+      console.log('🎯 Total scored:', totalScored, 'High fit:', highFitAccounts);
       const averageScore = scores && scores.length > 0 
         ? Math.round(scores.reduce((sum, s) => sum + (s.overall || 0), 0) / scores.length)
         : 0;
@@ -115,7 +126,7 @@ export default function ExecutiveDashboard() {
           )
         : 0;
 
-      setMetrics({
+      const finalMetrics = {
         totalAccounts,
         totalScored,
         highFitAccounts,
@@ -127,7 +138,11 @@ export default function ExecutiveDashboard() {
         greenspaceAccounts,
         bothSourcesAccounts,
         campaignReadyAccounts
-      });
+      };
+      
+      console.log('✅ Final metrics calculated:', finalMetrics);
+      
+      setMetrics(finalMetrics);
 
       // Generate AI insights if we have scores
       if (totalScored > 0) {
