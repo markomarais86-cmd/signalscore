@@ -123,15 +123,22 @@ export default function ExecutiveDashboard() {
         .eq('org_id', userProfile.org_id)
         .eq('data_source', 'both');
 
+      const { count: linkedLeadsCount } = await supabase
+        .from('Leads')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id)
+        .not('account_external_id', 'is', null);
+
       const totalAccounts = accountsCount || 0;
       const totalLeads = leadsCount || 0;
-      const linkedLeads = leads?.filter(l => l.account_external_id).length || 0;
+      const linkedLeads = linkedLeadsCount || 0;
       const unlinkedLeads = totalLeads - linkedLeads;
       const crmAccounts = crmCount || 0;
       const greenspaceAccounts = greenspaceCount || 0;
       const bothSourcesAccounts = bothCount || 0;
       
       console.log('🔢 Total accounts:', totalAccounts, 'Total leads:', totalLeads);
+      console.log('📋 Linked leads:', linkedLeads, 'Unlinked leads:', unlinkedLeads);
       console.log('📊 CRM accounts:', crmAccounts, 'Greenspace:', greenspaceAccounts, 'Both:', bothSourcesAccounts);
       
       // Calculate ICP metrics
