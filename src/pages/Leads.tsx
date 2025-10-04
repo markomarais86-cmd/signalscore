@@ -140,44 +140,64 @@ export default function Leads() {
         return;
       }
 
-      // Get total count of leads
+      // Get total count of leads for display purposes
       const { count: totalCount } = await supabase
         .from('Leads')
         .select('*', { count: 'exact', head: true })
         .eq('org_id', userProfile.org_id);
 
-      console.log('Leads page - Total leads:', totalCount);
+      console.log('Leads page - Total leads in database:', totalCount);
 
-      // Fetch leads in batches (Supabase limit: 1000 per request)
-      const PAGE_SIZE = 1000;
-      const totalPages = Math.ceil((totalCount || 0) / PAGE_SIZE);
-      
-      const leadPromises = [];
-      for (let page = 0; page < totalPages; page++) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-        leadPromises.push(
-          supabase
-            .from('Leads')
-            .select('*')
-            .eq('org_id', userProfile.org_id)
-            .range(from, to)
-            .order('created_at', { ascending: false })
-        );
-      }
-
-      const leadResults = await Promise.all(leadPromises);
-      const leadsData = leadResults.flatMap(result => result.data || []);
-      const leadsError = leadResults.find(r => r.error)?.error;
+      // Only fetch first 5000 leads to prevent memory issues
+      // Use server-side pagination for better performance
+      const INITIAL_LIMIT = 5000;
+      const { data: leadsData, error: leadsError } = await supabase
+        .from('Leads')
+        .select('*')
+        .eq('org_id', userProfile.org_id)
+        .order('created_at', { ascending: false })
+        .limit(INITIAL_LIMIT);
 
       if (leadsError) throw leadsError;
 
+      console.log(`Loaded ${leadsData?.length || 0} leads of ${totalCount || 0} total`);
+
       // Get unique account external IDs that have a link
       const linkedAccountIds = [...new Set(
-        leadsData
+        (leadsData || [])
           .filter(lead => lead.account_external_id)
           .map(lead => lead.account_external_id)
       )];
+
+      // Only fetch accounts and scores if we have linked accounts
+      if (linkedAccountIds.length === 0) {
+        // No linked accounts, just show leads without enrichment
+        const simpleLeads: Lead[] = (leadsData || []).map(lead => ({
+          id: lead.id?.toString() || lead.external_id,
+          external_id: lead.external_id,
+          name: lead.name,
+          first_name: lead.first_name,
+          last_name: lead.last_name,
+          email: lead.email,
+          phone: lead.phone,
+          mobile: lead.mobile,
+          title: lead.title,
+          company: lead.company,
+          website: lead.website,
+          industry: lead.industry,
+          employee_count: lead.employee_count,
+          revenue_range: lead.revenue_range,
+          country: lead.country,
+          state_province: lead.state_province,
+          status: lead.status,
+          account_external_id: lead.account_external_id,
+          contact_external_id: lead.contact_external_id,
+          account: null,
+          score: null
+        }));
+        setLeads(simpleLeads);
+        return;
+      }
 
       // Batch fetch accounts
       const { data: accountsData, error: accountsError } = await supabase
@@ -208,7 +228,7 @@ export default function Leads() {
       );
 
       // Combine leads with their account and score data
-      const enrichedLeads: Lead[] = leadsData.map(lead => {
+      const enrichedLeads: Lead[] = (leadsData || []).map(lead => {
         const linkedAccount = lead.account_external_id 
           ? accountsMap.get(lead.account_external_id) 
           : null;
