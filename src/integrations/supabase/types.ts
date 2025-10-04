@@ -170,6 +170,47 @@ export type Database = {
           },
         ]
       }
+      automation_settings: {
+        Row: {
+          created_at: string | null
+          enabled: boolean
+          id: string
+          last_run_at: string | null
+          org_id: string
+          schedule_frequency: string | null
+          setting_key: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          enabled?: boolean
+          id?: string
+          last_run_at?: string | null
+          org_id: string
+          schedule_frequency?: string | null
+          setting_key: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          enabled?: boolean
+          id?: string
+          last_run_at?: string | null
+          org_id?: string
+          schedule_frequency?: string | null
+          setting_key?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bulk_scoring_jobs: {
         Row: {
           chunk_size: number
@@ -1394,6 +1435,10 @@ export type Database = {
           job_id_param: string
           processed_count: number
         }
+        Returns: undefined
+      }
+      initialize_automation_settings: {
+        Args: { target_org_id: string }
         Returns: undefined
       }
       initialize_feature_flags: {

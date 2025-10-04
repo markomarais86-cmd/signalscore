@@ -255,39 +255,57 @@ export default function DataUpload() {
       await loadTotalRecords();
       completeStep('upload_data');
 
-      // Automatically match leads to accounts after upload
-      console.log('🔄 Auto-matching leads to accounts...');
-      toast({
-        title: "Matching Leads to Accounts",
-        description: "Creating account records and linking leads...",
-      });
+      // Check auto-match setting
+      const { data: autoMatchSetting } = await supabase
+        .from('automation_settings')
+        .select('enabled')
+        .eq('org_id', orgId)
+        .eq('setting_key', 'auto_match_on_upload')
+        .single();
 
-      try {
-        const { data: matchData, error: matchError } = await supabase.rpc('match_leads_to_accounts_fast' as any, {
-          p_org_id: orgId,
-          p_is_external_db: pendingFile.isExternalDatabase || false
+      const shouldAutoMatch = autoMatchSetting?.enabled ?? true;
+
+      if (shouldAutoMatch) {
+        console.log('🔄 Auto-matching leads to accounts...');
+        toast({
+          title: "Matching Leads to Accounts",
+          description: "Creating account records and linking leads (disable in Settings > Automation)...",
         });
 
-        if (matchError) throw matchError;
+        try {
+          const { data: matchData, error: matchError } = await supabase.rpc('match_leads_to_accounts_fast' as any, {
+            p_org_id: orgId,
+            p_is_external_db: pendingFile.isExternalDatabase || false
+          });
 
-        const result = matchData as any;
-        console.log(`✅ Lead matching complete:`, result);
+          if (matchError) throw matchError;
 
+          const result = matchData as any;
+          console.log(`✅ Lead matching complete:`, result);
+
+          setUploadProgress(100);
+
+          const sourceType = pendingFile.isExternalDatabase ? 'external database' : 'CRM';
+          toast({
+            title: "✓ Auto-Matching & Scoring Complete!",
+            description: `${result.total_linked.toLocaleString()} ${sourceType} leads linked to ${result.new_accounts_created.toLocaleString()} new + ${result.matched_to_existing.toLocaleString()} existing accounts${result.accounts_updated_to_both ? ` • ${result.accounts_updated_to_both} updated to BOTH` : ''} • ${result.accounts_scored || 0} scored`,
+            duration: 8000,
+          });
+
+        } catch (matchError: any) {
+          console.error('Auto-matching error:', matchError);
+          toast({
+            title: "Matching Failed",
+            description: matchError.message || "Please try re-running the matching process",
+            variant: "destructive"
+          });
+        }
+      } else {
         setUploadProgress(100);
-
-        const sourceType = pendingFile.isExternalDatabase ? 'external database' : 'CRM';
         toast({
-          title: "✓ Auto-Matching & Scoring Complete!",
-          description: `${result.total_linked.toLocaleString()} ${sourceType} leads linked to ${result.new_accounts_created.toLocaleString()} new + ${result.matched_to_existing.toLocaleString()} existing accounts${result.accounts_updated_to_both ? ` • ${result.accounts_updated_to_both} updated to BOTH` : ''} • ${result.accounts_scored || 0} scored`,
-          duration: 8000,
-        });
-
-      } catch (matchError: any) {
-        console.error('Auto-matching error:', matchError);
-        toast({
-          title: "Matching Failed",
-          description: matchError.message || "Please try re-running the matching process",
-          variant: "destructive"
+          title: "Upload Complete",
+          description: "Auto-matching is disabled. Enable it in Settings > Automation to link leads automatically.",
+          duration: 6000,
         });
       }
 

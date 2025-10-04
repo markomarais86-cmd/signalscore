@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
-import { TrendingUp, Target, Database, Download, MapPin, Sparkles, Building2 } from "lucide-react";
+import { TrendingUp, Target, Database, Download, MapPin, Sparkles, Building2, Settings, AlertCircle } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,14 +14,12 @@ import { HeroMetric } from "@/components/executive/HeroMetric";
 import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { useICPInsights } from "@/hooks/use-icp-insights";
 import { Lightbulb } from "lucide-react";
-import { LeadAccountMatcher } from "@/components/data-upload/LeadAccountMatcher";
 
 export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
   const { completeStep } = useOnboarding();
   const navigate = useNavigate();
   const { insights, statistics, loading: insightsLoading, generateInsights } = useICPInsights();
-  const [showMatcher, setShowMatcher] = useState(false);
   
   const [metrics, setMetrics] = useState({
     totalAccounts: 0,
@@ -51,12 +50,6 @@ export default function ExecutiveDashboard() {
       loadUnifiedData();
     }
   }, [userProfile?.org_id]);
-
-  const handleMatchingComplete = () => {
-    setShowMatcher(false);
-    toast.success("Refreshing dashboard data...");
-    loadUnifiedData(); // Refresh data after matching
-  };
 
   const loadUnifiedData = async () => {
     if (!userProfile?.org_id) return;
@@ -399,28 +392,24 @@ export default function ExecutiveDashboard() {
         </Card>
       </div>
 
-      {/* Unlinked Leads Alert */}
+      {/* Unlinked Leads Status */}
       {metrics.unlinkedLeads > 0 && (
-        <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-200">
-              <TrendingUp className="h-5 w-5" />
-              {metrics.unlinkedLeads.toLocaleString()} Leads Need Account Linking
-            </CardTitle>
-            <CardDescription className="text-amber-700 dark:text-amber-300">
-              These leads haven't been matched to accounts yet. Link them to enable scoring and campaign targeting.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {showMatcher ? (
-              <LeadAccountMatcher onComplete={handleMatchingComplete} />
-            ) : (
-              <Button onClick={() => setShowMatcher(true)} className="w-full">
-                Link Leads to Accounts
-              </Button>
-            )}
-          </CardContent>
-        </Card>
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>
+              {metrics.unlinkedLeads.toLocaleString()} leads waiting to be matched to accounts (auto-matching enabled in settings)
+            </span>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => navigate('/settings?tab=automation')}
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Configure
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {/* Campaign Ready + Data Quality */}

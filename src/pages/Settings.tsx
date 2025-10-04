@@ -48,6 +48,7 @@ import { ZapierIntegration } from "@/components/settings/ZapierIntegration";
 import { APIKeyManager } from "@/components/settings/APIKeyManager";
 import { ExternalDataProviders } from "@/components/settings/ExternalDataProviders";
 import { RateLimitSettings } from "@/components/settings/RateLimitSettings";
+import { AutomationSettings } from "@/components/settings/AutomationSettings";
 import { ZapierWebhookManager } from "@/components/settings/ZapierWebhookManager";
 import { DuplicateAccountMerger } from "@/components/settings/DuplicateAccountMerger";
 import { supabase } from "@/integrations/supabase/client";
@@ -325,6 +326,10 @@ export default function Settings() {
             <Zap className="h-4 w-4" />
             Labs
           </TabsTrigger>
+          <TabsTrigger value="automation" className="flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            Automation
+          </TabsTrigger>
           <TabsTrigger value="integrations" className="flex items-center gap-2">
             <Database className="h-4 w-4" />
             Data Sources
@@ -453,6 +458,11 @@ export default function Settings() {
         {/* Feature Toggles */}
         <TabsContent value="features" className="space-y-6">
           <FeatureToggles />
+        </TabsContent>
+
+        {/* Automation Settings */}
+        <TabsContent value="automation" className="space-y-6">
+          <AutomationSettings />
         </TabsContent>
 
         {/* Team Management */}
