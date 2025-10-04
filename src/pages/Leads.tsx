@@ -68,6 +68,8 @@ export default function Leads() {
   const [linkFilter, setLinkFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [showMatcher, setShowMatcher] = useState(false);
+  const [isMatching, setIsMatching] = useState(false);
+  const [hasAttemptedMatch, setHasAttemptedMatch] = useState(false);
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { flags } = useFeatureFlags();
@@ -87,6 +89,20 @@ export default function Leads() {
       loadLeads();
     }
   }, [userProfile?.org_id]);
+
+  // Auto-match leads to accounts if many are unlinked
+  useEffect(() => {
+    if (!loading && !flags.demo_mode && !hasAttemptedMatch && leads.length > 0) {
+      const unlinkedCount = leads.filter(lead => !lead.account_external_id).length;
+      const unlinkedPercentage = (unlinkedCount / leads.length) * 100;
+      
+      // If more than 50% of leads are unlinked, automatically trigger matching
+      if (unlinkedPercentage > 50) {
+        console.log(`Auto-matching ${unlinkedCount} unlinked leads...`);
+        handleAutoMatch();
+      }
+    }
+  }, [loading, leads, hasAttemptedMatch, flags.demo_mode]);
 
   useEffect(() => {
     filterLeads();
@@ -286,6 +302,45 @@ export default function Leads() {
     }
   };
 
+  const handleAutoMatch = async () => {
+    if (isMatching || !userProfile?.org_id) return;
+    
+    setIsMatching(true);
+    setHasAttemptedMatch(true);
+    
+    try {
+      console.log('Starting automatic lead-to-account matching...');
+      
+      const { data, error } = await supabase.functions.invoke('match-leads-to-accounts', {
+        body: { org_id: userProfile.org_id }
+      });
+
+      if (error) throw error;
+
+      const result = data as any;
+      
+      if (result.success) {
+        const totalLinked = result.matched_to_existing + result.new_accounts_created;
+        toast({
+          title: "Leads Linked Successfully",
+          description: `Linked ${totalLinked.toLocaleString()} leads to accounts (${result.matched_to_existing.toLocaleString()} matched, ${result.new_accounts_created.toLocaleString()} new accounts created)`,
+        });
+        
+        // Reload leads to show updated data
+        await loadLeads();
+      }
+    } catch (error) {
+      console.error('Error auto-matching leads:', error);
+      toast({
+        title: "Auto-Matching Failed",
+        description: "Could not automatically link leads. You can try manually using the button.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsMatching(false);
+    }
+  };
+
   const filterLeads = () => {
     let filtered = leads;
 
@@ -358,7 +413,7 @@ export default function Leads() {
     return <Badge variant="destructive">Low ({score})</Badge>;
   };
 
-  if (loading) {
+  if (loading || isMatching) {
     return (
       <div className="space-y-6">
         <div>
@@ -367,7 +422,14 @@ export default function Leads() {
         </div>
         <Card>
           <CardContent className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="space-y-4 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+              {isMatching && (
+                <p className="text-sm text-muted-foreground">
+                  Linking leads to accounts... This may take a moment.
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -470,17 +532,17 @@ export default function Leads() {
       </div>
 
       {/* Unlinked Leads Alert */}
-      {!flags.demo_mode && unlinkedLeads.length > 0 && unlinkedPercentage >= 50 && (
+      {!flags.demo_mode && unlinkedLeads.length > 0 && unlinkedPercentage >= 10 && hasAttemptedMatch && (
         <Alert className="border-warning">
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
             <div>
-              <strong>{unlinkedPercentage}% of leads ({unlinkedLeads.length.toLocaleString()}) are not linked to accounts.</strong>
-              <p className="text-sm mt-1">Link leads to accounts to enable ICP scoring and improve data quality.</p>
+              <strong>{unlinkedLeads.length.toLocaleString()} leads still unlinked after auto-matching.</strong>
+              <p className="text-sm mt-1">These leads may be missing email/website data needed for account matching.</p>
             </div>
-            <Button onClick={() => setShowMatcher(true)} size="sm" className="ml-4">
+            <Button onClick={handleAutoMatch} size="sm" className="ml-4" disabled={isMatching}>
               <Link2 className="h-4 w-4 mr-2" />
-              Link Leads Now
+              Retry Matching
             </Button>
           </AlertDescription>
         </Alert>
