@@ -55,6 +55,9 @@ interface Lead {
 
 import { usePagination } from "@/hooks/use-pagination";
 import { PaginationControls } from "@/components/ui/pagination-controls";
+import { LeadAccountMatcher } from "@/components/data-upload/LeadAccountMatcher";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Link2, AlertTriangle } from "lucide-react";
 
 export default function Leads() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -62,7 +65,9 @@ export default function Leads() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [linkFilter, setLinkFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [showMatcher, setShowMatcher] = useState(false);
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { flags } = useFeatureFlags();
@@ -85,7 +90,7 @@ export default function Leads() {
 
   useEffect(() => {
     filterLeads();
-  }, [leads, searchTerm, statusFilter]);
+  }, [leads, searchTerm, statusFilter, linkFilter]);
 
   const loadLeads = async () => {
     if (!userProfile?.org_id) return;
@@ -300,6 +305,12 @@ export default function Leads() {
       filtered = filtered.filter(lead => lead.status === statusFilter);
     }
 
+    if (linkFilter === 'linked') {
+      filtered = filtered.filter(lead => lead.account_external_id);
+    } else if (linkFilter === 'unlinked') {
+      filtered = filtered.filter(lead => !lead.account_external_id);
+    }
+
     setFilteredLeads(filtered);
   };
 
@@ -364,6 +375,9 @@ export default function Leads() {
   }
 
   const highSignalLeads = leads.filter(lead => (lead.score?.overall || 0) >= 70);
+  const unlinkedLeads = leads.filter(lead => !lead.account_external_id);
+  const linkedLeads = leads.filter(lead => lead.account_external_id);
+  const unlinkedPercentage = leads.length > 0 ? Math.round((unlinkedLeads.length / leads.length) * 100) : 0;
 
   const exportToCSV = () => {
     if (filteredLeads.length === 0) {
@@ -455,16 +469,70 @@ export default function Leads() {
         </Button>
       </div>
 
+      {/* Unlinked Leads Alert */}
+      {!flags.demo_mode && unlinkedLeads.length > 0 && unlinkedPercentage >= 50 && (
+        <Alert className="border-warning">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <div>
+              <strong>{unlinkedPercentage}% of leads ({unlinkedLeads.length.toLocaleString()}) are not linked to accounts.</strong>
+              <p className="text-sm mt-1">Link leads to accounts to enable ICP scoring and improve data quality.</p>
+            </div>
+            <Button onClick={() => setShowMatcher(true)} size="sm" className="ml-4">
+              <Link2 className="h-4 w-4 mr-2" />
+              Link Leads Now
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Lead Account Matcher */}
+      {showMatcher && (
+        <div>
+          <LeadAccountMatcher />
+          <Button variant="ghost" onClick={() => setShowMatcher(false)} className="mt-2">
+            Hide Matcher
+          </Button>
+        </div>
+      )}
+
       {/* Hero Metric */}
       {leads.length > 0 && (
-        <HeroMetric
-          label="High-Signal Accounts"
-          value={highSignalLeads.length}
-          subtitle={`${Math.round((highSignalLeads.length / leads.length) * 100)}% of total pipeline`}
-          icon={TrendingUp}
-          trend={{ value: 8, period: 'last week' }}
-          status={highSignalLeads.length > 0 ? 'success' : 'warning'}
-        />
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>High-Signal Accounts</CardDescription>
+              <CardTitle className="text-4xl">{highSignalLeads.length}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xs text-muted-foreground">
+                {leads.length > 0 ? Math.round((highSignalLeads.length / leads.length) * 100) : 0}% of total pipeline
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>Linked to Accounts</CardDescription>
+              <CardTitle className="text-4xl">{linkedLeads.length.toLocaleString()}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xs text-muted-foreground">
+                {leads.length > 0 ? Math.round((linkedLeads.length / leads.length) * 100) : 0}% of total leads
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>Unlinked Leads</CardDescription>
+              <CardTitle className="text-4xl">{unlinkedLeads.length.toLocaleString()}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xs text-muted-foreground">
+                Need account matching
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Search and Filters */}
@@ -489,6 +557,16 @@ export default function Leads() {
                 <SelectItem value="open">Open</SelectItem>
                 <SelectItem value="qualified">Qualified</SelectItem>
                 <SelectItem value="nurturing">Nurturing</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={linkFilter} onValueChange={setLinkFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Account link" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Leads</SelectItem>
+                <SelectItem value="linked">Linked to Account</SelectItem>
+                <SelectItem value="unlinked">Unlinked</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -567,8 +645,16 @@ export default function Leads() {
                                 F: {lead.score.fit}
                               </Badge>
                             </div>
+                          ) : lead.account_external_id ? (
+                            <Badge variant="secondary">
+                              <Link2 className="h-3 w-3 mr-1" />
+                              Linked
+                            </Badge>
                           ) : (
-                            <Badge variant="outline">No Account</Badge>
+                            <Badge variant="outline">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Unlinked
+                            </Badge>
                           )}
                         </TableCell>
                       </TableRow>
