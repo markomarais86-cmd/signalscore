@@ -545,35 +545,23 @@ export default function Leads() {
             <div>
               <strong>Note:</strong> You have {unlinkedLeads.length.toLocaleString()} unlinked leads. 
             </div>
-            <div className="text-sm space-y-2">
-              <p>Leads are automatically matched to accounts and scored when you upload them via CSV.</p>
-              <p>If these leads were uploaded before Phase 3, you can manually match them:</p>
+            <div className="text-sm">
+              <p>Leads are automatically matched to accounts and scored when you upload them via CSV. These unlinked leads may be from older uploads.</p>
             </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => window.location.href = '/merge-duplicates'}
-                variant="outline"
-                size="sm"
-              >
-                1. Merge Duplicates
-              </Button>
-              <Button
-                onClick={handleAutoMatch}
-                disabled={isMatching}
-                size="sm"
-              >
-                {isMatching ? (
-                  <>
-                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current"></div>
-                    Matching...
-                  </>
-                ) : (
-                  <>
-                    2. Match Leads
-                  </>
-                )}
-              </Button>
-            </div>
+            <Button
+              onClick={handleAutoMatch}
+              disabled={isMatching}
+              size="sm"
+            >
+              {isMatching ? (
+                <>
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current"></div>
+                  Matching...
+                </>
+              ) : (
+                'Match Unlinked Leads'
+              )}
+            </Button>
           </AlertDescription>
         </Alert>
       )}
