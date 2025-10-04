@@ -253,6 +253,75 @@ export default function DataUpload() {
       await loadTotalRecords();
       completeStep('upload_data');
 
+      // Automatically match leads to accounts after upload
+      console.log('🔄 Auto-matching leads to accounts...');
+      toast({
+        title: "Matching Leads to Accounts",
+        description: "Creating accounts from your leads...",
+      });
+
+      try {
+        const { data: matchData, error: matchError } = await supabase.functions.invoke('match-leads-to-accounts', {
+          body: { orgId }
+        });
+
+        if (matchError) throw matchError;
+
+        const { matched, created, failed } = matchData;
+        console.log(`✅ Lead matching complete: ${matched} matched, ${created} created, ${failed} failed`);
+
+        toast({
+          title: "Lead Matching Complete!",
+          description: `${created} accounts created, ${matched} leads linked`,
+        });
+
+        // Optionally trigger bulk scoring on newly created accounts
+        console.log('🎯 Triggering bulk scoring for new accounts...');
+        
+        // Get active ICP
+        const { data: icpData } = await supabase
+          .from('icp_profiles')
+          .select('id')
+          .eq('org_id', orgId)
+          .eq('status', 'active')
+          .single();
+
+        if (icpData?.id) {
+          toast({
+            title: "Starting Bulk Scoring",
+            description: "Scoring your new accounts in the background...",
+          });
+
+          const { error: scoringError } = await supabase.functions.invoke('bulk-score-accounts', {
+            body: {
+              orgId,
+              icpId: icpData.id
+            }
+          });
+
+          if (scoringError) {
+            console.error('Scoring error:', scoringError);
+            toast({
+              title: "Scoring Started with Warnings",
+              description: "Check the Accounts page for scoring progress",
+              variant: "default"
+            });
+          } else {
+            toast({
+              title: "Scoring In Progress!",
+              description: "Your accounts are being scored. Check the Accounts page for progress.",
+            });
+          }
+        }
+      } catch (matchError: any) {
+        console.error('Auto-matching error:', matchError);
+        toast({
+          title: "Matching Failed",
+          description: "Please manually match leads using the Lead-Account Matcher below",
+          variant: "destructive"
+        });
+      }
+
     } catch (error: any) {
       console.error('❌ Upload error:', error);
       
