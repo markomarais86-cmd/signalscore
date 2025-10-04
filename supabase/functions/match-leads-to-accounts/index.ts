@@ -109,39 +109,61 @@ serve(async (req) => {
 
           let accountExternalId = domainMap.get(domain);
 
-          // If no matching account, create one
+          // If no matching account exists in our map, check database with normalized domain
           if (!accountExternalId) {
-            const newAccountId = `ACC_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            
-            const { error: insertError } = await supabase
+            // Try to find existing account with this normalized domain
+            const { data: existingAccount } = await supabase
               .from('accounts')
-              .insert({
-                org_id,
-                external_id: newAccountId,
-                name: lead.company || domain,
-                domain: domain,
-                industry_norm: lead.industry,
-                employee_count: lead.employee_count,
-                revenue_range: lead.revenue_range,
-                country: lead.country,
-                state_province: lead.state_province,
-                phone: lead.phone || lead.mobile,
-                data_source: 'crm',
-              });
+              .select('external_id')
+              .eq('org_id', org_id)
+              .eq('domain', domain)
+              .limit(1)
+              .maybeSingle();
 
-            if (insertError) {
-              console.error('Error creating account:', insertError);
-              failed++;
-              errors.push({
-                lead_id: lead.external_id,
-                reason: insertError.message,
-              });
-              continue;
+            if (existingAccount) {
+              // Found existing account - use it
+              accountExternalId = existingAccount.external_id;
+              domainMap.set(domain, accountExternalId);
+              matched++;
+            } else {
+              // Create new account with UPSERT to prevent race conditions
+              const newAccountId = `ACC_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+              
+              const { data: upsertedAccount, error: upsertError } = await supabase
+                .from('accounts')
+                .upsert({
+                  org_id,
+                  external_id: newAccountId,
+                  name: lead.company || domain,
+                  domain: domain,
+                  industry_norm: lead.industry,
+                  employee_count: lead.employee_count,
+                  revenue_range: lead.revenue_range,
+                  country: lead.country,
+                  state_province: lead.state_province,
+                  phone: lead.phone || lead.mobile,
+                  data_source: 'crm',
+                }, {
+                  onConflict: 'org_id,external_id',
+                  ignoreDuplicates: false
+                })
+                .select('external_id')
+                .single();
+
+              if (upsertError) {
+                console.error('Error upserting account:', upsertError);
+                failed++;
+                errors.push({
+                  lead_id: lead.external_id,
+                  reason: upsertError.message,
+                });
+                continue;
+              }
+
+              accountExternalId = upsertedAccount?.external_id || newAccountId;
+              domainMap.set(domain, accountExternalId);
+              created++;
             }
-
-            accountExternalId = newAccountId;
-            domainMap.set(domain, newAccountId);
-            created++;
           } else {
             matched++;
           }
