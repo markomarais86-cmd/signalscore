@@ -546,7 +546,7 @@ export default function Leads() {
               <strong>Note:</strong> You have {unlinkedLeads.length.toLocaleString()} unlinked leads. 
             </div>
             <div className="text-sm space-y-2">
-              <p>Leads are automatically matched to accounts when you upload them via CSV.</p>
+              <p>Leads are automatically matched to accounts and scored when you upload them via CSV.</p>
               <p>If these leads were uploaded before Phase 3, you can manually match them:</p>
             </div>
             <div className="flex gap-2">

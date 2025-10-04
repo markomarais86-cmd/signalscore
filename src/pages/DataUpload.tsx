@@ -268,51 +268,13 @@ export default function DataUpload() {
         if (matchError) throw matchError;
 
         const result = matchData as any;
-        console.log(`✅ Lead matching complete: ${result.matched_to_existing} matched, ${result.new_accounts_created} created`);
+        console.log(`✅ Lead matching complete: ${result.matched_to_existing} matched, ${result.new_accounts_created} created, ${result.accounts_scored || 0} auto-scored`);
 
         toast({
-          title: "✓ Leads Matched Successfully!",
-          description: `${result.total_linked.toLocaleString()} leads linked (${result.matched_to_existing.toLocaleString()} matched, ${result.new_accounts_created.toLocaleString()} new accounts created)`,
+          title: "✓ Auto-Matching & Scoring Complete!",
+          description: `${result.total_linked.toLocaleString()} leads linked (${result.matched_to_existing.toLocaleString()} matched, ${result.new_accounts_created.toLocaleString()} new accounts) • ${result.accounts_scored || 0} accounts auto-scored`,
         });
 
-        // Optionally trigger bulk scoring on newly created accounts
-        console.log('🎯 Triggering bulk scoring for new accounts...');
-        
-        // Get active ICP
-        const { data: icpData } = await supabase
-          .from('icp_profiles')
-          .select('id')
-          .eq('org_id', orgId)
-          .eq('status', 'active')
-          .single();
-
-        if (icpData?.id) {
-          toast({
-            title: "Starting Bulk Scoring",
-            description: "Scoring your new accounts in the background...",
-          });
-
-          const { error: scoringError } = await supabase.functions.invoke('bulk-score-accounts', {
-            body: {
-              orgId,
-              icpId: icpData.id
-            }
-          });
-
-          if (scoringError) {
-            console.error('Scoring error:', scoringError);
-            toast({
-              title: "Scoring Started with Warnings",
-              description: "Check the Accounts page for scoring progress",
-              variant: "default"
-            });
-          } else {
-            toast({
-              title: "Scoring In Progress!",
-              description: "Your accounts are being scored. Check the Accounts page for progress.",
-            });
-          }
-        }
       } catch (matchError: any) {
         console.error('Auto-matching error:', matchError);
         toast({
@@ -379,7 +341,7 @@ export default function DataUpload() {
     <div className="space-y-6">
       <div>
         <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Data Upload</h1>
-        <p className="text-muted-foreground mt-2">Import leads via CSV - accounts are automatically created and matched</p>
+        <p className="text-muted-foreground mt-2">Import leads via CSV - accounts are automatically created, matched, and scored</p>
       </div>
 
       {totalRecords > 0 && (

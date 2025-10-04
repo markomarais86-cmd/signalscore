@@ -1336,6 +1336,10 @@ export type Database = {
       }
     }
     Functions: {
+      auto_score_account: {
+        Args: { p_account_external_id: string; p_org_id: string }
+        Returns: undefined
+      }
       calculate_account_score: {
         Args: {
           account_external_id: string
@@ -1356,6 +1360,10 @@ export type Database = {
       generate_sample_data: {
         Args: Record<PropertyKey, never>
         Returns: Json
+      }
+      get_active_icp_id: {
+        Args: { p_org_id: string }
+        Returns: string
       }
       get_current_user_org_id: {
         Args: Record<PropertyKey, never>
