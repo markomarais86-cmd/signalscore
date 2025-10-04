@@ -1,7 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0';
-import { checkRateLimit, rateLimitResponse } from '../rate-limit-helper/index.ts';
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,6 +13,71 @@ interface BulkScoreRequest {
   job_id?: string;
   chunk_index?: number;
   chunk_size?: number;
+}
+
+interface RateLimitResult {
+  allowed: boolean;
+  current_count: number;
+  max_requests: number;
+  reset_at: string;
+}
+
+// Rate limit helper functions (inlined)
+async function checkRateLimit(
+  supabase: SupabaseClient,
+  orgId: string,
+  endpoint: string,
+  maxRequests: number = 100,
+  windowSeconds: number = 60
+): Promise<RateLimitResult> {
+  try {
+    const { data, error } = await supabase.rpc('check_rate_limit', {
+      p_org_id: orgId,
+      p_endpoint: endpoint,
+      p_max_requests: maxRequests,
+      p_window_seconds: windowSeconds
+    });
+
+    if (error) {
+      console.error('Rate limit check error:', error);
+      return {
+        allowed: true,
+        current_count: 0,
+        max_requests: maxRequests,
+        reset_at: new Date().toISOString()
+      };
+    }
+
+    return data as RateLimitResult;
+  } catch (error) {
+    console.error('Rate limit check exception:', error);
+    return {
+      allowed: true,
+      current_count: 0,
+      max_requests: maxRequests,
+      reset_at: new Date().toISOString()
+    };
+  }
+}
+
+function rateLimitResponse(result: RateLimitResult, corsHeaders: Record<string, string>) {
+  return new Response(
+    JSON.stringify({
+      error: 'Rate limit exceeded',
+      message: `Too many requests. Limit: ${result.max_requests} per ${Math.floor((new Date(result.reset_at).getTime() - Date.now()) / 1000)}s`,
+      retry_after: result.reset_at,
+      current: result.current_count,
+      limit: result.max_requests
+    }),
+    {
+      status: 429,
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json',
+        'Retry-After': Math.ceil((new Date(result.reset_at).getTime() - Date.now()) / 1000).toString()
+      }
+    }
+  );
 }
 
 serve(async (req) => {
