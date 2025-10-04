@@ -1384,6 +1384,10 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: Json
       }
+      merge_duplicate_accounts: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
       normalize_domain_text: {
         Args: { domain_input: string }
         Returns: string
