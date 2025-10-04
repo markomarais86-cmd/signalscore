@@ -39,47 +39,88 @@ serve(async (req) => {
     const { org_id } = await req.json();
 
     if (!org_id) {
+      console.error('❌ Missing org_id in request body');
       return new Response(
-        JSON.stringify({ error: 'org_id is required' }),
+        JSON.stringify({ 
+          error: 'org_id is required',
+          success: false 
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Starting fast lead-to-account matching for org: ${org_id}`);
+    console.log(`🔗 Starting fast lead-to-account matching for org: ${org_id}`);
+    console.log(`📝 Request received at: ${new Date().toISOString()}`);
 
     // Use the optimized database function for bulk matching
     // This is MUCH faster than processing leads one by one
-    const { data: result, error: matchError } = await supabase
-      .rpc('match_leads_to_accounts_fast', {
+    try {
+      console.log(`📞 Calling RPC: match_leads_to_accounts_fast with params:`, {
         p_org_id: org_id,
         p_is_external_db: false
       });
 
-    if (matchError) {
-      console.error('Error in bulk matching:', matchError);
-      throw matchError;
+      const { data: result, error: matchError } = await supabase
+        .rpc('match_leads_to_accounts_fast', {
+          p_org_id: org_id,
+          p_is_external_db: false
+        });
+
+      if (matchError) {
+        console.error('❌ RPC Error Details:', {
+          message: matchError.message,
+          details: matchError.details,
+          hint: matchError.hint,
+          code: matchError.code
+        });
+        throw new Error(`Database function error: ${matchError.message} (Code: ${matchError.code})`);
+      }
+
+      console.log(`✅ Matching complete:`, result);
+      console.log(`📊 Results: ${result?.total_linked || 0} leads linked, ${result?.new_accounts_created || 0} accounts created, ${result?.accounts_scored || 0} scored`);
+
+      return new Response(
+        JSON.stringify({
+          success: result?.success || true,
+          total_leads: result?.total_leads || 0,
+          matched_to_existing: result?.matched_to_existing || 0,
+          new_accounts_created: result?.new_accounts_created || 0,
+          accounts_scored: result?.accounts_scored || 0,
+          failed: result?.failed || 0,
+          total_linked: result?.total_linked || 0,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (rpcError: any) {
+      console.error('❌ RPC Call Failed:', {
+        error: rpcError,
+        message: rpcError.message,
+        stack: rpcError.stack,
+        timestamp: new Date().toISOString()
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          error: `Failed to execute matching function: ${rpcError.message}`,
+          success: false,
+          details: rpcError.details || rpcError.hint || 'Check edge function logs for more information'
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-
-    console.log(`Matching complete:`, result);
-
-    return new Response(
-      JSON.stringify({
-        success: result?.success || true,
-        total_leads: result?.total_leads || 0,
-        matched_to_existing: result?.matched_to_existing || 0,
-        new_accounts_created: result?.new_accounts_created || 0,
-        accounts_scored: result?.accounts_scored || 0,
-        failed: result?.failed || 0,
-        total_linked: result?.total_linked || 0,
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  } catch (error) {
-    console.error('Error in match-leads-to-accounts:', error);
+  } catch (error: any) {
+    console.error('❌ Unexpected Error in match-leads-to-accounts:', {
+      error: error,
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+    
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error.message || 'Unknown error occurred',
         success: false,
+        details: 'An unexpected error occurred during lead matching. Please check the logs.'
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

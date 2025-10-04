@@ -14,6 +14,7 @@ import { HeroMetric } from "@/components/executive/HeroMetric";
 import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { useICPInsights } from "@/hooks/use-icp-insights";
 import { Lightbulb } from "lucide-react";
+import { BulkLeadMatcher } from "@/components/data-upload/BulkLeadMatcher";
 
 export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
@@ -340,6 +341,14 @@ export default function ExecutiveDashboard() {
       </div>
 
       <OnboardingProgress />
+
+      {/* Bulk Lead Matcher Alert */}
+      {metrics.unlinkedLeads > 0 && (
+        <BulkLeadMatcher 
+          unlinkedLeads={metrics.unlinkedLeads} 
+          onComplete={loadUnifiedData}
+        />
+      )}
 
       {/* Hero Metrics - Three Main Blocks */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
