@@ -12,11 +12,16 @@ interface MatchingResult {
   total_leads: number;
   matched_to_existing: number;
   new_accounts_created: number;
+  accounts_scored?: number;
   failed: number;
   errors?: Array<{ lead_id: string; reason: string }>;
 }
 
-export function LeadAccountMatcher() {
+interface LeadAccountMatcherProps {
+  onComplete?: () => void;
+}
+
+export function LeadAccountMatcher({ onComplete }: LeadAccountMatcherProps) {
   const [isMatching, setIsMatching] = useState(false);
   const [result, setResult] = useState<MatchingResult | null>(null);
   const { toast } = useToast();
@@ -51,8 +56,13 @@ export function LeadAccountMatcher() {
       if (data.success) {
         toast({
           title: "Matching Complete",
-          description: `Linked ${data.matched_to_existing + data.new_accounts_created} leads to accounts`,
+          description: `Linked ${data.matched_to_existing + data.new_accounts_created} leads to accounts${data.accounts_scored ? ` and scored ${data.accounts_scored} accounts` : ''}`,
         });
+        
+        // Call onComplete callback after a brief delay to show results
+        setTimeout(() => {
+          onComplete?.();
+        }, 2000);
       }
     } catch (error) {
       console.error('Error matching leads:', error);
@@ -133,6 +143,12 @@ export function LeadAccountMatcher() {
                     <span className="text-muted-foreground">Created:</span>
                     <Badge variant="default">{result.new_accounts_created}</Badge>
                   </div>
+                  {result.accounts_scored !== undefined && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Scored:</span>
+                      <Badge variant="outline">{result.accounts_scored}</Badge>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">Failed:</span>
                     <Badge variant="destructive">{result.failed}</Badge>
