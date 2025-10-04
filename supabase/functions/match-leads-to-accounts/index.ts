@@ -45,190 +45,32 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Starting lead-to-account matching for org: ${org_id}`);
+    console.log(`Starting fast lead-to-account matching for org: ${org_id}`);
 
-    // Get count of all unlinked leads first
-    const { count: totalUnlinked } = await supabase
-      .from('Leads')
-      .select('*', { count: 'exact', head: true })
-      .eq('org_id', org_id)
-      .is('account_external_id', null);
+    // Use the optimized database function for bulk matching
+    // This is MUCH faster than processing leads one by one
+    const { data: result, error: matchError } = await supabase
+      .rpc('match_leads_to_accounts_fast', {
+        p_org_id: org_id,
+        p_is_external_db: false
+      });
 
-    console.log(`Found ${totalUnlinked || 0} total unlinked leads`);
-
-    // Process in chunks to avoid memory issues
-    const FETCH_SIZE = 5000;
-    let allUnlinkedLeads: any[] = [];
-    
-    for (let offset = 0; offset < (totalUnlinked || 0); offset += FETCH_SIZE) {
-      const { data: leadsBatch, error: leadsError } = await supabase
-        .from('Leads')
-        .select('id, external_id, email, website, company, industry, employee_count, revenue_range, country, state_province, phone, mobile')
-        .eq('org_id', org_id)
-        .is('account_external_id', null)
-        .range(offset, offset + FETCH_SIZE - 1);
-
-      if (leadsError) {
-        console.error('Error fetching leads batch:', leadsError);
-        throw leadsError;
-      }
-
-      if (leadsBatch && leadsBatch.length > 0) {
-        allUnlinkedLeads = allUnlinkedLeads.concat(leadsBatch);
-        console.log(`Loaded ${allUnlinkedLeads.length} of ${totalUnlinked} leads...`);
-      } else {
-        break; // No more leads
-      }
+    if (matchError) {
+      console.error('Error in bulk matching:', matchError);
+      throw matchError;
     }
 
-    const unlinkedLeads = allUnlinkedLeads;
-    console.log(`Processing ${unlinkedLeads.length} unlinked leads`);
-
-    // Get all existing accounts for the org with their normalized domains
-    const { data: existingAccounts, error: accountsError } = await supabase
-      .from('accounts')
-      .select('external_id, domain, name')
-      .eq('org_id', org_id);
-
-    if (accountsError) throw accountsError;
-
-    // Create a map of normalized domains to account external_ids
-    const domainMap = new Map<string, string>();
-    existingAccounts?.forEach(account => {
-      const normalized = normalizeDomain(account.domain);
-      if (normalized) {
-        domainMap.set(normalized, account.external_id);
-      }
-    });
-
-    let matched = 0;
-    let created = 0;
-    let failed = 0;
-    const errors: any[] = [];
-
-    // Process leads in batches
-    const BATCH_SIZE = 100;
-    const totalLeads = unlinkedLeads?.length || 0;
-    
-    for (let i = 0; i < totalLeads; i += BATCH_SIZE) {
-      const batch = unlinkedLeads?.slice(i, i + BATCH_SIZE) || [];
-      console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(totalLeads / BATCH_SIZE)} (${i + 1}-${Math.min(i + BATCH_SIZE, totalLeads)} of ${totalLeads})`);
-      
-      for (const lead of batch) {
-        try {
-          // Extract and normalize domain
-          let domain = '';
-          if (lead.website) {
-            domain = normalizeDomain(lead.website);
-          } else if (lead.email) {
-            domain = normalizeDomain(extractDomainFromEmail(lead.email));
-          }
-
-          if (!domain) {
-            failed++;
-            errors.push({
-              lead_id: lead.external_id,
-              reason: 'No valid domain found',
-            });
-            continue;
-          }
-
-          let accountExternalId = domainMap.get(domain);
-
-          // If no matching account exists in our map, check database with normalized domain
-          if (!accountExternalId) {
-            // Try to find existing account with this normalized domain
-            const { data: existingAccount } = await supabase
-              .from('accounts')
-              .select('external_id')
-              .eq('org_id', org_id)
-              .eq('domain', domain)
-              .limit(1)
-              .maybeSingle();
-
-            if (existingAccount) {
-              // Found existing account - use it
-              accountExternalId = existingAccount.external_id;
-              domainMap.set(domain, accountExternalId);
-              matched++;
-            } else {
-              // Create new account with UPSERT to prevent race conditions
-              const newAccountId = `ACC_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-              
-              const { data: upsertedAccount, error: upsertError } = await supabase
-                .from('accounts')
-                .upsert({
-                  org_id,
-                  external_id: newAccountId,
-                  name: lead.company || domain,
-                  domain: domain,
-                  industry_norm: lead.industry,
-                  employee_count: lead.employee_count,
-                  revenue_range: lead.revenue_range,
-                  country: lead.country,
-                  state_province: lead.state_province,
-                  phone: lead.phone || lead.mobile,
-                  data_source: 'crm',
-                }, {
-                  onConflict: 'org_id,external_id',
-                  ignoreDuplicates: false
-                })
-                .select('external_id')
-                .single();
-
-              if (upsertError) {
-                console.error('Error upserting account:', upsertError);
-                failed++;
-                errors.push({
-                  lead_id: lead.external_id,
-                  reason: upsertError.message,
-                });
-                continue;
-              }
-
-              accountExternalId = upsertedAccount?.external_id || newAccountId;
-              domainMap.set(domain, accountExternalId);
-              created++;
-            }
-          } else {
-            matched++;
-          }
-
-          // Link the lead to the account
-          const { error: updateError } = await supabase
-            .from('Leads')
-            .update({ account_external_id: accountExternalId })
-            .eq('id', lead.id);
-
-          if (updateError) {
-            console.error('Error linking lead:', updateError);
-            failed++;
-            errors.push({
-              lead_id: lead.external_id,
-              reason: updateError.message,
-            });
-          }
-        } catch (error) {
-          console.error('Error processing lead:', error);
-          failed++;
-          errors.push({
-            lead_id: lead.external_id,
-            reason: error instanceof Error ? error.message : 'Unknown error',
-          });
-        }
-      }
-    }
-
-    console.log(`Matching complete: ${matched} matched, ${created} created, ${failed} failed`);
+    console.log(`Matching complete:`, result);
 
     return new Response(
       JSON.stringify({
-        success: true,
-        total_leads: unlinkedLeads?.length || 0,
-        matched_to_existing: matched,
-        new_accounts_created: created,
-        failed,
-        errors: errors.slice(0, 10), // Return first 10 errors only
+        success: result?.success || true,
+        total_leads: result?.total_leads || 0,
+        matched_to_existing: result?.matched_to_existing || 0,
+        new_accounts_created: result?.new_accounts_created || 0,
+        accounts_scored: result?.accounts_scored || 0,
+        failed: result?.failed || 0,
+        total_linked: result?.total_linked || 0,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
