@@ -103,12 +103,12 @@ export default function ExecutiveDashboard() {
 
       if (leadsError) throw leadsError;
 
-      const totalAccounts = accounts?.length || 0;
-      const totalLeads = leads?.length || 0;
+      const totalAccounts = accountsCount || 0;
+      const totalLeads = leadsCount || 0;
       const linkedLeads = leads?.filter(l => l.account_external_id).length || 0;
       const unlinkedLeads = totalLeads - linkedLeads;
       
-      console.log('🔢 Total accounts:', totalAccounts);
+      console.log('🔢 Total accounts:', totalAccounts, 'Total leads:', totalLeads);
       
       // Calculate CRM vs Greenspace split
       const crmAccounts = accounts?.filter(a => a.data_source === 'crm' || a.data_source === 'both').length || 0;
@@ -118,7 +118,7 @@ export default function ExecutiveDashboard() {
       console.log('📊 CRM accounts:', crmAccounts, 'Greenspace:', greenspaceAccounts, 'Both:', bothSourcesAccounts);
       
       // Calculate ICP metrics
-      const totalScored = scores?.length || 0;
+      const totalScored = scoresCount || 0;
       const highFitAccounts = scores?.filter(s => s.overall >= 70).length || 0;
       
       console.log('🎯 Total scored:', totalScored, 'High fit:', highFitAccounts);
