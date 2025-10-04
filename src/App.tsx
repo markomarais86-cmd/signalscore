@@ -11,6 +11,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
+import MergeDuplicates from "./pages/MergeDuplicates";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
@@ -142,6 +143,16 @@ function App() {
                     <ProtectedRoute>
                       <Layout>
                         <Leads />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/merge-duplicates"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <MergeDuplicates />
                       </Layout>
                     </ProtectedRoute>
                   }

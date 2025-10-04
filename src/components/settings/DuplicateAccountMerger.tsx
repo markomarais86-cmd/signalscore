@@ -7,15 +7,12 @@ import { Loader2, AlertTriangle, CheckCircle2, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface MergeResult {
-  org_id: string;
-  total_accounts_before: number;
-  total_accounts_after: number;
-  duplicates_merged: number;
-  accounts_deleted: number;
-  leads_relinked: number;
-  contacts_relinked: number;
-  scores_relinked: number;
-  domains_processed: string[];
+  success: boolean;
+  duplicate_groups_found: number;
+  duplicate_accounts_merged: number;
+  leads_updated: number;
+  contacts_updated: number;
+  scores_updated: number;
 }
 
 export function DuplicateAccountMerger() {
@@ -29,19 +26,30 @@ export function DuplicateAccountMerger() {
     setResult(null);
 
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke(
-        'merge-duplicate-accounts',
-        {
-          method: 'POST',
-        }
-      );
+      // Get current user's org_id
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
 
-      if (invokeError) {
-        throw new Error(invokeError.message);
+      const { data: userProfile } = await supabase
+        .from('user_profiles')
+        .select('org_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!userProfile) throw new Error('User profile not found');
+
+      // Call the fast SQL merge function
+      const { data, error: rpcError } = await supabase.rpc('merge_duplicate_accounts' as any, {
+        p_org_id: userProfile.org_id
+      });
+
+      if (rpcError) {
+        throw new Error(rpcError.message);
       }
 
-      setResult(data as MergeResult);
-      toast.success('Duplicate accounts merged successfully!');
+      const result = data as any as MergeResult;
+      setResult(result);
+      toast.success(`Merged ${result.duplicate_accounts_merged} duplicate accounts!`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to merge duplicates';
       setError(errorMessage);
@@ -94,36 +102,28 @@ export function DuplicateAccountMerger() {
           <Alert className="bg-success/10 border-success">
             <CheckCircle2 className="h-4 w-4 text-success" />
             <AlertDescription>
-              <strong>Merge Completed Successfully!</strong>
+              <strong>✓ Merge Completed Successfully!</strong>
               <div className="mt-3 space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span>Accounts before:</span>
-                  <strong>{result.total_accounts_before}</strong>
-                </div>
-                <div className="flex justify-between">
-                  <span>Accounts after:</span>
-                  <strong>{result.total_accounts_after}</strong>
+                  <span>Duplicate groups found:</span>
+                  <strong>{result.duplicate_groups_found}</strong>
                 </div>
                 <div className="flex justify-between text-success">
-                  <span>Duplicates merged:</span>
-                  <strong>{result.duplicates_merged}</strong>
-                </div>
-                <div className="flex justify-between text-success">
-                  <span>Accounts deleted:</span>
-                  <strong>{result.accounts_deleted}</strong>
+                  <span>Duplicate accounts merged:</span>
+                  <strong>{result.duplicate_accounts_merged}</strong>
                 </div>
                 <hr className="my-2" />
                 <div className="flex justify-between">
-                  <span>Leads re-linked:</span>
-                  <strong>{result.leads_relinked}</strong>
+                  <span>Leads updated:</span>
+                  <strong>{result.leads_updated}</strong>
                 </div>
                 <div className="flex justify-between">
-                  <span>Contacts re-linked:</span>
-                  <strong>{result.contacts_relinked}</strong>
+                  <span>Contacts updated:</span>
+                  <strong>{result.contacts_updated}</strong>
                 </div>
                 <div className="flex justify-between">
-                  <span>Scores re-linked:</span>
-                  <strong>{result.scores_relinked}</strong>
+                  <span>Scores updated:</span>
+                  <strong>{result.scores_updated}</strong>
                 </div>
               </div>
             </AlertDescription>
