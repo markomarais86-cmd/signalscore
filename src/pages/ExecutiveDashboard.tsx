@@ -31,7 +31,10 @@ export default function ExecutiveDashboard() {
     icpMatchQuality: 0,
     completenessScore: 0,
     campaignReadyAccounts: 0,
-    coverage: 0
+    coverage: 0,
+    totalLeads: 0,
+    linkedLeads: 0,
+    unlinkedLeads: 0
   });
   
   const [fitDistribution, setFitDistribution] = useState<any[]>([]);
@@ -87,7 +90,20 @@ export default function ExecutiveDashboard() {
 
       if (contactsError) throw contactsError;
 
+      // Fetch leads
+      const { data: leads, error: leadsError } = await supabase
+        .from('Leads')
+        .select('*')
+        .eq('org_id', userProfile.org_id);
+
+      console.log('📋 Leads fetched:', leads?.length, 'Error:', leadsError);
+
+      if (leadsError) throw leadsError;
+
       const totalAccounts = accounts?.length || 0;
+      const totalLeads = leads?.length || 0;
+      const linkedLeads = leads?.filter(l => l.account_external_id).length || 0;
+      const unlinkedLeads = totalLeads - linkedLeads;
       
       console.log('🔢 Total accounts:', totalAccounts);
       
@@ -137,7 +153,10 @@ export default function ExecutiveDashboard() {
         crmAccounts,
         greenspaceAccounts,
         bothSourcesAccounts,
-        campaignReadyAccounts
+        campaignReadyAccounts,
+        totalLeads,
+        linkedLeads,
+        unlinkedLeads
       };
       
       console.log('✅ Final metrics calculated:', finalMetrics);
@@ -219,23 +238,30 @@ export default function ExecutiveDashboard() {
       <OnboardingProgress />
 
       {/* Hero Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <HeroMetric
-          label="Accounts in Database"
+          label="Total Accounts"
           value={metrics.totalAccounts.toLocaleString()}
-          subtitle="Total accounts available"
+          subtitle="In database"
           icon={Database}
+        />
+
+        <HeroMetric
+          label="Total Leads"
+          value={metrics.totalLeads.toLocaleString()}
+          subtitle={`${metrics.linkedLeads} linked to accounts`}
+          icon={TrendingUp}
         />
         
         <HeroMetric
-          label="In Your CRM"
+          label="CRM Coverage"
           value={metrics.crmAccounts.toLocaleString()}
-          subtitle={`${metrics.coverage}% coverage`}
+          subtitle={`${metrics.coverage}% of total`}
           icon={Building2}
         />
 
         <HeroMetric
-          label="Greenspace Available"
+          label="Greenspace"
           value={metrics.greenspaceAccounts.toLocaleString()}
           subtitle="Not yet in CRM"
           icon={Sparkles}
@@ -243,9 +269,9 @@ export default function ExecutiveDashboard() {
         />
 
         <HeroMetric
-          label="High-Fit ICP Matches"
+          label="High-Fit Matches"
           value={metrics.highFitAccounts.toLocaleString()}
-          subtitle={`${metrics.icpMatchQuality}% match quality`}
+          subtitle={`${metrics.icpMatchQuality}% ICP quality`}
           icon={Target}
         />
       </div>
