@@ -311,29 +311,42 @@ export default function Leads() {
     try {
       console.log('Starting automatic lead-to-account matching...');
       
+      toast({
+        title: "Matching in Progress",
+        description: "Linking leads to accounts... This may take a few minutes for large datasets.",
+      });
+      
       const { data, error } = await supabase.functions.invoke('match-leads-to-accounts', {
         body: { org_id: userProfile.org_id }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
 
       const result = data as any;
+      console.log('Matching result:', result);
       
       if (result.success) {
         const totalLinked = result.matched_to_existing + result.new_accounts_created;
         toast({
           title: "Leads Linked Successfully",
-          description: `Linked ${totalLinked.toLocaleString()} leads to accounts (${result.matched_to_existing.toLocaleString()} matched, ${result.new_accounts_created.toLocaleString()} new accounts created)`,
+          description: `Linked ${totalLinked.toLocaleString()} leads to accounts (${result.matched_to_existing.toLocaleString()} matched, ${result.new_accounts_created.toLocaleString()} new). ${result.failed > 0 ? `${result.failed} failed.` : ''}`,
         });
         
-        // Reload leads to show updated data
+        // Force reload of leads to show updated data
+        console.log('Reloading leads after matching...');
+        setLoading(true);
         await loadLeads();
+      } else {
+        throw new Error(result.error || 'Matching failed');
       }
     } catch (error) {
       console.error('Error auto-matching leads:', error);
       toast({
         title: "Auto-Matching Failed",
-        description: "Could not automatically link leads. You can try manually using the button.",
+        description: error instanceof Error ? error.message : "Could not automatically link leads. Check console for details.",
         variant: "destructive",
       });
     } finally {

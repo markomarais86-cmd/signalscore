@@ -47,19 +47,42 @@ serve(async (req) => {
 
     console.log(`Starting lead-to-account matching for org: ${org_id}`);
 
-    // Get all unlinked leads
-    const { data: unlinkedLeads, error: leadsError } = await supabase
+    // Get count of all unlinked leads first
+    const { count: totalUnlinked } = await supabase
       .from('Leads')
-      .select('id, external_id, email, website, company, industry, employee_count, revenue_range, country, state_province, phone, mobile')
+      .select('*', { count: 'exact', head: true })
       .eq('org_id', org_id)
       .is('account_external_id', null);
 
-    if (leadsError) {
-      console.error('Error fetching leads:', leadsError);
-      throw leadsError;
+    console.log(`Found ${totalUnlinked || 0} total unlinked leads`);
+
+    // Process in chunks to avoid memory issues
+    const FETCH_SIZE = 5000;
+    let allUnlinkedLeads: any[] = [];
+    
+    for (let offset = 0; offset < (totalUnlinked || 0); offset += FETCH_SIZE) {
+      const { data: leadsBatch, error: leadsError } = await supabase
+        .from('Leads')
+        .select('id, external_id, email, website, company, industry, employee_count, revenue_range, country, state_province, phone, mobile')
+        .eq('org_id', org_id)
+        .is('account_external_id', null)
+        .range(offset, offset + FETCH_SIZE - 1);
+
+      if (leadsError) {
+        console.error('Error fetching leads batch:', leadsError);
+        throw leadsError;
+      }
+
+      if (leadsBatch && leadsBatch.length > 0) {
+        allUnlinkedLeads = allUnlinkedLeads.concat(leadsBatch);
+        console.log(`Loaded ${allUnlinkedLeads.length} of ${totalUnlinked} leads...`);
+      } else {
+        break; // No more leads
+      }
     }
 
-    console.log(`Found ${unlinkedLeads?.length || 0} unlinked leads`);
+    const unlinkedLeads = allUnlinkedLeads;
+    console.log(`Processing ${unlinkedLeads.length} unlinked leads`);
 
     // Get all existing accounts for the org with their normalized domains
     const { data: existingAccounts, error: accountsError } = await supabase
@@ -85,8 +108,11 @@ serve(async (req) => {
 
     // Process leads in batches
     const BATCH_SIZE = 100;
-    for (let i = 0; i < (unlinkedLeads?.length || 0); i += BATCH_SIZE) {
+    const totalLeads = unlinkedLeads?.length || 0;
+    
+    for (let i = 0; i < totalLeads; i += BATCH_SIZE) {
       const batch = unlinkedLeads?.slice(i, i + BATCH_SIZE) || [];
+      console.log(`Processing batch ${Math.floor(i / BATCH_SIZE) + 1} of ${Math.ceil(totalLeads / BATCH_SIZE)} (${i + 1}-${Math.min(i + BATCH_SIZE, totalLeads)} of ${totalLeads})`);
       
       for (const lead of batch) {
         try {
