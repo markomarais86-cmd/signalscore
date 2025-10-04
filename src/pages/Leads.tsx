@@ -90,19 +90,7 @@ export default function Leads() {
     }
   }, [userProfile?.org_id]);
 
-  // Auto-match leads to accounts if many are unlinked
-  useEffect(() => {
-    if (!loading && !flags.demo_mode && !hasAttemptedMatch && leads.length > 0) {
-      const unlinkedCount = leads.filter(lead => !lead.account_external_id).length;
-      const unlinkedPercentage = (unlinkedCount / leads.length) * 100;
-      
-      // If more than 50% of leads are unlinked, automatically trigger matching
-      if (unlinkedPercentage > 50) {
-        console.log(`Auto-matching ${unlinkedCount} unlinked leads...`);
-        handleAutoMatch();
-      }
-    }
-  }, [loading, leads, hasAttemptedMatch, flags.demo_mode]);
+  // Removed auto-match on page load - it causes timeouts and poor UX
 
   useEffect(() => {
     filterLeads();
@@ -303,50 +291,55 @@ export default function Leads() {
   };
 
   const handleAutoMatch = async () => {
-    if (isMatching || !userProfile?.org_id) return;
-    
+    if (!userProfile?.org_id) {
+      toast({
+        title: "Error",
+        description: "No organization ID found",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsMatching(true);
-    setHasAttemptedMatch(true);
     
     try {
-      console.log('Starting automatic lead-to-account matching...');
+      console.log('Starting fast SQL-based lead-to-account matching...');
       
       toast({
-        title: "Matching in Progress",
-        description: "Linking leads to accounts... This may take a few minutes for large datasets.",
+        title: "Matching Leads...",
+        description: "This will take just a few seconds.",
       });
       
-      const { data, error } = await supabase.functions.invoke('match-leads-to-accounts', {
-        body: { org_id: userProfile.org_id }
+      // Call the fast SQL function directly
+      const { data, error } = await supabase.rpc('match_leads_to_accounts_fast', {
+        p_org_id: userProfile.org_id
       });
 
       if (error) {
-        console.error('Edge function error:', error);
+        console.error('SQL function error:', error);
         throw error;
       }
 
-      const result = data as any;
-      console.log('Matching result:', result);
+      console.log('Matching result:', data);
+      
+      const result = data as { success: boolean; total_linked: number; matched_to_existing: number; new_accounts_created: number; failed: number };
       
       if (result.success) {
-        const totalLinked = result.matched_to_existing + result.new_accounts_created;
         toast({
-          title: "Leads Linked Successfully",
-          description: `Linked ${totalLinked.toLocaleString()} leads to accounts (${result.matched_to_existing.toLocaleString()} matched, ${result.new_accounts_created.toLocaleString()} new). ${result.failed > 0 ? `${result.failed} failed.` : ''}`,
+          title: "✓ Leads Matched Successfully",
+          description: `${result.total_linked.toLocaleString()} leads linked (${result.matched_to_existing.toLocaleString()} matched to existing accounts, ${result.new_accounts_created.toLocaleString()} new accounts created)`,
         });
         
-        // Force reload of leads to show updated data
-        console.log('Reloading leads after matching...');
-        setLoading(true);
+        // Reload leads to show updated data
         await loadLeads();
       } else {
-        throw new Error(result.error || 'Matching failed');
+        throw new Error('Matching failed');
       }
     } catch (error) {
-      console.error('Error auto-matching leads:', error);
+      console.error('Error matching leads:', error);
       toast({
-        title: "Auto-Matching Failed",
-        description: error instanceof Error ? error.message : "Could not automatically link leads. Check console for details.",
+        title: "Matching Failed",
+        description: error instanceof Error ? error.message : "Could not link leads to accounts.",
         variant: "destructive",
       });
     } finally {
@@ -543,6 +536,35 @@ export default function Leads() {
           Export to CSV
         </Button>
       </div>
+
+      {/* Quick action to match all leads */}
+      {!flags.demo_mode && unlinkedLeads.length > 0 && (
+        <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+          <div>
+            <h3 className="font-semibold">Link Leads to Accounts</h3>
+            <p className="text-sm text-muted-foreground">
+              {unlinkedLeads.length.toLocaleString()} leads need to be matched to accounts
+            </p>
+          </div>
+          <Button
+            onClick={handleAutoMatch}
+            disabled={isMatching}
+            size="lg"
+          >
+            {isMatching ? (
+              <>
+                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current"></div>
+                Matching...
+              </>
+            ) : (
+              <>
+                <Link2 className="mr-2 h-4 w-4" />
+                Match All Leads
+              </>
+            )}
+          </Button>
+        </div>
+      )}
 
       {/* Unlinked Leads Alert */}
       {!flags.demo_mode && unlinkedLeads.length > 0 && unlinkedPercentage >= 10 && hasAttemptedMatch && (

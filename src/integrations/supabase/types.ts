@@ -1380,6 +1380,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      match_leads_to_accounts_fast: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
       normalize_domain_text: {
         Args: { domain_input: string }
         Returns: string
