@@ -125,8 +125,8 @@ Deno.serve(async (req) => {
         if (currentScore > bestScore) return current;
         if (currentScore < bestScore) return best;
         
-        // If equal completeness, prefer earlier created
-        return new Date(best.updated_at || best.id) < new Date(current.updated_at || current.id) 
+        // If equal completeness, prefer earlier updated
+        return new Date(best.updated_at) < new Date(current.updated_at) 
           ? best 
           : current;
       });
