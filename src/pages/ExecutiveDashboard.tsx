@@ -143,7 +143,14 @@ export default function ExecutiveDashboard() {
       
       // Calculate ICP metrics
       const totalScored = scoresCount || 0;
-      const highFitAccounts = scores?.filter(s => s.overall >= 70).length || 0;
+      
+      const { count: highFitCount } = await supabase
+        .from('scores')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id)
+        .gte('overall', 70);
+      
+      const highFitAccounts = highFitCount || 0;
       
       console.log('🎯 Total scored:', totalScored, 'High fit:', highFitAccounts);
       const averageScore = scores && scores.length > 0 
