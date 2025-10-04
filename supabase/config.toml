@@ -38,3 +38,6 @@ verify_jwt = true
 
 [functions.bulk-upload]
 verify_jwt = true
+
+[functions.match-leads-to-accounts]
+verify_jwt = true
