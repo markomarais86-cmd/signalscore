@@ -36,7 +36,8 @@ export default function ExecutiveDashboard() {
     linkedLeads: 0,
     unlinkedLeads: 0,
     crmLeads: 0,
-    databaseLeads: 0
+    databaseLeads: 0,
+    highFitLeads: 0
   });
   
   const [fitDistribution, setFitDistribution] = useState<any[]>([]);
@@ -144,10 +145,28 @@ export default function ExecutiveDashboard() {
           p_data_source: 'database'
         });
 
+      const { data: highFitLeadsData } = await supabase
+        .rpc('count_high_fit_leads', {
+          p_org_id: userProfile.org_id
+        });
+
+      const { data: campaignReadyData } = await supabase
+        .rpc('count_campaign_ready_accounts', {
+          p_org_id: userProfile.org_id
+        });
+
+      const { data: completenessData } = await supabase
+        .rpc('calculate_data_completeness', {
+          p_org_id: userProfile.org_id
+        });
+
       const crmLeadsCount = crmLeadsData || 0;
       const databaseLeadsCount = databaseLeadsData || 0;
+      const highFitLeadsCount = highFitLeadsData || 0;
+      const campaignReadyAccounts = campaignReadyData || 0;
+      const completenessScore = completenessData || 0;
 
-      console.log('📋 CRM leads:', crmLeadsCount, 'Database leads:', databaseLeadsCount);
+      console.log('📋 CRM leads:', crmLeadsCount, 'Database leads:', databaseLeadsCount, 'High fit leads:', highFitLeadsCount);
 
       const totalAccounts = accountsCount || 0;
       const totalLeads = leadsCount || 0;
@@ -183,20 +202,9 @@ export default function ExecutiveDashboard() {
         ? Math.round((highFitAccounts / totalAccounts) * 100)
         : 0;
 
-      // Calculate campaign-ready contacts (accounts with contacts + high fit score)
-      const accountsWithContacts = new Set(contacts?.map(c => c.account_external_id) || []);
-      const highFitAccountIds = new Set(scores?.filter(s => s.overall >= 70).map(s => s.account_external_id) || []);
-      const campaignReadyAccounts = [...accountsWithContacts].filter(id => highFitAccountIds.has(id)).length;
-
-      // Calculate data completeness
-      const completenessScore = accounts && accounts.length > 0
-        ? Math.round(
-            (accounts.filter(a => a.industry_norm).length / accounts.length * 25) +
-            (accounts.filter(a => a.employee_count).length / accounts.length * 25) +
-            (accounts.filter(a => a.revenue_range).length / accounts.length * 25) +
-            (accounts.filter(a => a.country).length / accounts.length * 25)
-          )
-        : 0;
+      // Use database-calculated values
+      const finalCompletenessScore = completenessScore;
+      const finalCampaignReadyAccounts = campaignReadyAccounts;
 
       const finalMetrics = {
         totalAccounts,
@@ -204,17 +212,18 @@ export default function ExecutiveDashboard() {
         highFitAccounts,
         averageScore,
         icpMatchQuality,
-        completenessScore,
+        completenessScore: finalCompletenessScore,
         coverage: totalAccounts > 0 ? Math.round((crmAccounts / totalAccounts) * 100) : 0,
         crmAccounts,
         greenspaceAccounts,
         bothSourcesAccounts,
-        campaignReadyAccounts,
+        campaignReadyAccounts: finalCampaignReadyAccounts,
         totalLeads,
         linkedLeads,
         unlinkedLeads,
-        crmLeads: crmLeadsCount || 0,
-        databaseLeads: databaseLeadsCount || 0
+        crmLeads: crmLeadsCount,
+        databaseLeads: databaseLeadsCount,
+        highFitLeads: highFitLeadsCount
       };
       
       console.log('✅ Final metrics calculated:', finalMetrics);
@@ -226,15 +235,30 @@ export default function ExecutiveDashboard() {
         generateInsights();
       }
 
-      // Fit distribution
-      const highFit = scores?.filter(s => s.overall >= 70).length || 0;
-      const medFit = scores?.filter(s => s.overall >= 40 && s.overall < 70).length || 0;
-      const lowFit = scores?.filter(s => s.overall < 40).length || 0;
+      // Fit distribution - use database counts
+      const { count: highFitDistCount } = await supabase
+        .from('scores')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id)
+        .gte('overall', 70);
+
+      const { count: medFitDistCount } = await supabase
+        .from('scores')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id)
+        .gte('overall', 40)
+        .lt('overall', 70);
+
+      const { count: lowFitDistCount } = await supabase
+        .from('scores')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id)
+        .lt('overall', 40);
 
       setFitDistribution([
-        { name: 'High Fit', value: highFit, color: 'hsl(var(--executive-green))' },
-        { name: 'Medium Fit', value: medFit, color: 'hsl(var(--executive-amber))' },
-        { name: 'Low Fit', value: lowFit, color: 'hsl(var(--executive-red))' },
+        { name: 'High Fit', value: highFitDistCount || 0, color: 'hsl(var(--executive-green))' },
+        { name: 'Medium Fit', value: medFitDistCount || 0, color: 'hsl(var(--executive-amber))' },
+        { name: 'Low Fit', value: lowFitDistCount || 0, color: 'hsl(var(--executive-red))' },
       ]);
 
       // Geographic distribution
@@ -360,8 +384,8 @@ export default function ExecutiveDashboard() {
               <p className="text-3xl font-bold text-primary">{metrics.highFitAccounts.toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Match Quality</p>
-              <p className="text-3xl font-bold">{metrics.icpMatchQuality}%</p>
+              <p className="text-sm text-muted-foreground">Leads</p>
+              <p className="text-3xl font-bold">{metrics.highFitLeads.toLocaleString()}</p>
             </div>
           </CardContent>
         </Card>

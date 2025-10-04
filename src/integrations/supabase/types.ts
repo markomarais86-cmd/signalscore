@@ -1348,6 +1348,10 @@ export type Database = {
         }
         Returns: Json
       }
+      calculate_data_completeness: {
+        Args: { p_org_id: string }
+        Returns: number
+      }
       check_rate_limit: {
         Args: {
           p_endpoint: string
@@ -1356,6 +1360,14 @@ export type Database = {
           p_window_seconds?: number
         }
         Returns: Json
+      }
+      count_campaign_ready_accounts: {
+        Args: { p_org_id: string }
+        Returns: number
+      }
+      count_high_fit_leads: {
+        Args: { p_org_id: string }
+        Returns: number
       }
       count_leads_by_account_source: {
         Args: { p_data_source: string; p_org_id: string }
