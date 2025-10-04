@@ -54,22 +54,24 @@ export default function ExecutiveDashboard() {
     setLoading(true);
     try {
       // Fetch all accounts with data source info
-      const { data: accounts, error: accountsError } = await supabase
+      const { data: accounts, error: accountsError, count: accountsCount } = await supabase
         .from('accounts')
-        .select('*, data_source, external_database_match')
-        .eq('org_id', userProfile.org_id);
+        .select('*, data_source, external_database_match', { count: 'exact' })
+        .eq('org_id', userProfile.org_id)
+        .limit(10000);
 
-      console.log('📦 Accounts fetched:', accounts?.length, 'Error:', accountsError);
+      console.log('📦 Accounts fetched:', accounts?.length, 'Total count:', accountsCount, 'Error:', accountsError);
 
       if (accountsError) throw accountsError;
 
       // Fetch scores
-      const { data: scores, error: scoresError } = await supabase
+      const { data: scores, error: scoresError, count: scoresCount } = await supabase
         .from('scores')
-        .select('*')
-        .eq('org_id', userProfile.org_id);
+        .select('*', { count: 'exact' })
+        .eq('org_id', userProfile.org_id)
+        .limit(10000);
 
-      console.log('📈 Scores fetched:', scores?.length, 'Error:', scoresError);
+      console.log('📈 Scores fetched:', scores?.length, 'Total count:', scoresCount, 'Error:', scoresError);
 
       if (scoresError) throw scoresError;
 
@@ -91,12 +93,13 @@ export default function ExecutiveDashboard() {
       if (contactsError) throw contactsError;
 
       // Fetch leads
-      const { data: leads, error: leadsError } = await supabase
+      const { data: leads, error: leadsError, count: leadsCount } = await supabase
         .from('Leads')
-        .select('*')
-        .eq('org_id', userProfile.org_id);
+        .select('*', { count: 'exact' })
+        .eq('org_id', userProfile.org_id)
+        .limit(10000);
 
-      console.log('📋 Leads fetched:', leads?.length, 'Error:', leadsError);
+      console.log('📋 Leads fetched:', leads?.length, 'Total count:', leadsCount, 'Error:', leadsError);
 
       if (leadsError) throw leadsError;
 
