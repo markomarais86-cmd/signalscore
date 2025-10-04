@@ -1406,6 +1406,10 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: number
       }
+      count_campaign_ready_leads: {
+        Args: { p_org_id: string }
+        Returns: number
+      }
       count_high_fit_leads: {
         Args: { p_org_id: string }
         Returns: number
@@ -1458,6 +1462,10 @@ export type Database = {
       merge_duplicate_accounts: {
         Args: { p_org_id: string }
         Returns: Json
+      }
+      normalize_country: {
+        Args: { country_input: string }
+        Returns: string
       }
       normalize_domain_text: {
         Args: { domain_input: string }

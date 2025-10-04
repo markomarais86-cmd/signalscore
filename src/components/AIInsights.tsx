@@ -2,6 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Brain, TrendingUp, TrendingDown, AlertTriangle, Target, Lightbulb } from "lucide-react";
+import { useState } from "react";
+import { InsightDetailModal } from "@/components/insights/InsightDetailModal";
 
 interface AIInsight {
   id: string;
@@ -21,6 +23,8 @@ interface AIInsightsProps {
 }
 
 export function AIInsights({ insights, onApplyRecommendation }: AIInsightsProps) {
+  const [selectedInsight, setSelectedInsight] = useState<AIInsight | null>(null);
+  
   const getInsightIcon = (type: string) => {
     switch (type) {
       case 'opportunity': return <TrendingUp className="h-4 w-4 text-[hsl(var(--signal-high))]" />;
@@ -69,7 +73,11 @@ export function AIInsights({ insights, onApplyRecommendation }: AIInsightsProps)
       <CardContent>
         <div className="space-y-4">
           {sortedInsights.map((insight) => (
-            <div key={insight.id} className="border rounded-lg p-4 space-y-3">
+            <div 
+              key={insight.id} 
+              className="border rounded-lg p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => setSelectedInsight(insight)}
+            >
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3 flex-1">
                   <div className="mt-0.5">
@@ -133,6 +141,12 @@ export function AIInsights({ insights, onApplyRecommendation }: AIInsightsProps)
             </div>
           ))}
         </div>
+        
+        <InsightDetailModal
+          insight={selectedInsight}
+          isOpen={selectedInsight !== null}
+          onClose={() => setSelectedInsight(null)}
+        />
       </CardContent>
     </Card>
   );

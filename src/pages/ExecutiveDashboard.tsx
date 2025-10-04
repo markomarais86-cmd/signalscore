@@ -30,8 +30,11 @@ export default function ExecutiveDashboard() {
     highFitAccounts: 0,
     averageScore: 0,
     icpMatchQuality: 0,
+    icpCoverage: 0,
+    scoringProgress: 0,
     completenessScore: 0,
     campaignReadyAccounts: 0,
+    campaignReadyLeads: 0,
     coverage: 0,
     totalLeads: 0,
     linkedLeads: 0,
@@ -156,6 +159,11 @@ export default function ExecutiveDashboard() {
           p_org_id: userProfile.org_id
         });
 
+      const { data: campaignReadyLeadsData } = await supabase
+        .rpc('count_campaign_ready_leads', {
+          p_org_id: userProfile.org_id
+        });
+
       const { data: completenessData } = await supabase
         .rpc('calculate_data_completeness', {
           p_org_id: userProfile.org_id
@@ -165,6 +173,7 @@ export default function ExecutiveDashboard() {
       const databaseLeadsCount = databaseLeadsData || 0;
       const highFitLeadsCount = highFitLeadsData || 0;
       const campaignReadyAccounts = campaignReadyData || 0;
+      const campaignReadyLeads = campaignReadyLeadsData || 0;
       const completenessScore = completenessData || 0;
 
       console.log('📋 CRM leads:', crmLeadsCount, 'Database leads:', databaseLeadsCount, 'High fit leads:', highFitLeadsCount);
@@ -203,6 +212,15 @@ export default function ExecutiveDashboard() {
         ? Math.round((highFitAccounts / totalAccounts) * 100)
         : 0;
 
+      // Calculate ICP coverage and scoring progress
+      const icpCoverage = totalAccounts > 0 
+        ? Math.round((highFitAccounts / totalAccounts) * 100)
+        : 0;
+      
+      const scoringProgress = totalAccounts > 0
+        ? Math.round((totalScored / totalAccounts) * 100)
+        : 0;
+
       // Use database-calculated values
       const finalCompletenessScore = completenessScore;
       const finalCampaignReadyAccounts = campaignReadyAccounts;
@@ -213,12 +231,15 @@ export default function ExecutiveDashboard() {
         highFitAccounts,
         averageScore,
         icpMatchQuality,
+        icpCoverage,
+        scoringProgress,
         completenessScore: finalCompletenessScore,
         coverage: totalAccounts > 0 ? Math.round((crmAccounts / totalAccounts) * 100) : 0,
         crmAccounts,
         greenspaceAccounts,
         bothSourcesAccounts,
         campaignReadyAccounts: finalCampaignReadyAccounts,
+        campaignReadyLeads,
         totalLeads,
         linkedLeads,
         unlinkedLeads,
@@ -392,6 +413,70 @@ export default function ExecutiveDashboard() {
         </Card>
       </div>
 
+      {/* ICP Coverage and Scoring Progress */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5 text-primary" />
+              ICP Coverage
+            </CardTitle>
+            <CardDescription>
+              Percentage of CRM data matching your ICP
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="text-5xl font-bold text-primary">{metrics.icpCoverage}%</div>
+              <p className="text-sm text-muted-foreground">
+                {metrics.highFitAccounts.toLocaleString()} of {metrics.totalAccounts.toLocaleString()} accounts match ICP
+              </p>
+              <div className="pt-2">
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary transition-all" 
+                    style={{ width: `${metrics.icpCoverage}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-[hsl(var(--signal-medium))]" />
+              Scoring Progress
+            </CardTitle>
+            <CardDescription>
+              Accounts scored with ICP criteria
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="text-5xl font-bold text-[hsl(var(--signal-medium))]">{metrics.scoringProgress}%</div>
+              <p className="text-sm text-muted-foreground">
+                {metrics.totalScored.toLocaleString()} of {metrics.totalAccounts.toLocaleString()} accounts scored
+              </p>
+              <div className="pt-2">
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-[hsl(var(--signal-medium))] transition-all" 
+                    style={{ width: `${metrics.scoringProgress}%` }}
+                  />
+                </div>
+              </div>
+              {metrics.scoringProgress < 100 && (
+                <p className="text-xs text-muted-foreground pt-2">
+                  {(metrics.totalAccounts - metrics.totalScored).toLocaleString()} accounts remaining
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Unlinked Leads Status */}
       {metrics.unlinkedLeads > 0 && (
         <Alert>
@@ -428,9 +513,11 @@ export default function ExecutiveDashboard() {
             <div className="space-y-4">
               <div>
                 <p className="text-4xl font-bold text-primary">{metrics.campaignReadyAccounts.toLocaleString()}</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Accounts ready for outreach campaigns
-                </p>
+                <p className="text-sm text-muted-foreground">Accounts</p>
+              </div>
+              <div>
+                <p className="text-3xl font-bold text-[hsl(var(--signal-medium))]">{(metrics.campaignReadyLeads || 0).toLocaleString()}</p>
+                <p className="text-sm text-muted-foreground">Leads ready for outreach</p>
               </div>
               <Button onClick={() => navigate('/campaign-builder')} className="w-full">
                 Build Campaign List

@@ -44,3 +44,6 @@ verify_jwt = true
 
 [functions.match-leads-to-accounts]
 verify_jwt = true
+
+[functions.enrich-contacts-persona]
+verify_jwt = true
