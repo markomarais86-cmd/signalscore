@@ -315,7 +315,11 @@ export default function DataUpload() {
   };
 
   const handleRerunMatching = async () => {
+    console.log('🔄 Re-run button clicked!');
+    console.log('User profile:', userProfile);
+    
     if (!userProfile?.org_id) {
+      console.error('❌ No org_id found');
       toast({
         title: "Error",
         description: "Authentication required",
@@ -325,17 +329,25 @@ export default function DataUpload() {
     }
 
     try {
+      console.log('Starting re-match for org:', userProfile.org_id);
+      
       toast({
         title: "Re-running Matching & Scoring",
         description: "This may take a few minutes for large datasets...",
       });
 
+      console.log('Calling match_leads_to_accounts_fast RPC...');
       const { data: matchData, error: matchError } = await supabase.rpc('match_leads_to_accounts_fast' as any, {
         p_org_id: userProfile.org_id,
         p_is_external_db: false // Re-match is always for CRM data
       });
 
-      if (matchError) throw matchError;
+      console.log('RPC response:', { matchData, matchError });
+
+      if (matchError) {
+        console.error('❌ RPC error:', matchError);
+        throw matchError;
+      }
 
       const result = matchData as any;
       console.log(`✅ Re-match complete:`, result);
@@ -349,7 +361,7 @@ export default function DataUpload() {
       await loadTotalRecords();
 
     } catch (error: any) {
-      console.error('Re-match error:', error);
+      console.error('❌ Re-match error:', error);
       toast({
         title: "Matching Failed",
         description: error.message || "An error occurred during matching",
