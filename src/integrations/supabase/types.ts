@@ -1357,6 +1357,10 @@ export type Database = {
         }
         Returns: Json
       }
+      count_leads_by_account_source: {
+        Args: { p_data_source: string; p_org_id: string }
+        Returns: number
+      }
       generate_sample_data: {
         Args: Record<PropertyKey, never>
         Returns: Json

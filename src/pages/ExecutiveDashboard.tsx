@@ -131,20 +131,23 @@ export default function ExecutiveDashboard() {
         .eq('org_id', userProfile.org_id)
         .not('account_external_id', 'is', null);
 
-      // Get leads by source type
-      const { count: crmLeadsCount } = await supabase
-        .from('Leads')
-        .select('*, accounts!inner(data_source)', { count: 'exact', head: true })
-        .eq('org_id', userProfile.org_id)
-        .not('account_external_id', 'is', null)
-        .in('accounts.data_source', ['crm', 'both']);
+      // Count leads by account source using database function
+      const { data: crmLeadsData } = await supabase
+        .rpc('count_leads_by_account_source', {
+          p_org_id: userProfile.org_id,
+          p_data_source: 'crm'
+        });
 
-      const { count: databaseLeadsCount } = await supabase
-        .from('Leads')
-        .select('*, accounts!inner(data_source)', { count: 'exact', head: true })
-        .eq('org_id', userProfile.org_id)
-        .not('account_external_id', 'is', null)
-        .eq('accounts.data_source', 'database');
+      const { data: databaseLeadsData } = await supabase
+        .rpc('count_leads_by_account_source', {
+          p_org_id: userProfile.org_id,
+          p_data_source: 'database'
+        });
+
+      const crmLeadsCount = crmLeadsData || 0;
+      const databaseLeadsCount = databaseLeadsData || 0;
+
+      console.log('📋 CRM leads:', crmLeadsCount, 'Database leads:', databaseLeadsCount);
 
       const totalAccounts = accountsCount || 0;
       const totalLeads = leadsCount || 0;
