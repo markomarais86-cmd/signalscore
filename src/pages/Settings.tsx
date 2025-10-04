@@ -49,6 +49,7 @@ import { APIKeyManager } from "@/components/settings/APIKeyManager";
 import { ExternalDataProviders } from "@/components/settings/ExternalDataProviders";
 import { RateLimitSettings } from "@/components/settings/RateLimitSettings";
 import { ZapierWebhookManager } from "@/components/settings/ZapierWebhookManager";
+import { DuplicateAccountMerger } from "@/components/settings/DuplicateAccountMerger";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TeamMember {
@@ -554,9 +555,10 @@ export default function Settings() {
         </TabsContent>
 
         {/* Data Mapping */}
-        <TabsContent value="data-mapping" className="space-y-6">
-          <DataMapping />
-        </TabsContent>
+              <TabsContent value="data-mapping" className="space-y-6">
+                <DuplicateAccountMerger />
+                <DataMapping />
+              </TabsContent>
 
         {/* Scoring Configuration */}
         <TabsContent value="scoring" className="space-y-6">

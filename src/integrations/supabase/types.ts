@@ -1380,6 +1380,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      normalize_domain_text: {
+        Args: { domain_input: string }
+        Returns: string
+      }
       record_data_quality_snapshot: {
         Args: { org_id_param: string }
         Returns: undefined

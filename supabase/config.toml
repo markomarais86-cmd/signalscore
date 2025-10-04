@@ -1,5 +1,8 @@
 project_id = "dhyfbaptcprxxixgnpby"
 
+[functions.merge-duplicate-accounts]
+verify_jwt = true
+
 [functions.analyze-closed-won]
 verify_jwt = true
 
