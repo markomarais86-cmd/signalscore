@@ -8,6 +8,10 @@ export interface RiskItem {
   count: number;
   impact: string;
   filter?: Record<string, any>;
+  action?: {
+    label: string;
+    route: string;
+  };
 }
 
 export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem[]> {
@@ -25,7 +29,11 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
         description: `${unscoredDbAccounts.toLocaleString()} Database accounts lack ICP scores`,
         count: unscoredDbAccounts,
         impact: 'Cannot identify whitespace opportunities',
-        filter: { data_source: 'database', scored: false }
+        filter: { data_source: 'database', scored: false },
+        action: {
+          label: 'Score Accounts',
+          route: '/accounts?action=score'
+        }
       });
     }
 
@@ -57,7 +65,11 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
           description: `${missingContacts.toLocaleString()} high-fit accounts have no reachable contacts`,
           count: missingContacts,
           impact: 'Campaigns underpowered, cannot execute outreach',
-          filter: { highFit: true, noContacts: true }
+          filter: { highFit: true, noContacts: true },
+          action: {
+            label: 'Enrich Contacts',
+            route: '/settings?tab=integrations&action=enrich'
+          }
         });
       }
     }
@@ -102,7 +114,11 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
             description: `Only ${completeness.toFixed(0)}% complete across ${data.total} accounts`,
             count: data.total - data.complete,
             impact: 'Reduced scoring accuracy and targeting precision',
-            filter: { country: region, incomplete: true }
+            filter: { country: region, incomplete: true },
+            action: {
+              label: 'Enrich Data',
+              route: '/settings?tab=integrations&action=enrich'
+            }
           });
         }
       });
@@ -117,7 +133,11 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
         description: `${metrics.completenessScore}% completeness across all accounts`,
         count: Math.floor(metrics.totalAccounts * (1 - metrics.completenessScore / 100)),
         impact: 'ICP scoring accuracy degraded',
-        filter: { incomplete: true }
+        filter: { incomplete: true },
+        action: {
+          label: 'Enrich Data',
+          route: '/settings?tab=integrations&action=enrich'
+        }
       });
     }
 

@@ -16,11 +16,14 @@ import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { useICPInsights } from "@/hooks/use-icp-insights";
 import { Lightbulb } from "lucide-react";
 import { DataSourceBreakdownCard } from "@/components/executive/DataSourceBreakdownCard";
-import { ScoringDataQualityCard } from "@/components/executive/ScoringDataQualityCard";
-import { RiskExceptionsPanel, RiskItem } from "@/components/executive/RiskExceptionsPanel";
+import { RiskItem } from "@/components/executive/RiskExceptionsPanel";
 import { TrendIndicator } from "@/components/executive/TrendIndicator";
 import { calculateTrends, TrendData } from "@/utils/trend-calculator";
 import { detectRisks } from "@/utils/risk-detector";
+import { CombinedScoringICPCard } from "@/components/executive/CombinedScoringICPCard";
+import { EnhancedGeographyCard } from "@/components/executive/EnhancedGeographyCard";
+import { AIRecommendationsTiles } from "@/components/executive/AIRecommendationsTiles";
+import { RisksAndActionsCard } from "@/components/executive/RisksAndActionsCard";
 
 export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
@@ -398,7 +401,7 @@ export default function ExecutiveDashboard() {
         Object.entries(geoCounts || {})
           .map(([country, count]) => ({ country, count: count as number }))
           .sort((a, b) => b.count - a.count)
-          .slice(0, 5)
+          .slice(0, 10)
       );
 
       completeStep('explore_dashboard');
@@ -469,13 +472,13 @@ export default function ExecutiveDashboard() {
         </Alert>
       )}
 
-      {/* Go-to-Market Intelligence - Responsive Grid */}
+      {/* Row 1: Go-to-Market Intelligence - Clean & No Duplication */}
       <div className={`grid ${gridClass}`}>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5 text-primary" />
-              Accounts by Source
+              Accounts Overview
             </CardTitle>
             <CardDescription>CRM vs Database breakdown</CardDescription>
           </CardHeader>
@@ -506,30 +509,11 @@ export default function ExecutiveDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5 text-secondary" />
-              Leads by Source
+              Leads Overview
             </CardTitle>
             <CardDescription>Lead distribution & quality</CardDescription>
           </CardHeader>
           <CardContent>
-            <DataSourceBreakdownCard
-              title="Accounts"
-              icon={Building2}
-              total={metrics.totalAccounts}
-              crm={{
-                count: metrics.crmAccounts,
-                highFit: metrics.highFitCrmAccounts,
-                highFitPercentage: metrics.crmAccounts > 0 
-                  ? Number(((metrics.highFitCrmAccounts / metrics.crmAccounts) * 100).toFixed(1))
-                  : 0
-              }}
-              database={{
-                count: metrics.databaseAccounts,
-                highFit: metrics.highFitDatabaseAccounts,
-                highFitPercentage: metrics.databaseAccounts > 0
-                  ? Number(((metrics.highFitDatabaseAccounts / metrics.databaseAccounts) * 100).toFixed(1))
-                  : 0
-              }}
-            />
             <DataSourceBreakdownCard
               title="Leads"
               icon={Users}
@@ -581,15 +565,14 @@ export default function ExecutiveDashboard() {
         </Card>
       </div>
 
-      {/* Section 2: Quality - Scoring & Data Completeness */}
-      <ScoringDataQualityCard
+      {/* Row 2: Combined Scoring + ICP + Data Quality */}
+      <CombinedScoringICPCard
         scoringProgress={metrics.scoringProgress}
         totalScored={metrics.totalScored}
         totalAccounts={metrics.totalAccounts}
         crmScored={metrics.crmScored}
-        crmTotal={metrics.crmAccounts}
         databaseScored={metrics.databaseScored}
-        databaseTotal={metrics.databaseAccounts}
+        fitDistribution={fitDistribution}
         completeness={metrics.completenessScore}
         industryCompleteness={metrics.industryCompleteness}
         sizeCompleteness={metrics.sizeCompleteness}
@@ -600,204 +583,34 @@ export default function ExecutiveDashboard() {
         completenessTrend={trends.completeness}
       />
 
-      {/* Unlinked Leads Status */}
-      {metrics.unlinkedLeads > 0 && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between">
-            <span>
-              {metrics.unlinkedLeads.toLocaleString()} leads waiting to be matched to accounts (auto-matching enabled in settings)
-            </span>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => navigate('/settings?tab=automation')}
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Configure
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-
-      {/* ICP Fit Distribution - Enhanced */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>ICP Fit Distribution</CardTitle>
-              <CardDescription>
-                Scored accounts by ICP match quality
-              </CardDescription>
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => {
-                navigate('/accounts');
-                toast.info('Filtered to high-fit accounts');
-              }}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export High-Fit
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={fitDistribution}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
-              <YAxis stroke="hsl(var(--muted-foreground))" />
-              <Tooltip 
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    const data = payload[0].payload;
-                    return (
-                      <div className="bg-card border border-border rounded-lg p-3 shadow-lg">
-                        <p className="font-semibold">{data.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {data.value.toLocaleString()} accounts ({data.percentage}%)
-                        </p>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-              <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                {fitDistribution.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-          <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
-            {fitDistribution.map((item) => (
-              <div key={item.name} className="text-center">
-                <div className="text-2xl font-bold" style={{ color: item.color }}>
-                  {item.value.toLocaleString()}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {item.name} ({item.percentage}%)
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Geographic Distribution - Enhanced */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5" />
-            Top Geographies
-          </CardTitle>
-          <CardDescription>
-            Top 10 countries by account concentration
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {geoData.slice(0, 10).map((geo, idx) => (
-              <div key={geo.country} className="flex items-center gap-3">
-                <Badge variant="outline" className="w-8 h-8 flex items-center justify-center rounded-full">
-                  {idx + 1}
-                </Badge>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{geo.country}</span>
-                    <span className="text-sm text-muted-foreground">{geo.count.toLocaleString()}</span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-1.5 mt-1">
-                    <div 
-                      className="bg-primary h-1.5 rounded-full transition-all" 
-                      style={{ width: `${(geo.count / geoData[0].count) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* AI Recommendations */}
-      {insights && insights.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Lightbulb className="h-5 w-5 text-primary" />
-              AI-Powered Recommendations
-            </CardTitle>
-            <CardDescription>
-              Based on your current ICP and account data
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {insights.slice(0, 3).map((insight, idx) => (
-                <div key={idx} className="p-4 border rounded-lg bg-muted/50">
-                  <div className="flex items-start gap-3">
-                    <Badge className="mt-1">{insight.type}</Badge>
-                    <div className="flex-1">
-                      <h4 className="font-semibold mb-1">{insight.title}</h4>
-                      <p className="text-sm text-muted-foreground">{insight.description}</p>
-                      <p className="text-sm text-primary mt-2 font-medium">
-                        Impact: {insight.impact}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Section 4: Risks & Exceptions */}
-      <RiskExceptionsPanel 
-        risks={risks}
-        onRiskClick={(risk) => {
-          console.log('Risk clicked:', risk);
-          navigate('/accounts');
-          toast.info(`Filtering to: ${risk.title}`);
+      {/* Row 3: Enhanced Geography with Drill-down */}
+      <EnhancedGeographyCard 
+        geoData={geoData}
+        onDrillDown={(country) => {
+          console.log('Drilling down into:', country);
+          toast.info(`Viewing ${country} details`);
         }}
       />
 
-      {/* Recommended Next Steps */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recommended Next Steps</CardTitle>
-          <CardDescription>
-            Actions to improve your go-to-market strategy
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {metrics.totalScored === 0 && (
-              <Button onClick={() => navigate('/icp-manager')} className="w-full justify-start" variant="outline">
-                <Target className="h-4 w-4 mr-2" />
-                Define Your ICP Profile
-              </Button>
-            )}
-            {metrics.campaignReadyAccounts > 0 && (
-              <Button onClick={() => navigate('/campaign-builder')} className="w-full justify-start" variant="outline">
-                <Sparkles className="h-4 w-4 mr-2" />
-                Build Your First Campaign List
-              </Button>
-            )}
-            {metrics.completenessScore < 70 && (
-              <Button onClick={() => navigate('/data-upload')} className="w-full justify-start" variant="outline">
-                <Download className="h-4 w-4 mr-2" />
-                Upload More Account Data
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Row 4: AI Recommendations (Tiles) + Risks & Actions */}
+      <div className={`grid ${gridClass}`}>
+        <AIRecommendationsTiles 
+          insights={insights || []}
+          onRefresh={() => generateInsights()}
+        />
+
+        <RisksAndActionsCard
+          risks={risks}
+          campaignReadyCount={metrics.campaignReadyAccounts}
+          completenessScore={metrics.completenessScore}
+          totalScored={metrics.totalScored}
+          onRiskClick={(risk) => {
+            console.log('Risk clicked:', risk);
+            navigate('/accounts');
+            toast.info(`Filtering to: ${risk.title}`);
+          }}
+        />
+      </div>
     </div>
   );
 }
