@@ -176,13 +176,15 @@ serve(async (req) => {
 
     console.log(`✅ Step 3: Linked ${linkResult?.linked_after_creation || 0} remaining leads`);
 
-    // Step 4: Fuzzy matching for remaining unlinked leads
+    // Step 4: Fuzzy matching for remaining unlinked leads (OPTIMIZED)
+    const startTime = Date.now();
     const { data: unlinkedLeads, error: unlinkedError } = await supabase
       .from('Leads')
       .select('id, company, website, email, country')
       .eq('org_id', org_id)
       .is('account_external_id', null)
-      .limit(1000); // Process in batches
+      .is('match_confidence', null) // Skip already fuzzy-matched leads
+      .limit(5000); // Increased batch size from 1,000 → 5,000
 
     if (unlinkedError) {
       console.error('⚠️ Fuzzy match fetch error:', unlinkedError.message);
@@ -192,43 +194,92 @@ serve(async (req) => {
     if (unlinkedLeads && unlinkedLeads.length > 0) {
       console.log(`🔍 Running fuzzy matching on ${unlinkedLeads.length} unlinked leads...`);
       
-      for (const lead of unlinkedLeads) {
-        const baseDomain = getBaseDomain(lead.website || extractDomainFromEmail(lead.email));
-        const companyName = normalizeCompanyName(lead.company);
+      // Parallel processing in chunks of 100
+      const chunkSize = 100;
+      const allMatches: Array<{ lead_id: number; account_id: string; confidence: number }> = [];
+      
+      const processBatch = async (batch: typeof unlinkedLeads) => {
+        const batchMatches: Array<{ lead_id: number; account_id: string; confidence: number }> = [];
         
-        if (!baseDomain && !companyName) continue;
+        for (const lead of batch) {
+          const baseDomain = getBaseDomain(lead.website || extractDomainFromEmail(lead.email));
+          const companyName = normalizeCompanyName(lead.company);
+          
+          if (!baseDomain && !companyName) continue;
 
-        // Call fuzzy matching function
-        const { data: matches, error: fuzzyError } = await supabase
-          .rpc('match_leads_fuzzy', {
-            p_org_id: org_id,
-            p_base_domain: baseDomain,
-            p_company_name: companyName,
-            p_country: lead.country
-          });
+          try {
+            // Call fuzzy matching function
+            const { data: matches, error: fuzzyError } = await supabase
+              .rpc('match_leads_fuzzy', {
+                p_org_id: org_id,
+                p_base_domain: baseDomain,
+                p_company_name: companyName,
+                p_country: lead.country
+              });
 
-        if (fuzzyError) {
-          console.error(`⚠️ Fuzzy match error for lead ${lead.id}:`, fuzzyError.message);
-          continue;
-        }
+            if (fuzzyError) {
+              console.error(`⚠️ Fuzzy match error for lead ${lead.id}:`, fuzzyError.message);
+              continue;
+            }
 
-        // Auto-link high-confidence matches (>= 0.80)
-        if (matches && matches.length > 0 && matches[0].confidence >= 0.80) {
-          const { error: updateError } = await supabase
-            .from('Leads')
-            .update({
-              account_external_id: matches[0].account_external_id,
-              match_confidence: matches[0].confidence
-            })
-            .eq('id', lead.id);
-
-          if (!updateError) {
-            fuzzyMatched++;
+            // Auto-link high-confidence matches (>= 0.80)
+            if (matches && matches.length > 0 && matches[0].confidence >= 0.80) {
+              batchMatches.push({
+                lead_id: lead.id,
+                account_id: matches[0].account_external_id,
+                confidence: matches[0].confidence
+              });
+            }
+          } catch (err) {
+            console.error(`⚠️ Error processing lead ${lead.id}:`, err);
           }
+        }
+        
+        return batchMatches;
+      };
+
+      // Process in parallel chunks
+      const promises = [];
+      for (let i = 0; i < unlinkedLeads.length; i += chunkSize) {
+        const chunk = unlinkedLeads.slice(i, i + chunkSize);
+        promises.push(processBatch(chunk));
+        
+        // Add timeout protection - max 55 seconds
+        if (Date.now() - startTime > 55000) {
+          console.log(`⏱️ Timeout protection triggered at ${i} leads`);
+          break;
+        }
+      }
+
+      const results = await Promise.all(promises);
+      allMatches.push(...results.flat());
+      
+      // Log progress every 500 leads
+      if (allMatches.length > 0) {
+        console.log(`📊 Fuzzy matching progress: ${allMatches.length} high-confidence matches found`);
+      }
+
+      // Bulk update all matched leads in one operation
+      if (allMatches.length > 0) {
+        const updateData = allMatches.map(m => ({
+          id: m.lead_id,
+          account_external_id: m.account_id,
+          match_confidence: m.confidence
+        }));
+
+        const { error: bulkUpdateError } = await supabase
+          .from('Leads')
+          .upsert(updateData, { onConflict: 'id' });
+
+        if (bulkUpdateError) {
+          console.error('⚠️ Bulk update error:', bulkUpdateError.message);
+        } else {
+          fuzzyMatched = allMatches.length;
         }
       }
       
-      console.log(`✅ Step 4: Fuzzy matched ${fuzzyMatched} additional leads`);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log(`✅ Step 4: Fuzzy matched ${fuzzyMatched} leads in ${elapsed}s (${(fuzzyMatched / parseFloat(elapsed)).toFixed(0)} leads/sec)`);
     }
 
     // Step 5: Auto-score new accounts
