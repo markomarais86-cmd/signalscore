@@ -59,6 +59,75 @@ function normalizeCompanyName(name: string | null): string {
   return normalized;
 }
 
+// Calculate Levenshtein distance similarity (0-1, where 1 = identical)
+function levenshteinSimilarity(str1: string, str2: string): number {
+  const len1 = str1.length;
+  const len2 = str2.length;
+  
+  if (len1 === 0) return len2 === 0 ? 1 : 0;
+  if (len2 === 0) return 0;
+  
+  const matrix: number[][] = [];
+  
+  // Initialize matrix
+  for (let i = 0; i <= len1; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= len2; j++) {
+    matrix[0][j] = j;
+  }
+  
+  // Fill matrix
+  for (let i = 1; i <= len1; i++) {
+    for (let j = 1; j <= len2; j++) {
+      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,      // deletion
+        matrix[i][j - 1] + 1,      // insertion
+        matrix[i - 1][j - 1] + cost // substitution
+      );
+    }
+  }
+  
+  const distance = matrix[len1][len2];
+  const maxLen = Math.max(len1, len2);
+  return 1 - (distance / maxLen); // Convert to similarity (0-1)
+}
+
+// Calculate Jaccard similarity based on word tokens
+function tokenSimilarity(str1: string, str2: string): number {
+  const tokens1 = new Set(str1.toLowerCase().split(/\s+/).filter(t => t.length > 0));
+  const tokens2 = new Set(str2.toLowerCase().split(/\s+/).filter(t => t.length > 0));
+  
+  if (tokens1.size === 0 && tokens2.size === 0) return 1;
+  if (tokens1.size === 0 || tokens2.size === 0) return 0;
+  
+  const intersection = new Set([...tokens1].filter(x => tokens2.has(x)));
+  const union = new Set([...tokens1, ...tokens2]);
+  
+  return intersection.size / union.size; // Jaccard coefficient
+}
+
+// Combine multiple matching strategies for best accuracy
+function calculateNameMatchScore(leadName: string, accountName: string): number {
+  if (!leadName || !accountName) return 0;
+  
+  const norm1 = normalizeCompanyName(leadName);
+  const norm2 = normalizeCompanyName(accountName);
+  
+  // Exact match after normalization = 1.0
+  if (norm1 === norm2) return 1.0;
+  
+  // Calculate multiple similarity metrics
+  const levenshtein = levenshteinSimilarity(norm1, norm2);
+  const token = tokenSimilarity(norm1, norm2);
+  
+  // Weighted average (Levenshtein 60%, Token 40%)
+  const composite = (levenshtein * 0.6) + (token * 0.4);
+  
+  return composite;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -232,48 +301,56 @@ serve(async (req) => {
         
         console.log(`🗂️ Built indexes: ${domainMap.size} domains, ${nameCountryMap.size} name+country pairs`);
         
-        // Match leads in memory
+        // Match leads in memory with advanced fuzzy matching
         const matches: Array<{ lead_id: number; account_id: string; confidence: number }> = [];
         
         for (const lead of unlinkedLeads) {
           const baseDomain = getBaseDomain(lead.website || extractDomainFromEmail(lead.email));
-          const normalizedName = normalizeCompanyName(lead.company);
           const leadCountry = lead.country?.toLowerCase();
           
-          let matchedAccountId: string | undefined;
-          let confidence = 0;
+          let bestMatch: { accountId: string; confidence: number } | null = null;
           
-          // Try domain + country match (0.90 confidence)
-          if (baseDomain && leadCountry && domainMap.has(baseDomain)) {
-            const accountId = domainMap.get(baseDomain);
-            const account = allAccounts.find(a => a.external_id === accountId);
-            if (account?.country?.toLowerCase() === leadCountry) {
-              matchedAccountId = accountId;
-              confidence = 0.90;
+          for (const account of allAccounts) {
+            let confidence = 0;
+            
+            // Strategy 1: Domain + Country (highest confidence)
+            if (baseDomain && account.domain) {
+              const accountBaseDomain = getBaseDomain(account.domain);
+              if (baseDomain === accountBaseDomain) {
+                confidence = 0.75; // Base domain match
+                if (leadCountry && account.country?.toLowerCase() === leadCountry) {
+                  confidence = 0.90; // Domain + country match
+                }
+              }
+            }
+            
+            // Strategy 2: Advanced Name Matching (if no strong domain match)
+            if (confidence < 0.80 && lead.company && account.name) {
+              const nameScore = calculateNameMatchScore(lead.company, account.name);
+              
+              if (nameScore >= 0.85) { // High name similarity threshold
+                confidence = Math.max(confidence, nameScore * 0.85); // Max 85% for name only
+                
+                // Boost if country also matches
+                if (leadCountry && account.country?.toLowerCase() === leadCountry) {
+                  confidence = Math.min(0.95, confidence + 0.10); // +10% bonus for country match
+                }
+              }
+            }
+            
+            // Keep best match above threshold
+            if (confidence >= 0.80) {
+              if (!bestMatch || confidence > bestMatch.confidence) {
+                bestMatch = { accountId: account.external_id, confidence };
+              }
             }
           }
           
-          // Try name + country match (0.85 confidence)
-          if (!matchedAccountId && normalizedName && leadCountry) {
-            const key = `${normalizedName}|${leadCountry}`;
-            if (nameCountryMap.has(key)) {
-              matchedAccountId = nameCountryMap.get(key);
-              confidence = 0.85;
-            }
-          }
-          
-          // Try domain only match (0.75 confidence)
-          if (!matchedAccountId && baseDomain && domainMap.has(baseDomain)) {
-            matchedAccountId = domainMap.get(baseDomain);
-            confidence = 0.75;
-          }
-          
-          // Only auto-link if confidence >= 0.80
-          if (matchedAccountId && confidence >= 0.80) {
+          if (bestMatch) {
             matches.push({
               lead_id: lead.id,
-              account_id: matchedAccountId,
-              confidence: confidence
+              account_id: bestMatch.accountId,
+              confidence: bestMatch.confidence
             });
           }
         }
