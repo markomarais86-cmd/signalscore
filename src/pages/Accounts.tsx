@@ -329,8 +329,8 @@ export default function Accounts() {
       // Store unfiltered totals
       setUnfilteredTotals({
         total: unfilteredTotal || 0,
-        crm: unfilteredCrmCount,
-        database: unfilteredDbCount,
+        crm: unfilteredCrmCount || 0,
+        database: unfilteredDbCount || 0,
         highFit: unfilteredHighFitCount,
         withContacts: unfilteredWithContacts,
         avgQuality: unfilteredAvgQuality
