@@ -282,19 +282,23 @@ export default function Accounts() {
         supabase
           .from('accounts')
           .select('data_source', { count: 'exact' })
-          .eq('org_id', userProfile.org_id),
+          .eq('org_id', userProfile.org_id)
+          .limit(50000),
         supabase
           .from('scores')
           .select('overall, fit, account_external_id')
-          .eq('org_id', userProfile.org_id),
+          .eq('org_id', userProfile.org_id)
+          .limit(50000),
         supabase
           .from('contacts')
           .select('account_external_id')
-          .eq('org_id', userProfile.org_id),
+          .eq('org_id', userProfile.org_id)
+          .limit(50000),
         supabase
           .from('accounts')
           .select('name, domain, industry_norm, employee_count, revenue_range, country')
           .eq('org_id', userProfile.org_id)
+          .limit(50000)
       ]);
 
       // Calculate unfiltered org-wide totals
