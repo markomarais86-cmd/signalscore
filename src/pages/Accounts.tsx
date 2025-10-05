@@ -298,7 +298,7 @@ export default function Accounts() {
       ]);
 
       // Calculate unfiltered org-wide totals
-      const unfilteredCrmCount = (unfilteredAccountsData || []).filter(a => a.data_source === 'crm' || a.data_source === 'both').length;
+      const unfilteredCrmCount = (unfilteredAccountsData || []).filter(a => a.data_source === 'crm' || a.data_source === 'both' || a.data_source === 'closed_won').length;
       const unfilteredDbCount = (unfilteredAccountsData || []).filter(a => a.data_source === 'database').length;
       const unfilteredHighFitCount = (allScores || []).filter(s => s.fit >= 70).length;
       const unfilteredWithContacts = new Set((accountsWithContactsData || []).map(c => c.account_external_id)).size;
@@ -331,7 +331,7 @@ export default function Accounts() {
 
       if (sourceFilter && sourceFilter !== 'all') {
         if (sourceFilter === 'crm') {
-          filteredQuery = filteredQuery.in('data_source', ['crm', 'both']);
+          filteredQuery = filteredQuery.in('data_source', ['crm', 'both', 'closed_won']);
         } else if (sourceFilter === 'database') {
           filteredQuery = filteredQuery.eq('data_source', 'database');
         }
@@ -341,7 +341,7 @@ export default function Accounts() {
 
       const { count: filteredCount, data: filteredAccountsData } = await filteredQuery;
 
-      const filteredCrmCount = (filteredAccountsData || []).filter(a => a.data_source === 'crm' || a.data_source === 'both').length;
+      const filteredCrmCount = (filteredAccountsData || []).filter(a => a.data_source === 'crm' || a.data_source === 'both' || a.data_source === 'closed_won').length;
       const filteredDbCount = (filteredAccountsData || []).filter(a => a.data_source === 'database').length;
 
       setTotalAccountsForSummary(filteredCount || 0);
