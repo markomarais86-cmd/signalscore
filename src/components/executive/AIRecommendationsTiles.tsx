@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -61,6 +62,15 @@ const getColorForCategory = (category?: string) => {
 
 export function AIRecommendationsTiles({ insights, onRefresh }: AIRecommendationsTilesProps) {
   const navigate = useNavigate();
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+
+  // Get unique categories
+  const categories = ['all', ...Array.from(new Set(insights.map(i => i.category).filter(Boolean)))];
+  
+  // Filter insights by selected category
+  const filteredInsights = selectedCategory === 'all' 
+    ? insights 
+    : insights.filter(i => i.category === selectedCategory);
 
   if (!insights || insights.length === 0) {
     return (
@@ -104,8 +114,25 @@ export function AIRecommendationsTiles({ insights, onRefresh }: AIRecommendation
         </div>
       </CardHeader>
       <CardContent>
+        {/* Category Filter Pills */}
+        {categories.length > 1 && (
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <span className="text-sm text-muted-foreground">Filter by:</span>
+            {categories.map(cat => (
+              <Badge
+                key={cat}
+                variant={selectedCategory === cat ? 'default' : 'outline'}
+                className="cursor-pointer capitalize"
+                onClick={() => setSelectedCategory(cat)}
+              >
+                {cat}
+              </Badge>
+            ))}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {insights.slice(0, 6).map((insight, idx) => {
+          {filteredInsights.slice(0, 6).map((insight, idx) => {
             const Icon = getIconForCategory(insight.category);
             const colorClass = getColorForCategory(insight.category);
             

@@ -483,60 +483,24 @@ export default function ExecutiveDashboard() {
         </Alert>
       )}
 
-      {/* Row 1: Go-to-Market Intelligence - Merged Accounts + Leads Table + Campaign Assets */}
+      {/* Row 1: Accounts/Leads (left) + Scoring/ICP (right) */}
       <div className={`grid ${gridClass}`}>
-        <div className={!sidebar?.open ? "lg:col-span-2" : "lg:col-span-1"}>
-          <AccountsLeadsTable
-            totalAccounts={metrics.totalAccounts}
-            crmAccounts={metrics.crmAccounts}
-            databaseAccounts={metrics.databaseAccounts}
-            highFitAccounts={metrics.highFitAccounts}
-            highFitCrmAccounts={metrics.highFitCrmAccounts}
-            highFitDatabaseAccounts={metrics.highFitDatabaseAccounts}
-            totalLeads={metrics.totalLeads}
-            crmLeads={metrics.crmLeads}
-            databaseLeads={metrics.databaseLeads}
-            highFitLeads={metrics.highFitLeads}
-            highFitCrmLeads={metrics.highFitCrmLeads}
-            highFitDatabaseLeads={metrics.highFitDatabaseLeads}
-          />
-        </div>
+        <AccountsLeadsTable
+          totalAccounts={metrics.totalAccounts}
+          crmAccounts={metrics.crmAccounts}
+          databaseAccounts={metrics.databaseAccounts}
+          highFitAccounts={metrics.highFitAccounts}
+          highFitCrmAccounts={metrics.highFitCrmAccounts}
+          highFitDatabaseAccounts={metrics.highFitDatabaseAccounts}
+          totalLeads={metrics.totalLeads}
+          crmLeads={metrics.crmLeads}
+          databaseLeads={metrics.databaseLeads}
+          highFitLeads={metrics.highFitLeads}
+          highFitCrmLeads={metrics.highFitCrmLeads}
+          highFitDatabaseLeads={metrics.highFitDatabaseLeads}
+        />
         
-        <Card className={!sidebar?.open ? "lg:col-span-1" : "lg:col-span-1"}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Campaign-Ready Assets
-            </CardTitle>
-            <CardDescription>High-fit accounts with contacts</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-baseline justify-between mb-2">
-                  <div className="text-4xl font-bold text-primary">{metrics.campaignReadyAccounts.toLocaleString()}</div>
-                  {trends.campaignReady !== 0 && <TrendIndicator value={trends.campaignReady} />}
-                </div>
-                <p className="text-sm text-muted-foreground">Accounts ready</p>
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-signal-medium">{(metrics.campaignReadyLeads || 0).toLocaleString()}</div>
-                <p className="text-sm text-muted-foreground">Leads ready</p>
-              </div>
-              <Button 
-                onClick={() => navigate('/campaign-builder')} 
-                className="w-full"
-                disabled={metrics.campaignReadyAccounts === 0}
-              >
-                Build Campaign List →
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Row 2: Combined Scoring + ICP + Data Quality */}
-      <CombinedScoringICPCard
+        <CombinedScoringICPCard
         scoringProgress={metrics.scoringProgress}
         totalScored={metrics.totalScored}
         totalAccounts={metrics.totalAccounts}
@@ -549,12 +513,48 @@ export default function ExecutiveDashboard() {
         revenueCompleteness={metrics.revenueCompleteness}
         geoCompleteness={metrics.geoCompleteness}
         contactsCompleteness={metrics.contactsCompleteness}
-        scoringTrend={trends.scoringProgress}
-        completenessTrend={trends.completeness}
-      />
+          scoringTrend={trends.scoringProgress}
+          completenessTrend={trends.completeness}
+        />
+      </div>
 
-      {/* Row 3: Enhanced Geography with Drill-down */}
-      <EnhancedGeographyCard 
+      {/* Row 2: Campaign-Ready Assets */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Campaign-Ready Assets
+          </CardTitle>
+          <CardDescription>High-fit accounts with contacts</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div>
+              <div className="flex items-baseline justify-between mb-2">
+                <div className="text-4xl font-bold text-primary">{metrics.campaignReadyAccounts.toLocaleString()}</div>
+                {trends.campaignReady !== 0 && <TrendIndicator value={trends.campaignReady} />}
+              </div>
+              <p className="text-sm text-muted-foreground">Accounts ready</p>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-signal-medium">{(metrics.campaignReadyLeads || 0).toLocaleString()}</div>
+              <p className="text-sm text-muted-foreground">Leads ready</p>
+            </div>
+            <div className="flex items-center">
+              <Button 
+                onClick={() => navigate('/campaign-builder')} 
+                className="w-full"
+                disabled={metrics.campaignReadyAccounts === 0}
+              >
+                Build Campaign List →
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Row 3: Enhanced Geography with Drill-down + Accounts/Leads Toggle */}
+      <EnhancedGeographyCard
         geoData={geoData}
         onDrillDown={(country) => {
           console.log('Drilling down into:', country);

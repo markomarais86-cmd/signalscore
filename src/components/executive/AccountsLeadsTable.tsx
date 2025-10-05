@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Building2, Users, TrendingUp } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -92,17 +91,31 @@ export function AccountsLeadsTable({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs value={selectedIcp} onValueChange={setSelectedIcp}>
-          {icpProfiles.length > 0 && (
-            <TabsList className="mb-4">
-              <TabsTrigger value="all">All ICPs</TabsTrigger>
-              {icpProfiles.map(icp => (
-                <TabsTrigger key={icp.id} value={icp.id}>{icp.name}</TabsTrigger>
-              ))}
-            </TabsList>
-          )}
+        {/* ICP Filter Pills */}
+        {icpProfiles.length > 0 && (
+          <div className="flex items-center gap-2 mb-4">
+            <Badge 
+              variant={selectedIcp === "all" ? "default" : "outline"}
+              className="cursor-pointer"
+              onClick={() => setSelectedIcp("all")}
+            >
+              All ICPs
+            </Badge>
+            {icpProfiles.map(icp => (
+              <Badge 
+                key={icp.id}
+                variant={selectedIcp === icp.id ? "default" : "outline"}
+                className="cursor-pointer"
+                onClick={() => setSelectedIcp(icp.id)}
+              >
+                {icp.name}
+              </Badge>
+            ))}
+          </div>
+        )}
 
-          <TabsContent value={selectedIcp} className="mt-0">
+        {/* Compact Table */}
+        <div className="mt-0">
             <div className="rounded-lg border">
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -175,8 +188,7 @@ export function AccountsLeadsTable({
             <p className="text-xs text-muted-foreground mt-3">
               Click any row to view filtered accounts or leads
             </p>
-          </TabsContent>
-        </Tabs>
+        </div>
       </CardContent>
     </Card>
   );

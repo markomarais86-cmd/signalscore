@@ -26,6 +26,7 @@ export function EnhancedGeographyCard({ geoData, onDrillDown }: EnhancedGeograph
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [stateData, setStateData] = useState<Array<{ state: string; count: number }>>([]);
   const [loadingStates, setLoadingStates] = useState(false);
+  const [dataView, setDataView] = useState<'accounts' | 'leads'>('accounts');
   const maxCount = geoData[0]?.count || 1;
 
   const topCountries = geoData.slice(0, 10);
@@ -70,13 +71,35 @@ export function EnhancedGeographyCard({ geoData, onDrillDown }: EnhancedGeograph
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <MapPin className="h-5 w-5 text-primary" />
-          Top Geographies
-        </CardTitle>
-        <CardDescription>
-          Account distribution by location - {topCountries.length} countries
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-primary" />
+              Top Geographies
+            </CardTitle>
+            <CardDescription>
+              Distribution by location - {topCountries.length} countries
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2 bg-muted rounded-lg p-1">
+            <Button
+              size="sm"
+              variant={dataView === 'accounts' ? 'default' : 'ghost'}
+              className="h-7 px-3 text-xs"
+              onClick={() => setDataView('accounts')}
+            >
+              Accounts
+            </Button>
+            <Button
+              size="sm"
+              variant={dataView === 'leads' ? 'default' : 'ghost'}
+              className="h-7 px-3 text-xs"
+              onClick={() => setDataView('leads')}
+            >
+              Leads
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="countries" className="w-full">
