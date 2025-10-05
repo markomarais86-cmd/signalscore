@@ -277,8 +277,8 @@ export default function Accounts() {
         { count: unfilteredTotal },
         { count: unfilteredCrmCount },
         { count: unfilteredDbCount },
-        { data: highFitScoresData },
-        { data: allLeadsData },
+        { data: highFitCountData },
+        { data: highFitLeadsCount },
         { data: allAccountsForQuality }
       ] = await Promise.all([
         supabase
@@ -296,17 +296,14 @@ export default function Accounts() {
           .eq('org_id', userProfile.org_id)
           .eq('data_source', 'database'),
         supabase
-          .from('scores')
-          .select('account_external_id, overall')
-          .eq('org_id', userProfile.org_id)
-          .gte('overall', 70)
-          .limit(50000),
+          .rpc('count_high_fit_accounts_by_source', {
+            p_org_id: userProfile.org_id,
+            p_data_source: 'crm'
+          }),
         supabase
-          .from('Leads')
-          .select('id, account_external_id')
-          .eq('org_id', userProfile.org_id)
-          .not('account_external_id', 'is', null)
-          .limit(50000),
+          .rpc('count_high_fit_leads_total', {
+            p_org_id: userProfile.org_id
+          }),
         supabase
           .from('accounts')
           .select('name, domain, industry_norm, employee_count, revenue_range, country')
@@ -315,15 +312,8 @@ export default function Accounts() {
       ]);
 
       // Calculate unfiltered org-wide totals
-      const highFitAccountIds = new Set(
-        (highFitScoresData || []).map(s => s.account_external_id)
-      );
-      
-      const leadsForHighFitAccounts = (allLeadsData || [])
-        .filter(l => highFitAccountIds.has(l.account_external_id));
-      
-      const unfilteredHighFitCount = highFitAccountIds.size;
-      const unfilteredWithLeads = leadsForHighFitAccounts.length;
+      const unfilteredHighFitCount = highFitCountData || 0;
+      const unfilteredWithLeads = highFitLeadsCount || 0;
       
       const qualityScores = (allAccountsForQuality || []).map(acc => {
         const fields = [acc.name, acc.domain, acc.industry_norm, acc.employee_count, acc.revenue_range, acc.country];

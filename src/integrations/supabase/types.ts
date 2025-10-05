@@ -1425,6 +1425,10 @@ export type Database = {
         Args: { p_data_source: string; p_org_id: string }
         Returns: number
       }
+      count_high_fit_leads_total: {
+        Args: { p_org_id: string }
+        Returns: number
+      }
       count_leads_by_account_source: {
         Args: { p_data_source: string; p_org_id: string }
         Returns: number
