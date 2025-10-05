@@ -1,7 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, AlertCircle, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, AlertCircle, Info, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 export interface RiskItem {
   id: string;
@@ -18,6 +20,8 @@ interface RiskExceptionsPanelProps {
 }
 
 export function RiskExceptionsPanel({ risks, onRiskClick }: RiskExceptionsPanelProps) {
+  const navigate = useNavigate();
+  
   if (risks.length === 0) {
     return (
       <Card className="col-span-full border-executive-green/20 bg-executive-green/5">
@@ -73,13 +77,24 @@ export function RiskExceptionsPanel({ risks, onRiskClick }: RiskExceptionsPanelP
   return (
     <Card className="col-span-full">
       <CardHeader>
-        <CardTitle className="text-2xl flex items-center gap-2">
-          <AlertTriangle className="h-6 w-6 text-executive-red" />
-          Risks & Exceptions
-        </CardTitle>
-        <CardDescription>
-          Critical issues requiring attention to scale GTM operations
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-2xl flex items-center gap-2">
+              <AlertTriangle className="h-6 w-6 text-executive-red" />
+              Risks & Exceptions
+            </CardTitle>
+            <CardDescription>
+              Critical issues requiring attention to scale GTM operations
+            </CardDescription>
+          </div>
+          <Button
+            onClick={() => navigate('/settings?tab=integrations')}
+            className="gap-2"
+          >
+            <Sparkles className="h-4 w-4" />
+            Enrich Missing Data
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
