@@ -121,8 +121,7 @@ export default function ExecutiveDashboard() {
         .from('accounts')
         .select('*', { count: 'exact', head: true })
         .eq('org_id', userProfile.org_id)
-        .eq('data_source', 'database')
-        .eq('external_database_match', true);
+        .eq('data_source', 'database');
 
       const { count: bothCount } = await supabase
         .from('accounts')
