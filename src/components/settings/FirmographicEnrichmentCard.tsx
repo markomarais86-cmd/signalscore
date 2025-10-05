@@ -130,7 +130,7 @@ export function FirmographicEnrichmentCard() {
     }
   };
 
-  const startEnrichment = async () => {
+  const startEnrichment = async (provider: 'lovable_ai' | 'clearbit_free') => {
     if (!userProfile?.org_id) {
       toast({
         title: "Error",
@@ -148,7 +148,7 @@ export function FirmographicEnrichmentCard() {
         .from('enrichment_jobs')
         .insert({
           org_id: userProfile.org_id,
-          provider: 'lovable_ai',
+          provider: provider,
           job_type: 'firmographics',
           status: 'pending',
           created_by: userProfile.user_id
@@ -161,16 +161,18 @@ export function FirmographicEnrichmentCard() {
       setCurrentJob(job);
       setEnriching(true);
 
-      // Call edge function to process
-      const { error: functionError } = await supabase.functions.invoke('enrich-firmographics', {
+      // Call appropriate edge function
+      const functionName = provider === 'clearbit_free' ? 'enrich-clearbit-free' : 'enrich-firmographics';
+      const { error: functionError } = await supabase.functions.invoke(functionName, {
         body: { job_id: job.id }
       });
 
       if (functionError) throw functionError;
 
+      const providerName = provider === 'clearbit_free' ? 'Clearbit Free' : 'AI';
       toast({
         title: "Enrichment Started",
-        description: "Processing your accounts with AI...",
+        description: `Processing your accounts with ${providerName}...`,
       });
 
     } catch (error: any) {
@@ -235,24 +237,46 @@ export function FirmographicEnrichmentCard() {
             </CardDescription>
           </div>
           {!enriching && canEnrich && (
-            <Button 
-              onClick={startEnrichment} 
-              disabled={loading}
-              size="lg"
-              className="gap-2"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Starting...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  Enrich with AI
-                </>
-              )}
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => startEnrichment('clearbit_free')} 
+                disabled={loading}
+                size="lg"
+                className="gap-2"
+                variant="default"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <TrendingUp className="h-4 w-4" />
+                    Clearbit Free
+                  </>
+                )}
+              </Button>
+              <Button 
+                onClick={() => startEnrichment('lovable_ai')} 
+                disabled={loading}
+                size="lg"
+                className="gap-2"
+                variant="outline"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    AI Enrich
+                  </>
+                )}
+              </Button>
+            </div>
           )}
         </div>
       </CardHeader>
