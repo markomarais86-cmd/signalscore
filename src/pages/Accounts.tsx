@@ -274,21 +274,32 @@ export default function Accounts() {
     try {
       // Query 1: Unfiltered org-wide totals (always matches Dashboard)
       const [
-        { count: unfilteredTotal, data: unfilteredAccountsData },
-        { data: allScores },
+        { count: unfilteredTotal },
+        { count: unfilteredCrmCount },
+        { count: unfilteredDbCount },
+        { data: highFitCountData },
         { data: accountsWithContactsData },
         { data: allAccountsForQuality }
       ] = await Promise.all([
         supabase
           .from('accounts')
-          .select('data_source', { count: 'exact' })
-          .eq('org_id', userProfile.org_id)
-          .limit(50000),
+          .select('*', { count: 'exact', head: true })
+          .eq('org_id', userProfile.org_id),
         supabase
-          .from('scores')
-          .select('overall, fit, account_external_id')
+          .from('accounts')
+          .select('*', { count: 'exact', head: true })
           .eq('org_id', userProfile.org_id)
-          .limit(50000),
+          .in('data_source', ['crm', 'both', 'closed_won']),
+        supabase
+          .from('accounts')
+          .select('*', { count: 'exact', head: true })
+          .eq('org_id', userProfile.org_id)
+          .eq('data_source', 'database'),
+        supabase
+          .rpc('count_high_fit_accounts_by_source', {
+            p_org_id: userProfile.org_id,
+            p_data_source: 'crm'
+          }),
         supabase
           .from('contacts')
           .select('account_external_id')
@@ -302,9 +313,7 @@ export default function Accounts() {
       ]);
 
       // Calculate unfiltered org-wide totals
-      const unfilteredCrmCount = (unfilteredAccountsData || []).filter(a => a.data_source === 'crm' || a.data_source === 'both' || a.data_source === 'closed_won').length;
-      const unfilteredDbCount = (unfilteredAccountsData || []).filter(a => a.data_source === 'database').length;
-      const unfilteredHighFitCount = (allScores || []).filter(s => s.fit >= 70).length;
+      const unfilteredHighFitCount = highFitCountData || 0;
       const unfilteredWithContacts = new Set((accountsWithContactsData || []).map(c => c.account_external_id)).size;
       
       const qualityScores = (allAccountsForQuality || []).map(acc => {
