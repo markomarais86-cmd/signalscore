@@ -1,16 +1,20 @@
 import { supabase } from "@/integrations/supabase/client";
 
+export type RiskSeverity = 'critical' | 'high' | 'medium' | 'low';
+
 export interface RiskItem {
   id: string;
-  severity: 'critical' | 'warning' | 'info';
+  severity: RiskSeverity;
   title: string;
   description: string;
   count: number;
   impact: string;
   filter?: Record<string, any>;
-  action?: {
+  fix?: {
     label: string;
-    route: string;
+    action: 'enrich' | 'navigate';
+    target?: string;
+    fields?: string[];
   };
 }
 
@@ -24,15 +28,16 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
     if (unscoredDbAccounts > 100) {
       risks.push({
         id: 'unscored-db',
-        severity: 'critical',
+        severity: 'high',
         title: 'Unscored Database Accounts',
         description: `${unscoredDbAccounts.toLocaleString()} Database accounts lack ICP scores`,
         count: unscoredDbAccounts,
         impact: 'Cannot identify whitespace opportunities',
         filter: { data_source: 'database', scored: false },
-        action: {
+        fix: {
           label: 'Score Accounts',
-          route: '/accounts?action=score'
+          action: 'navigate',
+          target: '/accounts?action=score'
         }
       });
     }
@@ -66,9 +71,10 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
           count: missingContacts,
           impact: 'Campaigns underpowered, cannot execute outreach',
           filter: { highFit: true, noContacts: true },
-          action: {
+          fix: {
             label: 'Enrich Contacts',
-            route: '/settings?tab=integrations&action=enrich'
+            action: 'enrich',
+            fields: ['contacts']
           }
         });
       }
@@ -109,15 +115,16 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
         if (completeness < 50 && data.total > 100) {
           risks.push({
             id: `region-${region}`,
-            severity: 'warning',
+            severity: 'medium',
             title: `${region} Data Completeness Low`,
             description: `Only ${completeness.toFixed(0)}% complete across ${data.total} accounts`,
             count: data.total - data.complete,
             impact: 'Reduced scoring accuracy and targeting precision',
             filter: { country: region, incomplete: true },
-            action: {
+            fix: {
               label: 'Enrich Data',
-              route: '/settings?tab=integrations&action=enrich'
+              action: 'enrich',
+              fields: ['industry', 'size', 'revenue', 'geography']
             }
           });
         }
@@ -128,24 +135,25 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
     if (metrics.completenessScore < 60) {
       risks.push({
         id: 'low-completeness',
-        severity: 'warning',
+        severity: 'high',
         title: 'Overall Data Quality Below Target',
         description: `${metrics.completenessScore}% completeness across all accounts`,
         count: Math.floor(metrics.totalAccounts * (1 - metrics.completenessScore / 100)),
         impact: 'ICP scoring accuracy degraded',
         filter: { incomplete: true },
-        action: {
+        fix: {
           label: 'Enrich Data',
-          route: '/settings?tab=integrations&action=enrich'
+          action: 'enrich',
+          fields: ['industry', 'size', 'revenue', 'geography']
         }
       });
     }
 
     // Sort by severity
-    const severityOrder = { critical: 0, warning: 1, info: 2 };
+    const severityOrder: Record<RiskSeverity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
     risks.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
 
-    return risks.slice(0, 5); // Top 5 risks
+    return risks.slice(0, 6); // Top 6 risks
   } catch (error) {
     console.error('Error detecting risks:', error);
     return [];

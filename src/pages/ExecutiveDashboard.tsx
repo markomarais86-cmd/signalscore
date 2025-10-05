@@ -16,15 +16,16 @@ import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { useICPInsights } from "@/hooks/use-icp-insights";
 import { Lightbulb } from "lucide-react";
 import { DataSourceBreakdownCard } from "@/components/executive/DataSourceBreakdownCard";
-import { RiskItem } from "@/components/executive/RiskExceptionsPanel";
 import { TrendIndicator } from "@/components/executive/TrendIndicator";
 import { calculateTrends, TrendData } from "@/utils/trend-calculator";
 import { detectRisks } from "@/utils/risk-detector";
+import type { RiskItem } from "@/utils/risk-detector";
 import { CombinedScoringICPCard } from "@/components/executive/CombinedScoringICPCard";
 import { EnhancedGeographyCard } from "@/components/executive/EnhancedGeographyCard";
 import { AIRecommendationsTiles } from "@/components/executive/AIRecommendationsTiles";
 import { RisksAndActionsCard } from "@/components/executive/RisksAndActionsCard";
-import { AccountsLeadsTable } from "@/components/executive/AccountsLeadsTable";
+import { ICPCoverageCard } from "@/components/executive/ICPCoverageCard";
+import { EnhancedRisksCard } from "@/components/executive/EnhancedRisksCard";
 
 export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
@@ -483,9 +484,9 @@ export default function ExecutiveDashboard() {
         </Alert>
       )}
 
-      {/* Row 1: Accounts/Leads (left) + Scoring/ICP (right) */}
+      {/* Row 1: ICP Coverage (left) + Scoring/ICP (right) */}
       <div className={`grid ${gridClass}`}>
-        <AccountsLeadsTable
+        <ICPCoverageCard
           totalAccounts={metrics.totalAccounts}
           crmAccounts={metrics.crmAccounts}
           databaseAccounts={metrics.databaseAccounts}
@@ -580,14 +581,16 @@ export default function ExecutiveDashboard() {
           onRefresh={() => generateInsights()}
         />
 
-        <RisksAndActionsCard
+        <EnhancedRisksCard
           risks={risks}
           campaignReadyCount={metrics.campaignReadyAccounts}
           completenessScore={metrics.completenessScore}
           totalScored={metrics.totalScored}
           onRiskClick={(risk) => {
             console.log('Risk clicked:', risk);
-            navigate('/accounts');
+            if (risk.fix?.action === 'navigate' && risk.fix.target) {
+              navigate(risk.fix.target);
+            }
             toast.info(`Filtering to: ${risk.title}`);
           }}
         />

@@ -4,15 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, AlertCircle, Info, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
-
-export interface RiskItem {
-  id: string;
-  severity: 'critical' | 'warning' | 'info';
-  title: string;
-  description: string;
-  count: number;
-  impact: string;
-}
+import { RiskItem } from "@/utils/risk-detector";
 
 interface RiskExceptionsPanelProps {
   risks: RiskItem[];
@@ -45,9 +37,11 @@ export function RiskExceptionsPanel({ risks, onRiskClick }: RiskExceptionsPanelP
     switch (severity) {
       case 'critical':
         return <AlertTriangle className="h-5 w-5 text-executive-red" />;
-      case 'warning':
+      case 'high':
+        return <AlertTriangle className="h-5 w-5 text-orange-500" />;
+      case 'medium':
         return <AlertCircle className="h-5 w-5 text-executive-amber" />;
-      case 'info':
+      case 'low':
         return <Info className="h-5 w-5 text-blue-500" />;
     }
   };
@@ -56,9 +50,11 @@ export function RiskExceptionsPanel({ risks, onRiskClick }: RiskExceptionsPanelP
     switch (severity) {
       case 'critical':
         return 'border-executive-red/20 bg-executive-red/5';
-      case 'warning':
+      case 'high':
+        return 'border-orange-500/20 bg-orange-500/5';
+      case 'medium':
         return 'border-executive-amber/20 bg-executive-amber/5';
-      case 'info':
+      case 'low':
         return 'border-blue-500/20 bg-blue-500/5';
     }
   };
@@ -67,10 +63,12 @@ export function RiskExceptionsPanel({ risks, onRiskClick }: RiskExceptionsPanelP
     switch (severity) {
       case 'critical':
         return <Badge variant="destructive" className="text-xs">Critical</Badge>;
-      case 'warning':
-        return <Badge className="text-xs bg-executive-amber text-black">Warning</Badge>;
-      case 'info':
-        return <Badge variant="outline" className="text-xs">Info</Badge>;
+      case 'high':
+        return <Badge className="text-xs bg-orange-500 text-white">High</Badge>;
+      case 'medium':
+        return <Badge className="text-xs bg-executive-amber text-black">Medium</Badge>;
+      case 'low':
+        return <Badge variant="outline" className="text-xs">Low</Badge>;
     }
   };
 

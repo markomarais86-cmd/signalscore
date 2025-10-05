@@ -1,0 +1,256 @@
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Building2, Users, TrendingUp } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
+
+interface ICPCoverageCardProps {
+  // Accounts data
+  totalAccounts: number;
+  crmAccounts: number;
+  databaseAccounts: number;
+  highFitAccounts: number;
+  highFitCrmAccounts: number;
+  highFitDatabaseAccounts: number;
+  
+  // Leads data
+  totalLeads: number;
+  crmLeads: number;
+  databaseLeads: number;
+  highFitLeads: number;
+  highFitCrmLeads: number;
+  highFitDatabaseLeads: number;
+}
+
+export function ICPCoverageCard({
+  totalAccounts,
+  crmAccounts,
+  databaseAccounts,
+  highFitAccounts,
+  highFitCrmAccounts,
+  highFitDatabaseAccounts,
+  totalLeads,
+  crmLeads,
+  databaseLeads,
+  highFitLeads,
+  highFitCrmLeads,
+  highFitDatabaseLeads,
+}: ICPCoverageCardProps) {
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState("accounts");
+
+  const calculatePercentage = (value: number, total: number) => {
+    return total > 0 ? Math.round((value / total) * 100) : 0;
+  };
+
+  const getPercentageColor = (percentage: number) => {
+    if (percentage >= 70) return "bg-executive-green text-white";
+    if (percentage >= 50) return "bg-executive-amber text-black";
+    return "bg-executive-red text-white";
+  };
+
+  const accountsHighFitPct = calculatePercentage(highFitAccounts, totalAccounts);
+  const leadsHighFitPct = calculatePercentage(highFitLeads, totalLeads);
+
+  const accountsTableRows = [
+    {
+      source: "CRM",
+      icon: Building2,
+      total: crmAccounts,
+      highFit: highFitCrmAccounts,
+      route: "/accounts?source=crm"
+    },
+    {
+      source: "Database",
+      icon: Users,
+      total: databaseAccounts,
+      highFit: highFitDatabaseAccounts,
+      route: "/accounts?source=database"
+    }
+  ];
+
+  const leadsTableRows = [
+    {
+      source: "CRM",
+      icon: Building2,
+      total: crmLeads,
+      highFit: highFitCrmLeads,
+      route: "/leads?source=crm"
+    },
+    {
+      source: "Database",
+      icon: Users,
+      total: databaseLeads,
+      highFit: highFitDatabaseLeads,
+      route: "/leads?source=database"
+    }
+  ];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Building2 className="h-6 w-6 text-primary" />
+          ICP Coverage Overview
+        </CardTitle>
+        <CardDescription>
+          Total reach and high-fit distribution across data sources
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {/* Totals on Top */}
+        <div className="grid grid-cols-2 gap-6 mb-6 p-4 bg-muted/30 rounded-lg">
+          <div 
+            className="cursor-pointer hover:bg-muted/50 p-3 rounded-lg transition-colors"
+            onClick={() => navigate('/accounts')}
+          >
+            <div className="flex items-baseline gap-3 mb-2">
+              <div className="text-4xl font-bold text-primary">
+                {totalAccounts.toLocaleString()}
+              </div>
+              <Badge 
+                className={cn("text-sm font-semibold px-3 py-1", getPercentageColor(accountsHighFitPct))}
+              >
+                {accountsHighFitPct}% High-Fit
+              </Badge>
+            </div>
+            <div className="text-sm text-muted-foreground">Total Accounts</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {highFitAccounts.toLocaleString()} high-fit accounts
+            </div>
+          </div>
+
+          <div 
+            className="cursor-pointer hover:bg-muted/50 p-3 rounded-lg transition-colors"
+            onClick={() => navigate('/leads')}
+          >
+            <div className="flex items-baseline gap-3 mb-2">
+              <div className="text-4xl font-bold text-primary">
+                {totalLeads.toLocaleString()}
+              </div>
+              <Badge 
+                className={cn("text-sm font-semibold px-3 py-1", getPercentageColor(leadsHighFitPct))}
+              >
+                {leadsHighFitPct}% High-Fit
+              </Badge>
+            </div>
+            <div className="text-sm text-muted-foreground">Total Leads</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {highFitLeads.toLocaleString()} high-fit leads
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs for detailed breakdown */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="accounts">Accounts Breakdown</TabsTrigger>
+            <TabsTrigger value="leads">Leads Breakdown</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="accounts" className="mt-0">
+            <div className="rounded-lg border">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="text-left p-3 font-semibold text-sm">Source</th>
+                    <th className="text-right p-3 font-semibold text-sm">Total</th>
+                    <th className="text-right p-3 font-semibold text-sm">High-Fit</th>
+                    <th className="text-center p-3 font-semibold text-sm">% High-Fit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {accountsTableRows.map((row) => {
+                    const Icon = row.icon;
+                    const pct = calculatePercentage(row.highFit, row.total);
+                    return (
+                      <tr
+                        key={row.source}
+                        className="border-b transition-colors cursor-pointer hover:bg-muted/50"
+                        onClick={() => navigate(row.route)}
+                      >
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            <Icon className="h-4 w-4 text-muted-foreground" />
+                            <span>{row.source}</span>
+                          </div>
+                        </td>
+                        <td className="text-right p-3 font-mono text-sm">
+                          {row.total.toLocaleString()}
+                        </td>
+                        <td className="text-right p-3 font-mono text-sm font-semibold">
+                          {row.highFit.toLocaleString()}
+                        </td>
+                        <td className="text-center p-3">
+                          <Badge
+                            className={cn("font-semibold", getPercentageColor(pct))}
+                          >
+                            {pct}%
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="leads" className="mt-0">
+            <div className="rounded-lg border">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    <th className="text-left p-3 font-semibold text-sm">Source</th>
+                    <th className="text-right p-3 font-semibold text-sm">Total</th>
+                    <th className="text-right p-3 font-semibold text-sm">High-Fit</th>
+                    <th className="text-center p-3 font-semibold text-sm">% High-Fit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leadsTableRows.map((row) => {
+                    const Icon = row.icon;
+                    const pct = calculatePercentage(row.highFit, row.total);
+                    return (
+                      <tr
+                        key={row.source}
+                        className="border-b transition-colors cursor-pointer hover:bg-muted/50"
+                        onClick={() => navigate(row.route)}
+                      >
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            <Icon className="h-4 w-4 text-muted-foreground" />
+                            <span>{row.source}</span>
+                          </div>
+                        </td>
+                        <td className="text-right p-3 font-mono text-sm">
+                          {row.total.toLocaleString()}
+                        </td>
+                        <td className="text-right p-3 font-mono text-sm font-semibold">
+                          {row.highFit.toLocaleString()}
+                        </td>
+                        <td className="text-center p-3">
+                          <Badge
+                            className={cn("font-semibold", getPercentageColor(pct))}
+                          >
+                            {pct}%
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </TabsContent>
+        </Tabs>
+
+        <p className="text-xs text-muted-foreground mt-3">
+          Click any row to view filtered data. High-Fit = Score ≥ 70
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
