@@ -18,7 +18,6 @@ import { AccountDetailDrawer } from "@/components/accounts/AccountDetailDrawer";
 import { BulkScoring } from "@/components/BulkScoring";
 import { CorrelationInsights } from "@/components/CorrelationInsights";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { usePagination } from "@/hooks/use-pagination";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { EnrichmentDialog } from "@/components/EnrichmentDialog";
 import { getSourceLabel, getSourceBadgeVariant } from "@/utils/data-source-attribution";
@@ -50,7 +49,6 @@ interface Account {
 
 export default function Accounts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [filteredAccounts, setFilteredAccounts] = useState<Account[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -62,77 +60,80 @@ export default function Accounts() {
   const [showEnrichmentDialog, setShowEnrichmentDialog] = useState(false);
   const [hasActiveICP, setHasActiveICP] = useState(false);
   const [needsScoring, setNeedsScoring] = useState(false);
+  
+  // Server-side pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalAccountsForSummary, setTotalAccountsForSummary] = useState(0);
+  const [summaryStats, setSummaryStats] = useState({
+    withContacts: 0,
+    avgQuality: 0,
+    highFit: 0
+  });
+  
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
 
-  // Pagination
-  const {
-    currentPage,
-    pageSize,
-    totalPages,
-    paginatedData,
-    handlePageChange,
-    handlePageSizeChange,
-  } = usePagination({ data: filteredAccounts, initialPageSize: 25 });
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   useEffect(() => {
     if (userProfile?.org_id) {
       loadAccounts();
+      loadSummaryStats();
     }
-  }, [userProfile?.org_id]);
-
-  useEffect(() => {
-    filterAccounts();
-  }, [accounts, searchTerm, industryFilter]);
+  }, [userProfile?.org_id, currentPage, pageSize, searchTerm, industryFilter]);
 
   const loadAccounts = async () => {
     if (!userProfile?.org_id) return;
     
     setLoading(true);
     try {
-      // Get total count first
-      const { count: totalCount } = await supabase
+      // Build base query with filters
+      let accountsQuery = supabase
         .from('accounts')
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
         .eq('org_id', userProfile.org_id);
 
-      console.log('Accounts page - Total accounts:', totalCount);
-
-      // Fetch accounts in batches if needed (Supabase limit: 1000 per request)
-      const PAGE_SIZE = 1000;
-      const totalPages = Math.ceil((totalCount || 0) / PAGE_SIZE);
-      
-      const accountPromises = [];
-      for (let page = 0; page < totalPages; page++) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-        accountPromises.push(
-          supabase
-            .from('accounts')
-            .select('*')
-            .eq('org_id', userProfile.org_id)
-            .range(from, to)
-            .order('name', { ascending: true })
+      // Apply search filter
+      if (searchTerm) {
+        accountsQuery = accountsQuery.or(
+          `name.ilike.%${searchTerm}%,domain.ilike.%${searchTerm}%,industry_raw.ilike.%${searchTerm}%`
         );
       }
 
-      const accountResults = await Promise.all(accountPromises);
-      const accountsData = accountResults.flatMap(result => result.data || []);
-      const accountsError = accountResults.find(r => r.error)?.error;
+      // Apply industry filter
+      if (industryFilter !== "all") {
+        accountsQuery = accountsQuery.eq('industry_norm', industryFilter);
+      }
+
+      // Get count and paginated data
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+      
+      const { data: accountsData, count, error: accountsError } = await accountsQuery
+        .range(from, to)
+        .order('name', { ascending: true });
 
       if (accountsError) throw accountsError;
 
-      // Fetch scores and contacts in parallel (optimized batch queries)
+      setTotalCount(count || 0);
+
+      // Fetch scores and contacts for current page accounts only
+      const accountExternalIds = (accountsData || []).map(a => a.external_id);
+      
       const [{ data: scoresData }, { data: allContacts }, { data: icpData }] = await Promise.all([
         supabase
           .from('scores')
           .select('*')
-          .eq('org_id', userProfile.org_id),
+          .eq('org_id', userProfile.org_id)
+          .in('account_external_id', accountExternalIds),
         supabase
           .from('contacts')
           .select('*')
-          .eq('org_id', userProfile.org_id),
+          .eq('org_id', userProfile.org_id)
+          .in('account_external_id', accountExternalIds),
         supabase
           .from('icp_profiles')
           .select('id')
@@ -147,12 +148,11 @@ export default function Accounts() {
       setHasActiveICP(hasICP);
       setNeedsScoring(hasAccounts && hasICP && !hasScores);
 
-      // Create maps for quick lookups (O(1) instead of O(n))
+      // Create maps for quick lookups
       const scoresMap = new Map(
         (scoresData || []).map(score => [score.account_external_id, score])
       );
 
-      // Group contacts by account_external_id
       const contactsMap = new Map<string, any[]>();
       (allContacts || []).forEach(contact => {
         const accountId = contact.account_external_id;
@@ -162,7 +162,7 @@ export default function Accounts() {
         contactsMap.get(accountId)!.push(contact);
       });
 
-      // Combine accounts with scores and contacts (no async calls in loop)
+      // Combine accounts with scores and contacts
       const accountsWithContacts = (accountsData || []).map(account => {
         const scoreData = scoresMap.get(account.external_id);
         const contacts = contactsMap.get(account.external_id) || [];
@@ -182,7 +182,6 @@ export default function Accounts() {
 
       setAccounts(accountsWithContacts);
       
-      // Mark step complete if we have scores
       if (accountsWithContacts.some(a => a.score !== null)) {
         completeStep('view_scores');
       }
@@ -198,22 +197,45 @@ export default function Accounts() {
     }
   };
 
-  const filterAccounts = () => {
-    let filtered = accounts;
+  const loadSummaryStats = async () => {
+    if (!userProfile?.org_id) return;
+    
+    try {
+      const [
+        { count: totalAccounts },
+        { data: allScores },
+        { data: accountsWithContactsData }
+      ] = await Promise.all([
+        supabase
+          .from('accounts')
+          .select('*', { count: 'exact', head: true })
+          .eq('org_id', userProfile.org_id),
+        supabase
+          .from('scores')
+          .select('overall')
+          .eq('org_id', userProfile.org_id),
+        supabase
+          .from('contacts')
+          .select('account_external_id')
+          .eq('org_id', userProfile.org_id)
+      ]);
 
-    if (searchTerm) {
-      filtered = filtered.filter(account =>
-        account.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        account.domain?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        account.industry_raw?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+      const uniqueAccountsWithContacts = new Set(
+        (accountsWithContactsData || []).map(c => c.account_external_id)
+      ).size;
+
+      const highFitCount = (allScores || []).filter(s => s.overall >= 70).length;
+      const avgQuality = 75; // Placeholder - would need to calculate from all accounts
+
+      setTotalAccountsForSummary(totalAccounts || 0);
+      setSummaryStats({
+        withContacts: uniqueAccountsWithContacts,
+        avgQuality,
+        highFit: highFitCount
+      });
+    } catch (error) {
+      console.error('Error loading summary stats:', error);
     }
-
-    if (industryFilter !== "all") {
-      filtered = filtered.filter(account => account.industry_norm === industryFilter);
-    }
-
-    setFilteredAccounts(filtered);
   };
 
   const calculateDataCompleteness = (account: Account): number => {
@@ -235,17 +257,95 @@ export default function Accounts() {
     return <Badge variant="outline">Low Quality</Badge>;
   };
 
-  const exportToCSV = (exportAll: boolean = false) => {
-    const dataToExport = exportAll ? accounts : filteredAccounts;
+  const exportToCSV = async (exportAll: boolean = false) => {
+    // For current page
+    const dataToExport = accounts;
     
-    if (dataToExport.length === 0) {
+    if (!exportAll && dataToExport.length === 0) {
       toast({
         title: "No data to export",
-        description: exportAll ? "No accounts in database" : "No accounts match your current filters",
+        description: "No accounts on current page",
         variant: "destructive"
       });
       return;
     }
+
+    // If exporting all, fetch all accounts
+    if (exportAll) {
+      if (!userProfile?.org_id) return;
+      
+      try {
+        let query = supabase
+          .from('accounts')
+          .select('*')
+          .eq('org_id', userProfile.org_id);
+
+        if (searchTerm) {
+          query = query.or(`name.ilike.%${searchTerm}%,domain.ilike.%${searchTerm}%,industry_raw.ilike.%${searchTerm}%`);
+        }
+        if (industryFilter !== "all") {
+          query = query.eq('industry_norm', industryFilter);
+        }
+
+        const { data: allAccountsData } = await query.order('name', { ascending: true });
+        
+        if (!allAccountsData || allAccountsData.length === 0) {
+          toast({
+            title: "No data to export",
+            description: "No accounts match your filters",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        // Fetch scores for all accounts
+        const accountIds = allAccountsData.map(a => a.external_id);
+        const { data: scoresData } = await supabase
+          .from('scores')
+          .select('*')
+          .eq('org_id', userProfile.org_id)
+          .in('account_external_id', accountIds);
+
+        const { data: contactsData } = await supabase
+          .from('contacts')
+          .select('account_external_id')
+          .eq('org_id', userProfile.org_id)
+          .in('account_external_id', accountIds);
+
+        const scoresMap = new Map((scoresData || []).map(s => [s.account_external_id, s]));
+        const contactsMap = new Map<string, number>();
+        (contactsData || []).forEach(c => {
+          contactsMap.set(c.account_external_id, (contactsMap.get(c.account_external_id) || 0) + 1);
+        });
+
+        const fullAccounts = allAccountsData.map(account => ({
+          ...account,
+          data_source: (account.data_source || 'crm') as 'crm' | 'database' | 'both',
+          score: scoresMap.get(account.external_id) ? {
+            overall: scoresMap.get(account.external_id)!.overall,
+            fit: scoresMap.get(account.external_id)!.fit,
+            intent: scoresMap.get(account.external_id)!.intent,
+            reachability: scoresMap.get(account.external_id)!.reachability
+          } : null,
+          contacts: Array(contactsMap.get(account.external_id) || 0).fill({})
+        }));
+
+        exportCSVData(fullAccounts, exportAll);
+      } catch (error) {
+        console.error('Error exporting all accounts:', error);
+        toast({
+          title: "Export failed",
+          description: "Failed to fetch all accounts",
+          variant: "destructive"
+        });
+      }
+      return;
+    }
+
+    exportCSVData(dataToExport, exportAll);
+  };
+
+  const exportCSVData = (dataToExport: Account[], exportAll: boolean) => {
 
     // Define CSV headers
     const headers = [
@@ -311,7 +411,33 @@ export default function Accounts() {
     });
   };
 
-  const uniqueIndustries = Array.from(new Set(accounts.map(a => a.industry_norm).filter(Boolean)));
+  const [uniqueIndustries, setUniqueIndustries] = useState<string[]>([]);
+
+  useEffect(() => {
+    const fetchIndustries = async () => {
+      if (!userProfile?.org_id) return;
+      
+      const { data } = await supabase
+        .from('accounts')
+        .select('industry_norm')
+        .eq('org_id', userProfile.org_id)
+        .not('industry_norm', 'is', null);
+      
+      const industries = Array.from(new Set((data || []).map(a => a.industry_norm).filter(Boolean)));
+      setUniqueIndustries(industries);
+    };
+    
+    fetchIndustries();
+  }, [userProfile?.org_id]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+  };
 
   if (loading) {
     return (
@@ -346,10 +472,10 @@ export default function Accounts() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => exportToCSV(false)}>
-              Export Filtered ({filteredAccounts.length} accounts)
+              Export Current Page ({accounts.length} accounts)
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => exportToCSV(true)}>
-              Export All ({accounts.length} accounts)
+              Export All Filtered ({totalCount} accounts)
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -363,7 +489,7 @@ export default function Accounts() {
             <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{accounts.length}</div>
+            <div className="text-2xl font-bold">{totalAccountsForSummary}</div>
             <p className="text-xs text-muted-foreground">Companies in database</p>
           </CardContent>
         </Card>
@@ -374,10 +500,10 @@ export default function Accounts() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {accounts.filter(a => (a.contacts?.length || 0) > 0).length}
+              {summaryStats.withContacts}
             </div>
             <p className="text-xs text-muted-foreground">
-              {((accounts.filter(a => (a.contacts?.length || 0) > 0).length / accounts.length) * 100).toFixed(2)}% have contact data
+              {totalAccountsForSummary > 0 ? ((summaryStats.withContacts / totalAccountsForSummary) * 100).toFixed(1) : 0}% have contact data
             </p>
           </CardContent>
         </Card>
@@ -388,7 +514,7 @@ export default function Accounts() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {(accounts.reduce((sum, a) => sum + calculateDataCompleteness(a), 0) / accounts.length).toFixed(2)}%
+              {summaryStats.avgQuality}%
             </div>
             <p className="text-xs text-muted-foreground">Average completeness</p>
           </CardContent>
@@ -400,7 +526,7 @@ export default function Accounts() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {accounts.filter(a => (a.score?.overall || 0) >= 70).length}
+              {summaryStats.highFit}
             </div>
             <p className="text-xs text-muted-foreground">Score 70+</p>
           </CardContent>
@@ -412,7 +538,7 @@ export default function Accounts() {
         <Alert className="border-primary bg-primary/5">
           <Sparkles className="h-4 w-4 text-primary" />
           <AlertDescription>
-            <strong>Ready to score your accounts!</strong> You have {accounts.length} accounts and an active ICP profile. 
+            <strong>Ready to score your accounts!</strong> You have {totalAccountsForSummary} accounts and an active ICP profile. 
             Use the Bulk Scoring Engine below to calculate ICP match scores for all accounts.
           </AlertDescription>
         </Alert>
@@ -455,7 +581,7 @@ export default function Accounts() {
       {/* Accounts Table */}
       <Card>
         <CardHeader>
-          <CardTitle>All Accounts ({filteredAccounts.length})</CardTitle>
+          <CardTitle>All Accounts ({totalCount.toLocaleString()})</CardTitle>
           <CardDescription>
             Click on any row to view detailed account information
           </CardDescription>
@@ -476,7 +602,7 @@ export default function Accounts() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedData.map((account) => {
+              {accounts.map((account) => {
                 const completeness = calculateDataCompleteness(account);
                 return (
                   <TableRow 
@@ -587,7 +713,7 @@ export default function Accounts() {
             currentPage={currentPage}
             totalPages={totalPages}
             pageSize={pageSize}
-            totalItems={filteredAccounts.length}
+            totalItems={totalCount}
             onPageChange={handlePageChange}
             onPageSizeChange={handlePageSizeChange}
           />
