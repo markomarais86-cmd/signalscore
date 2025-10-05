@@ -83,6 +83,16 @@ export default function Accounts() {
     databaseAccounts: 0
   });
   
+  // Unfiltered org-wide totals (always matches Dashboard)
+  const [unfilteredTotals, setUnfilteredTotals] = useState({
+    total: 0,
+    crm: 0,
+    database: 0,
+    highFit: 0,
+    withContacts: 0,
+    avgQuality: 0
+  });
+  
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
@@ -262,28 +272,17 @@ export default function Accounts() {
     if (!userProfile?.org_id) return;
     
     try {
-      // Apply same filters to summary stats
-      let summaryQuery = supabase
-        .from('accounts')
-        .select('data_source', { count: 'exact' })
-        .eq('org_id', userProfile.org_id);
-
-      if (sourceFilter && sourceFilter !== 'all') {
-        if (sourceFilter === 'crm') {
-          summaryQuery = summaryQuery.in('data_source', ['crm', 'both']);
-        } else if (sourceFilter === 'database') {
-          summaryQuery = summaryQuery.eq('data_source', 'database');
-        }
-      }
-      if (countryFilter) summaryQuery = summaryQuery.eq('country', countryFilter);
-      if (stateFilter) summaryQuery = summaryQuery.eq('state_province', stateFilter);
-
+      // Query 1: Unfiltered org-wide totals (always matches Dashboard)
       const [
-        { count: totalAccounts, data: accountsData },
+        { count: unfilteredTotal, data: unfilteredAccountsData },
         { data: allScores },
-        { data: accountsWithContactsData }
+        { data: accountsWithContactsData },
+        { data: allAccountsForQuality }
       ] = await Promise.all([
-        summaryQuery,
+        supabase
+          .from('accounts')
+          .select('data_source', { count: 'exact' })
+          .eq('org_id', userProfile.org_id),
         supabase
           .from('scores')
           .select('overall, fit, account_external_id')
@@ -291,34 +290,18 @@ export default function Accounts() {
         supabase
           .from('contacts')
           .select('account_external_id')
+          .eq('org_id', userProfile.org_id),
+        supabase
+          .from('accounts')
+          .select('name, domain, industry_norm, employee_count, revenue_range, country')
           .eq('org_id', userProfile.org_id)
       ]);
 
-      // Count CRM vs Database accounts
-      const crmCount = (accountsData || []).filter(a => a.data_source === 'crm' || a.data_source === 'both').length;
-      const dbCount = (accountsData || []).filter(a => a.data_source === 'database').length;
-
-      const uniqueAccountsWithContacts = new Set(
-        (accountsWithContactsData || []).map(c => c.account_external_id)
-      ).size;
-
-      // Apply fit filter to high-fit calculation
-      let filteredScores = allScores || [];
-      if (fitFilter === 'high') {
-        filteredScores = filteredScores.filter(s => s.fit >= 70);
-      } else if (fitFilter === 'medium') {
-        filteredScores = filteredScores.filter(s => s.fit >= 40 && s.fit < 70);
-      } else if (fitFilter === 'low') {
-        filteredScores = filteredScores.filter(s => s.fit < 40);
-      }
-      
-      const highFitCount = filteredScores.filter(s => s.fit >= 70).length;
-      
-      // FIX: Calculate real data quality instead of hardcoded value
-      const { data: allAccountsForQuality } = await supabase
-        .from('accounts')
-        .select('name, domain, industry_norm, employee_count, revenue_range, country')
-        .eq('org_id', userProfile.org_id);
+      // Calculate unfiltered org-wide totals
+      const unfilteredCrmCount = (unfilteredAccountsData || []).filter(a => a.data_source === 'crm' || a.data_source === 'both').length;
+      const unfilteredDbCount = (unfilteredAccountsData || []).filter(a => a.data_source === 'database').length;
+      const unfilteredHighFitCount = (allScores || []).filter(s => s.fit >= 70).length;
+      const unfilteredWithContacts = new Set((accountsWithContactsData || []).map(c => c.account_external_id)).size;
       
       const qualityScores = (allAccountsForQuality || []).map(acc => {
         const fields = [acc.name, acc.domain, acc.industry_norm, acc.employee_count, acc.revenue_range, acc.country];
@@ -326,17 +309,48 @@ export default function Accounts() {
         return Math.round((filled / fields.length) * 100);
       });
       
-      const avgQuality = qualityScores.length > 0
+      const unfilteredAvgQuality = qualityScores.length > 0
         ? Math.round(qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length)
         : 0;
 
-      setTotalAccountsForSummary(totalAccounts || 0);
+      // Store unfiltered totals
+      setUnfilteredTotals({
+        total: unfilteredTotal || 0,
+        crm: unfilteredCrmCount,
+        database: unfilteredDbCount,
+        highFit: unfilteredHighFitCount,
+        withContacts: unfilteredWithContacts,
+        avgQuality: unfilteredAvgQuality
+      });
+
+      // Query 2: Filtered counts (for "Filtered Results" display)
+      let filteredQuery = supabase
+        .from('accounts')
+        .select('data_source', { count: 'exact' })
+        .eq('org_id', userProfile.org_id);
+
+      if (sourceFilter && sourceFilter !== 'all') {
+        if (sourceFilter === 'crm') {
+          filteredQuery = filteredQuery.in('data_source', ['crm', 'both']);
+        } else if (sourceFilter === 'database') {
+          filteredQuery = filteredQuery.eq('data_source', 'database');
+        }
+      }
+      if (countryFilter) filteredQuery = filteredQuery.eq('country', countryFilter);
+      if (stateFilter) filteredQuery = filteredQuery.eq('state_province', stateFilter);
+
+      const { count: filteredCount, data: filteredAccountsData } = await filteredQuery;
+
+      const filteredCrmCount = (filteredAccountsData || []).filter(a => a.data_source === 'crm' || a.data_source === 'both').length;
+      const filteredDbCount = (filteredAccountsData || []).filter(a => a.data_source === 'database').length;
+
+      setTotalAccountsForSummary(filteredCount || 0);
       setSummaryStats({
-        withContacts: uniqueAccountsWithContacts,
-        avgQuality,
-        highFit: highFitCount,
-        crmAccounts: crmCount,
-        databaseAccounts: dbCount
+        withContacts: unfilteredWithContacts, // Keep unfiltered
+        avgQuality: unfilteredAvgQuality, // Keep unfiltered
+        highFit: unfilteredHighFitCount, // Keep unfiltered
+        crmAccounts: filteredCrmCount,
+        databaseAccounts: filteredDbCount
       });
     } catch (error) {
       console.error('Error loading summary stats:', error);
@@ -620,37 +634,52 @@ export default function Accounts() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-baseline gap-2">
-            <div className="text-3xl font-bold">{totalAccountsForSummary.toLocaleString()}</div>
+            <div className="text-3xl font-bold">{unfilteredTotals.total.toLocaleString()}</div>
             <div className="text-sm text-muted-foreground">Total Accounts</div>
           </div>
           
           <div className="flex gap-6 text-sm">
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="font-normal">
-                {summaryStats.crmAccounts.toLocaleString()} CRM
+                {unfilteredTotals.crm.toLocaleString()} CRM
               </Badge>
               <Badge variant="secondary" className="font-normal">
-                {summaryStats.databaseAccounts.toLocaleString()} Database
+                {unfilteredTotals.database.toLocaleString()} Database
               </Badge>
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-4 pt-2 border-t">
             <div>
-              <div className="text-sm font-medium">{summaryStats.highFit.toLocaleString()}</div>
+              <div className="text-sm font-medium">{unfilteredTotals.highFit.toLocaleString()}</div>
               <div className="text-xs text-muted-foreground">
-                High-Fit ({totalAccountsForSummary > 0 ? Math.round((summaryStats.highFit / totalAccountsForSummary) * 100) : 0}%)
+                High-Fit ({unfilteredTotals.total > 0 ? Math.round((unfilteredTotals.highFit / unfilteredTotals.total) * 100) : 0}%)
               </div>
             </div>
             <div>
-              <div className="text-sm font-medium">{summaryStats.avgQuality}%</div>
+              <div className="text-sm font-medium">{unfilteredTotals.avgQuality}%</div>
               <div className="text-xs text-muted-foreground">Avg Quality</div>
             </div>
             <div>
-              <div className="text-sm font-medium">{summaryStats.withContacts.toLocaleString()}</div>
+              <div className="text-sm font-medium">{unfilteredTotals.withContacts.toLocaleString()}</div>
               <div className="text-xs text-muted-foreground">w/ Contacts</div>
             </div>
           </div>
+
+          {/* Filtered Results (only show when filters are active) */}
+          {hasActiveFilters && totalAccountsForSummary !== unfilteredTotals.total && (
+            <div className="pt-3 border-t">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">
+                  Filtered Results: {totalAccountsForSummary.toLocaleString()} accounts
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  ({summaryStats.crmAccounts} CRM, {summaryStats.databaseAccounts} Database)
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Active Filters */}
           {hasActiveFilters && (
