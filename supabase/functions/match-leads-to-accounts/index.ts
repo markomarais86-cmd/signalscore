@@ -176,15 +176,17 @@ serve(async (req) => {
 
     console.log(`✅ Step 3: Linked ${linkResult?.linked_after_creation || 0} remaining leads`);
 
-    // Step 4: Fuzzy matching for remaining unlinked leads (OPTIMIZED)
+    // Step 4: Fuzzy matching - optimized in-memory processing
     const startTime = Date.now();
+    
+    // Fetch all unlinked leads at once
     const { data: unlinkedLeads, error: unlinkedError } = await supabase
       .from('Leads')
       .select('id, company, website, email, country')
       .eq('org_id', org_id)
       .is('account_external_id', null)
-      .is('match_confidence', null) // Skip already fuzzy-matched leads
-      .limit(5000); // Increased batch size from 1,000 → 5,000
+      .is('match_confidence', null)
+      .limit(5000);
 
     if (unlinkedError) {
       console.error('⚠️ Fuzzy match fetch error:', unlinkedError.message);
@@ -192,89 +194,109 @@ serve(async (req) => {
 
     let fuzzyMatched = 0;
     if (unlinkedLeads && unlinkedLeads.length > 0) {
-      console.log(`🔍 Running fuzzy matching on ${unlinkedLeads.length} unlinked leads...`);
+      console.log(`🔍 Running in-memory fuzzy matching on ${unlinkedLeads.length} leads...`);
       
-      // Parallel processing in chunks of 100
-      const chunkSize = 100;
-      const allMatches: Array<{ lead_id: number; account_id: string; confidence: number }> = [];
-      
-      const processBatch = async (batch: typeof unlinkedLeads) => {
-        const batchMatches: Array<{ lead_id: number; account_id: string; confidence: number }> = [];
+      // Fetch all accounts at once for matching
+      const { data: allAccounts, error: accountsError } = await supabase
+        .from('accounts')
+        .select('external_id, domain, name, country')
+        .eq('org_id', org_id);
+
+      if (accountsError || !allAccounts) {
+        console.error('⚠️ Failed to fetch accounts:', accountsError?.message);
+      } else {
+        console.log(`📦 Loaded ${allAccounts.length} accounts for matching`);
         
-        for (const lead of batch) {
-          const baseDomain = getBaseDomain(lead.website || extractDomainFromEmail(lead.email));
-          const companyName = normalizeCompanyName(lead.company);
+        // Build lookup maps for fast matching
+        const domainMap = new Map<string, string>(); // base_domain -> account_external_id
+        const nameCountryMap = new Map<string, string>(); // normalized_name|country -> account_external_id
+        
+        for (const account of allAccounts) {
+          // Index by base domain
+          if (account.domain) {
+            const baseDomain = getBaseDomain(account.domain);
+            if (baseDomain && !domainMap.has(baseDomain)) {
+              domainMap.set(baseDomain, account.external_id);
+            }
+          }
           
-          if (!baseDomain && !companyName) continue;
-
-          try {
-            // Call fuzzy matching function
-            const { data: matches, error: fuzzyError } = await supabase
-              .rpc('match_leads_fuzzy', {
-                p_org_id: org_id,
-                p_base_domain: baseDomain,
-                p_company_name: companyName,
-                p_country: lead.country
-              });
-
-            if (fuzzyError) {
-              console.error(`⚠️ Fuzzy match error for lead ${lead.id}:`, fuzzyError.message);
-              continue;
+          // Index by name + country
+          if (account.name && account.country) {
+            const normalizedName = normalizeCompanyName(account.name);
+            const key = `${normalizedName}|${account.country.toLowerCase()}`;
+            if (!nameCountryMap.has(key)) {
+              nameCountryMap.set(key, account.external_id);
             }
-
-            // Auto-link high-confidence matches (>= 0.80)
-            if (matches && matches.length > 0 && matches[0].confidence >= 0.80) {
-              batchMatches.push({
-                lead_id: lead.id,
-                account_id: matches[0].account_external_id,
-                confidence: matches[0].confidence
-              });
-            }
-          } catch (err) {
-            console.error(`⚠️ Error processing lead ${lead.id}:`, err);
           }
         }
         
-        return batchMatches;
-      };
-
-      // Process in parallel chunks
-      const promises = [];
-      for (let i = 0; i < unlinkedLeads.length; i += chunkSize) {
-        const chunk = unlinkedLeads.slice(i, i + chunkSize);
-        promises.push(processBatch(chunk));
+        console.log(`🗂️ Built indexes: ${domainMap.size} domains, ${nameCountryMap.size} name+country pairs`);
         
-        // Add timeout protection - max 55 seconds
-        if (Date.now() - startTime > 55000) {
-          console.log(`⏱️ Timeout protection triggered at ${i} leads`);
-          break;
+        // Match leads in memory
+        const matches: Array<{ lead_id: number; account_id: string; confidence: number }> = [];
+        
+        for (const lead of unlinkedLeads) {
+          const baseDomain = getBaseDomain(lead.website || extractDomainFromEmail(lead.email));
+          const normalizedName = normalizeCompanyName(lead.company);
+          const leadCountry = lead.country?.toLowerCase();
+          
+          let matchedAccountId: string | undefined;
+          let confidence = 0;
+          
+          // Try domain + country match (0.90 confidence)
+          if (baseDomain && leadCountry && domainMap.has(baseDomain)) {
+            const accountId = domainMap.get(baseDomain);
+            const account = allAccounts.find(a => a.external_id === accountId);
+            if (account?.country?.toLowerCase() === leadCountry) {
+              matchedAccountId = accountId;
+              confidence = 0.90;
+            }
+          }
+          
+          // Try name + country match (0.85 confidence)
+          if (!matchedAccountId && normalizedName && leadCountry) {
+            const key = `${normalizedName}|${leadCountry}`;
+            if (nameCountryMap.has(key)) {
+              matchedAccountId = nameCountryMap.get(key);
+              confidence = 0.85;
+            }
+          }
+          
+          // Try domain only match (0.75 confidence)
+          if (!matchedAccountId && baseDomain && domainMap.has(baseDomain)) {
+            matchedAccountId = domainMap.get(baseDomain);
+            confidence = 0.75;
+          }
+          
+          // Only auto-link if confidence >= 0.80
+          if (matchedAccountId && confidence >= 0.80) {
+            matches.push({
+              lead_id: lead.id,
+              account_id: matchedAccountId,
+              confidence: confidence
+            });
+          }
         }
-      }
+        
+        console.log(`✨ Found ${matches.length} high-confidence matches (>= 0.80)`);
+        
+        // Bulk update all matches at once
+        if (matches.length > 0) {
+          const updateData = matches.map(m => ({
+            id: m.lead_id,
+            account_external_id: m.account_id,
+            match_confidence: m.confidence
+          }));
 
-      const results = await Promise.all(promises);
-      allMatches.push(...results.flat());
-      
-      // Log progress every 500 leads
-      if (allMatches.length > 0) {
-        console.log(`📊 Fuzzy matching progress: ${allMatches.length} high-confidence matches found`);
-      }
+          const { error: bulkUpdateError } = await supabase
+            .from('Leads')
+            .upsert(updateData, { onConflict: 'id' });
 
-      // Bulk update all matched leads in one operation
-      if (allMatches.length > 0) {
-        const updateData = allMatches.map(m => ({
-          id: m.lead_id,
-          account_external_id: m.account_id,
-          match_confidence: m.confidence
-        }));
-
-        const { error: bulkUpdateError } = await supabase
-          .from('Leads')
-          .upsert(updateData, { onConflict: 'id' });
-
-        if (bulkUpdateError) {
-          console.error('⚠️ Bulk update error:', bulkUpdateError.message);
-        } else {
-          fuzzyMatched = allMatches.length;
+          if (bulkUpdateError) {
+            console.error('⚠️ Bulk update error:', bulkUpdateError.message);
+          } else {
+            fuzzyMatched = matches.length;
+          }
         }
       }
       
