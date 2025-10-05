@@ -130,7 +130,7 @@ export function FirmographicEnrichmentCard() {
     }
   };
 
-  const startEnrichment = async (provider: 'lovable_ai' | 'clearbit_free') => {
+  const startEnrichment = async (provider: 'lovable_ai' | 'clearbit_free' | 'pdl') => {
     if (!userProfile?.org_id) {
       toast({
         title: "Error",
@@ -162,17 +162,26 @@ export function FirmographicEnrichmentCard() {
       setEnriching(true);
 
       // Call appropriate edge function
-      const functionName = provider === 'clearbit_free' ? 'enrich-clearbit-free' : 'enrich-firmographics';
+      const functionMap = {
+        'clearbit_free': 'enrich-clearbit-free',
+        'lovable_ai': 'enrich-firmographics',
+        'pdl': 'enrich-pdl'
+      };
+      const functionName = functionMap[provider];
       const { error: functionError } = await supabase.functions.invoke(functionName, {
         body: { job_id: job.id }
       });
 
       if (functionError) throw functionError;
 
-      const providerName = provider === 'clearbit_free' ? 'Clearbit Free' : 'AI';
+      const providerNames = {
+        'clearbit_free': 'Clearbit Free',
+        'lovable_ai': 'AI',
+        'pdl': 'People Data Labs'
+      };
       toast({
         title: "Enrichment Started",
-        description: `Processing your accounts with ${providerName}...`,
+        description: `Processing your accounts with ${providerNames[provider]}...`,
       });
 
     } catch (error: any) {
@@ -276,6 +285,25 @@ export function FirmographicEnrichmentCard() {
                   </>
                 )}
               </Button>
+              <Button 
+                onClick={() => startEnrichment('pdl')} 
+                disabled={loading}
+                size="lg"
+                className="gap-2"
+                variant="secondary"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <DollarSign className="h-4 w-4" />
+                    PDL (Top 100)
+                  </>
+                )}
+              </Button>
             </div>
           )}
         </div>
@@ -359,14 +387,34 @@ export function FirmographicEnrichmentCard() {
             <CardContent className="p-4">
               <div className="flex items-start gap-3">
                 <TrendingUp className="h-5 w-5 text-primary mt-1" />
-                <div className="space-y-1">
-                  <p className="font-semibold">Expected Impact</p>
-                  <p className="text-sm text-muted-foreground">
-                    Enriching {missingEmployeeCount + missingRevenueRange} data points will improve your scoring accuracy by ~45% 
-                    and add 2,000-3,000 campaign-ready accounts.
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Estimated cost: ~$2-3 using Gemini 2.5 Flash (FREE during promotion)
+                <div className="space-y-2">
+                  <p className="font-semibold">Enrichment Options</p>
+                  
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-start gap-2">
+                      <TrendingUp className="h-4 w-4 text-green-500 mt-0.5" />
+                      <div>
+                        <span className="font-medium text-foreground">Clearbit Free:</span> Basic firmographics (unlimited, no API key needed)
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-2">
+                      <Sparkles className="h-4 w-4 text-blue-500 mt-0.5" />
+                      <div>
+                        <span className="font-medium text-foreground">AI Enrich:</span> Intelligent estimates using Gemini 2.5 Flash (~$2-3 for all, FREE during promotion)
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-2">
+                      <DollarSign className="h-4 w-4 text-purple-500 mt-0.5" />
+                      <div>
+                        <span className="font-medium text-foreground">PDL (Top 100):</span> High-accuracy enrichment for your best accounts (1,000 free/month)
+                      </div>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground mt-2 pt-2 border-t">
+                    💡 <span className="font-medium">Recommended:</span> Start with Clearbit Free, then use AI for missing data, finally PDL for top prospects.
                   </p>
                 </div>
               </div>

@@ -223,6 +223,11 @@ serve(async (req) => {
                 console.error(`Failed to update account ${enrichment.external_id}:`, updateError);
                 totalFailed++;
               } else {
+                // Auto-rescore the account
+                await supabase.rpc('auto_score_account', {
+                  p_account_external_id: enrichment.external_id,
+                  p_org_id: job.org_id
+                });
                 totalEnriched++;
               }
             } else {

@@ -177,6 +177,82 @@ Deno.serve(async (req) => {
       
       const leadsData = Array.from(leadsMap.values())
 
+      // Create accounts for external database leads
+      if (isExternalDatabase) {
+        const accountsToCreate = new Map<string, any>()
+        
+        leadsData.forEach(lead => {
+          const domain = normalizeDomain(lead.website) || extractDomainFromEmail(lead.email)
+          if (domain && !accountsToCreate.has(domain)) {
+            accountsToCreate.set(domain, {
+              org_id: orgId,
+              external_id: `ext_${domain}_${Date.now()}`,
+              name: lead.company || domain,
+              domain: domain,
+              industry_norm: lead.industry,
+              employee_count: lead.employee_count,
+              revenue_range: lead.revenue_range,
+              country: lead.country,
+              state_province: lead.state_province,
+              phone: lead.phone,
+              mobile: lead.mobile,
+              data_source: 'database',
+              external_database_match: true
+            })
+          }
+        })
+
+        if (accountsToCreate.size > 0) {
+          console.log(`Creating ${accountsToCreate.size} database accounts`)
+          const { error: accountError } = await supabaseClient
+            .from('accounts')
+            .upsert(Array.from(accountsToCreate.values()), { onConflict: 'org_id,domain', ignoreDuplicates: true })
+
+          if (accountError) {
+            console.error('Account creation error:', accountError)
+          }
+        }
+      }
+
+      // Insert leads (keeping the rest of the original code)
+      const { data: result, error } = await supabaseClient
+        .from('Leads')
+        .upsert(leadsData, { onConflict: 'org_id,external_id', ignoreDuplicates: false })
+        .select('id')
+
+      if (error) {
+        console.error('❌ Leads error:', error)
+        errors.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message}`)
+      } else {
+        insertedLeads += result?.length || 0
+        console.log(`✅ Batch complete: ${result?.length || 0} leads`)
+      }
+    }
+
+    console.log(`✅ Upload complete: ${insertedLeads} leads`)
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        insertedLeads,
+        errors
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+
+  } catch (error) {
+    console.error('❌ Bulk upload error:', error)
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+})
+        }
+      })
+      
+      const leadsData = Array.from(leadsMap.values())
+
       // Insert leads
       const { data: result, error } = await supabaseClient
         .from('Leads')

@@ -53,3 +53,6 @@ verify_jwt = true
 
 [functions.enrich-clearbit-free]
 verify_jwt = true
+
+[functions.enrich-pdl]
+verify_jwt = true
