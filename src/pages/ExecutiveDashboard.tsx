@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
-import { TrendingUp, Target, Database, Download, MapPin, Sparkles, Building2, Settings, AlertCircle } from "lucide-react";
+import { TrendingUp, Target, Database, Download, MapPin, Sparkles, Building2, Settings, AlertCircle, Users } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,7 @@ import { HeroMetric } from "@/components/executive/HeroMetric";
 import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { useICPInsights } from "@/hooks/use-icp-insights";
 import { Lightbulb } from "lucide-react";
+import { DataSourceBreakdownCard } from "@/components/executive/DataSourceBreakdownCard";
 
 export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
@@ -390,109 +391,60 @@ export default function ExecutiveDashboard() {
         </Alert>
       )}
 
-      {/* Hero Metrics - Three Main Blocks */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* CRM Block */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              CRM Data
-            </CardTitle>
-            <CardDescription>
-              Accounts and leads in your CRM
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Accounts</p>
-              <p className="text-3xl font-bold text-primary">{metrics.crmAccounts.toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Leads</p>
-              <p className="text-3xl font-bold">{(metrics.crmLeads || 0).toLocaleString()}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Database Block */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Database className="h-5 w-5 text-success" />
-              Database Accounts
-            </CardTitle>
-            <CardDescription>
-              Not yet in your CRM
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Accounts</p>
-              <p className="text-3xl font-bold text-success">{metrics.databaseAccounts.toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Leads</p>
-              <p className="text-3xl font-bold">{(metrics.databaseLeads || 0).toLocaleString()}</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* High Fit Block with Breakdown */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-primary" />
-              High-Fit ICP Matches
-            </CardTitle>
-            <CardDescription>
-              Score 70+ on ICP criteria ({metrics.icpMatchQuality}% of all accounts)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground mb-2">Accounts</p>
-              <p className="text-3xl font-bold text-primary mb-3">{metrics.highFitAccounts.toLocaleString()}</p>
-              <div className="space-y-1.5 text-sm">
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground flex items-center gap-1.5">
-                    <Building2 className="h-3.5 w-3.5" />
-                    CRM
-                  </span>
-                  <span className="font-medium">{metrics.highFitCrmAccounts.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground flex items-center gap-1.5">
-                    <Database className="h-3.5 w-3.5" />
-                    Database
-                  </span>
-                  <span className="font-medium">{metrics.highFitDatabaseAccounts.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-            <div className="border-t pt-4">
-              <p className="text-sm font-medium text-muted-foreground mb-2">Leads</p>
-              <p className="text-3xl font-bold mb-3">{metrics.highFitLeads.toLocaleString()}</p>
-              <div className="space-y-1.5 text-sm">
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground flex items-center gap-1.5">
-                    <Building2 className="h-3.5 w-3.5" />
-                    CRM
-                  </span>
-                  <span className="font-medium">{metrics.highFitCrmLeads.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground flex items-center gap-1.5">
-                    <Database className="h-3.5 w-3.5" />
-                    Database
-                  </span>
-                  <span className="font-medium">{metrics.highFitDatabaseLeads.toLocaleString()}</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Go-to-Market Intelligence - Nested Cards */}
+      <Card className="bg-gradient-to-br from-card to-muted/20 border-2 border-primary/20">
+        <CardHeader>
+          <CardTitle className="text-2xl flex items-center gap-2">
+            <Target className="h-6 w-6 text-primary" />
+            Go-to-Market Intelligence
+          </CardTitle>
+          <CardDescription>
+            Breakdown of accounts and leads by source with ICP match rates
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <DataSourceBreakdownCard
+              title="Accounts"
+              icon={Building2}
+              total={metrics.totalAccounts}
+              crm={{
+                count: metrics.crmAccounts,
+                highFit: metrics.highFitCrmAccounts,
+                highFitPercentage: metrics.crmAccounts > 0 
+                  ? Number(((metrics.highFitCrmAccounts / metrics.crmAccounts) * 100).toFixed(1))
+                  : 0
+              }}
+              database={{
+                count: metrics.databaseAccounts,
+                highFit: metrics.highFitDatabaseAccounts,
+                highFitPercentage: metrics.databaseAccounts > 0
+                  ? Number(((metrics.highFitDatabaseAccounts / metrics.databaseAccounts) * 100).toFixed(1))
+                  : 0
+              }}
+            />
+            <DataSourceBreakdownCard
+              title="Leads"
+              icon={Users}
+              total={metrics.totalLeads}
+              crm={{
+                count: metrics.crmLeads,
+                highFit: metrics.highFitCrmLeads,
+                highFitPercentage: metrics.crmLeads > 0
+                  ? Number(((metrics.highFitCrmLeads / metrics.crmLeads) * 100).toFixed(1))
+                  : 0
+              }}
+              database={{
+                count: metrics.databaseLeads,
+                highFit: metrics.highFitDatabaseLeads,
+                highFitPercentage: metrics.databaseLeads > 0
+                  ? Number(((metrics.highFitDatabaseLeads / metrics.databaseLeads) * 100).toFixed(1))
+                  : 0
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Scoring Progress and Data Quality */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
