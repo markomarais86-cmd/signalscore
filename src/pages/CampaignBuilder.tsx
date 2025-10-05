@@ -157,8 +157,8 @@ export default function CampaignBuilder() {
       // Apply data source filter
       if (filters.dataSource === 'crm') {
         query = query.eq('data_source', 'crm');
-      } else if (filters.dataSource === 'greenspace') {
-        query = query.eq('external_database_match', true).neq('data_source', 'crm');
+      } else if (filters.dataSource === 'database') {
+        query = query.eq('data_source', 'database');
       }
 
       const { data: accounts, error } = await query;
@@ -365,7 +365,7 @@ export default function CampaignBuilder() {
                   <SelectContent>
                     <SelectItem value="all">All Sources</SelectItem>
                     <SelectItem value="crm">CRM Only</SelectItem>
-                    <SelectItem value="greenspace">Greenspace Only</SelectItem>
+                    <SelectItem value="database">Database Only</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

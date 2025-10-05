@@ -24,13 +24,14 @@ export default function ExecutiveDashboard() {
   const [metrics, setMetrics] = useState({
     totalAccounts: 0,
     crmAccounts: 0,
-    greenspaceAccounts: 0,
+    databaseAccounts: 0,
     bothSourcesAccounts: 0,
     totalScored: 0,
     highFitAccounts: 0,
+    highFitCrmAccounts: 0,
+    highFitDatabaseAccounts: 0,
     averageScore: 0,
     icpMatchQuality: 0,
-    icpCoverage: 0,
     scoringProgress: 0,
     completenessScore: 0,
     campaignReadyAccounts: 0,
@@ -41,7 +42,9 @@ export default function ExecutiveDashboard() {
     unlinkedLeads: 0,
     crmLeads: 0,
     databaseLeads: 0,
-    highFitLeads: 0
+    highFitLeads: 0,
+    highFitCrmLeads: 0,
+    highFitDatabaseLeads: 0
   });
   
   const [fitDistribution, setFitDistribution] = useState<any[]>([]);
@@ -117,7 +120,7 @@ export default function ExecutiveDashboard() {
         .eq('org_id', userProfile.org_id)
         .in('data_source', ['crm', 'both']);
 
-      const { count: greenspaceCount } = await supabase
+      const { count: databaseCount } = await supabase
         .from('accounts')
         .select('*', { count: 'exact', head: true })
         .eq('org_id', userProfile.org_id)
@@ -153,6 +156,31 @@ export default function ExecutiveDashboard() {
           p_org_id: userProfile.org_id
         });
 
+      // Get high-fit breakdowns by data source
+      const { data: highFitCrmAccountsData } = await supabase
+        .rpc('count_high_fit_accounts_by_source', {
+          p_org_id: userProfile.org_id,
+          p_data_source: 'crm'
+        });
+
+      const { data: highFitDatabaseAccountsData } = await supabase
+        .rpc('count_high_fit_accounts_by_source', {
+          p_org_id: userProfile.org_id,
+          p_data_source: 'database'
+        });
+
+      const { data: highFitCrmLeadsData } = await supabase
+        .rpc('count_high_fit_leads_by_source', {
+          p_org_id: userProfile.org_id,
+          p_data_source: 'crm'
+        });
+
+      const { data: highFitDatabaseLeadsData } = await supabase
+        .rpc('count_high_fit_leads_by_source', {
+          p_org_id: userProfile.org_id,
+          p_data_source: 'database'
+        });
+
       const { data: campaignReadyData } = await supabase
         .rpc('count_campaign_ready_accounts', {
           p_org_id: userProfile.org_id
@@ -171,23 +199,28 @@ export default function ExecutiveDashboard() {
       const crmLeadsCount = crmLeadsData || 0;
       const databaseLeadsCount = databaseLeadsData || 0;
       const highFitLeadsCount = highFitLeadsData || 0;
+      const highFitCrmAccountsCount = highFitCrmAccountsData || 0;
+      const highFitDatabaseAccountsCount = highFitDatabaseAccountsData || 0;
+      const highFitCrmLeadsCount = highFitCrmLeadsData || 0;
+      const highFitDatabaseLeadsCount = highFitDatabaseLeadsData || 0;
       const campaignReadyAccounts = campaignReadyData || 0;
       const campaignReadyLeads = campaignReadyLeadsData || 0;
       const completenessScore = completenessData || 0;
 
       console.log('📋 CRM leads:', crmLeadsCount, 'Database leads:', databaseLeadsCount, 'High fit leads:', highFitLeadsCount);
+      console.log('🎯 High-fit CRM accounts:', highFitCrmAccountsCount, 'High-fit Database accounts:', highFitDatabaseAccountsCount);
 
       const totalAccounts = accountsCount || 0;
       const totalLeads = leadsCount || 0;
       const linkedLeads = linkedLeadsCount || 0;
       const unlinkedLeads = totalLeads - linkedLeads;
       const crmAccounts = crmCount || 0;
-      const greenspaceAccounts = greenspaceCount || 0;
+      const databaseAccounts = databaseCount || 0;
       const bothSourcesAccounts = bothCount || 0;
       
       console.log('🔢 Total accounts:', totalAccounts, 'Total leads:', totalLeads);
       console.log('📋 Linked leads:', linkedLeads, 'Unlinked leads:', unlinkedLeads);
-      console.log('📊 CRM accounts:', crmAccounts, 'Greenspace:', greenspaceAccounts, 'Both:', bothSourcesAccounts);
+      console.log('📊 CRM accounts:', crmAccounts, 'Database:', databaseAccounts, 'Both:', bothSourcesAccounts);
       
       // Calculate ICP metrics
       const totalScored = scoresCount || 0;
@@ -210,11 +243,6 @@ export default function ExecutiveDashboard() {
       const icpMatchQuality = highFitAccounts > 0 
         ? Math.round((highFitAccounts / totalAccounts) * 100)
         : 0;
-
-      // Calculate ICP coverage and scoring progress
-      const icpCoverage = totalAccounts > 0 
-        ? Math.round((highFitAccounts / totalAccounts) * 100)
-        : 0;
       
       const scoringProgress = totalAccounts > 0
         ? Math.round((totalScored / totalAccounts) * 100)
@@ -228,14 +256,15 @@ export default function ExecutiveDashboard() {
         totalAccounts,
         totalScored,
         highFitAccounts,
+        highFitCrmAccounts: highFitCrmAccountsCount,
+        highFitDatabaseAccounts: highFitDatabaseAccountsCount,
         averageScore,
         icpMatchQuality,
-        icpCoverage,
         scoringProgress,
         completenessScore: finalCompletenessScore,
         coverage: totalAccounts > 0 ? Math.round((crmAccounts / totalAccounts) * 100) : 0,
         crmAccounts,
-        greenspaceAccounts,
+        databaseAccounts,
         bothSourcesAccounts,
         campaignReadyAccounts: finalCampaignReadyAccounts,
         campaignReadyLeads,
@@ -244,7 +273,9 @@ export default function ExecutiveDashboard() {
         unlinkedLeads,
         crmLeads: crmLeadsCount,
         databaseLeads: databaseLeadsCount,
-        highFitLeads: highFitLeadsCount
+        highFitLeads: highFitLeadsCount,
+        highFitCrmLeads: highFitCrmLeadsCount,
+        highFitDatabaseLeads: highFitDatabaseLeadsCount
       };
       
       console.log('✅ Final metrics calculated:', finalMetrics);
@@ -384,12 +415,12 @@ export default function ExecutiveDashboard() {
           </CardContent>
         </Card>
 
-        {/* Database/Greenspace Block */}
+        {/* Database Block */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Database className="h-5 w-5 text-success" />
-              Greenspace Available
+              Database Accounts
             </CardTitle>
             <CardDescription>
               Not yet in your CRM
@@ -398,7 +429,7 @@ export default function ExecutiveDashboard() {
           <CardContent className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground">Accounts</p>
-              <p className="text-3xl font-bold text-success">{metrics.greenspaceAccounts.toLocaleString()}</p>
+              <p className="text-3xl font-bold text-success">{metrics.databaseAccounts.toLocaleString()}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Leads</p>
@@ -407,7 +438,7 @@ export default function ExecutiveDashboard() {
           </CardContent>
         </Card>
 
-        {/* High Fit Block */}
+        {/* High Fit Block with Breakdown */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -415,52 +446,56 @@ export default function ExecutiveDashboard() {
               High-Fit ICP Matches
             </CardTitle>
             <CardDescription>
-              Score 70+ on ICP criteria
+              Score 70+ on ICP criteria ({metrics.icpMatchQuality}% of all accounts)
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="text-sm text-muted-foreground">Accounts</p>
-              <p className="text-3xl font-bold text-primary">{metrics.highFitAccounts.toLocaleString()}</p>
+              <p className="text-sm font-medium text-muted-foreground mb-2">Accounts</p>
+              <p className="text-3xl font-bold text-primary mb-3">{metrics.highFitAccounts.toLocaleString()}</p>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5" />
+                    CRM
+                  </span>
+                  <span className="font-medium">{metrics.highFitCrmAccounts.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <Database className="h-3.5 w-3.5" />
+                    Database
+                  </span>
+                  <span className="font-medium">{metrics.highFitDatabaseAccounts.toLocaleString()}</span>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Leads</p>
-              <p className="text-3xl font-bold">{metrics.highFitLeads.toLocaleString()}</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ICP Coverage and Scoring Progress */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Target className="h-5 w-5 text-primary" />
-              ICP Coverage
-            </CardTitle>
-            <CardDescription>
-              Percentage of CRM data matching your ICP
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="text-5xl font-bold text-primary">{metrics.icpCoverage}%</div>
-              <p className="text-sm text-muted-foreground">
-                {metrics.highFitAccounts.toLocaleString()} of {metrics.totalAccounts.toLocaleString()} accounts match ICP
-              </p>
-              <div className="pt-2">
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-primary transition-all" 
-                    style={{ width: `${metrics.icpCoverage}%` }}
-                  />
+            <div className="border-t pt-4">
+              <p className="text-sm font-medium text-muted-foreground mb-2">Leads</p>
+              <p className="text-3xl font-bold mb-3">{metrics.highFitLeads.toLocaleString()}</p>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <Building2 className="h-3.5 w-3.5" />
+                    CRM
+                  </span>
+                  <span className="font-medium">{metrics.highFitCrmLeads.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground flex items-center gap-1.5">
+                    <Database className="h-3.5 w-3.5" />
+                    Database
+                  </span>
+                  <span className="font-medium">{metrics.highFitDatabaseLeads.toLocaleString()}</span>
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
+      </div>
 
+      {/* Scoring Progress and Data Quality */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
