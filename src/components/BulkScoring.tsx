@@ -55,8 +55,10 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
 
       if (jobs && jobs.length > 0) {
         const job = jobs[0] as ScoringJob;
+        // Cap processed at total to handle data integrity issues
+        const safeProcessed = Math.min(job.processed_accounts, job.total_accounts);
         const progressPercent = job.total_accounts > 0 
-          ? (job.processed_accounts / job.total_accounts) * 100 
+          ? Math.min(100, (safeProcessed / job.total_accounts) * 100)
           : 0;
         
         setCurrentJob(job);
@@ -256,7 +258,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
             <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground">
               <div>
                 <p className="font-medium">Progress</p>
-                <p>{currentJob.processed_accounts.toLocaleString()} / {currentJob.total_accounts.toLocaleString()} accounts</p>
+                <p>{Math.min(currentJob.processed_accounts, currentJob.total_accounts).toLocaleString()} / {currentJob.total_accounts.toLocaleString()} accounts</p>
               </div>
               <div>
                 <p className="font-medium">Success Rate</p>
