@@ -159,6 +159,72 @@ export function EnrichmentQualityDashboard() {
           <CardTitle>Enrichment Quality Dashboard</CardTitle>
           <CardDescription>Track enrichment performance, costs, and data quality improvements</CardDescription>
         </CardHeader>
+        <CardContent>
+          {/* ROI Calculator Section */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-muted/50 rounded-lg">
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Total Cost</p>
+              <p className="text-2xl font-bold">
+                ${(() => {
+                  const costs = { clearbit: 0, ai: 0.0002, pdl: 0.10 };
+                  return providerStats.reduce((sum, stat) => {
+                    const provider = stat.provider.toLowerCase();
+                    const cost = costs[provider as keyof typeof costs] || 0;
+                    return sum + (stat.totalEnriched * cost);
+                  }, 0).toFixed(2);
+                })()}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Accounts Enriched</p>
+              <p className="text-2xl font-bold">
+                {providerStats.reduce((sum, stat) => sum + stat.totalEnriched, 0)}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Avg Cost/Account</p>
+              <p className="text-2xl font-bold">
+                ${(() => {
+                  const total = providerStats.reduce((sum, stat) => sum + stat.totalEnriched, 0);
+                  const costs = { clearbit: 0, ai: 0.0002, pdl: 0.10 };
+                  const totalCost = providerStats.reduce((sum, stat) => {
+                    const provider = stat.provider.toLowerCase();
+                    const cost = costs[provider as keyof typeof costs] || 0;
+                    return sum + (stat.totalEnriched * cost);
+                  }, 0);
+                  return total > 0 ? (totalCost / total).toFixed(4) : '0.0000';
+                })()}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Est. Value</p>
+              <p className="text-2xl font-bold text-green-600">
+                ${(() => {
+                  const total = providerStats.reduce((sum, stat) => sum + stat.totalEnriched, 0);
+                  const avgCoverage = (fieldCoverage.industry + fieldCoverage.employee_count + fieldCoverage.revenue_range + fieldCoverage.country) / 4;
+                  return Math.round(total * avgCoverage * 0.01 * 500);
+                })()}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">ROI</p>
+              <p className="text-2xl font-bold text-green-600">
+                +{(() => {
+                  const total = providerStats.reduce((sum, stat) => sum + stat.totalEnriched, 0);
+                  const costs = { clearbit: 0, ai: 0.0002, pdl: 0.10 };
+                  const totalCost = providerStats.reduce((sum, stat) => {
+                    const provider = stat.provider.toLowerCase();
+                    const cost = costs[provider as keyof typeof costs] || 0;
+                    return sum + (stat.totalEnriched * cost);
+                  }, 0);
+                  const avgCoverage = (fieldCoverage.industry + fieldCoverage.employee_count + fieldCoverage.revenue_range + fieldCoverage.country) / 4;
+                  const value = total * avgCoverage * 0.01 * 500;
+                  return totalCost > 0 ? Math.round(((value - totalCost) / totalCost) * 100) : 0;
+                })()}%
+              </p>
+            </div>
+          </div>
+        </CardContent>
       </Card>
 
       {/* Provider Performance */}

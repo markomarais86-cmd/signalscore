@@ -182,9 +182,53 @@ export function FirmographicEnrichmentCard() {
         'smart_sequential': 'Smart Sequential (All Tiers)'
       };
       toast({
-        title: "Enrichment Started",
-        description: `Processing your accounts with ${providerNames[provider]}...`,
+        title: "🚀 Enrichment started",
+        description: `Processing your accounts with ${providerNames[provider]}`,
       });
+
+      // Show real-time progress updates
+      let updateCount = 0;
+      const progressInterval = setInterval(async () => {
+        const { data: updatedJob } = await supabase
+          .from("enrichment_jobs")
+          .select("*")
+          .eq("id", job.id)
+          .single();
+
+        if (updatedJob) {
+          if (updatedJob.status === "completed") {
+            clearInterval(progressInterval);
+            setEnriching(false);
+            toast({
+              title: `🎉 ${providerNames[provider]} enrichment complete!`,
+              description: `✨ Enriched ${updatedJob.enriched_records} accounts, ${updatedJob.failed_records} failed`,
+            });
+            loadCompleteness();
+            loadRecentJobs();
+          } else if (updatedJob.status === "failed") {
+            clearInterval(progressInterval);
+            setEnriching(false);
+            toast({
+              title: "⚠️ Enrichment failed",
+              description: updatedJob.error_message || "Unknown error occurred",
+              variant: "destructive",
+            });
+          } else if (updatedJob.processed_records > 0 && updateCount % 3 === 0) {
+            // Show progress every 3 checks
+            toast({
+              title: "📊 Progress update",
+              description: `Processed ${updatedJob.processed_records} of ${updatedJob.total_records} accounts`,
+            });
+          }
+          updateCount++;
+        }
+      }, 5000);
+
+      // Clear interval after 10 minutes max
+      setTimeout(() => {
+        clearInterval(progressInterval);
+        setEnriching(false);
+      }, 600000);
 
     } catch (error: any) {
       console.error('Error starting enrichment:', error);
