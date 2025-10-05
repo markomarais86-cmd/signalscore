@@ -14,6 +14,7 @@ import { HeroMetric } from "@/components/executive/HeroMetric";
 import { UploadSection } from "@/components/data-upload/UploadSection";
 import { ClosedWonUpload } from "@/components/data-upload/ClosedWonUpload";
 import { DataProcessingPipeline } from "@/components/data-upload/DataProcessingPipeline";
+import { BulkLeadMatcher } from "@/components/data-upload/BulkLeadMatcher";
 import { useCSVValidator } from "@/hooks/use-csv-validator";
 import { parseCSV, ACCOUNTS_HEADERS, CONTACTS_HEADERS, LEADS_HEADERS, generateCSVTemplate } from "@/utils/csv-parser";
 
@@ -40,6 +41,7 @@ export default function DataUpload() {
   const [sampleData, setSampleData] = useState<any[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [isExternalDatabase, setIsExternalDatabase] = useState(false);
+  const [unlinkedLeads, setUnlinkedLeads] = useState(0);
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
@@ -59,7 +61,14 @@ export default function DataUpload() {
       .select('*', { count: 'exact', head: true })
       .eq('org_id', userProfile.org_id);
 
+    const unlinkedRes = await supabase
+      .from('Leads')
+      .select('*', { count: 'exact', head: true })
+      .eq('org_id', userProfile.org_id)
+      .is('account_external_id', null);
+
     setTotalRecords(leadsRes.count || 0);
+    setUnlinkedLeads(unlinkedRes.count || 0);
   };
 
   const analyzeCSVStructure = async (file: File, type: 'leads', isExternal: boolean = false) => {
@@ -434,6 +443,14 @@ export default function DataUpload() {
           icon={Database}
           trend={uploadResult ? { value: 15, period: 'this session' } : undefined}
           status={uploadResult?.errors?.length === 0 ? 'success' : 'default'}
+        />
+      )}
+
+      {/* Lead Processing Status */}
+      {unlinkedLeads > 0 && (
+        <BulkLeadMatcher 
+          unlinkedLeads={unlinkedLeads} 
+          onComplete={loadTotalRecords}
         />
       )}
 
