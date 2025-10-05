@@ -1454,9 +1454,7 @@ export type Database = {
         Returns: boolean
       }
       match_leads_to_accounts_fast: {
-        Args:
-          | { p_is_external_db?: boolean; p_org_id: string }
-          | { p_org_id: string }
+        Args: { p_is_external_db?: boolean; p_org_id: string }
         Returns: Json
       }
       merge_duplicate_accounts: {
