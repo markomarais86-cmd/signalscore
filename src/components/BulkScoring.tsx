@@ -234,13 +234,12 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           <Alert>
             <TrendingUp className="h-4 w-4" />
             <AlertDescription>
-              This will calculate ICP match scores for all your accounts using a reliable chunked processing system. The process evaluates:
-              <ul className="list-disc list-inside mt-2 space-y-1">
-                <li>Industry alignment</li>
-                <li>Company size fit</li>
-                <li>Revenue range match</li>
-                <li>Geographic targeting</li>
-              </ul>
+              <strong>Manual Re-scoring:</strong> This will re-calculate scores for all existing accounts.
+              <div className="mt-2 text-xs space-y-1">
+                <p>✅ New accounts are scored automatically upon creation</p>
+                <p>✅ Accounts are re-scored when enriched</p>
+                <p>ℹ️ Use this button to re-score historical data or after changing ICP criteria</p>
+              </div>
             </AlertDescription>
           </Alert>
         )}

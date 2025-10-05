@@ -291,7 +291,7 @@ export function DataProcessingPipeline() {
           <Alert>
             <FileText className="h-4 w-4" />
             <AlertDescription>
-              Upload leads using the CSV upload section above. Matching and scoring will happen automatically.
+              Upload leads using the CSV upload section above. Matching and <strong>scoring happen automatically</strong> in real-time.
             </AlertDescription>
           </Alert>
         )}
