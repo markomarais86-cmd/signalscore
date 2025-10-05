@@ -15,6 +15,11 @@ import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { useICPInsights } from "@/hooks/use-icp-insights";
 import { Lightbulb } from "lucide-react";
 import { DataSourceBreakdownCard } from "@/components/executive/DataSourceBreakdownCard";
+import { ScoringDataQualityCard } from "@/components/executive/ScoringDataQualityCard";
+import { RiskExceptionsPanel, RiskItem } from "@/components/executive/RiskExceptionsPanel";
+import { TrendIndicator } from "@/components/executive/TrendIndicator";
+import { calculateTrends, TrendData } from "@/utils/trend-calculator";
+import { detectRisks } from "@/utils/risk-detector";
 
 export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
@@ -28,6 +33,8 @@ export default function ExecutiveDashboard() {
     databaseAccounts: 0,
     bothSourcesAccounts: 0,
     totalScored: 0,
+    crmScored: 0,
+    databaseScored: 0,
     highFitAccounts: 0,
     highFitCrmAccounts: 0,
     highFitDatabaseAccounts: 0,
@@ -35,6 +42,11 @@ export default function ExecutiveDashboard() {
     icpMatchQuality: 0,
     scoringProgress: 0,
     completenessScore: 0,
+    industryCompleteness: 0,
+    sizeCompleteness: 0,
+    revenueCompleteness: 0,
+    geoCompleteness: 0,
+    contactsCompleteness: 0,
     campaignReadyAccounts: 0,
     campaignReadyLeads: 0,
     coverage: 0,
@@ -50,6 +62,13 @@ export default function ExecutiveDashboard() {
   
   const [fitDistribution, setFitDistribution] = useState<any[]>([]);
   const [geoData, setGeoData] = useState<any[]>([]);
+  const [trends, setTrends] = useState<TrendData>({
+    scoringProgress: 0,
+    completeness: 0,
+    highFitAccounts: 0,
+    campaignReady: 0
+  });
+  const [risks, setRisks] = useState<RiskItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -219,12 +238,31 @@ export default function ExecutiveDashboard() {
       const databaseAccounts = databaseCount || 0;
       const bothSourcesAccounts = bothCount || 0;
       
+      // Calculate field-level completeness
+      const totalAccountsForCalc = accounts?.length || 1;
+      const industryComplete = accounts?.filter(a => a.industry_norm).length || 0;
+      const sizeComplete = accounts?.filter(a => a.employee_count).length || 0;
+      const revenueComplete = accounts?.filter(a => a.revenue_range).length || 0;
+      const geoComplete = accounts?.filter(a => a.country).length || 0;
+      
+      const accountsWithContacts = new Set(contacts?.map(c => c.account_external_id) || []).size;
+      
+      const industryCompleteness = Math.round((industryComplete / totalAccountsForCalc) * 100);
+      const sizeCompleteness = Math.round((sizeComplete / totalAccountsForCalc) * 100);
+      const revenueCompleteness = Math.round((revenueComplete / totalAccountsForCalc) * 100);
+      const geoCompleteness = Math.round((geoComplete / totalAccountsForCalc) * 100);
+      const contactsCompleteness = Math.round((accountsWithContacts / totalAccountsForCalc) * 100);
+      
       console.log('🔢 Total accounts:', totalAccounts, 'Total leads:', totalLeads);
       console.log('📋 Linked leads:', linkedLeads, 'Unlinked leads:', unlinkedLeads);
       console.log('📊 CRM accounts:', crmAccounts, 'Database:', databaseAccounts, 'Both:', bothSourcesAccounts);
       
       // Calculate ICP metrics
       const totalScored = scoresCount || 0;
+      
+      // Calculate CRM/DB scoring breakdown (after totalScored is defined)
+      const crmScoredEstimate = Math.floor((totalScored / totalAccounts) * crmAccounts);
+      const databaseScoredEstimate = Math.floor((totalScored / totalAccounts) * databaseAccounts);
       
       const { count: highFitCount, error: highFitError } = await supabase
         .from('scores')
@@ -256,6 +294,8 @@ export default function ExecutiveDashboard() {
       const finalMetrics = {
         totalAccounts,
         totalScored,
+        crmScored: crmScoredEstimate,
+        databaseScored: databaseScoredEstimate,
         highFitAccounts,
         highFitCrmAccounts: highFitCrmAccountsCount,
         highFitDatabaseAccounts: highFitDatabaseAccountsCount,
@@ -263,6 +303,11 @@ export default function ExecutiveDashboard() {
         icpMatchQuality,
         scoringProgress,
         completenessScore: finalCompletenessScore,
+        industryCompleteness,
+        sizeCompleteness,
+        revenueCompleteness,
+        geoCompleteness,
+        contactsCompleteness,
         coverage: totalAccounts > 0 ? Math.round((crmAccounts / totalAccounts) * 100) : 0,
         crmAccounts,
         databaseAccounts,
@@ -282,6 +327,12 @@ export default function ExecutiveDashboard() {
       console.log('✅ Final metrics calculated:', finalMetrics);
       
       setMetrics(finalMetrics);
+      
+      // Calculate trends (async, don't block rendering)
+      calculateTrends(userProfile.org_id, finalMetrics).then(setTrends).catch(console.error);
+      
+      // Detect risks (async, don't block rendering)
+      detectRisks(userProfile.org_id, finalMetrics).then(setRisks).catch(console.error);
 
       // Generate AI insights if we have scores
       if (totalScored > 0) {
@@ -308,10 +359,30 @@ export default function ExecutiveDashboard() {
         .eq('org_id', userProfile.org_id)
         .lt('overall', 40);
 
+      const highFitValue = highFitDistCount || 0;
+      const medFitValue = medFitDistCount || 0;
+      const lowFitValue = lowFitDistCount || 0;
+      const totalFitAccounts = highFitValue + medFitValue + lowFitValue;
+
       setFitDistribution([
-        { name: 'High Fit', value: highFitDistCount || 0, color: 'hsl(var(--executive-green))' },
-        { name: 'Medium Fit', value: medFitDistCount || 0, color: 'hsl(var(--executive-amber))' },
-        { name: 'Low Fit', value: lowFitDistCount || 0, color: 'hsl(var(--executive-red))' },
+        { 
+          name: 'High Fit', 
+          value: highFitValue,
+          percentage: totalFitAccounts > 0 ? Math.round((highFitValue / totalFitAccounts) * 100) : 0,
+          color: 'hsl(var(--executive-green))' 
+        },
+        { 
+          name: 'Medium Fit', 
+          value: medFitValue,
+          percentage: totalFitAccounts > 0 ? Math.round((medFitValue / totalFitAccounts) * 100) : 0,
+          color: 'hsl(var(--executive-amber))' 
+        },
+        { 
+          name: 'Low Fit', 
+          value: lowFitValue,
+          percentage: totalFitAccounts > 0 ? Math.round((lowFitValue / totalFitAccounts) * 100) : 0,
+          color: 'hsl(var(--executive-red))' 
+        },
       ]);
 
       // Geographic distribution
@@ -446,41 +517,24 @@ export default function ExecutiveDashboard() {
         </CardContent>
       </Card>
 
-      {/* Scoring Progress and Data Quality */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-[hsl(var(--signal-medium))]" />
-              Scoring Progress
-            </CardTitle>
-            <CardDescription>
-              Accounts scored with ICP criteria
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="text-5xl font-bold text-[hsl(var(--signal-medium))]">{metrics.scoringProgress}%</div>
-              <p className="text-sm text-muted-foreground">
-                {metrics.totalScored.toLocaleString()} of {metrics.totalAccounts.toLocaleString()} accounts scored
-              </p>
-              <div className="pt-2">
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-[hsl(var(--signal-medium))] transition-all" 
-                    style={{ width: `${metrics.scoringProgress}%` }}
-                  />
-                </div>
-              </div>
-              {metrics.scoringProgress < 100 && (
-                <p className="text-xs text-muted-foreground pt-2">
-                  {(metrics.totalAccounts - metrics.totalScored).toLocaleString()} accounts remaining
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Section 2: Quality - Scoring & Data Completeness */}
+      <ScoringDataQualityCard
+        scoringProgress={metrics.scoringProgress}
+        totalScored={metrics.totalScored}
+        totalAccounts={metrics.totalAccounts}
+        crmScored={metrics.crmScored}
+        crmTotal={metrics.crmAccounts}
+        databaseScored={metrics.databaseScored}
+        databaseTotal={metrics.databaseAccounts}
+        completeness={metrics.completenessScore}
+        industryCompleteness={metrics.industryCompleteness}
+        sizeCompleteness={metrics.sizeCompleteness}
+        revenueCompleteness={metrics.revenueCompleteness}
+        geoCompleteness={metrics.geoCompleteness}
+        contactsCompleteness={metrics.contactsCompleteness}
+        scoringTrend={trends.scoringProgress}
+        completenessTrend={trends.completeness}
+      />
 
       {/* Unlinked Leads Status */}
       {metrics.unlinkedLeads > 0 && (
@@ -502,67 +556,61 @@ export default function ExecutiveDashboard() {
         </Alert>
       )}
 
-      {/* Campaign Ready + Data Quality */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Campaign-Ready Contacts
-            </CardTitle>
-            <CardDescription>
-              High-fit accounts with contact data available
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <p className="text-4xl font-bold text-primary">{metrics.campaignReadyAccounts.toLocaleString()}</p>
-                <p className="text-sm text-muted-foreground">Accounts</p>
-              </div>
-              <div>
-                <p className="text-3xl font-bold text-[hsl(var(--signal-medium))]">{(metrics.campaignReadyLeads || 0).toLocaleString()}</p>
-                <p className="text-sm text-muted-foreground">Leads ready for outreach</p>
-              </div>
-              <Button onClick={() => navigate('/campaign-builder')} className="w-full">
-                Build Campaign List
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Data Completeness</CardTitle>
-            <CardDescription>
-              Quality of your account data
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div>
-                <p className="text-4xl font-bold text-primary">{metrics.completenessScore}%</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  of accounts have complete firmographic data
-                </p>
-              </div>
-              {metrics.completenessScore < 70 && (
-                <Button variant="outline" onClick={() => navigate('/data-upload')} className="w-full">
-                  Improve Data Quality
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* ICP Fit Distribution */}
+      {/* Section 3: Readiness - Campaign-Ready Assets */}
       <Card>
         <CardHeader>
-          <CardTitle>ICP Fit Distribution</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Campaign-Ready Assets
+          </CardTitle>
           <CardDescription>
-            Distribution of accounts by ICP match quality
+            High-fit accounts with contact data available for outreach
           </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <div className="flex items-baseline justify-between mb-2">
+                <div className="text-4xl font-bold text-primary">{metrics.campaignReadyAccounts.toLocaleString()}</div>
+                {trends.campaignReady !== 0 && (
+                  <TrendIndicator value={trends.campaignReady} />
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground mb-4">Accounts ready</p>
+            </div>
+            <div>
+              <div className="text-3xl font-bold text-signal-medium">{(metrics.campaignReadyLeads || 0).toLocaleString()}</div>
+              <p className="text-sm text-muted-foreground mb-4">Leads ready for outreach</p>
+            </div>
+          </div>
+          <Button onClick={() => navigate('/campaign-builder')} className="w-full mt-4">
+            Build Campaign List →
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* ICP Fit Distribution - Enhanced */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>ICP Fit Distribution</CardTitle>
+              <CardDescription>
+                Scored accounts by ICP match quality
+              </CardDescription>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                navigate('/accounts');
+                toast.info('Filtered to high-fit accounts');
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export High-Fit
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={300}>
@@ -571,10 +619,19 @@ export default function ExecutiveDashboard() {
               <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" />
               <YAxis stroke="hsl(var(--muted-foreground))" />
               <Tooltip 
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px'
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="bg-card border border-border rounded-lg p-3 shadow-lg">
+                        <p className="font-semibold">{data.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {data.value.toLocaleString()} accounts ({data.percentage}%)
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
                 }}
               />
               <Bar dataKey="value" radius={[8, 8, 0, 0]}>
@@ -584,6 +641,18 @@ export default function ExecutiveDashboard() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
+            {fitDistribution.map((item) => (
+              <div key={item.name} className="text-center">
+                <div className="text-2xl font-bold" style={{ color: item.color }}>
+                  {item.value.toLocaleString()}
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {item.name} ({item.percentage}%)
+                </div>
+              </div>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
@@ -642,6 +711,16 @@ export default function ExecutiveDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Section 4: Risks & Exceptions */}
+      <RiskExceptionsPanel 
+        risks={risks}
+        onRiskClick={(risk) => {
+          console.log('Risk clicked:', risk);
+          navigate('/accounts');
+          toast.info(`Filtering to: ${risk.title}`);
+        }}
+      />
 
       {/* Recommended Next Steps */}
       <Card>
