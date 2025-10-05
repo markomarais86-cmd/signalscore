@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -7,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Database, ExternalLink, AlertCircle, CheckCircle2, Download, TrendingUp, Sparkles } from "lucide-react";
+import { Search, Database, ExternalLink, AlertCircle, CheckCircle2, Download, TrendingUp, Sparkles, X, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +49,7 @@ interface Account {
 }
 
 export default function Accounts() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
@@ -61,6 +63,13 @@ export default function Accounts() {
   const [hasActiveICP, setHasActiveICP] = useState(false);
   const [needsScoring, setNeedsScoring] = useState(false);
   
+  // URL-based filters
+  const [sourceFilter, setSourceFilter] = useState<string | null>(null);
+  const [fitFilter, setFitFilter] = useState<string | null>(null);
+  const [countryFilter, setCountryFilter] = useState<string | null>(null);
+  const [stateFilter, setStateFilter] = useState<string | null>(null);
+  const [icpFilter, setIcpFilter] = useState<string | null>(null);
+  
   // Server-side pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -69,7 +78,9 @@ export default function Accounts() {
   const [summaryStats, setSummaryStats] = useState({
     withContacts: 0,
     avgQuality: 0,
-    highFit: 0
+    highFit: 0,
+    crmAccounts: 0,
+    databaseAccounts: 0
   });
   
   const { userProfile } = useAuth();
@@ -78,12 +89,27 @@ export default function Accounts() {
 
   const totalPages = Math.ceil(totalCount / pageSize);
 
+  // Read URL parameters on mount
+  useEffect(() => {
+    const source = searchParams.get('source');
+    const fit = searchParams.get('fit');
+    const country = searchParams.get('country');
+    const state = searchParams.get('state');
+    const icp = searchParams.get('icp_id');
+    
+    setSourceFilter(source);
+    setFitFilter(fit);
+    setCountryFilter(country);
+    setStateFilter(state);
+    setIcpFilter(icp);
+  }, [searchParams]);
+
   useEffect(() => {
     if (userProfile?.org_id) {
       loadAccounts();
       loadSummaryStats();
     }
-  }, [userProfile?.org_id, currentPage, pageSize, searchTerm, industryFilter]);
+  }, [userProfile?.org_id, currentPage, pageSize, searchTerm, industryFilter, sourceFilter, fitFilter, countryFilter, stateFilter, icpFilter]);
 
   const loadAccounts = async () => {
     if (!userProfile?.org_id) return;
@@ -108,6 +134,23 @@ export default function Accounts() {
         accountsQuery = accountsQuery.eq('industry_norm', industryFilter);
       }
 
+      // Apply source filter
+      if (sourceFilter && sourceFilter !== 'all') {
+        if (sourceFilter === 'crm') {
+          accountsQuery = accountsQuery.in('data_source', ['crm', 'both']);
+        } else if (sourceFilter === 'database') {
+          accountsQuery = accountsQuery.eq('data_source', 'database');
+        }
+      }
+
+      // Apply geography filters
+      if (countryFilter) {
+        accountsQuery = accountsQuery.eq('country', countryFilter);
+      }
+      if (stateFilter) {
+        accountsQuery = accountsQuery.eq('state_province', stateFilter);
+      }
+
       // Get count and paginated data
       const from = (currentPage - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -123,12 +166,23 @@ export default function Accounts() {
       // Fetch scores and contacts for current page accounts only
       const accountExternalIds = (accountsData || []).map(a => a.external_id);
       
+      let scoresQuery = supabase
+        .from('scores')
+        .select('*')
+        .eq('org_id', userProfile.org_id)
+        .in('account_external_id', accountExternalIds);
+
+      // Apply fit filter to scores
+      if (fitFilter === 'high') {
+        scoresQuery = scoresQuery.gte('fit', 70);
+      } else if (fitFilter === 'medium') {
+        scoresQuery = scoresQuery.gte('fit', 40).lt('fit', 70);
+      } else if (fitFilter === 'low') {
+        scoresQuery = scoresQuery.lt('fit', 40);
+      }
+
       const [{ data: scoresData }, { data: allContacts }, { data: icpData }] = await Promise.all([
-        supabase
-          .from('scores')
-          .select('*')
-          .eq('org_id', userProfile.org_id)
-          .in('account_external_id', accountExternalIds),
+        scoresQuery,
         supabase
           .from('contacts')
           .select('*')
@@ -141,9 +195,16 @@ export default function Accounts() {
           .eq('status', 'active')
       ]);
 
+      // If fit filter is applied, filter accounts to only those with matching scores
+      let filteredAccountsData = accountsData;
+      if (fitFilter && scoresData) {
+        const scoredAccountIds = new Set(scoresData.map(s => s.account_external_id));
+        filteredAccountsData = accountsData?.filter(a => scoredAccountIds.has(a.external_id)) || [];
+      }
+
       const hasICP = (icpData?.length || 0) > 0;
       const hasScores = (scoresData?.length || 0) > 0;
-      const hasAccounts = (accountsData?.length || 0) > 0;
+      const hasAccounts = (filteredAccountsData?.length || 0) > 0;
 
       setHasActiveICP(hasICP);
       setNeedsScoring(hasAccounts && hasICP && !hasScores);
@@ -163,7 +224,7 @@ export default function Accounts() {
       });
 
       // Combine accounts with scores and contacts
-      const accountsWithContacts = (accountsData || []).map(account => {
+      const accountsWithContacts = (filteredAccountsData || []).map(account => {
         const scoreData = scoresMap.get(account.external_id);
         const contacts = contactsMap.get(account.external_id) || [];
         
@@ -201,18 +262,31 @@ export default function Accounts() {
     if (!userProfile?.org_id) return;
     
     try {
+      // Apply same filters to summary stats
+      let summaryQuery = supabase
+        .from('accounts')
+        .select('data_source', { count: 'exact' })
+        .eq('org_id', userProfile.org_id);
+
+      if (sourceFilter && sourceFilter !== 'all') {
+        if (sourceFilter === 'crm') {
+          summaryQuery = summaryQuery.in('data_source', ['crm', 'both']);
+        } else if (sourceFilter === 'database') {
+          summaryQuery = summaryQuery.eq('data_source', 'database');
+        }
+      }
+      if (countryFilter) summaryQuery = summaryQuery.eq('country', countryFilter);
+      if (stateFilter) summaryQuery = summaryQuery.eq('state_province', stateFilter);
+
       const [
-        { count: totalAccounts },
+        { count: totalAccounts, data: accountsData },
         { data: allScores },
         { data: accountsWithContactsData }
       ] = await Promise.all([
-        supabase
-          .from('accounts')
-          .select('*', { count: 'exact', head: true })
-          .eq('org_id', userProfile.org_id),
+        summaryQuery,
         supabase
           .from('scores')
-          .select('overall, fit')
+          .select('overall, fit, account_external_id')
           .eq('org_id', userProfile.org_id),
         supabase
           .from('contacts')
@@ -220,12 +294,25 @@ export default function Accounts() {
           .eq('org_id', userProfile.org_id)
       ]);
 
+      // Count CRM vs Database accounts
+      const crmCount = (accountsData || []).filter(a => a.data_source === 'crm' || a.data_source === 'both').length;
+      const dbCount = (accountsData || []).filter(a => a.data_source === 'database').length;
+
       const uniqueAccountsWithContacts = new Set(
         (accountsWithContactsData || []).map(c => c.account_external_id)
       ).size;
 
-      // FIX: Use FIT score (not overall) for high-fit calculation
-      const highFitCount = (allScores || []).filter(s => s.fit >= 70).length;
+      // Apply fit filter to high-fit calculation
+      let filteredScores = allScores || [];
+      if (fitFilter === 'high') {
+        filteredScores = filteredScores.filter(s => s.fit >= 70);
+      } else if (fitFilter === 'medium') {
+        filteredScores = filteredScores.filter(s => s.fit >= 40 && s.fit < 70);
+      } else if (fitFilter === 'low') {
+        filteredScores = filteredScores.filter(s => s.fit < 40);
+      }
+      
+      const highFitCount = filteredScores.filter(s => s.fit >= 70).length;
       
       // FIX: Calculate real data quality instead of hardcoded value
       const { data: allAccountsForQuality } = await supabase
@@ -247,7 +334,9 @@ export default function Accounts() {
       setSummaryStats({
         withContacts: uniqueAccountsWithContacts,
         avgQuality,
-        highFit: highFitCount
+        highFit: highFitCount,
+        crmAccounts: crmCount,
+        databaseAccounts: dbCount
       });
     } catch (error) {
       console.error('Error loading summary stats:', error);
@@ -455,6 +544,25 @@ export default function Accounts() {
     setCurrentPage(1);
   };
 
+  const clearFilters = () => {
+    setSearchParams({});
+    setSourceFilter(null);
+    setFitFilter(null);
+    setCountryFilter(null);
+    setStateFilter(null);
+    setIcpFilter(null);
+    setSearchTerm("");
+    setIndustryFilter("all");
+  };
+
+  const removeFilter = (filterType: string) => {
+    const params = new URLSearchParams(searchParams);
+    params.delete(filterType);
+    setSearchParams(params);
+  };
+
+  const hasActiveFilters = sourceFilter || fitFilter || countryFilter || stateFilter || icpFilter || searchTerm || industryFilter !== "all";
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -497,57 +605,108 @@ export default function Accounts() {
         </DropdownMenu>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Accounts</CardTitle>
-            <Database className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalAccountsForSummary}</div>
-            <p className="text-xs text-muted-foreground">Companies in database</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">With Contacts</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {summaryStats.withContacts}
+      {/* Compact Summary Card */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base font-medium">Accounts Overview</CardTitle>
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                <X className="h-4 w-4 mr-1" />
+                Clear All Filters
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-baseline gap-2">
+            <div className="text-3xl font-bold">{totalAccountsForSummary.toLocaleString()}</div>
+            <div className="text-sm text-muted-foreground">Total Accounts</div>
+          </div>
+          
+          <div className="flex gap-6 text-sm">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="font-normal">
+                {summaryStats.crmAccounts.toLocaleString()} CRM
+              </Badge>
+              <Badge variant="secondary" className="font-normal">
+                {summaryStats.databaseAccounts.toLocaleString()} Database
+              </Badge>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {totalAccountsForSummary > 0 ? ((summaryStats.withContacts / totalAccountsForSummary) * 100).toFixed(1) : 0}% have contact data
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Data Quality</CardTitle>
-            <AlertCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {summaryStats.avgQuality}%
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 pt-2 border-t">
+            <div>
+              <div className="text-sm font-medium">{summaryStats.highFit.toLocaleString()}</div>
+              <div className="text-xs text-muted-foreground">
+                High-Fit ({totalAccountsForSummary > 0 ? Math.round((summaryStats.highFit / totalAccountsForSummary) * 100) : 0}%)
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground">Average completeness</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">High-Fit Accounts</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-success" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {summaryStats.highFit}
+            <div>
+              <div className="text-sm font-medium">{summaryStats.avgQuality}%</div>
+              <div className="text-xs text-muted-foreground">Avg Quality</div>
             </div>
-            <p className="text-xs text-muted-foreground">Score 70+</p>
-          </CardContent>
-        </Card>
-      </div>
+            <div>
+              <div className="text-sm font-medium">{summaryStats.withContacts.toLocaleString()}</div>
+              <div className="text-xs text-muted-foreground">w/ Contacts</div>
+            </div>
+          </div>
+
+          {/* Active Filters */}
+          {hasActiveFilters && (
+            <div className="pt-3 border-t">
+              <div className="flex items-center gap-2 mb-2">
+                <Filter className="h-3 w-3 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground">Active Filters:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {sourceFilter && (
+                  <Badge variant="secondary" className="gap-1">
+                    Source: {sourceFilter === 'crm' ? 'CRM' : 'Database'}
+                    <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter('source')} />
+                  </Badge>
+                )}
+                {fitFilter && (
+                  <Badge variant="secondary" className="gap-1">
+                    Fit: {fitFilter.charAt(0).toUpperCase() + fitFilter.slice(1)}
+                    <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter('fit')} />
+                  </Badge>
+                )}
+                {countryFilter && (
+                  <Badge variant="secondary" className="gap-1">
+                    Country: {countryFilter}
+                    <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter('country')} />
+                  </Badge>
+                )}
+                {stateFilter && (
+                  <Badge variant="secondary" className="gap-1">
+                    State: {stateFilter}
+                    <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter('state')} />
+                  </Badge>
+                )}
+                {icpFilter && (
+                  <Badge variant="secondary" className="gap-1">
+                    ICP Filter Active
+                    <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter('icp_id')} />
+                  </Badge>
+                )}
+                {searchTerm && (
+                  <Badge variant="secondary" className="gap-1">
+                    Search: "{searchTerm}"
+                    <X className="h-3 w-3 cursor-pointer" onClick={() => setSearchTerm("")} />
+                  </Badge>
+                )}
+                {industryFilter !== "all" && (
+                  <Badge variant="secondary" className="gap-1">
+                    Industry: {industryFilter}
+                    <X className="h-3 w-3 cursor-pointer" onClick={() => setIndustryFilter("all")} />
+                  </Badge>
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Scoring Alert */}
       {needsScoring && (
