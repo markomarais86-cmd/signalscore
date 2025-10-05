@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSidebar } from "@/components/ui/sidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,7 @@ export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
   const { completeStep } = useOnboarding();
   const navigate = useNavigate();
+  const sidebar = useSidebar();
   const { insights, statistics, loading: insightsLoading, generateInsights } = useICPInsights();
   
   const [metrics, setMetrics] = useState({
@@ -427,8 +429,13 @@ export default function ExecutiveDashboard() {
     );
   }
 
+  // Responsive grid based on sidebar state
+  const gridClass = !sidebar?.open 
+    ? "grid-cols-1 lg:grid-cols-3 gap-6" 
+    : "grid-cols-1 lg:grid-cols-2 gap-6";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-[1800px] mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -462,19 +469,48 @@ export default function ExecutiveDashboard() {
         </Alert>
       )}
 
-      {/* Go-to-Market Intelligence - Nested Cards */}
-      <Card className="bg-gradient-to-br from-card to-muted/20 border-2 border-primary/20">
-        <CardHeader>
-          <CardTitle className="text-2xl flex items-center gap-2">
-            <Target className="h-6 w-6 text-primary" />
-            Go-to-Market Intelligence
-          </CardTitle>
-          <CardDescription>
-            Breakdown of accounts and leads by source with ICP match rates
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Go-to-Market Intelligence - Responsive Grid */}
+      <div className={`grid ${gridClass}`}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              Accounts by Source
+            </CardTitle>
+            <CardDescription>CRM vs Database breakdown</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DataSourceBreakdownCard
+              title="Accounts"
+              icon={Building2}
+              total={metrics.totalAccounts}
+              crm={{
+                count: metrics.crmAccounts,
+                highFit: metrics.highFitCrmAccounts,
+                highFitPercentage: metrics.crmAccounts > 0 
+                  ? Number(((metrics.highFitCrmAccounts / metrics.crmAccounts) * 100).toFixed(1))
+                  : 0
+              }}
+              database={{
+                count: metrics.databaseAccounts,
+                highFit: metrics.highFitDatabaseAccounts,
+                highFitPercentage: metrics.databaseAccounts > 0
+                  ? Number(((metrics.highFitDatabaseAccounts / metrics.databaseAccounts) * 100).toFixed(1))
+                  : 0
+              }}
+            />
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-secondary" />
+              Leads by Source
+            </CardTitle>
+            <CardDescription>Lead distribution & quality</CardDescription>
+          </CardHeader>
+          <CardContent>
             <DataSourceBreakdownCard
               title="Accounts"
               icon={Building2}
@@ -513,9 +549,37 @@ export default function ExecutiveDashboard() {
                   : 0
               }}
             />
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+        
+        <Card className={!sidebar?.open ? "lg:col-span-1" : "lg:col-span-2"}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Campaign-Ready Assets
+            </CardTitle>
+            <CardDescription>High-fit accounts with contacts</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <div className="flex items-baseline justify-between mb-2">
+                  <div className="text-4xl font-bold text-primary">{metrics.campaignReadyAccounts.toLocaleString()}</div>
+                  {trends.campaignReady !== 0 && <TrendIndicator value={trends.campaignReady} />}
+                </div>
+                <p className="text-sm text-muted-foreground">Accounts ready</p>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-signal-medium">{(metrics.campaignReadyLeads || 0).toLocaleString()}</div>
+                <p className="text-sm text-muted-foreground">Leads ready</p>
+              </div>
+            </div>
+            <Button onClick={() => navigate('/campaign-builder')} className="w-full mt-4">
+              Build Campaign List →
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Section 2: Quality - Scoring & Data Completeness */}
       <ScoringDataQualityCard
@@ -556,38 +620,6 @@ export default function ExecutiveDashboard() {
         </Alert>
       )}
 
-      {/* Section 3: Readiness - Campaign-Ready Assets */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Campaign-Ready Assets
-          </CardTitle>
-          <CardDescription>
-            High-fit accounts with contact data available for outreach
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-              <div className="flex items-baseline justify-between mb-2">
-                <div className="text-4xl font-bold text-primary">{metrics.campaignReadyAccounts.toLocaleString()}</div>
-                {trends.campaignReady !== 0 && (
-                  <TrendIndicator value={trends.campaignReady} />
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground mb-4">Accounts ready</p>
-            </div>
-            <div>
-              <div className="text-3xl font-bold text-signal-medium">{(metrics.campaignReadyLeads || 0).toLocaleString()}</div>
-              <p className="text-sm text-muted-foreground mb-4">Leads ready for outreach</p>
-            </div>
-          </div>
-          <Button onClick={() => navigate('/campaign-builder')} className="w-full mt-4">
-            Build Campaign List →
-          </Button>
-        </CardContent>
-      </Card>
 
       {/* ICP Fit Distribution - Enhanced */}
       <Card>
@@ -656,7 +688,7 @@ export default function ExecutiveDashboard() {
         </CardContent>
       </Card>
 
-      {/* Geographic Distribution */}
+      {/* Geographic Distribution - Enhanced */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -664,15 +696,28 @@ export default function ExecutiveDashboard() {
             Top Geographies
           </CardTitle>
           <CardDescription>
-            Account distribution by country
+            Top 10 countries by account concentration
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {geoData.map((geo) => (
-              <div key={geo.country} className="flex items-center justify-between">
-                <span className="font-medium">{geo.country}</span>
-                <Badge variant="secondary">{geo.count.toLocaleString()} accounts</Badge>
+          <div className="space-y-2">
+            {geoData.slice(0, 10).map((geo, idx) => (
+              <div key={geo.country} className="flex items-center gap-3">
+                <Badge variant="outline" className="w-8 h-8 flex items-center justify-center rounded-full">
+                  {idx + 1}
+                </Badge>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{geo.country}</span>
+                    <span className="text-sm text-muted-foreground">{geo.count.toLocaleString()}</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-1.5 mt-1">
+                    <div 
+                      className="bg-primary h-1.5 rounded-full transition-all" 
+                      style={{ width: `${(geo.count / geoData[0].count) * 100}%` }}
+                    />
+                  </div>
+                </div>
               </div>
             ))}
           </div>

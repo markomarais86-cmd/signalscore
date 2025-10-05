@@ -87,8 +87,9 @@ interface NotificationSetting {
 }
 
 export default function Settings() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "account");
+  const [triggerEnrich, setTriggerEnrich] = useState(false);
   const [loading, setLoading] = useState(false);
   
   // Account settings
@@ -119,6 +120,27 @@ export default function Settings() {
   useEffect(() => {
     loadSettings();
   }, [userProfile]);
+
+  // Handle query params for enrichment trigger
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    const action = searchParams.get("action");
+    
+    if (tab === "integrations" && action === "enrich") {
+      setActiveTab("integrations");
+      setTriggerEnrich(true);
+      // Clear query params
+      setSearchParams({});
+      
+      // Scroll to enrichment card after a short delay
+      setTimeout(() => {
+        const enrichmentCard = document.getElementById("enrichment-card");
+        if (enrichmentCard) {
+          enrichmentCard.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 300);
+    }
+  }, [searchParams, setSearchParams]);
 
   const loadSettings = async () => {
     if (!userProfile) return;
@@ -559,7 +581,7 @@ export default function Settings() {
 
         {/* Data Sources (External Databases) */}
         <TabsContent value="integrations" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div id="enrichment-card" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <FirmographicEnrichmentCard />
             <EnrichmentJobMonitor />
           </div>

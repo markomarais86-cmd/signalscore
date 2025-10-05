@@ -213,7 +213,7 @@ export function ScoringDataQualityCard({
               <Button 
                 variant="outline" 
                 className="w-full mt-4"
-                onClick={() => navigate('/settings?tab=enrichment')}
+                onClick={() => navigate('/settings?tab=integrations&action=enrich')}
               >
                 <Sparkles className="h-4 w-4 mr-2" />
                 Enrich Missing Data →

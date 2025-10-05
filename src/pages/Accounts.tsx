@@ -212,7 +212,7 @@ export default function Accounts() {
           .eq('org_id', userProfile.org_id),
         supabase
           .from('scores')
-          .select('overall')
+          .select('overall, fit')
           .eq('org_id', userProfile.org_id),
         supabase
           .from('contacts')
@@ -224,8 +224,24 @@ export default function Accounts() {
         (accountsWithContactsData || []).map(c => c.account_external_id)
       ).size;
 
-      const highFitCount = (allScores || []).filter(s => s.overall >= 70).length;
-      const avgQuality = 75; // Placeholder - would need to calculate from all accounts
+      // FIX: Use FIT score (not overall) for high-fit calculation
+      const highFitCount = (allScores || []).filter(s => s.fit >= 70).length;
+      
+      // FIX: Calculate real data quality instead of hardcoded value
+      const { data: allAccountsForQuality } = await supabase
+        .from('accounts')
+        .select('name, domain, industry_norm, employee_count, revenue_range, country')
+        .eq('org_id', userProfile.org_id);
+      
+      const qualityScores = (allAccountsForQuality || []).map(acc => {
+        const fields = [acc.name, acc.domain, acc.industry_norm, acc.employee_count, acc.revenue_range, acc.country];
+        const filled = fields.filter(f => f !== null && f !== undefined).length;
+        return Math.round((filled / fields.length) * 100);
+      });
+      
+      const avgQuality = qualityScores.length > 0
+        ? Math.round(qualityScores.reduce((a, b) => a + b, 0) / qualityScores.length)
+        : 0;
 
       setTotalAccountsForSummary(totalAccounts || 0);
       setSummaryStats({
