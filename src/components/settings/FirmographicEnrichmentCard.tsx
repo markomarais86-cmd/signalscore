@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Sparkles, TrendingUp, DollarSign, Users, Clock, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Sparkles, TrendingUp, DollarSign, Users, Clock, CheckCircle2, XCircle, Loader2, Zap } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 interface DataCompleteness {
@@ -130,7 +130,7 @@ export function FirmographicEnrichmentCard() {
     }
   };
 
-  const startEnrichment = async (provider: 'lovable_ai' | 'clearbit_free' | 'pdl') => {
+  const startEnrichment = async (provider: 'lovable_ai' | 'clearbit_free' | 'pdl' | 'smart_sequential') => {
     if (!userProfile?.org_id) {
       toast({
         title: "Error",
@@ -165,11 +165,12 @@ export function FirmographicEnrichmentCard() {
       const functionMap = {
         'clearbit_free': 'enrich-clearbit-free',
         'lovable_ai': 'enrich-firmographics',
-        'pdl': 'enrich-pdl'
+        'pdl': 'enrich-pdl',
+        'smart_sequential': 'smart-enrich'
       };
       const functionName = functionMap[provider];
       const { error: functionError } = await supabase.functions.invoke(functionName, {
-        body: { job_id: job.id }
+        body: { job_id: job.id, jobId: job.id }
       });
 
       if (functionError) throw functionError;
@@ -177,7 +178,8 @@ export function FirmographicEnrichmentCard() {
       const providerNames = {
         'clearbit_free': 'Clearbit Free',
         'lovable_ai': 'AI',
-        'pdl': 'People Data Labs'
+        'pdl': 'People Data Labs',
+        'smart_sequential': 'Smart Sequential (All Tiers)'
       };
       toast({
         title: "Enrichment Started",
@@ -248,11 +250,29 @@ export function FirmographicEnrichmentCard() {
           {!enriching && canEnrich && (
             <div className="flex gap-2">
               <Button 
+                onClick={() => startEnrichment('smart_sequential')} 
+                disabled={loading}
+                size="lg"
+                className="gap-2 bg-gradient-to-r from-primary to-secondary"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-4 w-4" />
+                    Smart Enrich
+                  </>
+                )}
+              </Button>
+              <Button 
                 onClick={() => startEnrichment('clearbit_free')} 
                 disabled={loading}
                 size="lg"
                 className="gap-2"
-                variant="default"
+                variant="outline"
               >
                 {loading ? (
                   <>

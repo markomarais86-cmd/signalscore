@@ -595,6 +595,7 @@ export default function Accounts() {
                 <TableHead>Size</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead>Source</TableHead>
+                <TableHead>Enriched</TableHead>
                 <TableHead>Data Quality</TableHead>
                 <TableHead>Contacts</TableHead>
                 <TableHead>Score</TableHead>
@@ -631,6 +632,30 @@ export default function Accounts() {
                       <Badge variant={getSourceBadgeVariant(account.data_source || 'crm')}>
                         {getSourceLabel(account.data_source || 'crm')}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {account.enriched_from ? (
+                        <div className="flex items-center gap-1">
+                          {account.enriched_from.split(',').map((source: string, idx: number) => (
+                            <Badge 
+                              key={idx}
+                              variant={
+                                source.trim() === 'clearbit' ? 'default' :
+                                source.trim() === 'ai' ? 'secondary' :
+                                source.trim() === 'pdl' ? 'outline' : 'outline'
+                              }
+                              className="text-xs"
+                              title={account.enriched_at ? `Enriched ${new Date(account.enriched_at).toLocaleDateString()}` : ''}
+                            >
+                              {source.trim() === 'clearbit' ? 'CB' :
+                               source.trim() === 'ai' ? 'AI' :
+                               source.trim() === 'pdl' ? 'PDL' : source.trim().toUpperCase()}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

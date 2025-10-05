@@ -53,6 +53,7 @@ import { AutomationSettings } from "@/components/settings/AutomationSettings";
 import { ZapierWebhookManager } from "@/components/settings/ZapierWebhookManager";
 import { DuplicateAccountMerger } from "@/components/settings/DuplicateAccountMerger";
 import { FirmographicEnrichmentCard } from "@/components/settings/FirmographicEnrichmentCard";
+import { EnrichmentQualityDashboard } from "@/components/settings/EnrichmentQualityDashboard";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TeamMember {
@@ -556,6 +557,7 @@ export default function Settings() {
         {/* Data Sources (External Databases) */}
         <TabsContent value="integrations" className="space-y-6">
           <FirmographicEnrichmentCard />
+          <EnrichmentQualityDashboard />
           <ExternalDataProviders />
           <RateLimitSettings />
           <IntegrationManager />

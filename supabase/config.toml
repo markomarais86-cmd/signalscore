@@ -56,3 +56,6 @@ verify_jwt = true
 
 [functions.enrich-pdl]
 verify_jwt = true
+
+[functions.smart-enrich]
+verify_jwt = true
