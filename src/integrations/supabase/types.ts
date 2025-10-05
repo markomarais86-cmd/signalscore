@@ -918,6 +918,7 @@ export type Database = {
           id: number
           industry: string | null
           last_name: string | null
+          match_confidence: number | null
           mobile: string | null
           name: string | null
           org_id: string | null
@@ -941,6 +942,7 @@ export type Database = {
           id?: number
           industry?: string | null
           last_name?: string | null
+          match_confidence?: number | null
           mobile?: string | null
           name?: string | null
           org_id?: string | null
@@ -964,6 +966,7 @@ export type Database = {
           id?: number
           industry?: string | null
           last_name?: string | null
+          match_confidence?: number | null
           mobile?: string | null
           name?: string | null
           org_id?: string | null
@@ -1469,6 +1472,18 @@ export type Database = {
       is_current_user_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean
+      }
+      match_leads_fuzzy: {
+        Args: {
+          p_base_domain: string
+          p_company_name: string
+          p_country?: string
+          p_org_id: string
+        }
+        Returns: {
+          account_external_id: string
+          confidence: number
+        }[]
       }
       match_leads_to_accounts_fast: {
         Args: { p_is_external_db?: boolean; p_org_id: string }

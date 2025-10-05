@@ -26,6 +26,39 @@ function extractDomainFromEmail(email: string | null): string {
   return match ? match[1] : '';
 }
 
+// Extract base domain for fuzzy matching
+function getBaseDomain(domain: string | null): string {
+  if (!domain) return '';
+  const normalized = normalizeDomain(domain);
+  if (!normalized) return '';
+  
+  // Remove TLD and get base name
+  // "siriusxm.ca" → "siriusxm"
+  // "siemens-healthineers.com" → "siemens"
+  const withoutTld = normalized.replace(/\.[^.]+$/, '');
+  const base = withoutTld.split('-')[0]; // Take first part before dash
+  
+  return base.toLowerCase();
+}
+
+// Normalize company name for fuzzy matching
+function normalizeCompanyName(name: string | null): string {
+  if (!name) return '';
+  
+  let normalized = name.trim().toLowerCase();
+  
+  // Remove common company suffixes
+  normalized = normalized.replace(/\s+(inc|llc|ltd|corp|corporation|limited|gmbh|ag|sa|nv|bv|plc)\.?$/i, '');
+  
+  // Remove punctuation except spaces
+  normalized = normalized.replace(/[^a-z0-9\s]/g, '');
+  
+  // Collapse multiple spaces
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+  
+  return normalized;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -130,7 +163,7 @@ serve(async (req) => {
 
     console.log(`✅ Step 2: Created ${created} accounts, skipped ${skipped} duplicates`);
 
-    // Step 4: Link remaining leads (DB function)
+    // Step 3: Link remaining leads (exact match DB function)
     const { data: linkResult, error: linkError } = await supabase
       .rpc('match_leads_to_accounts_fast', {
         p_org_id: org_id,
@@ -142,6 +175,61 @@ serve(async (req) => {
     }
 
     console.log(`✅ Step 3: Linked ${linkResult?.linked_after_creation || 0} remaining leads`);
+
+    // Step 4: Fuzzy matching for remaining unlinked leads
+    const { data: unlinkedLeads, error: unlinkedError } = await supabase
+      .from('Leads')
+      .select('id, company, website, email, country')
+      .eq('org_id', org_id)
+      .is('account_external_id', null)
+      .limit(1000); // Process in batches
+
+    if (unlinkedError) {
+      console.error('⚠️ Fuzzy match fetch error:', unlinkedError.message);
+    }
+
+    let fuzzyMatched = 0;
+    if (unlinkedLeads && unlinkedLeads.length > 0) {
+      console.log(`🔍 Running fuzzy matching on ${unlinkedLeads.length} unlinked leads...`);
+      
+      for (const lead of unlinkedLeads) {
+        const baseDomain = getBaseDomain(lead.website || extractDomainFromEmail(lead.email));
+        const companyName = normalizeCompanyName(lead.company);
+        
+        if (!baseDomain && !companyName) continue;
+
+        // Call fuzzy matching function
+        const { data: matches, error: fuzzyError } = await supabase
+          .rpc('match_leads_fuzzy', {
+            p_org_id: org_id,
+            p_base_domain: baseDomain,
+            p_company_name: companyName,
+            p_country: lead.country
+          });
+
+        if (fuzzyError) {
+          console.error(`⚠️ Fuzzy match error for lead ${lead.id}:`, fuzzyError.message);
+          continue;
+        }
+
+        // Auto-link high-confidence matches (>= 0.80)
+        if (matches && matches.length > 0 && matches[0].confidence >= 0.80) {
+          const { error: updateError } = await supabase
+            .from('Leads')
+            .update({
+              account_external_id: matches[0].account_external_id,
+              match_confidence: matches[0].confidence
+            })
+            .eq('id', lead.id);
+
+          if (!updateError) {
+            fuzzyMatched++;
+          }
+        }
+      }
+      
+      console.log(`✅ Step 4: Fuzzy matched ${fuzzyMatched} additional leads`);
+    }
 
     // Step 5: Auto-score new accounts
     let scored = 0;
@@ -167,7 +255,7 @@ serve(async (req) => {
       console.log(`✅ Scored ${scored} accounts`);
     }
 
-    const totalLinked = (matchResult?.matched_to_existing || 0) + (linkResult?.linked_after_creation || 0);
+    const totalLinked = (matchResult?.matched_to_existing || 0) + (linkResult?.linked_after_creation || 0) + fuzzyMatched;
 
     return new Response(
       JSON.stringify({
@@ -177,6 +265,7 @@ serve(async (req) => {
         new_accounts_created: created,
         accounts_scored: scored,
         failed: skipped,
+        fuzzy_matched: fuzzyMatched,
         total_linked: totalLinked,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
