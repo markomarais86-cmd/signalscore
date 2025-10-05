@@ -1449,6 +1449,23 @@ export type Database = {
         Args: { target_org_id: string }
         Returns: undefined
       }
+      insert_single_account: {
+        Args: {
+          p_country: string
+          p_data_source: string
+          p_domain: string
+          p_employee_count: number
+          p_external_id: string
+          p_industry_norm: string
+          p_mobile: string
+          p_name: string
+          p_org_id: string
+          p_phone: string
+          p_revenue_range: string
+          p_state_province: string
+        }
+        Returns: string
+      }
       is_current_user_admin: {
         Args: Record<PropertyKey, never>
         Returns: boolean

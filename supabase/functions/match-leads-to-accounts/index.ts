@@ -36,7 +36,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { org_id } = await req.json();
+    const { org_id, is_external_db = false } = await req.json();
 
     if (!org_id) {
       console.error('❌ Missing org_id in request body');
@@ -49,78 +49,144 @@ serve(async (req) => {
       );
     }
 
-    console.log(`🔗 Starting fast lead-to-account matching for org: ${org_id}`);
-    console.log(`📝 Request received at: ${new Date().toISOString()}`);
+    console.log(`🔗 Starting lead-to-account matching for org: ${org_id}`);
+    console.log(`📝 Request at: ${new Date().toISOString()}`);
 
-    // Use the optimized database function for bulk matching
-    // This is MUCH faster than processing leads one by one
-    try {
-      console.log(`📞 Calling RPC: match_leads_to_accounts_fast with params:`, {
+    // Step 1: Match to existing accounts (DB function)
+    const { data: matchResult, error: matchError } = await supabase
+      .rpc('match_leads_to_accounts_fast', {
         p_org_id: org_id,
-        p_is_external_db: false
+        p_is_external_db: is_external_db
       });
 
-      const { data: result, error: matchError } = await supabase
-        .rpc('match_leads_to_accounts_fast', {
-          p_org_id: org_id,
-          p_is_external_db: false
-        });
-
-      if (matchError) {
-        console.error('❌ RPC Error Details:', {
-          message: matchError.message,
-          details: matchError.details,
-          hint: matchError.hint,
-          code: matchError.code
-        });
-        throw new Error(`Database function error: ${matchError.message} (Code: ${matchError.code})`);
-      }
-
-      console.log(`✅ Matching complete:`, result);
-      console.log(`📊 Results: ${result?.total_linked || 0} leads linked, ${result?.new_accounts_created || 0} accounts created, ${result?.accounts_scored || 0} scored`);
-
-      return new Response(
-        JSON.stringify({
-          success: result?.success || true,
-          total_leads: result?.total_leads || 0,
-          matched_to_existing: result?.matched_to_existing || 0,
-          new_accounts_created: result?.new_accounts_created || 0,
-          accounts_scored: result?.accounts_scored || 0,
-          failed: result?.failed || 0,
-          total_linked: result?.total_linked || 0,
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    } catch (rpcError: any) {
-      console.error('❌ RPC Call Failed:', {
-        error: rpcError,
-        message: rpcError.message,
-        stack: rpcError.stack,
-        timestamp: new Date().toISOString()
-      });
-      
-      return new Response(
-        JSON.stringify({ 
-          error: `Failed to execute matching function: ${rpcError.message}`,
-          success: false,
-          details: rpcError.details || rpcError.hint || 'Check edge function logs for more information'
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (matchError) {
+      throw new Error(`Match failed: ${matchError.message}`);
     }
+
+    console.log(`✅ Step 1: Matched ${matchResult?.matched_to_existing || 0} leads to existing accounts`);
+
+    // Step 2: Get unique domains that need accounts created
+    const { data: leadsNeedingAccounts, error: leadsError } = await supabase
+      .from('Leads')
+      .select('id, company, website, email, industry, employee_count, revenue_range, country, state_province, phone, mobile')
+      .eq('org_id', org_id)
+      .is('account_external_id', null);
+
+    if (leadsError) {
+      throw new Error(`Failed to fetch leads: ${leadsError.message}`);
+    }
+
+    console.log(`📋 Found ${leadsNeedingAccounts?.length || 0} leads needing accounts`);
+
+    // Get unique domains
+    const domainMap = new Map();
+    for (const lead of leadsNeedingAccounts || []) {
+      const domain = normalizeDomain(lead.website) || extractDomainFromEmail(lead.email);
+      if (domain && !domainMap.has(domain)) {
+        domainMap.set(domain, lead);
+      }
+    }
+
+    console.log(`🌐 Processing ${domainMap.size} unique domains`);
+
+    // Step 3: Create accounts one at a time
+    let created = 0;
+    let skipped = 0;
+    const newAccountIds: string[] = [];
+    const data_source = is_external_db ? 'database' : 'crm';
+
+    for (const [domain, lead] of domainMap.entries()) {
+      const external_id = crypto.randomUUID();
+      
+      const { data: accountId, error: insertError } = await supabase
+        .rpc('insert_single_account', {
+          p_org_id: org_id,
+          p_external_id: external_id,
+          p_name: lead.company,
+          p_domain: domain,
+          p_industry_norm: lead.industry,
+          p_employee_count: lead.employee_count,
+          p_revenue_range: lead.revenue_range,
+          p_country: lead.country,
+          p_state_province: lead.state_province,
+          p_phone: lead.phone,
+          p_mobile: lead.mobile,
+          p_data_source: data_source
+        });
+
+      if (insertError) {
+        console.error(`⚠️ Insert error for ${domain}:`, insertError.message);
+        skipped++;
+      } else if (accountId) {
+        newAccountIds.push(accountId);
+        created++;
+        if (created % 10 === 0) {
+          console.log(`✨ Created ${created}/${domainMap.size} accounts...`);
+        }
+      } else {
+        skipped++;
+      }
+    }
+
+    console.log(`✅ Step 2: Created ${created} accounts, skipped ${skipped} duplicates`);
+
+    // Step 4: Link remaining leads (DB function)
+    const { data: linkResult, error: linkError } = await supabase
+      .rpc('match_leads_to_accounts_fast', {
+        p_org_id: org_id,
+        p_is_external_db: is_external_db
+      });
+
+    if (linkError) {
+      console.error('⚠️ Link error:', linkError.message);
+    }
+
+    console.log(`✅ Step 3: Linked ${linkResult?.linked_after_creation || 0} remaining leads`);
+
+    // Step 5: Auto-score new accounts
+    let scored = 0;
+    const { data: icpData } = await supabase
+      .from('icp_profiles')
+      .select('id')
+      .eq('org_id', org_id)
+      .eq('status', 'active')
+      .limit(1)
+      .single();
+
+    if (icpData?.id && newAccountIds.length > 0) {
+      console.log(`🎯 Scoring ${newAccountIds.length} new accounts...`);
+      for (const accountId of newAccountIds) {
+        const { error: scoreError } = await supabase
+          .rpc('auto_score_account', {
+            p_account_external_id: accountId,
+            p_org_id: org_id
+          });
+        
+        if (!scoreError) scored++;
+      }
+      console.log(`✅ Scored ${scored} accounts`);
+    }
+
+    const totalLinked = (matchResult?.matched_to_existing || 0) + (linkResult?.linked_after_creation || 0);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        total_leads: matchResult?.total_leads || 0,
+        matched_to_existing: matchResult?.matched_to_existing || 0,
+        new_accounts_created: created,
+        accounts_scored: scored,
+        failed: skipped,
+        total_linked: totalLinked,
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   } catch (error: any) {
-    console.error('❌ Unexpected Error in match-leads-to-accounts:', {
-      error: error,
-      message: error.message,
-      stack: error.stack,
-      timestamp: new Date().toISOString()
-    });
-    
+    console.error('❌ Error:', error.message);
     return new Response(
       JSON.stringify({ 
-        error: error.message || 'Unknown error occurred',
-        success: false,
-        details: 'An unexpected error occurred during lead matching. Please check the logs.'
+        error: error.message,
+        success: false
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
