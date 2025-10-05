@@ -89,7 +89,7 @@ export default function Accounts() {
     crm: 0,
     database: 0,
     highFit: 0,
-    withContacts: 0,
+    withLeads: 0,
     avgQuality: 0
   });
   
@@ -277,8 +277,8 @@ export default function Accounts() {
         { count: unfilteredTotal },
         { count: unfilteredCrmCount },
         { count: unfilteredDbCount },
-        { data: highFitCountData },
-        { data: accountsWithContactsData },
+        { data: highFitScoresData },
+        { data: allLeadsData },
         { data: allAccountsForQuality }
       ] = await Promise.all([
         supabase
@@ -296,14 +296,16 @@ export default function Accounts() {
           .eq('org_id', userProfile.org_id)
           .eq('data_source', 'database'),
         supabase
-          .rpc('count_high_fit_accounts_by_source', {
-            p_org_id: userProfile.org_id,
-            p_data_source: 'crm'
-          }),
-        supabase
-          .from('contacts')
-          .select('account_external_id')
+          .from('scores')
+          .select('account_external_id, overall')
           .eq('org_id', userProfile.org_id)
+          .gte('overall', 70)
+          .limit(50000),
+        supabase
+          .from('Leads')
+          .select('id, account_external_id')
+          .eq('org_id', userProfile.org_id)
+          .not('account_external_id', 'is', null)
           .limit(50000),
         supabase
           .from('accounts')
@@ -313,8 +315,15 @@ export default function Accounts() {
       ]);
 
       // Calculate unfiltered org-wide totals
-      const unfilteredHighFitCount = highFitCountData || 0;
-      const unfilteredWithContacts = new Set((accountsWithContactsData || []).map(c => c.account_external_id)).size;
+      const highFitAccountIds = new Set(
+        (highFitScoresData || []).map(s => s.account_external_id)
+      );
+      
+      const leadsForHighFitAccounts = (allLeadsData || [])
+        .filter(l => highFitAccountIds.has(l.account_external_id));
+      
+      const unfilteredHighFitCount = highFitAccountIds.size;
+      const unfilteredWithLeads = leadsForHighFitAccounts.length;
       
       const qualityScores = (allAccountsForQuality || []).map(acc => {
         const fields = [acc.name, acc.domain, acc.industry_norm, acc.employee_count, acc.revenue_range, acc.country];
@@ -332,7 +341,7 @@ export default function Accounts() {
         crm: unfilteredCrmCount || 0,
         database: unfilteredDbCount || 0,
         highFit: unfilteredHighFitCount,
-        withContacts: unfilteredWithContacts,
+        withLeads: unfilteredWithLeads,
         avgQuality: unfilteredAvgQuality
       });
 
@@ -359,7 +368,7 @@ export default function Accounts() {
 
       setTotalAccountsForSummary(filteredCount || 0);
       setSummaryStats({
-        withContacts: unfilteredWithContacts, // Keep unfiltered
+        withContacts: unfilteredWithLeads, // Keep unfiltered
         avgQuality: unfilteredAvgQuality, // Keep unfiltered
         highFit: unfilteredHighFitCount, // Keep unfiltered
         crmAccounts: filteredCrmCount,
@@ -674,8 +683,8 @@ export default function Accounts() {
               <div className="text-xs text-muted-foreground">Avg Quality</div>
             </div>
             <div>
-              <div className="text-sm font-medium">{unfilteredTotals.withContacts.toLocaleString()}</div>
-              <div className="text-xs text-muted-foreground">w/ Contacts</div>
+              <div className="text-sm font-medium">{unfilteredTotals.withLeads.toLocaleString()}</div>
+              <div className="text-xs text-muted-foreground">High-Fit Leads</div>
             </div>
           </div>
 
