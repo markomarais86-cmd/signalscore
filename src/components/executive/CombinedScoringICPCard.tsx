@@ -95,15 +95,25 @@ export function CombinedScoringICPCard({
               </div>
             </div>
 
-            {scoringProgress < 100 && (
+            <div className="space-y-2">
+              {scoringProgress < 100 && (
+                <Button 
+                  onClick={() => navigate('/accounts?action=score')} 
+                  className="w-full"
+                  size="sm"
+                >
+                  Score Remaining
+                </Button>
+              )}
               <Button 
-                onClick={() => navigate('/accounts?action=score')} 
-                className="w-full mt-4"
+                onClick={() => navigate('/accounts?fit=high')} 
+                className="w-full"
                 size="sm"
+                variant="outline"
               >
-                Score Remaining
+                View High-Fit Accounts
               </Button>
-            )}
+            </div>
           </div>
 
           {/* Center: ICP Fit Distribution */}
@@ -135,7 +145,15 @@ export function CombinedScoringICPCard({
                     return null;
                   }}
                 />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                <Bar 
+                  dataKey="value" 
+                  radius={[4, 4, 0, 0]}
+                  onClick={(data) => {
+                    const fitLevel = data.name === 'High Fit' ? 'high' : data.name === 'Medium Fit' ? 'medium' : 'low';
+                    navigate(`/accounts?fit=${fitLevel}`);
+                  }}
+                  cursor="pointer"
+                >
                   {fitDistribution.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}

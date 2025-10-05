@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, AlertCircle, Info, Sparkles, Target, Download, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { EnrichmentModal } from "./EnrichmentModal";
 
 export interface RiskItem {
   id: string;
@@ -34,6 +36,8 @@ export function RisksAndActionsCard({
   onRiskClick 
 }: RisksAndActionsCardProps) {
   const navigate = useNavigate();
+  const [enrichmentModalOpen, setEnrichmentModalOpen] = useState(false);
+  const [selectedEnrichmentFields, setSelectedEnrichmentFields] = useState<string[]>([]);
 
   const getSeverityIcon = (severity: RiskItem['severity']) => {
     switch (severity) {
@@ -71,6 +75,11 @@ export function RisksAndActionsCard({
   const criticalRisks = risks.filter(r => r.severity === 'critical');
   const warningRisks = risks.filter(r => r.severity === 'warning');
   const infoRisks = risks.filter(r => r.severity === 'info');
+
+  const handleEnrichClick = (targetFields?: string[]) => {
+    setSelectedEnrichmentFields(targetFields || []);
+    setEnrichmentModalOpen(true);
+  };
 
   return (
     <Card>
@@ -122,7 +131,11 @@ export function RisksAndActionsCard({
                           className="w-full mt-2 h-8 text-xs"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(risk.action!.route);
+                            if (risk.action!.route.includes('enrich')) {
+                              handleEnrichClick(['contacts']);
+                            } else {
+                              navigate(risk.action!.route);
+                            }
                           }}
                         >
                           {risk.action.label}
@@ -170,7 +183,11 @@ export function RisksAndActionsCard({
                           className="w-full mt-2 h-8 text-xs"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(risk.action!.route);
+                            if (risk.action!.route.includes('enrich')) {
+                              handleEnrichClick();
+                            } else {
+                              navigate(risk.action!.route);
+                            }
                           }}
                         >
                           {risk.action.label}
@@ -218,7 +235,7 @@ export function RisksAndActionsCard({
             )}
             {completenessScore < 70 && (
               <Button 
-                onClick={() => navigate('/settings?tab=integrations&action=enrich')} 
+                onClick={() => handleEnrichClick()} 
                 variant="outline"
                 size="sm"
                 className="justify-start"
@@ -238,6 +255,12 @@ export function RisksAndActionsCard({
             </Button>
           </div>
         </div>
+
+        <EnrichmentModal
+          open={enrichmentModalOpen}
+          onOpenChange={setEnrichmentModalOpen}
+          targetFields={selectedEnrichmentFields}
+        />
       </CardContent>
     </Card>
   );

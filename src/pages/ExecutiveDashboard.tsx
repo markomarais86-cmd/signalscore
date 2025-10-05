@@ -24,6 +24,7 @@ import { CombinedScoringICPCard } from "@/components/executive/CombinedScoringIC
 import { EnhancedGeographyCard } from "@/components/executive/EnhancedGeographyCard";
 import { AIRecommendationsTiles } from "@/components/executive/AIRecommendationsTiles";
 import { RisksAndActionsCard } from "@/components/executive/RisksAndActionsCard";
+import { AccountsLeadsTable } from "@/components/executive/AccountsLeadsTable";
 
 export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
@@ -344,6 +345,16 @@ export default function ExecutiveDashboard() {
         generateInsights();
       }
 
+      // Transform insights to include category and route information
+      const transformedInsights = (insights || []).map((insight: any) => ({
+        ...insight,
+        category: insight.category || insight.type || 'firmographic',
+        why: insight.why || insight.description,
+        action: insight.action || 'View Details',
+        route: insight.route || '/accounts',
+        filter: insight.filter || {}
+      }));
+
       // Fit distribution - use database counts
       const { count: highFitDistCount } = await supabase
         .from('scores')
@@ -438,7 +449,7 @@ export default function ExecutiveDashboard() {
     : "grid-cols-1 lg:grid-cols-2 gap-6";
 
   return (
-    <div className="space-y-6 max-w-[1800px] mx-auto">
+    <div className="space-y-6 max-w-[1600px] mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -472,71 +483,26 @@ export default function ExecutiveDashboard() {
         </Alert>
       )}
 
-      {/* Row 1: Go-to-Market Intelligence - Clean & No Duplication */}
+      {/* Row 1: Go-to-Market Intelligence - Merged Accounts + Leads Table + Campaign Assets */}
       <div className={`grid ${gridClass}`}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              Accounts Overview
-            </CardTitle>
-            <CardDescription>CRM vs Database breakdown</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DataSourceBreakdownCard
-              title="Accounts"
-              icon={Building2}
-              total={metrics.totalAccounts}
-              crm={{
-                count: metrics.crmAccounts,
-                highFit: metrics.highFitCrmAccounts,
-                highFitPercentage: metrics.crmAccounts > 0 
-                  ? Number(((metrics.highFitCrmAccounts / metrics.crmAccounts) * 100).toFixed(1))
-                  : 0
-              }}
-              database={{
-                count: metrics.databaseAccounts,
-                highFit: metrics.highFitDatabaseAccounts,
-                highFitPercentage: metrics.databaseAccounts > 0
-                  ? Number(((metrics.highFitDatabaseAccounts / metrics.databaseAccounts) * 100).toFixed(1))
-                  : 0
-              }}
-            />
-          </CardContent>
-        </Card>
+        <div className={!sidebar?.open ? "lg:col-span-2" : "lg:col-span-1"}>
+          <AccountsLeadsTable
+            totalAccounts={metrics.totalAccounts}
+            crmAccounts={metrics.crmAccounts}
+            databaseAccounts={metrics.databaseAccounts}
+            highFitAccounts={metrics.highFitAccounts}
+            highFitCrmAccounts={metrics.highFitCrmAccounts}
+            highFitDatabaseAccounts={metrics.highFitDatabaseAccounts}
+            totalLeads={metrics.totalLeads}
+            crmLeads={metrics.crmLeads}
+            databaseLeads={metrics.databaseLeads}
+            highFitLeads={metrics.highFitLeads}
+            highFitCrmLeads={metrics.highFitCrmLeads}
+            highFitDatabaseLeads={metrics.highFitDatabaseLeads}
+          />
+        </div>
         
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-secondary" />
-              Leads Overview
-            </CardTitle>
-            <CardDescription>Lead distribution & quality</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DataSourceBreakdownCard
-              title="Leads"
-              icon={Users}
-              total={metrics.totalLeads}
-              crm={{
-                count: metrics.crmLeads,
-                highFit: metrics.highFitCrmLeads,
-                highFitPercentage: metrics.crmLeads > 0
-                  ? Number(((metrics.highFitCrmLeads / metrics.crmLeads) * 100).toFixed(1))
-                  : 0
-              }}
-              database={{
-                count: metrics.databaseLeads,
-                highFit: metrics.highFitDatabaseLeads,
-                highFitPercentage: metrics.databaseLeads > 0
-                  ? Number(((metrics.highFitDatabaseLeads / metrics.databaseLeads) * 100).toFixed(1))
-                  : 0
-              }}
-            />
-          </CardContent>
-        </Card>
-        
-        <Card className={!sidebar?.open ? "lg:col-span-1" : "lg:col-span-2"}>
+        <Card className={!sidebar?.open ? "lg:col-span-1" : "lg:col-span-1"}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
@@ -545,7 +511,7 @@ export default function ExecutiveDashboard() {
             <CardDescription>High-fit accounts with contacts</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-4">
               <div>
                 <div className="flex items-baseline justify-between mb-2">
                   <div className="text-4xl font-bold text-primary">{metrics.campaignReadyAccounts.toLocaleString()}</div>
@@ -557,10 +523,14 @@ export default function ExecutiveDashboard() {
                 <div className="text-3xl font-bold text-signal-medium">{(metrics.campaignReadyLeads || 0).toLocaleString()}</div>
                 <p className="text-sm text-muted-foreground">Leads ready</p>
               </div>
+              <Button 
+                onClick={() => navigate('/campaign-builder')} 
+                className="w-full"
+                disabled={metrics.campaignReadyAccounts === 0}
+              >
+                Build Campaign List →
+              </Button>
             </div>
-            <Button onClick={() => navigate('/campaign-builder')} className="w-full mt-4">
-              Build Campaign List →
-            </Button>
           </CardContent>
         </Card>
       </div>
@@ -595,7 +565,18 @@ export default function ExecutiveDashboard() {
       {/* Row 4: AI Recommendations (Tiles) + Risks & Actions */}
       <div className={`grid ${gridClass}`}>
         <AIRecommendationsTiles 
-          insights={insights || []}
+          insights={
+            insights && insights.length > 0 
+              ? insights.map((insight: any) => ({
+                  ...insight,
+                  category: insight.category || insight.type || 'firmographic',
+                  why: insight.why || insight.description,
+                  action: insight.action || 'View Details',
+                  route: insight.route || '/accounts',
+                  filter: insight.filter || {}
+                }))
+              : []
+          }
           onRefresh={() => generateInsights()}
         />
 
