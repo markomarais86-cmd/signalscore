@@ -543,22 +543,28 @@ export default function Accounts() {
   };
 
   const [uniqueIndustries, setUniqueIndustries] = useState<string[]>([]);
+  const [uniqueCountries, setUniqueCountries] = useState<string[]>([]);
+  const [uniqueStates, setUniqueStates] = useState<string[]>([]);
 
   useEffect(() => {
-    const fetchIndustries = async () => {
+    const fetchFilterOptions = async () => {
       if (!userProfile?.org_id) return;
       
       const { data } = await supabase
         .from('accounts')
-        .select('industry_norm')
-        .eq('org_id', userProfile.org_id)
-        .not('industry_norm', 'is', null);
+        .select('industry_norm, country, state_province')
+        .eq('org_id', userProfile.org_id);
       
       const industries = Array.from(new Set((data || []).map(a => a.industry_norm).filter(Boolean)));
+      const countries = Array.from(new Set((data || []).map(a => a.country).filter(Boolean)));
+      const states = Array.from(new Set((data || []).map(a => a.state_province).filter(Boolean)));
+      
       setUniqueIndustries(industries);
+      setUniqueCountries(countries);
+      setUniqueStates(states);
     };
     
-    fetchIndustries();
+    fetchFilterOptions();
   }, [userProfile?.org_id]);
 
   const handlePageChange = (page: number) => {
@@ -780,27 +786,121 @@ export default function Accounts() {
       {/* Filters */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex gap-4 items-center">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search accounts..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+          <div className="space-y-4">
+            <div className="flex gap-4 items-center flex-wrap">
+              <div className="relative flex-1 min-w-[250px]">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search accounts..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              
+              <Select 
+                value={sourceFilter || "all"} 
+                onValueChange={(value) => {
+                  const params = new URLSearchParams(searchParams);
+                  if (value === "all") {
+                    params.delete('source');
+                  } else {
+                    params.set('source', value);
+                  }
+                  setSearchParams(params);
+                }}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Sources" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sources</SelectItem>
+                  <SelectItem value="crm">CRM</SelectItem>
+                  <SelectItem value="database">Database</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select 
+                value={fitFilter || "all"} 
+                onValueChange={(value) => {
+                  const params = new URLSearchParams(searchParams);
+                  if (value === "all") {
+                    params.delete('fit');
+                  } else {
+                    params.set('fit', value);
+                  }
+                  setSearchParams(params);
+                }}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Fit Levels" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Fit Levels</SelectItem>
+                  <SelectItem value="high">High Fit</SelectItem>
+                  <SelectItem value="medium">Medium Fit</SelectItem>
+                  <SelectItem value="low">Low Fit</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={industryFilter} onValueChange={setIndustryFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Industries" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Industries</SelectItem>
+                  {uniqueIndustries.map(industry => (
+                    <SelectItem key={industry} value={industry || ''}>{industry}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select 
+                value={countryFilter || "all"} 
+                onValueChange={(value) => {
+                  const params = new URLSearchParams(searchParams);
+                  if (value === "all") {
+                    params.delete('country');
+                  } else {
+                    params.set('country', value);
+                  }
+                  setSearchParams(params);
+                }}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All Countries" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Countries</SelectItem>
+                  {uniqueCountries.map(country => (
+                    <SelectItem key={country} value={country}>{country}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select 
+                value={stateFilter || "all"} 
+                onValueChange={(value) => {
+                  const params = new URLSearchParams(searchParams);
+                  if (value === "all") {
+                    params.delete('state');
+                  } else {
+                    params.set('state', value);
+                  }
+                  setSearchParams(params);
+                }}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All States" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All States</SelectItem>
+                  {uniqueStates.map(state => (
+                    <SelectItem key={state} value={state}>{state}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={industryFilter} onValueChange={setIndustryFilter}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="All Industries" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Industries</SelectItem>
-                {uniqueIndustries.map(industry => (
-                  <SelectItem key={industry} value={industry || ''}>{industry}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </CardContent>
       </Card>
