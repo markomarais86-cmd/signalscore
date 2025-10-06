@@ -1448,6 +1448,13 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_geography_distribution: {
+        Args: { p_org_id: string }
+        Returns: {
+          count: number
+          country: string
+        }[]
+      }
       increment_bulk_scoring_job_progress: {
         Args: {
           chunk_failed: number

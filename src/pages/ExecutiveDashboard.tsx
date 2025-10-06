@@ -19,7 +19,6 @@ import { DataSourceBreakdownCard } from "@/components/executive/DataSourceBreakd
 import { TrendIndicator } from "@/components/executive/TrendIndicator";
 import { calculateTrends, TrendData } from "@/utils/trend-calculator";
 import { detectRisks } from "@/utils/risk-detector";
-import { normalizeCountryData } from "@/utils/country-normalizer";
 import type { RiskItem } from "@/utils/risk-detector";
 import { CombinedScoringICPCard } from "@/components/executive/CombinedScoringICPCard";
 import { GeographyChartCard } from "@/components/executive/GeographyChartCard";
@@ -392,10 +391,18 @@ export default function ExecutiveDashboard() {
         },
       ]);
 
-      // Geographic distribution with data cleaning
-      const { validData, invalidCount } = normalizeCountryData(accounts || []);
-      setGeoData(validData);
-      setInvalidGeoCount(invalidCount);
+      // Geographic distribution - use RPC to get ALL accounts, not just first 1000
+      const { data: geoDistribution, error: geoError } = await supabase
+        .rpc('get_geography_distribution', { p_org_id: userProfile.org_id });
+      
+      if (geoError) {
+        console.error('Error fetching geography distribution:', geoError);
+        setGeoData([]);
+        setInvalidGeoCount(0);
+      } else {
+        setGeoData(geoDistribution || []);
+        setInvalidGeoCount(0);
+      }
 
       completeStep('explore_dashboard');
 
