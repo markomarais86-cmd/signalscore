@@ -21,7 +21,7 @@ import { calculateTrends, TrendData } from "@/utils/trend-calculator";
 import { detectRisks } from "@/utils/risk-detector";
 import type { RiskItem } from "@/utils/risk-detector";
 import { CombinedScoringICPCard } from "@/components/executive/CombinedScoringICPCard";
-import { EnhancedGeographyCard } from "@/components/executive/EnhancedGeographyCard";
+import { GeographyChartCard } from "@/components/executive/GeographyChartCard";
 import { AIRecommendationsTiles } from "@/components/executive/AIRecommendationsTiles";
 import { RisksAndActionsCard } from "@/components/executive/RisksAndActionsCard";
 import { ICPCoverageCard } from "@/components/executive/ICPCoverageCard";
@@ -554,14 +554,8 @@ export default function ExecutiveDashboard() {
         </CardContent>
       </Card>
 
-      {/* Row 3: Enhanced Geography with Drill-down + Accounts/Leads Toggle */}
-      <EnhancedGeographyCard
-        geoData={geoData}
-        onDrillDown={(country) => {
-          console.log('Drilling down into:', country);
-          toast.info(`Viewing ${country} details`);
-        }}
-      />
+      {/* Row 3: Geographic Distribution Chart */}
+      <GeographyChartCard geoData={geoData} />
 
       {/* Row 4: AI Recommendations (Tiles) + Risks & Actions */}
       <div className={`grid ${gridClass}`}>
