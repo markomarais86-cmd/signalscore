@@ -2,12 +2,17 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, ChevronRight, ChevronDown, ArrowLeft, Building2 } from "lucide-react";
+import { MapPin, X, Building2, ChevronRight } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { cn } from "@/lib/utils";
+import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simple-maps";
+import { scaleLinear } from "d3-scale";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
 interface GeoData {
   country: string;
@@ -30,16 +35,32 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0 }: EnhancedGeo
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
   const [stateData, setStateData] = useState<StateData[]>([]);
   const [loadingStates, setLoadingStates] = useState(false);
-  const [expandedCountry, setExpandedCountry] = useState<string | null>(null);
+  const [hoveredCountry, setHoveredCountry] = useState<string>("");
+  const [tooltipContent, setTooltipContent] = useState({ country: "", count: 0 });
   
   const totalAccounts = geoData.reduce((sum, g) => sum + g.count, 0);
   const maxCount = geoData[0]?.count || 1;
 
+  // Create a map for quick lookup
+  const countryDataMap = new Map(geoData.map(d => [d.country.toLowerCase(), d]));
+
+  // Color scale for heat map - from light to intense
+  const colorScale = scaleLinear<string>()
+    .domain([0, maxCount * 0.2, maxCount * 0.4, maxCount * 0.6, maxCount * 0.8, maxCount])
+    .range([
+      "hsl(var(--muted))",
+      "hsl(210, 40%, 85%)",
+      "hsl(210, 60%, 65%)",
+      "hsl(220, 70%, 50%)",
+      "hsl(230, 80%, 40%)",
+      "hsl(240, 90%, 30%)"
+    ]);
+
   useEffect(() => {
-    if (expandedCountry && userProfile?.org_id) {
-      loadStateData(expandedCountry);
+    if (selectedCountry && userProfile?.org_id) {
+      loadStateData(selectedCountry);
     }
-  }, [expandedCountry, userProfile?.org_id]);
+  }, [selectedCountry, userProfile?.org_id]);
 
   const loadStateData = async (country: string) => {
     setLoadingStates(true);
@@ -62,7 +83,7 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0 }: EnhancedGeo
       const sortedStates = Object.entries(stateCounts)
         .map(([state, count]) => ({ state, count: count as number }))
         .sort((a, b) => b.count - a.count)
-        .slice(0, 20);
+        .slice(0, 25);
 
       setStateData(sortedStates);
     } catch (error) {
@@ -73,20 +94,32 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0 }: EnhancedGeo
     }
   };
 
-  const handleCountryClick = (country: string) => {
-    if (expandedCountry === country) {
-      setExpandedCountry(null);
-    } else {
-      setExpandedCountry(country);
+  const handleCountryClick = (geoName: string, countryData: GeoData | undefined) => {
+    if (countryData) {
+      setSelectedCountry(countryData.country);
     }
   };
 
-  const handleStateClick = (country: string, state: string) => {
-    navigate(`/accounts?country=${encodeURIComponent(country)}&state=${encodeURIComponent(state)}`);
+  const handleStateClick = (state: string) => {
+    if (selectedCountry) {
+      navigate(`/accounts?country=${encodeURIComponent(selectedCountry)}&state=${encodeURIComponent(state)}`);
+    }
   };
 
   const handleViewAllAccounts = (country: string) => {
     navigate(`/accounts?country=${encodeURIComponent(country)}`);
+  };
+
+  // Country name mapping for better matching
+  const normalizeCountryName = (name: string): string => {
+    const mappings: Record<string, string> = {
+      'united states of america': 'united states',
+      'usa': 'united states',
+      'uk': 'united kingdom',
+      'czech republic': 'czechia',
+    };
+    const lower = name.toLowerCase();
+    return mappings[lower] || lower;
   };
 
   return (
@@ -96,142 +129,224 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0 }: EnhancedGeo
           <div>
             <CardTitle className="flex items-center gap-2">
               <MapPin className="h-5 w-5 text-primary" />
-              Geographic Distribution
+              Geographic Heat Map
             </CardTitle>
             <CardDescription>
-              {totalAccounts.toLocaleString()} accounts across {geoData.length} countries
+              {totalAccounts.toLocaleString()} accounts across {geoData.length} countries - Click to drill down
             </CardDescription>
           </div>
-          <Badge variant="secondary" className="text-xs">
-            Click to drill down ↓
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-xs">
+              Top: {geoData[0]?.country} ({geoData[0]?.count.toLocaleString()})
+            </Badge>
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-2">
-        {geoData.slice(0, 15).map((geo, idx) => {
-          const isExpanded = expandedCountry === geo.country;
-          const maxStateCount = stateData[0]?.count || 1;
-          
-          return (
-            <div key={geo.country} className="space-y-2">
-              {/* Country Row */}
-              <div 
-                className={cn(
-                  "flex items-center gap-3 p-3 rounded-lg transition-all cursor-pointer",
-                  "hover:bg-accent hover:shadow-sm",
-                  isExpanded && "bg-accent shadow-sm"
-                )}
-                onClick={() => handleCountryClick(geo.country)}
-              >
-                <Badge 
-                  variant={idx < 3 ? "default" : "outline"}
-                  className="w-8 h-8 flex items-center justify-center rounded-full shrink-0 font-bold"
-                >
-                  {idx + 1}
-                </Badge>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2">
-                      {isExpanded ? (
-                        <ChevronDown className="h-4 w-4 text-primary" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      )}
-                      <span className="font-semibold">{geo.country}</span>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-sm font-semibold">
-                        {geo.count.toLocaleString()}
-                      </span>
-                      <Badge variant="secondary" className="text-xs">
-                        {Math.round((geo.count / totalAccounts) * 100)}%
-                      </Badge>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleViewAllAccounts(geo.country);
+      <CardContent>
+        {/* Interactive World Heat Map */}
+        <div className="relative w-full bg-muted/10 rounded-lg overflow-hidden border" style={{ height: '500px' }}>
+          <ComposableMap
+            projection="geoMercator"
+            projectionConfig={{
+              scale: 130,
+              center: [0, 20]
+            }}
+            style={{ width: '100%', height: '100%' }}
+          >
+            <ZoomableGroup center={[0, 20]} zoom={1}>
+              <Geographies geography={geoUrl}>
+                {({ geographies }) =>
+                  geographies.map((geo) => {
+                    const geoName = geo.properties.name;
+                    const normalizedGeoName = normalizeCountryName(geoName);
+                    
+                    // Try to find matching country data
+                    let countryData = countryDataMap.get(normalizedGeoName);
+                    
+                    // Fallback: try partial matching
+                    if (!countryData) {
+                      for (const [key, value] of countryDataMap.entries()) {
+                        if (key.includes(normalizedGeoName) || normalizedGeoName.includes(key)) {
+                          countryData = value;
+                          break;
+                        }
+                      }
+                    }
+                    
+                    const count = countryData?.count || 0;
+                    const isHovered = hoveredCountry === geoName;
+                    
+                    return (
+                      <Geography
+                        key={geo.rsmKey}
+                        geography={geo}
+                        fill={count > 0 ? colorScale(count) : "hsl(var(--muted))"}
+                        stroke="hsl(var(--border))"
+                        strokeWidth={isHovered ? 1.5 : 0.5}
+                        style={{
+                          default: { 
+                            outline: "none",
+                            transition: "all 0.2s ease-in-out"
+                          },
+                          hover: { 
+                            fill: count > 0 ? "hsl(var(--primary))" : "hsl(var(--muted))", 
+                            outline: "none",
+                            cursor: count > 0 ? "pointer" : "default",
+                            filter: "brightness(1.1)"
+                          },
+                          pressed: { 
+                            outline: "none",
+                            fill: "hsl(var(--primary))"
+                          },
                         }}
-                      >
-                        <Building2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                  <Progress 
-                    value={(geo.count / maxCount) * 100} 
-                    className="h-2"
-                  />
-                </div>
-              </div>
+                        onMouseEnter={() => {
+                          setHoveredCountry(geoName);
+                          if (count > 0) {
+                            setTooltipContent({ 
+                              country: countryData?.country || geoName, 
+                              count 
+                            });
+                          }
+                        }}
+                        onMouseLeave={() => {
+                          setHoveredCountry("");
+                          setTooltipContent({ country: "", count: 0 });
+                        }}
+                        onClick={() => handleCountryClick(geoName, countryData)}
+                      />
+                    );
+                  })
+                }
+              </Geographies>
+            </ZoomableGroup>
+          </ComposableMap>
+          
+          {/* Hover Tooltip */}
+          {tooltipContent.country && (
+            <div className="absolute top-4 left-4 bg-card border border-border rounded-lg px-4 py-2 shadow-lg z-10 pointer-events-none">
+              <p className="font-semibold text-sm">{tooltipContent.country}</p>
+              <p className="text-xs text-muted-foreground">
+                {tooltipContent.count.toLocaleString()} accounts ({((tooltipContent.count / totalAccounts) * 100).toFixed(1)}%)
+              </p>
+              <p className="text-xs text-primary mt-1">Click to view regions</p>
+            </div>
+          )}
+        </div>
 
-              {/* Expanded State/Region Breakdown */}
-              {isExpanded && (
-                <div className="ml-14 mr-2 space-y-2 animate-in slide-in-from-top-2">
-                  {loadingStates ? (
-                    <div className="flex items-center justify-center py-4">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary"></div>
-                    </div>
-                  ) : stateData.length > 0 ? (
-                    <>
-                      <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-                        <div className="h-px flex-1 bg-border" />
-                        <span>States/Regions</span>
-                        <div className="h-px flex-1 bg-border" />
-                      </div>
-                      {stateData.map((state, stateIdx) => (
-                        <div
-                          key={state.state}
-                          className="flex items-center gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors cursor-pointer group"
-                          onClick={() => handleStateClick(geo.country, state.state)}
-                        >
-                          <Badge 
-                            variant="outline"
-                            className="w-6 h-6 flex items-center justify-center rounded text-xs shrink-0"
-                          >
-                            {stateIdx + 1}
-                          </Badge>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between gap-2 mb-1">
-                              <span className="text-sm font-medium truncate">{state.state}</span>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-xs text-muted-foreground">
-                                  {state.count.toLocaleString()}
-                                </span>
-                                <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </div>
-                            </div>
-                            <Progress 
-                              value={(state.count / maxStateCount) * 100} 
-                              className="h-1.5"
-                            />
+        {/* Color Legend */}
+        <div className="flex items-center justify-center gap-4 mt-4 text-xs text-muted-foreground">
+          <span>Low</span>
+          <div className="flex gap-1">
+            {[0, 0.2, 0.4, 0.6, 0.8, 1].map((val, i) => (
+              <div
+                key={i}
+                className="w-8 h-3 rounded"
+                style={{ backgroundColor: colorScale(maxCount * val) }}
+              />
+            ))}
+          </div>
+          <span>High ({maxCount.toLocaleString()})</span>
+        </div>
+
+        {/* Top Countries Summary */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-4 border-t">
+          {geoData.slice(0, 4).map((geo, idx) => (
+            <div 
+              key={geo.country}
+              className="text-center p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+              onClick={() => setSelectedCountry(geo.country)}
+            >
+              <div className="text-xl font-bold text-primary">
+                {geo.count.toLocaleString()}
+              </div>
+              <div className="text-xs text-muted-foreground truncate">
+                {geo.country}
+              </div>
+              <div className="text-xs font-medium mt-1">
+                {((geo.count / totalAccounts) * 100).toFixed(1)}%
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+
+      {/* State/Region Drill-down Sheet */}
+      <Sheet open={!!selectedCountry} onOpenChange={(open) => !open && setSelectedCountry(null)}>
+        <SheetContent className="sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-primary" />
+              {selectedCountry}
+            </SheetTitle>
+            <SheetDescription>
+              State and region breakdown
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="mt-6 space-y-4">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => selectedCountry && handleViewAllAccounts(selectedCountry)}
+            >
+              <Building2 className="h-4 w-4 mr-2" />
+              View All {selectedCountry} Accounts
+            </Button>
+
+            {loadingStates ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : stateData.length > 0 ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold">States / Regions</h4>
+                  <Badge variant="secondary" className="text-xs">
+                    {stateData.length} found
+                  </Badge>
+                </div>
+                {stateData.map((state, idx) => {
+                  const maxStateCount = stateData[0]?.count || 1;
+                  return (
+                    <div
+                      key={state.state}
+                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors cursor-pointer group"
+                      onClick={() => handleStateClick(state.state)}
+                    >
+                      <Badge 
+                        variant={idx < 3 ? "default" : "outline"}
+                        className="w-8 h-8 flex items-center justify-center rounded-full shrink-0 font-bold text-xs"
+                      >
+                        {idx + 1}
+                      </Badge>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <span className="text-sm font-medium truncate">{state.state}</span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-sm font-semibold">
+                              {state.count.toLocaleString()}
+                            </span>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                           </div>
                         </div>
-                      ))}
-                    </>
-                  ) : (
-                    <div className="text-center py-4 text-sm text-muted-foreground">
-                      No state/region data available
+                        <Progress 
+                          value={(state.count / maxStateCount) * 100} 
+                          className="h-2"
+                        />
+                      </div>
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {geoData.length > 15 && (
-          <Button
-            variant="outline"
-            className="w-full mt-4"
-            onClick={() => navigate('/accounts')}
-          >
-            View All {geoData.length} Countries
-          </Button>
-        )}
-      </CardContent>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                <p className="text-sm">No state/region data available</p>
+                <p className="text-xs mt-1">Try viewing all accounts instead</p>
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </Card>
   );
 }
