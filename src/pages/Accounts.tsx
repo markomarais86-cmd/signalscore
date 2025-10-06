@@ -695,52 +695,63 @@ export default function Accounts() {
 
           {/* Active Filters */}
           {hasActiveFilters && (
-            <div className="pt-3 border-t">
-              <div className="flex items-center gap-2 mb-2">
-                <Filter className="h-3 w-3 text-muted-foreground" />
-                <span className="text-xs font-medium text-muted-foreground">Active Filters:</span>
+            <div className="pt-3 border-t bg-muted/30 -mx-6 px-6 py-3 mt-3">
+              <div className="flex items-center gap-2 mb-3">
+                <Filter className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Active Filters</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {sourceFilter && (
-                  <Badge variant="secondary" className="gap-1">
+                  <Badge variant="secondary" className="gap-1 cursor-pointer hover:bg-secondary/80">
                     Source: {sourceFilter === 'crm' ? 'CRM' : 'Database'}
-                    <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter('source')} />
+                    <X className="h-3 w-3" onClick={() => removeFilter('source')} />
                   </Badge>
                 )}
                 {fitFilter && (
-                  <Badge variant="secondary" className="gap-1">
-                    Fit: {fitFilter.charAt(0).toUpperCase() + fitFilter.slice(1)}
-                    <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter('fit')} />
+                  <Badge 
+                    className={`gap-1 cursor-pointer border ${
+                      fitFilter === 'high' 
+                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20' 
+                        : fitFilter === 'medium' 
+                        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20' 
+                        : 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/30 hover:bg-red-500/20'
+                    }`}
+                  >
+                    {fitFilter === 'high' && <CheckCircle2 className="h-3 w-3" />}
+                    {fitFilter === 'medium' && <TrendingUp className="h-3 w-3" />}
+                    {fitFilter === 'low' && <AlertCircle className="h-3 w-3" />}
+                    {fitFilter.charAt(0).toUpperCase() + fitFilter.slice(1)} Fit
+                    <X className="h-3 w-3" onClick={() => removeFilter('fit')} />
                   </Badge>
                 )}
                 {countryFilter && (
-                  <Badge variant="secondary" className="gap-1">
+                  <Badge variant="secondary" className="gap-1 cursor-pointer hover:bg-secondary/80">
                     Country: {countryFilter}
-                    <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter('country')} />
+                    <X className="h-3 w-3" onClick={() => removeFilter('country')} />
                   </Badge>
                 )}
                 {stateFilter && (
-                  <Badge variant="secondary" className="gap-1">
+                  <Badge variant="secondary" className="gap-1 cursor-pointer hover:bg-secondary/80">
                     State: {stateFilter}
-                    <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter('state')} />
+                    <X className="h-3 w-3" onClick={() => removeFilter('state')} />
                   </Badge>
                 )}
                 {icpFilter && (
-                  <Badge variant="secondary" className="gap-1">
+                  <Badge variant="secondary" className="gap-1 cursor-pointer hover:bg-secondary/80">
                     ICP Filter Active
-                    <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter('icp_id')} />
+                    <X className="h-3 w-3" onClick={() => removeFilter('icp_id')} />
                   </Badge>
                 )}
                 {searchTerm && (
-                  <Badge variant="secondary" className="gap-1">
+                  <Badge variant="secondary" className="gap-1 cursor-pointer hover:bg-secondary/80">
                     Search: "{searchTerm}"
-                    <X className="h-3 w-3 cursor-pointer" onClick={() => setSearchTerm("")} />
+                    <X className="h-3 w-3" onClick={() => setSearchTerm("")} />
                   </Badge>
                 )}
                 {industryFilter !== "all" && (
-                  <Badge variant="secondary" className="gap-1">
+                  <Badge variant="secondary" className="gap-1 cursor-pointer hover:bg-secondary/80">
                     Industry: {industryFilter}
-                    <X className="h-3 w-3 cursor-pointer" onClick={() => setIndustryFilter("all")} />
+                    <X className="h-3 w-3" onClick={() => setIndustryFilter("all")} />
                   </Badge>
                 )}
               </div>
@@ -819,10 +830,44 @@ export default function Accounts() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {accounts.map((account) => {
-                const completeness = calculateDataCompleteness(account);
-                return (
-                  <TableRow 
+              {accounts.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={10} className="h-32">
+                    <div className="flex flex-col items-center justify-center text-center space-y-3">
+                      <AlertCircle className="h-12 w-12 text-muted-foreground/50" />
+                      <div>
+                        <h3 className="font-semibold text-lg">
+                          {fitFilter 
+                            ? `No ${fitFilter.charAt(0).toUpperCase() + fitFilter.slice(1)}-Fit accounts found`
+                            : hasActiveFilters 
+                            ? "No accounts match your filters"
+                            : "No accounts found"
+                          }
+                        </h3>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {fitFilter ? (
+                            <>Try scoring more accounts or adjust your ICP criteria</>
+                          ) : hasActiveFilters ? (
+                            <>Try adjusting your filters to see more results</>
+                          ) : (
+                            <>Upload your CRM data to get started</>
+                          )}
+                        </p>
+                      </div>
+                      {hasActiveFilters && (
+                        <Button variant="outline" size="sm" onClick={clearFilters}>
+                          <X className="h-4 w-4 mr-2" />
+                          Clear All Filters
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                accounts.map((account) => {
+                  const completeness = calculateDataCompleteness(account);
+                  return (
+                    <TableRow
                     key={account.id}
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => {
@@ -945,8 +990,9 @@ export default function Accounts() {
                       )}
                     </TableCell>
                   </TableRow>
-                );
-              })}
+                  );
+                })
+              )}
             </TableBody>
           </Table>
 
