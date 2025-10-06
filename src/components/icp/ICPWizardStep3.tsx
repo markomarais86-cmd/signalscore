@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, KeyboardEvent } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { User, Crown, Building2, Target, Lightbulb } from 'lucide-react';
 import { ICPFormData } from '@/types/icp';
@@ -18,11 +19,14 @@ interface ICPWizardStep3Props {
 }
 
 export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Props) {
+  const [jobTitleInput, setJobTitleInput] = useState('');
+
   const addToArray = (field: keyof ICPFormData, value: string) => {
     const currentArray = formData[field] as string[];
-    if (!currentArray.includes(value)) {
+    const trimmedValue = value.trim();
+    if (trimmedValue && !currentArray.includes(trimmedValue)) {
       onUpdateFormData({
-        [field]: [...currentArray, value]
+        [field]: [...currentArray, trimmedValue]
       });
     }
   };
@@ -32,6 +36,14 @@ export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Pro
     onUpdateFormData({
       [field]: currentArray.filter((_, i) => i !== index)
     });
+  };
+
+  const handleJobTitleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && jobTitleInput.trim()) {
+      e.preventDefault();
+      addToArray('persona_job_titles', jobTitleInput);
+      setJobTitleInput('');
+    }
   };
 
   return (
@@ -62,23 +74,23 @@ export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Pro
           <CardContent className="space-y-4">
             <div>
               <Label>Job Titles</Label>
-              <div className="flex flex-wrap gap-2 mt-2">
+              <div className="flex flex-wrap gap-2 mt-2 mb-2">
                 {formData.persona_job_titles.map((title, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('persona_job_titles', index)}>
                     {title} ×
                   </Badge>
                 ))}
               </div>
-              <Select onValueChange={(value) => addToArray('persona_job_titles', value)}>
-                <SelectTrigger className="mt-2">
-                  <SelectValue placeholder="Add job title" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PERSONA_JOB_TITLES.filter(title => !formData.persona_job_titles.includes(title)).map(title => (
-                    <SelectItem key={title} value={title}>{title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                value={jobTitleInput}
+                onChange={(e) => setJobTitleInput(e.target.value)}
+                onKeyDown={handleJobTitleKeyDown}
+                placeholder="Type job title and press Enter (e.g., Storage Engineer, Database Manager)"
+                className="mt-2"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Matching uses "contains" logic - e.g., "Data" will match "Data Architect", "Database Manager", etc.
+              </p>
             </div>
 
             <div>

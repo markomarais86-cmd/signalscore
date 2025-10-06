@@ -182,78 +182,17 @@ export default function ICPManager() {
           </div>
         </div>
 
-        {/* Info Alert - What Happens Next */}
-        {icps.length > 0 && activeCount > 0 && (
-          <Alert className="border-primary/50 bg-primary/5">
-            <Target className="h-4 w-4 text-primary" />
-            <AlertDescription className="flex items-center justify-between">
-              <span>
-                <strong>{activeCount} active ICP{activeCount > 1 ? 's' : ''}</strong> ready to analyze your accounts and generate TAM intelligence
-              </span>
-              <Button variant="outline" size="sm" asChild>
-                <Link to="/icp-tam" className="flex items-center gap-1">
-                  View Intelligence <ArrowRight className="h-3 w-3" />
-                </Link>
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
 
-        {/* Hero Metric */}
+        {/* Hero Metric - Consolidated */}
         {icps.length > 0 && (
           <HeroMetric
-            label="Total ICPs Defined"
+            label="ICP Overview"
             value={icps.length}
-            subtitle={`${activeCount} active, ${icps.filter(icp => icp.status === 'draft').length} in draft`}
+            subtitle={`${activeCount} active • ${icps.filter(icp => icp.status === 'draft').length} draft • ${Math.round(icps.reduce((sum, icp) => sum + (icp.confidence_score || 0), 0) / icps.length)}% avg confidence`}
             icon={Target}
             trend={{ value: 12, period: 'last month' }}
             status={activeCount > 0 ? 'success' : 'warning'}
           />
-        )}
-
-        {/* Supporting Metrics */}
-        {icps.length > 0 && (
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card className="border-l-4 border-l-[hsl(var(--signal-high))]">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-[hsl(var(--signal-high))]" />
-                    <span className="text-sm font-medium">Active ICPs</span>
-                  </div>
-                  <span className="text-3xl font-bold">{activeCount}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-[hsl(var(--signal-medium))]">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Wand2 className="h-5 w-5 text-[hsl(var(--signal-medium))]" />
-                    <span className="text-sm font-medium">Draft ICPs</span>
-                  </div>
-                  <span className="text-3xl font-bold">
-                    {icps.filter(icp => icp.status === 'draft').length}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-primary">
-              <CardContent className="pt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium">Avg Confidence</span>
-                  </div>
-                  <span className="text-3xl font-bold">
-                    {Math.round(icps.reduce((sum, icp) => sum + (icp.confidence_score || 0), 0) / icps.length)}%
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         )}
 
         {/* ICP Content */}
@@ -284,13 +223,6 @@ export default function ICPManager() {
                           {userProfile?.role === 'admin' && (
                             <Button variant="ghost" size="sm" onClick={() => handleDelete(icp.id)} className="opacity-0 group-hover:opacity-100 transition-opacity">
                               <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {icp.status === 'active' && (
-                            <Button variant="outline" size="sm" asChild>
-                              <Link to="/icp-tam">
-                                <BarChart3 className="h-4 w-4" />
-                              </Link>
                             </Button>
                           )}
                         </div>
@@ -388,37 +320,6 @@ export default function ICPManager() {
                         </div>
                       )}
 
-                      {/* Metrics */}
-                      {(icp.match_count || icp.tam_estimate || icp.status === 'active') && (
-                        <div className="pt-3 border-t space-y-3">
-                          {icp.status === 'active' && (
-                            <>
-                              <div className="text-sm font-medium text-muted-foreground">Pipeline Impact</div>
-                              <div className="grid grid-cols-3 gap-2 text-center">
-                                <div>
-                                  <div className="text-lg font-bold text-primary">{icp.match_count || 0}</div>
-                                  <div className="text-xs text-muted-foreground">Accounts</div>
-                                </div>
-                                <div>
-                                  <div className="text-lg font-bold text-primary">
-                                    {icp.tam_estimate ? `$${(icp.tam_estimate / 1000000).toFixed(1)}M` : '$0'}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground">TAM</div>
-                                </div>
-                                <div>
-                                  <div className="text-lg font-bold text-primary">{icp.confidence_score || 0}%</div>
-                                  <div className="text-xs text-muted-foreground">Quality</div>
-                                </div>
-                              </div>
-                              <Button variant="outline" size="sm" className="w-full" asChild>
-                                <Link to="/icp-tam">
-                                  View Full Analysis <ArrowRight className="h-4 w-4 ml-2" />
-                                </Link>
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      )}
                     </CardContent>
                   </Card>
                 ))}

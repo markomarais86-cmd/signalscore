@@ -98,6 +98,11 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
 
             <div>
               <Label>Sub-Industries</Label>
+              {formData.industries.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1 mb-2">
+                  Select industries above first to see relevant sub-industries
+                </p>
+              )}
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.sub_industries.map((subIndustry, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('sub_industries', index)}>
@@ -118,6 +123,11 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
                   ))}
                 </SelectContent>
               </Select>
+              {formData.industries.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Showing sub-industries from: {formData.industries.join(', ')}
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
