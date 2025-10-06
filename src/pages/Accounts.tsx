@@ -53,6 +53,7 @@ export default function Accounts() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
+  const [subIndustryFilter, setSubIndustryFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [selectedAccountForScore, setSelectedAccountForScore] = useState<Account | null>(null);
   const [selectedAccountForDetail, setSelectedAccountForDetail] = useState<Account | null>(null);
@@ -119,7 +120,7 @@ export default function Accounts() {
       loadAccounts();
       loadSummaryStats();
     }
-  }, [userProfile?.org_id, currentPage, pageSize, searchTerm, industryFilter, sourceFilter, fitFilter, countryFilter, stateFilter, icpFilter]);
+  }, [userProfile?.org_id, currentPage, pageSize, searchTerm, industryFilter, subIndustryFilter, sourceFilter, fitFilter, countryFilter, stateFilter, icpFilter]);
 
   const loadAccounts = async () => {
     if (!userProfile?.org_id) return;
@@ -139,9 +140,14 @@ export default function Accounts() {
         );
       }
 
-      // Apply industry filter
+      // Apply primary industry filter
       if (industryFilter !== "all") {
         accountsQuery = accountsQuery.eq('industry_norm', industryFilter);
+      }
+
+      // Apply sub-industry filter
+      if (subIndustryFilter !== "all") {
+        accountsQuery = accountsQuery.eq('industry_raw', subIndustryFilter);
       }
 
       // Apply source filter
@@ -543,6 +549,7 @@ export default function Accounts() {
   };
 
   const [uniqueIndustries, setUniqueIndustries] = useState<string[]>([]);
+  const [uniqueSubIndustries, setUniqueSubIndustries] = useState<string[]>([]);
   const [uniqueCountries, setUniqueCountries] = useState<string[]>([]);
   const [uniqueStates, setUniqueStates] = useState<string[]>([]);
 
@@ -552,14 +559,16 @@ export default function Accounts() {
       
       const { data } = await supabase
         .from('accounts')
-        .select('industry_norm, country, state_province')
+        .select('industry_norm, industry_raw, country, state_province')
         .eq('org_id', userProfile.org_id);
       
-      const industries = Array.from(new Set((data || []).map(a => a.industry_norm).filter(Boolean)));
-      const countries = Array.from(new Set((data || []).map(a => a.country).filter(Boolean)));
-      const states = Array.from(new Set((data || []).map(a => a.state_province).filter(Boolean)));
+      const industries = Array.from(new Set((data || []).map(a => a.industry_norm).filter(Boolean))).sort();
+      const subIndustries = Array.from(new Set((data || []).map(a => a.industry_raw).filter(Boolean))).sort();
+      const countries = Array.from(new Set((data || []).map(a => a.country).filter(Boolean))).sort();
+      const states = Array.from(new Set((data || []).map(a => a.state_province).filter(Boolean))).sort();
       
       setUniqueIndustries(industries);
+      setUniqueSubIndustries(subIndustries);
       setUniqueCountries(countries);
       setUniqueStates(states);
     };
@@ -585,6 +594,7 @@ export default function Accounts() {
     setIcpFilter(null);
     setSearchTerm("");
     setIndustryFilter("all");
+    setSubIndustryFilter("all");
   };
 
   const removeFilter = (filterType: string) => {
@@ -593,7 +603,7 @@ export default function Accounts() {
     setSearchParams(params);
   };
 
-  const hasActiveFilters = sourceFilter || fitFilter || countryFilter || stateFilter || icpFilter || searchTerm || industryFilter !== "all";
+  const hasActiveFilters = sourceFilter || fitFilter || countryFilter || stateFilter || icpFilter || searchTerm || industryFilter !== "all" || subIndustryFilter !== "all";
 
   if (loading) {
     return (
@@ -756,8 +766,14 @@ export default function Accounts() {
                 )}
                 {industryFilter !== "all" && (
                   <Badge variant="secondary" className="gap-1 cursor-pointer hover:bg-secondary/80">
-                    Industry: {industryFilter}
+                    Primary Industry: {industryFilter}
                     <X className="h-3 w-3" onClick={() => setIndustryFilter("all")} />
+                  </Badge>
+                )}
+                {subIndustryFilter !== "all" && (
+                  <Badge variant="secondary" className="gap-1 cursor-pointer hover:bg-secondary/80">
+                    Sub-Industry: {subIndustryFilter}
+                    <X className="h-3 w-3" onClick={() => setSubIndustryFilter("all")} />
                   </Badge>
                 )}
               </div>
@@ -844,13 +860,25 @@ export default function Accounts() {
               </Select>
 
               <Select value={industryFilter} onValueChange={setIndustryFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All Industries" />
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Primary Industry" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Industries</SelectItem>
+                  <SelectItem value="all">All Primary Industries</SelectItem>
                   {uniqueIndustries.map(industry => (
                     <SelectItem key={industry} value={industry || ''}>{industry}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={subIndustryFilter} onValueChange={setSubIndustryFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Sub-Industry" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sub-Industries</SelectItem>
+                  {uniqueSubIndustries.map(subIndustry => (
+                    <SelectItem key={subIndustry} value={subIndustry || ''}>{subIndustry}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
