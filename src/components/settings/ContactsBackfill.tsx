@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 export function ContactsBackfill() {
   const [isRunning, setIsRunning] = useState(false);
+  const [status, setStatus] = useState<string>("Ready to run backfill");
   const [result, setResult] = useState<{
     created: number;
     skipped: number;
@@ -20,11 +21,13 @@ export function ContactsBackfill() {
   const { toast } = useToast();
 
   const runBackfill = async () => {
+    setStatus("🎯 Button clicked - Function started");
     console.log('🎯 runBackfill called');
     console.log('📋 userProfile:', userProfile);
     console.log('🏢 org_id:', userProfile?.org_id);
     
     if (!userProfile?.org_id) {
+      setStatus("❌ ERROR: No organization ID found");
       console.error('❌ No org_id found in userProfile');
       toast({
         title: "Error",
@@ -36,6 +39,7 @@ export function ContactsBackfill() {
 
     setIsRunning(true);
     setResult(null);
+    setStatus(`✅ Org ID verified: ${userProfile.org_id.substring(0, 8)}...`);
 
     try {
       const requestBody = {
@@ -43,24 +47,30 @@ export function ContactsBackfill() {
         batchSize: 1000
       };
       
+      setStatus("📤 Preparing request to edge function...");
       console.log('🔄 Starting contacts backfill...');
       console.log('📤 Request body:', requestBody);
       console.log('🔐 Supabase client initialized:', !!supabase);
+      
+      setStatus("🔄 Calling backfill-contacts function...");
       
       const { data, error } = await supabase.functions.invoke('backfill-contacts', {
         body: requestBody
       });
 
+      setStatus("📥 Received response from function");
       console.log('📥 Function response:', { data, error });
       console.log('📊 Response data type:', typeof data);
       console.log('📊 Error type:', typeof error);
 
       if (error) {
+        setStatus(`❌ Function returned error: ${error.message}`);
         console.error('❌ Function returned error:', error);
         console.error('❌ Error details:', JSON.stringify(error, null, 2));
         throw error;
       }
 
+      setStatus("✅ Backfill completed successfully!");
       console.log('✅ Backfill complete:', data);
       setResult(data);
 
@@ -70,6 +80,7 @@ export function ContactsBackfill() {
       });
 
     } catch (error: any) {
+      setStatus(`❌ Error caught: ${error?.message || 'Unknown error'}`);
       console.error('❌ Backfill error caught:', error);
       console.error('❌ Error type:', error?.constructor?.name);
       console.error('❌ Error message:', error?.message);
@@ -120,6 +131,20 @@ export function ContactsBackfill() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Debug Info */}
+        <div className="p-4 bg-muted rounded-lg space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium">Organization ID:</span>
+            <span className="font-mono text-xs">{userProfile?.org_id || 'NOT FOUND'}</span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium">Status:</span>
+            <span className={`font-mono text-xs ${status.includes('❌') ? 'text-destructive' : status.includes('✅') ? 'text-green-600' : ''}`}>
+              {status}
+            </span>
+          </div>
+        </div>
+
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
