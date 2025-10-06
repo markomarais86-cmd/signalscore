@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { PaginationControls } from "@/components/ui/pagination-controls";
 import { EnrichmentDialog } from "@/components/EnrichmentDialog";
 import { getSourceLabel, getSourceBadgeVariant } from "@/utils/data-source-attribution";
 import { EmptyDataState } from "@/components/EmptyDataState";
+import { PRIMARY_INDUSTRIES, SUB_INDUSTRIES_MAP } from "@/constants/zoominfo-industries";
 
 interface Account {
   id: string;
@@ -548,10 +549,23 @@ export default function Accounts() {
     });
   };
 
-  const [uniqueIndustries, setUniqueIndustries] = useState<string[]>([]);
-  const [uniqueSubIndustries, setUniqueSubIndustries] = useState<string[]>([]);
   const [uniqueCountries, setUniqueCountries] = useState<string[]>([]);
   const [uniqueStates, setUniqueStates] = useState<string[]>([]);
+
+  // Get sub-industries for selected primary industry
+  const availableSubIndustries = useMemo(() => {
+    if (industryFilter === "all") return [];
+    return SUB_INDUSTRIES_MAP[industryFilter] || [];
+  }, [industryFilter]);
+
+  // Reset sub-industry filter when primary industry changes
+  useEffect(() => {
+    if (industryFilter === "all") {
+      setSubIndustryFilter("all");
+    } else if (subIndustryFilter !== "all" && !availableSubIndustries.includes(subIndustryFilter)) {
+      setSubIndustryFilter("all");
+    }
+  }, [industryFilter, availableSubIndustries, subIndustryFilter]);
 
   useEffect(() => {
     const fetchFilterOptions = async () => {
@@ -559,16 +573,12 @@ export default function Accounts() {
       
       const { data } = await supabase
         .from('accounts')
-        .select('industry_norm, industry_raw, country, state_province')
+        .select('country, state_province')
         .eq('org_id', userProfile.org_id);
       
-      const industries = Array.from(new Set((data || []).map(a => a.industry_norm).filter(Boolean))).sort();
-      const subIndustries = Array.from(new Set((data || []).map(a => a.industry_raw).filter(Boolean))).sort();
       const countries = Array.from(new Set((data || []).map(a => a.country).filter(Boolean))).sort();
       const states = Array.from(new Set((data || []).map(a => a.state_province).filter(Boolean))).sort();
       
-      setUniqueIndustries(industries);
-      setUniqueSubIndustries(subIndustries);
       setUniqueCountries(countries);
       setUniqueStates(states);
     };
@@ -865,20 +875,24 @@ export default function Accounts() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Primary Industries</SelectItem>
-                  {uniqueIndustries.map(industry => (
-                    <SelectItem key={industry} value={industry || ''}>{industry}</SelectItem>
+                  {PRIMARY_INDUSTRIES.map(industry => (
+                    <SelectItem key={industry} value={industry}>{industry}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              <Select value={subIndustryFilter} onValueChange={setSubIndustryFilter}>
+              <Select 
+                value={subIndustryFilter} 
+                onValueChange={setSubIndustryFilter}
+                disabled={industryFilter === "all" || availableSubIndustries.length === 0}
+              >
                 <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Sub-Industry" />
+                  <SelectValue placeholder={industryFilter === "all" ? "Select Primary First" : "Sub-Industry"} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Sub-Industries</SelectItem>
-                  {uniqueSubIndustries.map(subIndustry => (
-                    <SelectItem key={subIndustry} value={subIndustry || ''}>{subIndustry}</SelectItem>
+                  {availableSubIndustries.map(subIndustry => (
+                    <SelectItem key={subIndustry} value={subIndustry}>{subIndustry}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
