@@ -119,55 +119,31 @@ export function CombinedScoringICPCard({
           {/* Center: ICP Fit Distribution */}
           <div className="lg:col-span-1">
             <h3 className="text-sm font-semibold text-muted-foreground mb-4">ICP Fit Distribution</h3>
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={fitDistribution}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis 
-                  dataKey="name" 
-                  stroke="hsl(var(--muted-foreground))" 
-                  fontSize={12}
-                  tickFormatter={(value) => value.split(' ')[0]}
-                />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <Tooltip 
-                  content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                      const data = payload[0].payload;
-                      return (
-                        <div className="bg-card border border-border rounded-lg p-3 shadow-lg">
-                          <p className="font-semibold text-sm">{data.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {data.value.toLocaleString()} accounts ({data.percentage}%)
-                          </p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-                <Bar 
-                  dataKey="value" 
-                  radius={[4, 4, 0, 0]}
-                  onClick={(data) => {
-                    const fitLevel = data.name === 'High Fit' ? 'high' : data.name === 'Medium Fit' ? 'medium' : 'low';
+            <div className="space-y-3">
+              {fitDistribution.map((item) => (
+                <div 
+                  key={item.name}
+                  onClick={() => {
+                    const fitLevel = item.name === 'High Fit' ? 'high' : item.name === 'Medium Fit' ? 'medium' : 'low';
                     navigate(`/accounts?fit=${fitLevel}`);
                   }}
-                  cursor="pointer"
+                  className="p-3 rounded-lg border-2 transition-all hover:shadow-md cursor-pointer bg-card"
+                  style={{ borderColor: item.color }}
                 >
-                  {fitDistribution.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-            <div className="grid grid-cols-3 gap-2 mt-3">
-              {fitDistribution.map((item) => (
-                <div key={item.name} className="text-center">
-                  <div className="text-lg font-bold" style={{ color: item.color }}>
-                    {item.value.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {item.percentage}%
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-muted-foreground">{item.name}</div>
+                      <div className="text-2xl font-bold mt-1" style={{ color: item.color }}>
+                        {item.value.toLocaleString()}
+                      </div>
+                    </div>
+                    <Badge 
+                      variant="outline" 
+                      className="text-lg font-bold px-3 py-1"
+                      style={{ borderColor: item.color, color: item.color }}
+                    >
+                      {item.percentage}%
+                    </Badge>
                   </div>
                 </div>
               ))}
