@@ -266,8 +266,8 @@ export default function ICPManager() {
                       <div className="flex justify-between items-start">
                         <div className="flex items-start gap-2">
                           <Target className="h-5 w-5 text-primary mt-0.5" />
-                          <div>
-                            <CardTitle className="text-lg">{icp.name}</CardTitle>
+                          <div className="mb-2">
+                            <CardTitle className="text-2xl font-bold">{icp.name}</CardTitle>
                             <div className="flex items-center gap-2 mt-1">
                               <Badge variant={getStatusBadgeColor(icp.status || 'draft')}>
                                 {icp.status || 'draft'}
@@ -308,7 +308,7 @@ export default function ICPManager() {
                         <div>
                           <div className="flex items-center gap-2 mb-2">
                             <Building className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm font-medium">Industries</span>
+                            <span className="text-xs font-medium text-muted-foreground">Industries</span>
                           </div>
                           <div className="flex flex-wrap gap-1">
                             {icp.industries.slice(0, 3).map((industry, index) => (
@@ -330,7 +330,7 @@ export default function ICPManager() {
                         <div>
                           <div className="flex items-center gap-2 mb-2">
                             <Users className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm font-medium">Company Sizes</span>
+                            <span className="text-xs font-medium text-muted-foreground">Company Sizes</span>
                           </div>
                           <div className="flex flex-wrap gap-1">
                             {icp.company_sizes.slice(0, 2).map((size, index) => (
@@ -352,7 +352,7 @@ export default function ICPManager() {
                         <div>
                           <div className="flex items-center gap-2 mb-2">
                             <MapPin className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm font-medium">Geographies</span>
+                            <span className="text-xs font-medium text-muted-foreground">Geographies</span>
                           </div>
                           <div className="flex flex-wrap gap-1">
                             {icp.geographies.slice(0, 2).map((geo, index) => (
@@ -374,7 +374,7 @@ export default function ICPManager() {
                         <div>
                           <div className="flex items-center gap-2 mb-2">
                             <Target className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-sm font-medium">Target Roles</span>
+                            <span className="text-xs font-medium text-muted-foreground">Target Roles</span>
                           </div>
                           <div className="flex flex-wrap gap-1">
                             {icp.persona_job_titles.slice(0, 2).map((title, index) => (
