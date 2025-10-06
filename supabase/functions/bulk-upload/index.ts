@@ -231,6 +231,25 @@ Deno.serve(async (req) => {
 
     console.log(`✅ Upload complete: ${insertedLeads} leads`)
 
+    // Auto-link leads to accounts immediately after upload
+    if (isExternalDatabase && insertedLeads > 0) {
+      console.log('🔗 Auto-linking leads to accounts...')
+      const { data: matchResult, error: matchError } = await supabaseClient.rpc(
+        'match_leads_to_accounts_fast',
+        { 
+          p_org_id: orgId,
+          p_is_external_db: true 
+        }
+      )
+
+      if (matchError) {
+        console.error('⚠️ Auto-linking failed:', matchError)
+        errors.push(`Auto-linking error: ${matchError.message}`)
+      } else {
+        console.log(`✅ Auto-linked: ${matchResult?.matched_to_existing || 0} to existing accounts, ${matchResult?.linked_after_creation || 0} to new accounts`)
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
