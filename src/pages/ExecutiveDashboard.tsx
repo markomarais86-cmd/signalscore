@@ -53,7 +53,6 @@ export default function ExecutiveDashboard() {
     sizeCompleteness: 0,
     revenueCompleteness: 0,
     geoCompleteness: 0,
-    contactsCompleteness: 0,
     campaignReadyAccounts: 0,
     campaignReadyLeads: 0,
     coverage: 0,
@@ -120,14 +119,6 @@ export default function ExecutiveDashboard() {
         .eq('status', 'active');
 
       if (icpError) throw icpError;
-
-      // Fetch contacts for reachability metrics
-      const { data: contacts, error: contactsError } = await supabase
-        .from('contacts')
-        .select('account_external_id')
-        .eq('org_id', userProfile.org_id);
-
-      if (contactsError) throw contactsError;
 
       // Fetch leads
       const { data: leads, error: leadsError, count: leadsCount } = await supabase
@@ -252,13 +243,10 @@ export default function ExecutiveDashboard() {
       const revenueComplete = accounts?.filter(a => a.revenue_range).length || 0;
       const geoComplete = accounts?.filter(a => a.country).length || 0;
       
-      const accountsWithContacts = new Set(contacts?.map(c => c.account_external_id) || []).size;
-      
       const industryCompleteness = Math.round((industryComplete / totalAccountsForCalc) * 100);
       const sizeCompleteness = Math.round((sizeComplete / totalAccountsForCalc) * 100);
       const revenueCompleteness = Math.round((revenueComplete / totalAccountsForCalc) * 100);
       const geoCompleteness = Math.round((geoComplete / totalAccountsForCalc) * 100);
-      const contactsCompleteness = Math.round((accountsWithContacts / totalAccountsForCalc) * 100);
       
       console.log('🔢 Total accounts:', totalAccounts, 'Total leads:', totalLeads);
       console.log('📋 Linked leads:', linkedLeads, 'Unlinked leads:', unlinkedLeads);
@@ -314,7 +302,6 @@ export default function ExecutiveDashboard() {
         sizeCompleteness,
         revenueCompleteness,
         geoCompleteness,
-        contactsCompleteness,
         coverage: totalAccounts > 0 ? Math.round((crmAccounts / totalAccounts) * 100) : 0,
         crmAccounts,
         databaseAccounts,
@@ -513,7 +500,6 @@ export default function ExecutiveDashboard() {
         sizeCompleteness={metrics.sizeCompleteness}
         revenueCompleteness={metrics.revenueCompleteness}
         geoCompleteness={metrics.geoCompleteness}
-        contactsCompleteness={metrics.contactsCompleteness}
           scoringTrend={trends.scoringProgress}
           completenessTrend={trends.completeness}
         />
@@ -526,7 +512,7 @@ export default function ExecutiveDashboard() {
             <Sparkles className="h-5 w-5 text-primary" />
             Campaign-Ready Assets
           </CardTitle>
-          <CardDescription>High-fit accounts with contacts</CardDescription>
+          <CardDescription>High-fit accounts with qualified leads</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

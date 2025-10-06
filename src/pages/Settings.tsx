@@ -52,7 +52,6 @@ import { RateLimitSettings } from "@/components/settings/RateLimitSettings";
 import { AutomationSettings } from "@/components/settings/AutomationSettings";
 import { ZapierWebhookManager } from "@/components/settings/ZapierWebhookManager";
 import { DuplicateAccountMerger } from "@/components/settings/DuplicateAccountMerger";
-import { ContactsBackfill } from "@/components/settings/ContactsBackfill";
 import { FirmographicEnrichmentCard } from "@/components/settings/FirmographicEnrichmentCard";
 import { EnrichmentQualityDashboard } from "@/components/settings/EnrichmentQualityDashboard";
 import { EnrichmentTester } from "@/components/settings/EnrichmentTester";
@@ -609,7 +608,6 @@ export default function Settings() {
 
         {/* Data Mapping */}
               <TabsContent value="data-mapping" className="space-y-6">
-                <ContactsBackfill />
                 <DuplicateAccountMerger />
                 <DataMapping />
               </TabsContent>

@@ -22,7 +22,6 @@ interface CombinedScoringICPCardProps {
   sizeCompleteness: number;
   revenueCompleteness: number;
   geoCompleteness: number;
-  contactsCompleteness: number;
   scoringTrend?: number;
   completenessTrend?: number;
 }
@@ -39,7 +38,6 @@ export function CombinedScoringICPCard({
   sizeCompleteness,
   revenueCompleteness,
   geoCompleteness,
-  contactsCompleteness,
   scoringTrend,
   completenessTrend
 }: CombinedScoringICPCardProps) {
@@ -248,8 +246,7 @@ export function CombinedScoringICPCard({
                     { label: 'Industry', value: industryCompleteness },
                     { label: 'Size', value: sizeCompleteness },
                     { label: 'Revenue', value: revenueCompleteness },
-                    { label: 'Geography', value: geoCompleteness },
-                    { label: 'Contacts', value: contactsCompleteness }
+                    { label: 'Geography', value: geoCompleteness }
                   ].map((field) => (
                     <div key={field.label} className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">{field.label}</span>
