@@ -5,6 +5,57 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Helper to map industry strings to ZoomInfo taxonomy
+const fuzzyMatchIndustry = (input: string): { primary: string; sub: string | null } | null => {
+  if (!input) return null;
+  
+  const normalized = input.toLowerCase().trim();
+  
+  // Simple mapping for common industries
+  const industryMap: Record<string, { primary: string; sub?: string }> = {
+    'technology': { primary: 'Software' },
+    'software': { primary: 'Software' },
+    'saas': { primary: 'Software', sub: 'Customer Relationship Management (CRM) Software' },
+    'healthcare': { primary: 'Healthcare Services' },
+    'medical': { primary: 'Hospitals & Physicians Clinics' },
+    'finance': { primary: 'Finance' },
+    'financial': { primary: 'Finance' },
+    'banking': { primary: 'Finance', sub: 'Banking' },
+    'retail': { primary: 'Retail' },
+    'ecommerce': { primary: 'Retail' },
+    'e-commerce': { primary: 'Retail' },
+    'manufacturing': { primary: 'Manufacturing' },
+    'education': { primary: 'Education' },
+    'construction': { primary: 'Construction' },
+    'real estate': { primary: 'Real Estate' },
+    'insurance': { primary: 'Insurance' },
+    'telecommunications': { primary: 'Telecommunications' },
+    'media': { primary: 'Media & Internet' },
+    'hospitality': { primary: 'Hospitality' },
+    'transportation': { primary: 'Transportation' },
+    'logistics': { primary: 'Transportation', sub: 'Freight & Logistics Services' },
+    'energy': { primary: 'Energy, Utilities & Waste' },
+    'government': { primary: 'Government' },
+  };
+  
+  // Try exact match first
+  if (industryMap[normalized]) {
+    return { 
+      primary: industryMap[normalized].primary, 
+      sub: industryMap[normalized].sub || null 
+    };
+  }
+  
+  // Try partial match
+  for (const [key, value] of Object.entries(industryMap)) {
+    if (normalized.includes(key) || key.includes(normalized)) {
+      return { primary: value.primary, sub: value.sub || null };
+    }
+  }
+  
+  return null;
+}
+
 interface UploadRequest {
   data: any[]
   mapping: Record<string, string>
@@ -184,12 +235,18 @@ Deno.serve(async (req) => {
         leadsData.forEach(lead => {
           const domain = normalizeDomain(lead.website) || extractDomainFromEmail(lead.email)
           if (domain && !accountsToCreate.has(domain)) {
+            // Map industry to structured format
+            const industryMatch = fuzzyMatchIndustry(lead.industry);
+            const subIndustries = industryMatch?.sub ? [industryMatch.sub] : null;
+            
             accountsToCreate.set(domain, {
               org_id: orgId,
               external_id: `ext_${domain}_${Date.now()}`,
               name: lead.company || domain,
               domain: domain,
-              industry_norm: lead.industry,
+              industry_raw: lead.industry,
+              industry_norm: industryMatch?.primary || lead.industry,
+              sub_industries: subIndustries,
               employee_count: lead.employee_count,
               revenue_range: lead.revenue_range,
               country: lead.country,

@@ -212,6 +212,12 @@ serve(async (req) => {
               if (originalAccount?.needs_revenue_range && enrichment.revenue_range) {
                 updateData.revenue_range = enrichment.revenue_range;
               }
+              
+              // If industry_norm exists but no sub_industries, try to infer sub-industries
+              if (originalAccount?.industry && !updateData.sub_industries) {
+                // This will be handled by future enrichment passes
+                // For now, keep industry_norm as the primary classification
+              }
 
               const { error: updateError } = await supabase
                 .from('accounts')

@@ -123,7 +123,8 @@ export default function CampaignBuilder() {
           data_source,
           external_database_match
         `)
-        .eq('org_id', userProfile.org_id);
+        .eq('org_id', userProfile.org_id)
+        .limit(100000); // Remove default 1000 limit
 
       // Apply ICP score filter
       if (filters.icpScore !== 'all') {

@@ -10,6 +10,7 @@ interface Account {
   id: string;
   industry_norm: string | null;
   industry_raw: string | null;
+  sub_industries: string[] | null;
   employee_count: number | null;
   revenue_range: string | null;
   country: string | null;
@@ -70,7 +71,7 @@ serve(async (req) => {
     // Fetch all accounts for this org (remove default 1000 limit)
     const { data: accounts, error: accountsError } = await supabase
       .from('accounts')
-      .select('id, industry_norm, industry_raw, employee_count, revenue_range, country')
+      .select('id, industry_norm, industry_raw, sub_industries, employee_count, revenue_range, country')
       .eq('org_id', org_id)
       .limit(100000);
 
@@ -97,7 +98,16 @@ serve(async (req) => {
       if (account.industry_norm) {
         industryMap.set(account.industry_norm, (industryMap.get(account.industry_norm) || 0) + 1);
       }
-      if (account.industry_raw && account.industry_raw !== account.industry_norm) {
+      // Process sub_industries array if it exists
+      if (account.sub_industries && Array.isArray(account.sub_industries)) {
+        account.sub_industries.forEach((subInd: string) => {
+          if (subInd) {
+            subIndustryMap.set(subInd, (subIndustryMap.get(subInd) || 0) + 1);
+          }
+        });
+      }
+      // Fallback: Use industry_raw if different from industry_norm
+      if (account.industry_raw && account.industry_raw !== account.industry_norm && (!account.sub_industries || account.sub_industries.length === 0)) {
         subIndustryMap.set(account.industry_raw, (subIndustryMap.get(account.industry_raw) || 0) + 1);
       }
     });
