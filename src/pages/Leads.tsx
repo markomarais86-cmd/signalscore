@@ -26,6 +26,7 @@ interface Lead {
   phone: string | null;
   mobile: string | null;
   title: string | null;
+  persona: string | null;
   company: string | null;
   website: string | null;
   industry: string | null;
@@ -66,6 +67,7 @@ export default function Leads() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [linkFilter, setLinkFilter] = useState("all");
+  const [personaFilter, setPersonaFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [showMatcher, setShowMatcher] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
@@ -94,7 +96,7 @@ export default function Leads() {
 
   useEffect(() => {
     filterLeads();
-  }, [leads, searchTerm, statusFilter, linkFilter]);
+  }, [leads, searchTerm, statusFilter, linkFilter, personaFilter]);
 
   const loadLeads = async () => {
     if (!userProfile?.org_id) return;
@@ -113,6 +115,7 @@ export default function Leads() {
           phone: null,
           mobile: null,
           title: account.contacts[0]?.title_raw || null,
+          persona: null,
           company: account.name,
           website: account.domain,
           industry: account.industry_norm,
@@ -191,6 +194,7 @@ export default function Leads() {
           phone: lead.phone,
           mobile: lead.mobile,
           title: lead.title,
+          persona: lead.persona,
           company: lead.company,
           website: lead.website,
           industry: lead.industry,
@@ -256,6 +260,7 @@ export default function Leads() {
           phone: lead.phone,
           mobile: lead.mobile,
           title: lead.title,
+          persona: lead.persona,
           company: lead.company || linkedAccount?.name,
           website: lead.website || linkedAccount?.domain,
           industry: lead.industry || linkedAccount?.industry_norm,
@@ -370,6 +375,10 @@ export default function Leads() {
       filtered = filtered.filter(lead => lead.account_external_id);
     } else if (linkFilter === 'unlinked') {
       filtered = filtered.filter(lead => !lead.account_external_id);
+    }
+
+    if (personaFilter !== 'all') {
+      filtered = filtered.filter(lead => lead.persona === personaFilter);
     }
 
     setFilteredLeads(filtered);
@@ -666,6 +675,21 @@ export default function Leads() {
                 <SelectItem value="unlinked">Unlinked</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={personaFilter} onValueChange={setPersonaFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Filter by persona" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Personas</SelectItem>
+                <SelectItem value="Technical Decision Maker">Technical Decision Maker</SelectItem>
+                <SelectItem value="Business Decision Maker">Business Decision Maker</SelectItem>
+                <SelectItem value="IT Decision Maker">IT Decision Maker</SelectItem>
+                <SelectItem value="Technical Influencer">Technical Influencer</SelectItem>
+                <SelectItem value="Business Influencer">Business Influencer</SelectItem>
+                <SelectItem value="End User">End User</SelectItem>
+                <SelectItem value="Unknown">Unknown</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -685,6 +709,7 @@ export default function Leads() {
                 <TableHead>Lead Name</TableHead>
                 <TableHead>Company</TableHead>
                 <TableHead>Title</TableHead>
+                <TableHead>Persona</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead>Status</TableHead>
@@ -720,6 +745,19 @@ export default function Leads() {
                           </div>
                         </TableCell>
                         <TableCell>{lead.title || '-'}</TableCell>
+                        <TableCell>
+                          {lead.persona && lead.persona !== 'Unknown' ? (
+                            <Badge variant={
+                              lead.persona.includes('Decision Maker') ? 'default' :
+                              lead.persona.includes('Influencer') ? 'secondary' :
+                              'outline'
+                            }>
+                              {lead.persona}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
                         <TableCell>{lead.email || '-'}</TableCell>
                         <TableCell>
                           <div>
@@ -792,6 +830,22 @@ export default function Leads() {
                           <div>
                             <Label className="text-sm font-medium">Title</Label>
                             <p className="text-sm">{lead.title || '-'}</p>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-medium">Persona</Label>
+                            <div>
+                              {lead.persona && lead.persona !== 'Unknown' ? (
+                                <Badge variant={
+                                  lead.persona.includes('Decision Maker') ? 'default' :
+                                  lead.persona.includes('Influencer') ? 'secondary' :
+                                  'outline'
+                                }>
+                                  {lead.persona}
+                                </Badge>
+                              ) : (
+                                <span className="text-sm text-muted-foreground">-</span>
+                              )}
+                            </div>
                           </div>
                           <div>
                             <Label className="text-sm font-medium">Status</Label>

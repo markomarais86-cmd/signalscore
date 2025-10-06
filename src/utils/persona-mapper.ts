@@ -158,3 +158,39 @@ export function isCampaignReady(contact: any): boolean {
 export function enrichContactsBatch(contacts: any[]): any[] {
   return contacts.map(enrichContactWithPersona);
 }
+
+/**
+ * Enriches a lead with persona information
+ * @param lead - Lead object with title
+ * @returns Lead with persona field populated
+ */
+export function enrichLeadWithPersona(lead: any): any {
+  return {
+    ...lead,
+    persona: mapTitleToPersona(lead.title)
+  };
+}
+
+/**
+ * Batch enriches multiple leads with persona mapping
+ * @param leads - Array of lead objects
+ * @returns Array of enriched leads
+ */
+export function enrichLeadsBatch(leads: any[]): any[] {
+  return leads.map(enrichLeadWithPersona);
+}
+
+/**
+ * Determines if a lead is "campaign-ready" (has all required fields)
+ * @param lead - Lead object
+ * @returns Boolean indicating if lead is campaign-ready
+ */
+export function isLeadCampaignReady(lead: any): boolean {
+  return !!(
+    lead.email &&
+    lead.email.includes('@') &&
+    lead.title &&
+    lead.persona &&
+    lead.persona !== 'Unknown'
+  );
+}

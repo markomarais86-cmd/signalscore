@@ -922,6 +922,7 @@ export type Database = {
           mobile: string | null
           name: string | null
           org_id: string | null
+          persona: string | null
           phone: string | null
           revenue_range: string | null
           state_province: string | null
@@ -946,6 +947,7 @@ export type Database = {
           mobile?: string | null
           name?: string | null
           org_id?: string | null
+          persona?: string | null
           phone?: string | null
           revenue_range?: string | null
           state_province?: string | null
@@ -970,6 +972,7 @@ export type Database = {
           mobile?: string | null
           name?: string | null
           org_id?: string | null
+          persona?: string | null
           phone?: string | null
           revenue_range?: string | null
           state_province?: string | null
