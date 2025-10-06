@@ -67,11 +67,12 @@ serve(async (req) => {
 
     const org_id = profile.org_id;
 
-    // Fetch all accounts for this org
+    // Fetch all accounts for this org (remove default 1000 limit)
     const { data: accounts, error: accountsError } = await supabase
       .from('accounts')
       .select('id, industry_norm, industry_raw, employee_count, revenue_range, country')
-      .eq('org_id', org_id);
+      .eq('org_id', org_id)
+      .limit(100000);
 
     if (accountsError) {
       throw accountsError;
