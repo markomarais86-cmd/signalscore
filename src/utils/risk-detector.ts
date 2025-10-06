@@ -149,6 +149,52 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
       });
     }
 
+    // Risk 5: Non-standardized industries (ZoomInfo taxonomy)
+    if (accounts) {
+      const nonStandardCount = accounts.filter(a => !a.industry_norm).length;
+      if (nonStandardCount > 200) {
+        risks.push({
+          id: 'non-standard-industries',
+          severity: 'medium',
+          title: 'Industries Not Standardized',
+          description: `${nonStandardCount.toLocaleString()} accounts using non-standard industry classification`,
+          count: nonStandardCount,
+          impact: 'Reduced filtering accuracy and ICP match quality',
+          filter: { noStandardIndustry: true },
+          fix: {
+            label: 'Standardize Industries',
+            action: 'navigate',
+            target: '/settings?tab=data-quality'
+          }
+        });
+      }
+    }
+
+    // Risk 6: Stale account data (no enrichment in 90+ days)
+    const { data: staleAccounts } = await supabase
+      .from('accounts')
+      .select('external_id')
+      .eq('org_id', orgId)
+      .or('enriched_at.is.null,enriched_at.lt.' + new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
+      .limit(10000);
+
+    if (staleAccounts && staleAccounts.length > 300) {
+      risks.push({
+        id: 'stale-data',
+        severity: 'low',
+        title: 'Stale Account Data',
+        description: `${staleAccounts.length.toLocaleString()} accounts not enriched in 90+ days`,
+        count: staleAccounts.length,
+        impact: 'Data may be outdated, affecting targeting accuracy',
+        filter: { stale: true },
+        fix: {
+          label: 'Re-enrich Accounts',
+          action: 'enrich',
+          fields: ['all']
+        }
+      });
+    }
+
     // Sort by severity
     const severityOrder: Record<RiskSeverity, number> = { critical: 0, high: 1, medium: 2, low: 3 };
     risks.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);

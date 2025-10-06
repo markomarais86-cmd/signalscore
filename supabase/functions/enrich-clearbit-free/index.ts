@@ -104,9 +104,23 @@ serve(async (req) => {
               enriched_from: 'clearbit_free',
             };
 
-            // Map Clearbit data to our schema
+            // Map Clearbit data to our schema using ZoomInfo taxonomy
             if (!account.employee_count && data.metrics?.employees) {
               updates.employee_count = data.metrics.employees;
+            }
+
+            // Map industry to ZoomInfo taxonomy
+            if (!account.industry_norm && data.category?.industry) {
+              const { data: mappingData, error: mappingError } = await supabase.functions.invoke('map-industry-to-zoominfo', {
+                body: { rawIndustry: data.category.industry, useAI: false }
+              });
+
+              if (!mappingError && mappingData?.primary_industry) {
+                updates.industry_norm = mappingData.primary_industry;
+                if (mappingData.sub_industry) {
+                  updates.industry_raw = mappingData.sub_industry;
+                }
+              }
             }
 
             if (!account.revenue_range && data.metrics?.estimatedAnnualRevenue) {
@@ -122,10 +136,6 @@ serve(async (req) => {
                 else if (revenueMillions < 500) updates.revenue_range = '$100M-$500M';
                 else updates.revenue_range = '$500M+';
               }
-            }
-
-            if (!account.industry_norm && data.category?.industry) {
-              updates.industry_norm = data.category.industry;
             }
 
             if (!account.country && data.geo?.country) {

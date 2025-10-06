@@ -57,6 +57,7 @@ import { EnrichmentQualityDashboard } from "@/components/settings/EnrichmentQual
 import { EnrichmentTester } from "@/components/settings/EnrichmentTester";
 import { EnrichmentJobMonitor } from "@/components/settings/EnrichmentJobMonitor";
 import { EnrichmentAttributionReport } from "@/components/settings/EnrichmentAttributionReport";
+import { DataQualityDashboard } from "@/components/settings/DataQualityDashboard";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TeamMember {
@@ -592,6 +593,11 @@ export default function Settings() {
           <RateLimitSettings />
           <IntegrationManager />
           <APIKeyManager />
+        </TabsContent>
+
+        {/* Data Quality Dashboard */}
+        <TabsContent value="data-quality" className="space-y-6">
+          <DataQualityDashboard />
         </TabsContent>
 
         {/* Zapier Integration */}

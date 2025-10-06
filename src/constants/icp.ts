@@ -1,110 +1,11 @@
 // Enhanced ICP Constants
+// Using ZoomInfo Industry Taxonomy as primary source
 
-export const INDUSTRIES = [
-  "Technology", "Healthcare", "Financial Services", "Manufacturing", "Retail",
-  "Education", "Government", "Real Estate", "Energy", "Transportation",
-  "Media & Entertainment", "Telecommunications", "Construction", "Agriculture",
-  "Professional Services", "Non-Profit", "Hospitality", "Automotive"
-];
+import { PRIMARY_INDUSTRIES, SUB_INDUSTRIES_MAP } from './zoominfo-industries';
 
-export const SUB_INDUSTRIES = {
-  "Technology": [
-    "SaaS", "Enterprise Software", "Cybersecurity", "Cloud Computing", 
-    "AI/Machine Learning", "DevOps Tools", "Data Analytics", "Mobile Apps",
-    "E-commerce Platforms", "Fintech", "EdTech", "PropTech", "MarTech"
-  ],
-  "Healthcare": [
-    "Hospitals", "Health Systems", "Medical Devices", "Pharmaceuticals",
-    "Digital Health", "Telemedicine", "Health Insurance", "Medical Software",
-    "Clinical Research", "Biotechnology", "Mental Health", "Wellness"
-  ],
-  "Financial Services": [
-    "Banking", "Investment Management", "Insurance", "Payment Processing",
-    "Cryptocurrency", "RegTech", "Wealth Management", "Credit Services",
-    "Trading Platforms", "Robo-Advisors", "Peer-to-Peer Lending"
-  ],
-  "Manufacturing": [
-    "Automotive", "Aerospace", "Electronics", "Industrial Equipment",
-    "Consumer Goods", "Food & Beverage", "Chemicals", "Textiles",
-    "Machinery", "Medical Equipment", "Defense"
-  ],
-  "Retail": [
-    "E-commerce", "Fashion & Apparel", "Grocery", "Home & Garden",
-    "Electronics Retail", "Luxury Goods", "Department Stores",
-    "Specialty Retail", "Direct-to-Consumer", "Marketplace"
-  ],
-  "Education": [
-    "K-12 Schools", "Higher Education", "Online Learning", "Corporate Training",
-    "EdTech Platforms", "Test Prep", "Language Learning", "Skills Training",
-    "Learning Management Systems", "Education Content", "Student Services"
-  ],
-  "Government": [
-    "Federal Government", "State Government", "Local Government", "Defense",
-    "Public Safety", "Transportation", "Healthcare", "Education",
-    "IT Services", "Consulting", "Infrastructure", "Public Works"
-  ],
-  "Real Estate": [
-    "Commercial Real Estate", "Residential", "Property Management", "REITs",
-    "PropTech", "Construction", "Development", "Brokerage",
-    "Facilities Management", "Smart Buildings", "Co-working Spaces"
-  ],
-  "Energy": [
-    "Oil & Gas", "Renewable Energy", "Solar Power", "Wind Energy",
-    "Electric Utilities", "Energy Storage", "Smart Grid", "Energy Trading",
-    "Nuclear Power", "Hydroelectric", "Energy Efficiency", "Carbon Management"
-  ],
-  "Transportation": [
-    "Airlines", "Rail", "Trucking", "Shipping", "Logistics",
-    "Freight Forwarding", "Last-Mile Delivery", "Fleet Management",
-    "Ride Sharing", "Public Transit", "Supply Chain", "Warehousing"
-  ],
-  "Media & Entertainment": [
-    "Streaming Services", "Broadcasting", "Publishing", "Gaming",
-    "Music", "Film & TV Production", "Social Media", "Content Creation",
-    "Advertising", "Digital Media", "Sports", "Events"
-  ],
-  "Telecommunications": [
-    "Wireless Carriers", "Fiber Optics", "VoIP", "Network Equipment",
-    "5G Infrastructure", "Internet Service Providers", "Satellite Communications",
-    "Unified Communications", "Cloud Communications", "IoT Connectivity"
-  ],
-  "Construction": [
-    "General Contractors", "Specialty Contractors", "Heavy Civil",
-    "Residential Construction", "Commercial Construction", "Infrastructure",
-    "Engineering Services", "Construction Technology", "Building Materials",
-    "Project Management", "Sustainable Building"
-  ],
-  "Agriculture": [
-    "Crop Production", "Livestock", "AgTech", "Farm Equipment",
-    "Precision Agriculture", "Vertical Farming", "Food Processing",
-    "Agricultural Inputs", "Irrigation Systems", "Farm Management Software",
-    "Supply Chain", "Sustainability"
-  ],
-  "Professional Services": [
-    "Consulting", "Legal Services", "Accounting", "Marketing Agencies",
-    "PR Firms", "Executive Search", "Management Consulting",
-    "IT Consulting", "Strategy Consulting", "Business Services",
-    "Human Resources", "Training & Development"
-  ],
-  "Non-Profit": [
-    "Charitable Organizations", "Foundations", "Advocacy Groups",
-    "Social Services", "Environmental Organizations", "Educational Foundations",
-    "Healthcare Charities", "Religious Organizations", "Arts & Culture",
-    "International Development", "Community Services"
-  ],
-  "Hospitality": [
-    "Hotels", "Restaurants", "Travel & Tourism", "Event Management",
-    "Catering", "Resort Management", "Vacation Rentals", "Food Service",
-    "Hospitality Technology", "Property Management Systems",
-    "Booking Platforms", "Guest Services"
-  ],
-  "Automotive": [
-    "Auto Manufacturing", "Auto Parts", "Dealerships", "Car Rental",
-    "Fleet Management", "Auto Finance", "Electric Vehicles",
-    "Autonomous Vehicles", "Connected Cars", "Aftermarket Services",
-    "Auto Technology", "Ride Sharing"
-  ]
-};
+// Export ZoomInfo industries as primary taxonomy
+export const INDUSTRIES = PRIMARY_INDUSTRIES;
+export const SUB_INDUSTRIES = SUB_INDUSTRIES_MAP;
 
 export const COMPANY_SIZES = [1, 10, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
 
