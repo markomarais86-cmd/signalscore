@@ -19,6 +19,7 @@ import { DataSourceBreakdownCard } from "@/components/executive/DataSourceBreakd
 import { TrendIndicator } from "@/components/executive/TrendIndicator";
 import { calculateTrends, TrendData } from "@/utils/trend-calculator";
 import { detectRisks } from "@/utils/risk-detector";
+import { normalizeCountryData } from "@/utils/country-normalizer";
 import type { RiskItem } from "@/utils/risk-detector";
 import { CombinedScoringICPCard } from "@/components/executive/CombinedScoringICPCard";
 import { GeographyChartCard } from "@/components/executive/GeographyChartCard";
@@ -68,6 +69,7 @@ export default function ExecutiveDashboard() {
   
   const [fitDistribution, setFitDistribution] = useState<any[]>([]);
   const [geoData, setGeoData] = useState<any[]>([]);
+  const [invalidGeoCount, setInvalidGeoCount] = useState(0);
   const [trends, setTrends] = useState<TrendData>({
     scoringProgress: 0,
     completeness: 0,
@@ -389,19 +391,10 @@ export default function ExecutiveDashboard() {
         },
       ]);
 
-      // Geographic distribution
-      const geoCounts = accounts?.reduce((acc, a) => {
-        const country = a.country || 'Unknown';
-        acc[country] = (acc[country] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-
-      setGeoData(
-        Object.entries(geoCounts || {})
-          .map(([country, count]) => ({ country, count: count as number }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 10)
-      );
+      // Geographic distribution with data cleaning
+      const { validData, invalidCount } = normalizeCountryData(accounts || []);
+      setGeoData(validData);
+      setInvalidGeoCount(invalidCount);
 
       completeStep('explore_dashboard');
 
@@ -541,7 +534,7 @@ export default function ExecutiveDashboard() {
       </Card>
 
       {/* Row 3: Geographic Distribution Chart */}
-      <GeographyChartCard geoData={geoData} />
+      <GeographyChartCard geoData={geoData} invalidCount={invalidGeoCount} />
 
       {/* Row 4: AI Recommendations (Tiles) + Risks & Actions */}
       <div className={`grid ${gridClass}`}>
