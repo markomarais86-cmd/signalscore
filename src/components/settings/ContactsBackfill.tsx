@@ -20,7 +20,12 @@ export function ContactsBackfill() {
   const { toast } = useToast();
 
   const runBackfill = async () => {
+    console.log('🎯 runBackfill called');
+    console.log('📋 userProfile:', userProfile);
+    console.log('🏢 org_id:', userProfile?.org_id);
+    
     if (!userProfile?.org_id) {
+      console.error('❌ No org_id found in userProfile');
       toast({
         title: "Error",
         description: "Organization not found",
@@ -33,16 +38,26 @@ export function ContactsBackfill() {
     setResult(null);
 
     try {
+      const requestBody = {
+        orgId: userProfile.org_id,
+        batchSize: 1000
+      };
+      
       console.log('🔄 Starting contacts backfill...');
+      console.log('📤 Request body:', requestBody);
+      console.log('🔐 Supabase client initialized:', !!supabase);
       
       const { data, error } = await supabase.functions.invoke('backfill-contacts', {
-        body: {
-          orgId: userProfile.org_id,
-          batchSize: 1000
-        }
+        body: requestBody
       });
 
+      console.log('📥 Function response:', { data, error });
+      console.log('📊 Response data type:', typeof data);
+      console.log('📊 Error type:', typeof error);
+
       if (error) {
+        console.error('❌ Function returned error:', error);
+        console.error('❌ Error details:', JSON.stringify(error, null, 2));
         throw error;
       }
 
@@ -54,14 +69,22 @@ export function ContactsBackfill() {
         description: `Created ${data.created} new contacts from linked leads`,
       });
 
-    } catch (error) {
-      console.error('❌ Backfill error:', error);
+    } catch (error: any) {
+      console.error('❌ Backfill error caught:', error);
+      console.error('❌ Error type:', error?.constructor?.name);
+      console.error('❌ Error message:', error?.message);
+      console.error('❌ Error stack:', error?.stack);
+      console.error('❌ Full error object:', JSON.stringify(error, null, 2));
+      
+      const errorMessage = error?.message || error?.msg || error?.error_description || "Failed to run backfill";
+      
       toast({
         title: "Error",
-        description: error.message || "Failed to run backfill",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
+      console.log('🏁 Backfill process finished');
       setIsRunning(false);
     }
   };
