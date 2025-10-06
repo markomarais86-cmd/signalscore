@@ -51,6 +51,9 @@ verify_jwt = true
 [functions.enrich-contacts-persona]
 verify_jwt = true
 
+[functions.enrich-contacts-bulk]
+verify_jwt = true
+
 [functions.enrich-clearbit-free]
 verify_jwt = true
 

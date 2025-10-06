@@ -1485,6 +1485,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      map_title_to_persona: {
+        Args: { title_input: string }
+        Returns: string
+      }
       match_leads_fuzzy: {
         Args: {
           p_base_domain: string

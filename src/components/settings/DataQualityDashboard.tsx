@@ -6,7 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { CheckCircle2, AlertCircle, TrendingUp, Database, Sparkles } from 'lucide-react';
+import { CheckCircle2, AlertCircle, TrendingUp, Database, Sparkles, Users, Loader2 } from 'lucide-react';
 
 interface DataQualityMetrics {
   totalAccounts: number;
@@ -24,6 +24,8 @@ export function DataQualityDashboard() {
   const [metrics, setMetrics] = useState<DataQualityMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isStandardizing, setIsStandardizing] = useState(false);
+  const [isEnrichingPersonas, setIsEnrichingPersonas] = useState(false);
+  const [isEnrichingContacts, setIsEnrichingContacts] = useState(false);
 
   useEffect(() => {
     loadMetrics();
@@ -79,20 +81,90 @@ export function DataQualityDashboard() {
 
     setIsStandardizing(true);
     try {
-      // Call edge function to standardize all industries
-      const { data, error } = await supabase.functions.invoke('map-industry-to-zoominfo', {
-        body: { orgId: userProfile.org_id, batchMode: true }
-      });
+      const { data: accounts } = await supabase
+        .from('accounts')
+        .select('external_id, industry_raw')
+        .eq('org_id', userProfile.org_id)
+        .not('industry_raw', 'is', null)
+        .is('industry_norm', null);
 
-      if (error) throw error;
+      if (!accounts || accounts.length === 0) {
+        toast.success('All industries are already standardized!');
+        return;
+      }
 
-      toast.success(`Standardization job started: ${data.accountsQueued} accounts queued`);
+      let standardized = 0;
+      for (const account of accounts) {
+        const { data, error } = await supabase.functions.invoke('map-industry-to-zoominfo', {
+          body: { industry: account.industry_raw }
+        });
+
+        if (!error && data?.primary_industry) {
+          await supabase
+            .from('accounts')
+            .update({ 
+              industry_norm: data.primary_industry,
+              sub_industry: data.sub_industry 
+            })
+            .eq('external_id', account.external_id);
+          
+          standardized++;
+        }
+      }
+
+      toast.success(`Standardized ${standardized} industries using ZoomInfo taxonomy`);
       await loadMetrics();
     } catch (error: any) {
       console.error('Error standardizing industries:', error);
       toast.error(error.message || 'Failed to start standardization');
     } finally {
       setIsStandardizing(false);
+    }
+  };
+
+  const handleEnrichPersonas = async () => {
+    if (!userProfile?.org_id) return;
+
+    setIsEnrichingPersonas(true);
+    try {
+      toast.loading('Mapping personas for all contacts...', { id: 'persona-enrichment' });
+
+      const { data, error } = await supabase.functions.invoke('enrich-contacts-persona', {
+        body: { orgId: userProfile.org_id, batchSize: 1000 }
+      });
+
+      if (error) throw error;
+
+      toast.success(`Enriched ${data.enriched} contacts with persona data`, { id: 'persona-enrichment' });
+      await loadMetrics();
+    } catch (error: any) {
+      console.error('Error enriching personas:', error);
+      toast.error(error.message || 'Failed to enrich personas', { id: 'persona-enrichment' });
+    } finally {
+      setIsEnrichingPersonas(false);
+    }
+  };
+
+  const handleEnrichContacts = async () => {
+    if (!userProfile?.org_id) return;
+
+    setIsEnrichingContacts(true);
+    try {
+      toast.loading('Finding contacts for high-fit accounts...', { id: 'contact-enrichment' });
+
+      const { data, error } = await supabase.functions.invoke('enrich-contacts-bulk', {
+        body: { orgId: userProfile.org_id, batchSize: 100 }
+      });
+
+      if (error) throw error;
+
+      toast.success(`Created ${data.enriched} contacts for ${data.total} accounts`, { id: 'contact-enrichment' });
+      await loadMetrics();
+    } catch (error: any) {
+      console.error('Error enriching contacts:', error);
+      toast.error(error.message || 'Failed to enrich contacts', { id: 'contact-enrichment' });
+    } finally {
+      setIsEnrichingContacts(false);
     }
   };
 
@@ -192,15 +264,65 @@ export function DataQualityDashboard() {
             <Progress value={standardizationPercent} className="h-2" />
           </div>
 
-          {standardizationPercent < 100 && (
+          <div className="space-y-2">
+            {standardizationPercent < 100 && (
+              <Button 
+                onClick={handleStandardizeAll} 
+                disabled={isStandardizing}
+                className="w-full"
+              >
+                {isStandardizing ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Standardizing...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Standardize All Industries
+                  </>
+                )}
+              </Button>
+            )}
+
             <Button 
-              onClick={handleStandardizeAll} 
-              disabled={isStandardizing}
+              onClick={handleEnrichPersonas} 
+              disabled={isEnrichingPersonas}
               className="w-full"
+              variant="outline"
             >
-              {isStandardizing ? 'Standardizing...' : 'Standardize All Industries'}
+              {isEnrichingPersonas ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Mapping Personas...
+                </>
+              ) : (
+                <>
+                  <Users className="mr-2 h-4 w-4" />
+                  Map All Contact Personas
+                </>
+              )}
             </Button>
-          )}
+
+            <Button 
+              onClick={handleEnrichContacts} 
+              disabled={isEnrichingContacts}
+              className="w-full"
+              variant="secondary"
+            >
+              {isEnrichingContacts ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Enriching...
+                </>
+              ) : (
+                <>
+                  <Users className="mr-2 h-4 w-4" />
+                  Find Contacts for High-Fit Accounts
+                </>
+              )}
+            </Button>
+          </div>
 
           <div className="p-3 bg-muted/50 rounded-lg text-sm">
             <div className="font-medium mb-1">What does this do?</div>

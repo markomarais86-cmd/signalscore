@@ -10,35 +10,21 @@ interface EnrichRequest {
   batchSize?: number
 }
 
-// Persona mapping function
-function mapTitleToPersona(title: string | null): string {
+// Use database function for persona mapping
+async function mapTitleToPersona(supabaseClient: any, title: string | null): Promise<string> {
   if (!title) return 'Unknown';
-  const t = title.toLowerCase().trim();
   
-  // C-Level Technical
-  if (/(cto|chief technology|chief technical|vp engineering|cio|chief information|chief digital)/i.test(t)) return 'Technical Decision Maker';
-  // C-Level Business
-  if (/(ceo|chief executive|president|founder|owner|cfo|chief financial|coo|chief operating|cmo|chief marketing)/i.test(t)) return 'Business Decision Maker';
-  // VP/Director Technical
-  if (/(director of engineering|director of technology|head of engineering|head of technology|engineering manager|director of software|head of software|director of it|head of it|it director)/i.test(t)) return 'Technical Decision Maker';
-  // VP/Director IT
-  if (/(director of information|it manager|systems manager|infrastructure manager|operations manager|director of operations|head of operations)/i.test(t)) return 'IT Decision Maker';
-  // VP/Director Business
-  if (/(vp|vice president|director of product|head of product|product director|director of strategy|head of strategy|director of sales|head of sales)/i.test(t)) return 'Business Decision Maker';
-  // Senior Technical
-  if (/(senior engineer|lead engineer|principal engineer|staff engineer|senior developer|lead developer|architect|solutions architect)/i.test(t)) return 'Technical Influencer';
-  // Senior Business
-  if (/(senior product|lead product|principal product|senior program|senior project|senior analyst|lead analyst)/i.test(t)) return 'Business Influencer';
-  // Mid-Level Technical
-  if (/(engineer|developer|programmer|devops|sre|site reliability|security engineer|qa engineer)/i.test(t)) return 'Technical Influencer';
-  // Mid-Level Business
-  if (/(product manager|program manager|project manager|business analyst|product owner|scrum master)/i.test(t)) return 'Business Influencer';
-  // IT Staff
-  if (/(it specialist|it support|help desk|desktop support|system administrator|sysadmin|network administrator|database administrator|dba)/i.test(t)) return 'IT Decision Maker';
-  // End Users
-  if (/(coordinator|assistant|associate|specialist|intern|trainee|junior)/i.test(t)) return 'End User';
-  
-  return 'Unknown';
+  try {
+    const { data, error } = await supabaseClient.rpc('map_title_to_persona', { title_input: title });
+    if (error) {
+      console.error('Error calling map_title_to_persona:', error);
+      return 'Unknown';
+    }
+    return data || 'Unknown';
+  } catch (error) {
+    console.error('Exception in mapTitleToPersona:', error);
+    return 'Unknown';
+  }
 }
 
 Deno.serve(async (req) => {
@@ -88,11 +74,13 @@ Deno.serve(async (req) => {
 
     console.log(`Found ${contacts.length} contacts to enrich`)
 
-    // Enrich personas in batch
-    const enrichedContacts = contacts.map(contact => ({
-      id: contact.id,
-      persona: mapTitleToPersona(contact.title_raw)
-    }))
+    // Enrich personas in batch using database function
+    const enrichedContacts = await Promise.all(
+      contacts.map(async (contact) => ({
+        id: contact.id,
+        persona: await mapTitleToPersona(supabaseClient, contact.title_raw)
+      }))
+    )
 
     // Update contacts with persona
     let enrichedCount = 0
