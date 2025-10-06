@@ -65,3 +65,6 @@ verify_jwt = true
 
 [functions.map-industry-to-zoominfo]
 verify_jwt = true
+
+[functions.backfill-contacts]
+verify_jwt = true
