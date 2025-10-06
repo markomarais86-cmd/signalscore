@@ -247,6 +247,61 @@ Deno.serve(async (req) => {
         errors.push(`Auto-linking error: ${matchError.message}`)
       } else {
         console.log(`✅ Auto-linked: ${matchResult?.matched_to_existing || 0} to existing accounts, ${matchResult?.linked_after_creation || 0} to new accounts`)
+        
+        // Auto-create contacts from linked leads
+        console.log('👤 Creating contacts from linked leads...')
+        const { data: linkedLeads, error: leadsError } = await supabaseClient
+          .from('Leads')
+          .select('account_external_id, first_name, last_name, email, title, phone, mobile, country, state_province')
+          .eq('org_id', orgId)
+          .not('account_external_id', 'is', null)
+          .not('email', 'is', null)
+        
+        if (leadsError) {
+          console.error('⚠️ Failed to fetch linked leads:', leadsError)
+          errors.push(`Contact creation error: ${leadsError.message}`)
+        } else if (linkedLeads && linkedLeads.length > 0) {
+          // Deduplicate contacts by email + account
+          const contactsMap = new Map<string, any>()
+          linkedLeads.forEach(lead => {
+            if (!lead.email || !lead.account_external_id) return
+            
+            const contactKey = `${lead.account_external_id}_${lead.email.toLowerCase()}`
+            if (!contactsMap.has(contactKey)) {
+              contactsMap.set(contactKey, {
+                org_id: orgId,
+                external_id: `contact_${lead.email}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                account_external_id: lead.account_external_id,
+                first_name: lead.first_name || null,
+                last_name: lead.last_name || null,
+                email: lead.email,
+                title_raw: lead.title || null,
+                persona: mapTitleToPersona(lead.title),
+                phone: lead.phone || null,
+                mobile: lead.mobile || null,
+                country: lead.country || null,
+                state_province: lead.state_province || null,
+                data_source: 'database',
+                enriched_from: 'lead_upload'
+              })
+            }
+          })
+          
+          const contactsData = Array.from(contactsMap.values())
+          console.log(`Creating ${contactsData.length} unique contacts`)
+          
+          const { data: insertedContacts, error: contactsError } = await supabaseClient
+            .from('contacts')
+            .upsert(contactsData, { onConflict: 'org_id,external_id', ignoreDuplicates: true })
+            .select('id')
+          
+          if (contactsError) {
+            console.error('⚠️ Contact creation failed:', contactsError)
+            errors.push(`Contact creation error: ${contactsError.message}`)
+          } else {
+            console.log(`✅ Created ${insertedContacts?.length || 0} contacts`)
+          }
+        }
       }
     }
 
