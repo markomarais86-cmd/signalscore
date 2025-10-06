@@ -23,6 +23,7 @@ import { normalizeCountryData } from "@/utils/country-normalizer";
 import type { RiskItem } from "@/utils/risk-detector";
 import { CombinedScoringICPCard } from "@/components/executive/CombinedScoringICPCard";
 import { GeographyChartCard } from "@/components/executive/GeographyChartCard";
+import { EnhancedGeographyCard } from "@/components/executive/EnhancedGeographyCard";
 import { AIRecommendationsTiles } from "@/components/executive/AIRecommendationsTiles";
 import { RisksAndActionsCard } from "@/components/executive/RisksAndActionsCard";
 import { ICPCoverageCard } from "@/components/executive/ICPCoverageCard";
@@ -533,8 +534,8 @@ export default function ExecutiveDashboard() {
         </CardContent>
       </Card>
 
-      {/* Row 3: Geographic Distribution Chart */}
-      <GeographyChartCard geoData={geoData} invalidCount={invalidGeoCount} />
+      {/* Row 3: Geographic Distribution with Drill-down and Heat Map */}
+      <EnhancedGeographyCard geoData={geoData} invalidCount={invalidGeoCount} />
 
       {/* Row 4: AI Recommendations (Tiles) + Risks & Actions */}
       <div className={`grid ${gridClass}`}>
