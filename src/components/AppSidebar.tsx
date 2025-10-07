@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button";
 const mainNavigation = [
   { title: "Overview", url: "/", icon: LayoutDashboard },
   { title: "ICP Manager", url: "/icp-manager", icon: Target },
-  { title: "Campaign Builder", url: "/campaign-builder", icon: Target },
   { title: "Accounts", url: "/accounts", icon: Database },
   { title: "Data Upload", url: "/data-upload", icon: Upload },
   { title: "Settings", url: "/settings", icon: Settings },
@@ -61,12 +60,7 @@ export function AppSidebar() {
                       className={getNavCls(item.url)}
                     >
                       <item.icon className="h-4 w-4" />
-                      <span className="flex items-center gap-2">
-                        {item.title}
-                        {item.url === "/campaign-builder" && icpContext && (
-                          <Badge variant="secondary" className="text-xs">ICP</Badge>
-                        )}
-                      </span>
+                      <span>{item.title}</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
