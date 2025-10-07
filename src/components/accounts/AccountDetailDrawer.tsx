@@ -108,8 +108,8 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
         <Tabs defaultValue="overview" className="mt-6">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="contacts">
-              Contacts
+            <TabsTrigger value="leads">
+              Leads
               {account.contacts && account.contacts.length > 0 && (
                 <Badge variant="secondary" className="ml-2">{account.contacts.length}</Badge>
               )}
@@ -235,39 +235,42 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
             </Card>
           </TabsContent>
 
-          {/* Contacts Tab */}
-          <TabsContent value="contacts" className="space-y-4 mt-4">
+          {/* Leads Tab */}
+          <TabsContent value="leads" className="space-y-4 mt-4">
             {account.contacts && account.contacts.length > 0 ? (
-              account.contacts.map((contact, idx) => (
+              account.contacts.map((lead, idx) => (
                 <Card key={idx}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <h4 className="font-semibold text-lg">
-                          {contact.first_name} {contact.last_name}
+                          {lead.first_name} {lead.last_name}
                         </h4>
-                        <p className="text-sm text-muted-foreground mt-1">{contact.title_raw || '-'}</p>
+                        <p className="text-sm text-muted-foreground mt-1">{lead.title || '-'}</p>
                         <div className="flex gap-4 mt-3">
-                          {contact.email && (
-                            <a href={`mailto:${contact.email}`} className="text-sm flex items-center gap-1 text-primary hover:underline">
+                          {lead.email && (
+                            <a href={`mailto:${lead.email}`} className="text-sm flex items-center gap-1 text-primary hover:underline">
                               <Mail className="h-3 w-3" />
-                              {contact.email}
+                              {lead.email}
                             </a>
                           )}
-                          {contact.country && (
+                          {lead.phone && (
+                            <a href={`tel:${lead.phone}`} className="text-sm flex items-center gap-1 text-muted-foreground hover:text-primary">
+                              <Phone className="h-3 w-3" />
+                              {lead.phone}
+                            </a>
+                          )}
+                          {lead.country && (
                             <span className="text-sm flex items-center gap-1 text-muted-foreground">
                               <MapPin className="h-3 w-3" />
-                              {contact.country}
+                              {lead.country}
                             </span>
                           )}
                         </div>
                       </div>
                       <div className="flex flex-col gap-2">
-                        {contact.persona && (
-                          <Badge variant="outline">{contact.persona}</Badge>
-                        )}
-                        {contact.level && (
-                          <Badge variant="secondary">{contact.level}</Badge>
+                        {lead.persona && (
+                          <Badge variant="outline">{lead.persona}</Badge>
                         )}
                       </div>
                     </div>
@@ -278,11 +281,11 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
               <Card>
                 <CardContent className="p-8 text-center">
                   <Users className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                  <h4 className="font-semibold mb-2">No Contacts Found</h4>
+                  <h4 className="font-semibold mb-2">No Leads Found</h4>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Add contacts to this account to improve reachability score
+                    Link leads to this account to improve campaign readiness
                   </p>
-                  <Button variant="outline">Import Contacts</Button>
+                  <Button variant="outline">Import Leads</Button>
                 </CardContent>
               </Card>
             )}

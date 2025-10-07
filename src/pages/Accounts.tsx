@@ -198,10 +198,10 @@ export default function Accounts() {
         scoresQuery = scoresQuery.lt('fit', 40);
       }
 
-      const [{ data: scoresData }, { data: allContacts }, { data: icpData }] = await Promise.all([
+      const [{ data: scoresData }, { data: allLeads }, { data: icpData }] = await Promise.all([
         scoresQuery,
         supabase
-          .from('contacts')
+          .from('Leads')
           .select('*')
           .eq('org_id', userProfile.org_id)
           .in('account_external_id', accountExternalIds),
@@ -231,19 +231,19 @@ export default function Accounts() {
         (scoresData || []).map(score => [score.account_external_id, score])
       );
 
-      const contactsMap = new Map<string, any[]>();
-      (allContacts || []).forEach(contact => {
-        const accountId = contact.account_external_id;
-        if (!contactsMap.has(accountId)) {
-          contactsMap.set(accountId, []);
+      const leadsMap = new Map<string, any[]>();
+      (allLeads || []).forEach(lead => {
+        const accountId = lead.account_external_id;
+        if (!leadsMap.has(accountId)) {
+          leadsMap.set(accountId, []);
         }
-        contactsMap.get(accountId)!.push(contact);
+        leadsMap.get(accountId)!.push(lead);
       });
 
-      // Combine accounts with scores and contacts
-      const accountsWithContacts = (filteredAccountsData || []).map(account => {
+      // Combine accounts with scores and leads
+      const accountsWithLeads = (filteredAccountsData || []).map(account => {
         const scoreData = scoresMap.get(account.external_id);
-        const contacts = contactsMap.get(account.external_id) || [];
+        const contacts = leadsMap.get(account.external_id) || [];
         
         return {
           ...account,
@@ -258,9 +258,9 @@ export default function Accounts() {
         };
       });
 
-      setAccounts(accountsWithContacts);
+      setAccounts(accountsWithLeads);
       
-      if (accountsWithContacts.some(a => a.score !== null)) {
+      if (accountsWithLeads.some(a => a.score !== null)) {
         completeStep('view_scores');
       }
     } catch (error) {
@@ -444,16 +444,16 @@ export default function Accounts() {
           .eq('org_id', userProfile.org_id)
           .in('account_external_id', accountIds);
 
-        const { data: contactsData } = await supabase
-          .from('contacts')
+        const { data: leadsData } = await supabase
+          .from('Leads')
           .select('account_external_id')
           .eq('org_id', userProfile.org_id)
           .in('account_external_id', accountIds);
 
         const scoresMap = new Map((scoresData || []).map(s => [s.account_external_id, s]));
-        const contactsMap = new Map<string, number>();
-        (contactsData || []).forEach(c => {
-          contactsMap.set(c.account_external_id, (contactsMap.get(c.account_external_id) || 0) + 1);
+        const leadsMap = new Map<string, number>();
+        (leadsData || []).forEach(l => {
+          leadsMap.set(l.account_external_id, (leadsMap.get(l.account_external_id) || 0) + 1);
         });
 
         const fullAccounts = allAccountsData.map(account => ({
@@ -465,7 +465,7 @@ export default function Accounts() {
             intent: scoresMap.get(account.external_id)!.intent,
             reachability: scoresMap.get(account.external_id)!.reachability
           } : null,
-          contacts: Array(contactsMap.get(account.external_id) || 0).fill({})
+          contacts: Array(leadsMap.get(account.external_id) || 0).fill({})
         }));
 
         exportCSVData(fullAccounts, exportAll);
@@ -483,70 +483,107 @@ export default function Accounts() {
     exportCSVData(dataToExport, exportAll);
   };
 
-  const exportCSVData = (dataToExport: Account[], exportAll: boolean) => {
+  const exportCSVData = async (dataToExport: Account[], exportAll: boolean) => {
+    if (!userProfile?.org_id) return;
 
-    // Define CSV headers
-    const headers = [
-      'Company Name',
-      'Domain',
-      'Industry (Normalized)',
-      'Industry (Raw)',
-      'Employee Count',
-      'Revenue Range',
-      'Country',
-      'Overall Score',
-      'Fit Score',
-      'Intent Score',
-      'Reachability Score',
-      'Contact Count',
-      'Data Completeness %',
-      'External ID',
-      'Last Updated'
-    ];
+    try {
+      // Fetch all leads for the accounts
+      const accountIds = dataToExport.map(acc => acc.external_id);
+      
+      const { data: leads, error } = await supabase
+        .from('Leads')
+        .select('*')
+        .eq('org_id', userProfile.org_id)
+        .in('account_external_id', accountIds)
+        .order('account_external_id');
 
-    // Convert accounts to CSV rows
-    const rows = dataToExport.map(account => [
-      account.name || '',
-      account.domain || '',
-      account.industry_norm || '',
-      account.industry_raw || '',
-      account.employee_count || '',
-      account.revenue_range || '',
-      account.country || '',
-      account.score?.overall || '',
-      account.score?.fit || '',
-      account.score?.intent || '',
-      account.score?.reachability || '',
-      account.contacts?.length || 0,
-      calculateDataCompleteness(account),
-      account.external_id,
-      account.updated_at
-    ]);
+      if (error) throw error;
 
-    // Create CSV content
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
+      if (!leads || leads.length === 0) {
+        toast({
+          title: "No leads found",
+          description: "No leads are linked to these accounts",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    // Create and download file
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    const filename = exportAll 
-      ? `all_accounts_export_${new Date().toISOString().split('T')[0]}.csv`
-      : `filtered_accounts_export_${new Date().toISOString().split('T')[0]}.csv`;
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      // Create a map of accounts for quick lookup
+      const accountMap = new Map(
+        dataToExport.map(acc => [acc.external_id, acc])
+      );
 
-    toast({
-      title: "Export successful",
-      description: `Exported ${dataToExport.length} accounts to CSV`
-    });
+      const headers = [
+        'First Name',
+        'Last Name',
+        'Email',
+        'Title',
+        'Persona',
+        'Phone',
+        'Mobile',
+        'Lead Status',
+        'Account Name',
+        'Domain',
+        'Industry',
+        'Employee Count',
+        'Country',
+        'State/Province',
+        'ICP Score',
+        'Data Source'
+      ];
+
+      const rows = leads.map(lead => {
+        const account = accountMap.get(lead.account_external_id);
+        return [
+          lead.first_name || '',
+          lead.last_name || '',
+          lead.email || '',
+          lead.title || '',
+          lead.persona || '',
+          lead.phone || '',
+          lead.mobile || '',
+          lead.status || '',
+          account?.name || '',
+          account?.domain || '',
+          account?.industry_norm || lead.industry || '',
+          account?.employee_count || lead.employee_count || '',
+          account?.country || lead.country || '',
+          lead.state_province || '',
+          account?.score?.overall || '',
+          getSourceLabel(account?.data_source || 'crm')
+        ];
+      });
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      const filename = exportAll 
+        ? `all_leads_export_${new Date().toISOString().split('T')[0]}.csv`
+        : `filtered_leads_export_${new Date().toISOString().split('T')[0]}.csv`;
+      link.setAttribute('download', filename);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: "✓ Leads Exported",
+        description: `${leads.length.toLocaleString()} leads from ${dataToExport.length.toLocaleString()} accounts exported to CSV`
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export leads. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const [uniqueCountries, setUniqueCountries] = useState<string[]>([]);
@@ -966,7 +1003,7 @@ export default function Accounts() {
                 <TableHead>Source</TableHead>
                 <TableHead>Enriched</TableHead>
                 <TableHead>Data Quality</TableHead>
-                <TableHead>Contacts</TableHead>
+                <TableHead>Leads</TableHead>
                 <TableHead>Score</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
