@@ -289,6 +289,81 @@ export type Database = {
           },
         ]
       }
+      campaign_snapshots: {
+        Row: {
+          campaign_ready_contacts: number
+          created_at: string | null
+          created_by: string | null
+          deduplication_strategy: string | null
+          export_filename: string | null
+          export_type: string
+          exported_at: string
+          firmographic_filters: Json | null
+          icp_id: string | null
+          icp_name: string
+          icp_version: number | null
+          id: string
+          max_contacts_per_account: number | null
+          org_id: string
+          persona_filters_applied: Json | null
+          total_accounts: number
+          total_contacts: number
+        }
+        Insert: {
+          campaign_ready_contacts?: number
+          created_at?: string | null
+          created_by?: string | null
+          deduplication_strategy?: string | null
+          export_filename?: string | null
+          export_type: string
+          exported_at?: string
+          firmographic_filters?: Json | null
+          icp_id?: string | null
+          icp_name: string
+          icp_version?: number | null
+          id?: string
+          max_contacts_per_account?: number | null
+          org_id: string
+          persona_filters_applied?: Json | null
+          total_accounts?: number
+          total_contacts?: number
+        }
+        Update: {
+          campaign_ready_contacts?: number
+          created_at?: string | null
+          created_by?: string | null
+          deduplication_strategy?: string | null
+          export_filename?: string | null
+          export_type?: string
+          exported_at?: string
+          firmographic_filters?: Json | null
+          icp_id?: string | null
+          icp_name?: string
+          icp_version?: number | null
+          id?: string
+          max_contacts_per_account?: number | null
+          org_id?: string
+          persona_filters_applied?: Json | null
+          total_accounts?: number
+          total_contacts?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_snapshots_icp_id_fkey"
+            columns: ["icp_id"]
+            isOneToOne: false
+            referencedRelation: "icp_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_snapshots_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       closed_won_deals: {
         Row: {
           account_external_id: string

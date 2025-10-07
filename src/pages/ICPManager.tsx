@@ -165,12 +165,18 @@ export default function ICPManager() {
       state: {
         icpId: icp.id,
         icpName: icp.name,
+        icpDescription: icp.description,
+        icpVersion: icp.version || 1,
         prefilters: {
           industries: icp.industries || [],
+          subIndustries: icp.sub_industries || [],
           geographies: icp.geographies || [],
           companySizes: icp.company_sizes || [],
           revenueRanges: icp.revenue_ranges || [],
-          icpScore: 'high'
+          personaJobTitles: icp.persona_job_titles || [],
+          personaSeniorityLevels: icp.persona_seniority_levels || [],
+          personaDepartments: icp.persona_departments || [],
+          personaDecisionRoles: icp.persona_decision_roles || []
         }
       }
     });

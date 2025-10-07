@@ -21,6 +21,7 @@ import CampaignBuilder from "./pages/CampaignBuilder";
 import DataUpload from "./pages/DataUpload";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import { RequireICPContext } from "./components/RequireICPContext";
 
 const queryClient = new QueryClient();
 
@@ -74,9 +75,11 @@ function App() {
                   path="/campaign-builder"
                   element={
                     <ProtectedRoute>
-                      <Layout>
-                        <CampaignBuilder />
-                      </Layout>
+                      <RequireICPContext>
+                        <Layout>
+                          <CampaignBuilder />
+                        </Layout>
+                      </RequireICPContext>
                     </ProtectedRoute>
                   }
                 />
