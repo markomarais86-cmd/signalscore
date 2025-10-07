@@ -79,10 +79,10 @@ export default function CampaignBuilder() {
     if (icpContext?.prefilters) {
       setFilters(prev => ({
         ...prev,
-        industries: icpContext.prefilters.industries || [],
-        geographies: icpContext.prefilters.geographies || [],
-        companySizes: icpContext.prefilters.companySizes || [],
-        icpScore: icpContext.prefilters.icpScore || 'all',
+        industries: icpContext.prefilters?.industries || [],
+        geographies: icpContext.prefilters?.geographies || [],
+        companySizes: icpContext.prefilters?.companySizes || [],
+        icpScore: icpContext.prefilters?.icpScore || 'all',
         dataSource: 'all'
       }));
     }
