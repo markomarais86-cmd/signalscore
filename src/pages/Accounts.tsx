@@ -63,6 +63,7 @@ export default function Accounts() {
       industries?: string[];
       geographies?: string[];
       companySizes?: number[];
+      revenueRanges?: string[];
     };
   } | null;
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -70,6 +71,12 @@ export default function Accounts() {
   const [industryFilter, setIndustryFilter] = useState("all");
   const [subIndustryFilter, setSubIndustryFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  
+  // ICP-specific filter states
+  const [icpIndustries, setIcpIndustries] = useState<string[]>([]);
+  const [icpGeographies, setIcpGeographies] = useState<string[]>([]);
+  const [icpSizes, setIcpSizes] = useState<number[]>([]);
+  const [icpRevenues, setIcpRevenues] = useState<string[]>([]);
   const [selectedAccountForScore, setSelectedAccountForScore] = useState<Account | null>(null);
   const [selectedAccountForDetail, setSelectedAccountForDetail] = useState<Account | null>(null);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
@@ -131,16 +138,20 @@ export default function Accounts() {
     setIcpFilter(icp);
   }, [searchParams]);
 
-  // Pre-populate filters from ICP context
+  // Pre-populate filters from ICP context - store ALL ICP criteria
   useEffect(() => {
     if (icpContext?.prefilters) {
-      // Set primary industry filter if industries are provided
-      if (icpContext.prefilters.industries && icpContext.prefilters.industries.length > 0) {
-        setIndustryFilter(icpContext.prefilters.industries[0]); // Use first industry as primary
+      if (icpContext.prefilters.industries?.length > 0) {
+        setIcpIndustries(icpContext.prefilters.industries);
       }
-      // Set country filter if geographies are provided
-      if (icpContext.prefilters.geographies && icpContext.prefilters.geographies.length > 0) {
-        setCountryFilter(icpContext.prefilters.geographies[0]); // Use first country
+      if (icpContext.prefilters.geographies?.length > 0) {
+        setIcpGeographies(icpContext.prefilters.geographies);
+      }
+      if (icpContext.prefilters.companySizes?.length > 0) {
+        setIcpSizes(icpContext.prefilters.companySizes);
+      }
+      if (icpContext.prefilters.revenueRanges?.length > 0) {
+        setIcpRevenues(icpContext.prefilters.revenueRanges);
       }
     }
   }, [icpContext]);
@@ -151,6 +162,11 @@ export default function Accounts() {
     setCountryFilter(null);
     setSourceFilter(null);
     setFitFilter(null);
+    // Clear ICP-specific filters
+    setIcpIndustries([]);
+    setIcpGeographies([]);
+    setIcpSizes([]);
+    setIcpRevenues([]);
   };
 
   useEffect(() => {
@@ -158,7 +174,7 @@ export default function Accounts() {
       loadAccounts();
       loadSummaryStats();
     }
-  }, [userProfile?.org_id, currentPage, pageSize, searchTerm, industryFilter, subIndustryFilter, sourceFilter, fitFilter, countryFilter, stateFilter, icpFilter]);
+  }, [userProfile?.org_id, currentPage, pageSize, searchTerm, industryFilter, subIndustryFilter, sourceFilter, fitFilter, countryFilter, stateFilter, icpFilter, icpIndustries, icpGeographies, icpSizes, icpRevenues]);
 
   const loadAccounts = async () => {
     if (!userProfile?.org_id) return;
@@ -203,6 +219,38 @@ export default function Accounts() {
       }
       if (stateFilter) {
         accountsQuery = accountsQuery.eq('state_province', stateFilter);
+      }
+
+      // Apply ICP-specific filters if in ICP context (match ALL criteria from ICP)
+      if (icpContext) {
+        // Filter by ICP industries (OR condition - match ANY industry)
+        if (icpIndustries.length > 0) {
+          accountsQuery = accountsQuery.in('industry_norm', icpIndustries);
+        }
+        
+        // Filter by ICP geographies (OR condition - match ANY geography)
+        if (icpGeographies.length > 0) {
+          accountsQuery = accountsQuery.in('country', icpGeographies);
+        }
+        
+        // Filter by ICP company sizes (OR condition - match ANY size range)
+        if (icpSizes.length > 0) {
+          const sizeConditions = icpSizes.map((size, index) => {
+            const nextSize = icpSizes[index + 1];
+            if (nextSize) {
+              return `and(employee_count.gte.${size},employee_count.lt.${nextSize})`;
+            } else {
+              return `employee_count.gte.${size}`;
+            }
+          }).join(',');
+          
+          accountsQuery = accountsQuery.or(sizeConditions);
+        }
+        
+        // Filter by ICP revenue ranges (OR condition - match ANY revenue range)
+        if (icpRevenues.length > 0) {
+          accountsQuery = accountsQuery.in('revenue_range', icpRevenues);
+        }
       }
 
       // Get count and paginated data
@@ -753,15 +801,15 @@ export default function Accounts() {
             <CollapsibleContent>
               <CardContent className="space-y-4 pt-0">
                 {/* Industries */}
-                {icpContext.prefilters?.industries && icpContext.prefilters.industries.length > 0 && (
+                {icpIndustries.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <Building2 className="h-4 w-4 text-muted-foreground" />
-                      <Label className="text-sm font-medium">Target Industries</Label>
+                      <Label className="text-sm font-medium">Target Industries ({icpIndustries.length})</Label>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {icpContext.prefilters.industries.map(industry => (
-                        <Badge key={industry} variant="outline" className="bg-background">
+                      {icpIndustries.map(industry => (
+                        <Badge key={industry} variant="secondary">
                           {industry}
                         </Badge>
                       ))}
@@ -770,15 +818,15 @@ export default function Accounts() {
                 )}
 
                 {/* Geographies */}
-                {icpContext.prefilters?.geographies && icpContext.prefilters.geographies.length > 0 && (
+                {icpGeographies.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <Globe className="h-4 w-4 text-muted-foreground" />
-                      <Label className="text-sm font-medium">Target Countries</Label>
+                      <Label className="text-sm font-medium">Target Countries ({icpGeographies.length})</Label>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {icpContext.prefilters.geographies.map(country => (
-                        <Badge key={country} variant="outline" className="bg-background">
+                      {icpGeographies.map(country => (
+                        <Badge key={country} variant="secondary">
                           {country}
                         </Badge>
                       ))}
@@ -787,16 +835,39 @@ export default function Accounts() {
                 )}
 
                 {/* Company Sizes */}
-                {icpContext.prefilters?.companySizes && icpContext.prefilters.companySizes.length > 0 && (
+                {icpSizes.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <Briefcase className="h-4 w-4 text-muted-foreground" />
-                      <Label className="text-sm font-medium">Company Sizes</Label>
+                      <Label className="text-sm font-medium">Company Sizes ({icpSizes.length} ranges)</Label>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {icpContext.prefilters.companySizes.map(size => (
-                        <Badge key={size} variant="outline" className="bg-background">
-                          {size} employees
+                      {icpSizes.map((size, index) => {
+                        const nextSize = icpSizes[index + 1];
+                        const label = nextSize 
+                          ? `${size.toLocaleString()}-${(nextSize - 1).toLocaleString()} employees` 
+                          : `${size.toLocaleString()}+ employees`;
+                        return (
+                          <Badge key={size} variant="secondary">
+                            {label}
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Revenue Ranges */}
+                {icpRevenues.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                      <Label className="text-sm font-medium">Revenue Ranges ({icpRevenues.length})</Label>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {icpRevenues.map(rev => (
+                        <Badge key={rev} variant="secondary">
+                          {rev}
                         </Badge>
                       ))}
                     </div>
@@ -806,7 +877,7 @@ export default function Accounts() {
                 <Alert className="bg-muted/50 border-0">
                   <Sparkles className="h-4 w-4" />
                   <AlertDescription className="text-xs">
-                    These firmographic criteria are inherited from your ICP definition. Use the filters below to further refine your results.
+                    All accounts shown below match these ICP criteria. Use additional filters to further refine results.
                   </AlertDescription>
                 </Alert>
               </CardContent>
