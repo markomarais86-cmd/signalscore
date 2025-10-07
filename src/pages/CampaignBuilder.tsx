@@ -257,7 +257,7 @@ export default function CampaignBuilder() {
     }
   };
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     if (matchedAccounts.length === 0) {
       toast({
         title: "No accounts to export",
@@ -267,47 +267,99 @@ export default function CampaignBuilder() {
       return;
     }
 
-    const headers = [
-      'Account Name',
-      'Domain',
-      'Industry',
-      'Employee Count',
-      'Country',
-      'ICP Score',
-      'Contacts Available',
-      'Data Source'
-    ];
+    try {
+      // Fetch all leads for the matched accounts
+      const accountIds = matchedAccounts.map(acc => acc.external_id);
+      
+      const { data: leads, error } = await supabase
+        .from('Leads')
+        .select('*')
+        .eq('org_id', userProfile?.org_id)
+        .in('account_external_id', accountIds)
+        .order('account_external_id');
 
-    const rows = matchedAccounts.map(acc => [
-      acc.name || '',
-      acc.domain || '',
-      acc.industry_norm || '',
-      acc.employee_count || '',
-      acc.country || '',
-      acc.score || '',
-      acc.contacts_count || 0,
-      getSourceLabel(acc.data_source)
-    ]);
+      if (error) throw error;
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
+      if (!leads || leads.length === 0) {
+        toast({
+          title: "No leads found",
+          description: "No leads are linked to these accounts",
+          variant: "destructive"
+        });
+        return;
+      }
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `campaign-list-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+      // Create a map of accounts for quick lookup
+      const accountMap = new Map(
+        matchedAccounts.map(acc => [acc.external_id, acc])
+      );
 
-    toast({
-      title: "✓ List Exported",
-      description: `${matchedAccounts.length.toLocaleString()} accounts exported to CSV`
-    });
+      const headers = [
+        'First Name',
+        'Last Name',
+        'Email',
+        'Title',
+        'Persona',
+        'Phone',
+        'Mobile',
+        'Account Name',
+        'Domain',
+        'Industry',
+        'Employee Count',
+        'Country',
+        'State/Province',
+        'ICP Score',
+        'Data Source'
+      ];
+
+      const rows = leads.map(lead => {
+        const account = accountMap.get(lead.account_external_id);
+        return [
+          lead.first_name || '',
+          lead.last_name || '',
+          lead.email || '',
+          lead.title || '',
+          lead.persona || '',
+          lead.phone || '',
+          lead.mobile || '',
+          account?.name || '',
+          account?.domain || '',
+          account?.industry_norm || lead.industry || '',
+          account?.employee_count || lead.employee_count || '',
+          account?.country || lead.country || '',
+          lead.state_province || '',
+          account?.score || '',
+          getSourceLabel(account?.data_source || 'crm')
+        ];
+      });
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `campaign-leads-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "✓ Leads Exported",
+        description: `${leads.length.toLocaleString()} leads from ${matchedAccounts.length.toLocaleString()} accounts exported to CSV`
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export leads. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const toggleFilter = (category: keyof FilterState, value: string) => {
