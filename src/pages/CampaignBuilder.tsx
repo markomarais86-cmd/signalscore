@@ -135,60 +135,82 @@ export default function CampaignBuilder() {
 
     setLoading(true);
     try {
-      let query = supabase
-        .from('accounts')
-        .select(`
-          external_id,
-          name,
-          domain,
-          industry_norm,
-          employee_count,
-          country,
-          data_source,
-          external_database_match
-        `)
-        .eq('org_id', userProfile.org_id)
-        .limit(100000); // Remove default 1000 limit
+      // Fetch ALL accounts by paginating through results
+      let allAccounts: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      // Apply ICP score filter
-      if (filters.icpScore !== 'all') {
-        const { data: scores } = await supabase
-          .from('scores')
-          .select('account_external_id, overall')
-          .eq('org_id', userProfile.org_id);
+      while (hasMore) {
+        let query = supabase
+          .from('accounts')
+          .select(`
+            external_id,
+            name,
+            domain,
+            industry_norm,
+            employee_count,
+            country,
+            data_source,
+            external_database_match
+          `)
+          .eq('org_id', userProfile.org_id)
+          .range(from, from + pageSize - 1)
 
-        let filteredAccountIds: string[] = [];
-        if (filters.icpScore === 'high') {
-          filteredAccountIds = scores?.filter(s => s.overall >= 70).map(s => s.account_external_id) || [];
-        } else if (filters.icpScore === 'medium') {
-          filteredAccountIds = scores?.filter(s => s.overall >= 40 && s.overall < 70).map(s => s.account_external_id) || [];
+        // Apply ICP score filter on this page
+        if (filters.icpScore !== 'all') {
+          const { data: scores } = await supabase
+            .from('scores')
+            .select('account_external_id, overall')
+            .eq('org_id', userProfile.org_id);
+
+          let filteredAccountIds: string[] = [];
+          if (filters.icpScore === 'high') {
+            filteredAccountIds = scores?.filter(s => s.overall >= 70).map(s => s.account_external_id) || [];
+          } else if (filters.icpScore === 'medium') {
+            filteredAccountIds = scores?.filter(s => s.overall >= 40 && s.overall < 70).map(s => s.account_external_id) || [];
+          }
+
+          if (filteredAccountIds.length > 0) {
+            query = query.in('external_id', filteredAccountIds);
+          }
         }
 
-        if (filteredAccountIds.length > 0) {
-          query = query.in('external_id', filteredAccountIds);
+        // Apply industry filter
+        if (filters.industries.length > 0) {
+          query = query.in('industry_norm', filters.industries);
+        }
+
+        // Apply geography filter
+        if (filters.geographies.length > 0) {
+          query = query.in('country', filters.geographies);
+        }
+
+        // Apply data source filter
+        if (filters.dataSource === 'crm') {
+          query = query.eq('data_source', 'crm');
+        } else if (filters.dataSource === 'database') {
+          query = query.eq('data_source', 'database');
+        }
+
+        const { data: pageAccounts, error } = await query;
+
+        if (error) throw error;
+
+        if (pageAccounts && pageAccounts.length > 0) {
+          allAccounts = [...allAccounts, ...pageAccounts];
+          from += pageSize;
+          
+          // If we got less than pageSize, we've reached the end
+          if (pageAccounts.length < pageSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
         }
       }
 
-      // Apply industry filter
-      if (filters.industries.length > 0) {
-        query = query.in('industry_norm', filters.industries);
-      }
-
-      // Apply geography filter
-      if (filters.geographies.length > 0) {
-        query = query.in('country', filters.geographies);
-      }
-
-      // Apply data source filter
-      if (filters.dataSource === 'crm') {
-        query = query.eq('data_source', 'crm');
-      } else if (filters.dataSource === 'database') {
-        query = query.eq('data_source', 'database');
-      }
-
-      const { data: accounts, error } = await query;
-
-      if (error) throw error;
+      const accounts = allAccounts;
 
       // Get scores for matched accounts
       const accountIds = accounts?.map(a => a.external_id) || [];
