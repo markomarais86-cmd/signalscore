@@ -7,13 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { Download, Target, Users, Filter, Sparkles, ArrowRight, X } from "lucide-react";
+import { Download, Target, Users, Filter, Sparkles, ArrowRight, X, ChevronDown, Building2, Globe, Briefcase, Edit } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { getSourceBadgeVariant, getSourceLabel } from "@/utils/data-source-attribution";
 import { useLocation, useNavigate, Link } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface FilterState {
   icpScore: string;
@@ -333,40 +334,116 @@ export default function CampaignBuilder() {
     });
   };
 
+  const [icpDetailsOpen, setIcpDetailsOpen] = useState(true);
+
   return (
     <div className="space-y-6">
-      {/* ICP Context Banner */}
+      {/* Enhanced ICP Context Card */}
       {icpContext && (
-        <Alert className="border-primary/50 bg-primary/5">
-          <Target className="h-4 w-4" />
-          <AlertDescription>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold">Active ICP Context:</span>
-                <Badge variant="default">{icpContext.icpName}</Badge>
+        <Card className="border-primary/50 bg-gradient-to-r from-primary/5 to-secondary/5">
+          <Collapsible open={icpDetailsOpen} onOpenChange={setIcpDetailsOpen}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Target className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">ICP Context: {icpContext.icpName}</CardTitle>
+                    <CardDescription className="text-xs mt-0.5">
+                      Campaign filters are automatically applied from this ICP
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => navigate('/icp-manager', { state: { editIcpId: icpContext.icpId } })}
+                    className="gap-2"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit ICP
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={clearICPContext}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <ChevronDown className={`h-4 w-4 transition-transform ${icpDetailsOpen ? 'rotate-180' : ''}`} />
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="link" 
-                  size="sm"
-                  onClick={() => navigate('/icp-manager')}
-                  className="h-auto p-0"
-                >
-                  View ICP Details
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={clearICPContext}
-                  className="h-auto p-0 hover:bg-transparent"
-                >
-                  <X className="h-4 w-4" />
-                  Clear
-                </Button>
-              </div>
-            </div>
-          </AlertDescription>
-        </Alert>
+            </CardHeader>
+            
+            <CollapsibleContent>
+              <CardContent className="space-y-4 pt-0">
+                {/* Industries */}
+                {icpContext.prefilters?.industries && icpContext.prefilters.industries.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      <Label className="text-sm font-medium">Target Industries</Label>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {icpContext.prefilters.industries.map(industry => (
+                        <Badge key={industry} variant="outline" className="bg-background">
+                          {industry}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Geographies */}
+                {icpContext.prefilters?.geographies && icpContext.prefilters.geographies.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Globe className="h-4 w-4 text-muted-foreground" />
+                      <Label className="text-sm font-medium">Target Countries</Label>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {icpContext.prefilters.geographies.map(country => (
+                        <Badge key={country} variant="outline" className="bg-background">
+                          {country}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Company Sizes */}
+                {icpContext.prefilters?.companySizes && icpContext.prefilters.companySizes.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Briefcase className="h-4 w-4 text-muted-foreground" />
+                      <Label className="text-sm font-medium">Company Sizes</Label>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {icpContext.prefilters.companySizes.map(size => (
+                        <Badge key={size} variant="outline" className="bg-background">
+                          {size} employees
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <Alert className="bg-muted/50 border-0">
+                  <Sparkles className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    These firmographic criteria are inherited from your ICP definition and applied automatically. Use the filters below to further refine by personas, data source, or ICP score.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
       )}
 
       {/* Breadcrumb Navigation */}
@@ -425,47 +502,17 @@ export default function CampaignBuilder() {
                 </Select>
               </div>
 
-              <Separator />
-
-              {/* Industries */}
-              <div>
-                <Label className="mb-3 block">Industries</Label>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {availableFilters.industries.slice(0, 10).map(industry => (
-                    <div key={industry} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`industry-${industry}`}
-                        checked={filters.industries.includes(industry)}
-                        onCheckedChange={() => toggleFilter('industries', industry)}
-                      />
-                      <label htmlFor={`industry-${industry}`} className="text-sm cursor-pointer">
-                        {industry}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Geographies */}
-              <div>
-                <Label className="mb-3 block">Countries</Label>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {availableFilters.geographies.slice(0, 10).map(country => (
-                    <div key={country} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`country-${country}`}
-                        checked={filters.geographies.includes(country)}
-                        onCheckedChange={() => toggleFilter('geographies', country)}
-                      />
-                      <label htmlFor={`country-${country}`} className="text-sm cursor-pointer">
-                        {country}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {!icpContext && (
+                <>
+                  <Separator />
+                  <Alert className="bg-muted/50 border-0">
+                    <Target className="h-4 w-4" />
+                    <AlertDescription className="text-xs">
+                      <strong>Tip:</strong> Start from an ICP in ICP Manager to automatically apply firmographic filters like Industries, Countries, and Company Sizes.
+                    </AlertDescription>
+                  </Alert>
+                </>
+              )}
 
               <Separator />
 
