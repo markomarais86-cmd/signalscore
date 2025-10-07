@@ -1,6 +1,7 @@
 import { Upload, Settings, LogOut, LayoutDashboard, Target, Database } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
+import { Badge } from "@/components/ui/badge";
 import {
   Sidebar,
   SidebarContent,
@@ -27,6 +28,11 @@ export function AppSidebar() {
   const location = useLocation();
   const { signOut, userProfile } = useAuth();
   const currentPath = location.pathname;
+
+  const icpContext = location.state as {
+    icpId?: string;
+    icpName?: string;
+  } | null;
 
   const isActive = (path: string) => {
     if (path === "/") {
@@ -55,7 +61,12 @@ export function AppSidebar() {
                       className={getNavCls(item.url)}
                     >
                       <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
+                      <span className="flex items-center gap-2">
+                        {item.title}
+                        {item.url === "/campaign-builder" && icpContext && (
+                          <Badge variant="secondary" className="text-xs">ICP</Badge>
+                        )}
+                      </span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -7,11 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { Download, Target, Users, Filter, Sparkles } from "lucide-react";
+import { Download, Target, Users, Filter, Sparkles, ArrowRight, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { getSourceBadgeVariant, getSourceLabel } from "@/utils/data-source-attribution";
+import { useLocation, useNavigate, Link } from "react-router-dom";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface FilterState {
   icpScore: string;
@@ -36,6 +38,17 @@ interface CampaignAccount {
 }
 
 export default function CampaignBuilder() {
+  const { userProfile } = useAuth();
+  const { toast } = useToast();
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  const icpContext = location.state as {
+    icpId?: string;
+    icpName?: string;
+    prefilters?: Partial<FilterState>;
+  } | null;
+
   const [filters, setFilters] = useState<FilterState>({
     icpScore: 'all',
     jobTitles: [],
@@ -57,12 +70,23 @@ export default function CampaignBuilder() {
     companySizes: [] as string[]
   });
 
-  const { userProfile } = useAuth();
-  const { toast } = useToast();
-
   useEffect(() => {
     loadAvailableFilters();
   }, [userProfile?.org_id]);
+
+  // Pre-populate filters from ICP context
+  useEffect(() => {
+    if (icpContext?.prefilters) {
+      setFilters(prev => ({
+        ...prev,
+        industries: icpContext.prefilters.industries || [],
+        geographies: icpContext.prefilters.geographies || [],
+        companySizes: icpContext.prefilters.companySizes || [],
+        icpScore: icpContext.prefilters.icpScore || 'all',
+        dataSource: 'all'
+      }));
+    }
+  }, [icpContext]);
 
   useEffect(() => {
     if (userProfile?.org_id) {
@@ -274,15 +298,82 @@ export default function CampaignBuilder() {
     });
   };
 
+  const clearICPContext = () => {
+    navigate('/campaign-builder', { replace: true, state: null });
+    setFilters({
+      jobTitles: [],
+      seniorityLevels: [],
+      industries: [],
+      geographies: [],
+      companySizes: [],
+      icpScore: 'all',
+      dataSource: 'all'
+    });
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-          Campaign Builder
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          Build targeted account lists for campaigns using ICP criteria and persona filters
-        </p>
+      {/* ICP Context Banner */}
+      {icpContext && (
+        <Alert className="border-primary/50 bg-primary/5">
+          <Target className="h-4 w-4" />
+          <AlertDescription>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">Active ICP Context:</span>
+                <Badge variant="default">{icpContext.icpName}</Badge>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="link" 
+                  size="sm"
+                  onClick={() => navigate('/icp-manager')}
+                  className="h-auto p-0"
+                >
+                  View ICP Details
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={clearICPContext}
+                  className="h-auto p-0 hover:bg-transparent"
+                >
+                  <X className="h-4 w-4" />
+                  Clear
+                </Button>
+              </div>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Breadcrumb Navigation */}
+      {icpContext && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Link to="/icp-manager" className="hover:text-primary transition-colors">ICP Manager</Link>
+          <span>/</span>
+          <span className="font-medium text-foreground">{icpContext.icpName}</span>
+          <span>/</span>
+          <span className="text-foreground">Campaign Builder</span>
+        </div>
+      )}
+
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            Campaign Builder
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            Build targeted account lists for campaigns using ICP criteria and persona filters
+          </p>
+        </div>
+        <Link to="/icp-manager">
+          <Button variant="outline" className="flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            View All ICPs
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </Link>
       </div>
 
       <div className="grid grid-cols-12 gap-6">

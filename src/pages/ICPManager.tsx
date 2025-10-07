@@ -14,7 +14,7 @@ import { HeroMetric } from "@/components/executive/HeroMetric";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { DEMO_ICP_PROFILES } from "@/data/mockData";
 import { DemoModeBanner } from "@/components/DemoModeBanner";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ClosedWonInsights } from "@/components/icp/ClosedWonInsights";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,6 +28,7 @@ export default function ICPManager() {
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
   const { flags } = useFeatureFlags();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (userProfile?.org_id) {
@@ -157,6 +158,22 @@ export default function ICPManager() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
+  };
+
+  const navigateToCampaign = (icp: ICPProfile) => {
+    navigate('/campaign-builder', {
+      state: {
+        icpId: icp.id,
+        icpName: icp.name,
+        prefilters: {
+          industries: icp.industries || [],
+          geographies: icp.geographies || [],
+          companySizes: icp.company_sizes || [],
+          revenueRanges: icp.revenue_ranges || [],
+          icpScore: 'high'
+        }
+      }
+    });
   };
 
   const activeCount = icps.filter(icp => icp.status === 'active').length;
@@ -320,6 +337,19 @@ export default function ICPManager() {
                         </div>
                       )}
 
+                      {/* Build Campaign CTA */}
+                      <div className="pt-4 border-t">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => navigateToCampaign(icp)}
+                          className="w-full flex items-center justify-center gap-2"
+                        >
+                          <Target className="h-4 w-4" />
+                          Build Campaign
+                          <ArrowRight className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
