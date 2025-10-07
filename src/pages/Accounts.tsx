@@ -1,14 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useLocation, useNavigate, Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Database, ExternalLink, AlertCircle, CheckCircle2, Download, TrendingUp, Sparkles, X, Filter } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Search, Database, ExternalLink, AlertCircle, CheckCircle2, Download, TrendingUp, Sparkles, X, Filter, Target, Edit, ChevronDown, Building2, Globe, Briefcase } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -51,6 +53,18 @@ interface Account {
 
 export default function Accounts() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  const icpContext = location.state as {
+    icpId?: string;
+    icpName?: string;
+    prefilters?: {
+      industries?: string[];
+      geographies?: string[];
+      companySizes?: number[];
+    };
+  } | null;
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
@@ -64,6 +78,7 @@ export default function Accounts() {
   const [showEnrichmentDialog, setShowEnrichmentDialog] = useState(false);
   const [hasActiveICP, setHasActiveICP] = useState(false);
   const [needsScoring, setNeedsScoring] = useState(false);
+  const [icpDetailsOpen, setIcpDetailsOpen] = useState(true);
   
   // URL-based filters
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
@@ -115,6 +130,28 @@ export default function Accounts() {
     setStateFilter(state);
     setIcpFilter(icp);
   }, [searchParams]);
+
+  // Pre-populate filters from ICP context
+  useEffect(() => {
+    if (icpContext?.prefilters) {
+      // Set primary industry filter if industries are provided
+      if (icpContext.prefilters.industries && icpContext.prefilters.industries.length > 0) {
+        setIndustryFilter(icpContext.prefilters.industries[0]); // Use first industry as primary
+      }
+      // Set country filter if geographies are provided
+      if (icpContext.prefilters.geographies && icpContext.prefilters.geographies.length > 0) {
+        setCountryFilter(icpContext.prefilters.geographies[0]); // Use first country
+      }
+    }
+  }, [icpContext]);
+
+  const clearICPContext = () => {
+    navigate('/accounts', { replace: true, state: null });
+    setIndustryFilter("all");
+    setCountryFilter(null);
+    setSourceFilter(null);
+    setFitFilter(null);
+  };
 
   useEffect(() => {
     if (userProfile?.org_id) {
@@ -670,11 +707,131 @@ export default function Accounts() {
 
   return (
     <div className="space-y-6">
+      {/* Enhanced ICP Context Card */}
+      {icpContext && (
+        <Card className="border-primary/50 bg-gradient-to-r from-primary/5 to-secondary/5">
+          <Collapsible open={icpDetailsOpen} onOpenChange={setIcpDetailsOpen}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Target className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">ICP Context: {icpContext.icpName}</CardTitle>
+                    <CardDescription className="text-xs mt-0.5">
+                      Account filters are automatically applied from this ICP
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => navigate('/icp-manager', { state: { editIcpId: icpContext.icpId } })}
+                    className="gap-2"
+                  >
+                    <Edit className="h-4 w-4" />
+                    Edit ICP
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={clearICPContext}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <ChevronDown className={`h-4 w-4 transition-transform ${icpDetailsOpen ? 'rotate-180' : ''}`} />
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
+              </div>
+            </CardHeader>
+            
+            <CollapsibleContent>
+              <CardContent className="space-y-4 pt-0">
+                {/* Industries */}
+                {icpContext.prefilters?.industries && icpContext.prefilters.industries.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Building2 className="h-4 w-4 text-muted-foreground" />
+                      <Label className="text-sm font-medium">Target Industries</Label>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {icpContext.prefilters.industries.map(industry => (
+                        <Badge key={industry} variant="outline" className="bg-background">
+                          {industry}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Geographies */}
+                {icpContext.prefilters?.geographies && icpContext.prefilters.geographies.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Globe className="h-4 w-4 text-muted-foreground" />
+                      <Label className="text-sm font-medium">Target Countries</Label>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {icpContext.prefilters.geographies.map(country => (
+                        <Badge key={country} variant="outline" className="bg-background">
+                          {country}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Company Sizes */}
+                {icpContext.prefilters?.companySizes && icpContext.prefilters.companySizes.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Briefcase className="h-4 w-4 text-muted-foreground" />
+                      <Label className="text-sm font-medium">Company Sizes</Label>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {icpContext.prefilters.companySizes.map(size => (
+                        <Badge key={size} variant="outline" className="bg-background">
+                          {size} employees
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <Alert className="bg-muted/50 border-0">
+                  <Sparkles className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    These firmographic criteria are inherited from your ICP definition. Use the filters below to further refine your results.
+                  </AlertDescription>
+                </Alert>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
+      )}
+
+      {/* Breadcrumb Navigation */}
+      {icpContext && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Link to="/icp-manager" className="hover:text-primary transition-colors">ICP Manager</Link>
+          <span>/</span>
+          <span className="font-medium text-foreground">{icpContext.icpName}</span>
+          <span>/</span>
+          <span className="text-foreground">Accounts</span>
+        </div>
+      )}
       
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Accounts</h1>
-          <p className="text-muted-foreground mt-2">Complete CRM database view</p>
+          <p className="text-muted-foreground mt-2">
+            {icpContext ? 'Build targeted account lists for campaigns using ICP criteria' : 'Complete CRM database view'}
+          </p>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

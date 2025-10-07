@@ -224,7 +224,7 @@ export function RisksAndActionsCard({
             )}
             {campaignReadyCount > 0 && (
               <Button 
-                onClick={() => navigate('/campaign-builder')} 
+                onClick={() => navigate('/accounts')} 
                 variant="outline"
                 size="sm"
                 className="justify-start"

@@ -530,7 +530,7 @@ export default function ExecutiveDashboard() {
             </div>
             <div className="flex items-center">
               <Button 
-                onClick={() => navigate('/campaign-builder')} 
+                onClick={() => navigate('/accounts')} 
                 className="w-full"
                 disabled={metrics.campaignReadyAccounts === 0}
               >

@@ -17,11 +17,9 @@ import ResetPassword from "./pages/ResetPassword";
 import ICPManager from "./pages/ICPManager";
 import Leads from "./pages/Leads";
 import Accounts from "./pages/Accounts";
-import CampaignBuilder from "./pages/CampaignBuilder";
 import DataUpload from "./pages/DataUpload";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
-import { RequireICPContext } from "./components/RequireICPContext";
 
 const queryClient = new QueryClient();
 
@@ -68,18 +66,6 @@ function App() {
                       <Layout>
                         <Accounts />
                       </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/campaign-builder"
-                  element={
-                    <ProtectedRoute>
-                      <RequireICPContext>
-                        <Layout>
-                          <CampaignBuilder />
-                        </Layout>
-                      </RequireICPContext>
                     </ProtectedRoute>
                   }
                 />

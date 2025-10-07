@@ -161,7 +161,7 @@ export default function ICPManager() {
   };
 
   const navigateToCampaign = (icp: ICPProfile) => {
-    navigate('/campaign-builder', {
+    navigate('/accounts', {
       state: {
         icpId: icp.id,
         icpName: icp.name,
