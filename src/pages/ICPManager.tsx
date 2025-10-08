@@ -2,13 +2,12 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp, ArrowRight, Building2 } from "lucide-react";
+import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { ICPWizard } from "@/components/icp/ICPWizard";
-import { FirmographicAnalysis } from "@/components/icp/FirmographicAnalysis";
 import { ICPProfile } from "@/types/icp";
 import { HeroMetric } from "@/components/executive/HeroMetric";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
@@ -22,7 +21,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 export default function ICPManager() {
   const [icps, setIcps] = useState<ICPProfile[]>([]);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
-  const [showFirmographicAnalysis, setShowFirmographicAnalysis] = useState(false);
   const [editingIcp, setEditingIcp] = useState<ICPProfile | null>(null);
   const { userProfile } = useAuth();
   const { toast } = useToast();
@@ -142,11 +140,6 @@ export default function ICPManager() {
     setEditingIcp(null);
   };
 
-  const handleFirmographicComplete = async () => {
-    setShowFirmographicAnalysis(false);
-    await loadICPs();
-  };
-
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case 'active': return 'default';
@@ -193,16 +186,10 @@ export default function ICPManager() {
             <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">ICP Manager</h1>
             <p className="text-muted-foreground mt-2">Create, manage, and activate your Ideal Customer Profiles</p>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={() => setShowFirmographicAnalysis(true)} variant="outline" className="flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Create from Account Data
-            </Button>
-            <Button onClick={handleCreateNew} className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Create ICP Manually
-            </Button>
-          </div>
+          <Button onClick={handleCreateNew} className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Create New ICP
+          </Button>
         </div>
 
 
@@ -423,22 +410,6 @@ export default function ICPManager() {
         editingICP={editingIcp}
       />
 
-      {showFirmographicAnalysis && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 overflow-y-auto">
-          <div className="container max-w-7xl mx-auto py-8">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold">Create ICP from Your Account Data</h2>
-              <Button
-                variant="outline"
-                onClick={() => setShowFirmographicAnalysis(false)}
-              >
-                Close
-              </Button>
-            </div>
-            <FirmographicAnalysis onCreateICP={handleFirmographicComplete} />
-          </div>
-        </div>
-      )}
     </>
   );
 }
