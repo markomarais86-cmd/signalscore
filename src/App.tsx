@@ -19,6 +19,7 @@ import Leads from "./pages/Leads";
 import Accounts from "./pages/Accounts";
 import DataUpload from "./pages/DataUpload";
 import Settings from "./pages/Settings";
+import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -95,6 +96,16 @@ function App() {
                     <ProtectedRoute>
                       <Layout>
                         <Settings />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <AdminDashboard />
                       </Layout>
                     </ProtectedRoute>
                   }

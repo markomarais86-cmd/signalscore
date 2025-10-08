@@ -1,6 +1,7 @@
-import { Upload, Settings, LogOut, LayoutDashboard, Target, Database } from "lucide-react";
+import { Upload, Settings, LogOut, LayoutDashboard, Target, Database, Shield } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
+import { useRoles } from "@/hooks/use-roles";
 import { Badge } from "@/components/ui/badge";
 import {
   Sidebar,
@@ -26,6 +27,7 @@ const mainNavigation = [
 export function AppSidebar() {
   const location = useLocation();
   const { signOut, userProfile } = useAuth();
+  const { isSuperAdmin } = useRoles();
   const currentPath = location.pathname;
 
   const icpContext = location.state as {
@@ -65,6 +67,20 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {isSuperAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/admin"
+                      className={getNavCls("/admin")}
+                    >
+                      <Shield className="h-4 w-4" />
+                      <span>Admin</span>
+                      <Badge variant="destructive" className="ml-auto text-xs">Super</Badge>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
