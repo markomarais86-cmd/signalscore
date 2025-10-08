@@ -58,6 +58,7 @@ import { EnrichmentTester } from "@/components/settings/EnrichmentTester";
 import { EnrichmentJobMonitor } from "@/components/settings/EnrichmentJobMonitor";
 import { EnrichmentAttributionReport } from "@/components/settings/EnrichmentAttributionReport";
 import { DataQualityDashboard } from "@/components/settings/DataQualityDashboard";
+import { InvitationsManager } from "@/components/settings/InvitationsManager";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TeamMember {
@@ -497,55 +498,15 @@ export default function Settings() {
 
         {/* Team Management */}
         <TabsContent value="team" className="space-y-6">
+          <InvitationsManager />
+          
           <Card>
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div>
                   <CardTitle>Team Members</CardTitle>
-                  <CardDescription>Manage team access and permissions</CardDescription>
+                  <CardDescription>Current members in your organization</CardDescription>
                 </div>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Invite Member
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Invite Team Member</DialogTitle>
-                      <DialogDescription>Send an invitation to join your organization</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="inviteEmail">Email Address</Label>
-                        <Input
-                          id="inviteEmail"
-                          type="email"
-                          value={inviteEmail}
-                          onChange={(e) => setInviteEmail(e.target.value)}
-                          placeholder="colleague@company.com"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="inviteRole">Role</Label>
-                        <Select value={inviteRole} onValueChange={(value: any) => setInviteRole(value)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="viewer">Viewer - Read only access</SelectItem>
-                            <SelectItem value="user">User - Standard access</SelectItem>
-                            <SelectItem value="admin">Admin - Full access</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button onClick={inviteTeamMember}>Send Invitation</Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
               </div>
             </CardHeader>
             <CardContent>

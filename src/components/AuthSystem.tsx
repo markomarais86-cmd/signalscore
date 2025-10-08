@@ -1,23 +1,27 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Eye, EyeOff, Mail, Lock, User, Building } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Mail, Lock, User, Building, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export function AuthSystem() {
   const { signIn, signUp, user, loading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('invite');
   
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [invitationInfo, setInvitationInfo] = useState<any>(null);
 
   // Redirect authenticated users to dashboard
   useEffect(() => {
@@ -25,6 +29,48 @@ export function AuthSystem() {
       navigate('/dashboard');
     }
   }, [user, loading, navigate]);
+
+  // Load invitation info if token present
+  useEffect(() => {
+    if (inviteToken) {
+      loadInvitationInfo(inviteToken);
+    }
+  }, [inviteToken]);
+
+  const loadInvitationInfo = async (token: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('invitations')
+        .select('*, organizations(name)')
+        .eq('token', token)
+        .eq('status', 'pending')
+        .single();
+
+      if (error || !data) {
+        toast({
+          title: 'Invalid Invitation',
+          description: 'This invitation is invalid or has expired.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Check if expired
+      if (new Date(data.expires_at) < new Date()) {
+        toast({
+          title: 'Invitation Expired',
+          description: 'This invitation has expired. Please request a new one.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setInvitationInfo(data);
+      setSignUpData((prev) => ({ ...prev, email: data.email }));
+    } catch (error) {
+      console.error('Error loading invitation:', error);
+    }
+  };
 
   // Sign In Form
   const [signInData, setSignInData] = useState({
@@ -149,11 +195,35 @@ export function AuthSystem() {
           setError(`Sign up failed: ${error.message}`);
         }
       } else {
-        // Success - show clear instructions
-        toast({
-          title: "Account created successfully!",
-          description: "Please check your email inbox and click the confirmation link before signing in. Check your spam folder if you don't see it.",
-        });
+        // If signing up with invitation, accept it
+        if (inviteToken && user) {
+          const { data: acceptResult, error: acceptError } = await supabase.rpc(
+            'accept_invitation',
+            { p_token: inviteToken, p_user_id: user.id }
+          );
+
+          const result = acceptResult as any;
+          
+          if (acceptError || !result?.success) {
+            console.error('Error accepting invitation:', acceptError);
+            toast({
+              title: 'Account created',
+              description: 'Account created but there was an issue with the invitation. Please contact support.',
+              variant: 'default',
+            });
+          } else {
+            toast({
+              title: 'Welcome to the team!',
+              description: 'Your account has been created and you\'ve joined the organization.',
+            });
+          }
+        } else {
+          // Success - show clear instructions
+          toast({
+            title: "Account created successfully!",
+            description: "Please check your email inbox and click the confirmation link before signing in. Check your spam folder if you don't see it.",
+          });
+        }
         
         // Reset form and switch to sign in tab
         setSignUpData({
@@ -164,11 +234,16 @@ export function AuthSystem() {
           company: ''
         });
         
-        // Auto-switch to sign-in tab after 2 seconds
-        setTimeout(() => {
-          const signInTab = document.querySelector('[value="signin"]') as HTMLButtonElement;
-          if (signInTab) signInTab.click();
-        }, 2000);
+        // Auto-switch to sign-in tab after 2 seconds if no invitation
+        if (!inviteToken) {
+          setTimeout(() => {
+            const signInTab = document.querySelector('[value="signin"]') as HTMLButtonElement;
+            if (signInTab) signInTab.click();
+          }, 2000);
+        } else {
+          // Redirect to dashboard if accepting invitation
+          navigate('/');
+        }
       }
     } catch (err) {
       console.error('Sign up error:', err);
@@ -188,7 +263,16 @@ export function AuthSystem() {
           </p>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="signin" className="space-y-4">
+          {invitationInfo && (
+            <Alert className="mb-4">
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertDescription>
+                You've been invited to join <strong>{invitationInfo.organizations?.name}</strong>
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          <Tabs defaultValue={inviteToken ? "signup" : "signin"} className="space-y-4">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Sign In</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
