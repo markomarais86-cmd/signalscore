@@ -93,130 +93,80 @@ export default function ExecutiveDashboard() {
     console.log('📊 Loading dashboard data for org:', userProfile.org_id);
     setLoading(true);
     try {
-      // Fetch all accounts with data source info
-      const { data: accounts, error: accountsError, count: accountsCount } = await supabase
-        .from('accounts')
-        .select('*, data_source, external_database_match', { count: 'exact' })
-        .eq('org_id', userProfile.org_id)
-        .limit(10000);
+      // Fetch all critical data in parallel
+      const [
+        accountsResult,
+        scoresResult,
+        icpResult,
+        leadsResult,
+        crmCountResult,
+        databaseCountResult,
+        bothCountResult,
+        linkedLeadsCountResult,
+        highFitCountResult,
+        highFitDistResult,
+        medFitDistResult,
+        lowFitDistResult
+      ] = await Promise.all([
+        supabase.from('accounts').select('*, data_source, external_database_match', { count: 'exact' }).eq('org_id', userProfile.org_id).limit(10000),
+        supabase.from('scores').select('*', { count: 'exact' }).eq('org_id', userProfile.org_id).limit(10000),
+        supabase.from('icp_profiles').select('*').eq('org_id', userProfile.org_id).eq('status', 'active'),
+        supabase.from('Leads').select('*', { count: 'exact' }).eq('org_id', userProfile.org_id).limit(10000),
+        supabase.from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).in('data_source', ['crm', 'both']),
+        supabase.from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).eq('data_source', 'database'),
+        supabase.from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).eq('data_source', 'both'),
+        supabase.from('Leads').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).not('account_external_id', 'is', null),
+        supabase.from('scores').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).gte('overall', 70),
+        supabase.from('scores').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).gte('overall', 70),
+        supabase.from('scores').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).gte('overall', 40).lt('overall', 70),
+        supabase.from('scores').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).lt('overall', 40)
+      ]);
 
-      console.log('📦 Accounts fetched:', accounts?.length, 'Total count:', accountsCount, 'Error:', accountsError);
+      const { data: accounts, error: accountsError, count: accountsCount } = accountsResult;
+      const { data: scores, error: scoresError, count: scoresCount } = scoresResult;
+      const { data: icpProfiles, error: icpError } = icpResult;
+      const { data: leads, error: leadsError, count: leadsCount } = leadsResult;
 
       if (accountsError) throw accountsError;
-
-      // Fetch scores
-      const { data: scores, error: scoresError, count: scoresCount } = await supabase
-        .from('scores')
-        .select('*', { count: 'exact' })
-        .eq('org_id', userProfile.org_id)
-        .limit(10000);
-
-      console.log('📈 Scores fetched:', scores?.length, 'Total count:', scoresCount, 'Error:', scoresError);
-
       if (scoresError) throw scoresError;
-
-      // Fetch ICP profiles
-      const { data: icpProfiles, error: icpError } = await supabase
-        .from('icp_profiles')
-        .select('*')
-        .eq('org_id', userProfile.org_id)
-        .eq('status', 'active');
-
       if (icpError) throw icpError;
-
-      // Fetch leads
-      const { data: leads, error: leadsError, count: leadsCount } = await supabase
-        .from('Leads')
-        .select('*', { count: 'exact' })
-        .eq('org_id', userProfile.org_id)
-        .limit(10000);
-
-      console.log('📋 Leads fetched:', leads?.length, 'Total count:', leadsCount, 'Error:', leadsError);
-
       if (leadsError) throw leadsError;
 
-      // Get accurate counts for data sources
-      const { count: crmCount } = await supabase
-        .from('accounts')
-        .select('*', { count: 'exact', head: true })
-        .eq('org_id', userProfile.org_id)
-        .in('data_source', ['crm', 'both']);
+      // Fetch RPC functions in parallel (second batch for non-critical data)
+      const [
+        crmLeadsResult,
+        databaseLeadsResult,
+        highFitLeadsResult,
+        highFitCrmAccountsResult,
+        highFitDatabaseAccountsResult,
+        highFitCrmLeadsResult,
+        highFitDatabaseLeadsResult,
+        campaignReadyResult,
+        campaignReadyLeadsResult,
+        completenessResult
+      ] = await Promise.all([
+        supabase.rpc('count_leads_by_account_source', { p_org_id: userProfile.org_id, p_data_source: 'crm' }),
+        supabase.rpc('count_leads_by_account_source', { p_org_id: userProfile.org_id, p_data_source: 'database' }),
+        supabase.rpc('count_high_fit_leads', { p_org_id: userProfile.org_id }),
+        supabase.rpc('count_high_fit_accounts_by_source', { p_org_id: userProfile.org_id, p_data_source: 'crm' }),
+        supabase.rpc('count_high_fit_accounts_by_source', { p_org_id: userProfile.org_id, p_data_source: 'database' }),
+        supabase.rpc('count_high_fit_leads_by_source', { p_org_id: userProfile.org_id, p_data_source: 'crm' }),
+        supabase.rpc('count_high_fit_leads_by_source', { p_org_id: userProfile.org_id, p_data_source: 'database' }),
+        supabase.rpc('count_campaign_ready_accounts', { p_org_id: userProfile.org_id }),
+        supabase.rpc('count_campaign_ready_leads', { p_org_id: userProfile.org_id }),
+        supabase.rpc('calculate_data_completeness', { p_org_id: userProfile.org_id })
+      ]);
 
-      const { count: databaseCount } = await supabase
-        .from('accounts')
-        .select('*', { count: 'exact', head: true })
-        .eq('org_id', userProfile.org_id)
-        .eq('data_source', 'database');
-
-      const { count: bothCount } = await supabase
-        .from('accounts')
-        .select('*', { count: 'exact', head: true })
-        .eq('org_id', userProfile.org_id)
-        .eq('data_source', 'both');
-
-      const { count: linkedLeadsCount } = await supabase
-        .from('Leads')
-        .select('*', { count: 'exact', head: true })
-        .eq('org_id', userProfile.org_id)
-        .not('account_external_id', 'is', null);
-
-      // Count leads by account source using database function
-      const { data: crmLeadsData } = await supabase
-        .rpc('count_leads_by_account_source', {
-          p_org_id: userProfile.org_id,
-          p_data_source: 'crm'
-        });
-
-      const { data: databaseLeadsData } = await supabase
-        .rpc('count_leads_by_account_source', {
-          p_org_id: userProfile.org_id,
-          p_data_source: 'database'
-        });
-
-      const { data: highFitLeadsData } = await supabase
-        .rpc('count_high_fit_leads', {
-          p_org_id: userProfile.org_id
-        });
-
-      // Get high-fit breakdowns by data source
-      const { data: highFitCrmAccountsData } = await supabase
-        .rpc('count_high_fit_accounts_by_source', {
-          p_org_id: userProfile.org_id,
-          p_data_source: 'crm'
-        });
-
-      const { data: highFitDatabaseAccountsData } = await supabase
-        .rpc('count_high_fit_accounts_by_source', {
-          p_org_id: userProfile.org_id,
-          p_data_source: 'database'
-        });
-
-      const { data: highFitCrmLeadsData } = await supabase
-        .rpc('count_high_fit_leads_by_source', {
-          p_org_id: userProfile.org_id,
-          p_data_source: 'crm'
-        });
-
-      const { data: highFitDatabaseLeadsData } = await supabase
-        .rpc('count_high_fit_leads_by_source', {
-          p_org_id: userProfile.org_id,
-          p_data_source: 'database'
-        });
-
-      const { data: campaignReadyData } = await supabase
-        .rpc('count_campaign_ready_accounts', {
-          p_org_id: userProfile.org_id
-        });
-
-      const { data: campaignReadyLeadsData } = await supabase
-        .rpc('count_campaign_ready_leads', {
-          p_org_id: userProfile.org_id
-        });
-
-      const { data: completenessData } = await supabase
-        .rpc('calculate_data_completeness', {
-          p_org_id: userProfile.org_id
-        });
+      const crmLeadsData = crmLeadsResult.data;
+      const databaseLeadsData = databaseLeadsResult.data;
+      const highFitLeadsData = highFitLeadsResult.data;
+      const highFitCrmAccountsData = highFitCrmAccountsResult.data;
+      const highFitDatabaseAccountsData = highFitDatabaseAccountsResult.data;
+      const highFitCrmLeadsData = highFitCrmLeadsResult.data;
+      const highFitDatabaseLeadsData = highFitDatabaseLeadsResult.data;
+      const campaignReadyData = campaignReadyResult.data;
+      const campaignReadyLeadsData = campaignReadyLeadsResult.data;
+      const completenessData = completenessResult.data;
 
       const crmLeadsCount = crmLeadsData || 0;
       const databaseLeadsCount = databaseLeadsData || 0;
@@ -229,16 +179,13 @@ export default function ExecutiveDashboard() {
       const campaignReadyLeads = campaignReadyLeadsData || 0;
       const completenessScore = completenessData || 0;
 
-      console.log('📋 CRM leads:', crmLeadsCount, 'Database leads:', databaseLeadsCount, 'High fit leads:', highFitLeadsCount);
-      console.log('🎯 High-fit CRM accounts:', highFitCrmAccountsCount, 'High-fit Database accounts:', highFitDatabaseAccountsCount);
-
       const totalAccounts = accountsCount || 0;
       const totalLeads = leadsCount || 0;
-      const linkedLeads = linkedLeadsCount || 0;
+      const linkedLeads = linkedLeadsCountResult.count || 0;
       const unlinkedLeads = totalLeads - linkedLeads;
-      const crmAccounts = crmCount || 0;
-      const databaseAccounts = databaseCount || 0;
-      const bothSourcesAccounts = bothCount || 0;
+      const crmAccounts = crmCountResult.count || 0;
+      const databaseAccounts = databaseCountResult.count || 0;
+      const bothSourcesAccounts = bothCountResult.count || 0;
       
       // Calculate field-level completeness
       const totalAccountsForCalc = accounts?.length || 1;
@@ -263,17 +210,7 @@ export default function ExecutiveDashboard() {
       const crmScoredEstimate = Math.floor((totalScored / totalAccounts) * crmAccounts);
       const databaseScoredEstimate = Math.floor((totalScored / totalAccounts) * databaseAccounts);
       
-      const { count: highFitCount, error: highFitError } = await supabase
-        .from('scores')
-        .select('*', { count: 'exact', head: true })
-        .eq('org_id', userProfile.org_id)
-        .gte('overall', 70);
-      
-      console.log('🎯 High fit query result:', { highFitCount, highFitError, totalScored });
-      
-      const highFitAccounts = highFitCount || 0;
-      
-      console.log('🎯 Total scored:', totalScored, 'High fit:', highFitAccounts);
+      const highFitAccounts = highFitCountResult.count || 0;
       const averageScore = scores && scores.length > 0 
         ? Math.round(scores.reduce((sum, s) => sum + (s.overall || 0), 0) / scores.length)
         : 0;
@@ -286,10 +223,6 @@ export default function ExecutiveDashboard() {
         ? Math.round((totalScored / totalAccounts) * 100)
         : 0;
 
-      // Use database-calculated values
-      const finalCompletenessScore = completenessScore;
-      const finalCampaignReadyAccounts = campaignReadyAccounts;
-
       const finalMetrics = {
         totalAccounts,
         totalScored,
@@ -301,7 +234,7 @@ export default function ExecutiveDashboard() {
         averageScore,
         icpMatchQuality,
         scoringProgress,
-        completenessScore: finalCompletenessScore,
+        completenessScore,
         industryCompleteness,
         sizeCompleteness,
         revenueCompleteness,
@@ -310,7 +243,7 @@ export default function ExecutiveDashboard() {
         crmAccounts,
         databaseAccounts,
         bothSourcesAccounts,
-        campaignReadyAccounts: finalCampaignReadyAccounts,
+        campaignReadyAccounts,
         campaignReadyLeads,
         totalLeads,
         linkedLeads,
@@ -321,55 +254,12 @@ export default function ExecutiveDashboard() {
         highFitCrmLeads: highFitCrmLeadsCount,
         highFitDatabaseLeads: highFitDatabaseLeadsCount
       };
-      
-      console.log('✅ Final metrics calculated:', finalMetrics);
-      
       setMetrics(finalMetrics);
       
-      // Calculate trends (async, don't block rendering)
-      calculateTrends(userProfile.org_id, finalMetrics).then(setTrends).catch(console.error);
-      
-      // Detect risks (async, don't block rendering)
-      detectRisks(userProfile.org_id, finalMetrics).then(setRisks).catch(console.error);
-
-      // Generate AI insights if we have scores
-      if (totalScored > 0) {
-        generateInsights();
-      }
-
-      // Transform insights to include category and route information
-      const transformedInsights = (insights || []).map((insight: any) => ({
-        ...insight,
-        category: insight.category || insight.type || 'firmographic',
-        why: insight.why || insight.description,
-        action: insight.action || 'View Details',
-        route: insight.route || '/accounts',
-        filter: insight.filter || {}
-      }));
-
-      // Fit distribution - use database counts
-      const { count: highFitDistCount } = await supabase
-        .from('scores')
-        .select('*', { count: 'exact', head: true })
-        .eq('org_id', userProfile.org_id)
-        .gte('overall', 70);
-
-      const { count: medFitDistCount } = await supabase
-        .from('scores')
-        .select('*', { count: 'exact', head: true })
-        .eq('org_id', userProfile.org_id)
-        .gte('overall', 40)
-        .lt('overall', 70);
-
-      const { count: lowFitDistCount } = await supabase
-        .from('scores')
-        .select('*', { count: 'exact', head: true })
-        .eq('org_id', userProfile.org_id)
-        .lt('overall', 40);
-
-      const highFitValue = highFitDistCount || 0;
-      const medFitValue = medFitDistCount || 0;
-      const lowFitValue = lowFitDistCount || 0;
+      // Fit distribution - use pre-fetched counts
+      const highFitValue = highFitDistResult.count || 0;
+      const medFitValue = medFitDistResult.count || 0;
+      const lowFitValue = lowFitDistResult.count || 0;
       const totalFitAccounts = highFitValue + medFitValue + lowFitValue;
 
       setFitDistribution([
@@ -393,17 +283,29 @@ export default function ExecutiveDashboard() {
         },
       ]);
 
-      // Geographic distribution - use RPC to get ALL accounts, not just first 1000
-      const { data: geoDistribution, error: geoError } = await supabase
-        .rpc('get_geography_distribution', { p_org_id: userProfile.org_id });
+      // Load non-critical data after setting metrics (don't block UI)
+      setLoading(false);
       
-      if (geoError) {
-        console.error('Error fetching geography distribution:', geoError);
-        setGeoData([]);
-        setInvalidGeoCount(0);
-      } else {
-        setGeoData(geoDistribution || []);
-        setInvalidGeoCount(0);
+      // Geographic distribution
+      supabase.rpc('get_geography_distribution', { p_org_id: userProfile.org_id })
+        .then(({ data: geoDistribution, error: geoError }) => {
+          if (geoError) {
+            console.error('Error fetching geography distribution:', geoError);
+            setGeoData([]);
+          } else {
+            setGeoData(geoDistribution || []);
+          }
+        });
+
+      // Calculate trends (async)
+      calculateTrends(userProfile.org_id, finalMetrics).then(setTrends).catch(console.error);
+      
+      // Detect risks (async)
+      detectRisks(userProfile.org_id, finalMetrics).then(setRisks).catch(console.error);
+
+      // Generate AI insights if we have scores (async)
+      if (totalScored > 0) {
+        generateInsights();
       }
 
       completeStep('explore_dashboard');
@@ -411,7 +313,6 @@ export default function ExecutiveDashboard() {
     } catch (error: any) {
       console.error('Error loading unified data:', error);
       toast.error('Failed to load dashboard data');
-    } finally {
       setLoading(false);
     }
   };

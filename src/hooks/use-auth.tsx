@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('Auth: Safety timeout triggered - forcing loading to false');
         setLoading(false);
       }
-    }, 3000);
+    }, 1500);
 
     return () => {
       mounted = false;
