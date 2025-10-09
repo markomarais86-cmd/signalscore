@@ -42,65 +42,86 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         setSession(session);
         setUser(session?.user ?? null);
-        setLoading(false); // Set loading false immediately when auth state changes
+        setLoading(false);
         
         if (session?.user) {
-          // Fetch user profile in background (don't block)
-          console.log('Auth: Fetching profile for user:', session.user.id);
-          supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .maybeSingle()
-            .then(({ data: profile, error }) => {
-              if (!mounted) return;
-              
-              if (error) {
-                console.error('Auth: Error fetching user profile:', error);
-              } else if (profile) {
-                console.log('Auth: Profile loaded successfully for org:', profile.org_id);
-                setUserProfile(profile as UserProfile);
-              } else {
-                console.warn('Auth: No profile found for user');
-              }
-            });
+          // Fetch user profile in background
+          setTimeout(() => {
+            supabase
+              .from('user_profiles')
+              .select('*')
+              .eq('user_id', session.user.id)
+              .maybeSingle()
+              .then(({ data: profile, error }) => {
+                if (!mounted) return;
+                if (error) {
+                  console.error('Auth: Error fetching user profile:', error);
+                } else if (profile) {
+                  setUserProfile(profile as UserProfile);
+                }
+              });
+          }, 0);
         } else {
           setUserProfile(null);
         }
       }
     );
 
-    // Check for existing session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-      
-      console.log('Auth: Initial session check:', !!session);
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-      
-      if (session?.user) {
-        console.log('Auth: Fetching initial profile for user:', session.user.id);
-        supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('user_id', session.user.id)
-          .maybeSingle()
-          .then(({ data: profile, error }) => {
-            if (!mounted) return;
-            
-            if (error) {
-              console.error('Auth: Error fetching initial profile:', error);
-            } else if (profile) {
-              console.log('Auth: Initial profile loaded for org:', profile.org_id);
-              setUserProfile(profile as UserProfile);
-            }
-          });
+    // Check for existing session with timeout fallback
+    const initAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (!mounted) return;
+        
+        console.log('Auth: Initial session check:', !!session);
+        
+        if (error) {
+          console.error('Auth: Error getting session:', error);
+        }
+        
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+        
+        if (session?.user) {
+          setTimeout(() => {
+            supabase
+              .from('user_profiles')
+              .select('*')
+              .eq('user_id', session.user.id)
+              .maybeSingle()
+              .then(({ data: profile, error }) => {
+                if (!mounted) return;
+                if (error) {
+                  console.error('Auth: Error fetching initial profile:', error);
+                } else if (profile) {
+                  setUserProfile(profile as UserProfile);
+                }
+              });
+          }, 0);
+        }
+      } catch (error) {
+        console.error('Auth: Fatal error during init:', error);
+        if (mounted) {
+          setLoading(false);
+        }
       }
-    });
+    };
+
+    initAuth();
+    
+    // Safety timeout - ensure loading never stays true forever
+    const safetyTimeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn('Auth: Safety timeout triggered - forcing loading to false');
+        setLoading(false);
+      }
+    }, 3000);
 
     return () => {
       mounted = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
