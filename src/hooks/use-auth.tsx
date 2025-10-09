@@ -50,27 +50,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         setSession(session);
         setUser(session?.user ?? null);
-        setLoading(false);
         
         if (session?.user) {
-          // Fetch user profile in background
-          setTimeout(() => {
-            supabase
-              .from('user_profiles')
-              .select('*')
-              .eq('user_id', session.user.id)
-              .maybeSingle()
-              .then(({ data: profile, error }) => {
-                if (!mounted) return;
-                if (error) {
-                  console.error('Auth: Error fetching user profile:', error);
-                } else if (profile) {
-                  setUserProfile(profile as UserProfile);
-                }
-              });
-          }, 0);
+          // Fetch user profile BEFORE setting loading to false
+          const { data: profile, error } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+            
+          if (!mounted) return;
+          
+          if (error) {
+            console.error('Auth: Error fetching user profile:', error);
+          } else if (profile) {
+            setUserProfile(profile as UserProfile);
+          }
+          
+          setLoading(false);
         } else {
           setUserProfile(null);
+          setLoading(false);
         }
       }
     );
@@ -90,25 +90,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         setSession(session);
         setUser(session?.user ?? null);
-        setLoading(false);
         
         if (session?.user) {
-          setTimeout(() => {
-            supabase
-              .from('user_profiles')
-              .select('*')
-              .eq('user_id', session.user.id)
-              .maybeSingle()
-              .then(({ data: profile, error }) => {
-                if (!mounted) return;
-                if (error) {
-                  console.error('Auth: Error fetching initial profile:', error);
-                } else if (profile) {
-                  setUserProfile(profile as UserProfile);
-                }
-              });
-          }, 0);
+          // Fetch user profile BEFORE setting loading to false
+          const { data: profile, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
+            
+          if (!mounted) return;
+          
+          if (profileError) {
+            console.error('Auth: Error fetching initial profile:', profileError);
+          } else if (profile) {
+            setUserProfile(profile as UserProfile);
+          }
         }
+        
+        setLoading(false);
       } catch (error) {
         console.error('Auth: Fatal error during init:', error);
         if (mounted) {
