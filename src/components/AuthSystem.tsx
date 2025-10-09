@@ -26,7 +26,7 @@ export function AuthSystem() {
   // Redirect authenticated users to dashboard
   useEffect(() => {
     if (!loading && user) {
-      navigate('/dashboard');
+      navigate('/');
     }
   }, [user, loading, navigate]);
 
@@ -134,7 +134,7 @@ export function AuthSystem() {
           description: "You've been signed in successfully."
         });
         // Redirect to dashboard after successful sign-in
-        navigate('/dashboard');
+        navigate('/');
       }
     } catch (err) {
       console.error('Sign in error:', err);

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -30,6 +30,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  
+  // Ref to track current loading state for safety timeout
+  const loadingRef = useRef(loading);
+  
+  // Keep ref in sync with loading state
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
 
   useEffect(() => {
     let mounted = true;
@@ -113,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     // Safety timeout - ensure loading never stays true forever
     const safetyTimeout = setTimeout(() => {
-      if (mounted && loading) {
+      if (mounted && loadingRef.current) {
         console.warn('Auth: Safety timeout triggered - forcing loading to false');
         setLoading(false);
       }
