@@ -59,18 +59,32 @@ export function EnrichmentModal({
   ];
 
   const handleEnrich = async () => {
+    console.log('🔍 [EnrichmentModal] handleEnrich called');
+    console.log('🔍 [EnrichmentModal] userProfile:', userProfile);
+    console.log('🔍 [EnrichmentModal] org_id:', userProfile?.org_id);
+    console.log('🔍 [EnrichmentModal] selectedProviders:', selectedProviders);
+    
     if (selectedProviders.length === 0) {
       toast.error("Please select at least one provider");
       return;
     }
 
-    if (!userProfile?.org_id) {
-      toast.error("User profile not found");
+    if (!userProfile) {
+      console.error('❌ [EnrichmentModal] userProfile is null/undefined');
+      toast.error("User profile not loaded. Please refresh the page.");
+      return;
+    }
+
+    if (!userProfile.org_id) {
+      console.error('❌ [EnrichmentModal] org_id is missing from userProfile');
+      toast.error("Organization ID not found. Please contact support.");
       return;
     }
 
     setEnriching(true);
     try {
+      console.log('📝 [EnrichmentModal] Creating enrichment job...');
+      
       // Create enrichment job
       const { data: job, error: jobError } = await supabase
         .from('enrichment_jobs')
@@ -84,17 +98,31 @@ export function EnrichmentModal({
         .select()
         .single();
 
-      if (jobError) throw jobError;
+      if (jobError) {
+        console.error('❌ [EnrichmentModal] Job creation error:', jobError);
+        throw new Error(`Failed to create enrichment job: ${jobError.message || JSON.stringify(jobError)}`);
+      }
+
+      if (!job) {
+        console.error('❌ [EnrichmentModal] No job returned after insert');
+        throw new Error('No job data returned from insert');
+      }
+
+      console.log('✅ [EnrichmentModal] Job created:', job);
 
       // Call smart-enrich edge function
+      console.log('🚀 [EnrichmentModal] Calling smart-enrich function with jobId:', job.id);
+      
       const { data, error } = await supabase.functions.invoke('smart-enrich', {
         body: { jobId: job.id }
       });
 
       if (error) {
-        console.error('Smart enrich error:', error);
-        throw new Error(error.message || 'Failed to start enrichment');
+        console.error('❌ [EnrichmentModal] Smart enrich error:', error);
+        throw new Error(`Failed to start enrichment: ${error.message || JSON.stringify(error)}`);
       }
+
+      console.log('✅ [EnrichmentModal] Smart enrich response:', data);
 
       toast.success("Enrichment started", {
         description: `Processing ${selectedAccounts || 'all'} accounts with smart enrichment waterfall`
@@ -126,8 +154,13 @@ export function EnrichmentModal({
         clearInterval(pollInterval);
       }, 300000);
     } catch (error: any) {
-      console.error('Error starting enrichment:', error);
-      toast.error(error.message || 'Failed to start enrichment');
+      console.error('❌ [EnrichmentModal] Error starting enrichment:', error);
+      
+      // Display detailed error to user
+      const errorMessage = error.message || 'Failed to start enrichment';
+      toast.error(errorMessage, {
+        description: 'Check console for details'
+      });
     } finally {
       setEnriching(false);
     }
