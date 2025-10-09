@@ -67,7 +67,7 @@ const CRM_SCHEMAS: Record<string, Schema> = {
 };
 
 const SIGNALSCORE_SCHEMA: Schema = {
-  name: 'SignalScore',
+  name: 'LaunchPulse',
   fields: [
     { name: 'accounts.name', type: 'string', description: 'Account name', required: true },
     { name: 'accounts.domain', type: 'string', description: 'Company domain', required: false },
@@ -213,7 +213,7 @@ export default function DataMapping() {
           <CardHeader>
             <CardTitle>Data Field Mapping</CardTitle>
             <CardDescription>
-              Map fields from your CRM to SignalScore schema for accurate data import
+              Map fields from your CRM to LaunchPulse schema for accurate data import
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -247,7 +247,7 @@ export default function DataMapping() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h3 className="text-lg font-semibold">Field Mapping: {CRM_SCHEMAS[selectedCRM].name} → SignalScore</h3>
+          <h3 className="text-lg font-semibold">Field Mapping: {CRM_SCHEMAS[selectedCRM].name} → LaunchPulse</h3>
           <p className="text-sm text-muted-foreground">Configure how fields are mapped between systems</p>
         </div>
         <div className="flex gap-2">
@@ -276,7 +276,7 @@ export default function DataMapping() {
             <div className="grid grid-cols-12 gap-4 font-medium text-sm text-muted-foreground border-b pb-2">
               <div className="col-span-4">Source Field ({CRM_SCHEMAS[selectedCRM].name})</div>
               <div className="col-span-1 text-center">→</div>
-              <div className="col-span-4">Target Field (SignalScore)</div>
+              <div className="col-span-4">Target Field (LaunchPulse)</div>
               <div className="col-span-2">Transformation</div>
               <div className="col-span-1">Status</div>
             </div>

@@ -19,8 +19,7 @@ export function Layout({ children }: LayoutProps) {
               <div className="flex items-center gap-4">
                 <SidebarTrigger />
                 <div className="flex items-baseline gap-3">
-                  <h1 className="text-xl font-bold text-primary">SignalScore</h1>
-                  <span className="text-xs text-muted-foreground">by LaunchPulse</span>
+                  <h1 className="text-xl font-bold text-primary">LaunchPulse</h1>
                 </div>
               </div>
               <ThemeToggle />

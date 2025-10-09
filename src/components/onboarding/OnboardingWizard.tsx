@@ -43,7 +43,7 @@ export function OnboardingWizard() {
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <div className="flex items-center justify-between">
-            <DialogTitle className="text-2xl">Welcome to SignalScore! 🚀</DialogTitle>
+            <DialogTitle className="text-2xl">Welcome to LaunchPulse! 🚀</DialogTitle>
             <Button variant="ghost" size="sm" onClick={skipOnboarding}>
               <X className="h-4 w-4" />
             </Button>

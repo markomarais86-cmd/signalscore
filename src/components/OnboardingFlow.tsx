@@ -37,7 +37,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     {
       id: 'upload-data',
       title: 'Upload Your CRM Data',
-      description: 'Import your accounts and contacts from CSV files to get started with SignalScore.',
+      description: 'Import your accounts and contacts from CSV files to get started with LaunchPulse.',
       icon: <Upload className="h-6 w-6" />,
       path: '/data-upload',
       completed: false
@@ -109,7 +109,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       <div className="text-center space-y-2">
         <div className="inline-flex items-center gap-2 mb-4">
           <Sparkles className="h-6 w-6 text-primary" />
-          <h1 className="text-2xl font-bold">Welcome to SignalScore</h1>
+          <h1 className="text-2xl font-bold">Welcome to LaunchPulse</h1>
         </div>
         <p className="text-muted-foreground">
           Let's get you set up with your ICP analysis in just a few steps

@@ -70,7 +70,7 @@ export function InviteUserModal({ open, onOpenChange, onInviteSent }: InviteUser
         body: {
           email: email.toLowerCase(),
           inviteUrl,
-          orgName: 'SignalScore', // You can fetch org name if needed
+          orgName: 'LaunchPulse', // You can fetch org name if needed
         },
       });
 

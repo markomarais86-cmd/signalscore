@@ -257,7 +257,7 @@ export function AuthSystem() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/20 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">SignalScore</CardTitle>
+          <CardTitle className="text-2xl font-bold">LaunchPulse</CardTitle>
           <p className="text-muted-foreground">
             ICP Analysis & Lead Scoring Platform
           </p>

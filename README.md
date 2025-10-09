@@ -1,8 +1,8 @@
-# ICP Intelligence Platform - Complete Implementation
+# LaunchPulse - ICP Intelligence Platform
 
 ## 🎯 Overview
 
-A comprehensive Ideal Customer Profile (ICP) intelligence platform with AI-powered scoring, pipeline analytics, and workflow automation. All 5 implementation phases are complete and ready for use.
+LaunchPulse is a comprehensive Ideal Customer Profile (ICP) intelligence platform with AI-powered scoring, pipeline analytics, and workflow automation. All 5 implementation phases are complete and ready for use.
 
 ## 🚀 Quick Links
 
