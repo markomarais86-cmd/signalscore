@@ -27,6 +27,7 @@ import { AIRecommendationsTiles } from "@/components/executive/AIRecommendations
 import { RisksAndActionsCard } from "@/components/executive/RisksAndActionsCard";
 import { ICPCoverageCard } from "@/components/executive/ICPCoverageCard";
 import { EnhancedRisksCard } from "@/components/executive/EnhancedRisksCard";
+import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 
 export default function ExecutiveDashboard() {
   const { userProfile } = useAuth();
@@ -78,6 +79,7 @@ export default function ExecutiveDashboard() {
   });
   const [risks, setRisks] = useState<RiskItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showEnrichmentModal, setShowEnrichmentModal] = useState(false);
 
   useEffect(() => {
     if (userProfile?.org_id) {
@@ -541,6 +543,29 @@ export default function ExecutiveDashboard() {
         </CardContent>
       </Card>
 
+      {/* Data Enrichment Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-primary" />
+              Data Enrichment
+            </CardTitle>
+            <Sparkles className="h-5 w-5 text-primary" />
+          </div>
+          <CardDescription>Enrich your accounts with missing firmographic data</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Use AI and external providers to automatically fill in missing company information, revenue ranges, and employee counts.
+          </p>
+          <Button onClick={() => setShowEnrichmentModal(true)} className="w-full">
+            <Sparkles className="h-4 w-4 mr-2" />
+            Start Enrichment
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Row 3: Geographic Distribution with Drill-down and Heat Map */}
       <EnhancedGeographyCard geoData={geoData} invalidCount={invalidGeoCount} />
 
@@ -576,6 +601,12 @@ export default function ExecutiveDashboard() {
           }}
         />
       </div>
+
+      <EnrichmentModal
+        open={showEnrichmentModal}
+        onOpenChange={setShowEnrichmentModal}
+        selectedAccounts={metrics.totalAccounts}
+      />
     </div>
   );
 }

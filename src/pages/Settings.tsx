@@ -60,6 +60,8 @@ import { EnrichmentAttributionReport } from "@/components/settings/EnrichmentAtt
 import { DataQualityDashboard } from "@/components/settings/DataQualityDashboard";
 import { InvitationsManager } from "@/components/settings/InvitationsManager";
 import { EnrichmentAPIKeys } from "@/components/settings/EnrichmentAPIKeys";
+import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
+import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TeamMember {
@@ -94,6 +96,7 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "account");
   const [triggerEnrich, setTriggerEnrich] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showEnrichmentModal, setShowEnrichmentModal] = useState(false);
   
   // Account settings
   const [profile, setProfile] = useState({
@@ -718,6 +721,25 @@ export default function Settings() {
         {/* Enrichment API Keys */}
         <TabsContent value="enrichment-keys" className="space-y-6">
           <EnrichmentAPIKeys />
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Run Enrichment Job</CardTitle>
+              <CardDescription>
+                Start a bulk enrichment job to enrich all accounts in your database
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button 
+                onClick={() => setShowEnrichmentModal(true)}
+                size="lg"
+                className="w-full"
+              >
+                <Sparkles className="h-5 w-5 mr-2" />
+                Start Bulk Enrichment
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Billing */}
@@ -882,6 +904,11 @@ export default function Settings() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <EnrichmentModal
+        open={showEnrichmentModal}
+        onOpenChange={setShowEnrichmentModal}
+      />
     </div>
   );
 }

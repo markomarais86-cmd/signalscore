@@ -23,6 +23,7 @@ import { CorrelationInsights } from "@/components/CorrelationInsights";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { EnrichmentDialog } from "@/components/EnrichmentDialog";
+import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { getSourceLabel, getSourceBadgeVariant } from "@/utils/data-source-attribution";
 import { EmptyDataState } from "@/components/EmptyDataState";
 import { PRIMARY_INDUSTRIES, SUB_INDUSTRIES_MAP } from "@/constants/zoominfo-industries";
@@ -83,6 +84,7 @@ export default function Accounts() {
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
   const [selectedAccountsForEnrichment, setSelectedAccountsForEnrichment] = useState<string[]>([]);
   const [showEnrichmentDialog, setShowEnrichmentDialog] = useState(false);
+  const [showEnrichmentModal, setShowEnrichmentModal] = useState(false);
   const [hasActiveICP, setHasActiveICP] = useState(false);
   const [needsScoring, setNeedsScoring] = useState(false);
   const [icpDetailsOpen, setIcpDetailsOpen] = useState(true);
@@ -904,22 +906,31 @@ export default function Accounts() {
             {icpContext ? 'Build targeted account lists for campaigns using ICP criteria' : 'Complete CRM database view'}
           </p>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Export to CSV
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => exportToCSV(false)}>
-              Export Current Page ({accounts.length} accounts)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => exportToCSV(true)}>
-              Export All Filtered ({totalCount} accounts)
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex gap-2">
+          <Button 
+            variant="default" 
+            onClick={() => setShowEnrichmentModal(true)}
+          >
+            <Sparkles className="h-4 w-4 mr-2" />
+            Enrich Account Data
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Download className="h-4 w-4 mr-2" />
+                Export to CSV
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => exportToCSV(false)}>
+                Export Current Page ({accounts.length} accounts)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => exportToCSV(true)}>
+                Export All Filtered ({totalCount} accounts)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       {/* Compact Summary Card */}
@@ -1450,6 +1461,12 @@ export default function Accounts() {
           setShowEnrichmentDialog(false);
           loadAccounts();
         }}
+      />
+
+      <EnrichmentModal
+        open={showEnrichmentModal}
+        onOpenChange={setShowEnrichmentModal}
+        selectedAccounts={totalCount}
       />
     </div>
   );
