@@ -38,9 +38,9 @@ export function EnrichmentModal({
     {
       id: "pdl",
       name: "People Data Labs (Free Tier)",
-      description: "Company firmographics and basic contact data",
+      description: "Company firmographics and industry classification",
       tier: "free",
-      fields: ["Industry", "Company Size", "Location"]
+      fields: ["Industry", "Company Size", "Location", "Employee Count"]
     },
     {
       id: "clearbit",
@@ -52,9 +52,9 @@ export function EnrichmentModal({
     {
       id: "apollo",
       name: "Apollo.io",
-      description: "Premium contact and company data",
+      description: "Premium firmographic and technology data",
       tier: "premium",
-      fields: ["All Firmographics", "Contacts", "Technologies"]
+      fields: ["All Firmographics", "Technologies", "Revenue Data"]
     }
   ];
 
@@ -150,7 +150,7 @@ export function EnrichmentModal({
             Enrich Account Data
           </DialogTitle>
           <DialogDescription>
-            Select data providers to enrich your accounts with missing firmographic and contact information
+            Select data providers to enrich your accounts with missing firmographic data (industry, size, revenue, location)
           </DialogDescription>
         </DialogHeader>
 
