@@ -1,6 +1,6 @@
 project_id = "dhyfbaptcprxxixgnpby"
 
-[functions.enrich-firmographics]
+[functions.enrich-ai-firmographics]
 verify_jwt = true
 
 [functions.merge-duplicate-accounts]

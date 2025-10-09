@@ -59,6 +59,7 @@ import { EnrichmentJobMonitor } from "@/components/settings/EnrichmentJobMonitor
 import { EnrichmentAttributionReport } from "@/components/settings/EnrichmentAttributionReport";
 import { DataQualityDashboard } from "@/components/settings/DataQualityDashboard";
 import { InvitationsManager } from "@/components/settings/InvitationsManager";
+import { EnrichmentAPIKeys } from "@/components/settings/EnrichmentAPIKeys";
 import { supabase } from "@/integrations/supabase/client";
 
 interface TeamMember {
@@ -397,6 +398,10 @@ export default function Settings() {
             <Key className="h-4 w-4" />
             API
           </TabsTrigger>
+          <TabsTrigger value="enrichment-keys" className="flex items-center gap-2">
+            <Key className="h-4 w-4" />
+            Enrichment Keys
+          </TabsTrigger>
         </TabsList>
 
         {/* Account Settings */}
@@ -708,6 +713,11 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Enrichment API Keys */}
+        <TabsContent value="enrichment-keys" className="space-y-6">
+          <EnrichmentAPIKeys />
         </TabsContent>
 
         {/* Billing */}

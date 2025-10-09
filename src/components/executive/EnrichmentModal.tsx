@@ -86,25 +86,45 @@ export function EnrichmentModal({
 
       if (jobError) throw jobError;
 
-      toast.success("Enrichment started", {
-        description: `Enriching ${selectedAccounts || 'all'} accounts with ${selectedProviders.length} provider(s)`
+      // Call smart-enrich edge function
+      const { data, error } = await supabase.functions.invoke('smart-enrich', {
+        body: { jobId: job.id }
       });
 
-      // Simulate enrichment progress (in production, this would be handled by an edge function)
-      setTimeout(async () => {
-        await supabase
+      if (error) {
+        console.error('Smart enrich error:', error);
+        throw new Error(error.message || 'Failed to start enrichment');
+      }
+
+      toast.success("Enrichment started", {
+        description: `Processing ${selectedAccounts || 'all'} accounts with smart enrichment waterfall`
+      });
+
+      // Poll job status every 2 seconds
+      const pollInterval = setInterval(async () => {
+        const { data: jobStatus } = await supabase
           .from('enrichment_jobs')
-          .update({ 
-            status: 'completed',
-            processed_records: selectedAccounts || 0,
-            enriched_records: Math.floor((selectedAccounts || 0) * 0.85)
-          })
-          .eq('id', job.id);
+          .select('status, enriched_records, processed_records, total_records')
+          .eq('id', job.id)
+          .single();
 
-        toast.success("Enrichment completed");
-      }, 5000);
+        if (jobStatus?.status === 'completed') {
+          clearInterval(pollInterval);
+          toast.success("Enrichment complete", {
+            description: `${jobStatus.enriched_records} of ${jobStatus.total_records} accounts enriched`
+          });
+          onOpenChange(false);
+        } else if (jobStatus?.status === 'failed') {
+          clearInterval(pollInterval);
+          toast.error("Enrichment failed");
+          onOpenChange(false);
+        }
+      }, 2000);
 
-      onOpenChange(false);
+      // Stop polling after 5 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+      }, 300000);
     } catch (error: any) {
       console.error('Error starting enrichment:', error);
       toast.error(error.message || 'Failed to start enrichment');

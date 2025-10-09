@@ -18,7 +18,10 @@ Deno.serve(async (req) => {
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      { auth: { persistSession: false } }
+      {
+        db: { schema: 'public' },
+        auth: { persistSession: false }
+      }
     )
 
     const { jobId }: SmartEnrichRequest = await req.json()
@@ -86,7 +89,7 @@ Deno.serve(async (req) => {
         status: 'pending'
       })
 
-    const aiResponse = await supabaseClient.functions.invoke('enrich-firmographics', {
+    const aiResponse = await supabaseClient.functions.invoke('enrich-ai-firmographics', {
       body: { job_id: aiJobId }
     })
 

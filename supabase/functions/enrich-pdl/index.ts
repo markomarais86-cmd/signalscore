@@ -20,7 +20,10 @@ serve(async (req) => {
       throw new Error('PDL_API_KEY not configured');
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      db: { schema: 'public' },
+      auth: { persistSession: false }
+    });
     const { job_id } = await req.json();
 
     if (!job_id) {

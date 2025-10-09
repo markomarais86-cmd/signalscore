@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp, ArrowRight } from "lucide-react";
+import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp, ArrowRight, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -17,11 +17,15 @@ import { Link, useNavigate } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ClosedWonInsights } from "@/components/icp/ClosedWonInsights";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ICPRecommendationDialog } from "@/components/icp/ICPRecommendationDialog";
 
 export default function ICPManager() {
   const [icps, setIcps] = useState<ICPProfile[]>([]);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [editingIcp, setEditingIcp] = useState<ICPProfile | null>(null);
+  const [recommendationDialogOpen, setRecommendationDialogOpen] = useState(false);
+  const [aiRecommendation, setAiRecommendation] = useState<any>(null);
+  const [loadingRecommendation, setLoadingRecommendation] = useState(false);
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
@@ -140,6 +144,37 @@ export default function ICPManager() {
     setEditingIcp(null);
   };
 
+  const handleAIRecommendations = async () => {
+    if (!userProfile?.org_id) return;
+    
+    setLoadingRecommendation(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-icp-recommendations', {
+        body: { org_id: userProfile.org_id }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        setAiRecommendation(data);
+        setRecommendationDialogOpen(true);
+        toast({
+          title: "AI Recommendations Generated",
+          description: "Review the AI-generated ICP recommendation"
+        });
+      }
+    } catch (error: any) {
+      console.error('Error generating AI recommendations:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate AI recommendations",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingRecommendation(false);
+    }
+  };
+
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
       case 'active': return 'default';
@@ -186,10 +221,30 @@ export default function ICPManager() {
             <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">ICP Manager</h1>
             <p className="text-muted-foreground mt-2">Create, manage, and activate your Ideal Customer Profiles</p>
           </div>
-          <Button onClick={handleCreateNew} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Create New ICP
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleAIRecommendations} 
+              variant="outline"
+              disabled={loadingRecommendation}
+              className="flex items-center gap-2"
+            >
+              {loadingRecommendation ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Get AI Recommendations
+                </>
+              )}
+            </Button>
+            <Button onClick={handleCreateNew} className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Create New ICP
+            </Button>
+          </div>
         </div>
 
 
@@ -408,6 +463,13 @@ export default function ICPManager() {
         onClose={handleWizardClose}
         onComplete={handleWizardComplete}
         editingICP={editingIcp}
+      />
+
+      {/* AI Recommendation Dialog */}
+      <ICPRecommendationDialog
+        open={recommendationDialogOpen}
+        onOpenChange={setRecommendationDialogOpen}
+        data={aiRecommendation}
       />
 
     </>
