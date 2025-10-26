@@ -1,4 +1,4 @@
-import { Upload, Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign } from "lucide-react";
+import { Upload, Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign, FileText, Users, BarChart3 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
@@ -98,6 +98,48 @@ export function AppSidebar() {
                       <DollarSign className="h-4 w-4" />
                       <span>Capital Efficiency</span>
                       <Badge variant="secondary" className="ml-auto text-xs">Phase 3</Badge>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {flags.custom_reports && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/reports"
+                      className={getNavCls("/reports")}
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>Reports</span>
+                      <Badge variant="secondary" className="ml-auto text-xs">Phase 6</Badge>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {flags.advanced_segmentation && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/segmentation"
+                      className={getNavCls("/segmentation")}
+                    >
+                      <Users className="h-4 w-4" />
+                      <span>Segmentation</span>
+                      <Badge variant="secondary" className="ml-auto text-xs">Phase 6</Badge>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {flags.trend_analysis && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/trends"
+                      className={getNavCls("/trends")}
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      <span>Trends</span>
+                      <Badge variant="secondary" className="ml-auto text-xs">Phase 6</Badge>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

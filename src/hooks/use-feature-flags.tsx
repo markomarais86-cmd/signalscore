@@ -10,6 +10,11 @@ interface FeatureFlags {
   capital_efficiency: boolean;
   ai_agents: boolean;
   demo_mode: boolean;
+  custom_reports: boolean;
+  cohort_analysis: boolean;
+  predictive_scoring: boolean;
+  advanced_segmentation: boolean;
+  trend_analysis: boolean;
 }
 
 interface FeatureFlagsContextType {
@@ -31,6 +36,12 @@ const defaultFlags: FeatureFlags = {
   capital_efficiency: false,
   ai_agents: false,
   demo_mode: false,
+  // Phase 6 - Advanced Analytics (Disabled by default)
+  custom_reports: false,
+  cohort_analysis: false,
+  predictive_scoring: false,
+  advanced_segmentation: false,
+  trend_analysis: false,
 };
 
 export function FeatureFlagsProvider({ children }: { children: ReactNode }) {

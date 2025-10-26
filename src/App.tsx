@@ -22,6 +22,9 @@ import Settings from "./pages/Settings";
 import AdminDashboard from "./pages/AdminDashboard";
 import PipelineEfficiency from "./pages/PipelineEfficiency";
 import CapitalEfficiency from "./pages/CapitalEfficiency";
+import ReportBuilder from "./pages/ReportBuilder";
+import Segmentation from "./pages/Segmentation";
+import Trends from "./pages/Trends";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -128,6 +131,36 @@ function App() {
                     <ProtectedRoute>
                       <Layout>
                         <CapitalEfficiency />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/reports"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <ReportBuilder />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/segmentation"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Segmentation />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/trends"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Trends />
                       </Layout>
                     </ProtectedRoute>
                   }
