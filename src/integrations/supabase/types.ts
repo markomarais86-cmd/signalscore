@@ -31,6 +31,8 @@ export type Database = {
           name: string | null
           org_id: string
           phone: string | null
+          propensity_computed_at: string | null
+          propensity_score: number | null
           revenue_range: string | null
           state_province: string | null
           updated_at: string | null
@@ -51,6 +53,8 @@ export type Database = {
           name?: string | null
           org_id: string
           phone?: string | null
+          propensity_computed_at?: string | null
+          propensity_score?: number | null
           revenue_range?: string | null
           state_province?: string | null
           updated_at?: string | null
@@ -71,6 +75,8 @@ export type Database = {
           name?: string | null
           org_id?: string
           phone?: string | null
+          propensity_computed_at?: string | null
+          propensity_score?: number | null
           revenue_range?: string | null
           state_province?: string | null
           updated_at?: string | null
@@ -559,6 +565,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "contacts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      custom_reports: {
+        Row: {
+          config: Json
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          org_id: string
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          org_id: string
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_reports_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -1216,6 +1266,56 @@ export type Database = {
           },
         ]
       }
+      ml_models: {
+        Row: {
+          accuracy: number | null
+          feature_importance: Json | null
+          id: string
+          model_config: Json
+          model_type: string
+          org_id: string
+          precision_score: number | null
+          recall_score: number | null
+          trained_at: string
+          training_data_count: number | null
+          version: number
+        }
+        Insert: {
+          accuracy?: number | null
+          feature_importance?: Json | null
+          id?: string
+          model_config?: Json
+          model_type: string
+          org_id: string
+          precision_score?: number | null
+          recall_score?: number | null
+          trained_at?: string
+          training_data_count?: number | null
+          version?: number
+        }
+        Update: {
+          accuracy?: number | null
+          feature_importance?: Json | null
+          id?: string
+          model_config?: Json
+          model_type?: string
+          org_id?: string
+          precision_score?: number | null
+          recall_score?: number | null
+          trained_at?: string
+          training_data_count?: number | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ml_models_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string | null
@@ -1381,6 +1481,60 @@ export type Database = {
           },
         ]
       }
+      report_schedules: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          frequency: string
+          id: string
+          last_run_at: string | null
+          next_run_at: string | null
+          org_id: string
+          recipients: string[]
+          report_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          frequency: string
+          id?: string
+          last_run_at?: string | null
+          next_run_at?: string | null
+          org_id: string
+          recipients?: string[]
+          report_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          frequency?: string
+          id?: string
+          last_run_at?: string | null
+          next_run_at?: string | null
+          org_id?: string
+          recipients?: string[]
+          report_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_schedules_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_schedules_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "custom_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       score_history: {
         Row: {
           account_external_id: string
@@ -1467,6 +1621,50 @@ export type Database = {
           },
           {
             foreignKeyName: "scores_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      segments: {
+        Row: {
+          account_count: number | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          org_id: string
+          query_config: Json
+          updated_at: string
+        }
+        Insert: {
+          account_count?: number | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          org_id: string
+          query_config?: Json
+          updated_at?: string
+        }
+        Update: {
+          account_count?: number | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          query_config?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "segments_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
