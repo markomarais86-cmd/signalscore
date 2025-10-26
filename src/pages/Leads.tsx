@@ -62,7 +62,6 @@ import { Link2, AlertTriangle } from "lucide-react";
 
 export default function Leads() {
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [filteredLeads, setFilteredLeads] = useState<Lead[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -76,27 +75,20 @@ export default function Leads() {
   const { toast } = useToast();
   const { flags } = useFeatureFlags();
 
-  // Pagination
-  const {
-    currentPage,
-    pageSize,
-    totalPages,
-    paginatedData,
-    handlePageChange,
-    handlePageSizeChange,
-  } = usePagination({ data: filteredLeads, initialPageSize: 25 });
+  // Server-side pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  
+  const totalPages = Math.ceil(totalCount / pageSize);
 
   useEffect(() => {
     if (userProfile?.org_id) {
       loadLeads();
     }
-  }, [userProfile?.org_id]);
+  }, [userProfile?.org_id, currentPage, pageSize, searchTerm, statusFilter, linkFilter, personaFilter]);
 
   // Removed auto-match on page load - it causes timeouts and poor UX
-
-  useEffect(() => {
-    filterLeads();
-  }, [leads, searchTerm, statusFilter, linkFilter, personaFilter]);
 
   const loadLeads = async () => {
     if (!userProfile?.org_id) return;
@@ -152,27 +144,45 @@ export default function Leads() {
         return;
       }
 
-      // Get total count of leads for display purposes
-      const { count: totalCount } = await supabase
+      // Build query with filters and server-side pagination
+      let leadsQuery = supabase
         .from('Leads')
-        .select('*', { count: 'exact', head: true })
+        .select('*', { count: 'exact' })
         .eq('org_id', userProfile.org_id);
 
-      console.log('Leads page - Total leads in database:', totalCount);
+      // Apply filters
+      if (searchTerm) {
+        leadsQuery = leadsQuery.or(
+          `name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,company.ilike.%${searchTerm}%`
+        );
+      }
 
-      // Only fetch first 5000 leads to prevent memory issues
-      // Use server-side pagination for better performance
-      const INITIAL_LIMIT = 5000;
-      const { data: leadsData, error: leadsError } = await supabase
-        .from('Leads')
-        .select('*')
-        .eq('org_id', userProfile.org_id)
-        .order('created_at', { ascending: false })
-        .limit(INITIAL_LIMIT);
+      if (statusFilter !== 'all') {
+        leadsQuery = leadsQuery.eq('status', statusFilter);
+      }
+
+      if (linkFilter === 'linked') {
+        leadsQuery = leadsQuery.not('account_external_id', 'is', null);
+      } else if (linkFilter === 'unlinked') {
+        leadsQuery = leadsQuery.is('account_external_id', null);
+      }
+
+      if (personaFilter !== 'all') {
+        leadsQuery = leadsQuery.eq('persona', personaFilter);
+      }
+
+      // Add pagination
+      const from = (currentPage - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      const { data: leadsData, count, error: leadsError } = await leadsQuery
+        .range(from, to)
+        .order('created_at', { ascending: false });
 
       if (leadsError) throw leadsError;
 
-      console.log(`Loaded ${leadsData?.length || 0} leads of ${totalCount || 0} total`);
+      setTotalCount(count || 0);
+      console.log(`Loaded ${leadsData?.length || 0} leads of ${count || 0} total`);
 
       // Get unique account external IDs that have a link
       const linkedAccountIds = [...new Set(
@@ -352,36 +362,13 @@ export default function Leads() {
     }
   };
 
-  const filterLeads = () => {
-    let filtered = leads;
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
 
-    if (searchTerm) {
-      filtered = filtered.filter(lead => {
-        const fullName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim();
-        return (
-          fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          lead.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          lead.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          lead.industry?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      });
-    }
-
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(lead => lead.status === statusFilter);
-    }
-
-    if (linkFilter === 'linked') {
-      filtered = filtered.filter(lead => lead.account_external_id);
-    } else if (linkFilter === 'unlinked') {
-      filtered = filtered.filter(lead => !lead.account_external_id);
-    }
-
-    if (personaFilter !== 'all') {
-      filtered = filtered.filter(lead => lead.persona === personaFilter);
-    }
-
-    setFilteredLeads(filtered);
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1); // Reset to first page when changing page size
   };
 
   const handleRescore = async (lead: Lead) => {
@@ -457,7 +444,7 @@ export default function Leads() {
   const unlinkedPercentage = leads.length > 0 ? Math.round((unlinkedLeads.length / leads.length) * 100) : 0;
 
   const exportToCSV = () => {
-    if (filteredLeads.length === 0) {
+    if (leads.length === 0) {
       toast({
         title: "No data to export",
         description: "No leads match your current filters",
@@ -487,7 +474,7 @@ export default function Leads() {
       'External ID'
     ];
 
-    const rows = filteredLeads.map(lead => {
+    const rows = leads.map(lead => {
       const fullName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim();
       return [
         fullName || lead.name || '',
@@ -528,7 +515,7 @@ export default function Leads() {
 
     toast({
       title: "Export successful",
-      description: `Exported ${filteredLeads.length} leads to CSV`
+      description: `Exported ${leads.length} leads to CSV`
     });
   };
 
@@ -697,7 +684,7 @@ export default function Leads() {
       {/* Leads Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Qualified Leads ({filteredLeads.length})</CardTitle>
+          <CardTitle>Qualified Leads ({totalCount.toLocaleString()})</CardTitle>
           <CardDescription>
             High-scoring accounts ready for outreach - Click any row to view details and ICP fit reasons
           </CardDescription>
@@ -717,7 +704,7 @@ export default function Leads() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginatedData.map((lead) => {
+              {leads.map((lead) => {
                 const fullName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim() || lead.name || 'Unknown Lead';
                 const statusVariant = 
                   lead.status === 'qualified' ? 'default' : 
@@ -972,7 +959,7 @@ export default function Leads() {
             </TableBody>
           </Table>
 
-          {filteredLeads.length === 0 && (
+          {leads.length === 0 && (
             <div className="text-center py-12">
               <p className="text-muted-foreground">
                 {searchTerm || statusFilter !== "all" 
@@ -982,12 +969,12 @@ export default function Leads() {
             </div>
           )}
 
-          {filteredLeads.length > 0 && (
+          {leads.length > 0 && (
             <PaginationControls
               currentPage={currentPage}
               totalPages={totalPages}
               pageSize={pageSize}
-              totalItems={filteredLeads.length}
+              totalItems={totalCount}
               onPageChange={handlePageChange}
               onPageSizeChange={handlePageSizeChange}
             />
