@@ -55,8 +55,33 @@ export function useDashboardData(orgId: string | undefined) {
         throw icpResult.error;
       }
       
+      // Map the function response to expected structure
+      const rawMetrics = metricsResult.data as any;
+      const mappedMetrics: DashboardMetrics = {
+        total_accounts: rawMetrics?.totalAccounts || 0,
+        total_scores: rawMetrics?.scoredAccounts || 0,
+        total_leads: rawMetrics?.totalLeads || 0,
+        crm_accounts: 0,
+        database_accounts: 0,
+        both_accounts: 0,
+        linked_leads: 0,
+        high_fit_scores: rawMetrics?.highFitAccounts || 0,
+        med_fit_scores: rawMetrics?.mediumFitAccounts || 0,
+        low_fit_scores: rawMetrics?.lowFitAccounts || 0,
+        high_fit_crm_accounts: 0,
+        high_fit_database_accounts: 0,
+        crm_leads: 0,
+        database_leads: 0,
+        high_fit_leads_total: 0,
+        high_fit_crm_leads: 0,
+        high_fit_database_leads: 0,
+        campaign_ready_accounts: rawMetrics?.campaignReadyAccounts || 0,
+        campaign_ready_leads: rawMetrics?.campaignReadyLeads || 0,
+        data_completeness: 0,
+      };
+      
       return {
-        metrics: metricsResult.data as unknown as DashboardMetrics,
+        metrics: mappedMetrics,
         icpProfiles: icpResult.data || []
       };
     },

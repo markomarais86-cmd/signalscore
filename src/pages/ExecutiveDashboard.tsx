@@ -97,13 +97,13 @@ export default function ExecutiveDashboard() {
         generateInsights();
       }
     }
-  }, [dashboardData, userProfile?.org_id, totalScores]);
+  }, [dashboardData?.metrics, userProfile?.org_id, totalScores]); // Fix: use dashboardData.metrics instead of dashboardData
 
   useEffect(() => {
     if (userProfile?.org_id) {
       completeStep('viewed_dashboard');
     }
-  }, [userProfile, completeStep]);
+  }, [userProfile?.org_id]); // Remove completeStep from deps to prevent infinite loops
 
   useEffect(() => {
     if (!insightsLoading && insights?.length === 0) {
