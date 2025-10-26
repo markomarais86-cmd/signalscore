@@ -30,7 +30,7 @@ import { EnhancedRisksCard } from "@/components/executive/EnhancedRisksCard";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 
 export default function ExecutiveDashboard() {
-  const { userProfile } = useAuth();
+  const { userProfile, loading: authLoading } = useAuth();
   const { completeStep } = useOnboarding();
   const navigate = useNavigate();
   const sidebar = useSidebar();
@@ -80,18 +80,39 @@ export default function ExecutiveDashboard() {
   const [risks, setRisks] = useState<RiskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showEnrichmentModal, setShowEnrichmentModal] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (userProfile?.org_id) {
-      loadUnifiedData();
+    console.log('🔍 Dashboard effect - authLoading:', authLoading, 'userProfile:', !!userProfile, 'org_id:', userProfile?.org_id);
+    
+    // Wait for auth to complete
+    if (authLoading) {
+      console.log('⏳ Still loading auth...');
+      return;
     }
-  }, [userProfile?.org_id]);
+    
+    // Check if we have a valid profile with org_id
+    if (!userProfile?.org_id) {
+      console.error('❌ Auth completed but no org_id available');
+      setLoadError('Unable to load organization data. Please try logging out and back in.');
+      setLoading(false);
+      return;
+    }
+    
+    // We have valid auth and org_id, load data
+    console.log('✅ Valid org_id, loading data...');
+    loadUnifiedData();
+  }, [authLoading, userProfile?.org_id]);
 
   const loadUnifiedData = async () => {
-    if (!userProfile?.org_id) return;
+    if (!userProfile?.org_id) {
+      console.error('❌ loadUnifiedData called without org_id');
+      return;
+    }
     
     console.log('📊 Loading dashboard data for org:', userProfile.org_id);
     setLoading(true);
+    setLoadError(null);
     try {
       // Fetch all critical data in parallel
       const [
@@ -311,24 +332,88 @@ export default function ExecutiveDashboard() {
       completeStep('explore_dashboard');
 
     } catch (error: any) {
-      console.error('Error loading unified data:', error);
+      console.error('❌ Error loading unified data:', error);
+      setLoadError(error.message || 'Failed to load dashboard data');
       toast.error('Failed to load dashboard data');
       setLoading(false);
     }
   };
 
-  if (loading) {
+  // Show loading state
+  if (loading || authLoading) {
     return (
       <div className="space-y-6">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
             Overview Dashboard
           </h1>
-          <p className="text-muted-foreground mt-2">Loading your unified CRM intelligence...</p>
+          <p className="text-muted-foreground mt-2">
+            {authLoading ? 'Authenticating...' : 'Loading your unified CRM intelligence...'}
+          </p>
         </div>
         <Card>
           <CardContent className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="flex flex-col items-center gap-4">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              <p className="text-sm text-muted-foreground">
+                {authLoading ? 'Verifying credentials...' : 'Fetching data...'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show error state with retry button
+  if (loadError) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+            Overview Dashboard
+          </h1>
+          <p className="text-muted-foreground mt-2">Unable to load dashboard</p>
+        </div>
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between">
+            <span>{loadError}</span>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => window.location.reload()}
+              >
+                Refresh Page
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setLoadError(null);
+                  setLoading(true);
+                  loadUnifiedData();
+                }}
+              >
+                Retry
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+        <Card>
+          <CardContent className="py-12">
+            <div className="text-center space-y-4">
+              <p className="text-muted-foreground">
+                Debug Info:
+              </p>
+              <div className="text-xs text-left bg-muted p-4 rounded-md font-mono max-w-2xl mx-auto">
+                <div>Auth Loading: {authLoading ? 'Yes' : 'No'}</div>
+                <div>User Profile: {userProfile ? 'Loaded' : 'Missing'}</div>
+                <div>Org ID: {userProfile?.org_id || 'Not available'}</div>
+                <div>User ID: {userProfile?.user_id || 'Not available'}</div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
