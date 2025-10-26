@@ -1570,10 +1570,7 @@ export type Database = {
         Args: { p_data_source: string; p_org_id: string }
         Returns: number
       }
-      count_high_fit_leads: {
-        Args: { p_org_id: string }
-        Returns: number
-      }
+      count_high_fit_leads: { Args: { p_org_id: string }; Returns: number }
       count_high_fit_leads_by_source: {
         Args: { p_data_source: string; p_org_id: string }
         Returns: number
@@ -1586,26 +1583,11 @@ export type Database = {
         Args: { p_data_source: string; p_org_id: string }
         Returns: number
       }
-      expire_old_invitations: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      generate_invitation_token: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
-      generate_sample_data: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      get_active_icp_id: {
-        Args: { p_org_id: string }
-        Returns: string
-      }
-      get_current_user_org_id: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      expire_old_invitations: { Args: never; Returns: number }
+      generate_invitation_token: { Args: never; Returns: string }
+      generate_sample_data: { Args: never; Returns: Json }
+      get_active_icp_id: { Args: { p_org_id: string }; Returns: string }
+      get_current_user_org_id: { Args: never; Returns: string }
       get_geography_distribution: {
         Args: { p_org_id: string }
         Returns: {
@@ -1656,18 +1638,9 @@ export type Database = {
         }
         Returns: string
       }
-      is_current_user_admin: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      is_super_admin: {
-        Args: Record<PropertyKey, never>
-        Returns: boolean
-      }
-      map_title_to_persona: {
-        Args: { title_input: string }
-        Returns: string
-      }
+      is_current_user_admin: { Args: never; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
+      map_title_to_persona: { Args: { title_input: string }; Returns: string }
       match_leads_fuzzy: {
         Args: {
           p_base_domain: string
@@ -1684,30 +1657,15 @@ export type Database = {
         Args: { p_is_external_db?: boolean; p_org_id: string }
         Returns: Json
       }
-      merge_duplicate_accounts: {
-        Args: { p_org_id: string }
-        Returns: Json
-      }
-      normalize_country: {
-        Args: { country_input: string }
-        Returns: string
-      }
-      normalize_domain_text: {
-        Args: { domain_input: string }
-        Returns: string
-      }
+      merge_duplicate_accounts: { Args: { p_org_id: string }; Returns: Json }
+      normalize_country: { Args: { country_input: string }; Returns: string }
+      normalize_domain_text: { Args: { domain_input: string }; Returns: string }
       record_data_quality_snapshot: {
         Args: { org_id_param: string }
         Returns: undefined
       }
-      refresh_all_materialized_views: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      refresh_reporting_views: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      refresh_all_materialized_views: { Args: never; Returns: undefined }
+      refresh_reporting_views: { Args: never; Returns: undefined }
       validate_api_key: {
         Args: { key_to_validate: string }
         Returns: {
