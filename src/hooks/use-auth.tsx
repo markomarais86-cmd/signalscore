@@ -31,20 +31,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   
-  // Ref to track current loading state for safety timeout
-  const loadingRef = useRef(loading);
-  
-  // Keep ref in sync with loading state
-  useEffect(() => {
-    loadingRef.current = loading;
-  }, [loading]);
+  // Phase A: Removed loadingRef - no longer needed without safety timeout
 
   useEffect(() => {
     let mounted = true;
+    let profileFetchInProgress = false;
+    
+    // Helper function to fetch and cache profile
+    const fetchAndCacheProfile = async (userId: string) => {
+      if (profileFetchInProgress) return;
+      profileFetchInProgress = true;
+      
+      try {
+        const { data: profile, error } = await supabase
+          .from('user_profiles')
+          .select('org_id, role, full_name, user_id, created_at')
+          .eq('user_id', userId)
+          .maybeSingle();
+          
+        if (!mounted) return;
+        
+        if (error) {
+          console.error('Auth: Error fetching user profile:', error);
+        } else if (profile) {
+          console.log('Auth: User profile loaded:', profile);
+          setUserProfile(profile as UserProfile);
+          // Cache the profile with 60 second expiry for instant login
+          localStorage.setItem('user_profile_cache', JSON.stringify({
+            profile,
+            timestamp: Date.now()
+          }));
+        }
+      } finally {
+        profileFetchInProgress = false;
+      }
+    };
     
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         console.log('Auth: State change event:', event);
         if (!mounted) return;
         
@@ -52,44 +77,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Try to load from cache first
+          // Phase A & B: Use cached profile for INSTANT render
           const cached = localStorage.getItem('user_profile_cache');
+          let usedCache = false;
+          
           if (cached) {
             try {
               const { profile, timestamp } = JSON.parse(cached);
-              if (Date.now() - timestamp < 5 * 60 * 1000) {
-                console.log('Auth: Using cached profile');
+              // Use cache if less than 60 seconds old for instant login
+              if (Date.now() - timestamp < 60 * 1000) {
+                console.log('Auth: Using cached profile for instant render');
                 setUserProfile(profile as UserProfile);
+                setLoading(false);
+                usedCache = true;
               }
             } catch (e) {
               localStorage.removeItem('user_profile_cache');
             }
           }
           
-          // Fetch user profile BEFORE setting loading to false
-          const { data: profile, error } = await supabase
-            .from('user_profiles')
-            .select('org_id, role, full_name, user_id, created_at')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-            
-          if (!mounted) return;
+          // Always fetch fresh profile in background to keep cache updated
+          // But don't block the UI if we have a recent cache
+          setTimeout(() => {
+            fetchAndCacheProfile(session.user.id);
+          }, 0);
           
-          if (error) {
-            console.error('Auth: Error fetching user profile:', error);
-          } else if (profile) {
-            console.log('Auth: User profile loaded:', profile);
-            setUserProfile(profile as UserProfile);
-            // Cache the profile
-            localStorage.setItem('user_profile_cache', JSON.stringify({
-              profile,
-              timestamp: Date.now()
-            }));
+          // Only wait for profile if no cache was used
+          if (!usedCache) {
+            setLoading(false);
           }
-          
-          setLoading(false);
         } else {
           setUserProfile(null);
+          localStorage.removeItem('user_profile_cache');
           setLoading(false);
           
           // Redirect to auth page when signed out
@@ -101,9 +120,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // Check for existing session with timeout fallback
+    // Check for existing session - Phase C: Remove duplicate profile fetch
     const initAuth = async () => {
       try {
+        // Check cache first for instant restore
+        const cached = localStorage.getItem('user_profile_cache');
+        if (cached) {
+          try {
+            const { profile, timestamp } = JSON.parse(cached);
+            if (Date.now() - timestamp < 60 * 1000) {
+              console.log('Auth: Pre-loading cached profile');
+              setUserProfile(profile as UserProfile);
+            }
+          } catch (e) {
+            localStorage.removeItem('user_profile_cache');
+          }
+        }
+        
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (!mounted) return;
@@ -117,27 +150,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         
-        if (session?.user) {
-          // Fetch user profile BEFORE setting loading to false
-          const { data: profile, error: profileError } = await supabase
-            .from('user_profiles')
-            .select('org_id, role, full_name, user_id, created_at')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
-            
-          if (!mounted) return;
-          
-          if (profileError) {
-            console.error('Auth: Error fetching initial profile:', profileError);
-          } else if (profile) {
-            setUserProfile(profile as UserProfile);
-            // Cache the profile
-            localStorage.setItem('user_profile_cache', JSON.stringify({
-              profile,
-              timestamp: Date.now()
-            }));
-          }
-        }
+        // Profile fetch will be handled by onAuthStateChange
+        // This eliminates the duplicate fetch
         
         setLoading(false);
       } catch (error) {
@@ -150,18 +164,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAuth();
     
-    // Safety timeout - ensure loading never stays true forever
-    // Reduced from 1500ms - auth should complete in <300ms normally
-    const safetyTimeout = setTimeout(() => {
-      if (mounted && loadingRef.current) {
-        console.warn('Auth: Safety timeout triggered - forcing loading to false');
-        setLoading(false);
-      }
-    }, 500);
+    // Phase A: Safety timeout removed - trust Supabase auth state listener
 
     return () => {
       mounted = false;
-      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);

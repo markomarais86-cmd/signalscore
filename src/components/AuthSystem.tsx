@@ -121,6 +121,12 @@ export function AuthSystem() {
     }
 
     try {
+      // Phase B: Show progressive loading feedback
+      toast({
+        title: "Signing in...",
+        description: "Please wait a moment"
+      });
+      
       const { error } = await signIn(signInData.email, signInData.password);
       
       if (error) {
@@ -137,9 +143,10 @@ export function AuthSystem() {
           setError(`Sign in failed: ${error.message}`);
         }
       } else {
+        // Phase B: Show loading dashboard message
         toast({
-          title: "Welcome back!",
-          description: "You've been signed in successfully."
+          title: "Loading your dashboard...",
+          description: "Almost there!"
         });
         // Redirect to dashboard after successful sign-in
         navigate('/');
