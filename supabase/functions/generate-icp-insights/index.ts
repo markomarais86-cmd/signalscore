@@ -19,6 +19,14 @@ interface Insight {
   impact: string;
   confidence: number;
   relatedSegments?: string[];
+  targetAccounts?: Array<{
+    account_id: string;
+    account_name: string;
+    score: number;
+    reason: string;
+  }>;
+  nextAction?: 'build_campaign' | 'export_csv' | 'view_accounts' | 'enrich_data' | 'score_accounts';
+  revenue_opportunity?: number;
 }
 
 serve(async (req) => {
@@ -198,6 +206,30 @@ Provide insights covering: revenue ranges, key personas/titles, company size swe
                           type: 'array',
                           items: { type: 'string' },
                           description: 'Related segments or categories'
+                        },
+                        targetAccounts: {
+                          type: 'array',
+                          maxItems: 5,
+                          items: {
+                            type: 'object',
+                            properties: {
+                              account_id: { type: 'string' },
+                              account_name: { type: 'string' },
+                              score: { type: 'number' },
+                              reason: { type: 'string' }
+                            },
+                            required: ['account_id', 'account_name', 'score', 'reason']
+                          },
+                          description: 'Top 3-5 accounts to prioritize for this insight'
+                        },
+                        nextAction: {
+                          type: 'string',
+                          enum: ['build_campaign', 'export_csv', 'view_accounts', 'enrich_data', 'score_accounts'],
+                          description: 'Recommended next action for this insight'
+                        },
+                        revenue_opportunity: {
+                          type: 'number',
+                          description: 'Estimated revenue opportunity in dollars'
                         }
                       },
                       required: ['type', 'priority', 'title', 'description', 'impact', 'confidence'],
@@ -238,6 +270,16 @@ Provide insights covering: revenue ranges, key personas/titles, company size swe
     const topGeo = Object.entries(geoDistribution).sort((a, b) => b[1] - a[1])[0];
 
     if (topRevenue && insights.length < 7) {
+      const topAccountsInRange = highScoreAccounts
+        .filter(a => a.revenue_range === topRevenue[0])
+        .slice(0, 3)
+        .map(a => ({
+          account_id: a.id,
+          account_name: a.name,
+          score: a.scores?.[0]?.overall || 0,
+          reason: `High-fit ${topRevenue[0]} account`
+        }));
+
       insights.push({
         type: 'revenue',
         priority: 'high',
@@ -245,11 +287,24 @@ Provide insights covering: revenue ranges, key personas/titles, company size swe
         description: `${topRevenue[1]} accounts (${((topRevenue[1] / accounts.length) * 100).toFixed(1)}%) fall in this range`,
         impact: 'High conversion probability based on current data',
         confidence: 85,
-        relatedSegments: [topRevenue[0]]
+        relatedSegments: [topRevenue[0]],
+        targetAccounts: topAccountsInRange,
+        nextAction: 'build_campaign',
+        revenue_opportunity: topAccountsInRange.length * avgDealValue * 0.15
       });
     }
 
     if (topIndustry && insights.length < 7) {
+      const topAccountsInIndustry = highScoreAccounts
+        .filter(a => a.industry_norm === topIndustry[0])
+        .slice(0, 3)
+        .map(a => ({
+          account_id: a.id,
+          account_name: a.name,
+          score: a.scores?.[0]?.overall || 0,
+          reason: `Top performer in ${topIndustry[0]}`
+        }));
+
       insights.push({
         type: 'firmographic',
         priority: 'high',
@@ -257,11 +312,24 @@ Provide insights covering: revenue ranges, key personas/titles, company size swe
         description: `${topIndustry[1]} accounts in this industry represent your largest segment`,
         impact: 'Established market presence',
         confidence: 90,
-        relatedSegments: [topIndustry[0]]
+        relatedSegments: [topIndustry[0]],
+        targetAccounts: topAccountsInIndustry,
+        nextAction: 'export_csv',
+        revenue_opportunity: topAccountsInIndustry.length * avgDealValue * 0.2
       });
     }
 
     if (topGeo && insights.length < 7) {
+      const topAccountsInGeo = highScoreAccounts
+        .filter(a => a.country === topGeo[0])
+        .slice(0, 3)
+        .map(a => ({
+          account_id: a.id,
+          account_name: a.name,
+          score: a.scores?.[0]?.overall || 0,
+          reason: `Strong performer in ${topGeo[0]}`
+        }));
+
       insights.push({
         type: 'firmographic',
         priority: 'medium',
@@ -269,7 +337,10 @@ Provide insights covering: revenue ranges, key personas/titles, company size swe
         description: `${topGeo[1]} accounts in this region show strong engagement`,
         impact: 'Geographic concentration advantage',
         confidence: 80,
-        relatedSegments: [topGeo[0]]
+        relatedSegments: [topGeo[0]],
+        targetAccounts: topAccountsInGeo,
+        nextAction: 'view_accounts',
+        revenue_opportunity: topAccountsInGeo.length * avgDealValue * 0.12
       });
     }
 

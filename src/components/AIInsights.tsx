@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Brain, TrendingUp, TrendingDown, AlertTriangle, Target, Lightbulb } from "lucide-react";
 import { useState } from "react";
 import { InsightDetailModal } from "@/components/insights/InsightDetailModal";
@@ -20,10 +21,24 @@ interface AIInsight {
 interface AIInsightsProps {
   insights: AIInsight[];
   onApplyRecommendation?: (insightId: string) => void;
+  loading?: boolean;
+  lastUpdated?: Date | null;
+  onRefresh?: () => void;
 }
 
-export function AIInsights({ insights, onApplyRecommendation }: AIInsightsProps) {
+export function AIInsights({ insights, onApplyRecommendation, loading, lastUpdated, onRefresh }: AIInsightsProps) {
   const [selectedInsight, setSelectedInsight] = useState<AIInsight | null>(null);
+  
+  const getTimeAgo = (date: Date | null) => {
+    if (!date) return '';
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    if (seconds < 60) return 'just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  };
   
   const getInsightIcon = (type: string) => {
     switch (type) {
@@ -62,16 +77,62 @@ export function AIInsights({ insights, onApplyRecommendation }: AIInsightsProps)
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Brain className="h-5 w-5 text-[hsl(var(--primary))]" />
-          AI-Powered ICP Insights
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Automated recommendations based on CRM + enrichment data analysis
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-[hsl(var(--primary))]" />
+              AI-Powered ICP Insights
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Automated recommendations based on CRM + enrichment data analysis
+            </p>
+          </div>
+          {lastUpdated && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                Updated {getTimeAgo(lastUpdated)}
+              </span>
+              {onRefresh && (
+                <Button 
+                  size="sm" 
+                  variant="ghost"
+                  onClick={onRefresh}
+                  disabled={loading}
+                >
+                  Refresh
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        {loading ? (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground mb-4">Analyzing your data...</p>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="border rounded-lg p-4 space-y-3">
+                <div className="flex items-start gap-3">
+                  <Skeleton className="h-4 w-4 rounded" />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-4 w-48" />
+                      <Skeleton className="h-5 w-12" />
+                      <Skeleton className="h-5 w-20" />
+                    </div>
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-3/4" />
+                    <div className="flex gap-4 pt-2">
+                      <Skeleton className="h-3 w-32" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
           {sortedInsights.map((insight) => (
             <div 
               key={insight.id} 
@@ -139,8 +200,9 @@ export function AIInsights({ insights, onApplyRecommendation }: AIInsightsProps)
                 </div>
               )}
             </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
         
         <InsightDetailModal
           insight={selectedInsight}

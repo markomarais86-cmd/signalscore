@@ -565,6 +565,8 @@ export type Database = {
           completed_at: string | null
           created_at: string | null
           created_by: string | null
+          credits_remaining: number | null
+          credits_used: number | null
           enriched_records: number | null
           error_message: string | null
           failed_records: number | null
@@ -582,6 +584,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string | null
           created_by?: string | null
+          credits_remaining?: number | null
+          credits_used?: number | null
           enriched_records?: number | null
           error_message?: string | null
           failed_records?: number | null
@@ -599,6 +603,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string | null
           created_by?: string | null
+          credits_remaining?: number | null
+          credits_used?: number | null
           enriched_records?: number | null
           error_message?: string | null
           failed_records?: number | null
@@ -1154,16 +1160,22 @@ export type Database = {
       organizations: {
         Row: {
           created_at: string | null
+          enrichment_credits_total: number | null
+          enrichment_credits_used: number | null
           id: string
           name: string
         }
         Insert: {
           created_at?: string | null
+          enrichment_credits_total?: number | null
+          enrichment_credits_used?: number | null
           id?: string
           name: string
         }
         Update: {
           created_at?: string | null
+          enrichment_credits_total?: number | null
+          enrichment_credits_used?: number | null
           id?: string
           name?: string
         }
@@ -1633,6 +1645,14 @@ export type Database = {
         Returns: {
           count: number
           country: string
+        }[]
+      }
+      get_org_enrichment_credits: {
+        Args: { org_uuid: string }
+        Returns: {
+          remaining: number
+          total: number
+          used: number
         }[]
       }
       has_role: {

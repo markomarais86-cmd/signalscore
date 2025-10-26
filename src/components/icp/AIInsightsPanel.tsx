@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   Sparkles, 
   TrendingUp, 
@@ -119,7 +120,30 @@ export function AIInsightsPanel({ formData, onApplyRecommendation }: AIInsightsP
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!aiRecommendation ? (
+        {isGenerating ? (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground mb-4">Analyzing your CRM data...</p>
+            <div className="p-4 bg-background/80 rounded-lg border space-y-3">
+              <div className="flex items-start gap-3">
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-3/4" />
+                  <Skeleton className="h-3 w-5/6" />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <Skeleton className="h-4 w-40" />
+              <div className="space-y-2">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </div>
+            </div>
+          </div>
+        ) : !aiRecommendation ? (
           <div className="text-center py-6">
             <div className="p-3 bg-primary/10 rounded-full w-fit mx-auto mb-4">
               <Target className="h-6 w-6 text-primary" />
@@ -133,17 +157,8 @@ export function AIInsightsPanel({ formData, onApplyRecommendation }: AIInsightsP
               disabled={isGenerating}
               className="flex items-center gap-2"
             >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  Generate Recommendations
-                </>
-              )}
+              <Sparkles className="h-4 w-4" />
+              Generate Recommendations
             </Button>
           </div>
         ) : (

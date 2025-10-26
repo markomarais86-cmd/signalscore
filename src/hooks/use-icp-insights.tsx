@@ -25,10 +25,11 @@ export function useICPInsights() {
   const [loading, setLoading] = useState(false);
   const [insights, setInsights] = useState<ICPInsight[]>([]);
   const [statistics, setStatistics] = useState<InsightsStatistics | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const { userProfile } = useAuth();
   const { toast } = useToast();
 
-  const generateInsights = async (icpId?: string) => {
+  const generateInsights = async (icpId?: string, forceRefresh = false) => {
     if (!userProfile?.org_id) {
       toast({
         title: "Error",
@@ -36,6 +37,32 @@ export function useICPInsights() {
         variant: "destructive",
       });
       return;
+    }
+
+    // Check cache first
+    const cacheKey = `icp_insights_${userProfile.org_id}`;
+    const timestampKey = `icp_insights_timestamp_${userProfile.org_id}`;
+    
+    if (!forceRefresh) {
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        const timestamp = localStorage.getItem(timestampKey);
+        
+        if (cached && timestamp) {
+          const age = Date.now() - parseInt(timestamp);
+          const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+          
+          if (age < CACHE_TTL) {
+            const cachedData = JSON.parse(cached);
+            setInsights(cachedData.insights);
+            setStatistics(cachedData.statistics);
+            setLastUpdated(new Date(parseInt(timestamp)));
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Cache read error:', err);
+      }
     }
 
     setLoading(true);
@@ -52,6 +79,20 @@ export function useICPInsights() {
       if (data.success) {
         setInsights(data.insights);
         setStatistics(data.statistics);
+        
+        // Cache the results
+        try {
+          const cacheData = {
+            insights: data.insights,
+            statistics: data.statistics
+          };
+          localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+          localStorage.setItem(timestampKey, Date.now().toString());
+          setLastUpdated(new Date());
+        } catch (err) {
+          console.warn('Cache write error:', err);
+        }
+        
         toast({
           title: "Success",
           description: `Generated ${data.insights.length} actionable insights`,
@@ -73,6 +114,7 @@ export function useICPInsights() {
     loading,
     insights,
     statistics,
+    lastUpdated,
     generateInsights,
   };
 }

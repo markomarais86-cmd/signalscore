@@ -33,6 +33,20 @@ export function EnrichmentModal({
   const { userProfile } = useAuth();
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [enriching, setEnriching] = useState(false);
+  const [creditsAvailable, setCreditsAvailable] = useState<number | null>(null);
+
+  // Load available credits when modal opens
+  useState(() => {
+    if (open && userProfile?.org_id) {
+      supabase
+        .rpc('get_org_enrichment_credits', { org_uuid: userProfile.org_id })
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            setCreditsAvailable(data[0].remaining);
+          }
+        });
+    }
+  });
 
   const providers: EnrichmentProvider[] = [
     {
@@ -160,6 +174,22 @@ export function EnrichmentModal({
             {targetFields.length > 0 && ` - Focus: ${targetFields.join(', ')}`}
           </AlertDescription>
         </Alert>
+
+        {creditsAvailable !== null && (
+          <Alert>
+            <Database className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>
+                {creditsAvailable.toLocaleString()} enrichment credits available
+              </span>
+              {selectedAccounts > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  Est. cost: ~{Math.ceil(selectedAccounts * 0.25)} credits
+                </span>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="space-y-3 max-h-[400px] overflow-y-auto">
           {providers.map((provider) => (
