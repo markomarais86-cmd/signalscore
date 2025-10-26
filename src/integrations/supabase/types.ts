@@ -170,6 +170,45 @@ export type Database = {
           },
         ]
       }
+      auto_score_failures: {
+        Row: {
+          account_external_id: string
+          account_name: string | null
+          created_at: string | null
+          error_details: Json | null
+          error_message: string | null
+          id: string
+          last_retry_at: string | null
+          org_id: string
+          retry_count: number | null
+          trigger_type: string | null
+        }
+        Insert: {
+          account_external_id: string
+          account_name?: string | null
+          created_at?: string | null
+          error_details?: Json | null
+          error_message?: string | null
+          id?: string
+          last_retry_at?: string | null
+          org_id: string
+          retry_count?: number | null
+          trigger_type?: string | null
+        }
+        Update: {
+          account_external_id?: string
+          account_name?: string | null
+          created_at?: string | null
+          error_details?: Json | null
+          error_message?: string | null
+          id?: string
+          last_retry_at?: string | null
+          org_id?: string
+          retry_count?: number | null
+          trigger_type?: string | null
+        }
+        Relationships: []
+      }
       automation_settings: {
         Row: {
           created_at: string | null

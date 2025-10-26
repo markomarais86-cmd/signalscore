@@ -34,6 +34,9 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
     completed: number;
     avgScore: number;
     failures: number;
+    scoredAccounts: number;
+    unscoredAccounts: number;
+    scoringCoverage: number;
   } | null>(null);
 
   // Use refs for synchronous locking (prevents race conditions)
@@ -112,21 +115,33 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           setIsScoring(false);
           setProgress(100);
 
-          // Fetch final statistics
+          // Fetch accurate statistics from actual tables
+          const { count: totalAccounts } = await supabase
+            .from("accounts")
+            .select("*", { count: "exact", head: true })
+            .eq("org_id", userProfile.org_id);
+
           const { data: scores } = await supabase
             .from("scores")
             .select("overall")
             .eq("org_id", userProfile.org_id);
 
-          const avgScore = scores?.length 
-            ? Math.round(scores.reduce((sum, s) => sum + (s.overall || 0), 0) / scores.length)
+          const scoredCount = scores?.length || 0;
+          const unscoredCount = (totalAccounts || 0) - scoredCount;
+          const coveragePercent = totalAccounts ? Math.round((scoredCount / totalAccounts) * 100) : 0;
+
+          const avgScore = scoredCount > 0
+            ? Math.round(scores.reduce((sum, s) => sum + (s.overall || 0), 0) / scoredCount)
             : 0;
 
           setStats({
-            total: job.total_accounts,
+            total: totalAccounts || 0,
             completed: job.successful_scores,
             avgScore,
             failures: job.failed_scores,
+            scoredAccounts: scoredCount,
+            unscoredAccounts: unscoredCount,
+            scoringCoverage: coveragePercent,
           });
 
           // Record data quality snapshot after scoring completes
@@ -140,7 +155,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
             }
           });
 
-          toast.success(`Successfully scored ${job.successful_scores.toLocaleString()} accounts!`);
+          toast.success(`Successfully scored ${scoredCount.toLocaleString()} accounts!`);
           onComplete?.();
         }
       }
@@ -277,7 +292,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
             <Alert className="bg-primary/10 border-primary">
               <CheckCircle2 className="h-4 w-4 text-primary" />
               <AlertDescription>
-                <strong>Scoring Complete!</strong> Successfully scored {stats.completed.toLocaleString()} accounts.
+                <strong>Scoring Complete!</strong> {stats.scoredAccounts.toLocaleString()} of {stats.total.toLocaleString()} accounts now have scores ({stats.scoringCoverage}% coverage).
               </AlertDescription>
             </Alert>
 
@@ -287,16 +302,16 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
                 <div className="text-sm text-muted-foreground">Total Accounts</div>
               </div>
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{stats.completed.toLocaleString()}</div>
-                <div className="text-sm text-muted-foreground">Completed</div>
+                <div className="text-2xl font-bold text-green-600">{stats.scoredAccounts.toLocaleString()}</div>
+                <div className="text-sm text-muted-foreground">Scored ({stats.scoringCoverage}%)</div>
               </div>
               <div className="text-center p-4 border rounded-lg">
                 <div className="text-2xl font-bold">{stats.avgScore}</div>
                 <div className="text-sm text-muted-foreground">Avg Score</div>
               </div>
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-2xl font-bold text-red-600">{stats.failures}</div>
-                <div className="text-sm text-muted-foreground">Failures</div>
+                <div className="text-2xl font-bold text-amber-600">{stats.unscoredAccounts.toLocaleString()}</div>
+                <div className="text-sm text-muted-foreground">Unscored</div>
               </div>
             </div>
 

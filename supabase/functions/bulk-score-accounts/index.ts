@@ -110,6 +110,48 @@ serve(async (req) => {
     console.log('Chunk Size:', chunk_size);
     console.log('Timestamp:', new Date().toISOString());
 
+    // STEP 1: Detect and cleanup stuck jobs (>1 hour old, still processing)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { data: stuckJobs } = await supabase
+      .from('bulk_scoring_jobs')
+      .select('id, started_at, processed_accounts, total_accounts')
+      .eq('org_id', org_id)
+      .eq('status', 'processing')
+      .lt('last_processed_at', oneHourAgo);
+
+    if (stuckJobs && stuckJobs.length > 0) {
+      console.log(`⚠️ Found ${stuckJobs.length} stuck job(s). Cleaning up...`);
+      
+      for (const stuckJob of stuckJobs) {
+        await supabase
+          .from('bulk_scoring_jobs')
+          .update({
+            status: 'failed',
+            completed_at: new Date().toISOString(),
+            error_message: 'Job stuck for >1 hour. Auto-failed by system.',
+            error_details: {
+              stuck_at_processed: stuckJob.processed_accounts,
+              total_accounts: stuckJob.total_accounts,
+              last_seen: stuckJob.started_at,
+            }
+          })
+          .eq('id', stuckJob.id);
+        
+        console.log(`✓ Auto-failed stuck job: ${stuckJob.id}`);
+      }
+
+      // Log cleanup action
+      await supabase.from('audit_logs').insert({
+        org_id,
+        actor: 'system',
+        action: 'bulk_score_stuck_jobs_cleanup',
+        meta: {
+          stuck_jobs_count: stuckJobs.length,
+          stuck_job_ids: stuckJobs.map(j => j.id),
+        }
+      });
+    }
+
     // SERVER-SIDE IDEMPOTENCY: Check if this chunk has already been processed
     if (job_id && chunk_index !== undefined) {
       const startIndex = chunk_index * chunk_size;
