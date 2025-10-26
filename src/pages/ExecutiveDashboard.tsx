@@ -81,9 +81,19 @@ export default function ExecutiveDashboard() {
   const [loading, setLoading] = useState(true);
   const [showEnrichmentModal, setShowEnrichmentModal] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<string>('');
+
+  const handleForceRefresh = () => {
+    console.log('Force refresh triggered');
+    setLoading(true);
+    setLoadError(null);
+    loadUnifiedData();
+  };
 
   useEffect(() => {
     console.log('🔍 Dashboard effect - authLoading:', authLoading, 'userProfile:', !!userProfile, 'org_id:', userProfile?.org_id);
+    
+    setDebugInfo(`Auth Loading: ${authLoading}, User: ${!!userProfile}, Org: ${userProfile?.org_id || 'None'}`);
     
     // Wait for auth to complete
     if (authLoading) {
@@ -333,8 +343,19 @@ export default function ExecutiveDashboard() {
 
     } catch (error: any) {
       console.error('❌ Error loading unified data:', error);
-      setLoadError(error.message || 'Failed to load dashboard data');
-      toast.error('Failed to load dashboard data');
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to load dashboard data';
+      if (error.message?.includes('permission denied') || error.message?.includes('JWT')) {
+        errorMessage = 'Access denied. Please try signing out and back in.';
+      } else if (error.message?.includes('violates row-level security')) {
+        errorMessage = 'Data access error. Your account may need additional configuration.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      setLoadError(errorMessage);
+      toast.error(errorMessage);
       setLoading(false);
     }
   };
@@ -377,7 +398,7 @@ export default function ExecutiveDashboard() {
         </div>
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between">
+          <AlertDescription className="flex flex-col gap-4">
             <span>{loadError}</span>
             <div className="flex gap-2">
               <Button 
@@ -390,15 +411,12 @@ export default function ExecutiveDashboard() {
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => {
-                  setLoadError(null);
-                  setLoading(true);
-                  loadUnifiedData();
-                }}
+                onClick={handleForceRefresh}
               >
-                Retry
+                Force Refresh Data
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground">{debugInfo}</p>
           </AlertDescription>
         </Alert>
         <Card>

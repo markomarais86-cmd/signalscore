@@ -25,10 +25,18 @@ export function AuthSystem() {
 
   // Redirect authenticated users to dashboard
   useEffect(() => {
-    if (!loading && user) {
-      navigate('/');
-    }
-  }, [user, loading, navigate]);
+    const checkAuth = async () => {
+      if (loading) return;
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        console.log('AuthSystem: User already authenticated, redirecting to dashboard');
+        navigate('/', { replace: true });
+      }
+    };
+    
+    checkAuth();
+  }, [loading, navigate]);
 
   // Load invitation info if token present
   useEffect(() => {

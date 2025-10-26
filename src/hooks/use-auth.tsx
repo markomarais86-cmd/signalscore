@@ -64,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (error) {
             console.error('Auth: Error fetching user profile:', error);
           } else if (profile) {
+            console.log('Auth: User profile loaded:', profile);
             setUserProfile(profile as UserProfile);
           }
           
@@ -71,6 +72,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setUserProfile(null);
           setLoading(false);
+          
+          // Redirect to auth page when signed out
+          if (event === 'SIGNED_OUT') {
+            console.log('Auth: User signed out, redirecting to /auth');
+            window.location.href = '/auth';
+          }
         }
       }
     );
@@ -198,11 +205,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
+      console.log('Auth: Starting sign out process');
+      
       // Clear state immediately
       setUser(null);
       setSession(null);
       setUserProfile(null);
-      setLoading(true);
+      // Don't set loading to true - let the auth state change handle it
       
       // Sign out from Supabase
       await supabase.auth.signOut();
@@ -212,8 +221,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: "You have been signed out successfully."
       });
       
-      // Redirect to auth page using window.location
-      window.location.href = '/auth';
+      console.log('Auth: Sign out complete, redirecting to /auth');
+      // The auth state listener will handle the redirect
     } catch (error) {
       console.error('Sign out error:', error);
       toast({
@@ -221,7 +230,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: "Please try again.",
         variant: "destructive"
       });
-      setLoading(false);
     }
   };
 
