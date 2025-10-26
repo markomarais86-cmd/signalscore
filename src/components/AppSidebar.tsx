@@ -1,7 +1,8 @@
-import { Upload, Settings, LogOut, LayoutDashboard, Target, Database, Shield } from "lucide-react";
+import { Upload, Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { Badge } from "@/components/ui/badge";
 import { BrandLogo } from "@/components/BrandLogo";
 import {
@@ -30,6 +31,7 @@ export function AppSidebar() {
   const location = useLocation();
   const { signOut, userProfile } = useAuth();
   const { isSuperAdmin } = useRoles();
+  const { flags } = useFeatureFlags();
   const currentPath = location.pathname;
 
   const icpContext = location.state as {
@@ -72,6 +74,34 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {flags.pipeline_efficiency && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/pipeline-efficiency"
+                      className={getNavCls("/pipeline-efficiency")}
+                    >
+                      <TrendingUp className="h-4 w-4" />
+                      <span>Pipeline Efficiency</span>
+                      <Badge variant="secondary" className="ml-auto text-xs">Phase 3</Badge>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {flags.capital_efficiency && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/capital-efficiency"
+                      className={getNavCls("/capital-efficiency")}
+                    >
+                      <DollarSign className="h-4 w-4" />
+                      <span>Capital Efficiency</span>
+                      <Badge variant="secondary" className="ml-auto text-xs">Phase 3</Badge>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               {isSuperAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>

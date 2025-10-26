@@ -20,6 +20,8 @@ import Accounts from "./pages/Accounts";
 import DataUpload from "./pages/DataUpload";
 import Settings from "./pages/Settings";
 import AdminDashboard from "./pages/AdminDashboard";
+import PipelineEfficiency from "./pages/PipelineEfficiency";
+import CapitalEfficiency from "./pages/CapitalEfficiency";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -106,6 +108,26 @@ function App() {
                     <ProtectedRoute>
                       <Layout>
                         <AdminDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/pipeline-efficiency"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <PipelineEfficiency />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/capital-efficiency"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <CapitalEfficiency />
                       </Layout>
                     </ProtectedRoute>
                   }

@@ -403,6 +403,65 @@ export type Database = {
           },
         ]
       }
+      capital_tracking: {
+        Row: {
+          cac: number | null
+          created_at: string | null
+          id: string
+          marketing_investment: number
+          org_id: string
+          period_end: string
+          period_start: string
+          pipeline_multiplier: number | null
+          pipeline_value: number
+          revenue_generated: number
+          roas: number | null
+          sales_investment: number
+          total_investment: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          cac?: number | null
+          created_at?: string | null
+          id?: string
+          marketing_investment?: number
+          org_id: string
+          period_end: string
+          period_start: string
+          pipeline_multiplier?: number | null
+          pipeline_value?: number
+          revenue_generated?: number
+          roas?: number | null
+          sales_investment?: number
+          total_investment?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          cac?: number | null
+          created_at?: string | null
+          id?: string
+          marketing_investment?: number
+          org_id?: string
+          period_end?: string
+          period_start?: string
+          pipeline_multiplier?: number | null
+          pipeline_value?: number
+          revenue_generated?: number
+          roas?: number | null
+          sales_investment?: number
+          total_investment?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capital_tracking_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       closed_won_deals: {
         Row: {
           account_external_id: string
@@ -1180,6 +1239,66 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      pipeline_stages: {
+        Row: {
+          account_external_id: string | null
+          conversion_value: number | null
+          created_at: string | null
+          duration_hours: number | null
+          entered_at: string
+          exited_at: string | null
+          id: string
+          lead_id: number | null
+          notes: string | null
+          org_id: string
+          stage: string
+          updated_at: string | null
+        }
+        Insert: {
+          account_external_id?: string | null
+          conversion_value?: number | null
+          created_at?: string | null
+          duration_hours?: number | null
+          entered_at?: string
+          exited_at?: string | null
+          id?: string
+          lead_id?: number | null
+          notes?: string | null
+          org_id: string
+          stage: string
+          updated_at?: string | null
+        }
+        Update: {
+          account_external_id?: string | null
+          conversion_value?: number | null
+          created_at?: string | null
+          duration_hours?: number | null
+          entered_at?: string
+          exited_at?: string | null
+          id?: string
+          lead_id?: number | null
+          notes?: string | null
+          org_id?: string
+          stage?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_stages_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_stages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rate_limits: {
         Row: {
