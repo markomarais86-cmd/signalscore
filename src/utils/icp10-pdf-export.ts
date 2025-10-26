@@ -36,24 +36,34 @@ export async function generateICP10PDF(data: ICP10Entry[], orgName: string = 'Or
   };
 
   // Title Page
+  doc.setFillColor(8, 51, 105); // LaunchPulse Dark Navy
+  doc.rect(0, 0, pageWidth, 65, 'F');
+  
+  doc.setFontSize(28);
+  doc.setTextColor(60, 241, 174); // LaunchPulse Green
+  doc.text('LaunchPulse', pageWidth / 2, 22, { align: 'center' });
+  
   doc.setFontSize(24);
-  doc.setTextColor(31, 41, 55);
-  doc.text('ICP-10 Report', pageWidth / 2, 30, { align: 'center' });
+  doc.setTextColor(255, 255, 255);
+  doc.text('ICP-10 Report', pageWidth / 2, 35, { align: 'center' });
+  
+  doc.setFontSize(11);
+  doc.setTextColor(200, 200, 200);
+  doc.text('Where GTM Meets ICP Precision', pageWidth / 2, 45, { align: 'center' });
   
   doc.setFontSize(12);
   doc.setTextColor(107, 114, 128);
-  doc.text(orgName, pageWidth / 2, 40, { align: 'center' });
-  doc.text(`Top 10 Ideal Customer Profiles`, pageWidth / 2, 48, { align: 'center' });
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-US', { 
+  doc.text(orgName, pageWidth / 2, 58, { align: 'center' });
+  doc.text(`Top 10 Ideal Customer Profiles - Generated: ${new Date().toLocaleDateString('en-US', { 
     year: 'numeric', 
     month: 'long', 
     day: 'numeric' 
-  })}`, pageWidth / 2, 56, { align: 'center' });
+  })}`, pageWidth / 2, 66, { align: 'center' });
 
-  yPos = 75;
+  yPos = 80;
 
   // Summary Box
-  doc.setFillColor(243, 244, 246);
+  doc.setFillColor(92, 244, 188); // LaunchPulse Accent Green
   doc.roundedRect(margin, yPos, pageWidth - 2 * margin, 35, 3, 3, 'F');
   
   doc.setFontSize(11);

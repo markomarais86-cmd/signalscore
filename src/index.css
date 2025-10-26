@@ -8,124 +8,128 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
+    /* LaunchPulse Brand Colors - Light Mode */
     --background: 0 0% 100%;
-    --foreground: 239 84% 24%;
+    --foreground: 210 94% 18%; /* Dark Navy */
 
     --card: 0 0% 100%;
-    --card-foreground: 239 84% 24%;
+    --card-foreground: 210 94% 18%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 239 84% 24%;
+    --popover-foreground: 210 94% 18%;
 
-    --primary: 260 65% 60%; /* Professional Purple */
-    --primary-foreground: 0 0% 100%;
+    --primary: 161 85% 60%; /* LaunchPulse Green #3CF1AE */
+    --primary-foreground: 210 94% 18%; /* Dark Navy text on green */
 
-    --secondary: 260 55% 50%; /* Deep Purple accent */
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 161 88% 67%; /* Accent Green #5CF4BC */
+    --secondary-foreground: 210 94% 18%;
 
-    --muted: 240 10% 96%;
-    --muted-foreground: 239 20% 50%;
+    --muted: 223 23% 87%; /* Platinum */
+    --muted-foreground: 198 10% 41%; /* Grey */
 
-    --accent: 260 65% 60%; /* Professional Purple */
-    --accent-foreground: 0 0% 100%;
+    --accent: 161 85% 60%; /* LaunchPulse Green */
+    --accent-foreground: 210 94% 18%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 10% 90%;
-    --input: 240 10% 90%;
-    --ring: 260 65% 60%;
+    --border: 223 23% 81%; /* Light Grey */
+    --input: 223 23% 81%;
+    --ring: 161 85% 60%;
 
     --radius: 0.5rem;
 
-    /* Professional Purple chart colors */
-    --chart-1: 260 65% 60%; /* Professional Purple */
-    --chart-2: 260 55% 50%; /* Deep Purple */
-    --chart-3: 260 45% 40%; /* Purple Dark */
-    --chart-4: 270 60% 70%; /* Purple Light Accent */
-    --chart-5: 260 50% 75%; /* Purple Very Light */
+    /* LaunchPulse Chart Colors */
+    --chart-1: 161 85% 60%; /* Primary Green */
+    --chart-2: 161 88% 67%; /* Accent Green */
+    --chart-3: 210 88% 22%; /* Dark Navy */
+    --chart-4: 198 15% 25%; /* Dark Grey */
+    --chart-5: 198 10% 41%; /* Grey */
     
-    /* Signal scoring colors */
-    --signal-high: 142 71% 45%; /* Emerald Green */
+    /* Signal scoring colors - keeping for compatibility */
+    --signal-high: 161 85% 60%; /* LaunchPulse Green for high */
     --signal-medium: 43 96% 56%; /* Amber */
     --signal-low: 0 84% 60%; /* Rose */
     
-    /* Professional gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(260 65% 60%), hsl(260 55% 50%));
-    --gradient-success: linear-gradient(135deg, hsl(142 71% 45%), hsl(142 71% 35%));
-    --gradient-accent: linear-gradient(135deg, hsl(260 65% 60%), hsl(270 60% 70%));
+    /* LaunchPulse Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(161 85% 60%), hsl(161 88% 67%));
+    --gradient-success: linear-gradient(135deg, hsl(161 85% 60%), hsl(161 88% 50%));
+    --gradient-accent: linear-gradient(135deg, hsl(161 88% 67%), hsl(161 90% 75%));
+    --gradient-dark: linear-gradient(135deg, hsl(210 88% 22%), hsl(210 94% 18%));
     
     /* Executive dashboard styling */
-    --executive-green: 142 71% 45%; /* Emerald */
+    --executive-green: 161 85% 60%; /* LaunchPulse Green */
     --executive-amber: 43 96% 56%;  /* Amber */
     --executive-red: 0 84% 60%;     /* Rose */
-    --executive-purple: 260 65% 60%; /* Professional Purple */
-    --executive-cyan: 270 60% 70%;  /* Purple Accent */
+    --executive-navy: 210 88% 22%;  /* Dark Navy */
+    --executive-cyan: 161 88% 67%;  /* Accent Green */
     
-    /* Status indicators - signals only */
-    --status-success: 142 71% 45%; /* Emerald for positive signals */
-    --status-warning: 43 96% 56%;  /* Amber for caution */
-    --status-danger: 0 84% 60%;    /* Rose for negative signals */
-    --status-info: 260 65% 60%;    /* Professional Purple for info */
+    /* Status indicators */
+    --status-success: 161 85% 60%; /* LaunchPulse Green */
+    --status-warning: 43 96% 56%;  /* Amber */
+    --status-danger: 0 84% 60%;    /* Rose */
+    --status-info: 210 88% 22%;    /* Dark Navy */
     
-    /* Board-ready shadows */
-    --shadow-executive: 0 4px 20px -2px hsl(221 83% 23% / 0.15);
-    --shadow-card: 0 2px 10px -2px hsl(221 83% 23% / 0.08);
+    /* LaunchPulse Shadows */
+    --shadow-executive: 0 4px 20px -2px hsl(210 88% 22% / 0.15);
+    --shadow-card: 0 2px 10px -2px hsl(210 88% 22% / 0.08);
+    --shadow-glow: 0 0 30px -5px hsl(161 85% 60% / 0.3);
 
     --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 260 50% 20%;
-    --sidebar-primary: 260 65% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 260 60% 96%;
-    --sidebar-accent-foreground: 260 65% 60%;
-    --sidebar-border: 240 10% 90%;
-    --sidebar-ring: 260 65% 60%;
+    --sidebar-foreground: 210 88% 22%;
+    --sidebar-primary: 161 85% 60%;
+    --sidebar-primary-foreground: 210 94% 18%;
+    --sidebar-accent: 161 90% 95%;
+    --sidebar-accent-foreground: 161 85% 60%;
+    --sidebar-border: 223 23% 81%;
+    --sidebar-ring: 161 85% 60%;
   }
 
   .dark {
-    --background: 260 40% 8%;
+    /* LaunchPulse Brand Colors - Dark Mode */
+    --background: 210 94% 18%; /* Darker Navy */
     --foreground: 0 0% 98%;
 
-    --card: 260 30% 12%;
+    --card: 210 88% 22%; /* Dark Navy */
     --card-foreground: 0 0% 98%;
 
-    --popover: 260 30% 12%;
+    --popover: 210 88% 22%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 260 65% 60%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 161 85% 60%; /* LaunchPulse Green */
+    --primary-foreground: 210 94% 18%;
 
-    --secondary: 260 55% 50%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 161 88% 67%; /* Accent Green */
+    --secondary-foreground: 210 94% 18%;
 
-    --muted: 260 25% 18%;
-    --muted-foreground: 260 20% 70%;
+    --muted: 198 20% 19%; /* Darker Grey */
+    --muted-foreground: 223 23% 87%; /* Platinum */
 
-    --accent: 260 65% 60%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 161 85% 60%;
+    --accent-foreground: 210 94% 18%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 260 25% 20%;
-    --input: 260 25% 20%;
-    --ring: 260 65% 60%;
+    --border: 198 15% 25%; /* Dark Grey */
+    --input: 198 15% 25%;
+    --ring: 161 85% 60%;
 
-    /* Chart colors for analytics - dark mode */
-    --chart-1: 260 65% 60%; /* Professional Purple */
-    --chart-2: 260 55% 50%; /* Deep Purple */
-    --chart-3: 260 45% 40%; /* Purple Dark */
-    --chart-4: 270 60% 70%; /* Purple Light Accent */
-    --chart-5: 260 50% 75%; /* Purple Very Light */
+    /* Chart colors - dark mode */
+    --chart-1: 161 85% 60%; /* Primary Green */
+    --chart-2: 161 88% 67%; /* Accent Green */
+    --chart-3: 223 23% 87%; /* Platinum */
+    --chart-4: 198 10% 41%; /* Grey */
+    --chart-5: 198 15% 25%; /* Dark Grey */
 
-    --sidebar-background: 260 40% 8%;
+    --sidebar-background: 210 94% 18%;
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 260 65% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 260 50% 15%;
-    --sidebar-accent-foreground: 260 65% 60%;
-    --sidebar-border: 260 25% 20%;
-    --sidebar-ring: 260 65% 60%;
+    --sidebar-primary: 161 85% 60%;
+    --sidebar-primary-foreground: 210 94% 18%;
+    --sidebar-accent: 210 88% 25%;
+    --sidebar-accent-foreground: 161 85% 60%;
+    --sidebar-border: 198 15% 25%;
+    --sidebar-ring: 161 85% 60%;
   }
 }
 
@@ -135,6 +139,10 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
   }
 }

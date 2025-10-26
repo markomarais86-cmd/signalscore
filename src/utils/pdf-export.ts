@@ -48,26 +48,37 @@ export async function generateTAMReport(data: TAMExportData, orgName: string = '
   };
 
   // Title Page
+  doc.setFillColor(8, 51, 105); // LaunchPulse Dark Navy
+  doc.rect(0, 0, pageWidth, 70, 'F');
+  
+  doc.setFontSize(28);
+  doc.setTextColor(60, 241, 174); // LaunchPulse Green
+  doc.text('LaunchPulse', pageWidth / 2, 30, { align: 'center' });
+  
   doc.setFontSize(24);
-  doc.setTextColor(31, 41, 55); // text-gray-800
-  doc.text('TAM Intelligence Report', pageWidth / 2, 40, { align: 'center' });
+  doc.setTextColor(255, 255, 255);
+  doc.text('TAM Intelligence Report', pageWidth / 2, 45, { align: 'center' });
+  
+  doc.setFontSize(11);
+  doc.setTextColor(200, 200, 200);
+  doc.text('Where GTM Meets ICP Precision', pageWidth / 2, 55, { align: 'center' });
   
   doc.setFontSize(12);
-  doc.setTextColor(107, 114, 128); // text-gray-500
-  doc.text(orgName, pageWidth / 2, 50, { align: 'center' });
+  doc.setTextColor(107, 114, 128);
+  doc.text(orgName, pageWidth / 2, 85, { align: 'center' });
   doc.text(`Generated: ${new Date().toLocaleDateString('en-US', { 
     year: 'numeric', 
     month: 'long', 
     day: 'numeric' 
-  })}`, pageWidth / 2, 58, { align: 'center' });
+  })}`, pageWidth / 2, 93, { align: 'center' });
 
   // Executive Summary Box
-  doc.setFillColor(243, 244, 246); // bg-gray-100
-  doc.roundedRect(margin, 80, pageWidth - 2 * margin, 80, 3, 3, 'F');
+  doc.setFillColor(92, 244, 188); // LaunchPulse Accent Green (light)
+  doc.roundedRect(margin, 105, pageWidth - 2 * margin, 80, 3, 3, 'F');
   
   doc.setFontSize(16);
-  doc.setTextColor(31, 41, 55);
-  doc.text('Executive Summary', pageWidth / 2, 92, { align: 'center' });
+  doc.setTextColor(8, 51, 105); // Dark Navy
+  doc.text('Executive Summary', pageWidth / 2, 117, { align: 'center' });
   
   doc.setFontSize(11);
   doc.setTextColor(55, 65, 81);
@@ -81,7 +92,7 @@ export async function generateTAMReport(data: TAMExportData, orgName: string = '
   ];
   
   summaryLines.forEach((line, index) => {
-    doc.text(line, pageWidth / 2, 105 + (index * 8), { align: 'center' });
+    doc.text(line, pageWidth / 2, 130 + (index * 8), { align: 'center' });
   });
 
   // Page 2: Industry Breakdown

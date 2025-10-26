@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Check, ArrowRight, Target, TrendingUp, Database, Zap, Users, Shield } from "lucide-react";
 import { Link } from "react-router-dom";
+import { BrandLogo } from "@/components/BrandLogo";
 
 export default function Landing() {
   const pricingPlans = [
@@ -100,10 +101,7 @@ export default function Landing() {
       {/* Header */}
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-baseline gap-3">
-            <h1 className="text-2xl font-bold text-primary">LaunchPulse</h1>
-            <span className="text-xs text-muted-foreground">by LaunchPulse</span>
-          </div>
+          <BrandLogo variant="light" />
           <div className="flex items-center gap-4">
             <Link to="/auth">
               <Button variant="ghost">Sign In</Button>
@@ -118,9 +116,9 @@ export default function Landing() {
       {/* Hero Section */}
       <section className="container mx-auto px-6 py-24 text-center">
         <Badge className="mb-6" variant="secondary">
-          TAM Intelligence Platform
+          Where GTM Meets ICP Precision
         </Badge>
-        <h1 className="text-6xl font-bold mb-6 bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
+        <h1 className="text-6xl font-bold font-heading mb-6 bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
           Know Your Market Coverage
         </h1>
         <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
@@ -271,10 +269,7 @@ export default function Landing() {
       <footer className="border-t bg-card/50 backdrop-blur-sm">
         <div className="container mx-auto px-6 py-8">
           <div className="flex items-center justify-between">
-            <div className="flex items-baseline gap-3">
-              <span className="text-xl font-bold text-primary">SignalScore</span>
-              <span className="text-xs text-muted-foreground">by LaunchPulse</span>
-            </div>
+            <BrandLogo variant="light" showTagline />
             <div className="text-sm text-muted-foreground">
               © 2025 LaunchPulse. All rights reserved.
             </div>
