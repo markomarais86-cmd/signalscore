@@ -81,6 +81,39 @@ export function FeatureToggles() {
         },
       ]
     },
+    {
+      phase: 'Phase 6 - Advanced Analytics',
+      badge: 'LABS',
+      icon: TrendingUp,
+      description: 'Custom reporting, cohort analysis, and predictive models',
+      features: [
+        {
+          key: 'custom_reports' as const,
+          label: 'Custom Reports',
+          description: 'Build and schedule custom reports',
+        },
+        {
+          key: 'cohort_analysis' as const,
+          label: 'Cohort Analysis',
+          description: 'Analyze account cohorts and lifetime value',
+        },
+        {
+          key: 'predictive_scoring' as const,
+          label: 'Predictive Scoring v2',
+          description: 'ML-powered propensity scoring models',
+        },
+        {
+          key: 'advanced_segmentation' as const,
+          label: 'Advanced Segmentation',
+          description: 'Create dynamic account segments',
+        },
+        {
+          key: 'trend_analysis' as const,
+          label: 'Trend Analysis',
+          description: 'Historical trends and forecasting',
+        },
+      ]
+    },
   ];
 
   if (isLoading) {
