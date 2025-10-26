@@ -30,6 +30,7 @@ import { ICPCoverageCard } from "@/components/executive/ICPCoverageCard";
 import { EnhancedRisksCard } from "@/components/executive/EnhancedRisksCard";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
+import { TAMSAMSOMCalculator } from "@/components/executive/TAMSAMSOMCalculator";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -247,6 +248,15 @@ export default function ExecutiveDashboard() {
                 geoCompleteness={80}
                 scoringTrend={trendData?.scoringProgress}
                 completenessTrend={trendData?.completeness}
+              />
+
+              {/* TAM/SAM/SOM Calculator */}
+              <TAMSAMSOMCalculator
+                totalAccounts={totalAccounts}
+                highFitAccounts={highFitAccounts}
+                campaignReadyAccounts={campaignReadyAccounts}
+                averageDealSize={75000}
+                conversionRate={0.15}
               />
 
               {/* Enhanced Geography Card */}

@@ -60,65 +60,125 @@ serve(async (req) => {
     let enrichedCount = 0;
     const enrichedAccounts = new Set<string>();
 
-    // PHASE 1: Clearbit Free
-    console.log('🔍 Phase 1: Clearbit');
-    for (const account of accounts) {
-      if (!account.domain) continue;
+    // PHASE 1: PDL (People Data Labs)
+    const PDL_API_KEY = Deno.env.get('PDL_API_KEY');
+    if (PDL_API_KEY) {
+      console.log('🔍 Phase 1: PDL Enrichment');
+      for (const account of accounts) {
+        if (!account.domain) continue;
 
-      try {
-        const response = await fetch(`https://company.clearbit.com/v1/domains/find?domain=${account.domain}`);
-        if (response.ok) {
-          const data = await response.json();
-          const updateData: any = {};
-          
-          if (!account.employee_count && data.metrics?.employees) {
-            updateData.employee_count = data.metrics.employees;
+        try {
+          const response = await fetch('https://api.peopledatalabs.com/v5/company/enrich', {
+            method: 'GET',
+            headers: { 'X-Api-Key': PDL_API_KEY },
+            body: JSON.stringify({ website: account.domain }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const updateData: any = {};
+            
+            if (!account.employee_count && data.size) {
+              updateData.employee_count = data.size;
+            }
+            if (!account.revenue_range && data.estimated_annual_revenue) {
+              const revenue = data.estimated_annual_revenue;
+              if (revenue < 1000000) updateData.revenue_range = '$0-$1M';
+              else if (revenue < 5000000) updateData.revenue_range = '$1M-$5M';
+              else if (revenue < 10000000) updateData.revenue_range = '$5M-$10M';
+              else if (revenue < 25000000) updateData.revenue_range = '$10M-$25M';
+              else if (revenue < 50000000) updateData.revenue_range = '$25M-$50M';
+              else if (revenue < 100000000) updateData.revenue_range = '$50M-$100M';
+              else if (revenue < 500000000) updateData.revenue_range = '$100M-$500M';
+              else if (revenue < 1000000000) updateData.revenue_range = '$500M-$1B';
+              else if (revenue < 10000000000) updateData.revenue_range = '$1B-$10B';
+              else updateData.revenue_range = '$10B+';
+            }
+
+            if (Object.keys(updateData).length > 0) {
+              updateData.enriched_at = new Date().toISOString();
+              updateData.enriched_from = 'pdl';
+
+              await supabase.from('accounts').update(updateData)
+                .eq('external_id', account.external_id).eq('org_id', job.org_id);
+
+              await supabase.rpc('auto_score_account', {
+                p_account_external_id: account.external_id,
+                p_org_id: job.org_id
+              });
+
+              enrichedAccounts.add(account.external_id);
+              enrichedCount++;
+            }
           }
-          if (!account.revenue_range && data.metrics?.estimatedAnnualRevenue) {
-            const revenue = data.metrics.estimatedAnnualRevenue;
-            if (revenue < 1000000) updateData.revenue_range = '$0-$1M';
-            else if (revenue < 5000000) updateData.revenue_range = '$1M-$5M';
-            else if (revenue < 10000000) updateData.revenue_range = '$5M-$10M';
-            else if (revenue < 25000000) updateData.revenue_range = '$10M-$25M';
-            else if (revenue < 50000000) updateData.revenue_range = '$25M-$50M';
-            else if (revenue < 100000000) updateData.revenue_range = '$50M-$100M';
-            else if (revenue < 500000000) updateData.revenue_range = '$100M-$500M';
-            else if (revenue < 1000000000) updateData.revenue_range = '$500M-$1B';
-            else if (revenue < 10000000000) updateData.revenue_range = '$1B-$10B';
-            else updateData.revenue_range = '$10B+';
-          }
-
-          if (Object.keys(updateData).length > 0) {
-            updateData.enriched_at = new Date().toISOString();
-            updateData.enriched_from = 'clearbit';
-
-            await supabase.from('accounts').update(updateData)
-              .eq('external_id', account.external_id).eq('org_id', job.org_id);
-
-            await supabase.rpc('auto_score_account', {
-              p_account_external_id: account.external_id,
-              p_org_id: job.org_id
-            });
-
-            enrichedAccounts.add(account.external_id);
-            enrichedCount++;
-          }
+        } catch (e) {
+          console.error(`PDL error for ${account.name}:`, e);
         }
-      } catch (e) {
-        console.error(`Clearbit error for ${account.name}:`, e);
       }
     }
 
-    // PHASE 2: AI for remaining
+    // PHASE 2: Clearbit Free (fallback)
     const remaining = accounts.filter(a => !enrichedAccounts.has(a.external_id));
     if (remaining.length > 0) {
-      console.log(`🤖 Phase 2: AI (${remaining.length} accounts)`);
+      console.log(`🔍 Phase 2: Clearbit (${remaining.length} accounts)`);
+      for (const account of remaining) {
+        if (!account.domain) continue;
+
+        try {
+          const response = await fetch(`https://company.clearbit.com/v1/domains/find?domain=${account.domain}`);
+          if (response.ok) {
+            const data = await response.json();
+            const updateData: any = {};
+            
+            if (!account.employee_count && data.metrics?.employees) {
+              updateData.employee_count = data.metrics.employees;
+            }
+            if (!account.revenue_range && data.metrics?.estimatedAnnualRevenue) {
+              const revenue = data.metrics.estimatedAnnualRevenue;
+              if (revenue < 1000000) updateData.revenue_range = '$0-$1M';
+              else if (revenue < 5000000) updateData.revenue_range = '$1M-$5M';
+              else if (revenue < 10000000) updateData.revenue_range = '$5M-$10M';
+              else if (revenue < 25000000) updateData.revenue_range = '$10M-$25M';
+              else if (revenue < 50000000) updateData.revenue_range = '$25M-$50M';
+              else if (revenue < 100000000) updateData.revenue_range = '$50M-$100M';
+              else if (revenue < 500000000) updateData.revenue_range = '$100M-$500M';
+              else if (revenue < 1000000000) updateData.revenue_range = '$500M-$1B';
+              else if (revenue < 10000000000) updateData.revenue_range = '$1B-$10B';
+              else updateData.revenue_range = '$10B+';
+            }
+
+            if (Object.keys(updateData).length > 0) {
+              updateData.enriched_at = new Date().toISOString();
+              updateData.enriched_from = 'clearbit';
+
+              await supabase.from('accounts').update(updateData)
+                .eq('external_id', account.external_id).eq('org_id', job.org_id);
+
+              await supabase.rpc('auto_score_account', {
+                p_account_external_id: account.external_id,
+                p_org_id: job.org_id
+              });
+
+              enrichedAccounts.add(account.external_id);
+              enrichedCount++;
+            }
+          }
+        } catch (e) {
+          console.error(`Clearbit error for ${account.name}:`, e);
+        }
+      }
+    }
+
+    // PHASE 3: AI for remaining
+    const stillRemaining = accounts.filter(a => !enrichedAccounts.has(a.external_id));
+    if (stillRemaining.length > 0) {
+      console.log(`🤖 Phase 3: AI (${stillRemaining.length} accounts)`);
       const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
       
       if (LOVABLE_API_KEY) {
         const batchSize = 10;
-        for (let i = 0; i < remaining.length; i += batchSize) {
-          const batch = remaining.slice(i, i + batchSize);
+        for (let i = 0; i < stillRemaining.length; i += batchSize) {
+          const batch = stillRemaining.slice(i, i + batchSize);
           
           const prompt = `Estimate firmographic data. Return JSON: [{"external_id": "id", "employee_count": number, "revenue_range": "range", "confidence": 0-100}]
 Revenue ranges: "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M", "$50M-$100M", "$100M-$500M", "$500M-$1B", "$1B-$10B", "$10B+"

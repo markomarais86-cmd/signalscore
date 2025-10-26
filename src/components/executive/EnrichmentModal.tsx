@@ -36,31 +36,17 @@ export function EnrichmentModal({
 
   const providers: EnrichmentProvider[] = [
     {
-      id: "pdl",
-      name: "People Data Labs (Free Tier)",
-      description: "Company firmographics and industry classification",
+      id: "smart",
+      name: "Smart Enrichment Waterfall (Recommended)",
+      description: "Uses PDL → Clearbit → AI in sequence for best coverage",
       tier: "free",
-      fields: ["Industry", "Company Size", "Location", "Employee Count"]
-    },
-    {
-      id: "clearbit",
-      name: "Clearbit (Free Tier)",
-      description: "Company enrichment and tech stack insights",
-      tier: "free",
-      fields: ["Revenue", "Industry", "Technologies"]
-    },
-    {
-      id: "apollo",
-      name: "Apollo.io",
-      description: "Premium firmographic and technology data",
-      tier: "premium",
-      fields: ["All Firmographics", "Technologies", "Revenue Data"]
+      fields: ["Industry", "Company Size", "Revenue", "Location", "Employee Count"]
     }
   ];
 
   const handleEnrich = async () => {
     if (selectedProviders.length === 0) {
-      toast.error("Please select at least one provider");
+      toast.error("Please select enrichment option");
       return;
     }
 
@@ -76,7 +62,7 @@ export function EnrichmentModal({
         .from('enrichment_jobs')
         .insert({
           org_id: userProfile.org_id,
-          provider: selectedProviders.join(','),
+          provider: 'smart-waterfall',
           job_type: 'firmographic',
           status: 'pending',
           total_records: selectedAccounts || 0
@@ -87,6 +73,10 @@ export function EnrichmentModal({
       if (jobError) throw jobError;
       if (!job) throw new Error('No job data returned');
 
+      toast.info("Starting enrichment...", {
+        description: "Enrichment waterfall: PDL → Clearbit → AI"
+      });
+
       // Call smart-enrich edge function
       const { error } = await supabase.functions.invoke('smart-enrich', {
         body: { jobId: job.id }
@@ -94,11 +84,7 @@ export function EnrichmentModal({
 
       if (error) throw error;
 
-      toast.success("Enrichment started", {
-        description: `Processing ${selectedAccounts || 'all'} accounts with smart enrichment waterfall`
-      });
-
-      // Poll job status every 2 seconds
+      // Poll job status every 2 seconds with progress updates
       const pollInterval = setInterval(async () => {
         const { data: jobStatus } = await supabase
           .from('enrichment_jobs')
@@ -106,16 +92,28 @@ export function EnrichmentModal({
           .eq('id', job.id)
           .single();
 
-        if (jobStatus?.status === 'completed') {
-          clearInterval(pollInterval);
-          toast.success("Enrichment complete", {
-            description: `${jobStatus.enriched_records} of ${jobStatus.total_records} accounts enriched`
-          });
-          onOpenChange(false);
-        } else if (jobStatus?.status === 'failed') {
-          clearInterval(pollInterval);
-          toast.error("Enrichment failed");
-          onOpenChange(false);
+        if (jobStatus) {
+          const progress = jobStatus.processed_records > 0 
+            ? Math.round((jobStatus.processed_records / jobStatus.total_records) * 100)
+            : 0;
+          
+          if (jobStatus.status === 'processing') {
+            toast.info(`Enriching... ${progress}%`, {
+              description: `${jobStatus.enriched_records} of ${jobStatus.processed_records} accounts enriched`,
+              duration: 1000
+            });
+          } else if (jobStatus.status === 'completed') {
+            clearInterval(pollInterval);
+            toast.success("Enrichment complete!", {
+              description: `${jobStatus.enriched_records} of ${jobStatus.total_records} accounts enriched`
+            });
+            onOpenChange(false);
+            window.location.reload(); // Refresh to show new data
+          } else if (jobStatus.status === 'failed') {
+            clearInterval(pollInterval);
+            toast.error("Enrichment failed");
+            onOpenChange(false);
+          }
         }
       }, 2000);
 
