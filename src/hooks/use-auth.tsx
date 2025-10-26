@@ -52,10 +52,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          // Try to load from cache first
+          const cached = localStorage.getItem('user_profile_cache');
+          if (cached) {
+            try {
+              const { profile, timestamp } = JSON.parse(cached);
+              if (Date.now() - timestamp < 5 * 60 * 1000) {
+                console.log('Auth: Using cached profile');
+                setUserProfile(profile as UserProfile);
+              }
+            } catch (e) {
+              localStorage.removeItem('user_profile_cache');
+            }
+          }
+          
           // Fetch user profile BEFORE setting loading to false
           const { data: profile, error } = await supabase
             .from('user_profiles')
-            .select('*')
+            .select('org_id, role, full_name, user_id, created_at')
             .eq('user_id', session.user.id)
             .maybeSingle();
             
@@ -66,6 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else if (profile) {
             console.log('Auth: User profile loaded:', profile);
             setUserProfile(profile as UserProfile);
+            // Cache the profile
+            localStorage.setItem('user_profile_cache', JSON.stringify({
+              profile,
+              timestamp: Date.now()
+            }));
           }
           
           setLoading(false);
@@ -102,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Fetch user profile BEFORE setting loading to false
           const { data: profile, error: profileError } = await supabase
             .from('user_profiles')
-            .select('*')
+            .select('org_id, role, full_name, user_id, created_at')
             .eq('user_id', session.user.id)
             .maybeSingle();
             
@@ -112,6 +131,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             console.error('Auth: Error fetching initial profile:', profileError);
           } else if (profile) {
             setUserProfile(profile as UserProfile);
+            // Cache the profile
+            localStorage.setItem('user_profile_cache', JSON.stringify({
+              profile,
+              timestamp: Date.now()
+            }));
           }
         }
         
@@ -127,12 +151,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth();
     
     // Safety timeout - ensure loading never stays true forever
+    // Reduced from 1500ms - auth should complete in <300ms normally
     const safetyTimeout = setTimeout(() => {
       if (mounted && loadingRef.current) {
         console.warn('Auth: Safety timeout triggered - forcing loading to false');
         setLoading(false);
       }
-    }, 1500);
+    }, 500);
 
     return () => {
       mounted = false;

@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
 import { TrendingUp, Target, Database, Download, MapPin, Sparkles, Building2, Settings, AlertCircle, Users } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useDashboardData, useGeographyData } from "@/hooks/use-dashboard-data";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -28,6 +29,7 @@ import { RisksAndActionsCard } from "@/components/executive/RisksAndActionsCard"
 import { ICPCoverageCard } from "@/components/executive/ICPCoverageCard";
 import { EnhancedRisksCard } from "@/components/executive/EnhancedRisksCard";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
+import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -36,581 +38,232 @@ export default function ExecutiveDashboard() {
   const sidebar = useSidebar();
   const { insights, statistics, loading: insightsLoading, generateInsights } = useICPInsights();
   
-  const [metrics, setMetrics] = useState({
-    totalAccounts: 0,
-    crmAccounts: 0,
-    databaseAccounts: 0,
-    bothSourcesAccounts: 0,
-    totalScored: 0,
-    crmScored: 0,
-    databaseScored: 0,
-    highFitAccounts: 0,
-    highFitCrmAccounts: 0,
-    highFitDatabaseAccounts: 0,
-    averageScore: 0,
-    icpMatchQuality: 0,
-    scoringProgress: 0,
-    completenessScore: 0,
-    industryCompleteness: 0,
-    sizeCompleteness: 0,
-    revenueCompleteness: 0,
-    geoCompleteness: 0,
-    campaignReadyAccounts: 0,
-    campaignReadyLeads: 0,
-    coverage: 0,
-    totalLeads: 0,
-    linkedLeads: 0,
-    unlinkedLeads: 0,
-    crmLeads: 0,
-    databaseLeads: 0,
-    highFitLeads: 0,
-    highFitCrmLeads: 0,
-    highFitDatabaseLeads: 0
-  });
-  
-  const [fitDistribution, setFitDistribution] = useState<any[]>([]);
-  const [geoData, setGeoData] = useState<any[]>([]);
-  const [invalidGeoCount, setInvalidGeoCount] = useState(0);
-  const [trends, setTrends] = useState<TrendData>({
-    scoringProgress: 0,
-    completeness: 0,
-    highFitAccounts: 0,
-    campaignReady: 0
-  });
-  const [risks, setRisks] = useState<RiskItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showEnrichmentModal, setShowEnrichmentModal] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [debugInfo, setDebugInfo] = useState<string>('');
+  // Use optimized React Query hooks - 22 queries reduced to 2!
+  const { data: dashboardData, isLoading, error: queryError, refetch } = useDashboardData(userProfile?.org_id);
+  const { data: geographyData } = useGeographyData(userProfile?.org_id, !!dashboardData);
 
-  const handleForceRefresh = () => {
-    console.log('Force refresh triggered');
-    setLoading(true);
-    setLoadError(null);
-    loadUnifiedData();
-  };
+  const [isEnrichmentModalOpen, setIsEnrichmentModalOpen] = useState(false);
+  const [showAISuggestions, setShowAISuggestions] = useState(true);
+  const [showAllRisks, setShowAllRisks] = useState(false);
+  const [refreshingInsights, setRefreshingInsights] = useState(false);
+  const [trendData, setTrendData] = useState<TrendData | null>(null);
+  const [risks, setRisks] = useState<RiskItem[]>([]);
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+
+  const totalAccounts = dashboardData?.metrics?.total_accounts || 0;
+  const totalScores = dashboardData?.metrics?.total_scores || 0;
+  const totalLeads = dashboardData?.metrics?.total_leads || 0;
+  const campaignReadyAccounts = dashboardData?.metrics?.campaign_ready_accounts || 0;
+  const dataCompleteness = dashboardData?.metrics?.data_completeness || 0;
+
+  const highFitAccounts = dashboardData?.metrics?.high_fit_scores || 0;
+  const medFitAccounts = dashboardData?.metrics?.med_fit_scores || 0;
+  const lowFitAccounts = dashboardData?.metrics?.low_fit_scores || 0;
+
+  const crmAccounts = dashboardData?.metrics?.crm_accounts || 0;
+  const databaseAccounts = dashboardData?.metrics?.database_accounts || 0;
+  const bothAccounts = dashboardData?.metrics?.both_accounts || 0;
+
+  const highFitCrmAccounts = dashboardData?.metrics?.high_fit_crm_accounts || 0;
+  const highFitDatabaseAccounts = dashboardData?.metrics?.high_fit_database_accounts || 0;
+
+  const crmLeads = dashboardData?.metrics?.crm_leads || 0;
+  const databaseLeads = dashboardData?.metrics?.database_leads || 0;
+  const highFitLeadsTotal = dashboardData?.metrics?.high_fit_leads_total || 0;
+  const highFitCrmLeads = dashboardData?.metrics?.high_fit_crm_leads || 0;
+  const highFitDatabaseLeads = dashboardData?.metrics?.high_fit_database_leads || 0;
+  const campaignReadyLeads = dashboardData?.metrics?.campaign_ready_leads || 0;
+
+  const icpProfiles = dashboardData?.icpProfiles || [];
+
+  const geographyDistribution = geographyData || [];
+
+  const hasData = totalAccounts > 0;
 
   useEffect(() => {
-    console.log('🔍 Dashboard effect - authLoading:', authLoading, 'userProfile:', !!userProfile, 'org_id:', userProfile?.org_id);
-    
-    setDebugInfo(`Auth Loading: ${authLoading}, User: ${!!userProfile}, Org: ${userProfile?.org_id || 'None'}`);
-    
-    // Wait for auth to complete
-    if (authLoading) {
-      console.log('⏳ Still loading auth...');
-      return;
-    }
-    
-    // Check if we have a valid profile with org_id
-    if (!userProfile?.org_id) {
-      console.error('❌ Auth completed but no org_id available');
-      setLoadError('Unable to load organization data. Please try logging out and back in.');
-      setLoading(false);
-      return;
-    }
-    
-    // We have valid auth and org_id, load data
-    console.log('✅ Valid org_id, loading data...');
-    loadUnifiedData();
-  }, [authLoading, userProfile?.org_id]);
+    if (dashboardData) {
+      // Calculate trends asynchonously
+      calculateTrends(userProfile?.org_id || '', dashboardData?.metrics)
+        .then(setTrendData)
+        .catch(console.error);
 
-  const loadUnifiedData = async () => {
-    if (!userProfile?.org_id) {
-      console.error('❌ loadUnifiedData called without org_id');
-      return;
-    }
-    
-    console.log('📊 Loading dashboard data for org:', userProfile.org_id);
-    setLoading(true);
-    setLoadError(null);
-    try {
-      // Fetch all critical data in parallel
-      const [
-        accountsResult,
-        scoresResult,
-        icpResult,
-        leadsResult,
-        crmCountResult,
-        databaseCountResult,
-        bothCountResult,
-        linkedLeadsCountResult,
-        highFitCountResult,
-        highFitDistResult,
-        medFitDistResult,
-        lowFitDistResult
-      ] = await Promise.all([
-        supabase.from('accounts').select('*, data_source, external_database_match', { count: 'exact' }).eq('org_id', userProfile.org_id).limit(10000),
-        supabase.from('scores').select('*', { count: 'exact' }).eq('org_id', userProfile.org_id).limit(10000),
-        supabase.from('icp_profiles').select('*').eq('org_id', userProfile.org_id).eq('status', 'active'),
-        supabase.from('Leads').select('*', { count: 'exact' }).eq('org_id', userProfile.org_id).limit(10000),
-        supabase.from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).in('data_source', ['crm', 'both']),
-        supabase.from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).eq('data_source', 'database'),
-        supabase.from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).eq('data_source', 'both'),
-        supabase.from('Leads').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).not('account_external_id', 'is', null),
-        supabase.from('scores').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).gte('overall', 70),
-        supabase.from('scores').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).gte('overall', 70),
-        supabase.from('scores').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).gte('overall', 40).lt('overall', 70),
-        supabase.from('scores').select('*', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).lt('overall', 40)
-      ]);
-
-      const { data: accounts, error: accountsError, count: accountsCount } = accountsResult;
-      const { data: scores, error: scoresError, count: scoresCount } = scoresResult;
-      const { data: icpProfiles, error: icpError } = icpResult;
-      const { data: leads, error: leadsError, count: leadsCount } = leadsResult;
-
-      if (accountsError) throw accountsError;
-      if (scoresError) throw scoresError;
-      if (icpError) throw icpError;
-      if (leadsError) throw leadsError;
-
-      // Fetch RPC functions in parallel (second batch for non-critical data)
-      const [
-        crmLeadsResult,
-        databaseLeadsResult,
-        highFitLeadsResult,
-        highFitCrmAccountsResult,
-        highFitDatabaseAccountsResult,
-        highFitCrmLeadsResult,
-        highFitDatabaseLeadsResult,
-        campaignReadyResult,
-        campaignReadyLeadsResult,
-        completenessResult
-      ] = await Promise.all([
-        supabase.rpc('count_leads_by_account_source', { p_org_id: userProfile.org_id, p_data_source: 'crm' }),
-        supabase.rpc('count_leads_by_account_source', { p_org_id: userProfile.org_id, p_data_source: 'database' }),
-        supabase.rpc('count_high_fit_leads', { p_org_id: userProfile.org_id }),
-        supabase.rpc('count_high_fit_accounts_by_source', { p_org_id: userProfile.org_id, p_data_source: 'crm' }),
-        supabase.rpc('count_high_fit_accounts_by_source', { p_org_id: userProfile.org_id, p_data_source: 'database' }),
-        supabase.rpc('count_high_fit_leads_by_source', { p_org_id: userProfile.org_id, p_data_source: 'crm' }),
-        supabase.rpc('count_high_fit_leads_by_source', { p_org_id: userProfile.org_id, p_data_source: 'database' }),
-        supabase.rpc('count_campaign_ready_accounts', { p_org_id: userProfile.org_id }),
-        supabase.rpc('count_campaign_ready_leads', { p_org_id: userProfile.org_id }),
-        supabase.rpc('calculate_data_completeness', { p_org_id: userProfile.org_id })
-      ]);
-
-      const crmLeadsData = crmLeadsResult.data;
-      const databaseLeadsData = databaseLeadsResult.data;
-      const highFitLeadsData = highFitLeadsResult.data;
-      const highFitCrmAccountsData = highFitCrmAccountsResult.data;
-      const highFitDatabaseAccountsData = highFitDatabaseAccountsResult.data;
-      const highFitCrmLeadsData = highFitCrmLeadsResult.data;
-      const highFitDatabaseLeadsData = highFitDatabaseLeadsResult.data;
-      const campaignReadyData = campaignReadyResult.data;
-      const campaignReadyLeadsData = campaignReadyLeadsResult.data;
-      const completenessData = completenessResult.data;
-
-      const crmLeadsCount = crmLeadsData || 0;
-      const databaseLeadsCount = databaseLeadsData || 0;
-      const highFitLeadsCount = highFitLeadsData || 0;
-      const highFitCrmAccountsCount = highFitCrmAccountsData || 0;
-      const highFitDatabaseAccountsCount = highFitDatabaseAccountsData || 0;
-      const highFitCrmLeadsCount = highFitCrmLeadsData || 0;
-      const highFitDatabaseLeadsCount = highFitDatabaseLeadsData || 0;
-      const campaignReadyAccounts = campaignReadyData || 0;
-      const campaignReadyLeads = campaignReadyLeadsData || 0;
-      const completenessScore = completenessData || 0;
-
-      const totalAccounts = accountsCount || 0;
-      const totalLeads = leadsCount || 0;
-      const linkedLeads = linkedLeadsCountResult.count || 0;
-      const unlinkedLeads = totalLeads - linkedLeads;
-      const crmAccounts = crmCountResult.count || 0;
-      const databaseAccounts = databaseCountResult.count || 0;
-      const bothSourcesAccounts = bothCountResult.count || 0;
+      // Detect risks asynchronously
+      detectRisks(userProfile?.org_id || '', dashboardData?.metrics)
+        .then(setRisks)
+        .catch(console.error);
       
-      // Calculate field-level completeness
-      const totalAccountsForCalc = accounts?.length || 1;
-      const industryComplete = accounts?.filter(a => a.industry_norm).length || 0;
-      const sizeComplete = accounts?.filter(a => a.employee_count).length || 0;
-      const revenueComplete = accounts?.filter(a => a.revenue_range).length || 0;
-      const geoComplete = accounts?.filter(a => a.country).length || 0;
-      
-      const industryCompleteness = Math.round((industryComplete / totalAccountsForCalc) * 100);
-      const sizeCompleteness = Math.round((sizeComplete / totalAccountsForCalc) * 100);
-      const revenueCompleteness = Math.round((revenueComplete / totalAccountsForCalc) * 100);
-      const geoCompleteness = Math.round((geoComplete / totalAccountsForCalc) * 100);
-      
-      console.log('🔢 Total accounts:', totalAccounts, 'Total leads:', totalLeads);
-      console.log('📋 Linked leads:', linkedLeads, 'Unlinked leads:', unlinkedLeads);
-      console.log('📊 CRM accounts:', crmAccounts, 'Database:', databaseAccounts, 'Both:', bothSourcesAccounts);
-      
-      // Calculate ICP metrics
-      const totalScored = scoresCount || 0;
-      
-      // Calculate CRM/DB scoring breakdown (after totalScored is defined)
-      const crmScoredEstimate = Math.floor((totalScored / totalAccounts) * crmAccounts);
-      const databaseScoredEstimate = Math.floor((totalScored / totalAccounts) * databaseAccounts);
-      
-      const highFitAccounts = highFitCountResult.count || 0;
-      const averageScore = scores && scores.length > 0 
-        ? Math.round(scores.reduce((sum, s) => sum + (s.overall || 0), 0) / scores.length)
-        : 0;
-
-      const icpMatchQuality = highFitAccounts > 0 
-        ? Math.round((highFitAccounts / totalAccounts) * 100)
-        : 0;
-      
-      const scoringProgress = totalAccounts > 0
-        ? Math.round((totalScored / totalAccounts) * 100)
-        : 0;
-
-      const finalMetrics = {
-        totalAccounts,
-        totalScored,
-        crmScored: crmScoredEstimate,
-        databaseScored: databaseScoredEstimate,
-        highFitAccounts,
-        highFitCrmAccounts: highFitCrmAccountsCount,
-        highFitDatabaseAccounts: highFitDatabaseAccountsCount,
-        averageScore,
-        icpMatchQuality,
-        scoringProgress,
-        completenessScore,
-        industryCompleteness,
-        sizeCompleteness,
-        revenueCompleteness,
-        geoCompleteness,
-        coverage: totalAccounts > 0 ? Math.round((crmAccounts / totalAccounts) * 100) : 0,
-        crmAccounts,
-        databaseAccounts,
-        bothSourcesAccounts,
-        campaignReadyAccounts,
-        campaignReadyLeads,
-        totalLeads,
-        linkedLeads,
-        unlinkedLeads,
-        crmLeads: crmLeadsCount,
-        databaseLeads: databaseLeadsCount,
-        highFitLeads: highFitLeadsCount,
-        highFitCrmLeads: highFitCrmLeadsCount,
-        highFitDatabaseLeads: highFitDatabaseLeadsCount
-      };
-      setMetrics(finalMetrics);
-      
-      // Fit distribution - use pre-fetched counts
-      const highFitValue = highFitDistResult.count || 0;
-      const medFitValue = medFitDistResult.count || 0;
-      const lowFitValue = lowFitDistResult.count || 0;
-      const totalFitAccounts = highFitValue + medFitValue + lowFitValue;
-
-      setFitDistribution([
-        { 
-          name: 'High Fit', 
-          value: highFitValue,
-          percentage: totalFitAccounts > 0 ? Math.round((highFitValue / totalFitAccounts) * 100) : 0,
-          color: 'hsl(var(--executive-green))' 
-        },
-        { 
-          name: 'Medium Fit', 
-          value: medFitValue,
-          percentage: totalFitAccounts > 0 ? Math.round((medFitValue / totalFitAccounts) * 100) : 0,
-          color: 'hsl(var(--executive-amber))' 
-        },
-        { 
-          name: 'Low Fit', 
-          value: lowFitValue,
-          percentage: totalFitAccounts > 0 ? Math.round((lowFitValue / totalFitAccounts) * 100) : 0,
-          color: 'hsl(var(--executive-red))' 
-        },
-      ]);
-
-      // Load non-critical data after setting metrics (don't block UI)
-      setLoading(false);
-      
-      // Geographic distribution
-      supabase.rpc('get_geography_distribution', { p_org_id: userProfile.org_id })
-        .then(({ data: geoDistribution, error: geoError }) => {
-          if (geoError) {
-            console.error('Error fetching geography distribution:', geoError);
-            setGeoData([]);
-          } else {
-            setGeoData(geoDistribution || []);
-          }
-        });
-
-      // Calculate trends (async)
-      calculateTrends(userProfile.org_id, finalMetrics).then(setTrends).catch(console.error);
-      
-      // Detect risks (async)
-      detectRisks(userProfile.org_id, finalMetrics).then(setRisks).catch(console.error);
-
-      // Generate AI insights if we have scores (async)
-      if (totalScored > 0) {
+      // Generate insights if we have data
+      if (totalScores > 0 && userProfile?.org_id) {
         generateInsights();
       }
+    }
+  }, [dashboardData, userProfile?.org_id, totalScores]);
 
-      completeStep('explore_dashboard');
+  useEffect(() => {
+    if (userProfile?.org_id) {
+      completeStep('viewed_dashboard');
+    }
+  }, [userProfile, completeStep]);
 
+  useEffect(() => {
+    if (!insightsLoading && insights?.length === 0) {
+      setShowAISuggestions(true);
+    } else {
+      setShowAISuggestions(false);
+    }
+  }, [insights, insightsLoading]);
+
+  const handleRefreshInsights = async () => {
+    if (!userProfile?.org_id) {
+      toast.error("Can't refresh insights - No organization ID found");
+      return;
+    }
+
+    setRefreshingInsights(true);
+    try {
+      await generateInsights();
+      setLastRefreshed(new Date());
+      toast.success("Insights refreshed successfully");
     } catch (error: any) {
-      console.error('❌ Error loading unified data:', error);
-      
-      // Provide more specific error messages
-      let errorMessage = 'Failed to load dashboard data';
-      if (error.message?.includes('permission denied') || error.message?.includes('JWT')) {
-        errorMessage = 'Access denied. Please try signing out and back in.';
-      } else if (error.message?.includes('violates row-level security')) {
-        errorMessage = 'Data access error. Your account may need additional configuration.';
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-      
-      setLoadError(errorMessage);
-      toast.error(errorMessage);
-      setLoading(false);
+      console.error("Error refreshing insights:", error);
+      toast.error(error.message || "Failed to refresh insights");
+    } finally {
+      setRefreshingInsights(false);
     }
   };
 
-  // Show loading state
-  if (loading || authLoading) {
+  if (authLoading) {
+    return <div className="flex justify-center items-center h-screen">Loading Auth...</div>;
+  }
+
+  if (!userProfile) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Overview Dashboard
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            {authLoading ? 'Authenticating...' : 'Loading your unified CRM intelligence...'}
-          </p>
-        </div>
-        <Card>
-          <CardContent className="flex items-center justify-center py-12">
-            <div className="flex flex-col items-center gap-4">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <p className="text-sm text-muted-foreground">
-                {authLoading ? 'Verifying credentials...' : 'Fetching data...'}
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Alert variant="destructive" className="mt-4">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Please create a user profile to view this page. <Button variant="link" onClick={() => navigate('/profile')}>Go to Profile</Button>
+        </AlertDescription>
+      </Alert>
     );
   }
 
-  // Show error state with retry button
-  if (loadError) {
+  if (queryError) {
+    console.error("React Query Error:", queryError.message);
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Overview Dashboard
-          </h1>
-          <p className="text-muted-foreground mt-2">Unable to load dashboard</p>
-        </div>
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription className="flex flex-col gap-4">
-            <span>{loadError}</span>
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => window.location.reload()}
-              >
-                Refresh Page
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={handleForceRefresh}
-              >
-                Force Refresh Data
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">{debugInfo}</p>
-          </AlertDescription>
-        </Alert>
-        <Card>
-          <CardContent className="py-12">
-            <div className="text-center space-y-4">
-              <p className="text-muted-foreground">
-                Debug Info:
-              </p>
-              <div className="text-xs text-left bg-muted p-4 rounded-md font-mono max-w-2xl mx-auto">
-                <div>Auth Loading: {authLoading ? 'Yes' : 'No'}</div>
-                <div>User Profile: {userProfile ? 'Loaded' : 'Missing'}</div>
-                <div>Org ID: {userProfile?.org_id || 'Not available'}</div>
-                <div>User ID: {userProfile?.user_id || 'Not available'}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Alert variant="destructive" className="mt-4">
+        <AlertCircle className="h-4 w-4" />
+        <AlertDescription>
+          Error loading dashboard data. Please try again. <Button variant="link" onClick={() => refetch()}>Retry</Button>
+        </AlertDescription>
+      </Alert>
     );
   }
-
-  // Responsive grid based on sidebar state
-  const gridClass = !sidebar?.open 
-    ? "grid-cols-1 lg:grid-cols-3 gap-6" 
-    : "grid-cols-1 lg:grid-cols-2 gap-6";
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Overview Dashboard
-          </h1>
-          <p className="text-muted-foreground mt-2">
-            Unified view of your CRM data and available opportunities
-          </p>
-        </div>
-      </div>
-
-      <OnboardingProgress />
-
-      {/* Unlinked Leads Status Indicator */}
-      {metrics.unlinkedLeads > 0 && (
-        <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
-          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          <AlertDescription className="flex items-center justify-between">
-            <span className="text-sm">
-              {metrics.unlinkedLeads.toLocaleString()} leads need processing
-            </span>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => navigate('/data-upload')}
-            >
-              Go to Data Upload
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto p-6 space-y-6">
+        {/* Header Section */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold">Executive Dashboard</h1>
+            <p className="text-muted-foreground">Insights into your ideal customer profile and overall data health.</p>
+          </div>
+          <div className="space-x-2">
+            <Button variant="outline" onClick={() => setIsEnrichmentModalOpen(true)}>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Enrich Data
             </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Row 1: ICP Coverage (left) + Scoring/ICP (right) */}
-      <div className={`grid ${gridClass}`}>
-        <ICPCoverageCard
-          totalAccounts={metrics.totalAccounts}
-          crmAccounts={metrics.crmAccounts}
-          databaseAccounts={metrics.databaseAccounts}
-          highFitAccounts={metrics.highFitAccounts}
-          highFitCrmAccounts={metrics.highFitCrmAccounts}
-          highFitDatabaseAccounts={metrics.highFitDatabaseAccounts}
-          totalLeads={metrics.totalLeads}
-          crmLeads={metrics.crmLeads}
-          databaseLeads={metrics.databaseLeads}
-          highFitLeads={metrics.highFitLeads}
-          highFitCrmLeads={metrics.highFitCrmLeads}
-          highFitDatabaseLeads={metrics.highFitDatabaseLeads}
-        />
-        
-        <CombinedScoringICPCard
-        scoringProgress={metrics.scoringProgress}
-        totalScored={metrics.totalScored}
-        totalAccounts={metrics.totalAccounts}
-        crmScored={metrics.crmScored}
-        databaseScored={metrics.databaseScored}
-        fitDistribution={fitDistribution}
-        completeness={metrics.completenessScore}
-        industryCompleteness={metrics.industryCompleteness}
-        sizeCompleteness={metrics.sizeCompleteness}
-        revenueCompleteness={metrics.revenueCompleteness}
-        geoCompleteness={metrics.geoCompleteness}
-          scoringTrend={trends.scoringProgress}
-          completenessTrend={trends.completeness}
-        />
-      </div>
-
-      {/* Row 2: Campaign-Ready Assets */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Campaign-Ready Assets
-          </CardTitle>
-          <CardDescription>High-fit accounts with qualified leads</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <div className="flex items-baseline justify-between mb-2">
-                <div className="text-4xl font-bold text-primary">{metrics.campaignReadyAccounts.toLocaleString()}</div>
-                {trends.campaignReady !== 0 && <TrendIndicator value={trends.campaignReady} />}
-              </div>
-              <p className="text-sm text-muted-foreground">Accounts ready</p>
-            </div>
-            <div>
-              <div className="text-3xl font-bold text-signal-medium">{(metrics.campaignReadyLeads || 0).toLocaleString()}</div>
-              <p className="text-sm text-muted-foreground">Leads ready</p>
-            </div>
-            <div className="flex items-center">
-              <Button 
-                onClick={() => navigate('/accounts')} 
-                className="w-full"
-                disabled={metrics.campaignReadyAccounts === 0}
-              >
-                Build Campaign List →
-              </Button>
-            </div>
+            <Button variant="outline" onClick={() => sidebar?.open && sidebar.open()}>
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Data Enrichment Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Database className="h-5 w-5 text-primary" />
-              Data Enrichment
-            </CardTitle>
-            <Sparkles className="h-5 w-5 text-primary" />
-          </div>
-          <CardDescription>Enrich your accounts with missing firmographic data</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Use AI and external providers to automatically fill in missing company information, revenue ranges, and employee counts.
-          </p>
-          <Button onClick={() => setShowEnrichmentModal(true)} className="w-full">
-            <Sparkles className="h-4 w-4 mr-2" />
-            Start Enrichment
-          </Button>
-        </CardContent>
-      </Card>
+        {isLoading ? (
+          <DashboardSkeleton />
+        ) : (
+          <>
+            {/* Hero Metrics Row */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <HeroMetric
+                title="Total Accounts"
+                value={totalAccounts}
+                trend={trendData?.totalAccountsTrend}
+                description="Total number of accounts in your database"
+                icon={Users}
+              />
+              <HeroMetric
+                title="Total Leads"
+                value={totalLeads}
+                trend={trendData?.totalLeadsTrend}
+                description="Total number of leads in your database"
+                icon={Target}
+              />
+              <HeroMetric
+                title="Campaign Ready Accounts"
+                value={campaignReadyAccounts}
+                trend={trendData?.campaignReadyAccountsTrend}
+                description="Accounts ready for outreach based on data completeness and fit"
+                icon={Sparkles}
+              />
+            </div>
 
-      {/* Row 3: Geographic Distribution with Drill-down and Heat Map */}
-      <EnhancedGeographyCard geoData={geoData} invalidCount={invalidGeoCount} />
+            {/* Main Content Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* ICP Coverage Card */}
+              <ICPCoverageCard />
 
-      {/* Row 4: AI Recommendations (Tiles) + Risks & Actions */}
-      <div className={`grid ${gridClass}`}>
-        <AIRecommendationsTiles 
-          insights={
-            insights && insights.length > 0 
-              ? insights.map((insight: any) => ({
-                  ...insight,
-                  category: insight.category || insight.type || 'firmographic',
-                  why: insight.why || insight.description,
-                  action: insight.action || 'View Details',
-                  route: insight.route || '/accounts',
-                  filter: insight.filter || {}
-                }))
-              : []
-          }
-          onRefresh={() => generateInsights()}
-        />
+              {/* Combined Scoring ICP Card */}
+              <CombinedScoringICPCard />
 
-        <EnhancedRisksCard
-          risks={risks}
-          campaignReadyCount={metrics.campaignReadyAccounts}
-          completenessScore={metrics.completenessScore}
-          totalScored={metrics.totalScored}
-          onRiskClick={(risk) => {
-            console.log('Risk clicked:', risk);
-            if (risk.fix?.action === 'navigate' && risk.fix.target) {
-              navigate(risk.fix.target);
-            }
-            toast.info(`Filtering to: ${risk.title}`);
-          }}
-        />
+              {/* Data Source Breakdown Card */}
+              <DataSourceBreakdownCard 
+                breakdown={{
+                  crm: {
+                    accounts: crmAccounts,
+                    highFitAccounts: highFitCrmAccounts,
+                    leads: crmLeads,
+                    highFitLeads: highFitCrmLeads
+                  },
+                  database: {
+                    accounts: databaseAccounts,
+                    highFitAccounts: highFitDatabaseAccounts,
+                    leads: databaseLeads,
+                    highFitLeads: highFitDatabaseLeads
+                  },
+                  both: {
+                    accounts: bothAccounts,
+                    highFitAccounts: 0,
+                    leads: 0,
+                    highFitLeads: 0
+                  }
+                }}
+              />
+
+              {/* Geography Chart Card */}
+              <EnhancedGeographyCard data={geographyDistribution} />
+            </div>
+
+            {/* Bottom Cards */}
+            <div className="grid grid-cols-1 gap-6">
+              {/* Risks and Actions Card */}
+              <EnhancedRisksCard risks={risks} />
+
+              {/* AI Recommendations Card */}
+              {showAISuggestions && (
+                <AIRecommendationsTiles
+                  insights={insights}
+                  loading={insightsLoading}
+                />
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Enrichment Modal */}
+        <EnrichmentModal open={isEnrichmentModalOpen} onOpenChange={setIsEnrichmentModalOpen} />
       </div>
-
-      <EnrichmentModal
-        open={showEnrichmentModal}
-        onOpenChange={setShowEnrichmentModal}
-        selectedAccounts={metrics.totalAccounts}
-      />
     </div>
   );
 }
