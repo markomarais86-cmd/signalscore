@@ -173,7 +173,7 @@ export default function ExecutiveDashboard() {
               <Sparkles className="mr-2 h-4 w-4" />
               Enrich Data
             </Button>
-            <Button variant="outline" onClick={() => sidebar?.open && sidebar.open()}>
+            <Button variant="outline" onClick={() => navigate('/settings')}>
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </Button>
@@ -187,75 +187,80 @@ export default function ExecutiveDashboard() {
             {/* Hero Metrics Row */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <HeroMetric
-                title="Total Accounts"
+                label="Total Accounts"
                 value={totalAccounts}
-                trend={trendData?.totalAccountsTrend}
-                description="Total number of accounts in your database"
+                subtitle="Accounts in database"
+                trend={trendData ? { value: trendData.scoringProgress, period: "last week" } : undefined}
                 icon={Users}
               />
               <HeroMetric
-                title="Total Leads"
+                label="Total Leads"
                 value={totalLeads}
-                trend={trendData?.totalLeadsTrend}
-                description="Total number of leads in your database"
+                subtitle="Leads tracked"
+                trend={trendData ? { value: trendData.completeness, period: "last week" } : undefined}
                 icon={Target}
               />
               <HeroMetric
-                title="Campaign Ready Accounts"
+                label="Campaign Ready"
                 value={campaignReadyAccounts}
-                trend={trendData?.campaignReadyAccountsTrend}
-                description="Accounts ready for outreach based on data completeness and fit"
+                subtitle="High-fit with contacts"
+                trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
                 icon={Sparkles}
+                status={campaignReadyAccounts > 0 ? 'success' : 'warning'}
               />
             </div>
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* ICP Coverage Card */}
-              <ICPCoverageCard />
-
-              {/* Combined Scoring ICP Card */}
-              <CombinedScoringICPCard />
-
-              {/* Data Source Breakdown Card */}
-              <DataSourceBreakdownCard 
-                breakdown={{
-                  crm: {
-                    accounts: crmAccounts,
-                    highFitAccounts: highFitCrmAccounts,
-                    leads: crmLeads,
-                    highFitLeads: highFitCrmLeads
-                  },
-                  database: {
-                    accounts: databaseAccounts,
-                    highFitAccounts: highFitDatabaseAccounts,
-                    leads: databaseLeads,
-                    highFitLeads: highFitDatabaseLeads
-                  },
-                  both: {
-                    accounts: bothAccounts,
-                    highFitAccounts: 0,
-                    leads: 0,
-                    highFitLeads: 0
-                  }
-                }}
+              <ICPCoverageCard
+                totalAccounts={totalAccounts}
+                crmAccounts={crmAccounts}
+                databaseAccounts={databaseAccounts}
+                highFitAccounts={highFitAccounts}
+                highFitCrmAccounts={highFitCrmAccounts}
+                highFitDatabaseAccounts={highFitDatabaseAccounts}
+                totalLeads={totalLeads}
+                crmLeads={crmLeads}
+                databaseLeads={databaseLeads}
+                highFitLeads={highFitLeadsTotal}
+                highFitCrmLeads={highFitCrmLeads}
+                highFitDatabaseLeads={highFitDatabaseLeads}
               />
 
-              {/* Geography Chart Card */}
-              <EnhancedGeographyCard data={geographyDistribution} />
+              {/* Combined Scoring ICP Card */}
+              <CombinedScoringICPCard
+                scoringProgress={totalAccounts > 0 ? Math.round((totalScores / totalAccounts) * 100) : 0}
+                totalScored={totalScores}
+                totalAccounts={totalAccounts}
+                crmScored={Math.floor((totalScores / (totalAccounts || 1)) * crmAccounts)}
+                databaseScored={Math.floor((totalScores / (totalAccounts || 1)) * databaseAccounts)}
+                fitDistribution={[
+                  { name: 'High Fit', value: highFitAccounts, percentage: totalScores > 0 ? Math.round((highFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-green))' },
+                  { name: 'Medium Fit', value: medFitAccounts, percentage: totalScores > 0 ? Math.round((medFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-amber))' },
+                  { name: 'Low Fit', value: lowFitAccounts, percentage: totalScores > 0 ? Math.round((lowFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-red))' }
+                ]}
+                completeness={dataCompleteness}
+                industryCompleteness={75}
+                sizeCompleteness={65}
+                revenueCompleteness={55}
+                geoCompleteness={80}
+                scoringTrend={trendData?.scoringProgress}
+                completenessTrend={trendData?.completeness}
+              />
+
+              {/* Enhanced Geography Card */}
+              <EnhancedGeographyCard geoData={geographyDistribution} invalidCount={0} />
             </div>
 
             {/* Bottom Cards */}
             <div className="grid grid-cols-1 gap-6">
               {/* Risks and Actions Card */}
-              <EnhancedRisksCard risks={risks} />
+              {risks.length > 0 && <EnhancedRisksCard risks={risks} />}
 
               {/* AI Recommendations Card */}
-              {showAISuggestions && (
-                <AIRecommendationsTiles
-                  insights={insights}
-                  loading={insightsLoading}
-                />
+              {insights && insights.length > 0 && (
+                <AIRecommendationsTiles insights={insights} />
               )}
             </div>
           </>
