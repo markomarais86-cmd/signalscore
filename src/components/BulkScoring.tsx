@@ -43,7 +43,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
   const isInvokingChunk = useRef(false);
   const lastTriggeredChunk = useRef(-1);
 
-  // Real-time subscription to job status
+  // Real-time subscription to job status + polling backup
   useEffect(() => {
     if (!userProfile?.org_id || !isScoring) return;
 
@@ -171,8 +171,77 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
       )
       .subscribe();
 
+    // POLLING BACKUP: Poll every 2 seconds as fallback
+    const pollInterval = setInterval(async () => {
+      const { data: activeJob } = await supabase
+        .from('bulk_scoring_jobs')
+        .select('*')
+        .eq('org_id', userProfile.org_id)
+        .in('status', ['pending', 'processing'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (activeJob) {
+        console.log('[Polling] Job state:', {
+          current_chunk: activeJob.current_chunk,
+          processed: activeJob.processed_accounts,
+          status: activeJob.status
+        });
+
+        // Update UI
+        const safeProcessed = Math.min(activeJob.processed_accounts, activeJob.total_accounts);
+        const progressPercent = activeJob.total_accounts > 0 
+          ? Math.min(100, (safeProcessed / activeJob.total_accounts) * 100)
+          : 0;
+        
+        setCurrentJob(activeJob);
+        setProgress(progressPercent);
+
+        // Trigger next chunk if needed
+        const nextChunkIndex = activeJob.current_chunk;
+        const isLastChunk = nextChunkIndex >= activeJob.total_chunks;
+        
+        if (
+          !isLastChunk && 
+          activeJob.status === "processing" && 
+          !isInvokingChunk.current && 
+          nextChunkIndex > lastTriggeredChunk.current
+        ) {
+          console.log(`[Polling Trigger] Starting chunk ${nextChunkIndex}`);
+          
+          isInvokingChunk.current = true;
+          lastTriggeredChunk.current = nextChunkIndex;
+          
+          try {
+            await supabase.functions.invoke("bulk-score-accounts", {
+              body: {
+                org_id: userProfile.org_id,
+                job_id: activeJob.id,
+                chunk_index: nextChunkIndex,
+                chunk_size: 5000,
+              },
+            });
+          } catch (error) {
+            console.error('[Polling Error]:', error);
+            isInvokingChunk.current = false;
+          } finally {
+            setTimeout(() => { isInvokingChunk.current = false; }, 1000);
+          }
+        }
+
+        // Check for completion
+        if (activeJob.status === 'completed') {
+          console.log('[Polling] Job completed');
+          setIsScoring(false);
+          clearInterval(pollInterval);
+        }
+      }
+    }, 2000);
+
     return () => {
       console.log('[Realtime] Unsubscribing from bulk_scoring_jobs');
+      clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
   }, [userProfile?.org_id, isScoring, onComplete]);
