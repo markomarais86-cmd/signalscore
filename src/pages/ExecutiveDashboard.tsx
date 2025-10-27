@@ -55,6 +55,7 @@ export default function ExecutiveDashboard() {
   const totalScores = dashboardData?.metrics?.total_scores || 0;
   const totalLeads = dashboardData?.metrics?.total_leads || 0;
   const campaignReadyAccounts = dashboardData?.metrics?.campaign_ready_accounts || 0;
+  const campaignReadyContacts = dashboardData?.metrics?.campaign_ready_contacts || 0;
   const dataCompleteness = dashboardData?.metrics?.data_completeness || 0;
 
   const highFitAccounts = dashboardData?.metrics?.high_fit_scores || 0;
@@ -203,11 +204,11 @@ export default function ExecutiveDashboard() {
               />
               <HeroMetric
                 label="Campaign Ready"
-                value={campaignReadyAccounts}
-                subtitle="High-fit with contacts"
+                value={campaignReadyContacts}
+                subtitle={`${campaignReadyAccounts} accounts with contacts`}
                 trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
                 icon={Sparkles}
-                status={campaignReadyAccounts > 0 ? 'success' : 'warning'}
+                status={campaignReadyContacts > 0 ? 'success' : 'warning'}
               />
             </div>
 
