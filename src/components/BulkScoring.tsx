@@ -74,35 +74,36 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           setCurrentJob(job);
           setProgress(progressPercent);
 
-          // Trigger next chunk if needed
-          const nextChunk = job.current_chunk;
-          const isLastChunk = nextChunk >= job.total_chunks;
+          // Trigger next chunk based on processed accounts (more reliable than current_chunk)
           const chunkSize = 5000;
+          const expectedChunk = Math.floor(job.processed_accounts / chunkSize);
+          const isLastChunk = expectedChunk >= job.total_chunks;
           
           if (
             !isLastChunk && 
             job.status === "processing" && 
             !isInvokingChunk.current && 
-            nextChunk !== lastTriggeredChunk.current
+            expectedChunk > lastTriggeredChunk.current
           ) {
-            console.log(`[Realtime Trigger] Chunk ${nextChunk + 1} of ${job.total_chunks}`);
+            console.log(`[Trigger] Chunk ${expectedChunk + 1} of ${job.total_chunks} (processed: ${job.processed_accounts})`);
             
             isInvokingChunk.current = true;
-            lastTriggeredChunk.current = nextChunk;
+            lastTriggeredChunk.current = expectedChunk;
             
             try {
               await supabase.functions.invoke("bulk-score-accounts", {
                 body: {
                   org_id: userProfile.org_id,
                   job_id: job.id,
-                  chunk_index: nextChunk,
+                  chunk_index: expectedChunk,
                   chunk_size: chunkSize,
                 },
               });
             } catch (error) {
-              console.error(`[Error] Failed to trigger chunk ${nextChunk + 1}:`, error);
-            } finally {
+              console.error(`[Error] Chunk ${expectedChunk + 1}:`, error);
               isInvokingChunk.current = false;
+            } finally {
+              setTimeout(() => { isInvokingChunk.current = false; }, 1000);
             }
           }
 
@@ -158,6 +159,20 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
       supabase.removeChannel(channel);
     };
   }, [userProfile?.org_id, isScoring, onComplete]);
+
+  // Timeout recovery: Release lock if chunk is stuck
+  useEffect(() => {
+    if (!isScoring || !currentJob) return;
+    
+    const timeoutId = setTimeout(() => {
+      if (isInvokingChunk.current) {
+        console.log('[Timeout] Chunk stuck for 15s, releasing lock');
+        isInvokingChunk.current = false;
+      }
+    }, 15000);
+    
+    return () => clearTimeout(timeoutId);
+  }, [currentJob?.processed_accounts, isScoring]);
 
   const runBulkScoring = async () => {
     if (!userProfile?.org_id) {

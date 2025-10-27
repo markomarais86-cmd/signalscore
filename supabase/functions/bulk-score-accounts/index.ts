@@ -427,6 +427,7 @@ serve(async (req) => {
     console.log(`Success Rate: ${((chunkSuccessful / (chunkErrors > 0 ? chunkSuccessful + chunkErrors : chunkSuccessful)) * 100).toFixed(1)}%`);
     console.log(`Overall Progress: ${Math.min(processedSoFar, totalAccounts || 0)} / ${totalAccounts}`);
     console.log(`Is Last Chunk: ${isLastChunk}`);
+    console.log(`Next Chunk: ${isLastChunk ? 'None (Complete)' : currentChunkIndex + 1}`);
 
     return new Response(
       JSON.stringify({
