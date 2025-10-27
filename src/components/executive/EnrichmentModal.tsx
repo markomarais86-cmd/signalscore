@@ -79,7 +79,7 @@ export function EnrichmentModal({
         .insert({
           org_id: userProfile.org_id,
           provider: 'smart-waterfall',
-          job_type: 'firmographic',
+          job_type: 'accounts',
           status: 'pending',
           total_records: selectedAccounts || 0
         })
