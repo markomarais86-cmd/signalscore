@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
-import { TrendingUp, Target, Database, Download, MapPin, Sparkles, Building2, Settings, AlertCircle, Users } from "lucide-react";
+import { TrendingUp, Target, Database, Download, MapPin, Sparkles, Building2, Settings, AlertCircle, Users, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useDashboardData, useGeographyData } from "@/hooks/use-dashboard-data";
 import { useOnboarding } from "@/hooks/use-onboarding";
@@ -81,6 +81,21 @@ export default function ExecutiveDashboard() {
   const geographyDistribution = geographyData || [];
 
   const hasData = totalAccounts > 0;
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[ExecutiveDashboard] 📊 Dashboard data updated:', {
+      totalAccounts,
+      totalScores,
+      totalLeads,
+      campaignReadyContacts,
+      highFitAccounts,
+      dataCompleteness,
+      hasData,
+      isLoading,
+      error: queryError?.message
+    });
+  }, [dashboardData, isLoading, queryError, totalAccounts]);
 
   useEffect(() => {
     if (dashboardData) {
@@ -171,6 +186,18 @@ export default function ExecutiveDashboard() {
             <p className="text-muted-foreground">Insights into your ideal customer profile and overall data health.</p>
           </div>
           <div className="space-x-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                console.log('[ExecutiveDashboard] 🔄 Manual refresh triggered');
+                refetch();
+                toast.success('Refreshing dashboard data...');
+              }}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh Data
+            </Button>
             <Button variant="outline" onClick={() => setIsEnrichmentModalOpen(true)}>
               <Sparkles className="mr-2 h-4 w-4" />
               Enrich Data
