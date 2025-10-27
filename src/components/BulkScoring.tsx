@@ -60,10 +60,21 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           filter: `org_id=eq.${userProfile.org_id}`
         },
         async (payload) => {
-          console.log('[Realtime] Job update received:', payload);
-          
           const job = payload.new as ScoringJob;
-          if (!job || !['pending', 'processing', 'completed'].includes(job.status)) return;
+          
+          console.log('[Realtime] Update:', {
+            status: job?.status,
+            current_chunk: job?.current_chunk,
+            processed: job?.processed_accounts,
+            total: job?.total_accounts,
+            isInvoking: isInvokingChunk.current,
+            lastTriggered: lastTriggeredChunk.current
+          });
+          
+          if (!job || !['pending', 'processing', 'completed'].includes(job.status)) {
+            console.log('[Realtime] Ignoring job with status:', job?.status);
+            return;
+          }
 
           // Update UI with latest job status
           const safeProcessed = Math.min(job.processed_accounts, job.total_accounts);
@@ -74,33 +85,39 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           setCurrentJob(job);
           setProgress(progressPercent);
 
-          // Trigger next chunk based on processed accounts (more reliable than current_chunk)
-          const chunkSize = 5000;
-          const expectedChunk = Math.floor(job.processed_accounts / chunkSize);
-          const isLastChunk = expectedChunk >= job.total_chunks;
+          // Use current_chunk from database (already incremented by edge function)
+          const nextChunkIndex = job.current_chunk;
+          const isLastChunk = nextChunkIndex >= job.total_chunks;
+          
+          console.log('[Realtime] Chunk decision:', {
+            nextChunkIndex,
+            isLastChunk,
+            shouldTrigger: !isLastChunk && job.status === "processing" && !isInvokingChunk.current && nextChunkIndex > lastTriggeredChunk.current
+          });
           
           if (
             !isLastChunk && 
             job.status === "processing" && 
             !isInvokingChunk.current && 
-            expectedChunk > lastTriggeredChunk.current
+            nextChunkIndex > lastTriggeredChunk.current
           ) {
-            console.log(`[Trigger] Chunk ${expectedChunk + 1} of ${job.total_chunks} (processed: ${job.processed_accounts})`);
+            console.log(`[Trigger] Starting chunk ${nextChunkIndex} of ${job.total_chunks - 1}`);
             
             isInvokingChunk.current = true;
-            lastTriggeredChunk.current = expectedChunk;
+            lastTriggeredChunk.current = nextChunkIndex;
             
             try {
-              await supabase.functions.invoke("bulk-score-accounts", {
+              const result = await supabase.functions.invoke("bulk-score-accounts", {
                 body: {
                   org_id: userProfile.org_id,
                   job_id: job.id,
-                  chunk_index: expectedChunk,
-                  chunk_size: chunkSize,
+                  chunk_index: nextChunkIndex,
+                  chunk_size: 5000,
                 },
               });
+              console.log('[Trigger] Result:', result);
             } catch (error) {
-              console.error(`[Error] Chunk ${expectedChunk + 1}:`, error);
+              console.error(`[Error] Chunk ${nextChunkIndex}:`, error);
               isInvokingChunk.current = false;
             } finally {
               setTimeout(() => { isInvokingChunk.current = false; }, 1000);
