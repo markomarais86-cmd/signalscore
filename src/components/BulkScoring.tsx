@@ -173,7 +173,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
 
     // POLLING BACKUP: Poll every 2 seconds as fallback
     const pollInterval = setInterval(async () => {
-      const { data: activeJob } = await supabase
+      const { data: activeJob, error } = await supabase
         .from('bulk_scoring_jobs')
         .select('*')
         .eq('org_id', userProfile.org_id)
@@ -181,6 +181,60 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
+
+      // No active jobs means the job completed
+      if (error?.code === 'PGRST116' || !activeJob) {
+        console.log('[Polling] No active jobs - checking for completion');
+        
+        // Fetch the most recent job to see if it completed
+        const { data: lastJob } = await supabase
+          .from('bulk_scoring_jobs')
+          .select('*')
+          .eq('org_id', userProfile.org_id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (lastJob?.status === 'completed') {
+          console.log('[Polling] Job completed successfully');
+          setIsScoring(false);
+          setProgress(100);
+          
+          // Fetch final statistics
+          const { count: totalAccounts } = await supabase
+            .from("accounts")
+            .select("*", { count: "exact", head: true })
+            .eq("org_id", userProfile.org_id);
+
+          const { data: scores } = await supabase
+            .from("scores")
+            .select("overall")
+            .eq("org_id", userProfile.org_id);
+
+          const scoredCount = scores?.length || 0;
+          const unscoredCount = (totalAccounts || 0) - scoredCount;
+          const coveragePercent = totalAccounts ? Math.round((scoredCount / totalAccounts) * 100) : 0;
+
+          const avgScore = scoredCount > 0
+            ? Math.round(scores.reduce((sum, s) => sum + (s.overall || 0), 0) / scoredCount)
+            : 0;
+
+          setStats({
+            total: totalAccounts || 0,
+            completed: lastJob.successful_scores,
+            avgScore,
+            failures: lastJob.failed_scores,
+            scoredAccounts: scoredCount,
+            unscoredAccounts: unscoredCount,
+            scoringCoverage: coveragePercent,
+          });
+
+          toast.success(`Successfully scored ${scoredCount.toLocaleString()} accounts!`);
+          onComplete?.();
+          clearInterval(pollInterval);
+        }
+        return;
+      }
 
       if (activeJob) {
         console.log('[Polling] Job state:', {
@@ -228,13 +282,6 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           } finally {
             setTimeout(() => { isInvokingChunk.current = false; }, 1000);
           }
-        }
-
-        // Check for completion
-        if (activeJob.status === 'completed') {
-          console.log('[Polling] Job completed');
-          setIsScoring(false);
-          clearInterval(pollInterval);
         }
       }
     }, 2000);
