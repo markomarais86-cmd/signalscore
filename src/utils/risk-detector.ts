@@ -23,7 +23,7 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
 
   try {
     // Risk 1: Unscored Database accounts
-    const unscoredDbAccounts = metrics.databaseAccounts - Math.floor((metrics.totalScored / metrics.totalAccounts) * metrics.databaseAccounts);
+    const unscoredDbAccounts = metrics.database_accounts - Math.floor((metrics.total_scores / metrics.total_accounts) * metrics.database_accounts);
     
     if (unscoredDbAccounts > 100) {
       risks.push({
@@ -132,13 +132,13 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
     }
 
     // Risk 4: Low overall data completeness
-    if (metrics.completenessScore < 60) {
+    if (metrics.data_completeness < 60) {
       risks.push({
         id: 'low-completeness',
         severity: 'high',
         title: 'Overall Data Quality Below Target',
-        description: `${metrics.completenessScore}% completeness across all accounts`,
-        count: Math.floor(metrics.totalAccounts * (1 - metrics.completenessScore / 100)),
+        description: `${metrics.data_completeness}% completeness across all accounts`,
+        count: Math.floor(metrics.total_accounts * (1 - metrics.data_completeness / 100)),
         impact: 'ICP scoring accuracy degraded',
         filter: { incomplete: true },
         fix: {
