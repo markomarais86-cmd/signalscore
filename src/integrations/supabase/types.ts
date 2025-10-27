@@ -671,6 +671,7 @@ export type Database = {
       }
       enrichment_jobs: {
         Row: {
+          batch_size: number | null
           completed_at: string | null
           created_at: string | null
           created_by: string | null
@@ -690,6 +691,7 @@ export type Database = {
           total_records: number | null
         }
         Insert: {
+          batch_size?: number | null
           completed_at?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -709,6 +711,7 @@ export type Database = {
           total_records?: number | null
         }
         Update: {
+          batch_size?: number | null
           completed_at?: string | null
           created_at?: string | null
           created_by?: string | null

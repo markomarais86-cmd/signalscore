@@ -26,6 +26,7 @@ interface EnrichmentJob {
   failed_records: number;
   started_at: string;
   completed_at: string | null;
+  batch_size?: number;
 }
 
 export function FirmographicEnrichmentCard() {
@@ -426,6 +427,11 @@ export function FirmographicEnrichmentCard() {
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-5 w-5 animate-spin text-primary" />
                   <span className="font-semibold">Enriching Accounts...</span>
+                  {currentJob.batch_size && (
+                    <Badge variant="outline" className="text-xs">
+                      Batch: {currentJob.batch_size.toLocaleString()}
+                    </Badge>
+                  )}
                 </div>
                 <span className="text-sm text-muted-foreground">
                   {currentJob.processed_records} / {currentJob.total_records}

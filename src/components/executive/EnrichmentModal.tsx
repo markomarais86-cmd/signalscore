@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sparkles, Database, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/hooks/use-auth";
@@ -34,6 +35,7 @@ export function EnrichmentModal({
   const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
   const [enriching, setEnriching] = useState(false);
   const [creditsAvailable, setCreditsAvailable] = useState<number | null>(null);
+  const [batchSize, setBatchSize] = useState<number>(100);
 
   // Load available credits when modal opens
   useState(() => {
@@ -93,7 +95,7 @@ export function EnrichmentModal({
 
       // Call smart-enrich edge function
       const { error } = await supabase.functions.invoke('smart-enrich', {
-        body: { jobId: job.id }
+        body: { jobId: job.id, batchSize }
       });
 
       if (error) throw error;
@@ -168,12 +170,34 @@ export function EnrichmentModal({
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             {selectedAccounts > 0 
-              ? `Enriching ${selectedAccounts.toLocaleString()} selected accounts`
-              : "Enriching all accounts with incomplete data"
+              ? `Enriching up to ${Math.min(batchSize, selectedAccounts).toLocaleString()} accounts`
+              : `Enriching up to ${batchSize.toLocaleString()} accounts with incomplete data`
             }
             {targetFields.length > 0 && ` - Focus: ${targetFields.join(', ')}`}
           </AlertDescription>
         </Alert>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Batch Size</label>
+          <Select value={batchSize.toString()} onValueChange={(v) => setBatchSize(Number(v))}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select batch size" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="100">100 accounts (Quick test)</SelectItem>
+              <SelectItem value="250">250 accounts (~2-3 min)</SelectItem>
+              <SelectItem value="500">500 accounts (~5 min)</SelectItem>
+              <SelectItem value="1000">1,000 accounts (~10 min)</SelectItem>
+              <SelectItem value="2500">2,500 accounts (~25 min)</SelectItem>
+              <SelectItem value="5000">5,000 accounts (~50 min)</SelectItem>
+            </SelectContent>
+          </Select>
+          {batchSize >= 1000 && (
+            <p className="text-xs text-muted-foreground">
+              ⚠️ Large batches may take longer and consume more API credits
+            </p>
+          )}
+        </div>
 
         {creditsAvailable !== null && (
           <Alert>
@@ -182,9 +206,9 @@ export function EnrichmentModal({
               <span>
                 {creditsAvailable.toLocaleString()} enrichment credits available
               </span>
-              {selectedAccounts > 0 && (
+              {batchSize > 0 && (
                 <span className="text-xs text-muted-foreground">
-                  Est. cost: ~{Math.ceil(selectedAccounts * 0.25)} credits
+                  Est. cost: ~{Math.ceil(Math.min(batchSize, selectedAccounts || batchSize) * 0.25)} credits
                 </span>
               )}
             </AlertDescription>

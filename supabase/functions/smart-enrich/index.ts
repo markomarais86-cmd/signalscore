@@ -16,8 +16,8 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { jobId } = await req.json();
-    console.log('🔄 Starting smart enrichment waterfall for job:', jobId);
+    const { jobId, batchSize } = await req.json();
+    console.log('🔄 Starting smart enrichment waterfall for job:', jobId, 'batch size:', batchSize || 100);
 
     const { data: job, error: jobError } = await supabase
       .from('enrichment_jobs')
@@ -29,16 +29,23 @@ serve(async (req) => {
 
     await supabase
       .from('enrichment_jobs')
-      .update({ status: 'processing', started_at: new Date().toISOString() })
+      .update({ 
+        status: 'processing', 
+        started_at: new Date().toISOString(),
+        batch_size: batchSize || 100
+      })
       .eq('id', jobId);
 
+    const batchLimit = job.batch_size || batchSize || 100;
+    console.log(`📊 Fetching up to ${batchLimit} accounts for enrichment`);
+    
     const { data: accounts, error: accountsError } = await supabase
       .from('accounts')
       .select('external_id, name, domain, employee_count, revenue_range')
       .eq('org_id', job.org_id)
       .or('employee_count.is.null,revenue_range.is.null')
       .not('domain', 'is', null)
-      .limit(100);
+      .limit(batchLimit);
 
     if (accountsError) throw accountsError;
 
