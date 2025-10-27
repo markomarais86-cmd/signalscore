@@ -1981,6 +1981,7 @@ export type Database = {
         }
         Returns: Json
       }
+      cleanup_stuck_enrichment_jobs: { Args: never; Returns: number }
       count_campaign_ready_accounts: {
         Args: { p_org_id: string }
         Returns: number
