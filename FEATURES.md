@@ -59,11 +59,11 @@
 - `smart-enrich` - Sequential multi-provider enrichment
 
 **Features:**
-- Company firmographic data enrichment
-- Contact persona mapping
+- Company firmographic data enrichment (industry, size, revenue, location)
 - Technology stack insights
 - Multi-provider orchestration
 - Credit-based usage tracking
+- Automated data quality improvement
 
 ### Personas & Segments
 **Status:** 🧪 LABS  
@@ -243,8 +243,8 @@
 
 - Account list with filtering
 - Score breakdown dialogs
-- Contact/lead association
-- Bulk operations
+- Lead association and matching
+- Bulk enrichment operations
 - Account detail drawer
 
 ### Lead Management

@@ -22,7 +22,6 @@ import { BulkScoring } from "@/components/BulkScoring";
 import { CorrelationInsights } from "@/components/CorrelationInsights";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PaginationControls } from "@/components/ui/pagination-controls";
-import { EnrichmentDialog } from "@/components/EnrichmentDialog";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { getSourceLabel, getSourceBadgeVariant } from "@/utils/data-source-attribution";
 import { EmptyDataState } from "@/components/EmptyDataState";
@@ -82,8 +81,7 @@ export default function Accounts() {
   const [selectedAccountForDetail, setSelectedAccountForDetail] = useState<Account | null>(null);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
-  const [selectedAccountsForEnrichment, setSelectedAccountsForEnrichment] = useState<string[]>([]);
-  const [showEnrichmentDialog, setShowEnrichmentDialog] = useState(false);
+  const [enrichingSingleAccount, setEnrichingSingleAccount] = useState<string | null>(null);
   const [showEnrichmentModal, setShowEnrichmentModal] = useState(false);
   const [hasActiveICP, setHasActiveICP] = useState(false);
   const [needsScoring, setNeedsScoring] = useState(false);
@@ -1396,8 +1394,7 @@ export default function Accounts() {
                           size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedAccountsForEnrichment([account.id]);
-                            setShowEnrichmentDialog(true);
+                            setEnrichingSingleAccount(account.external_id);
                           }}
                         >
                           <Sparkles className="h-4 w-4 mr-2" />
@@ -1453,14 +1450,10 @@ export default function Accounts() {
         }}
       />
 
-      <EnrichmentDialog
-        open={showEnrichmentDialog}
-        onOpenChange={setShowEnrichmentDialog}
-        selectedAccounts={selectedAccountsForEnrichment}
-        onEnrichmentComplete={() => {
-          setShowEnrichmentDialog(false);
-          loadAccounts();
-        }}
+      <EnrichmentModal
+        open={!!enrichingSingleAccount}
+        onOpenChange={(open) => !open && setEnrichingSingleAccount(null)}
+        selectedAccounts={1}
       />
 
       <EnrichmentModal
