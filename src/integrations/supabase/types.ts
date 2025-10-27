@@ -1869,10 +1869,15 @@ export type Database = {
           campaign_ready_leads: number | null
           computed_at: string | null
           crm_accounts: number | null
+          crm_leads: number | null
           database_accounts: number | null
+          database_leads: number | null
           high_fit_accounts: number | null
           high_fit_crm: number | null
+          high_fit_crm_leads: number | null
           high_fit_database: number | null
+          high_fit_database_leads: number | null
+          high_fit_leads_total: number | null
           low_fit_accounts: number | null
           medium_fit_accounts: number | null
           org_id: string | null
