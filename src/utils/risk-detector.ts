@@ -21,6 +21,11 @@ export interface RiskItem {
 export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem[]> {
   const risks: RiskItem[] = [];
 
+  // Guard against undefined metrics
+  if (!metrics) {
+    return risks;
+  }
+
   try {
     // Risk 1: Unscored Database accounts
     const unscoredDbAccounts = metrics.database_accounts - Math.floor((metrics.total_scores / metrics.total_accounts) * metrics.database_accounts);
