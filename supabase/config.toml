@@ -1,5 +1,8 @@
 project_id = "dhyfbaptcprxxixgnpby"
 
+[functions.bulk-score-accounts]
+verify_jwt = true
+
 [functions.enrich-ai-firmographics]
 verify_jwt = true
 
@@ -11,9 +14,6 @@ verify_jwt = true
 
 [functions.score-account]
 verify_jwt = false
-
-[functions.bulk-score-accounts]
-verify_jwt = true
 
 [functions.generate-icp-insights]
 verify_jwt = true
@@ -75,8 +75,14 @@ verify_jwt = true
 [functions.sync-external-provider]
 verify_jwt = true
 
-[functions.bulk-score-enqueue]
+[functions.agent-lead-qualification]
 verify_jwt = true
 
-[functions.bulk-score-worker]
+[functions.agent-data-enrichment]
+verify_jwt = true
+
+[functions.agent-follow-up]
+verify_jwt = true
+
+[functions.agent-meeting-scheduler]
 verify_jwt = true

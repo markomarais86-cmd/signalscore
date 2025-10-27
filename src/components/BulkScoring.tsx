@@ -43,125 +43,120 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
   const isInvokingChunk = useRef(false);
   const lastTriggeredChunk = useRef(-1);
 
-  // Poll for job status and trigger next chunks with proper locking
+  // Real-time subscription to job status
   useEffect(() => {
     if (!userProfile?.org_id || !isScoring) return;
 
-    const pollInterval = setInterval(async () => {
-      const { data: jobs } = await supabase
-        .from("bulk_scoring_jobs")
-        .select("*")
-        .eq("org_id", userProfile.org_id)
-        .in("status", ["pending", "processing"])
-        .order("created_at", { ascending: false })
-        .limit(1);
+    console.log('[Realtime] Subscribing to bulk_scoring_jobs changes');
 
-      if (jobs && jobs.length > 0) {
-        const job = jobs[0] as ScoringJob;
-        // Cap processed at total to handle data integrity issues
-        const safeProcessed = Math.min(job.processed_accounts, job.total_accounts);
-        const progressPercent = job.total_accounts > 0 
-          ? Math.min(100, (safeProcessed / job.total_accounts) * 100)
-          : 0;
-        
-        setCurrentJob(job);
-        setProgress(progressPercent);
+    const channel = supabase
+      .channel('bulk-scoring-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'bulk_scoring_jobs',
+          filter: `org_id=eq.${userProfile.org_id}`
+        },
+        async (payload) => {
+          console.log('[Realtime] Job update received:', payload);
+          
+          const job = payload.new as ScoringJob;
+          if (!job || !['pending', 'processing', 'completed'].includes(job.status)) return;
 
-        // Only trigger next chunk if:
-        // 1. Not the last chunk
-        // 2. Job is still processing
-        // 3. Not already invoking a chunk (synchronous lock)
-        // 4. Current chunk is complete (processed_accounts is on a chunk boundary)
-        // 5. Haven't already triggered this chunk
-        const nextChunk = job.current_chunk;
-        const isLastChunk = nextChunk >= job.total_chunks;
-        const chunkSize = 5000;
-        const isChunkComplete = job.processed_accounts > 0 && job.processed_accounts % chunkSize === 0;
-        const expectedChunk = Math.floor(job.processed_accounts / chunkSize);
-        
-        if (
-          !isLastChunk && 
-          job.status === "processing" && 
-          !isInvokingChunk.current && 
-          isChunkComplete &&
-          nextChunk === expectedChunk &&
-          nextChunk !== lastTriggeredChunk.current
-        ) {
-          console.log(`[Trigger] Chunk ${nextChunk + 1} of ${job.total_chunks} (processed: ${job.processed_accounts})`);
+          // Update UI with latest job status
+          const safeProcessed = Math.min(job.processed_accounts, job.total_accounts);
+          const progressPercent = job.total_accounts > 0 
+            ? Math.min(100, (safeProcessed / job.total_accounts) * 100)
+            : 0;
           
-          // Set locks immediately (synchronous)
-          isInvokingChunk.current = true;
-          lastTriggeredChunk.current = nextChunk;
+          setCurrentJob(job);
+          setProgress(progressPercent);
+
+          // Trigger next chunk if needed
+          const nextChunk = job.current_chunk;
+          const isLastChunk = nextChunk >= job.total_chunks;
+          const chunkSize = 5000;
           
-          try {
-            await supabase.functions.invoke("bulk-score-accounts", {
-              body: {
-                org_id: userProfile.org_id,
-                job_id: job.id,
-                chunk_index: nextChunk,
-                chunk_size: chunkSize,
-              },
+          if (
+            !isLastChunk && 
+            job.status === "processing" && 
+            !isInvokingChunk.current && 
+            nextChunk !== lastTriggeredChunk.current
+          ) {
+            console.log(`[Realtime Trigger] Chunk ${nextChunk + 1} of ${job.total_chunks}`);
+            
+            isInvokingChunk.current = true;
+            lastTriggeredChunk.current = nextChunk;
+            
+            try {
+              await supabase.functions.invoke("bulk-score-accounts", {
+                body: {
+                  org_id: userProfile.org_id,
+                  job_id: job.id,
+                  chunk_index: nextChunk,
+                  chunk_size: chunkSize,
+                },
+              });
+            } catch (error) {
+              console.error(`[Error] Failed to trigger chunk ${nextChunk + 1}:`, error);
+            } finally {
+              isInvokingChunk.current = false;
+            }
+          }
+
+          // Handle completion
+          if (job.status === "completed") {
+            console.log('[Realtime] Job completed');
+            setIsScoring(false);
+            setProgress(100);
+
+            // Fetch final statistics
+            const { count: totalAccounts } = await supabase
+              .from("accounts")
+              .select("*", { count: "exact", head: true })
+              .eq("org_id", userProfile.org_id);
+
+            const { data: scores } = await supabase
+              .from("scores")
+              .select("overall")
+              .eq("org_id", userProfile.org_id);
+
+            const scoredCount = scores?.length || 0;
+            const unscoredCount = (totalAccounts || 0) - scoredCount;
+            const coveragePercent = totalAccounts ? Math.round((scoredCount / totalAccounts) * 100) : 0;
+
+            const avgScore = scoredCount > 0
+              ? Math.round(scores.reduce((sum, s) => sum + (s.overall || 0), 0) / scoredCount)
+              : 0;
+
+            setStats({
+              total: totalAccounts || 0,
+              completed: job.successful_scores,
+              avgScore,
+              failures: job.failed_scores,
+              scoredAccounts: scoredCount,
+              unscoredAccounts: unscoredCount,
+              scoringCoverage: coveragePercent,
             });
-          } catch (error) {
-            console.error(`[Error] Failed to trigger chunk ${nextChunk + 1}:`, error);
-          } finally {
-            // Release lock after invocation completes
-            isInvokingChunk.current = false;
+
+            // Record data quality snapshot
+            await supabase.rpc('record_data_quality_snapshot', {
+              org_id_param: userProfile.org_id
+            });
+
+            toast.success(`Successfully scored ${scoredCount.toLocaleString()} accounts!`);
+            onComplete?.();
           }
         }
+      )
+      .subscribe();
 
-        // Check if job completed
-        if (job.status === "completed") {
-          setIsScoring(false);
-          setProgress(100);
-
-          // Fetch accurate statistics from actual tables
-          const { count: totalAccounts } = await supabase
-            .from("accounts")
-            .select("*", { count: "exact", head: true })
-            .eq("org_id", userProfile.org_id);
-
-          const { data: scores } = await supabase
-            .from("scores")
-            .select("overall")
-            .eq("org_id", userProfile.org_id);
-
-          const scoredCount = scores?.length || 0;
-          const unscoredCount = (totalAccounts || 0) - scoredCount;
-          const coveragePercent = totalAccounts ? Math.round((scoredCount / totalAccounts) * 100) : 0;
-
-          const avgScore = scoredCount > 0
-            ? Math.round(scores.reduce((sum, s) => sum + (s.overall || 0), 0) / scoredCount)
-            : 0;
-
-          setStats({
-            total: totalAccounts || 0,
-            completed: job.successful_scores,
-            avgScore,
-            failures: job.failed_scores,
-            scoredAccounts: scoredCount,
-            unscoredAccounts: unscoredCount,
-            scoringCoverage: coveragePercent,
-          });
-
-          // Record data quality snapshot after scoring completes
-          await supabase.rpc('record_data_quality_snapshot', {
-            org_id_param: userProfile.org_id
-          }).then(({ error: snapshotError }) => {
-            if (snapshotError) {
-              console.error('Failed to record data quality snapshot:', snapshotError);
-            } else {
-              console.log('Data quality snapshot recorded successfully');
-            }
-          });
-
-          toast.success(`Successfully scored ${scoredCount.toLocaleString()} accounts!`);
-          onComplete?.();
-        }
-      }
-    }, 3000); // Increased to 3 seconds to reduce race condition window
-
-    return () => clearInterval(pollInterval);
+    return () => {
+      console.log('[Realtime] Unsubscribing from bulk_scoring_jobs');
+      supabase.removeChannel(channel);
+    };
   }, [userProfile?.org_id, isScoring, onComplete]);
 
   const runBulkScoring = async () => {

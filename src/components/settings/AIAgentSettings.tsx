@@ -22,6 +22,8 @@ import {
   Calendar
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
 interface Agent {
   id: string;
@@ -35,10 +37,20 @@ interface Agent {
     time?: string;
     days?: string[];
   };
-  lastRun?: string;
-  nextRun?: string;
+  last_run_at?: string;
+  next_run_at?: string;
   status: 'active' | 'inactive' | 'error';
-  isDefault: boolean;
+  is_default: boolean;
+}
+
+interface AgentRun {
+  id: string;
+  started_at: string;
+  completed_at?: string;
+  status: string;
+  records_processed: number;
+  records_affected: number;
+  results?: any;
 }
 
 interface AgentTemplate {
@@ -90,45 +102,21 @@ const AGENT_TEMPLATES: AgentTemplate[] = [
     description: 'Enrich account data with additional information',
     icon: SettingsIcon,
     defaultParameters: {
-      data_sources: ['clearbit', 'zoominfo'],
+      data_sources: ['clearbit'],
       auto_update: true,
       batch_size: 100
     }
   }
 ];
 
-const DEFAULT_AGENTS: Agent[] = [
-  {
-    id: 'default-qualification',
-    name: 'Lead Qualification Agent',
-    type: 'lead_qualification',
-    description: 'Automatically qualifies incoming leads based on ICP criteria',
-    parameters: { min_score_threshold: 70, auto_assign: true },
-    enabled: true,
-    schedule: { frequency: 'continuous' },
-    status: 'active',
-    isDefault: true,
-    lastRun: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    nextRun: new Date(Date.now() + 30 * 60 * 1000).toISOString()
-  },
-  {
-    id: 'default-enrichment',
-    name: 'Data Enrichment Agent',
-    type: 'data_enrichment',
-    description: 'Enriches contact and account data from external sources',
-    parameters: { data_sources: ['clearbit'], batch_size: 50 },
-    enabled: false,
-    schedule: { frequency: 'daily', time: '02:00' },
-    status: 'inactive',
-    isDefault: true
-  }
-];
-
 export default function AIAgentSettings() {
-  const [agents, setAgents] = useState<Agent[]>(DEFAULT_AGENTS);
+  const { userProfile } = useAuth();
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [selectedRunHistory, setSelectedRunHistory] = useState<AgentRun[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     type: '' as Agent['type'] | '',
@@ -142,87 +130,167 @@ export default function AIAgentSettings() {
   });
   const { toast } = useToast();
 
-  const toggleAgent = (id: string, enabled: boolean) => {
-    setAgents(prev => prev.map(agent =>
-      agent.id === id
-        ? {
-            ...agent,
-            enabled,
-            status: enabled ? 'active' : 'inactive',
-            nextRun: enabled ? new Date(Date.now() + 60 * 60 * 1000).toISOString() : undefined
-          }
-        : agent
-    ));
-    
-    const agent = agents.find(a => a.id === id);
-    toast({
-      title: enabled ? "Agent Enabled" : "Agent Disabled",
-      description: `${agent?.name} has been ${enabled ? 'enabled' : 'disabled'}`
-    });
+  // Load agents from database
+  useEffect(() => {
+    if (userProfile?.org_id) {
+      loadAgents();
+      
+      // Subscribe to realtime updates
+      const channel = supabase
+        .channel('ai-agents-changes')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'ai_agents',
+          filter: `org_id=eq.${userProfile.org_id}`
+        }, () => {
+          loadAgents();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [userProfile?.org_id]);
+
+  const loadAgents = async () => {
+    if (!userProfile?.org_id) return;
+
+    setIsLoading(true);
+    const { data, error } = await (supabase as any)
+      .from('ai_agents')
+      .select('*')
+      .eq('org_id', userProfile.org_id)
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error loading agents:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load AI agents",
+        variant: "destructive"
+      });
+    } else {
+      setAgents((data || []) as Agent[]);
+    }
+    setIsLoading(false);
   };
 
-  const createAgent = () => {
+  const loadRunHistory = async (agentId: string) => {
+    const { data, error } = await (supabase as any)
+      .from('ai_agent_runs')
+      .select('*')
+      .eq('agent_id', agentId)
+      .order('started_at', { ascending: false })
+      .limit(10);
+
+    if (!error && data) {
+      setSelectedRunHistory(data as AgentRun[]);
+    }
+  };
+
+  const toggleAgent = async (id: string, enabled: boolean) => {
+    if (!userProfile?.org_id) return;
+
+    const { error } = await (supabase as any)
+      .from('ai_agents')
+      .update({
+        enabled,
+        status: enabled ? 'active' : 'inactive',
+        next_run_at: enabled ? new Date(Date.now() + 60 * 60 * 1000).toISOString() : null
+      })
+      .eq('id', id)
+      .eq('org_id', userProfile.org_id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update agent",
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: enabled ? "Agent Enabled" : "Agent Disabled",
+        description: `Agent has been ${enabled ? 'enabled' : 'disabled'}`
+      });
+      loadAgents();
+    }
+  };
+
+  const createAgent = async () => {
+    if (!userProfile?.org_id) return;
+
     try {
       const parameters = JSON.parse(formData.parameters);
-      const newAgent: Agent = {
-        id: `agent-${Date.now()}`,
-        name: formData.name,
-        type: formData.type as Agent['type'],
-        description: formData.description,
-        parameters,
-        enabled: true,
-        schedule: formData.schedule,
-        status: 'active',
-        isDefault: false,
-        nextRun: new Date(Date.now() + 60 * 60 * 1000).toISOString()
-      };
+      const { error } = await (supabase as any)
+        .from('ai_agents')
+        .insert({
+          org_id: userProfile.org_id,
+          name: formData.name,
+          type: formData.type,
+          description: formData.description,
+          parameters,
+          enabled: true,
+          schedule: formData.schedule,
+          status: 'active',
+          is_default: false,
+          next_run_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
+        });
 
-      setAgents(prev => [...prev, newAgent]);
+      if (error) throw error;
+
       setIsCreateDialogOpen(false);
       resetForm();
       toast({ title: "Success", description: "AI Agent created successfully" });
-    } catch (error) {
+      loadAgents();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Invalid JSON in parameters field",
+        description: error.message || "Failed to create agent",
         variant: "destructive"
       });
     }
   };
 
-  const updateAgent = () => {
-    if (!selectedAgent) return;
+  const updateAgent = async () => {
+    if (!selectedAgent || !userProfile?.org_id) return;
 
     try {
       const parameters = JSON.parse(formData.parameters);
-      setAgents(prev => prev.map(agent =>
-        agent.id === selectedAgent.id
-          ? {
-              ...agent,
-              name: formData.name,
-              description: formData.description,
-              parameters,
-              schedule: formData.schedule
-            }
-          : agent
-      ));
+      const { error } = await (supabase as any)
+        .from('ai_agents')
+        .update({
+          name: formData.name,
+          description: formData.description,
+          parameters,
+          schedule: formData.schedule
+        })
+        .eq('id', selectedAgent.id)
+        .eq('org_id', userProfile.org_id);
+
+      if (error) throw error;
 
       setIsEditDialogOpen(false);
       setSelectedAgent(null);
       resetForm();
       toast({ title: "Success", description: "AI Agent updated successfully" });
-    } catch (error) {
+      loadAgents();
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Invalid JSON in parameters field",
+        description: error.message || "Failed to update agent",
         variant: "destructive"
       });
     }
   };
 
-  const deleteAgent = (id: string) => {
+  const deleteAgent = async (id: string) => {
+    if (!userProfile?.org_id) return;
+
     const agent = agents.find(a => a.id === id);
-    if (agent?.isDefault) {
+    if (agent?.is_default) {
       toast({
         title: "Cannot Delete",
         description: "Default agents cannot be deleted",
@@ -231,8 +299,22 @@ export default function AIAgentSettings() {
       return;
     }
 
-    setAgents(prev => prev.filter(a => a.id !== id));
-    toast({ title: "Success", description: "AI Agent deleted successfully" });
+    const { error } = await (supabase as any)
+      .from('ai_agents')
+      .delete()
+      .eq('id', id)
+      .eq('org_id', userProfile.org_id);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete agent",
+        variant: "destructive"
+      });
+    } else {
+      toast({ title: "Success", description: "AI Agent deleted successfully" });
+      loadAgents();
+    }
   };
 
   const editAgent = (agent: Agent) => {
@@ -265,17 +347,33 @@ export default function AIAgentSettings() {
     });
   };
 
-  const runAgent = (agent: Agent) => {
-    setAgents(prev => prev.map(a =>
-      a.id === agent.id
-        ? {
-            ...a,
-            lastRun: new Date().toISOString(),
-            nextRun: new Date(Date.now() + 60 * 60 * 1000).toISOString()
-          }
-        : a
-    ));
+  const runAgent = async (agent: Agent) => {
+    if (!userProfile?.org_id) return;
+
     toast({ title: "Agent Started", description: `${agent.name} is now running` });
+
+    try {
+      const { error } = await supabase.functions.invoke(`agent-${agent.type}`, {
+        body: {
+          agent_id: agent.id,
+          org_id: userProfile.org_id
+        }
+      });
+
+      if (error) throw error;
+
+      toast({ 
+        title: "Agent Completed", 
+        description: `${agent.name} has finished running`
+      });
+      loadAgents();
+    } catch (error: any) {
+      toast({
+        title: "Agent Error",
+        description: error.message || "Failed to run agent",
+        variant: "destructive"
+      });
+    }
   };
 
   const getStatusBadge = (status: Agent['status']) => {
@@ -297,6 +395,10 @@ export default function AIAgentSettings() {
   const getTemplate = (type: Agent['type']) => {
     return AGENT_TEMPLATES.find(t => t.type === type);
   };
+
+  if (isLoading) {
+    return <div className="text-center py-8">Loading AI agents...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -428,7 +530,7 @@ export default function AIAgentSettings() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {agents.filter(agent => agent.isDefault).map(agent => {
+            {agents.filter(agent => agent.is_default).map(agent => {
               const template = getTemplate(agent.type);
               const Icon = template?.icon || Bot;
               
@@ -446,11 +548,11 @@ export default function AIAgentSettings() {
                       </div>
                       <p className="text-sm text-muted-foreground">{agent.description}</p>
                       <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                        {agent.lastRun && (
-                          <span>Last run: {new Date(agent.lastRun).toLocaleString()}</span>
+                        {agent.last_run_at && (
+                          <span>Last run: {new Date(agent.last_run_at).toLocaleString()}</span>
                         )}
-                        {agent.nextRun && agent.enabled && (
-                          <span>Next run: {new Date(agent.nextRun).toLocaleString()}</span>
+                        {agent.next_run_at && agent.enabled && (
+                          <span>Next run: {new Date(agent.next_run_at).toLocaleString()}</span>
                         )}
                       </div>
                     </div>
@@ -484,9 +586,9 @@ export default function AIAgentSettings() {
           <CardDescription>Your custom-configured AI agents</CardDescription>
         </CardHeader>
         <CardContent>
-          {agents.filter(agent => !agent.isDefault).length > 0 ? (
+          {agents.filter(agent => !agent.is_default).length > 0 ? (
             <div className="space-y-4">
-              {agents.filter(agent => !agent.isDefault).map(agent => {
+              {agents.filter(agent => !agent.is_default).map(agent => {
                 const template = getTemplate(agent.type);
                 const Icon = template?.icon || Bot;
                 
@@ -503,9 +605,11 @@ export default function AIAgentSettings() {
                         </div>
                         <p className="text-sm text-muted-foreground">{agent.description}</p>
                         <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                          <span>Runs: {agent.schedule.frequency}</span>
-                          {agent.lastRun && (
-                            <span>Last run: {new Date(agent.lastRun).toLocaleString()}</span>
+                          {agent.last_run_at && (
+                            <span>Last run: {new Date(agent.last_run_at).toLocaleString()}</span>
+                          )}
+                          {agent.next_run_at && agent.enabled && (
+                            <span>Next run: {new Date(agent.next_run_at).toLocaleString()}</span>
                           )}
                         </div>
                       </div>
@@ -533,14 +637,10 @@ export default function AIAgentSettings() {
               })}
             </div>
           ) : (
-            <div className="text-center py-8">
-              <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h4 className="font-medium mb-2">No Custom Agents</h4>
-              <p className="text-sm text-muted-foreground mb-4">Create custom AI agents for specific workflows</p>
-              <Button onClick={() => setIsCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Create Your First Agent
-              </Button>
+            <div className="text-center py-8 text-muted-foreground">
+              <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No custom agents yet</p>
+              <p className="text-sm">Create your first custom agent to get started</p>
             </div>
           )}
         </CardContent>
@@ -551,7 +651,7 @@ export default function AIAgentSettings() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit AI Agent</DialogTitle>
-            <DialogDescription>Update agent configuration</DialogDescription>
+            <DialogDescription>Update agent configuration and parameters</DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
@@ -577,7 +677,7 @@ export default function AIAgentSettings() {
                 value={formData.parameters}
                 onChange={(e) => setFormData(prev => ({ ...prev, parameters: e.target.value }))}
                 className="font-mono text-sm"
-                rows={6}
+                rows={8}
               />
             </div>
           </div>
@@ -586,7 +686,7 @@ export default function AIAgentSettings() {
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={updateAgent}>Update Agent</Button>
+            <Button onClick={updateAgent}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
