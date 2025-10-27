@@ -61,6 +61,8 @@ import { DataQualityDashboard } from "@/components/settings/DataQualityDashboard
 import { InvitationsManager } from "@/components/settings/InvitationsManager";
 import { EnrichmentAPIKeys } from "@/components/settings/EnrichmentAPIKeys";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
+import { ContactsBackfill } from "@/components/settings/ContactsBackfill";
+import { ContactDiscovery } from "@/components/settings/ContactDiscovery";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -558,6 +560,12 @@ export default function Settings() {
           <EnrichmentTester />
           <EnrichmentQualityDashboard />
           <EnrichmentAttributionReport />
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <ContactDiscovery />
+            <ContactsBackfill />
+          </div>
+          
           <ExternalDataProviders />
           <RateLimitSettings />
           <IntegrationManager />

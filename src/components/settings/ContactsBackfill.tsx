@@ -1,224 +1,153 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { Users, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Users, CheckCircle2, AlertCircle, Loader2, RefreshCw, Database } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 export function ContactsBackfill() {
-  const [isRunning, setIsRunning] = useState(false);
-  const [status, setStatus] = useState<string>("Ready to run backfill");
-  const [result, setResult] = useState<{
-    created: number;
-    skipped: number;
-    total_leads: number;
-    errors?: string[];
-  } | null>(null);
   const { userProfile } = useAuth();
   const { toast } = useToast();
+  const [isRunning, setIsRunning] = useState(false);
+  const [status, setStatus] = useState<string>("");
+  const [result, setResult] = useState<any>(null);
 
   const runBackfill = async () => {
-    setStatus("🎯 Button clicked - Function started");
-    console.log('🎯 runBackfill called');
-    console.log('📋 userProfile:', userProfile);
-    console.log('🏢 org_id:', userProfile?.org_id);
-    
     if (!userProfile?.org_id) {
-      setStatus("❌ ERROR: No organization ID found");
-      console.error('❌ No org_id found in userProfile');
       toast({
         title: "Error",
-        description: "Organization not found",
-        variant: "destructive"
+        description: "Organization ID not found",
+        variant: "destructive",
       });
       return;
     }
 
     setIsRunning(true);
+    setStatus("Starting backfill process...");
     setResult(null);
-    setStatus(`✅ Org ID verified: ${userProfile.org_id.substring(0, 8)}...`);
 
     try {
-      const requestBody = {
-        orgId: userProfile.org_id,
-        batchSize: 1000
-      };
-      
-      setStatus("📤 Preparing request to edge function...");
-      console.log('🔄 Starting contacts backfill...');
-      console.log('📤 Request body:', requestBody);
-      console.log('🔐 Supabase client initialized:', !!supabase);
-      
-      setStatus("🔄 Calling backfill-contacts function...");
-      
       const { data, error } = await supabase.functions.invoke('backfill-contacts', {
-        body: requestBody
+        body: { orgId: userProfile.org_id }
       });
 
-      setStatus("📥 Received response from function");
-      console.log('📥 Function response:', { data, error });
-      console.log('📊 Response data type:', typeof data);
-      console.log('📊 Error type:', typeof error);
+      if (error) throw error;
 
-      if (error) {
-        setStatus(`❌ Function returned error: ${error.message}`);
-        console.error('❌ Function returned error:', error);
-        console.error('❌ Error details:', JSON.stringify(error, null, 2));
-        throw error;
-      }
-
-      setStatus("✅ Backfill completed successfully!");
-      console.log('✅ Backfill complete:', data);
       setResult(data);
-
+      setStatus("Backfill completed successfully!");
+      
       toast({
-        title: "Success",
-        description: `Created ${data.created} new contacts from linked leads`,
+        title: "✓ Backfill Complete!",
+        description: `Created ${data.created} contacts from ${data.totalLeads} leads`,
       });
-
     } catch (error: any) {
-      setStatus(`❌ Error caught: ${error?.message || 'Unknown error'}`);
-      console.error('❌ Backfill error caught:', error);
-      console.error('❌ Error type:', error?.constructor?.name);
-      console.error('❌ Error message:', error?.message);
-      console.error('❌ Error stack:', error?.stack);
-      console.error('❌ Full error object:', JSON.stringify(error, null, 2));
-      
-      const errorMessage = error?.message || error?.msg || error?.error_description || "Failed to run backfill";
-      
+      console.error('Backfill error:', error);
+      setStatus(`Error: ${error.message}`);
       toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive"
+        title: "Backfill Failed",
+        description: error.message || "An error occurred",
+        variant: "destructive",
       });
     } finally {
-      console.log('🏁 Backfill process finished');
       setIsRunning(false);
     }
   };
 
   return (
-    <Card>
+    <Card className="border-accent/20 bg-accent/5">
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Create Contacts from Leads
-            </CardTitle>
-            <CardDescription>
-              One-time operation to convert linked leads into contact records
-            </CardDescription>
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <RefreshCw className="h-5 w-5 text-accent" />
+            <div>
+              <CardTitle className="text-base">Contact Backfill</CardTitle>
+              <CardDescription>
+                One-time migration: Create contact records from existing leads
+              </CardDescription>
+            </div>
           </div>
-          <Button
-            onClick={runBackfill}
-            disabled={isRunning || (result?.created === 0 && result?.skipped > 0)}
-          >
-            {isRunning ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Running...
-              </>
-            ) : result?.created === 0 && result?.skipped > 0 ? (
-              'Already Complete'
-            ) : (
-              'Run Backfill'
-            )}
-          </Button>
+          <Badge variant="outline">
+            <Database className="h-3 w-3 mr-1" />
+            Migration
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Debug Info */}
-        <div className="p-4 bg-muted rounded-lg space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-medium">Organization ID:</span>
-            <span className="font-mono text-xs">{userProfile?.org_id || 'NOT FOUND'}</span>
+        {result && (
+          <div className="p-4 bg-background rounded-lg border space-y-2">
+            <div className="flex items-start gap-2">
+              <CheckCircle2 className="h-5 w-5 text-[hsl(var(--signal-high))] mt-0.5" />
+              <div className="flex-1">
+                <p className="font-medium">Backfill Results</p>
+                <div className="grid grid-cols-2 gap-2 mt-2 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Contacts Created:</span>
+                    <span className="ml-2 font-medium">{result.created || 0}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Leads Processed:</span>
+                    <span className="ml-2 font-medium">{result.totalLeads || 0}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Skipped:</span>
+                    <span className="ml-2 font-medium">{result.skipped || 0}</span>
+                  </div>
+                  {result.errors && result.errors.length > 0 && (
+                    <div className="col-span-2">
+                      <span className="text-muted-foreground">Errors:</span>
+                      <span className="ml-2 font-medium text-destructive">{result.errors.length}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="font-medium">Status:</span>
-            <span className={`font-mono text-xs ${status.includes('❌') ? 'text-destructive' : status.includes('✅') ? 'text-green-600' : ''}`}>
-              {status}
-            </span>
-          </div>
-        </div>
-
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            This will create contact records from all linked leads that have email addresses.
-            Contacts already exist will be skipped. This is safe to run multiple times.
-          </AlertDescription>
-        </Alert>
+        )}
 
         {isRunning && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
-              <span>Processing leads...</span>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{status}</span>
             </div>
             <Progress value={50} className="h-2" />
           </div>
         )}
 
-        {result && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 text-green-600">
-              <CheckCircle2 className="h-5 w-5" />
-              <span className="font-medium">Backfill Complete</span>
-            </div>
-            
-            <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Leads</p>
-                <p className="text-2xl font-bold">{result.total_leads.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Contacts Created</p>
-                <p className="text-2xl font-bold text-green-600">{result.created.toLocaleString()}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Already Existed</p>
-                <p className="text-2xl font-bold text-muted-foreground">{result.skipped.toLocaleString()}</p>
-              </div>
-            </div>
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>One-Time Operation</AlertTitle>
+          <AlertDescription className="text-xs">
+            This creates contact records from leads that have email addresses. Only run this once during initial setup.
+          </AlertDescription>
+        </Alert>
 
-            {result.errors && result.errors.length > 0 && (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <p className="font-medium mb-2">Errors occurred:</p>
-                  <ul className="list-disc pl-4 space-y-1">
-                    {result.errors.map((error, i) => (
-                      <li key={i} className="text-sm">{error}</li>
-                    ))}
-                  </ul>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {result.created === 0 && result.skipped > 0 && (
-              <Alert>
-                <CheckCircle2 className="h-4 w-4" />
-                <AlertDescription>
-                  All linked leads already have contact records. No action needed.
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-        )}
-
-        <div className="text-sm text-muted-foreground space-y-2">
-          <p><strong>What this does:</strong></p>
-          <ul className="list-disc pl-5 space-y-1">
-            <li>Finds all leads linked to accounts with email addresses</li>
-            <li>Creates contact records with name, email, title, and persona</li>
-            <li>Skips contacts that already exist</li>
-            <li>Maps job titles to personas automatically</li>
-            <li>Increases your campaign-ready accounts count</li>
-          </ul>
-        </div>
+        <Button
+          onClick={runBackfill}
+          disabled={isRunning || !!result}
+          className="w-full"
+          variant="outline"
+        >
+          {isRunning ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Running Backfill...
+            </>
+          ) : result ? (
+            <>
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Backfill Complete
+            </>
+          ) : (
+            <>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Run Contact Backfill
+            </>
+          )}
+        </Button>
       </CardContent>
     </Card>
   );

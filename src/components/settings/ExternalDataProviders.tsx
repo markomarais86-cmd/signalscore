@@ -222,9 +222,9 @@ export function ExternalDataProviders() {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold mb-2">External Data Providers</h3>
+        <h3 className="text-lg font-semibold mb-2">Contact Persona Enrichment</h3>
         <p className="text-sm text-muted-foreground">
-          Connect to external databases to identify whitespace opportunities and enrich your CRM data.
+          Automatically map job titles to standardized personas for existing contacts. This helps segment and target contacts based on their role (Technical Decision Maker, Business Influencer, etc.).
         </p>
       </div>
 
@@ -285,6 +285,14 @@ export function ExternalDataProviders() {
           </div>
         </CardContent>
       </Card>
+
+      {/* External Data Provider Connections */}
+      <div className="mt-8">
+        <h3 className="text-lg font-semibold mb-2">External Database Connections</h3>
+        <p className="text-sm text-muted-foreground mb-6">
+          Connect to external B2B databases to identify whitespace opportunities and discover new accounts.
+        </p>
+      </div>
 
       <div className="grid gap-6">
         {PROVIDERS.map((provider) => {
