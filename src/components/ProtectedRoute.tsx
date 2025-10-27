@@ -25,7 +25,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         queryFn: async () => {
           const { data, error } = await supabase.rpc(
             'get_dashboard_metrics_fast' as any,
-            { org_id: userProfile.org_id }
+            { p_org_id: userProfile.org_id }
           );
           
           if (error) throw error;
