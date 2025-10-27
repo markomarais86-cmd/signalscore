@@ -36,8 +36,6 @@ export function useDashboardData(orgId: string | undefined) {
     queryFn: async (): Promise<DashboardData> => {
       if (!orgId) throw new Error('No org ID provided');
       
-      console.log('[useDashboardData] Fetching metrics for org:', orgId);
-      
       // Parallel fetch: metrics + ICP profiles (only 2 queries instead of 22+)
       const [metricsResult, icpResult] = await Promise.all([
         supabase.rpc('get_dashboard_metrics_fast' as any, { p_org_id: orgId }),
@@ -47,9 +45,6 @@ export function useDashboardData(orgId: string | undefined) {
           .eq('org_id', orgId)
           .eq('status', 'active')
       ]);
-      
-      console.log('[useDashboardData] Metrics result:', metricsResult);
-      console.log('[useDashboardData] ICP result:', icpResult);
       
       if (metricsResult.error) {
         console.error('[useDashboardData] ❌ Metrics fetch error:', metricsResult.error);
@@ -63,7 +58,6 @@ export function useDashboardData(orgId: string | undefined) {
       
       // Map the function response to expected structure
       const rawMetrics = metricsResult.data as any;
-      console.log('[useDashboardData] Raw metrics from DB:', rawMetrics);
       
       const mappedMetrics: DashboardMetrics = {
         total_accounts: rawMetrics?.totalAccounts || 0,
@@ -84,13 +78,10 @@ export function useDashboardData(orgId: string | undefined) {
         high_fit_crm_leads: rawMetrics?.highFitCrmLeads || 0,
         high_fit_database_leads: rawMetrics?.highFitDatabaseLeads || 0,
         campaign_ready_accounts: rawMetrics?.campaignReadyAccounts || 0,
-        campaign_ready_contacts: rawMetrics?.campaignReadyContacts || 0,
+        campaign_ready_contacts: rawMetrics?.campaignReadyLeads || 0, // Now from Leads table
         campaign_ready_leads: rawMetrics?.campaignReadyLeads || 0,
         data_completeness: rawMetrics?.dataCompleteness || 0,
       };
-      
-      console.log('[useDashboardData] ✅ Mapped metrics:', mappedMetrics);
-      console.log('[useDashboardData] ✅ ICP profiles count:', icpResult.data?.length || 0);
       
       return {
         metrics: mappedMetrics,

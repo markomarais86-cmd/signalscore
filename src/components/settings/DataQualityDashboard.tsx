@@ -284,44 +284,6 @@ export function DataQualityDashboard() {
                 )}
               </Button>
             )}
-
-            <Button 
-              onClick={handleEnrichPersonas} 
-              disabled={isEnrichingPersonas}
-              className="w-full"
-              variant="outline"
-            >
-              {isEnrichingPersonas ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Mapping Personas...
-                </>
-              ) : (
-                <>
-                  <Users className="mr-2 h-4 w-4" />
-                  Map All Contact Personas
-                </>
-              )}
-            </Button>
-
-            <Button 
-              onClick={handleEnrichContacts} 
-              disabled={isEnrichingContacts}
-              className="w-full"
-              variant="secondary"
-            >
-              {isEnrichingContacts ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Enriching...
-                </>
-              ) : (
-                <>
-                  <Users className="mr-2 h-4 w-4" />
-                  Find Contacts for High-Fit Accounts
-                </>
-              )}
-            </Button>
           </div>
 
           <div className="p-3 bg-muted/50 rounded-lg text-sm">

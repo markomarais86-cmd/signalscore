@@ -1866,7 +1866,7 @@ export type Database = {
         Row: {
           both_accounts: number | null
           campaign_ready_accounts: number | null
-          campaign_ready_contacts: number | null
+          campaign_ready_leads: number | null
           computed_at: string | null
           crm_accounts: number | null
           database_accounts: number | null
@@ -1878,7 +1878,6 @@ export type Database = {
           org_id: string | null
           scored_accounts: number | null
           total_accounts: number | null
-          with_contacts: number | null
           with_geo: number | null
           with_industry: number | null
           with_revenue: number | null

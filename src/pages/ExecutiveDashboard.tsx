@@ -82,21 +82,6 @@ export default function ExecutiveDashboard() {
 
   const hasData = totalAccounts > 0;
 
-  // Debug logging
-  useEffect(() => {
-    console.log('[ExecutiveDashboard] 📊 Dashboard data updated:', {
-      totalAccounts,
-      totalScores,
-      totalLeads,
-      campaignReadyContacts,
-      highFitAccounts,
-      dataCompleteness,
-      hasData,
-      isLoading,
-      error: queryError?.message
-    });
-  }, [dashboardData, isLoading, queryError, totalAccounts]);
-
   useEffect(() => {
     if (dashboardData) {
       // Calculate trends asynchonously
@@ -189,7 +174,6 @@ export default function ExecutiveDashboard() {
             <Button 
               variant="outline" 
               onClick={() => {
-                console.log('[ExecutiveDashboard] 🔄 Manual refresh triggered');
                 refetch();
                 toast.success('Refreshing dashboard data...');
               }}
@@ -230,9 +214,9 @@ export default function ExecutiveDashboard() {
                 icon={Target}
               />
               <HeroMetric
-                label="Campaign Ready"
+                label="Campaign Ready Leads"
                 value={campaignReadyContacts}
-                subtitle={`${campaignReadyAccounts} accounts with contacts`}
+                subtitle={`${campaignReadyAccounts} accounts with leads`}
                 trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
                 icon={Sparkles}
                 status={campaignReadyContacts > 0 ? 'success' : 'warning'}
