@@ -2043,6 +2043,8 @@ export type Database = {
       }
       refresh_all_materialized_views: { Args: never; Returns: undefined }
       refresh_reporting_views: { Args: never; Returns: undefined }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       validate_api_key: {
         Args: { key_to_validate: string }
         Returns: {
