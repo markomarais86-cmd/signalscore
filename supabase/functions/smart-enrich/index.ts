@@ -68,10 +68,9 @@ serve(async (req) => {
         if (!account.domain) continue;
 
         try {
-          const response = await fetch('https://api.peopledatalabs.com/v5/company/enrich', {
+          const response = await fetch(`https://api.peopledatalabs.com/v5/company/enrich?website=${encodeURIComponent(account.domain)}`, {
             method: 'GET',
             headers: { 'X-Api-Key': PDL_API_KEY },
-            body: JSON.stringify({ website: account.domain }),
           });
 
           if (response.ok) {
