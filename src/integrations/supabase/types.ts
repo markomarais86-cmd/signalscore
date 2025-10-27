@@ -1326,6 +1326,7 @@ export type Database = {
           enrichment_credits_used: number | null
           id: string
           name: string
+          status: string | null
         }
         Insert: {
           created_at?: string | null
@@ -1333,6 +1334,7 @@ export type Database = {
           enrichment_credits_used?: number | null
           id?: string
           name: string
+          status?: string | null
         }
         Update: {
           created_at?: string | null
@@ -1340,6 +1342,7 @@ export type Database = {
           enrichment_credits_used?: number | null
           id?: string
           name?: string
+          status?: string | null
         }
         Relationships: []
       }
@@ -1956,6 +1959,10 @@ export type Database = {
         Args: { p_token: string; p_user_id: string }
         Returns: Json
       }
+      activate_organization: {
+        Args: { org_id_param: string }
+        Returns: undefined
+      }
       auto_score_account: {
         Args: { p_account_external_id: string; p_org_id: string }
         Returns: undefined
@@ -2006,6 +2013,10 @@ export type Database = {
       count_leads_by_account_source: {
         Args: { p_data_source: string; p_org_id: string }
         Returns: number
+      }
+      deactivate_organization: {
+        Args: { org_id_param: string }
+        Returns: undefined
       }
       expire_old_invitations: { Args: never; Returns: number }
       generate_invitation_token: { Args: never; Returns: string }

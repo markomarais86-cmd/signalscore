@@ -6,9 +6,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Shield, Users, Building, Search, RefreshCw, Plus } from 'lucide-react';
+import { Shield, Users, Building, Search, RefreshCw, Plus, Power, PowerOff, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { CreateOrganizationDialog } from '@/components/settings/CreateOrganizationDialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Table,
   TableBody,
@@ -29,6 +39,7 @@ interface Organization {
   id: string;
   name: string;
   created_at: string;
+  status: string;
   user_count: number;
   account_count: number;
   last_activity: string | null;
@@ -55,6 +66,7 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrgFilter, setSelectedOrgFilter] = useState<string>('all');
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false);
+  const [deleteOrgId, setDeleteOrgId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!rolesLoading && !isSuperAdmin) {
@@ -192,6 +204,73 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleActivateOrg = async (orgId: string) => {
+    try {
+      const { error } = await supabase.rpc('activate_organization', { org_id_param: orgId });
+      if (error) throw error;
+
+      toast({
+        title: 'Organization Activated',
+        description: 'Organization has been activated successfully.',
+      });
+
+      loadOrganizations();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeactivateOrg = async (orgId: string) => {
+    try {
+      const { error } = await supabase.rpc('deactivate_organization', { org_id_param: orgId });
+      if (error) throw error;
+
+      toast({
+        title: 'Organization Deactivated',
+        description: 'Organization has been deactivated successfully.',
+      });
+
+      loadOrganizations();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteOrg = async () => {
+    if (!deleteOrgId) return;
+
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .delete()
+        .eq('id', deleteOrgId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Organization Deleted',
+        description: 'Organization has been deleted successfully.',
+      });
+
+      setDeleteOrgId(null);
+      loadAdminData();
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
   const filteredUsers = users.filter((user) => {
     const matchesSearch =
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -283,18 +362,56 @@ export default function AdminDashboard() {
             <TableHeader>
               <TableRow>
                 <TableHead>Organization</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Users</TableHead>
                 <TableHead>Accounts</TableHead>
                 <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {organizations.map((org) => (
                 <TableRow key={org.id}>
                   <TableCell className="font-medium">{org.name}</TableCell>
+                  <TableCell>
+                    <Badge variant={org.status === 'active' ? 'default' : 'secondary'}>
+                      {org.status === 'active' ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </TableCell>
                   <TableCell>{org.user_count}</TableCell>
                   <TableCell>{org.account_count.toLocaleString()}</TableCell>
                   <TableCell>{new Date(org.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex gap-2 justify-end">
+                      {org.status === 'active' ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeactivateOrg(org.id)}
+                        >
+                          <PowerOff className="h-4 w-4 mr-2" />
+                          Deactivate
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleActivateOrg(org.id)}
+                        >
+                          <Power className="h-4 w-4 mr-2" />
+                          Activate
+                        </Button>
+                      )}
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => setDeleteOrgId(org.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -378,6 +495,25 @@ export default function AdminDashboard() {
         onOpenChange={setShowCreateOrgDialog}
         onSuccess={loadAdminData}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteOrgId !== null} onOpenChange={() => setDeleteOrgId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the organization
+              and all associated data including users, accounts, and scores.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteOrg} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete Organization
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
