@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Shield, Users, Building, Search, RefreshCw, Plus, Power, PowerOff, Trash2 } from 'lucide-react';
+import { Shield, Users, Building, Search, RefreshCw, Plus, Power, PowerOff, Trash2, MoreVertical, UserCog, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { CreateOrganizationDialog } from '@/components/settings/CreateOrganizationDialog';
 import {
@@ -34,6 +34,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface Organization {
   id: string;
@@ -67,6 +73,8 @@ export default function AdminDashboard() {
   const [selectedOrgFilter, setSelectedOrgFilter] = useState<string>('all');
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false);
   const [deleteOrgId, setDeleteOrgId] = useState<string | null>(null);
+  const [roleChangeUser, setRoleChangeUser] = useState<{ userId: string; email: string; newRole: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
 
   useEffect(() => {
     if (!rolesLoading && !isSuperAdmin) {
@@ -82,8 +90,16 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (isSuperAdmin) {
       loadAdminData();
+      loadCurrentUser();
     }
   }, [isSuperAdmin]);
+
+  const loadCurrentUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      setCurrentUser({ id: user.id });
+    }
+  };
 
   const loadAdminData = async () => {
     setLoading(true);
@@ -179,21 +195,27 @@ export default function AdminDashboard() {
 
   const handleRoleChange = async (userId: string, newRole: 'super_admin' | 'org_admin' | 'user') => {
     try {
-      // Remove existing role if present
-      await supabase.from('user_roles').delete().eq('user_id', userId).eq('role', newRole);
-
-      // Add new role
-      const { error } = await supabase
+      // First delete all existing roles
+      const { error: deleteError } = await supabase
         .from('user_roles')
-        .insert([{ user_id: userId, role: newRole }]);
+        .delete()
+        .eq('user_id', userId);
 
-      if (error) throw error;
+      if (deleteError) throw deleteError;
+
+      // Then insert the new role
+      const { error: insertError } = await supabase
+        .from('user_roles')
+        .insert({ user_id: userId, role: newRole });
+
+      if (insertError) throw insertError;
 
       toast({
         title: 'Role Updated',
         description: 'User role has been updated successfully.',
       });
 
+      setRoleChangeUser(null);
       loadUsers();
     } catch (error: any) {
       toast({
@@ -201,6 +223,12 @@ export default function AdminDashboard() {
         description: error.message,
         variant: 'destructive',
       });
+    }
+  };
+
+  const confirmRoleChange = () => {
+    if (roleChangeUser) {
+      handleRoleChange(roleChangeUser.userId, roleChangeUser.newRole as 'super_admin' | 'org_admin' | 'user');
     }
   };
 
@@ -460,6 +488,7 @@ export default function AdminDashboard() {
                 <TableHead>Organization</TableHead>
                 <TableHead>Roles</TableHead>
                 <TableHead>Created</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -482,6 +511,54 @@ export default function AdminDashboard() {
                     </div>
                   </TableCell>
                   <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          disabled={user.user_id === currentUser?.id}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => setRoleChangeUser({ 
+                            userId: user.user_id, 
+                            email: user.email, 
+                            newRole: 'super_admin' 
+                          })}
+                          disabled={user.user_roles.includes('super_admin')}
+                        >
+                          <Shield className="mr-2 h-4 w-4" />
+                          Make Super Admin
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setRoleChangeUser({ 
+                            userId: user.user_id, 
+                            email: user.email, 
+                            newRole: 'org_admin' 
+                          })}
+                          disabled={user.user_roles.includes('org_admin')}
+                        >
+                          <UserCog className="mr-2 h-4 w-4" />
+                          Make Org Admin
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setRoleChangeUser({ 
+                            userId: user.user_id, 
+                            email: user.email, 
+                            newRole: 'user' 
+                          })}
+                          disabled={user.user_roles.length === 0}
+                        >
+                          <User className="mr-2 h-4 w-4" />
+                          Make User
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -510,6 +587,29 @@ export default function AdminDashboard() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteOrg} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete Organization
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Role Change Confirmation Dialog */}
+      <AlertDialog open={roleChangeUser !== null} onOpenChange={() => setRoleChangeUser(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Change User Role</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to change the role of <strong>{roleChangeUser?.email}</strong> to <strong>{roleChangeUser?.newRole.replace('_', ' ')}</strong>?
+              {roleChangeUser?.newRole === 'super_admin' && (
+                <span className="block mt-2 text-destructive font-semibold">
+                  ⚠️ Warning: This will grant full platform access including the ability to manage all organizations and users.
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRoleChange}>
+              Confirm Change
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
