@@ -3,9 +3,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Building, Mail, User } from 'lucide-react';
+import { Loader2, Building, Mail, User, Copy, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface CreateOrganizationDialogProps {
   open: boolean;
@@ -16,6 +17,8 @@ interface CreateOrganizationDialogProps {
 export function CreateOrganizationDialog({ open, onOpenChange, onSuccess }: CreateOrganizationDialogProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [invitationUrl, setInvitationUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [formData, setFormData] = useState({
     orgName: '',
     adminEmail: '',
@@ -103,11 +106,14 @@ export function CreateOrganizationDialog({ open, onOpenChange, onSuccess }: Crea
         },
       });
 
+      // Show the invitation URL regardless of email success
+      setInvitationUrl(inviteUrl);
+
       if (emailError) {
         console.error('Email sending error:', emailError);
         toast({
           title: 'Organization Created',
-          description: 'Organization created but email failed to send. Please manually share the invitation link.',
+          description: 'Organization created! Copy the invitation link below to share with the admin.',
           variant: 'default',
         });
       } else {
@@ -117,15 +123,7 @@ export function CreateOrganizationDialog({ open, onOpenChange, onSuccess }: Crea
         });
       }
 
-      // Reset form
-      setFormData({
-        orgName: '',
-        adminEmail: '',
-        adminFullName: '',
-      });
-
       onSuccess();
-      onOpenChange(false);
     } catch (error: any) {
       console.error('Error creating organization:', error);
       toast({
@@ -138,8 +136,31 @@ export function CreateOrganizationDialog({ open, onOpenChange, onSuccess }: Crea
     }
   };
 
+  const copyToClipboard = () => {
+    if (invitationUrl) {
+      navigator.clipboard.writeText(invitationUrl);
+      setCopied(true);
+      toast({
+        title: 'Copied!',
+        description: 'Invitation link copied to clipboard',
+      });
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleClose = () => {
+    setFormData({
+      orgName: '',
+      adminEmail: '',
+      adminFullName: '',
+    });
+    setInvitationUrl(null);
+    setCopied(false);
+    onOpenChange(false);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Create New Organization</DialogTitle>
@@ -148,7 +169,45 @@ export function CreateOrganizationDialog({ open, onOpenChange, onSuccess }: Crea
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {invitationUrl ? (
+          <div className="space-y-4">
+            <Alert>
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertDescription>
+                Organization created successfully! Share this invitation link with the admin:
+              </AlertDescription>
+            </Alert>
+            
+            <div className="space-y-2">
+              <Label>Invitation Link</Label>
+              <div className="flex gap-2">
+                <Input
+                  value={invitationUrl}
+                  readOnly
+                  className="font-mono text-xs"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={copyToClipboard}
+                >
+                  {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This link expires in 7 days
+              </p>
+            </div>
+
+            <DialogFooter>
+              <Button onClick={handleClose}>
+                Done
+              </Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="orgName">Organization Name</Label>
             <div className="relative">
@@ -198,27 +257,28 @@ export function CreateOrganizationDialog({ open, onOpenChange, onSuccess }: Crea
             </p>
           </div>
 
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                'Create & Send Invitation'
-              )}
-            </Button>
-          </DialogFooter>
-        </form>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleClose}
+                disabled={loading}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Create & Send Invitation'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );
