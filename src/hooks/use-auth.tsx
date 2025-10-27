@@ -61,6 +61,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             profile,
             timestamp: Date.now()
           }));
+          
+          // Check if this is a first-time user (new org with no data)
+          if (profile.org_id) {
+            const { count } = await supabase
+              .from('accounts')
+              .select('id', { count: 'exact', head: true })
+              .eq('org_id', profile.org_id)
+              .limit(1);
+            
+            if (count === 0) {
+              // New user with no data - trigger onboarding
+              localStorage.setItem('show_onboarding', 'true');
+            }
+          }
         }
       } finally {
         profileFetchInProgress = false;

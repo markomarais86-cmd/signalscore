@@ -6,8 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Shield, Users, Building, Search, RefreshCw } from 'lucide-react';
+import { Shield, Users, Building, Search, RefreshCw, Plus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { CreateOrganizationDialog } from '@/components/settings/CreateOrganizationDialog';
 import {
   Table,
   TableBody,
@@ -53,6 +54,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrgFilter, setSelectedOrgFilter] = useState<string>('all');
+  const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false);
 
   useEffect(() => {
     if (!rolesLoading && !isSuperAdmin) {
@@ -223,10 +225,16 @@ export default function AdminDashboard() {
           </h1>
           <p className="text-muted-foreground mt-2">Manage organizations, users, and platform settings</p>
         </div>
-        <Button onClick={loadAdminData} variant="outline">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowCreateOrgDialog(true)} variant="default">
+            <Plus className="h-4 w-4 mr-2" />
+            Create Organization
+          </Button>
+          <Button onClick={loadAdminData} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Platform Stats */}
@@ -363,6 +371,13 @@ export default function AdminDashboard() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Create Organization Dialog */}
+      <CreateOrganizationDialog
+        open={showCreateOrgDialog}
+        onOpenChange={setShowCreateOrgDialog}
+        onSuccess={loadAdminData}
+      />
     </div>
   );
 }

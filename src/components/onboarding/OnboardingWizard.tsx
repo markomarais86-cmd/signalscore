@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Circle, ArrowRight, ArrowLeft, Upload, Target, BarChart3, TrendingUp, X } from "lucide-react";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/use-auth";
 
 const stepIcons = {
   upload_data: Upload,
@@ -16,6 +17,7 @@ const stepIcons = {
 export function OnboardingWizard() {
   const { onboarding, skipOnboarding, nextStep, previousStep, progress } = useOnboarding();
   const navigate = useNavigate();
+  const { userProfile } = useAuth();
 
   if (!onboarding.showWizard) return null;
 
@@ -49,7 +51,11 @@ export function OnboardingWizard() {
             </Button>
           </div>
           <DialogDescription>
-            Let's get you set up in 4 easy steps. Your progress: {progress}%
+            {userProfile?.org_id ? (
+              <>Let's get your organization set up in 4 easy steps. Your progress: {progress}%</>
+            ) : (
+              <>Let's get you set up in 4 easy steps. Your progress: {progress}%</>
+            )}
           </DialogDescription>
         </DialogHeader>
 

@@ -228,9 +228,12 @@ export function AuthSystem() {
             });
           } else {
             toast({
-              title: 'Welcome to the team!',
-              description: 'Your account has been created and you\'ve joined the organization.',
+              title: `Welcome to ${invitationInfo?.organizations?.name || 'the team'}! 🎉`,
+              description: 'Your account has been created. Let\'s get you started with a quick tour.',
             });
+            
+            // Trigger onboarding wizard for new users
+            localStorage.setItem('show_onboarding', 'true');
           }
         } else {
           // Success - show clear instructions
@@ -257,7 +260,7 @@ export function AuthSystem() {
           }, 2000);
         } else {
           // Redirect to dashboard if accepting invitation
-          navigate('/');
+          setTimeout(() => navigate('/'), 500);
         }
       }
     } catch (err) {

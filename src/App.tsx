@@ -10,6 +10,8 @@ import { Layout } from "./components/Layout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
+import { useEffect } from "react";
+import { useOnboarding } from "./hooks/use-onboarding";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
@@ -29,19 +31,25 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-function App() {
+function AppContent() {
+  const { startOnboarding } = useOnboarding();
+
+  useEffect(() => {
+    // Check if we should trigger onboarding wizard
+    const showOnboarding = localStorage.getItem('show_onboarding');
+    if (showOnboarding === 'true') {
+      console.log('Triggering onboarding wizard');
+      startOnboarding();
+      localStorage.removeItem('show_onboarding');
+    }
+  }, [startOnboarding]);
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-        <AuthProvider>
-          <OnboardingProvider>
-            <FeatureFlagsProvider>
-              <TooltipProvider>
-                <ErrorBoundary>
-                  <Toaster />
-                  <BrowserRouter>
-                    <OnboardingWizard />
-                    <Routes>
+    <>
+      <Toaster />
+      <BrowserRouter>
+        <OnboardingWizard />
+        <Routes>
                 <Route path="/landing" element={<Landing />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
@@ -165,14 +173,28 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
-                <Route path="*" element={<NotFound />} />
-                    </Routes>
-                  </BrowserRouter>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+        <AuthProvider>
+          <OnboardingProvider>
+            <FeatureFlagsProvider>
+              <TooltipProvider>
+                <ErrorBoundary>
+                  <AppContent />
                 </ErrorBoundary>
-          </TooltipProvider>
-        </FeatureFlagsProvider>
-      </OnboardingProvider>
-      </AuthProvider>
+              </TooltipProvider>
+            </FeatureFlagsProvider>
+          </OnboardingProvider>
+        </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );
