@@ -184,19 +184,17 @@ export function EnrichmentModal({
               <SelectValue placeholder="Select batch size" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="100">100 accounts (Quick test)</SelectItem>
-              <SelectItem value="250">250 accounts (~2-3 min)</SelectItem>
-              <SelectItem value="500">500 accounts (~5 min)</SelectItem>
-              <SelectItem value="1000">1,000 accounts (~10 min)</SelectItem>
-              <SelectItem value="2500">2,500 accounts (~25 min)</SelectItem>
-              <SelectItem value="5000">5,000 accounts (~50 min)</SelectItem>
+              <SelectItem value="100">100 accounts (~15 sec)</SelectItem>
+              <SelectItem value="250">250 accounts (~30 sec)</SelectItem>
+              <SelectItem value="500">500 accounts (~1 min)</SelectItem>
+              <SelectItem value="1000">1,000 accounts (~2 min)</SelectItem>
+              <SelectItem value="2500">2,500 accounts (~5 min)</SelectItem>
+              <SelectItem value="5000">5,000 accounts (~10 min)</SelectItem>
             </SelectContent>
           </Select>
-          {batchSize >= 1000 && (
-            <p className="text-xs text-muted-foreground">
-              ⚠️ Large batches may take longer and consume more API credits
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground">
+            ⚡ Parallel processing: 15 concurrent API calls + AI batch size 50
+          </p>
         </div>
 
         {creditsAvailable !== null && (

@@ -66,13 +66,51 @@ serve(async (req) => {
 
     let enrichedCount = 0;
     const enrichedAccounts = new Set<string>();
+    const CONCURRENCY_LIMIT = 15; // Parallel API calls
 
-    // PHASE 1: PDL (People Data Labs)
+    // Helper: Process in parallel with concurrency limit
+    const processInParallel = async <T, R>(
+      items: T[],
+      processor: (item: T) => Promise<R>,
+      concurrency: number
+    ): Promise<R[]> => {
+      const results: R[] = [];
+      for (let i = 0; i < items.length; i += concurrency) {
+        const batch = items.slice(i, i + concurrency);
+        const batchResults = await Promise.all(batch.map(processor));
+        results.push(...batchResults);
+        
+        // Update progress every batch
+        if (i % 50 === 0) {
+          await supabase.from('enrichment_jobs').update({
+            processed_records: Math.min(i + concurrency, items.length),
+            enriched_records: enrichedCount
+          }).eq('id', jobId);
+        }
+      }
+      return results;
+    };
+
+    // Helper: Batch database updates
+    const pendingUpdates: Array<{external_id: string, data: any}> = [];
+    const flushUpdates = async () => {
+      if (pendingUpdates.length === 0) return;
+      
+      await Promise.all(pendingUpdates.map(async ({external_id, data}) => {
+        await supabase.from('accounts').update(data)
+          .eq('external_id', external_id).eq('org_id', job.org_id);
+      }));
+      
+      pendingUpdates.length = 0;
+    };
+
+    // PHASE 1: PDL (People Data Labs) - Parallel processing
     const PDL_API_KEY = Deno.env.get('PDL_API_KEY');
     if (PDL_API_KEY) {
-      console.log('🔍 Phase 1: PDL Enrichment');
-      for (const account of accounts) {
-        if (!account.domain) continue;
+      console.log('🔍 Phase 1: PDL Enrichment (parallel)');
+      
+      const processPDL = async (account: any) => {
+        if (!account.domain) return null;
 
         try {
           const response = await fetch(`https://api.peopledatalabs.com/v5/company/enrich?website=${encodeURIComponent(account.domain)}`, {
@@ -104,31 +142,35 @@ serve(async (req) => {
             if (Object.keys(updateData).length > 0) {
               updateData.enriched_at = new Date().toISOString();
               updateData.enriched_from = 'pdl';
-
-              await supabase.from('accounts').update(updateData)
-                .eq('external_id', account.external_id).eq('org_id', job.org_id);
-
-              await supabase.rpc('auto_score_account', {
-                p_account_external_id: account.external_id,
-                p_org_id: job.org_id
-              });
-
+              pendingUpdates.push({ external_id: account.external_id, data: updateData });
               enrichedAccounts.add(account.external_id);
               enrichedCount++;
+              
+              // Flush every 10 updates
+              if (pendingUpdates.length >= 10) {
+                await flushUpdates();
+              }
+              
+              return account.external_id;
             }
           }
         } catch (e) {
           console.error(`PDL error for ${account.name}:`, e);
         }
-      }
+        return null;
+      };
+
+      await processInParallel(accounts, processPDL, CONCURRENCY_LIMIT);
+      await flushUpdates();
     }
 
-    // PHASE 2: Clearbit Free (fallback)
+    // PHASE 2: Clearbit Free (fallback) - Parallel processing
     const remaining = accounts.filter(a => !enrichedAccounts.has(a.external_id));
     if (remaining.length > 0) {
-      console.log(`🔍 Phase 2: Clearbit (${remaining.length} accounts)`);
-      for (const account of remaining) {
-        if (!account.domain) continue;
+      console.log(`🔍 Phase 2: Clearbit (${remaining.length} accounts, parallel)`);
+      
+      const processClearbit = async (account: any) => {
+        if (!account.domain) return null;
 
         try {
           const response = await fetch(`https://company.clearbit.com/v1/domains/find?domain=${account.domain}`);
@@ -156,35 +198,37 @@ serve(async (req) => {
             if (Object.keys(updateData).length > 0) {
               updateData.enriched_at = new Date().toISOString();
               updateData.enriched_from = 'clearbit';
-
-              await supabase.from('accounts').update(updateData)
-                .eq('external_id', account.external_id).eq('org_id', job.org_id);
-
-              await supabase.rpc('auto_score_account', {
-                p_account_external_id: account.external_id,
-                p_org_id: job.org_id
-              });
-
+              pendingUpdates.push({ external_id: account.external_id, data: updateData });
               enrichedAccounts.add(account.external_id);
               enrichedCount++;
+              
+              if (pendingUpdates.length >= 10) {
+                await flushUpdates();
+              }
+              
+              return account.external_id;
             }
           }
         } catch (e) {
           console.error(`Clearbit error for ${account.name}:`, e);
         }
-      }
+        return null;
+      };
+
+      await processInParallel(remaining, processClearbit, CONCURRENCY_LIMIT);
+      await flushUpdates();
     }
 
-    // PHASE 3: AI for remaining
+    // PHASE 3: AI for remaining - Larger batches
     const stillRemaining = accounts.filter(a => !enrichedAccounts.has(a.external_id));
     if (stillRemaining.length > 0) {
-      console.log(`🤖 Phase 3: AI (${stillRemaining.length} accounts)`);
+      console.log(`🤖 Phase 3: AI (${stillRemaining.length} accounts, batch size 50)`);
       const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
       
       if (LOVABLE_API_KEY) {
-        const batchSize = 10;
-        for (let i = 0; i < stillRemaining.length; i += batchSize) {
-          const batch = stillRemaining.slice(i, i + batchSize);
+        const AI_BATCH_SIZE = 50; // Increased from 10
+        for (let i = 0; i < stillRemaining.length; i += AI_BATCH_SIZE) {
+          const batch = stillRemaining.slice(i, i + AI_BATCH_SIZE);
           
           const prompt = `Estimate firmographic data. Return JSON: [{"external_id": "id", "employee_count": number, "revenue_range": "range", "confidence": 0-100}]
 Revenue ranges: "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M", "$50M-$100M", "$100M-$500M", "$500M-$1B", "$1B-$10B", "$10B+"
@@ -218,24 +262,34 @@ Companies: ${batch.map(a => `${a.name} (${a.domain})`).join(', ')}`;
                     if (!acc.revenue_range && est.revenue_range) updateData.revenue_range = est.revenue_range;
 
                     if (Object.keys(updateData).length > 2) {
-                      await supabase.from('accounts').update(updateData)
-                        .eq('external_id', est.external_id).eq('org_id', job.org_id);
-                      await supabase.rpc('auto_score_account', {
-                        p_account_external_id: est.external_id,
-                        p_org_id: job.org_id
-                      });
+                      pendingUpdates.push({ external_id: est.external_id, data: updateData });
                       enrichedCount++;
                     }
                   }
                 }
               }
             }
+            
+            // Flush AI batch updates
+            await flushUpdates();
           } catch (e) {
             console.error('AI batch error:', e);
           }
         }
       }
     }
+
+    // Batch score all enriched accounts at the end
+    console.log(`📊 Scoring ${enrichedCount} enriched accounts...`);
+    const enrichedAccountsList = Array.from(enrichedAccounts);
+    await Promise.all(
+      enrichedAccountsList.map(external_id =>
+        supabase.rpc('auto_score_account', {
+          p_account_external_id: external_id,
+          p_org_id: job.org_id
+        }).catch(e => console.error(`Score error for ${external_id}:`, e))
+      )
+    );
 
     await supabase.from('enrichment_jobs').update({
       status: 'completed',
