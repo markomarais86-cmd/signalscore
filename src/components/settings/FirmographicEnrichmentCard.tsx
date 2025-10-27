@@ -119,7 +119,7 @@ export function FirmographicEnrichmentCard() {
         .from('enrichment_jobs')
         .select('*')
         .eq('org_id', userProfile.org_id)
-        .eq('job_type', 'firmographics')
+        .eq('job_type', 'accounts')
         .order('started_at', { ascending: false })
         .limit(3);
 
@@ -149,7 +149,7 @@ export function FirmographicEnrichmentCard() {
         .insert({
           org_id: userProfile.org_id,
           provider: provider,
-          job_type: 'firmographics',
+          job_type: 'accounts',
           status: 'pending',
           created_by: userProfile.user_id
         })

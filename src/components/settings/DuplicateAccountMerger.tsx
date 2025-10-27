@@ -38,16 +38,16 @@ export function DuplicateAccountMerger() {
 
       if (!userProfile) throw new Error('User profile not found');
 
-      // Call the fast SQL merge function
-      const { data, error: rpcError } = await supabase.rpc('merge_duplicate_accounts' as any, {
-        p_org_id: userProfile.org_id
+      // Call the merge edge function
+      const { data, error: functionError } = await supabase.functions.invoke('merge-duplicate-accounts', {
+        body: { org_id: userProfile.org_id }
       });
 
-      if (rpcError) {
-        throw new Error(rpcError.message);
+      if (functionError) {
+        throw new Error(functionError.message);
       }
 
-      const result = data as any as MergeResult;
+      const result = data as MergeResult;
       setResult(result);
       toast.success(`Merged ${result.duplicate_accounts_merged} duplicate accounts!`);
     } catch (err) {
