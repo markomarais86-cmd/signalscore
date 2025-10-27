@@ -350,7 +350,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-12">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="account" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Account
@@ -359,53 +359,21 @@ export default function Settings() {
             <Users className="h-4 w-4" />
             Team
           </TabsTrigger>
-          <TabsTrigger value="features" className="flex items-center gap-2">
-            <Zap className="h-4 w-4" />
-            Labs
-          </TabsTrigger>
-          <TabsTrigger value="automation" className="flex items-center gap-2">
-            <Bot className="h-4 w-4" />
-            Automation
+          <TabsTrigger value="configuration" className="flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Configuration
           </TabsTrigger>
           <TabsTrigger value="integrations" className="flex items-center gap-2">
             <Database className="h-4 w-4" />
-            Data Sources
+            Data & Enrichment
           </TabsTrigger>
-          <TabsTrigger value="zapier" className="flex items-center gap-2">
-            <Webhook className="h-4 w-4" />
-            Zapier
-          </TabsTrigger>
-          <TabsTrigger value="data-mapping" className="flex items-center gap-2">
-            <GitBranch className="h-4 w-4" />
-            Data Mapping
-          </TabsTrigger>
-          <TabsTrigger value="scoring" className="flex items-center gap-2">
-            <Target className="h-4 w-4" />
-            Scoring
-          </TabsTrigger>
-          <TabsTrigger value="benchmarks" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Benchmarks
-          </TabsTrigger>
-          <TabsTrigger value="ai-agents" className="flex items-center gap-2">
+          <TabsTrigger value="automation" className="flex items-center gap-2">
             <Bot className="h-4 w-4" />
-            AI Agents
-          </TabsTrigger>
-          <TabsTrigger value="exclusions" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            Exclusions
+            Automation & AI
           </TabsTrigger>
           <TabsTrigger value="notifications" className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
             Notifications
-          </TabsTrigger>
-          <TabsTrigger value="api" className="flex items-center gap-2">
-            <Key className="h-4 w-4" />
-            API
-          </TabsTrigger>
-          <TabsTrigger value="enrichment-keys" className="flex items-center gap-2">
-            <Key className="h-4 w-4" />
-            Enrichment Keys
           </TabsTrigger>
         </TabsList>
 
@@ -496,14 +464,38 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {/* Feature Toggles */}
-        <TabsContent value="features" className="space-y-6">
-          <FeatureToggles />
+        {/* Configuration: Scoring, Benchmarks, Data Mapping, Exclusions */}
+        <TabsContent value="configuration" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Scoring Configuration</CardTitle>
+              <CardDescription>Configure ICP scoring and account matching</CardDescription>
+            </CardHeader>
+          </Card>
+          <ScoringConfiguration />
+          <BenchmarkSettings />
+          <Card>
+            <CardHeader>
+              <CardTitle>Data Management</CardTitle>
+              <CardDescription>Manage data quality and mappings</CardDescription>
+            </CardHeader>
+          </Card>
+          <DuplicateAccountMerger />
+          <DataMapping />
+          <AccountExclusions />
         </TabsContent>
 
-        {/* Automation Settings */}
+        {/* Automation & AI: Automation, AI Agents, Feature Flags */}
         <TabsContent value="automation" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Feature Labs</CardTitle>
+              <CardDescription>Enable experimental features and AI capabilities</CardDescription>
+            </CardHeader>
+          </Card>
+          <FeatureToggles />
           <AutomationSettings />
+          <AIAgentSettings />
         </TabsContent>
 
         {/* Team Management */}
@@ -551,62 +543,49 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {/* Data Sources (External Databases) */}
+        {/* Data & Enrichment: All data sources, enrichment, integrations, API */}
         <TabsContent value="integrations" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Enrichment & Data Discovery</CardTitle>
+              <CardDescription>Enrich accounts and discover contacts using multiple data sources</CardDescription>
+            </CardHeader>
+          </Card>
+          
           <div id="enrichment-card" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <FirmographicEnrichmentCard />
             <EnrichmentJobMonitor />
           </div>
-          <EnrichmentTester />
-          <EnrichmentQualityDashboard />
-          <EnrichmentAttributionReport />
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <ContactDiscovery />
             <ContactsBackfill />
           </div>
           
+          <EnrichmentTester />
+          <EnrichmentQualityDashboard />
+          <EnrichmentAttributionReport />
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>External Data Providers & Integrations</CardTitle>
+              <CardDescription>Connect to CRMs, databases, and webhooks</CardDescription>
+            </CardHeader>
+          </Card>
           <ExternalDataProviders />
-          <RateLimitSettings />
           <IntegrationManager />
-          <APIKeyManager />
-        </TabsContent>
-
-        {/* Data Quality Dashboard */}
-        <TabsContent value="data-quality" className="space-y-6">
-          <DataQualityDashboard />
-        </TabsContent>
-
-        {/* Zapier Integration */}
-        <TabsContent value="zapier" className="space-y-6">
           <ZapierWebhookManager />
           <ZapierIntegration />
-        </TabsContent>
-
-        {/* Data Mapping */}
-              <TabsContent value="data-mapping" className="space-y-6">
-                <DuplicateAccountMerger />
-                <DataMapping />
-              </TabsContent>
-
-        {/* Scoring Configuration */}
-        <TabsContent value="scoring" className="space-y-6">
-          <ScoringConfiguration />
-        </TabsContent>
-
-        {/* Benchmarks */}
-        <TabsContent value="benchmarks" className="space-y-6">
-          <BenchmarkSettings />
-        </TabsContent>
-
-        {/* AI Agents */}
-        <TabsContent value="ai-agents" className="space-y-6">
-          <AIAgentSettings />
-        </TabsContent>
-
-        {/* Exclusions */}
-        <TabsContent value="exclusions" className="space-y-6">
-          <AccountExclusions />
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>API Keys & Rate Limits</CardTitle>
+              <CardDescription>Manage enrichment API keys and rate limiting</CardDescription>
+            </CardHeader>
+          </Card>
+          <EnrichmentAPIKeys />
+          <RateLimitSettings />
+          <APIKeyManager />
         </TabsContent>
 
         {/* Notifications */}
@@ -647,108 +626,6 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {/* API Management */}
-        <TabsContent value="api" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>API Keys</CardTitle>
-                  <CardDescription>Manage API keys for programmatic access</CardDescription>
-                </div>
-                <Button onClick={generateApiKey}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Generate Key
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {apiKeys.map((apiKey) => (
-                  <div key={apiKey.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <p className="font-medium">{apiKey.name}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <code className="text-sm bg-muted px-2 py-1 rounded">
-                          {showApiKey[apiKey.id] ? apiKey.key : '•'.repeat(20)}
-                        </code>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowApiKey(prev => ({ ...prev, [apiKey.id]: !prev[apiKey.id] }))}
-                        >
-                          {showApiKey[apiKey.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => copyApiKey(apiKey.key)}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Created: {new Date(apiKey.created_at).toLocaleDateString()}
-                        {apiKey.last_used && ` • Last used: ${new Date(apiKey.last_used).toLocaleDateString()}`}
-                      </p>
-                    </div>
-                    <Button variant="ghost" size="sm">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>API Documentation</CardTitle>
-              <CardDescription>Access documentation and rate limits</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium mb-2">Rate Limits</h4>
-                  <p className="text-sm text-muted-foreground mb-2">1000 requests per hour</p>
-                  <div className="w-full bg-muted rounded-full h-2">
-                    <div className="bg-primary h-2 rounded-full w-1/3"></div>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">332 / 1000 requests used</p>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium mb-2">Documentation</h4>
-                  <p className="text-sm text-muted-foreground mb-2">API reference and examples</p>
-                  <Button variant="outline" size="sm">View Docs</Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Enrichment API Keys */}
-        <TabsContent value="enrichment-keys" className="space-y-6">
-          <EnrichmentAPIKeys />
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Run Enrichment Job</CardTitle>
-              <CardDescription>
-                Start a bulk enrichment job to enrich all accounts in your database
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={() => setShowEnrichmentModal(true)}
-                size="lg"
-                className="w-full"
-              >
-                <Sparkles className="h-5 w-5 mr-2" />
-                Start Bulk Enrichment
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Billing */}
         <TabsContent value="billing" className="space-y-6">
