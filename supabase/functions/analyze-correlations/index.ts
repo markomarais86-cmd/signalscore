@@ -261,7 +261,6 @@ Mark significant=true if p < 0.05. Strength: strong if |r| > 0.5, moderate if > 
             content: aiPrompt
           }
         ],
-        temperature: 0.3,
       }),
     });
 
