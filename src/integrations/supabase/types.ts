@@ -1862,6 +1862,50 @@ export type Database = {
       }
     }
     Views: {
+      mv_dashboard_metrics_by_org: {
+        Row: {
+          both_accounts: number | null
+          computed_at: string | null
+          crm_accounts: number | null
+          database_accounts: number | null
+          high_fit_accounts: number | null
+          high_fit_crm: number | null
+          high_fit_database: number | null
+          org_id: string | null
+          scored_accounts: number | null
+          total_accounts: number | null
+          with_contacts: number | null
+          with_geo: number | null
+          with_industry: number | null
+          with_revenue: number | null
+          with_size: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mv_geography_by_org: {
+        Row: {
+          account_count: number | null
+          country: string | null
+          org_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mv_leads_by_week: {
         Row: {
           org_id: string | null

@@ -65,33 +65,32 @@ export function EnrichmentDialog({
 
       if (jobError) throw jobError;
 
-      // TODO: Call edge function to process enrichment
-      // For now, simulate enrichment
       toast({
         title: "Enrichment started",
         description: `Processing ${selectedAccounts.length} accounts from ${provider}...`,
       });
 
-      // Simulate completion
-      setTimeout(async () => {
-        await supabase
-          .from('enrichment_jobs')
-          .update({
-            status: 'completed',
-            processed_records: selectedAccounts.length,
-            enriched_records: selectedAccounts.length,
-            completed_at: new Date().toISOString(),
-          })
-          .eq('id', job.id);
+      // Call edge function to process enrichment
+      const { data: enrichmentResult, error: enrichmentError } = await supabase.functions.invoke('process-enrichment', {
+        body: {
+          org_id: userProfile.org_id,
+          job_id: job.id,
+          account_ids: selectedAccounts,
+          provider,
+        },
+      });
 
-        toast({
-          title: "Enrichment complete",
-          description: `Successfully enriched ${selectedAccounts.length} accounts`,
-        });
-        
-        onEnrichmentComplete();
-        onOpenChange(false);
-      }, 2000);
+      if (enrichmentError) {
+        throw enrichmentError;
+      }
+
+      toast({
+        title: "Enrichment complete",
+        description: `Successfully enriched ${enrichmentResult.enriched} of ${selectedAccounts.length} accounts`,
+      });
+      
+      onEnrichmentComplete();
+      onOpenChange(false);
     } catch (error) {
       console.error('Error starting enrichment:', error);
       toast({

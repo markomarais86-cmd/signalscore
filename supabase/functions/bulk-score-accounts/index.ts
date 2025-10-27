@@ -94,7 +94,7 @@ serve(async (req) => {
 
   try {
     const requestBody = await req.json() as BulkScoreRequest;
-    const { org_id, icp_id, job_id, chunk_index, chunk_size = 2000 } = requestBody;
+    const { org_id, icp_id, job_id, chunk_index, chunk_size = 5000 } = requestBody;
     
     // Check rate limit (10 requests per minute for bulk scoring)
     const rateLimitResult = await checkRateLimit(supabase, org_id, 'bulk-score-accounts', 10, 60);

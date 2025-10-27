@@ -82,7 +82,7 @@ serve(async (req) => {
       throw new Error(`Failed to fetch deals: ${dealsError.message}`);
     }
 
-    // Analyze revenue patterns
+    // Analyze data
     const revenueDistribution: Record<string, number> = {};
     const industryDistribution: Record<string, number> = {};
     const sizeDistribution: Record<string, number> = {};
@@ -107,7 +107,6 @@ serve(async (req) => {
       }
     });
 
-    // Analyze persona patterns
     const personaDistribution: Record<string, number> = {};
     const titleDistribution: Record<string, number> = {};
 
@@ -120,227 +119,126 @@ serve(async (req) => {
       }
     });
 
-    // Calculate high-performing segments
     const highScoreAccounts = accounts?.filter(a => a.scores?.[0]?.overall >= 70) || [];
     const avgDealValue = deals?.reduce((sum, d) => sum + Number(d.deal_value), 0) / (deals?.length || 1);
 
-    // Generate insights using Lovable AI with structured output (tool calling)
+    // Generate insights using Lovable AI (simplified - no tool calling)
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert B2B sales analyst. Analyze firmographic data and provide actionable ICP insights with specific recommendations.'
-          },
-          {
-            role: 'user',
-            content: `Analyze this B2B sales data and provide 5-7 specific ICP recommendations:
+    let aiInsights: Insight[] = [];
+    
+    try {
+      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert B2B sales analyst. Analyze firmographic data and provide actionable ICP insights. Return ONLY valid JSON array of insights, no markdown or explanations.'
+            },
+            {
+              role: 'user',
+              content: `Analyze this B2B sales data and return exactly 3-5 ICP insights as a JSON array. Each insight must follow this exact structure:
 
-Revenue Distribution: ${JSON.stringify(revenueDistribution)}
-Industry Distribution: ${JSON.stringify(industryDistribution)}
-Company Size Distribution: ${JSON.stringify(sizeDistribution)}
-Geography Distribution: ${JSON.stringify(geoDistribution)}
-Persona Distribution: ${JSON.stringify(personaDistribution)}
-Top Job Titles: ${JSON.stringify(Object.entries(titleDistribution).sort((a, b) => b[1] - a[1]).slice(0, 10))}
-High-Scoring Accounts: ${highScoreAccounts.length}
-Total Accounts: ${accounts?.length || 0}
-Average Deal Value: $${avgDealValue.toFixed(0)}
-Total Closed Deals: ${deals?.length || 0}
+{
+  "type": "revenue" | "persona" | "firmographic" | "signal",
+  "priority": "high" | "medium" | "low",
+  "title": "Short actionable title",
+  "description": "Detailed explanation with specific data points",
+  "impact": "Expected business impact",
+  "confidence": 75
+}
 
-Provide insights covering: revenue ranges, key personas/titles, company size sweet spots, geographic priorities, industry focus, buying signals, and budget/timing.`
-          }
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'generate_icp_insights',
-              description: 'Generate 5-7 actionable ICP insights based on sales data analysis',
-              parameters: {
-                type: 'object',
-                properties: {
-                  insights: {
-                    type: 'array',
-                    minItems: 5,
-                    maxItems: 7,
-                    items: {
-                      type: 'object',
-                      properties: {
-                        type: {
-                          type: 'string',
-                          enum: ['revenue', 'persona', 'firmographic', 'signal'],
-                          description: 'Category of the insight'
-                        },
-                        priority: {
-                          type: 'string',
-                          enum: ['high', 'medium', 'low'],
-                          description: 'Priority level'
-                        },
-                        title: {
-                          type: 'string',
-                          description: 'Short, actionable title (max 100 chars)'
-                        },
-                        description: {
-                          type: 'string',
-                          description: 'Detailed explanation with specific data points'
-                        },
-                        impact: {
-                          type: 'string',
-                          description: 'Expected business impact'
-                        },
-                        confidence: {
-                          type: 'number',
-                          minimum: 0,
-                          maximum: 100,
-                          description: 'Confidence level (0-100)'
-                        },
-                        relatedSegments: {
-                          type: 'array',
-                          items: { type: 'string' },
-                          description: 'Related segments or categories'
-                        },
-                        targetAccounts: {
-                          type: 'array',
-                          maxItems: 5,
-                          items: {
-                            type: 'object',
-                            properties: {
-                              account_id: { type: 'string' },
-                              account_name: { type: 'string' },
-                              score: { type: 'number' },
-                              reason: { type: 'string' }
-                            },
-                            required: ['account_id', 'account_name', 'score', 'reason']
-                          },
-                          description: 'Top 3-5 accounts to prioritize for this insight'
-                        },
-                        nextAction: {
-                          type: 'string',
-                          enum: ['build_campaign', 'export_csv', 'view_accounts', 'enrich_data', 'score_accounts'],
-                          description: 'Recommended next action for this insight'
-                        },
-                        revenue_opportunity: {
-                          type: 'number',
-                          description: 'Estimated revenue opportunity in dollars'
-                        }
-                      },
-                      required: ['type', 'priority', 'title', 'description', 'impact', 'confidence'],
-                      additionalProperties: false
-                    }
-                  }
-                },
-                required: ['insights'],
-                additionalProperties: false
-              }
+Data:
+- Revenue Distribution: ${JSON.stringify(revenueDistribution)}
+- Industry Distribution: ${JSON.stringify(industryDistribution)}
+- Company Size: ${JSON.stringify(sizeDistribution)}
+- Geography: ${JSON.stringify(geoDistribution)}
+- Personas: ${JSON.stringify(personaDistribution)}
+- Top Titles: ${JSON.stringify(Object.entries(titleDistribution).sort((a, b) => b[1] - a[1]).slice(0, 10))}
+- High-Score Accounts: ${highScoreAccounts.length} of ${accounts?.length || 0}
+- Avg Deal: $${avgDealValue.toFixed(0)}
+
+Return ONLY the JSON array, no other text.`
             }
-          }
-        ],
-        tool_choice: { type: 'function', function: { name: 'generate_icp_insights' } }
-      }),
-    });
+          ],
+          max_tokens: 2000,
+        }),
+      });
 
-    if (!aiResponse.ok) {
-      throw new Error(`AI API error: ${aiResponse.status} ${await aiResponse.text()}`);
+      if (aiResponse.ok) {
+        const aiData = await aiResponse.json();
+        const aiContent = aiData.choices?.[0]?.message?.content || '';
+        
+        // Parse AI response (handle markdown code blocks)
+        let jsonText = aiContent.trim();
+        if (jsonText.startsWith('```')) {
+          jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        }
+        
+        try {
+          const parsed = JSON.parse(jsonText);
+          aiInsights = Array.isArray(parsed) ? parsed : [];
+          console.log(`Generated ${aiInsights.length} AI insights`);
+        } catch (parseError) {
+          console.warn('Failed to parse AI response:', parseError);
+        }
+      } else {
+        console.warn('AI API error:', aiResponse.status, await aiResponse.text());
+      }
+    } catch (aiError) {
+      console.warn('AI generation error:', aiError);
     }
 
-    const aiData = await aiResponse.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+    // Add data-driven fallback insights
+    const insights: Insight[] = [...aiInsights];
     
-    let insights: Insight[] = [];
-    
-    if (toolCall && toolCall.function?.name === 'generate_icp_insights') {
-      const parsedArgs = JSON.parse(toolCall.function.arguments);
-      insights = parsedArgs.insights || [];
-      console.log(`Generated ${insights.length} insights via tool calling`);
-    } else {
-      console.warn('No tool call returned, falling back to data-driven insights');
-    }
-
-    // Add data-driven insights
     const topRevenue = Object.entries(revenueDistribution).sort((a, b) => b[1] - a[1])[0];
     const topIndustry = Object.entries(industryDistribution).sort((a, b) => b[1] - a[1])[0];
     const topGeo = Object.entries(geoDistribution).sort((a, b) => b[1] - a[1])[0];
 
     if (topRevenue && insights.length < 7) {
-      const topAccountsInRange = highScoreAccounts
-        .filter(a => a.revenue_range === topRevenue[0])
-        .slice(0, 3)
-        .map(a => ({
-          account_id: a.id,
-          account_name: a.name,
-          score: a.scores?.[0]?.overall || 0,
-          reason: `High-fit ${topRevenue[0]} account`
-        }));
-
       insights.push({
         type: 'revenue',
         priority: 'high',
         title: `Focus on ${topRevenue[0]} revenue range`,
-        description: `${topRevenue[1]} accounts (${((topRevenue[1] / accounts.length) * 100).toFixed(1)}%) fall in this range`,
-        impact: 'High conversion probability based on current data',
+        description: `${topRevenue[1]} accounts (${((topRevenue[1] / (accounts?.length || 1)) * 100).toFixed(1)}%) fall in this range, representing your largest revenue segment`,
+        impact: 'High conversion probability based on historical data',
         confidence: 85,
         relatedSegments: [topRevenue[0]],
-        targetAccounts: topAccountsInRange,
         nextAction: 'build_campaign',
-        revenue_opportunity: topAccountsInRange.length * avgDealValue * 0.15
+        revenue_opportunity: highScoreAccounts.length * avgDealValue * 0.15
       });
     }
 
     if (topIndustry && insights.length < 7) {
-      const topAccountsInIndustry = highScoreAccounts
-        .filter(a => a.industry_norm === topIndustry[0])
-        .slice(0, 3)
-        .map(a => ({
-          account_id: a.id,
-          account_name: a.name,
-          score: a.scores?.[0]?.overall || 0,
-          reason: `Top performer in ${topIndustry[0]}`
-        }));
-
       insights.push({
         type: 'firmographic',
         priority: 'high',
         title: `Prioritize ${topIndustry[0]} industry`,
-        description: `${topIndustry[1]} accounts in this industry represent your largest segment`,
-        impact: 'Established market presence',
+        description: `${topIndustry[1]} accounts in this industry represent your largest market segment`,
+        impact: 'Established market presence and industry expertise',
         confidence: 90,
         relatedSegments: [topIndustry[0]],
-        targetAccounts: topAccountsInIndustry,
-        nextAction: 'export_csv',
-        revenue_opportunity: topAccountsInIndustry.length * avgDealValue * 0.2
+        nextAction: 'export_csv'
       });
     }
 
     if (topGeo && insights.length < 7) {
-      const topAccountsInGeo = highScoreAccounts
-        .filter(a => a.country === topGeo[0])
-        .slice(0, 3)
-        .map(a => ({
-          account_id: a.id,
-          account_name: a.name,
-          score: a.scores?.[0]?.overall || 0,
-          reason: `Strong performer in ${topGeo[0]}`
-        }));
-
       insights.push({
         type: 'firmographic',
         priority: 'medium',
         title: `Expand in ${topGeo[0]}`,
-        description: `${topGeo[1]} accounts in this region show strong engagement`,
-        impact: 'Geographic concentration advantage',
+        description: `${topGeo[1]} accounts in this region show strong engagement patterns`,
+        impact: 'Geographic concentration advantage for targeted campaigns',
         confidence: 80,
         relatedSegments: [topGeo[0]],
-        targetAccounts: topAccountsInGeo,
-        nextAction: 'view_accounts',
-        revenue_opportunity: topAccountsInGeo.length * avgDealValue * 0.12
+        nextAction: 'view_accounts'
       });
     }
 
@@ -349,7 +247,7 @@ Provide insights covering: revenue ranges, key personas/titles, company size swe
     return new Response(
       JSON.stringify({
         success: true,
-        insights: insights.slice(0, 7), // Return top 7 insights
+        insights: insights.slice(0, 7),
         statistics: {
           total_accounts: accounts?.length || 0,
           high_score_accounts: highScoreAccounts.length,

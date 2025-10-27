@@ -75,7 +75,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         // 5. Haven't already triggered this chunk
         const nextChunk = job.current_chunk;
         const isLastChunk = nextChunk >= job.total_chunks;
-        const chunkSize = 2000;
+        const chunkSize = 5000;
         const isChunkComplete = job.processed_accounts > 0 && job.processed_accounts % chunkSize === 0;
         const expectedChunk = Math.floor(job.processed_accounts / chunkSize);
         
@@ -219,7 +219,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         body: {
           org_id: userProfile.org_id,
           chunk_index: 0,
-          chunk_size: 2000,
+          chunk_size: 5000,
         },
       });
 

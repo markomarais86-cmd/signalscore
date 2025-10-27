@@ -172,31 +172,42 @@ export function ExternalDataProviders() {
   };
 
   const syncProvider = async (providerKey: string) => {
+    if (!userProfile.org_id) return;
     setSaving(providerKey);
+    
     try {
-      // TODO: Implement actual sync via edge function
       toast({
         title: "Sync started",
         description: `Syncing data from ${providerKey}...`,
       });
       
-      // Simulate sync completion
-      setTimeout(async () => {
-        await loadProviders();
-        setSaving(null);
-        toast({
-          title: "Sync complete",
-          description: `Successfully synced data from ${providerKey}`,
-        });
-      }, 2000);
-    } catch (error) {
+      // Call edge function to sync external provider
+      const { data: syncResult, error: syncError } = await supabase.functions.invoke('sync-external-provider', {
+        body: {
+          org_id: userProfile.org_id,
+          provider: providerKey,
+        },
+      });
+
+      if (syncError) {
+        throw syncError;
+      }
+
+      await loadProviders();
+      
+      toast({
+        title: "Sync complete",
+        description: `Successfully synced ${syncResult.totalAccounts} accounts and ${syncResult.totalContacts} contacts from ${providerKey}`,
+      });
+    } catch (error: any) {
       console.error('Error syncing provider:', error);
-      setSaving(null);
       toast({
         title: "Error",
-        description: "Failed to sync provider data",
+        description: error.message || "Failed to sync provider data",
         variant: "destructive",
       });
+    } finally {
+      setSaving(null);
     }
   };
 
