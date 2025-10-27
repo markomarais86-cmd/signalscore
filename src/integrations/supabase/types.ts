@@ -1872,6 +1872,8 @@ export type Database = {
           high_fit_accounts: number | null
           high_fit_crm: number | null
           high_fit_database: number | null
+          low_fit_accounts: number | null
+          medium_fit_accounts: number | null
           org_id: string | null
           scored_accounts: number | null
           total_accounts: number | null
