@@ -1865,6 +1865,7 @@ export type Database = {
       mv_dashboard_metrics_by_org: {
         Row: {
           both_accounts: number | null
+          campaign_ready_accounts: number | null
           computed_at: string | null
           crm_accounts: number | null
           database_accounts: number | null
