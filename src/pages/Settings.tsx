@@ -63,6 +63,8 @@ import { EnrichmentAPIKeys } from "@/components/settings/EnrichmentAPIKeys";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { ContactsBackfill } from "@/components/settings/ContactsBackfill";
 import { ContactDiscovery } from "@/components/settings/ContactDiscovery";
+import { IntegrationCredentialManager } from "@/components/settings/IntegrationCredentialManager";
+import { IntegrationHealthDashboard } from "@/components/settings/IntegrationHealthDashboard";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -572,9 +574,9 @@ export default function Settings() {
               <CardDescription>Connect to CRMs, databases, and webhooks</CardDescription>
             </CardHeader>
           </Card>
-          <ExternalDataProviders />
+          <IntegrationHealthDashboard />
+          <IntegrationCredentialManager />
           <IntegrationManager />
-          <ZapierWebhookManager />
           <ZapierIntegration />
           
           <Card>

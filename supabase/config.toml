@@ -1,5 +1,8 @@
 project_id = "dhyfbaptcprxxixgnpby"
 
+[functions.integration-service]
+verify_jwt = true
+
 [functions.bulk-score-accounts]
 verify_jwt = true
 
