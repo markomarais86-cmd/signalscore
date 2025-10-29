@@ -1136,6 +1136,154 @@ export type Database = {
           },
         ]
       }
+      integration_configs: {
+        Row: {
+          config: Json | null
+          created_at: string | null
+          created_by: string | null
+          error_count: number | null
+          error_message: string | null
+          id: string
+          integration_type: string
+          last_sync_at: string | null
+          org_id: string
+          provider_name: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          error_count?: number | null
+          error_message?: string | null
+          id?: string
+          integration_type: string
+          last_sync_at?: string | null
+          org_id: string
+          provider_name: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string | null
+          created_by?: string | null
+          error_count?: number | null
+          error_message?: string | null
+          id?: string
+          integration_type?: string
+          last_sync_at?: string | null
+          org_id?: string
+          provider_name?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      integration_credentials: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          credential_type: string
+          encrypted_value: string
+          expires_at: string | null
+          id: string
+          integration_config_id: string | null
+          key_prefix: string | null
+          org_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          credential_type: string
+          encrypted_value: string
+          expires_at?: string | null
+          id?: string
+          integration_config_id?: string | null
+          key_prefix?: string | null
+          org_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          credential_type?: string
+          encrypted_value?: string
+          expires_at?: string | null
+          id?: string
+          integration_config_id?: string | null
+          key_prefix?: string | null
+          org_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_credentials_integration_config_id_fkey"
+            columns: ["integration_config_id"]
+            isOneToOne: false
+            referencedRelation: "integration_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_sync_logs: {
+        Row: {
+          completed_at: string | null
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          integration_config_id: string | null
+          metadata: Json | null
+          org_id: string
+          records_created: number | null
+          records_failed: number | null
+          records_processed: number | null
+          records_updated: number | null
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          integration_config_id?: string | null
+          metadata?: Json | null
+          org_id: string
+          records_created?: number | null
+          records_failed?: number | null
+          records_processed?: number | null
+          records_updated?: number | null
+          started_at?: string | null
+          status: string
+        }
+        Update: {
+          completed_at?: string | null
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          integration_config_id?: string | null
+          metadata?: Json | null
+          org_id?: string
+          records_created?: number | null
+          records_failed?: number | null
+          records_processed?: number | null
+          records_updated?: number | null
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_sync_logs_integration_config_id_fkey"
+            columns: ["integration_config_id"]
+            isOneToOne: false
+            referencedRelation: "integration_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           accepted_at: string | null
@@ -1318,6 +1466,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      oauth_state: {
+        Row: {
+          created_at: string | null
+          expires_at: string
+          id: string
+          metadata: Json | null
+          org_id: string
+          provider: string
+          redirect_url: string
+          state_token: string
+        }
+        Insert: {
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          metadata?: Json | null
+          org_id: string
+          provider: string
+          redirect_url: string
+          state_token: string
+        }
+        Update: {
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          metadata?: Json | null
+          org_id?: string
+          provider?: string
+          redirect_url?: string
+          state_token?: string
+        }
+        Relationships: []
       }
       organizations: {
         Row: {
@@ -1988,6 +2169,7 @@ export type Database = {
         }
         Returns: Json
       }
+      cleanup_expired_oauth_states: { Args: never; Returns: number }
       cleanup_stuck_enrichment_jobs: { Args: never; Returns: number }
       count_campaign_ready_accounts: {
         Args: { p_org_id: string }
