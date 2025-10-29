@@ -448,6 +448,9 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
+      {/* Invitations Management */}
+      <InvitationsManager />
+
       {/* Users Table */}
       <Card>
         <CardHeader>
@@ -566,9 +569,6 @@ export default function AdminDashboard() {
           </Table>
         </CardContent>
       </Card>
-
-      {/* Invitations Management */}
-      <InvitationsManager />
 
       {/* Create Organization Dialog */}
       <CreateOrganizationDialog
