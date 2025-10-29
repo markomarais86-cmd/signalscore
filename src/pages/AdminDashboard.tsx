@@ -10,6 +10,9 @@ import { Shield, Users, Building, Search, RefreshCw, Plus, Power, PowerOff, Tras
 import { useToast } from '@/hooks/use-toast';
 import { CreateOrganizationDialog } from '@/components/settings/CreateOrganizationDialog';
 import { InvitationsManager } from '@/components/settings/InvitationsManager';
+import { AuditLogViewer } from '@/components/platform-admin/AuditLogViewer';
+import { usePlatformAdmin } from '@/hooks/use-platform-admin';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -67,6 +70,7 @@ export default function AdminDashboard() {
   const { isSuperAdmin, loading: rolesLoading } = useRoles();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { recentAudits } = usePlatformAdmin();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [users, setUsers] = useState<UserWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -448,11 +452,16 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Invitations Management */}
-      <InvitationsManager />
+      {/* Tabbed Content */}
+      <Tabs defaultValue="users" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="invitations">Invitations</TabsTrigger>
+          <TabsTrigger value="audit">Audit Logs</TabsTrigger>
+        </TabsList>
 
-      {/* Users Table */}
-      <Card>
+        <TabsContent value="users">
+          <Card>
         <CardHeader>
           <CardTitle>Users</CardTitle>
           <CardDescription>All users across all organizations</CardDescription>
@@ -569,6 +578,16 @@ export default function AdminDashboard() {
           </Table>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="invitations">
+          <InvitationsManager />
+        </TabsContent>
+
+        <TabsContent value="audit">
+          {recentAudits && <AuditLogViewer logs={recentAudits} />}
+        </TabsContent>
+      </Tabs>
 
       {/* Create Organization Dialog */}
       <CreateOrganizationDialog
