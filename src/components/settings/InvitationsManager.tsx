@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { useRoles } from '@/hooks/use-roles';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,10 +26,15 @@ interface Invitation {
   created_at: string;
   expires_at: string;
   accepted_at: string | null;
+  org_id: string;
+  organizations?: {
+    name: string;
+  };
 }
 
 export function InvitationsManager() {
   const { userProfile } = useAuth();
+  const { isSuperAdmin } = useRoles();
   const { toast } = useToast();
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,11 +52,22 @@ export function InvitationsManager() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('invitations')
-        .select('*')
-        .eq('org_id', userProfile.org_id)
+        .select(`
+          *,
+          organizations (
+            name
+          )
+        `)
         .order('created_at', { ascending: false });
+
+      // If not super admin, only show invitations for their org
+      if (!isSuperAdmin) {
+        query = query.eq('org_id', userProfile.org_id);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setInvitations(data || []);
@@ -73,7 +90,7 @@ export function InvitationsManager() {
       const { data: org } = await supabase
         .from('organizations')
         .select('name')
-        .eq('id', userProfile?.org_id)
+        .eq('id', invitation.org_id)
         .single();
 
       // Build invitation URL
@@ -183,6 +200,7 @@ export function InvitationsManager() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  {isSuperAdmin && <TableHead>Organization</TableHead>}
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
@@ -194,6 +212,11 @@ export function InvitationsManager() {
               <TableBody>
                 {invitations.map((invitation) => (
                   <TableRow key={invitation.id}>
+                    {isSuperAdmin && (
+                      <TableCell className="font-medium">
+                        {invitation.organizations?.name || 'Unknown'}
+                      </TableCell>
+                    )}
                     <TableCell className="font-medium">{invitation.email}</TableCell>
                     <TableCell className="capitalize">{invitation.role}</TableCell>
                     <TableCell>{getStatusBadge(invitation.status, invitation.expires_at)}</TableCell>
