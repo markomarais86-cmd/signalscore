@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { UserPlus, XCircle, RefreshCw } from 'lucide-react';
+import { UserPlus, XCircle, RefreshCw, Mail } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface Invitation {
@@ -33,6 +33,7 @@ export function InvitationsManager() {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (userProfile) {
@@ -62,6 +63,45 @@ export function InvitationsManager() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResendInvitation = async (invitation: Invitation) => {
+    setResendingId(invitation.id);
+    try {
+      // Get organization name for the email
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', userProfile?.org_id)
+        .single();
+
+      // Build invitation URL
+      const inviteUrl = `https://launchpulse.io/auth?invite=${invitation.id}`;
+      
+      // Send email via edge function
+      const { error: emailError } = await supabase.functions.invoke('send-invitation', {
+        body: {
+          email: invitation.email,
+          inviteUrl,
+          orgName: org?.name || 'LaunchPulse'
+        }
+      });
+
+      if (emailError) throw emailError;
+
+      toast({
+        title: 'Invitation Resent',
+        description: `Invitation email has been resent to ${invitation.email}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to resend invitation',
+        variant: 'destructive',
+      });
+    } finally {
+      setResendingId(null);
     }
   };
 
@@ -165,13 +205,27 @@ export function InvitationsManager() {
                     </TableCell>
                     <TableCell>
                       {invitation.status === 'pending' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleCancelInvitation(invitation.id)}
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleResendInvitation(invitation)}
+                            disabled={resendingId === invitation.id}
+                          >
+                            {resendingId === invitation.id ? (
+                              <RefreshCw className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Mail className="h-4 w-4" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCancelInvitation(invitation.id)}
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
