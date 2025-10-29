@@ -11,6 +11,9 @@ import { useToast } from '@/hooks/use-toast';
 import { CreateOrganizationDialog } from '@/components/settings/CreateOrganizationDialog';
 import { InvitationsManager } from '@/components/settings/InvitationsManager';
 import { AuditLogViewer } from '@/components/platform-admin/AuditLogViewer';
+import { PlatformMetrics } from '@/components/platform-admin/PlatformMetrics';
+import { OrganizationCard } from '@/components/platform-admin/OrganizationCard';
+import { OrganizationManagementDialog } from '@/components/platform-admin/OrganizationManagementDialog';
 import { usePlatformAdmin } from '@/hooks/use-platform-admin';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -70,14 +73,14 @@ export default function AdminDashboard() {
   const { isSuperAdmin, loading: rolesLoading } = useRoles();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { recentAudits } = usePlatformAdmin();
-  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const { organizations, organizationMetrics, recentAudits, isLoading: metricsLoading } = usePlatformAdmin();
   const [users, setUsers] = useState<UserWithProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrgFilter, setSelectedOrgFilter] = useState<string>('all');
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false);
   const [deleteOrgId, setDeleteOrgId] = useState<string | null>(null);
+  const [managingOrg, setManagingOrg] = useState<string | null>(null);
   const [roleChangeUser, setRoleChangeUser] = useState<{ userId: string; email: string; newRole: string } | null>(null);
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
 
@@ -109,43 +112,10 @@ export default function AdminDashboard() {
   const loadAdminData = async () => {
     setLoading(true);
     try {
-      await Promise.all([loadOrganizations(), loadUsers()]);
+      await loadUsers();
     } finally {
       setLoading(false);
     }
-  };
-
-  const loadOrganizations = async () => {
-    const { data: orgs, error: orgsError } = await supabase
-      .from('organizations')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (orgsError) {
-      console.error('Error loading organizations:', orgsError);
-      return;
-    }
-
-    if (!orgs) return;
-
-    // Get user counts for each org
-    const orgsWithCounts = await Promise.all(
-      orgs.map(async (org) => {
-        const [{ count: userCount }, { count: accountCount }] = await Promise.all([
-          supabase.from('user_profiles').select('*', { count: 'exact', head: true }).eq('org_id', org.id),
-          supabase.from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', org.id),
-        ]);
-
-        return {
-          ...org,
-          user_count: userCount || 0,
-          account_count: accountCount || 0,
-          last_activity: null,
-        };
-      })
-    );
-
-    setOrganizations(orgsWithCounts);
   };
 
   const loadUsers = async () => {
@@ -247,7 +217,7 @@ export default function AdminDashboard() {
         description: 'Organization has been activated successfully.',
       });
 
-      loadOrganizations();
+      window.location.reload();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -267,7 +237,7 @@ export default function AdminDashboard() {
         description: 'Organization has been deactivated successfully.',
       });
 
-      loadOrganizations();
+      window.location.reload();
     } catch (error: any) {
       toast({
         title: 'Error',
@@ -315,7 +285,7 @@ export default function AdminDashboard() {
     return matchesSearch && matchesOrg;
   });
 
-  if (rolesLoading || loading) {
+  if (rolesLoading || loading || metricsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -349,116 +319,100 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Platform Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Organizations</CardTitle>
-            <Building className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{organizations.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{users.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Super Admins</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {users.filter((u) => u.user_roles.includes('super_admin')).length}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Organizations Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Organizations</CardTitle>
-          <CardDescription>All customer organizations in the platform</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Organization</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Users</TableHead>
-                <TableHead>Accounts</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {organizations.map((org) => (
-                <TableRow key={org.id}>
-                  <TableCell className="font-medium">{org.name}</TableCell>
-                  <TableCell>
-                    <Badge variant={org.status === 'active' ? 'default' : 'secondary'}>
-                      {org.status === 'active' ? 'Active' : 'Inactive'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{org.user_count}</TableCell>
-                  <TableCell>{org.account_count.toLocaleString()}</TableCell>
-                  <TableCell>{new Date(org.created_at).toLocaleDateString()}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex gap-2 justify-end">
-                      {org.status === 'active' ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDeactivateOrg(org.id)}
-                        >
-                          <PowerOff className="h-4 w-4 mr-2" />
-                          Deactivate
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleActivateOrg(org.id)}
-                        >
-                          <Power className="h-4 w-4 mr-2" />
-                          Activate
-                        </Button>
-                      )}
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => setDeleteOrgId(org.id)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {/* Platform Metrics */}
+      <PlatformMetrics organizations={organizationMetrics} />
 
       {/* Tabbed Content */}
-      <Tabs defaultValue="users" className="space-y-6">
+      <Tabs defaultValue="organizations-overview" className="space-y-6">
         <TabsList>
+          <TabsTrigger value="organizations-overview">Organizations Overview</TabsTrigger>
+          <TabsTrigger value="organizations-table">Organizations Table</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="invitations">Invitations</TabsTrigger>
           <TabsTrigger value="audit">Audit Logs</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="organizations-overview">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {organizationMetrics.map((org) => (
+              <OrganizationCard
+                key={org.id}
+                org={org}
+                onManage={(orgId) => setManagingOrg(orgId)}
+              />
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="organizations-table">
+          <Card>
+            <CardHeader>
+              <CardTitle>Organizations</CardTitle>
+              <CardDescription>All customer organizations in the platform</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Organization</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Users</TableHead>
+                    <TableHead>Accounts</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {organizationMetrics.map((org) => (
+                    <TableRow key={org.id}>
+                      <TableCell className="font-medium">{org.name}</TableCell>
+                      <TableCell>
+                        <Badge variant={org.status === 'active' ? 'default' : 'secondary'}>
+                          {org.status === 'active' ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{org.total_users}</TableCell>
+                      <TableCell>{org.total_accounts.toLocaleString()}</TableCell>
+                      <TableCell>{new Date(org.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setManagingOrg(org.id)}>
+                              Manage
+                            </DropdownMenuItem>
+                            {org.status === 'active' ? (
+                              <DropdownMenuItem onClick={() => handleDeactivateOrg(org.id)}>
+                                <PowerOff className="h-4 w-4 mr-2" />
+                                Deactivate
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem onClick={() => handleActivateOrg(org.id)}>
+                                <Power className="h-4 w-4 mr-2" />
+                                Activate
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem 
+                              onClick={() => setDeleteOrgId(org.id)}
+                              className="text-destructive"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="users">
           <Card>
@@ -483,7 +437,7 @@ export default function AdminDashboard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Organizations</SelectItem>
-                {organizations.map((org) => (
+                {organizationMetrics.map((org) => (
                   <SelectItem key={org.id} value={org.id}>
                     {org.name}
                   </SelectItem>
@@ -588,6 +542,16 @@ export default function AdminDashboard() {
           {recentAudits && <AuditLogViewer logs={recentAudits} />}
         </TabsContent>
       </Tabs>
+
+      {/* Organization Management Dialog */}
+      {managingOrg && (
+        <OrganizationManagementDialog
+          org={organizationMetrics.find(o => o.id === managingOrg)!}
+          open={!!managingOrg}
+          onOpenChange={(open) => !open && setManagingOrg(null)}
+          onUpdate={() => window.location.reload()}
+        />
+      )}
 
       {/* Create Organization Dialog */}
       <CreateOrganizationDialog
