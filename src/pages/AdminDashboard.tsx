@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Shield, Users, Building, Search, RefreshCw, Plus, Power, PowerOff, Trash2, MoreVertical, UserCog, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { CreateOrganizationDialog } from '@/components/settings/CreateOrganizationDialog';
+import { InvitationsManager } from '@/components/settings/InvitationsManager';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -565,6 +566,9 @@ export default function AdminDashboard() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Invitations Management */}
+      <InvitationsManager />
 
       {/* Create Organization Dialog */}
       <CreateOrganizationDialog
