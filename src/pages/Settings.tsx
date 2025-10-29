@@ -72,27 +72,9 @@ interface TeamMember {
   id: string;
   email: string;
   full_name?: string;
-  role: 'admin' | 'user' | 'viewer';
+  role: string;
   status: 'active' | 'pending' | 'inactive';
   last_active?: string;
-}
-
-interface Integration {
-  id: string;
-  name: string;
-  type: 'crm' | 'email' | 'webhook';
-  status: 'connected' | 'disconnected' | 'error';
-  last_sync?: string;
-  config: any;
-}
-
-interface NotificationSetting {
-  id: string;
-  type: 'new_high_score' | 'data_quality' | 'weekly_report' | 'system';
-  label: string;
-  description: string;
-  email: boolean;
-  in_app: boolean;
 }
 
 export default function Settings() {
@@ -113,16 +95,12 @@ export default function Settings() {
   
   // Team management
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'admin' | 'user' | 'viewer'>('user');
   
-  // Integrations
-  const [integrations, setIntegrations] = useState<Integration[]>([]);
-  const [apiKeys, setApiKeys] = useState<{ id: string; name: string; key: string; created_at: string; last_used?: string }[]>([]);
-  const [showApiKey, setShowApiKey] = useState<{ [key: string]: boolean }>({});
-  
-  // Notifications
-  const [notifications, setNotifications] = useState<NotificationSetting[]>([]);
+  // Organization settings
+  const [orgSettings, setOrgSettings] = useState({
+    name: '',
+    timezone: 'UTC'
+  });
   
   const { userProfile, user } = useAuth();
   const { toast } = useToast();
@@ -166,80 +144,21 @@ export default function Settings() {
         avatar_url: (userProfile as any).avatar_url || ''
       });
 
-      // Load mock data for demo
-      setTeamMembers([
-        {
-          id: '1',
-          email: 'alice@company.com',
-          full_name: 'Alice Johnson',
-          role: 'admin',
-          status: 'active',
-          last_active: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          id: '2',
-          email: 'bob@company.com',
-          full_name: 'Bob Smith',
-          role: 'user',
-          status: 'active',
-          last_active: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+      // Load organization settings
+      if (userProfile.org_id) {
+        const { data: org, error: orgError } = await supabase
+          .from('organizations')
+          .select('name')
+          .eq('id', userProfile.org_id)
+          .single();
+        
+        if (org && !orgError) {
+          setOrgSettings(prev => ({ ...prev, name: org.name }));
         }
-      ]);
+      }
 
-      setIntegrations([
-        {
-          id: '1',
-          name: 'Salesforce',
-          type: 'crm',
-          status: 'connected',
-          last_sync: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-          config: { instance_url: 'https://company.salesforce.com' }
-        },
-        {
-          id: '2',
-          name: 'HubSpot',
-          type: 'crm',
-          status: 'disconnected',
-          config: {}
-        }
-      ]);
-
-      setApiKeys([
-        {
-          id: '1',
-          name: 'Production API',
-          key: 'sk_live_1234567890abcdef',
-          created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-          last_used: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-        }
-      ]);
-
-      setNotifications([
-        {
-          id: '1',
-          type: 'new_high_score',
-          label: 'High-Score Leads',
-          description: 'Get notified when leads score above 80',
-          email: true,
-          in_app: true
-        },
-        {
-          id: '2',
-          type: 'data_quality',
-          label: 'Data Quality Issues',
-          description: 'Alerts for missing or incomplete data',
-          email: true,
-          in_app: false
-        },
-        {
-          id: '3',
-          type: 'weekly_report',
-          label: 'Weekly Reports',
-          description: 'Summary of pipeline activity and performance',
-          email: false,
-          in_app: true
-        }
-      ]);
+      // Load real team members
+      await loadTeamMembers();
 
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -250,6 +169,37 @@ export default function Settings() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTeamMembers = async () => {
+    if (!userProfile?.org_id) return;
+    
+    try {
+      const { data, error } = await supabase.rpc('get_users_with_emails', {
+        p_org_id: userProfile.org_id
+      });
+      
+      if (error) {
+        console.error('Error loading team members:', error);
+        return;
+      }
+      
+      if (!data) return;
+      
+      // Transform to TeamMember format
+      const members: TeamMember[] = data.map((user: any) => ({
+        id: user.user_id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.profile_role || 'user',
+        status: 'active',
+        last_active: undefined
+      }));
+      
+      setTeamMembers(members);
+    } catch (error) {
+      console.error('Error loading team members:', error);
     }
   };
 
@@ -266,62 +216,6 @@ export default function Settings() {
     }
   };
 
-  const inviteTeamMember = async () => {
-    if (!inviteEmail) return;
-    
-    try {
-      // This would send an invitation email
-      const newMember: TeamMember = {
-        id: Date.now().toString(),
-        email: inviteEmail,
-        role: inviteRole,
-        status: 'pending'
-      };
-      
-      setTeamMembers(prev => [...prev, newMember]);
-      setInviteEmail('');
-      setInviteRole('user');
-      
-      toast({ title: "Success", description: "Invitation sent successfully" });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to send invitation",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const generateApiKey = async () => {
-    try {
-      const newKey = {
-        id: Date.now().toString(),
-        name: `API Key ${apiKeys.length + 1}`,
-        key: `sk_live_${Math.random().toString(36).substring(2, 15)}`,
-        created_at: new Date().toISOString()
-      };
-      
-      setApiKeys(prev => [...prev, newKey]);
-      toast({ title: "Success", description: "API key generated successfully" });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to generate API key",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const copyApiKey = (key: string) => {
-    navigator.clipboard.writeText(key);
-    toast({ title: "Copied", description: "API key copied to clipboard" });
-  };
-
-  const updateNotificationSetting = (id: string, field: 'email' | 'in_app', value: boolean) => {
-    setNotifications(prev => prev.map(n => 
-      n.id === id ? { ...n, [field]: value } : n
-    ));
-  };
 
   const getRoleBadge = (role: string) => {
     const variants = {
@@ -352,7 +246,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="account" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Account
@@ -372,10 +266,6 @@ export default function Settings() {
           <TabsTrigger value="automation" className="flex items-center gap-2">
             <Bot className="h-4 w-4" />
             Automation & AI
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
-            <Bell className="h-4 w-4" />
-            Notifications
           </TabsTrigger>
         </TabsList>
 
@@ -447,11 +337,18 @@ export default function Settings() {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="orgName">Organization Name</Label>
-                <Input id="orgName" defaultValue="Acme Corporation" />
+                <Input 
+                  id="orgName" 
+                  value={orgSettings.name}
+                  onChange={(e) => setOrgSettings(prev => ({ ...prev, name: e.target.value }))}
+                />
               </div>
               <div>
                 <Label htmlFor="timezone">Timezone</Label>
-                <Select defaultValue="UTC">
+                <Select 
+                  value={orgSettings.timezone}
+                  onValueChange={(value) => setOrgSettings(prev => ({ ...prev, timezone: value }))}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -514,33 +411,38 @@ export default function Settings() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {teamMembers.map((member) => (
-                  <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarFallback>{member.full_name?.charAt(0) || member.email.charAt(0).toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">{member.full_name || member.email}</p>
-                        <p className="text-sm text-muted-foreground">{member.email}</p>
-                        {member.last_active && (
-                          <p className="text-xs text-muted-foreground">
-                            Last active: {new Date(member.last_active).toLocaleDateString()}
-                          </p>
-                        )}
+              {teamMembers.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No team members yet</p>
+                  <p className="text-sm">Use the invite section above to add team members</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {teamMembers.map((member) => (
+                    <div key={member.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Avatar>
+                          <AvatarFallback>{member.full_name?.charAt(0) || member.email.charAt(0).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="font-medium">{member.full_name || member.email}</p>
+                          <p className="text-sm text-muted-foreground">{member.email}</p>
+                          {member.last_active && (
+                            <p className="text-xs text-muted-foreground">
+                              Last active: {new Date(member.last_active).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {getRoleBadge(member.role)}
+                        {getStatusBadge(member.status)}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {getRoleBadge(member.role)}
-                      {getStatusBadge(member.status)}
-                      <Button variant="ghost" size="sm">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -588,122 +490,6 @@ export default function Settings() {
           <EnrichmentAPIKeys />
           <RateLimitSettings />
           <APIKeyManager />
-        </TabsContent>
-
-        {/* Notifications */}
-        <TabsContent value="notifications" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>Choose how you want to be notified about important events</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {notifications.map((notification) => (
-                  <div key={notification.id} className="flex items-center justify-between py-4 border-b">
-                    <div className="flex-1">
-                      <h4 className="font-medium">{notification.label}</h4>
-                      <p className="text-sm text-muted-foreground">{notification.description}</p>
-                    </div>
-                    <div className="flex items-center gap-6">
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <Switch
-                          checked={notification.email}
-                          onCheckedChange={(checked) => updateNotificationSetting(notification.id, 'email', checked)}
-                        />
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Bell className="h-4 w-4 text-muted-foreground" />
-                        <Switch
-                          checked={notification.in_app}
-                          onCheckedChange={(checked) => updateNotificationSetting(notification.id, 'in_app', checked)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-
-        {/* Billing */}
-        <TabsContent value="billing" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Current Plan</CardTitle>
-              <CardDescription>Manage your subscription and billing</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between p-6 bg-primary/5 rounded-lg">
-                <div>
-                  <h3 className="text-lg font-semibold">Professional Plan</h3>
-                  <p className="text-muted-foreground">$99/month • Billed monthly</p>
-                  <p className="text-sm text-muted-foreground mt-1">Next billing: Jan 15, 2024</p>
-                </div>
-                <div className="text-right">
-                  <Button variant="outline">Change Plan</Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Usage</CardTitle>
-              <CardDescription>Current period usage and limits</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-3 gap-4">
-                <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium">Accounts</h4>
-                  <p className="text-2xl font-bold">2,847</p>
-                  <p className="text-sm text-muted-foreground">of 10,000 limit</p>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium">API Calls</h4>
-                  <p className="text-2xl font-bold">15,342</p>
-                  <p className="text-sm text-muted-foreground">of 100,000 limit</p>
-                </div>
-                <div className="p-4 border rounded-lg">
-                  <h4 className="font-medium">Team Members</h4>
-                  <p className="text-2xl font-bold">5</p>
-                  <p className="text-sm text-muted-foreground">of 10 limit</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Billing History</CardTitle>
-              <CardDescription>Download invoices and view payment history</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {[
-                  { date: '2024-01-01', amount: '$99.00', status: 'Paid' },
-                  { date: '2023-12-01', amount: '$99.00', status: 'Paid' },
-                  { date: '2023-11-01', amount: '$99.00', status: 'Paid' }
-                ].map((invoice, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <p className="font-medium">{invoice.date}</p>
-                      <p className="text-sm text-muted-foreground">{invoice.amount}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">{invoice.status}</Badge>
-                      <Button variant="ghost" size="sm">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {/* Security */}

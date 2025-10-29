@@ -119,48 +119,38 @@ export default function AdminDashboard() {
   };
 
   const loadUsers = async () => {
-    // Get all user profiles with organization info
-    const { data: profiles, error: profilesError } = await supabase
-      .from('user_profiles')
-      .select(`
-        user_id,
-        full_name,
-        role,
-        created_at,
-        org_id,
-        organizations (
-          name
-        )
-      `)
-      .order('created_at', { ascending: false });
+    // Use RPC function to get users with emails
+    const { data: usersData, error: usersError } = await supabase.rpc('get_users_with_emails');
 
-    if (profilesError) {
-      console.error('Error loading user profiles:', profilesError);
+    if (usersError) {
+      console.error('Error loading users:', usersError);
+      toast({
+        title: 'Error',
+        description: 'Failed to load users',
+        variant: 'destructive',
+      });
       return;
     }
 
-    if (!profiles) return;
+    if (!usersData) return;
 
     // Get user roles for each user
     const usersWithRoles = await Promise.all(
-      profiles.map(async (profile: any) => {
+      usersData.map(async (userData: any) => {
         const { data: roles } = await supabase
           .from('user_roles')
           .select('role')
-          .eq('user_id', profile.user_id);
-
-        // Get email from auth.users (via admin API)
-        const { data: { user } } = await supabase.auth.admin.getUserById(profile.user_id);
+          .eq('user_id', userData.user_id);
 
         return {
-          user_id: profile.user_id,
-          email: user?.email || 'N/A',
-          full_name: profile.full_name,
-          org_name: profile.organizations?.name || 'Unknown',
-          org_id: profile.org_id,
-          profile_role: profile.role,
+          user_id: userData.user_id,
+          email: userData.email || 'N/A',
+          full_name: userData.full_name,
+          org_name: userData.org_name || 'Unknown',
+          org_id: userData.org_id,
+          profile_role: userData.profile_role,
           user_roles: roles?.map((r) => r.role) || [],
-          created_at: profile.created_at,
+          created_at: userData.created_at,
         };
       })
     );

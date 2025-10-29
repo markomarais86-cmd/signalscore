@@ -2221,6 +2221,18 @@ export type Database = {
           used: number
         }[]
       }
+      get_users_with_emails: {
+        Args: { p_org_id?: string }
+        Returns: {
+          created_at: string
+          email: string
+          full_name: string
+          org_id: string
+          org_name: string
+          profile_role: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
