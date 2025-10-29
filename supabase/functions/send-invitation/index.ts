@@ -26,7 +26,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Sending invitation to:", email);
 
     const emailResponse = await resend.emails.send({
-      from: "LaunchPulse <onboarding@resend.dev>", // Change to your verified domain: invitations@yourdomain.com
+      from: "LaunchPulse <invitations@launchpulse.io>",
       to: [email],
       subject: `You're invited to join ${orgName} on LaunchPulse`,
       html: `
