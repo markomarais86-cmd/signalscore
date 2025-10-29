@@ -95,7 +95,7 @@ export function CreateOrganizationDialog({ open, onOpenChange, onSuccess }: Crea
       if (inviteError) throw inviteError;
 
       // 4. Send invitation email via edge function
-      const inviteUrl = `${window.location.origin}/auth?invite=${token}`;
+      const inviteUrl = `https://launchpulse.io/auth?invite=${token}`;
       
       const { error: emailError } = await supabase.functions.invoke('send-invitation', {
         body: {
