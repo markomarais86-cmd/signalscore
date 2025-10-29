@@ -73,10 +73,10 @@ export function IntegrationCredentialManager() {
     try {
       const { data, error } = await supabase.functions.invoke('integration-service', {
         body: {
+          action: 'test',
           provider_name: provider.name,
           api_key: apiKey,
         },
-        method: 'POST',
       });
 
       if (error) throw error;
@@ -120,11 +120,11 @@ export function IntegrationCredentialManager() {
     try {
       const { error } = await supabase.functions.invoke('integration-service', {
         body: {
+          action: 'connect',
           provider_name: provider.name,
           integration_type: provider.type,
           api_key: apiKey,
         },
-        method: 'POST',
       });
 
       if (error) throw error;
