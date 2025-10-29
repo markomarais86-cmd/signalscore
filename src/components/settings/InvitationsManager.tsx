@@ -27,6 +27,7 @@ interface Invitation {
   expires_at: string;
   accepted_at: string | null;
   org_id: string;
+  token: string;
   organizations?: {
     name: string;
   };
@@ -93,8 +94,8 @@ export function InvitationsManager() {
         .eq('id', invitation.org_id)
         .single();
 
-      // Build invitation URL
-      const inviteUrl = `https://launchpulse.io/auth?invite=${invitation.id}`;
+      // Build invitation URL using the token, not the id
+      const inviteUrl = `https://launchpulse.io/auth?invite=${invitation.token}`;
       
       // Send email via edge function
       const { error: emailError } = await supabase.functions.invoke('send-invitation', {
