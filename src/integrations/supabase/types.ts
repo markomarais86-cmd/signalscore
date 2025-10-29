@@ -891,6 +891,7 @@ export type Database = {
           budget_indicators: string[] | null
           buying_signals: string[] | null
           buying_triggers: string[] | null
+          category: string | null
           cities: string[] | null
           company_sizes: number[] | null
           company_stages: string[] | null
@@ -907,15 +908,18 @@ export type Database = {
           id: string
           industries: string[] | null
           intent_signals: string[] | null
+          is_primary: boolean | null
           last_validated_at: string | null
           match_count: number | null
           name: string
           org_id: string
           pain_points: string[] | null
+          parent_icp_id: string | null
           persona_decision_roles: string[] | null
           persona_departments: string[] | null
           persona_job_titles: string[] | null
           persona_seniority_levels: string[] | null
+          priority: number | null
           regions: string[] | null
           revenue_ranges: string[] | null
           seasonal_patterns: string[] | null
@@ -933,6 +937,7 @@ export type Database = {
           budget_indicators?: string[] | null
           buying_signals?: string[] | null
           buying_triggers?: string[] | null
+          category?: string | null
           cities?: string[] | null
           company_sizes?: number[] | null
           company_stages?: string[] | null
@@ -949,15 +954,18 @@ export type Database = {
           id?: string
           industries?: string[] | null
           intent_signals?: string[] | null
+          is_primary?: boolean | null
           last_validated_at?: string | null
           match_count?: number | null
           name: string
           org_id: string
           pain_points?: string[] | null
+          parent_icp_id?: string | null
           persona_decision_roles?: string[] | null
           persona_departments?: string[] | null
           persona_job_titles?: string[] | null
           persona_seniority_levels?: string[] | null
+          priority?: number | null
           regions?: string[] | null
           revenue_ranges?: string[] | null
           seasonal_patterns?: string[] | null
@@ -975,6 +983,7 @@ export type Database = {
           budget_indicators?: string[] | null
           buying_signals?: string[] | null
           buying_triggers?: string[] | null
+          category?: string | null
           cities?: string[] | null
           company_sizes?: number[] | null
           company_stages?: string[] | null
@@ -991,15 +1000,18 @@ export type Database = {
           id?: string
           industries?: string[] | null
           intent_signals?: string[] | null
+          is_primary?: boolean | null
           last_validated_at?: string | null
           match_count?: number | null
           name?: string
           org_id?: string
           pain_points?: string[] | null
+          parent_icp_id?: string | null
           persona_decision_roles?: string[] | null
           persona_departments?: string[] | null
           persona_job_titles?: string[] | null
           persona_seniority_levels?: string[] | null
+          priority?: number | null
           regions?: string[] | null
           revenue_ranges?: string[] | null
           seasonal_patterns?: string[] | null
@@ -1019,6 +1031,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "icp_profiles_parent_icp_id_fkey"
+            columns: ["parent_icp_id"]
+            isOneToOne: false
+            referencedRelation: "icp_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1766,6 +1785,7 @@ export type Database = {
           account_external_id: string | null
           computed_at: string | null
           fit: number | null
+          icp_id: string | null
           id: string
           intent: number | null
           org_id: string
@@ -1778,6 +1798,7 @@ export type Database = {
           account_external_id?: string | null
           computed_at?: string | null
           fit?: number | null
+          icp_id?: string | null
           id?: string
           intent?: number | null
           org_id: string
@@ -1790,6 +1811,7 @@ export type Database = {
           account_external_id?: string | null
           computed_at?: string | null
           fit?: number | null
+          icp_id?: string | null
           id?: string
           intent?: number | null
           org_id?: string
@@ -1805,6 +1827,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "accounts"
             referencedColumns: ["org_id", "external_id"]
+          },
+          {
+            foreignKeyName: "scores_icp_id_fkey"
+            columns: ["icp_id"]
+            isOneToOne: false
+            referencedRelation: "icp_profiles"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "scores_org_id_fkey"
@@ -2204,13 +2233,38 @@ export type Database = {
       generate_invitation_token: { Args: never; Returns: string }
       generate_sample_data: { Args: never; Returns: Json }
       get_active_icp_id: { Args: { p_org_id: string }; Returns: string }
+      get_country_drilldown: {
+        Args: { p_industry: string; p_org_id: string }
+        Returns: {
+          account_count: number
+          avg_score: number
+          id: string
+          industries_count: number
+          market_share: number
+          name: string
+        }[]
+      }
       get_current_user_org_id: { Args: never; Returns: string }
-      get_dashboard_metrics_fast: { Args: { p_org_id: string }; Returns: Json }
+      get_dashboard_metrics_fast:
+        | { Args: { p_org_id: string }; Returns: Json }
+        | { Args: { p_icp_id?: string; p_org_id: string }; Returns: Json }
       get_geography_distribution: {
         Args: { p_org_id: string }
         Returns: {
           count: number
           country: string
+        }[]
+      }
+      get_industry_drilldown: {
+        Args: { p_org_id: string }
+        Returns: {
+          account_count: number
+          avg_score: number
+          countries_count: number
+          id: string
+          name: string
+          with_revenue_count: number
+          with_size_count: number
         }[]
       }
       get_org_enrichment_credits: {
@@ -2219,6 +2273,17 @@ export type Database = {
           remaining: number
           total: number
           used: number
+        }[]
+      }
+      get_persona_drilldown: {
+        Args: { p_country: string; p_industry: string; p_org_id: string }
+        Returns: {
+          account_count: number
+          avg_score: number
+          contact_count: number
+          coverage_rate: number
+          id: string
+          name: string
         }[]
       }
       get_users_with_emails: {
