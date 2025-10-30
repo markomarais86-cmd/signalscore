@@ -149,10 +149,13 @@ export function FirmographicEnrichmentCard() {
         .from('enrichment_jobs')
         .insert({
           org_id: userProfile.org_id,
-          provider: provider,
           job_type: 'accounts',
+          provider: provider,
           status: 'pending',
-          created_by: userProfile.user_id
+          total_records: 100,
+          processed_records: 0,
+          enriched_records: 0,
+          failed_records: 0
         })
         .select()
         .single();
@@ -162,75 +165,40 @@ export function FirmographicEnrichmentCard() {
       setCurrentJob(job);
       setEnriching(true);
 
-      // Call appropriate edge function
-      const functionMap = {
-        'clearbit_free': 'enrich-clearbit-free',
-        'lovable_ai': 'enrich-firmographics',
-        'pdl': 'enrich-pdl',
-        'smart_sequential': 'smart-enrich'
-      };
-      const functionName = functionMap[provider];
-      const { error: functionError } = await supabase.functions.invoke(functionName, {
-        body: { job_id: job.id, jobId: job.id }
-      });
+      // Call appropriate enrichment function
+      let functionName = '';
+      switch (provider) {
+        case 'lovable_ai':
+          functionName = 'enrich-ai-firmographics';
+          break;
+        case 'clearbit_free':
+          functionName = 'enrich-clearbit-free';
+          break;
+        case 'pdl':
+          functionName = 'enrich-pdl';
+          break;
+        case 'smart_sequential':
+          functionName = 'smart-enrich';
+          break;
+      }
 
-      if (functionError) throw functionError;
-
-      const providerNames = {
-        'clearbit_free': 'Clearbit Free',
-        'lovable_ai': 'AI',
-        'pdl': 'People Data Labs',
-        'smart_sequential': 'Smart Sequential (All Tiers)'
-      };
-      toast({
-        title: "🚀 Enrichment started",
-        description: `Processing your accounts with ${providerNames[provider]}`,
-      });
-
-      // Show real-time progress updates
-      let updateCount = 0;
-      const progressInterval = setInterval(async () => {
-        const { data: updatedJob } = await supabase
-          .from("enrichment_jobs")
-          .select("*")
-          .eq("id", job.id)
-          .single();
-
-        if (updatedJob) {
-          if (updatedJob.status === "completed") {
-            clearInterval(progressInterval);
-            setEnriching(false);
-            toast({
-              title: `🎉 ${providerNames[provider]} enrichment complete!`,
-              description: `✨ Enriched ${updatedJob.enriched_records} accounts, ${updatedJob.failed_records} failed`,
-            });
-            loadCompleteness();
-            loadRecentJobs();
-          } else if (updatedJob.status === "failed") {
-            clearInterval(progressInterval);
-            setEnriching(false);
-            toast({
-              title: "⚠️ Enrichment failed",
-              description: updatedJob.error_message || "Unknown error occurred",
-              variant: "destructive",
-            });
-          } else if (updatedJob.processed_records > 0 && updateCount % 3 === 0) {
-            // Show progress every 3 checks
-            toast({
-              title: "📊 Progress update",
-              description: `Processed ${updatedJob.processed_records} of ${updatedJob.total_records} accounts`,
-            });
-          }
-          updateCount++;
+      const { data, error: funcError } = await supabase.functions.invoke(functionName, {
+        body: { 
+          org_id: userProfile.org_id, 
+          job_id: job.id,
+          limit: 100 
         }
-      }, 5000);
+      });
 
-      // Clear interval after 10 minutes max
-      setTimeout(() => {
-        clearInterval(progressInterval);
+      if (funcError) {
+        console.error('Function error:', funcError);
+        toast({
+          title: "Error",
+          description: "Failed to start enrichment",
+          variant: "destructive"
+        });
         setEnriching(false);
-      }, 600000);
-
+      }
     } catch (error: any) {
       console.error('Error starting enrichment:', error);
       toast({
@@ -245,9 +213,9 @@ export function FirmographicEnrichmentCard() {
   };
 
   const getProgressColor = (percent: number) => {
-    if (percent < 50) return "bg-executive-red";
-    if (percent < 80) return "bg-executive-amber";
-    return "bg-executive-green";
+    if (percent >= 80) return "bg-executive-green";
+    if (percent >= 50) return "bg-yellow-500";
+    return "bg-destructive";
   };
 
   const getStatusBadge = (status: string) => {
@@ -280,263 +248,176 @@ export function FirmographicEnrichmentCard() {
   const canEnrich = missingEmployeeCount > 0 || missingRevenueRange > 0;
 
   return (
-    <Card className="border-2">
+    <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-2xl flex items-center gap-2">
-              <Sparkles className="h-6 w-6 text-primary" />
-              AI-Powered Data Enrichment
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <CardTitle className="flex items-center gap-2 text-xl">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Data Enrichment
             </CardTitle>
             <CardDescription>
-              Automatically enrich missing firmographic data using AI
+              Automatically fill missing firmographic data
             </CardDescription>
           </div>
-          {!enriching && canEnrich && (
-            <div className="flex gap-2">
-              <Button 
-                onClick={() => startEnrichment('smart_sequential')} 
-                disabled={loading}
-                size="lg"
-                className="gap-2 bg-gradient-to-r from-primary to-secondary"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Starting...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="h-4 w-4" />
-                    Smart Enrich
-                  </>
-                )}
-              </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Data Completeness Progress - Compact Grid */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">Employee Count</span>
+              <span className="text-xs text-muted-foreground">{completeness.employeeCountPercent}%</span>
+            </div>
+            <Progress 
+              value={completeness.employeeCountPercent} 
+              className="h-2"
+            />
+            <p className="text-xs text-muted-foreground">
+              {completeness.employeeCountComplete} / {completeness.employeeCountTotal}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium">Revenue Range</span>
+              <span className="text-xs text-muted-foreground">{completeness.revenueRangePercent}%</span>
+            </div>
+            <Progress 
+              value={completeness.revenueRangePercent} 
+              className="h-2"
+            />
+            <p className="text-xs text-muted-foreground">
+              {completeness.revenueRangeComplete} / {completeness.revenueRangeTotal}
+            </p>
+          </div>
+        </div>
+
+        {/* Primary Action Buttons */}
+        {!enriching && canEnrich && (
+          <div className="space-y-3">
+            <Button 
+              onClick={() => startEnrichment('smart_sequential')} 
+              disabled={loading}
+              className="w-full gap-2"
+              size="lg"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Starting Enrichment...
+                </>
+              ) : (
+                <>
+                  <Zap className="h-4 w-4" />
+                  Smart Enrich (Recommended)
+                </>
+              )}
+            </Button>
+            
+            <div className="grid grid-cols-3 gap-2">
               <Button 
                 onClick={() => startEnrichment('clearbit_free')} 
                 disabled={loading}
-                size="lg"
-                className="gap-2"
                 variant="outline"
+                className="gap-2"
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Starting...
-                  </>
-                ) : (
-                  <>
-                    <TrendingUp className="h-4 w-4" />
-                    Clearbit Free
-                  </>
-                )}
+                <TrendingUp className="h-3 w-3" />
+                Clearbit
               </Button>
               <Button 
                 onClick={() => startEnrichment('lovable_ai')} 
                 disabled={loading}
-                size="lg"
-                className="gap-2"
                 variant="outline"
+                className="gap-2"
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Starting...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    AI Enrich
-                  </>
-                )}
+                <Sparkles className="h-3 w-3" />
+                AI
               </Button>
               <Button 
                 onClick={() => startEnrichment('pdl')} 
                 disabled={loading}
-                size="lg"
+                variant="outline"
                 className="gap-2"
-                variant="secondary"
               >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Starting...
-                  </>
-                ) : (
-                  <>
-                    <DollarSign className="h-4 w-4" />
-                    PDL (Top 100)
-                  </>
-                )}
+                <Users className="h-3 w-3" />
+                PDL
               </Button>
             </div>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Current Progress */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Employee Count */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-muted-foreground" />
-                <span className="font-semibold">Employee Count</span>
-              </div>
-              <span className="text-2xl font-bold">
-                {completeness.employeeCountPercent}%
-              </span>
-            </div>
-            <Progress 
-              value={completeness.employeeCountPercent} 
-              className="h-3"
-            />
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>{completeness.employeeCountComplete.toLocaleString()} complete</span>
-              <span>{missingEmployeeCount.toLocaleString()} missing</span>
-            </div>
-          </div>
 
-          {/* Revenue Range */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-muted-foreground" />
-                <span className="font-semibold">Revenue Range</span>
-              </div>
-              <span className="text-2xl font-bold">
-                {completeness.revenueRangePercent}%
-              </span>
-            </div>
-            <Progress 
-              value={completeness.revenueRangePercent} 
-              className="h-3"
-            />
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>{completeness.revenueRangeComplete.toLocaleString()} complete</span>
-              <span>{missingRevenueRange.toLocaleString()} missing</span>
-            </div>
+            <p className="text-xs text-center text-muted-foreground">
+              Smart Enrich uses free sources first, then AI for best results
+            </p>
           </div>
-        </div>
-
-        {/* Active Job Progress */}
-        {enriching && currentJob && (
-          <Card className="border-primary/50 bg-primary/5">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  <span className="font-semibold">Enriching Accounts...</span>
-                  {currentJob.batch_size && (
-                    <Badge variant="outline" className="text-xs">
-                      Batch: {currentJob.batch_size.toLocaleString()}
-                    </Badge>
-                  )}
-                </div>
-                <span className="text-sm text-muted-foreground">
-                  {currentJob.processed_records} / {currentJob.total_records}
-                </span>
-              </div>
-              <Progress 
-                value={(currentJob.processed_records / currentJob.total_records) * 100} 
-                className="h-2"
-              />
-              <div className="flex gap-4 text-sm">
-                <span className="text-executive-green">✓ {currentJob.enriched_records} enriched</span>
-                {currentJob.failed_records > 0 && (
-                  <span className="text-executive-red">✗ {currentJob.failed_records} failed</span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
         )}
 
-        {/* Impact Estimate */}
-        {!enriching && canEnrich && (
-          <Card className="bg-muted/50">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <TrendingUp className="h-5 w-5 text-primary mt-1" />
-                <div className="space-y-2">
-                  <p className="font-semibold">Enrichment Options</p>
-                  
-                  <div className="space-y-2 text-sm text-muted-foreground">
-                    <div className="flex items-start gap-2">
-                      <TrendingUp className="h-4 w-4 text-green-500 mt-0.5" />
-                      <div>
-                        <span className="font-medium text-foreground">Clearbit Free:</span> Basic firmographics (unlimited, no API key needed)
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-start gap-2">
-                      <Sparkles className="h-4 w-4 text-blue-500 mt-0.5" />
-                      <div>
-                        <span className="font-medium text-foreground">AI Enrich:</span> Intelligent estimates using Gemini 2.5 Flash (~$2-3 for all, FREE during promotion)
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-start gap-2">
-                      <DollarSign className="h-4 w-4 text-purple-500 mt-0.5" />
-                      <div>
-                        <span className="font-medium text-foreground">PDL (Top 100):</span> High-accuracy enrichment for your best accounts (1,000 free/month)
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-muted-foreground mt-2 pt-2 border-t">
-                    💡 <span className="font-medium">Recommended:</span> Start with Clearbit Free, then use AI for missing data, finally PDL for top prospects.
-                  </p>
-                </div>
+        {/* Enrichment Progress */}
+        {enriching && currentJob && (
+          <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                <span className="font-medium">Enriching...</span>
               </div>
-            </CardContent>
-          </Card>
+              {getStatusBadge(currentJob.status)}
+            </div>
+            
+            <Progress 
+              value={(currentJob.processed_records / currentJob.total_records) * 100} 
+              className="h-2"
+            />
+
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div>
+                <p className="text-xs text-muted-foreground">Enriched</p>
+                <p className="text-lg font-bold text-executive-green">{currentJob.enriched_records}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Failed</p>
+                <p className="text-lg font-bold text-destructive">{currentJob.failed_records}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Progress</p>
+                <p className="text-lg font-bold">
+                  {currentJob.processed_records} / {currentJob.total_records}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Completion State */}
+        {!canEnrich && (
+          <div className="flex items-center justify-center gap-2 p-6 border-2 border-dashed rounded-lg bg-muted/30">
+            <CheckCircle2 className="h-5 w-5 text-executive-green" />
+            <p className="font-medium">All firmographic data complete!</p>
+          </div>
         )}
 
         {/* Recent Jobs */}
         {recentJobs.length > 0 && (
-          <div className="space-y-3">
-            <h3 className="font-semibold flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Recent Enrichment Jobs
-            </h3>
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium text-muted-foreground">Recent Jobs</h4>
             <div className="space-y-2">
               {recentJobs.map((job) => (
-                <div 
-                  key={job.id}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    {getStatusBadge(job.status)}
-                    <span className="text-sm text-muted-foreground">
-                      {new Date(job.started_at).toLocaleDateString()} at{' '}
-                      {new Date(job.started_at).toLocaleTimeString()}
+                <div key={job.id} className="flex items-center justify-between p-2 border rounded-lg text-sm">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(job.started_at).toLocaleString()}
                     </span>
                   </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className="text-executive-green">
-                      {job.enriched_records} enriched
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs">
+                      {job.enriched_records}/{job.total_records}
                     </span>
-                    {job.failed_records > 0 && (
-                      <span className="text-executive-red">
-                        {job.failed_records} failed
-                      </span>
-                    )}
+                    {getStatusBadge(job.status)}
                   </div>
                 </div>
               ))}
             </div>
           </div>
-        )}
-
-        {!canEnrich && (
-          <Card className="border-executive-green/50 bg-executive-green/5">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-executive-green" />
-                <p className="text-sm font-medium">All firmographic data is complete!</p>
-              </div>
-            </CardContent>
-          </Card>
         )}
       </CardContent>
     </Card>

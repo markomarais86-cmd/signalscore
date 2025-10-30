@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -60,6 +61,7 @@ import { EnrichmentAttributionReport } from "@/components/settings/EnrichmentAtt
 import { DataQualityDashboard } from "@/components/settings/DataQualityDashboard";
 import { InvitationsManager } from "@/components/settings/InvitationsManager";
 import { EnrichmentAPIKeys } from "@/components/settings/EnrichmentAPIKeys";
+import { EnrichmentProviderSetup } from "@/components/settings/EnrichmentProviderSetup";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { ContactsBackfill } from "@/components/settings/ContactsBackfill";
 import { ContactDiscovery } from "@/components/settings/ContactDiscovery";
@@ -449,47 +451,127 @@ export default function Settings() {
 
         {/* Data & Enrichment: All data sources, enrichment, integrations, API */}
         <TabsContent value="integrations" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Enrichment & Data Discovery</CardTitle>
-              <CardDescription>Enrich accounts and discover contacts using multiple data sources</CardDescription>
-            </CardHeader>
-          </Card>
-          
-          <div id="enrichment-card" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <FirmographicEnrichmentCard />
-            <EnrichmentJobMonitor />
-          </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <ContactDiscovery />
-            <ContactsBackfill />
-          </div>
-          
-          <EnrichmentTester />
-          <EnrichmentQualityDashboard />
-          <EnrichmentAttributionReport />
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>External Data Providers & Integrations</CardTitle>
-              <CardDescription>Connect to CRMs, databases, and webhooks</CardDescription>
-            </CardHeader>
-          </Card>
-          <IntegrationHealthDashboard />
-          <IntegrationCredentialManager />
-          <IntegrationManager />
-          <ZapierIntegration />
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>API Keys & Rate Limits</CardTitle>
-              <CardDescription>Manage enrichment API keys and rate limiting</CardDescription>
-            </CardHeader>
-          </Card>
-          <EnrichmentAPIKeys />
-          <RateLimitSettings />
-          <APIKeyManager />
+          <Accordion type="multiple" defaultValue={["quick-actions", "monitoring"]} className="space-y-4">
+            
+            {/* Quick Actions Section */}
+            <AccordionItem value="quick-actions" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-primary" />
+                  <div className="text-left">
+                    <p className="font-semibold">Quick Actions</p>
+                    <p className="text-sm text-muted-foreground">Start enrichment and discover contacts</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4 pt-4">
+                <div id="enrichment-card" className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FirmographicEnrichmentCard />
+                  <ContactDiscovery />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Active Jobs & Monitoring */}
+            <AccordionItem value="monitoring" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  <div className="text-left">
+                    <p className="font-semibold">Active Jobs & Monitoring</p>
+                    <p className="text-sm text-muted-foreground">Real-time enrichment job status</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4">
+                <EnrichmentJobMonitor />
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Analytics & Quality */}
+            <AccordionItem value="analytics" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Target className="h-5 w-5 text-primary" />
+                  <div className="text-left">
+                    <p className="font-semibold">Analytics & Quality</p>
+                    <p className="text-sm text-muted-foreground">Quality metrics and attribution reports</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4">
+                <Tabs defaultValue="quality" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="quality">Quality</TabsTrigger>
+                    <TabsTrigger value="attribution">Attribution</TabsTrigger>
+                    <TabsTrigger value="backfill">Backfill</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="quality" className="mt-4">
+                    <EnrichmentQualityDashboard />
+                  </TabsContent>
+                  <TabsContent value="attribution" className="mt-4">
+                    <EnrichmentAttributionReport />
+                  </TabsContent>
+                  <TabsContent value="backfill" className="mt-4">
+                    <ContactsBackfill />
+                  </TabsContent>
+                </Tabs>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Advanced Tools */}
+            <AccordionItem value="advanced" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Bot className="h-5 w-5 text-primary" />
+                  <div className="text-left">
+                    <p className="font-semibold">Advanced Tools</p>
+                    <p className="text-sm text-muted-foreground">Manual testing and specialized enrichment</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4 space-y-4">
+                <EnrichmentTester />
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Provider Setup */}
+            <AccordionItem value="setup" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Key className="h-5 w-5 text-primary" />
+                  <div className="text-left">
+                    <p className="font-semibold">Provider Setup</p>
+                    <p className="text-sm text-muted-foreground">Configure API keys and rate limits</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4 space-y-4">
+                <EnrichmentProviderSetup />
+                <RateLimitSettings />
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* External Integrations */}
+            <AccordionItem value="integrations" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Webhook className="h-5 w-5 text-primary" />
+                  <div className="text-left">
+                    <p className="font-semibold">External Integrations</p>
+                    <p className="text-sm text-muted-foreground">CRM connectors and webhooks</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4 space-y-4">
+                <IntegrationHealthDashboard />
+                <IntegrationCredentialManager />
+                <IntegrationManager />
+                <ZapierIntegration />
+              </AccordionContent>
+            </AccordionItem>
+
+          </Accordion>
         </TabsContent>
 
         {/* Security */}
