@@ -54,13 +54,18 @@ export function EnrichmentProviderSetup() {
     if (!userProfile?.org_id) return;
 
     try {
-      // Check Supabase secrets by attempting to call edge functions
-      const { data: pdlTest } = await supabase.functions.invoke('enrich-pdl', {
-        body: { test: true }
-      });
+      // Check for PDL API key in integration_credentials
+      const { data: credentials } = await supabase
+        .from('integration_credentials')
+        .select('credential_type, integration_config_id')
+        .eq('org_id', userProfile.org_id)
+        .eq('credential_type', 'api_key');
 
       setConfigs(prev => prev.map(config => {
-        if (config.provider === 'pdl' && pdlTest) {
+        const hasCredential = credentials?.some(cred => 
+          cred.credential_type === 'api_key'
+        );
+        if (config.provider === 'pdl' && hasCredential) {
           return { ...config, status: 'configured' as const };
         }
         return config;
