@@ -54,21 +54,22 @@ export function EnrichmentProviderSetup() {
     if (!userProfile?.org_id) return;
 
     try {
-      // Check for PDL API key in integration_credentials
-      const { data: credentials } = await supabase
-        .from('integration_credentials')
-        .select('credential_type, integration_config_id')
-        .eq('org_id', userProfile.org_id)
-        .eq('credential_type', 'api_key');
+      // Check each provider's secrets via edge function
+      const results = await Promise.all(
+        configs.map(async (config) => {
+          const { data } = await supabase.functions.invoke('integration-service', {
+            body: { action: 'check-secrets', provider: config.provider }
+          });
+          return { provider: config.provider, configured: data?.configured || false };
+        })
+      );
 
       setConfigs(prev => prev.map(config => {
-        const hasCredential = credentials?.some(cred => 
-          cred.credential_type === 'api_key'
-        );
-        if (config.provider === 'pdl' && hasCredential) {
-          return { ...config, status: 'configured' as const };
-        }
-        return config;
+        const result = results.find(r => r.provider === config.provider);
+        return {
+          ...config,
+          status: result?.configured ? 'configured' as const : 'missing' as const
+        };
       }));
     } catch (error) {
       console.error('Error checking providers:', error);
@@ -76,16 +77,48 @@ export function EnrichmentProviderSetup() {
   };
 
   const handleTest = async (provider: string) => {
+    const config = configs.find(c => c.provider === provider);
+    if (!config?.key) return;
+
     setTestingProvider(provider);
     
-    // Simulate API test
-    setTimeout(() => {
-      toast({
-        title: "Connection Test",
-        description: `Testing ${provider} connection... Check edge function logs for results.`,
+    try {
+      const { data, error } = await supabase.functions.invoke('integration-service', {
+        body: { 
+          action: 'test',
+          provider_name: provider,
+          api_key: config.key
+        }
       });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast({
+          title: "Connection Successful",
+          description: data.message || `${config.name} is configured correctly`,
+        });
+        // Update status to configured
+        setConfigs(prev => prev.map(c => 
+          c.provider === provider ? { ...c, status: 'configured' as const } : c
+        ));
+      } else {
+        toast({
+          title: "Connection Failed",
+          description: data?.message || "API key is invalid or account has issues",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Test error:', error);
+      toast({
+        title: "Test Failed",
+        description: error.message || "Failed to test connection",
+        variant: "destructive",
+      });
+    } finally {
       setTestingProvider(null);
-    }, 1500);
+    }
   };
 
   const toggleShowKey = (provider: string) => {
@@ -173,10 +206,20 @@ export function EnrichmentProviderSetup() {
               </a>
             </div>
 
-            <div className="pt-2 border-t">
-              <p className="text-xs text-muted-foreground">
-                <strong>Setup Instructions:</strong> After obtaining your API key, add it to your Supabase project's secrets via the Supabase Dashboard → Project Settings → Edge Functions → Manage Secrets. Use the exact environment variable name: <code className="bg-muted px-1 py-0.5 rounded">{config.envVar}</code>
-              </p>
+            <div className="pt-2 border-t space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  <strong>Setup Instructions:</strong> After obtaining your API key, add it to your Supabase project's secrets via the Supabase Dashboard → Project Settings → Edge Functions → Manage Secrets. Use the exact environment variable name: <code className="bg-muted px-1 py-0.5 rounded">{config.envVar}</code>
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={checkConfiguredProviders}
+                className="w-full"
+              >
+                Refresh Status
+              </Button>
             </div>
           </CardContent>
         </Card>

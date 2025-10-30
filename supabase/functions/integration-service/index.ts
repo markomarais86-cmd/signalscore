@@ -66,6 +66,9 @@ Deno.serve(async (req) => {
       case 'test':
         return await testConnection(supabase, profile.org_id, req);
       
+      case 'check-secrets':
+        return await checkSecrets(req);
+      
       case 'sync':
         return await triggerSync(supabase, profile.org_id, req);
       
@@ -459,13 +462,62 @@ async function testPDL(apiKey: string): Promise<TestConnectionResult> {
       })
     });
 
+    if (response.status === 402) {
+      return {
+        success: false,
+        message: 'PDL account requires payment or has no credits remaining',
+        details: { status: 402, statusText: 'Payment Required' }
+      };
+    }
+
+    if (response.status === 401) {
+      return {
+        success: false,
+        message: 'Invalid API key - check your PDL_API_KEY secret',
+        details: { status: 401, statusText: 'Unauthorized' }
+      };
+    }
+
     return {
       success: response.status === 200 || response.status === 404, // 404 means API key works but no data
-      message: response.ok || response.status === 404 ? 'Connection successful' : 'Invalid API key'
+      message: response.ok || response.status === 404 ? 'Connection successful - PDL is ready to use' : `Connection failed (${response.status})`,
+      details: { status: response.status, statusText: response.statusText }
     };
   } catch (error) {
     return { success: false, message: error.message };
   }
+}
+
+async function checkSecrets(req: Request) {
+  const url = new URL(req.url);
+  const provider = url.searchParams.get('provider');
+
+  const envVarMap: { [key: string]: string } = {
+    'pdl': 'PDL_API_KEY',
+    'clearbit': 'CLEARBIT_API_KEY'
+  };
+
+  if (!provider || !envVarMap[provider]) {
+    return new Response(
+      JSON.stringify({ error: 'Invalid provider' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const envVar = envVarMap[provider];
+  const isConfigured = !!Deno.env.get(envVar);
+
+  return new Response(
+    JSON.stringify({ 
+      configured: isConfigured,
+      provider,
+      envVar,
+      message: isConfigured 
+        ? `${envVar} is configured in Supabase Secrets` 
+        : `${envVar} is not configured - add it via Supabase Dashboard → Project Settings → Edge Functions → Manage Secrets`
+    }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 }
 
 async function hasCredentials(supabase: any, configId: string): Promise<boolean> {
