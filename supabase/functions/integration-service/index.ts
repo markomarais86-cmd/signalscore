@@ -50,8 +50,11 @@ Deno.serve(async (req) => {
       throw new Error('User not associated with an organization');
     }
 
-    const url = new URL(req.url);
-    const action = url.searchParams.get('action');
+    // Read action from request body
+    const body = await req.json().catch(() => ({}));
+    const action = body.action;
+    
+    console.log('[integration-service] Action:', action, 'Body:', body);
 
     switch (action) {
       case 'list':
@@ -64,10 +67,10 @@ Deno.serve(async (req) => {
         return await disconnectIntegration(supabase, profile.org_id, req);
       
       case 'test':
-        return await testConnection(supabase, profile.org_id, req);
+        return await testConnection(supabase, profile.org_id, body);
       
       case 'check-secrets':
-        return await checkSecrets(req);
+        return await checkSecrets(body.provider);
       
       case 'sync':
         return await triggerSync(supabase, profile.org_id, req);
@@ -245,9 +248,10 @@ async function disconnectIntegration(supabase: any, orgId: string, req: Request)
   );
 }
 
-async function testConnection(supabase: any, orgId: string, req: Request) {
-  const body = await req.json();
+async function testConnection(supabase: any, orgId: string, body: any) {
   const { provider_name, api_key } = body;
+  
+  console.log('[testConnection] Testing:', provider_name);
 
   let result: TestConnectionResult;
 
@@ -488,9 +492,8 @@ async function testPDL(apiKey: string): Promise<TestConnectionResult> {
   }
 }
 
-async function checkSecrets(req: Request) {
-  const url = new URL(req.url);
-  const provider = url.searchParams.get('provider');
+async function checkSecrets(provider: string | null) {
+  console.log('[checkSecrets] Checking provider:', provider);
 
   const envVarMap: { [key: string]: string } = {
     'pdl': 'PDL_API_KEY',

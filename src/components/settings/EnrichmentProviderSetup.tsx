@@ -57,9 +57,9 @@ export function EnrichmentProviderSetup() {
       // Check each provider's secrets via edge function
       const results = await Promise.all(
         configs.map(async (config) => {
-          const { data } = await supabase.functions.invoke(
-            `integration-service?action=check-secrets&provider=${config.provider}`
-          );
+          const { data } = await supabase.functions.invoke('integration-service', {
+            body: { action: 'check-secrets', provider: config.provider }
+          });
           return { provider: config.provider, configured: data?.configured || false };
         })
       );
@@ -83,15 +83,13 @@ export function EnrichmentProviderSetup() {
     setTestingProvider(provider);
     
     try {
-      const { data, error } = await supabase.functions.invoke(
-        'integration-service?action=test',
-        {
-          body: { 
-            provider_name: provider,
-            api_key: config.key
-          }
+      const { data, error } = await supabase.functions.invoke('integration-service', {
+        body: { 
+          action: 'test',
+          provider_name: provider,
+          api_key: config.key
         }
-      );
+      });
 
       if (error) throw error;
 
