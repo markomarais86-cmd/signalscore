@@ -51,28 +51,56 @@ export function EnrichmentProviderSetup() {
   }, [userProfile]);
 
   const checkConfiguredProviders = async () => {
-    if (!userProfile?.org_id) return;
+    if (!userProfile?.org_id) {
+      console.log('[EnrichmentProviderSetup] No org_id, skipping check');
+      return;
+    }
+
+    console.log('[EnrichmentProviderSetup] Starting check for providers...');
 
     try {
       // Check each provider's secrets via edge function
       const results = await Promise.all(
         configs.map(async (config) => {
-          const { data } = await supabase.functions.invoke('integration-service', {
+          console.log(`[EnrichmentProviderSetup] Checking ${config.provider}...`);
+          
+          const { data, error } = await supabase.functions.invoke('integration-service', {
             body: { action: 'check-secrets', provider: config.provider }
           });
+          
+          console.log(`[EnrichmentProviderSetup] Response for ${config.provider}:`, { 
+            data, 
+            error,
+            configured: data?.configured 
+          });
+          
+          if (error) {
+            console.error(`[EnrichmentProviderSetup] Error for ${config.provider}:`, error);
+          }
+          
           return { provider: config.provider, configured: data?.configured || false };
         })
       );
 
-      setConfigs(prev => prev.map(config => {
-        const result = results.find(r => r.provider === config.provider);
-        return {
-          ...config,
-          status: result?.configured ? 'configured' as const : 'missing' as const
-        };
-      }));
+      console.log('[EnrichmentProviderSetup] All results:', results);
+
+      setConfigs(prev => {
+        const updated = prev.map(config => {
+          const result = results.find(r => r.provider === config.provider);
+          const newStatus = result?.configured ? 'configured' as const : 'missing' as const;
+          console.log(`[EnrichmentProviderSetup] Updating ${config.provider} from ${config.status} to ${newStatus}`);
+          return {
+            ...config,
+            status: newStatus
+          };
+        });
+        console.log('[EnrichmentProviderSetup] Updated configs:', updated);
+        return updated;
+      });
+      
+      console.log('[EnrichmentProviderSetup] State update complete');
     } catch (error) {
-      console.error('Error checking providers:', error);
+      console.error('[EnrichmentProviderSetup] Error checking providers:', error);
     }
   };
 
