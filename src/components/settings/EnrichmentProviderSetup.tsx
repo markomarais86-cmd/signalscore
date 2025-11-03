@@ -162,7 +162,7 @@ export function EnrichmentProviderSetup() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'configured':
-        return <Badge className="bg-executive-green text-white"><CheckCircle2 className="h-3 w-3 mr-1" />Configured</Badge>;
+        return <Badge className="bg-green-500 text-white"><CheckCircle2 className="h-3 w-3 mr-1" />Configured</Badge>;
       case 'testing':
         return <Badge className="bg-blue-500 text-white"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Testing</Badge>;
       default:
