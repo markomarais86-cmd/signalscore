@@ -10,6 +10,7 @@ import { TrendingUp, Target, Database, Download, MapPin, Sparkles, Building2, Se
 import { useAuth } from "@/hooks/use-auth";
 import { useDashboardData, useGeographyData } from "@/hooks/use-dashboard-data";
 import { useOnboarding } from "@/hooks/use-onboarding";
+import { useDataChangeListener } from "@/hooks/use-data-change-listener";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { HeroMetric } from "@/components/executive/HeroMetric";
@@ -81,6 +82,27 @@ export default function ExecutiveDashboard() {
   const geographyDistribution = geographyData || [];
 
   const hasData = totalAccounts > 0;
+
+  // Listen for significant data changes and auto-refresh
+  useDataChangeListener({
+    onAccountsChanged: async () => {
+      console.log('[ExecutiveDashboard] Accounts changed, refreshing dashboard...');
+      await refetch();
+      toast.info('Dashboard updated with new account data');
+    },
+    onScoringCompleted: async () => {
+      console.log('[ExecutiveDashboard] Scoring completed, refreshing insights...');
+      await Promise.all([refetch(), generateInsights()]);
+      setLastRefreshed(new Date());
+      toast.success('Scoring complete! Dashboard and recommendations updated');
+    },
+    onEnrichmentCompleted: async () => {
+      console.log('[ExecutiveDashboard] Enrichment completed, refreshing dashboard...');
+      await refetch();
+      toast.success('Enrichment complete! Dashboard updated');
+    },
+    debounceMs: 3000
+  });
 
   useEffect(() => {
     if (dashboardData) {
@@ -282,7 +304,10 @@ export default function ExecutiveDashboard() {
 
               {/* AI Recommendations Card */}
               {insights && insights.length > 0 && (
-                <AIRecommendationsTiles insights={insights} />
+                <AIRecommendationsTiles 
+                  insights={insights} 
+                  onRefresh={handleRefreshInsights}
+                />
               )}
             </div>
           </>
