@@ -47,7 +47,6 @@ export function IntegrationHealthDashboard() {
       const { data, error } = await supabase
         .from('integration_configs' as any)
         .select('id, provider_name, status, last_sync_at, error_message, integration_type')
-        .eq('is_active', true)
         .order('provider_name');
 
       if (error) throw error;
