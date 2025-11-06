@@ -2,12 +2,16 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Lightbulb, TrendingUp, Target, Zap, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Lightbulb, TrendingUp, Target, Zap, AlertTriangle, CheckCircle2, X, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
 
 interface Insight {
+  id?: string;
   type: string;
-  category?: 'revenue' | 'firmographic' | 'signal' | 'efficiency' | 'quality' | 'growth';
+  category?: 'revenue' | 'firmographic' | 'signal' | 'efficiency' | 'quality' | 'growth' | 'persona';
   title: string;
   description: string;
   impact: string;
@@ -15,6 +19,9 @@ interface Insight {
   action?: string;
   route?: string;
   filter?: Record<string, any>;
+  priority?: number | 'high' | 'medium' | 'low';
+  confidence?: number;
+  relatedSegments?: string[];
 }
 
 interface AIRecommendationsTilesProps {
@@ -62,15 +69,65 @@ const getColorForCategory = (category?: string) => {
 
 export function AIRecommendationsTiles({ insights, onRefresh }: AIRecommendationsTilesProps) {
   const navigate = useNavigate();
+  const { userProfile } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleDismiss = async (insight: Insight, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!insight.id || !userProfile?.org_id) {
+      toast.error('Unable to dismiss recommendation');
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('User not authenticated');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('dismissed_recommendations')
+        .insert({
+          org_id: userProfile.org_id,
+          user_id: user.id,
+          recommendation_id: insight.id,
+          recommendation_type: insight.category || insight.type,
+        });
+
+      if (error) throw error;
+
+      setDismissedIds(prev => new Set([...prev, insight.id!]));
+      toast.success('Recommendation dismissed');
+    } catch (error: any) {
+      console.error('Error dismissing recommendation:', error);
+      toast.error('Failed to dismiss recommendation');
+    }
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await onRefresh?.();
+      toast.success('Recommendations refreshed');
+    } catch (error) {
+      toast.error('Failed to refresh recommendations');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Get unique categories
   const categories = ['all', ...Array.from(new Set(insights.map(i => i.category).filter(Boolean)))];
   
-  // Filter insights by selected category
-  const filteredInsights = selectedCategory === 'all' 
+  // Filter insights by selected category and dismissed status
+  const filteredInsights = (selectedCategory === 'all' 
     ? insights 
-    : insights.filter(i => i.category === selectedCategory);
+    : insights.filter(i => i.category === selectedCategory)
+  ).filter(i => !dismissedIds.has(i.id || ''));
 
   if (!insights || insights.length === 0) {
     return (
@@ -107,7 +164,13 @@ export function AIRecommendationsTiles({ insights, onRefresh }: AIRecommendation
             </CardDescription>
           </div>
           {onRefresh && (
-            <Button variant="outline" size="sm" onClick={onRefresh}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
           )}
@@ -150,17 +213,33 @@ export function AIRecommendationsTiles({ insights, onRefresh }: AIRecommendation
             
             return (
               <div
-                key={idx}
-                className={`border-2 rounded-lg p-4 transition-all cursor-pointer ${colorClass}`}
+                key={insight.id || idx}
+                className={`relative border-2 rounded-lg p-4 transition-all cursor-pointer group ${colorClass}`}
                 onClick={handleClick}
               >
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  onClick={(e) => handleDismiss(insight, e)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+                
                 <div className="flex items-start justify-between mb-3">
                   <div className="p-2 rounded-lg bg-background/80">
                     <Icon className="h-5 w-5" />
                   </div>
-                  <Badge variant="outline" className="text-xs capitalize">
-                    {insight.category || insight.type}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    {(insight.priority === 'high' || (typeof insight.priority === 'number' && insight.priority >= 80)) && (
+                      <Badge variant="destructive" className="text-xs">
+                        High Priority
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {insight.category || insight.type}
+                    </Badge>
+                  </div>
                 </div>
                 
                 <h4 className="font-semibold text-sm mb-2 line-clamp-1">

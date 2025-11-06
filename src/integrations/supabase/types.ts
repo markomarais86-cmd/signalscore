@@ -595,6 +595,36 @@ export type Database = {
           },
         ]
       }
+      dismissed_recommendations: {
+        Row: {
+          dismissed_at: string
+          id: string
+          org_id: string
+          reason: string | null
+          recommendation_id: string
+          recommendation_type: string
+          user_id: string
+        }
+        Insert: {
+          dismissed_at?: string
+          id?: string
+          org_id: string
+          reason?: string | null
+          recommendation_id: string
+          recommendation_type: string
+          user_id: string
+        }
+        Update: {
+          dismissed_at?: string
+          id?: string
+          org_id?: string
+          reason?: string | null
+          recommendation_id?: string
+          recommendation_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       enrichment_field_coverage: {
         Row: {
           coverage_percentage: number | null
@@ -1726,6 +1756,42 @@ export type Database = {
           requests_count?: number | null
           window_duration_seconds?: number | null
           window_start?: string | null
+        }
+        Relationships: []
+      }
+      recommendation_history: {
+        Row: {
+          acted_on: boolean | null
+          acted_on_at: string | null
+          created_at: string
+          id: string
+          impact_estimate: string | null
+          org_id: string
+          priority_score: number
+          recommendation_data: Json
+          recommendation_type: string
+        }
+        Insert: {
+          acted_on?: boolean | null
+          acted_on_at?: string | null
+          created_at?: string
+          id?: string
+          impact_estimate?: string | null
+          org_id: string
+          priority_score: number
+          recommendation_data: Json
+          recommendation_type: string
+        }
+        Update: {
+          acted_on?: boolean | null
+          acted_on_at?: string | null
+          created_at?: string
+          id?: string
+          impact_estimate?: string | null
+          org_id?: string
+          priority_score?: number
+          recommendation_data?: Json
+          recommendation_type?: string
         }
         Relationships: []
       }
