@@ -39,7 +39,7 @@ export function ExecutiveMetricCard({
       )}
       onClick={onClick}
     >
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             {title}

@@ -196,7 +196,7 @@ export function TAMSAMSOMCalculator({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Assumptions Editor */}
           <Collapsible open={isEditMode}>
             <CollapsibleContent>

@@ -66,7 +66,7 @@ export function ScoringDataQualityCard({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left: Scoring Progress */}
           <div className="space-y-4">
             <div className="flex items-baseline justify-between">

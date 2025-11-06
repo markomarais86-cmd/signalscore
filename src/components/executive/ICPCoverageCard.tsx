@@ -101,7 +101,7 @@ export function ICPCoverageCard({
       </CardHeader>
       <CardContent>
         {/* Totals on Top */}
-        <div className="grid grid-cols-2 gap-6 mb-6 p-4 bg-muted/30 rounded-lg">
+        <div className="grid grid-cols-2 gap-4 mb-4 p-4 bg-muted/30 rounded-lg">
           <div 
             className="cursor-pointer hover:bg-muted/50 p-3 rounded-lg transition-colors"
             onClick={() => navigate('/accounts')}

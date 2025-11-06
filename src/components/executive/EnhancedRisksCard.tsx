@@ -109,7 +109,7 @@ export function EnhancedRisksCard({
           Prioritized issues with actionable fixes
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4">
         {/* Risk Tiles by Severity */}
         {risks.length > 0 ? (
           <div className="space-y-4">

@@ -92,7 +92,7 @@ export function RisksAndActionsCard({
           Issues requiring attention and suggested next steps
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4">
         {/* Risk Tiles by Severity */}
         {risks.length > 0 ? (
           <>
