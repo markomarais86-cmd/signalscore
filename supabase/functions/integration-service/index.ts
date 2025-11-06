@@ -343,25 +343,83 @@ async function testConnection(supabase: any, orgId: string, body: any) {
 
 async function triggerSync(supabase: any, orgId: string, req: Request) {
   const body = await req.json();
-  const { provider_name } = body;
+  const { provider_name, integration_id, full_sync = false } = body;
 
   // Get integration config
-  const { data: config, error: configError } = await supabase
-    .from('integration_configs')
-    .select('*')
-    .eq('org_id', orgId)
-    .eq('provider_name', provider_name)
-    .single();
+  let config;
+  if (integration_id) {
+    const { data, error } = await supabase
+      .from('integration_configs')
+      .select('*')
+      .eq('id', integration_id)
+      .eq('org_id', orgId)
+      .single();
+    if (error) throw error;
+    config = data;
+  } else {
+    const { data, error } = await supabase
+      .from('integration_configs')
+      .select('*')
+      .eq('org_id', orgId)
+      .eq('provider_name', provider_name)
+      .single();
+    if (error) throw error;
+    config = data;
+  }
 
-  if (configError) throw configError;
+  // If it's Salesforce, call the dedicated sync function
+  if (config.provider_name.toLowerCase() === 'salesforce') {
+    console.log('Calling Salesforce sync edge function');
+    
+    try {
+      const syncResponse = await fetch(
+        `${Deno.env.get('SUPABASE_URL')}/functions/v1/salesforce-sync`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            org_id: orgId,
+            integration_config_id: config.id,
+            full_sync: full_sync,
+          }),
+        }
+      );
 
-  // Create sync log
+      const result = await syncResponse.json();
+
+      if (!syncResponse.ok) {
+        throw new Error(result.error || 'Salesforce sync failed');
+      }
+
+      return new Response(
+        JSON.stringify(result),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (error: any) {
+      console.error('Salesforce sync error:', error);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: error.message 
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+  }
+
+  // For other providers, create sync log and simulate
   const { data: syncLog, error: logError } = await supabase
     .from('integration_sync_logs')
     .insert({
       org_id: orgId,
       integration_config_id: config.id,
-      sync_status: 'running',
+      status: 'in_progress',
       started_at: new Date().toISOString()
     })
     .select()
@@ -378,13 +436,12 @@ async function triggerSync(supabase: any, orgId: string, req: Request) {
     })
     .eq('id', config.id);
 
-  // Trigger async sync (in production, this would be a separate process)
-  // For now, simulate completion
+  // Simulate completion for other providers
   setTimeout(async () => {
     await supabase
       .from('integration_sync_logs')
       .update({
-        sync_status: 'completed',
+        status: 'completed',
         completed_at: new Date().toISOString(),
         duration_ms: 5000,
         records_processed: 100

@@ -1,5 +1,8 @@
 project_id = "dhyfbaptcprxxixgnpby"
 
+[functions.salesforce-sync]
+verify_jwt = true
+
 [functions.integration-service]
 verify_jwt = true
 

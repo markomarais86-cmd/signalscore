@@ -19,6 +19,8 @@ import {
   Clock
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
 interface Integration {
   id: string;
@@ -70,6 +72,7 @@ export default function IntegrationManager() {
     securityToken: ''
   });
   const { toast } = useToast();
+  const { userProfile } = useAuth();
 
   const getStatusBadge = (status: Integration['status']) => {
     const variants = {
@@ -105,14 +108,34 @@ export default function IntegrationManager() {
     toast({ title: "Disconnected", description: `Disconnected from ${integration.name}` });
   };
 
-  const handleSync = (integration: Integration) => {
+  const handleSync = async (integration: Integration) => {
+    if (!userProfile?.org_id) {
+      toast({ 
+        title: "Error", 
+        description: "Organization not found",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIntegrations(prev => prev.map(i => 
       i.id === integration.id 
         ? { ...i, status: 'syncing', sync_status: 'in_progress' }
         : i
     ));
-    
-    setTimeout(() => {
+
+    try {
+      // Call integration service to trigger sync
+      const { data, error } = await supabase.functions.invoke('integration-service', {
+        body: {
+          action: 'triggerSync',
+          org_id: userProfile.org_id,
+          integration_id: integration.config?.integration_config_id,
+        },
+      });
+
+      if (error) throw error;
+
       setIntegrations(prev => prev.map(i => 
         i.id === integration.id 
           ? { 
@@ -120,12 +143,28 @@ export default function IntegrationManager() {
               status: 'connected', 
               sync_status: 'success',
               last_sync: new Date().toISOString(),
-              records_synced: Math.floor(Math.random() * 1000) + 100
+              records_synced: data?.stats?.total_processed || 0
             }
           : i
       ));
-      toast({ title: "Sync Complete", description: `${integration.name} data synced successfully` });
-    }, 3000);
+      
+      toast({ 
+        title: "Sync Complete", 
+        description: `${integration.name}: ${data?.stats?.total_processed || 0} records synced`
+      });
+    } catch (error: any) {
+      console.error('Sync error:', error);
+      setIntegrations(prev => prev.map(i => 
+        i.id === integration.id 
+          ? { ...i, status: 'error', sync_status: 'error' }
+          : i
+      ));
+      toast({ 
+        title: "Sync Failed", 
+        description: error.message || "Failed to sync data",
+        variant: "destructive"
+      });
+    }
   };
 
   const groupedIntegrations = integrations.reduce((acc, integration) => {
@@ -308,9 +347,9 @@ export default function IntegrationManager() {
             <Button variant="outline" onClick={() => setIsConfiguring(false)}>
               Cancel
             </Button>
-            <Button onClick={() => {
+            <Button onClick={async () => {
               if (selectedIntegration?.id === 'salesforce') {
-                if (!credentials.instanceUrl || !credentials.username || !credentials.password) {
+                if (!credentials.instanceUrl || !credentials.username || !credentials.password || !credentials.securityToken) {
                   toast({ 
                     title: "Missing credentials", 
                     description: "Please fill in all required fields",
@@ -318,16 +357,62 @@ export default function IntegrationManager() {
                   });
                   return;
                 }
-                
-                setIntegrations(prev => prev.map(i => 
-                  i.id === selectedIntegration.id 
-                    ? { ...i, status: 'connected', last_sync: new Date().toISOString(), sync_status: 'success', config: credentials }
-                    : i
-                ));
-                toast({ 
-                  title: "Connected", 
-                  description: `Successfully connected to ${selectedIntegration.name}` 
-                });
+
+                if (!userProfile?.org_id) {
+                  toast({ 
+                    title: "Error", 
+                    description: "Organization not found",
+                    variant: "destructive"
+                  });
+                  return;
+                }
+
+                try {
+                  // Call integration service to connect
+                  const { data, error } = await supabase.functions.invoke('integration-service', {
+                    body: {
+                      action: 'connect',
+                      org_id: userProfile.org_id,
+                      provider: 'salesforce',
+                      integration_type: 'crm',
+                      credentials: {
+                        username: credentials.username,
+                        password: credentials.password,
+                        security_token: credentials.securityToken,
+                        instance_url: credentials.instanceUrl,
+                      },
+                    },
+                  });
+
+                  if (error) throw error;
+
+                  setIntegrations(prev => prev.map(i => 
+                    i.id === selectedIntegration.id 
+                      ? { 
+                          ...i, 
+                          status: 'connected', 
+                          last_sync: new Date().toISOString(), 
+                          sync_status: 'success', 
+                          config: { 
+                            ...credentials, 
+                            integration_config_id: data?.integration_id 
+                          }
+                        }
+                      : i
+                  ));
+                  
+                  toast({ 
+                    title: "Connected", 
+                    description: `Successfully connected to ${selectedIntegration.name}` 
+                  });
+                } catch (error: any) {
+                  console.error('Connection error:', error);
+                  toast({ 
+                    title: "Connection Failed", 
+                    description: error.message || "Failed to connect to Salesforce",
+                    variant: "destructive"
+                  });
+                }
               }
               setIsConfiguring(false);
             }}>
