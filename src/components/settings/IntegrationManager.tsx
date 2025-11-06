@@ -201,8 +201,8 @@ export default function IntegrationManager() {
           salesforce_credentials: {
             username: credentials.username,
             password: credentials.password,
-            security_token: credentials.securityToken,
-            instance_url: credentials.instanceUrl,
+            securityToken: credentials.securityToken,
+            instanceUrl: credentials.instanceUrl,
           },
         },
       });
