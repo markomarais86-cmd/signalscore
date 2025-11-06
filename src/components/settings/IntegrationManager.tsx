@@ -74,6 +74,8 @@ export default function IntegrationManager() {
     password: '',
     securityToken: ''
   });
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const { toast } = useToast();
   const { userProfile } = useAuth();
 
@@ -131,9 +133,9 @@ export default function IntegrationManager() {
       // Call integration service to trigger sync
       const { data, error } = await supabase.functions.invoke('integration-service', {
         body: {
-          action: 'triggerSync',
+          action: 'sync',
           org_id: userProfile.org_id,
-          integration_id: integration.config?.integration_config_id,
+          provider: integration.id,
         },
       });
 
@@ -167,6 +169,62 @@ export default function IntegrationManager() {
         description: error.message || "Failed to sync data",
         variant: "destructive"
       });
+    }
+  };
+
+  const handleTestConnection = async () => {
+    if (!credentials.instanceUrl || !credentials.username || !credentials.password || !credentials.securityToken) {
+      setTestResult({ 
+        success: false, 
+        message: "Please fill in all required fields" 
+      });
+      return;
+    }
+
+    if (!userProfile?.org_id) {
+      setTestResult({ 
+        success: false, 
+        message: "Organization not found" 
+      });
+      return;
+    }
+
+    setIsTesting(true);
+    setTestResult(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('integration-service', {
+        body: {
+          action: 'test',
+          org_id: userProfile.org_id,
+          provider: 'salesforce',
+          credentials: {
+            username: credentials.username,
+            password: credentials.password,
+            security_token: credentials.securityToken,
+            instance_url: credentials.instanceUrl,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        setTestResult({ 
+          success: true, 
+          message: "Connection successful! You can now save your configuration." 
+        });
+      } else {
+        throw new Error(data?.message || "Connection test failed");
+      }
+    } catch (error: any) {
+      console.error('Test connection error:', error);
+      setTestResult({ 
+        success: false, 
+        message: error.message || "Failed to connect to Salesforce. Please check your credentials." 
+      });
+    } finally {
+      setIsTesting(false);
     }
   };
 
@@ -306,7 +364,10 @@ export default function IntegrationManager() {
                   <Input 
                     placeholder="https://yourinstance.salesforce.com" 
                     value={credentials.instanceUrl}
-                    onChange={(e) => setCredentials({...credentials, instanceUrl: e.target.value})}
+                    onChange={(e) => {
+                      setCredentials({...credentials, instanceUrl: e.target.value});
+                      setTestResult(null);
+                    }}
                   />
                   <p className="text-xs text-muted-foreground mt-1">Your Salesforce domain (e.g., na1.salesforce.com or mycompany.my.salesforce.com)</p>
                 </div>
@@ -315,7 +376,10 @@ export default function IntegrationManager() {
                   <Input 
                     placeholder="user@company.com" 
                     value={credentials.username}
-                    onChange={(e) => setCredentials({...credentials, username: e.target.value})}
+                    onChange={(e) => {
+                      setCredentials({...credentials, username: e.target.value});
+                      setTestResult(null);
+                    }}
                   />
                 </div>
                 <div>
@@ -324,7 +388,10 @@ export default function IntegrationManager() {
                     type="password" 
                     placeholder="Your Salesforce password" 
                     value={credentials.password}
-                    onChange={(e) => setCredentials({...credentials, password: e.target.value})}
+                    onChange={(e) => {
+                      setCredentials({...credentials, password: e.target.value});
+                      setTestResult(null);
+                    }}
                   />
                 </div>
                 <div>
@@ -333,11 +400,52 @@ export default function IntegrationManager() {
                     type="password" 
                     placeholder="Your Salesforce security token" 
                     value={credentials.securityToken}
-                    onChange={(e) => setCredentials({...credentials, securityToken: e.target.value})}
+                    onChange={(e) => {
+                      setCredentials({...credentials, securityToken: e.target.value});
+                      setTestResult(null);
+                    }}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     Get your token: Setup → Personal Setup → Reset My Security Token
                   </p>
+                </div>
+
+                {/* Test Connection Button and Result */}
+                <div className="space-y-2">
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    className="w-full"
+                    onClick={handleTestConnection}
+                    disabled={isTesting || !credentials.instanceUrl || !credentials.username || !credentials.password || !credentials.securityToken}
+                  >
+                    {isTesting ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Testing Connection...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Test Connection
+                      </>
+                    )}
+                  </Button>
+                  
+                  {testResult && (
+                    <div className={`p-3 rounded-lg border ${testResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                      <div className="flex items-start gap-2">
+                        {testResult.success ? (
+                          <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                        ) : (
+                          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                        )}
+                        <p className={`text-sm ${testResult.success ? 'text-green-800' : 'text-red-800'}`}>
+                          {testResult.message}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
@@ -399,10 +507,21 @@ export default function IntegrationManager() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsConfiguring(false)}>
+            <Button variant="outline" onClick={() => {
+              setIsConfiguring(false);
+              setTestResult(null);
+              setCredentials({
+                instanceUrl: '',
+                username: '',
+                password: '',
+                securityToken: ''
+              });
+            }}>
               Cancel
             </Button>
-            <Button onClick={async () => {
+            <Button 
+              disabled={selectedIntegration?.id === 'salesforce' && (!testResult || !testResult.success)}
+              onClick={async () => {
               if (selectedIntegration?.oauth_required) {
                 // Handle OAuth flow for HubSpot and other OAuth integrations
                 if (!userProfile?.org_id) {
@@ -553,8 +672,17 @@ export default function IntegrationManager() {
                 }
               }
               setIsConfiguring(false);
+              setTestResult(null);
+              setCredentials({
+                instanceUrl: '',
+                username: '',
+                password: '',
+                securityToken: ''
+              });
             }}>
-              Save Configuration
+              {selectedIntegration?.id === 'salesforce' && (!testResult || !testResult.success) 
+                ? 'Test Connection First' 
+                : 'Save & Connect'}
             </Button>
           </DialogFooter>
         </DialogContent>
