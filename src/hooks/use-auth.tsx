@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useRef, ReactNode } fro
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { setUserContext, clearUserContext } from '@/config/sentry';
 
 interface AuthContextType {
   user: User | null;
@@ -91,6 +92,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          // Set Sentry user context for error tracking
+          setUserContext({
+            id: session.user.id,
+            email: session.user.email,
+          });
+          
           // Phase A & B: Use cached profile for INSTANT render
           const cached = localStorage.getItem('user_profile_cache');
           let usedCache = false;
@@ -121,6 +128,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setLoading(false);
           }
         } else {
+          // Clear Sentry user context on sign out
+          clearUserContext();
+          
           setUserProfile(null);
           localStorage.removeItem('user_profile_cache');
           setLoading(false);
