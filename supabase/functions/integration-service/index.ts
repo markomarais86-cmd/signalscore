@@ -61,10 +61,10 @@ Deno.serve(async (req) => {
         return await listIntegrations(supabase, profile.org_id);
       
       case 'connect':
-        return await connectIntegration(supabase, profile.org_id, req);
+        return await connectIntegration(supabase, profile.org_id, body);
       
       case 'disconnect':
-        return await disconnectIntegration(supabase, profile.org_id, req);
+        return await disconnectIntegration(supabase, profile.org_id, body);
       
       case 'test':
         return await testConnection(supabase, profile.org_id, body);
@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
       
       case 'sync':
       case 'triggerSync':
-        return await triggerSync(supabase, profile.org_id, req);
+        return await triggerSync(supabase, profile.org_id, body);
       
       case 'status':
         return await getIntegrationStatus(supabase, profile.org_id, req);
@@ -130,8 +130,7 @@ async function listIntegrations(supabase: any, orgId: string) {
   );
 }
 
-async function connectIntegration(supabase: any, orgId: string, req: Request) {
-  const body = await req.json();
+async function connectIntegration(supabase: any, orgId: string, body: any) {
   const { provider_name, integration_type, api_key, config, salesforce_credentials, sync_frequency } = body;
 
   // Build the config object with sync frequency
@@ -253,8 +252,7 @@ async function connectIntegration(supabase: any, orgId: string, req: Request) {
   );
 }
 
-async function disconnectIntegration(supabase: any, orgId: string, req: Request) {
-  const body = await req.json();
+async function disconnectIntegration(supabase: any, orgId: string, body: any) {
   const { provider_name } = body;
 
   const { error } = await supabase
@@ -355,8 +353,7 @@ async function testConnection(supabase: any, orgId: string, body: any) {
   }
 }
 
-async function triggerSync(supabase: any, orgId: string, req: Request) {
-  const body = await req.json();
+async function triggerSync(supabase: any, orgId: string, body: any) {
   const { provider_name, integration_id, full_sync = false } = body;
 
   // Get integration config
