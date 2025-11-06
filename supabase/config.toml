@@ -1,5 +1,8 @@
 project_id = "dhyfbaptcprxxixgnpby"
 
+[functions.salesforce-webhook]
+verify_jwt = false
+
 [functions.salesforce-sync]
 verify_jwt = true
 

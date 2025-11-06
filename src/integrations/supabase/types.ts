@@ -1979,6 +1979,48 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_logs: {
+        Row: {
+          action: string
+          created_at: string
+          error_message: string | null
+          id: string
+          object_type: string
+          org_id: string
+          payload: Json
+          processed: boolean
+          processed_at: string | null
+          record_id: string
+          webhook_type: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          object_type: string
+          org_id: string
+          payload?: Json
+          processed?: boolean
+          processed_at?: string | null
+          record_id: string
+          webhook_type: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          object_type?: string
+          org_id?: string
+          payload?: Json
+          processed?: boolean
+          processed_at?: string | null
+          record_id?: string
+          webhook_type?: string
+        }
+        Relationships: []
+      }
       zapier_webhooks: {
         Row: {
           created_at: string

@@ -40,6 +40,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import IntegrationManager from "@/components/settings/IntegrationManager";
+import WebhookLogViewer from "@/components/settings/WebhookLogViewer";
 import DataMapping from "@/components/settings/DataMapping";
 import ScoringConfiguration from "@/components/settings/ScoringConfiguration";
 import BenchmarkSettings from "@/components/settings/BenchmarkSettings";
@@ -580,6 +581,7 @@ export default function Settings() {
                 <IntegrationHealthDashboard />
                 <IntegrationCredentialManager />
                 <IntegrationManager />
+                <WebhookLogViewer />
                 <ZapierIntegration />
               </AccordionContent>
             </AccordionItem>
