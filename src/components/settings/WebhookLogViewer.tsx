@@ -10,7 +10,9 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
-  Webhook
+  Webhook,
+  RotateCcw,
+  XCircle
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +30,12 @@ interface WebhookLog {
   error_message?: string;
   created_at: string;
   processed_at?: string;
+  retry_count?: number;
+  max_retries?: number;
+  next_retry_at?: string;
+  last_retry_at?: string;
+  permanently_failed?: boolean;
+  failure_reason?: string;
 }
 
 export default function WebhookLogViewer() {
@@ -75,19 +83,25 @@ export default function WebhookLogViewer() {
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'webhook_logs',
           filter: `org_id=eq.${userProfile.org_id}`,
         },
         (payload) => {
-          console.log('New webhook received:', payload);
-          setLogs((prev) => [payload.new as WebhookLog, ...prev.slice(0, 49)]);
+          console.log('Webhook event:', payload);
           
-          toast({
-            title: "New Webhook Received",
-            description: `${(payload.new as WebhookLog).object_type} ${(payload.new as WebhookLog).action}`,
-          });
+          if (payload.eventType === 'INSERT') {
+            setLogs((prev) => [payload.new as WebhookLog, ...prev.slice(0, 49)]);
+            toast({
+              title: "New Webhook Received",
+              description: `${(payload.new as WebhookLog).object_type} ${(payload.new as WebhookLog).action}`,
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            setLogs((prev) => 
+              prev.map(log => log.id === payload.new.id ? payload.new as WebhookLog : log)
+            );
+          }
         }
       )
       .subscribe();
@@ -119,13 +133,37 @@ export default function WebhookLogViewer() {
   };
 
   const getStatusIcon = (log: WebhookLog) => {
-    if (log.processed && !log.error_message) {
+    if (log.permanently_failed) {
+      return <XCircle className="h-5 w-5 text-red-500" />;
+    } else if (log.processed && !log.error_message) {
       return <CheckCircle className="h-5 w-5 text-green-500" />;
+    } else if (log.next_retry_at) {
+      return <RotateCcw className="h-5 w-5 text-yellow-500" />;
     } else if (log.error_message) {
       return <AlertCircle className="h-5 w-5 text-red-500" />;
     } else {
-      return <Clock className="h-5 w-5 text-yellow-500" />;
+      return <Clock className="h-5 w-5 text-blue-500" />;
     }
+  };
+
+  const getStatusBadge = (log: WebhookLog) => {
+    if (log.permanently_failed) {
+      return <Badge variant="destructive">Permanently Failed</Badge>;
+    } else if (log.processed) {
+      return <Badge variant="default" className="bg-green-500">Processed</Badge>;
+    } else if (log.next_retry_at) {
+      return <Badge variant="secondary">Retry Scheduled ({log.retry_count || 0}/{log.max_retries || 3})</Badge>;
+    } else {
+      return <Badge variant="outline">Pending</Badge>;
+    }
+  };
+
+  // Calculate statistics
+  const stats = {
+    processed: logs.filter(l => l.processed).length,
+    retryScheduled: logs.filter(l => !l.processed && !l.permanently_failed && l.next_retry_at).length,
+    permanentlyFailed: logs.filter(l => l.permanently_failed).length,
+    pending: logs.filter(l => !l.processed && !l.permanently_failed && !l.next_retry_at).length,
   };
 
   if (isLoading) {
@@ -152,13 +190,33 @@ export default function WebhookLogViewer() {
               Webhook Activity
             </CardTitle>
             <CardDescription>
-              Real-time Salesforce webhook events (last 50)
+              Real-time Salesforce webhook events with automatic retry
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={loadLogs}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
+        </div>
+        
+        {/* Statistics */}
+        <div className="grid grid-cols-4 gap-4 mt-4">
+          <div className="bg-green-50 dark:bg-green-950 p-3 rounded-lg">
+            <div className="text-2xl font-bold text-green-600">{stats.processed}</div>
+            <div className="text-xs text-muted-foreground">Processed</div>
+          </div>
+          <div className="bg-yellow-50 dark:bg-yellow-950 p-3 rounded-lg">
+            <div className="text-2xl font-bold text-yellow-600">{stats.retryScheduled}</div>
+            <div className="text-xs text-muted-foreground">Retry Scheduled</div>
+          </div>
+          <div className="bg-red-50 dark:bg-red-950 p-3 rounded-lg">
+            <div className="text-2xl font-bold text-red-600">{stats.permanentlyFailed}</div>
+            <div className="text-xs text-muted-foreground">Failed</div>
+          </div>
+          <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg">
+            <div className="text-2xl font-bold text-blue-600">{stats.pending}</div>
+            <div className="text-xs text-muted-foreground">Pending</div>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -190,16 +248,33 @@ export default function WebhookLogViewer() {
                                 <span className="font-medium">{log.object_type}</span>
                                 {getActionBadge(log.action)}
                                 {getWebhookTypeBadge(log.webhook_type)}
+                                {getStatusBadge(log)}
                               </div>
                               <div className="text-sm text-muted-foreground">
                                 Record ID: {log.record_id}
                               </div>
                               <div className="text-xs text-muted-foreground mt-1">
-                                {new Date(log.created_at).toLocaleString()}
+                                Received: {new Date(log.created_at).toLocaleString()}
                               </div>
-                              {log.error_message && (
-                                <div className="text-sm text-red-600 mt-2">
-                                  Error: {log.error_message}
+                              {log.processed_at && (
+                                <div className="text-xs text-green-600 dark:text-green-400">
+                                  Processed: {new Date(log.processed_at).toLocaleString()}
+                                </div>
+                              )}
+                              {log.next_retry_at && !log.permanently_failed && (
+                                <div className="text-xs text-yellow-600 dark:text-yellow-400 mt-1">
+                                  Next retry: {new Date(log.next_retry_at).toLocaleString()}
+                                </div>
+                              )}
+                              {log.last_retry_at && (
+                                <div className="text-xs text-muted-foreground">
+                                  Last retry: {new Date(log.last_retry_at).toLocaleString()}
+                                </div>
+                              )}
+                              {(log.error_message || log.failure_reason) && (
+                                <div className="text-sm text-red-600 mt-2 flex items-start gap-2">
+                                  <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                                  <span>{log.failure_reason || log.error_message}</span>
                                 </div>
                               )}
                             </div>
@@ -220,9 +295,14 @@ export default function WebhookLogViewer() {
                         <pre className="bg-muted p-3 rounded-md text-xs overflow-x-auto">
                           {JSON.stringify(log.payload, null, 2)}
                         </pre>
-                        {log.processed_at && (
-                          <div className="text-xs text-muted-foreground mt-3">
-                            Processed at: {new Date(log.processed_at).toLocaleString()}
+                        {log.permanently_failed && (
+                          <div className="mt-3 p-3 bg-red-50 dark:bg-red-950 rounded-md">
+                            <p className="text-sm text-red-600 dark:text-red-400 font-medium">
+                              This webhook has permanently failed after {log.retry_count} retry attempts.
+                            </p>
+                            <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                              Manual intervention required. Check the error message above for details.
+                            </p>
                           </div>
                         )}
                       </div>

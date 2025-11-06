@@ -1984,39 +1984,57 @@ export type Database = {
           action: string
           created_at: string
           error_message: string | null
+          failure_reason: string | null
           id: string
+          last_retry_at: string | null
+          max_retries: number | null
+          next_retry_at: string | null
           object_type: string
           org_id: string
           payload: Json
+          permanently_failed: boolean | null
           processed: boolean
           processed_at: string | null
           record_id: string
+          retry_count: number | null
           webhook_type: string
         }
         Insert: {
           action: string
           created_at?: string
           error_message?: string | null
+          failure_reason?: string | null
           id?: string
+          last_retry_at?: string | null
+          max_retries?: number | null
+          next_retry_at?: string | null
           object_type: string
           org_id: string
           payload?: Json
+          permanently_failed?: boolean | null
           processed?: boolean
           processed_at?: string | null
           record_id: string
+          retry_count?: number | null
           webhook_type: string
         }
         Update: {
           action?: string
           created_at?: string
           error_message?: string | null
+          failure_reason?: string | null
           id?: string
+          last_retry_at?: string | null
+          max_retries?: number | null
+          next_retry_at?: string | null
           object_type?: string
           org_id?: string
           payload?: Json
+          permanently_failed?: boolean | null
           processed?: boolean
           processed_at?: string | null
           record_id?: string
+          retry_count?: number | null
           webhook_type?: string
         }
         Relationships: []

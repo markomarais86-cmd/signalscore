@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Log webhook receipt
+    // Log webhook receipt with retry configuration
     const webhookLog: WebhookLog = {
       org_id,
       webhook_type: webhookType,
@@ -86,7 +86,13 @@ Deno.serve(async (req) => {
 
     const { data: logEntry, error: logError } = await supabaseClient
       .from('webhook_logs')
-      .insert(webhookLog)
+      .insert({
+        ...webhookLog,
+        retry_count: 0,
+        max_retries: 3,
+        next_retry_at: null,
+        permanently_failed: false
+      })
       .select()
       .single();
 
@@ -136,16 +142,23 @@ Deno.serve(async (req) => {
     } catch (error: any) {
       console.error('Error processing webhook:', error);
 
-      // Mark as failed
+      // Schedule retry with exponential backoff (1 minute for first retry)
+      const backoffDelay = 60 * 1000; // 1 minute
+      const nextRetryAt = new Date(Date.now() + backoffDelay);
+
       if (logEntry) {
         await supabaseClient
           .from('webhook_logs')
           .update({ 
             processed: false,
-            error_message: error.message 
+            error_message: error.message,
+            failure_reason: error.message,
+            next_retry_at: nextRetryAt.toISOString()
           })
           .eq('id', logEntry.id);
       }
+
+      console.log(`Webhook processing failed, scheduled for retry at ${nextRetryAt.toISOString()}`);
 
       throw error;
     }
