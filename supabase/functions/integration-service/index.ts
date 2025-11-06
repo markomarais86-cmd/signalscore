@@ -222,7 +222,7 @@ async function connectIntegration(supabase: any, orgId: string, body: any) {
       .insert({
         org_id: orgId,
         integration_config_id: configId,
-        credential_type: 'salesforce_api',
+        credential_type: 'basic_auth',
         encrypted_value: JSON.stringify(salesforce_credentials), // Store all creds as JSON
         key_prefix: salesforce_credentials.username?.substring(0, 8) + '...'
       });
