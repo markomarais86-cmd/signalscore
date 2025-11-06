@@ -21,12 +21,14 @@ import { AccountDetailDrawer } from "@/components/accounts/AccountDetailDrawer";
 import { BulkScoring } from "@/components/BulkScoring";
 import { CorrelationInsights } from "@/components/CorrelationInsights";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { PaginationControls } from "@/components/ui/pagination-controls";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { getSourceLabel, getSourceBadgeVariant } from "@/utils/data-source-attribution";
 import { EmptyDataState } from "@/components/EmptyDataState";
 import { PRIMARY_INDUSTRIES, SUB_INDUSTRIES_MAP } from "@/constants/zoominfo-industries";
 import { TableSkeleton } from "@/components/TableSkeleton";
+import { useInfiniteAccounts } from "@/hooks/use-infinite-accounts";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { InfiniteScrollTrigger } from "@/components/InfiniteScrollTrigger";
 
 interface Account {
   id: string;
@@ -67,11 +69,9 @@ export default function Accounts() {
       revenueRanges?: string[];
     };
   } | null;
-  const [accounts, setAccounts] = useState<Account[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [industryFilter, setIndustryFilter] = useState("all");
   const [subIndustryFilter, setSubIndustryFilter] = useState("all");
-  const [loading, setLoading] = useState(true);
   
   // ICP-specific filter states
   const [icpIndustries, setIcpIndustries] = useState<string[]>([]);
@@ -95,10 +95,6 @@ export default function Accounts() {
   const [stateFilter, setStateFilter] = useState<string | null>(null);
   const [icpFilter, setIcpFilter] = useState<string | null>(null);
   
-  // Server-side pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-  const [totalCount, setTotalCount] = useState(0);
   const [totalAccountsForSummary, setTotalAccountsForSummary] = useState(0);
   const [summaryStats, setSummaryStats] = useState({
     withContacts: 0,
@@ -122,7 +118,33 @@ export default function Accounts() {
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
 
-  const totalPages = Math.ceil(totalCount / pageSize);
+  // Infinite scroll hook
+  const {
+    accounts,
+    isLoading,
+    isLoadingMore,
+    hasMore,
+    totalCount,
+    loadMore,
+    refresh
+  } = useInfiniteAccounts({
+    orgId: userProfile?.org_id || null,
+    pageSize: 25,
+    searchTerm,
+    industryFilter,
+    subIndustryFilter,
+    sourceFilter,
+    fitFilter,
+    countryFilter,
+    enabled: !!userProfile?.org_id,
+  });
+
+  // Infinite scroll observer
+  const { observerTarget } = useInfiniteScroll({
+    onLoadMore: loadMore,
+    hasMore,
+    isLoading: isLoadingMore,
+  });
 
   // Read URL parameters on mount
   useEffect(() => {
@@ -170,196 +192,37 @@ export default function Accounts() {
     setIcpRevenues([]);
   };
 
+  // Check ICP and scoring status
   useEffect(() => {
-    if (userProfile?.org_id) {
-      loadAccounts();
-      loadSummaryStats();
-    }
-  }, [userProfile?.org_id, currentPage, pageSize, searchTerm, industryFilter, subIndustryFilter, sourceFilter, fitFilter, countryFilter, stateFilter, icpFilter, icpIndustries, icpGeographies, icpSizes, icpRevenues]);
+    if (!userProfile?.org_id || accounts.length === 0) return;
 
-  const loadAccounts = async () => {
-    if (!userProfile?.org_id) return;
-    
-    setLoading(true);
-    try {
-      // Build base query with filters
-      let accountsQuery = supabase
-        .from('accounts')
-        .select('*', { count: 'exact' })
-        .eq('org_id', userProfile.org_id);
-
-      // Apply search filter
-      if (searchTerm) {
-        accountsQuery = accountsQuery.or(
-          `name.ilike.%${searchTerm}%,domain.ilike.%${searchTerm}%,industry_raw.ilike.%${searchTerm}%`
-        );
-      }
-
-      // Apply primary industry filter
-      if (industryFilter !== "all") {
-        accountsQuery = accountsQuery.eq('industry_norm', industryFilter);
-      }
-
-      // Apply sub-industry filter
-      if (subIndustryFilter !== "all") {
-        accountsQuery = accountsQuery.eq('industry_raw', subIndustryFilter);
-      }
-
-      // Apply source filter
-      if (sourceFilter && sourceFilter !== 'all') {
-        if (sourceFilter === 'crm') {
-          accountsQuery = accountsQuery.in('data_source', ['crm', 'both']);
-        } else if (sourceFilter === 'database') {
-          accountsQuery = accountsQuery.eq('data_source', 'database');
-        }
-      }
-
-      // Apply geography filters
-      if (countryFilter) {
-        accountsQuery = accountsQuery.eq('country', countryFilter);
-      }
-      if (stateFilter) {
-        accountsQuery = accountsQuery.eq('state_province', stateFilter);
-      }
-
-      // Apply ICP-specific filters if in ICP context (match ALL criteria from ICP)
-      if (icpContext) {
-        // Filter by ICP industries (OR condition - match ANY industry)
-        if (icpIndustries.length > 0) {
-          accountsQuery = accountsQuery.in('industry_norm', icpIndustries);
-        }
-        
-        // Filter by ICP geographies (OR condition - match ANY geography)
-        if (icpGeographies.length > 0) {
-          accountsQuery = accountsQuery.in('country', icpGeographies);
-        }
-        
-        // Filter by ICP company sizes (OR condition - match ANY size range)
-        if (icpSizes.length > 0) {
-          const sizeConditions = icpSizes.map((size, index) => {
-            const nextSize = icpSizes[index + 1];
-            if (nextSize) {
-              return `and(employee_count.gte.${size},employee_count.lt.${nextSize})`;
-            } else {
-              return `employee_count.gte.${size}`;
-            }
-          }).join(',');
-          
-          accountsQuery = accountsQuery.or(sizeConditions);
-        }
-        
-        // Filter by ICP revenue ranges (OR condition - match ANY revenue range)
-        if (icpRevenues.length > 0) {
-          accountsQuery = accountsQuery.in('revenue_range', icpRevenues);
-        }
-      }
-
-      // Get count and paginated data
-      const from = (currentPage - 1) * pageSize;
-      const to = from + pageSize - 1;
-      
-      const { data: accountsData, count, error: accountsError } = await accountsQuery
-        .range(from, to)
-        .order('name', { ascending: true });
-
-      if (accountsError) throw accountsError;
-
-      setTotalCount(count || 0);
-
-      // Fetch scores and contacts for current page accounts only
-      const accountExternalIds = (accountsData || []).map(a => a.external_id);
-      
-      let scoresQuery = supabase
-        .from('scores')
-        .select('*')
+    const checkICPStatus = async () => {
+      const { data: icpData } = await supabase
+        .from('icp_profiles')
+        .select('id')
         .eq('org_id', userProfile.org_id)
-        .in('account_external_id', accountExternalIds);
-
-      // Apply fit filter to scores
-      if (fitFilter === 'high') {
-        scoresQuery = scoresQuery.gte('fit', 70);
-      } else if (fitFilter === 'medium') {
-        scoresQuery = scoresQuery.gte('fit', 40).lt('fit', 70);
-      } else if (fitFilter === 'low') {
-        scoresQuery = scoresQuery.lt('fit', 40);
-      }
-
-      const [{ data: scoresData }, { data: allLeads }, { data: icpData }] = await Promise.all([
-        scoresQuery,
-        supabase
-          .from('Leads')
-          .select('*')
-          .eq('org_id', userProfile.org_id)
-          .in('account_external_id', accountExternalIds),
-        supabase
-          .from('icp_profiles')
-          .select('id')
-          .eq('org_id', userProfile.org_id)
-          .eq('status', 'active')
-      ]);
-
-      // If fit filter is applied, filter accounts to only those with matching scores
-      let filteredAccountsData = accountsData;
-      if (fitFilter && scoresData) {
-        const scoredAccountIds = new Set(scoresData.map(s => s.account_external_id));
-        filteredAccountsData = accountsData?.filter(a => scoredAccountIds.has(a.external_id)) || [];
-      }
+        .eq('status', 'active');
 
       const hasICP = (icpData?.length || 0) > 0;
-      const hasScores = (scoresData?.length || 0) > 0;
-      const hasAccounts = (filteredAccountsData?.length || 0) > 0;
-
       setHasActiveICP(hasICP);
-      setNeedsScoring(hasAccounts && hasICP && !hasScores);
 
-      // Create maps for quick lookups
-      const scoresMap = new Map(
-        (scoresData || []).map(score => [score.account_external_id, score])
-      );
+      const hasScores = accounts.some(a => a.score !== null);
+      setNeedsScoring(accounts.length > 0 && hasICP && !hasScores);
 
-      const leadsMap = new Map<string, any[]>();
-      (allLeads || []).forEach(lead => {
-        const accountId = lead.account_external_id;
-        if (!leadsMap.has(accountId)) {
-          leadsMap.set(accountId, []);
-        }
-        leadsMap.get(accountId)!.push(lead);
-      });
-
-      // Combine accounts with scores and leads
-      const accountsWithLeads = (filteredAccountsData || []).map(account => {
-        const scoreData = scoresMap.get(account.external_id);
-        const contacts = leadsMap.get(account.external_id) || [];
-        
-        return {
-          ...account,
-          data_source: (account.data_source || 'crm') as 'crm' | 'database' | 'both',
-          score: scoreData ? {
-            overall: scoreData.overall,
-            fit: scoreData.fit,
-            intent: scoreData.intent,
-            reachability: scoreData.reachability
-          } : null,
-          contacts
-        };
-      });
-
-      setAccounts(accountsWithLeads);
-      
-      if (accountsWithLeads.some(a => a.score !== null)) {
+      if (hasScores) {
         completeStep('view_scores');
       }
-    } catch (error) {
-      console.error('Error loading accounts:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load accounts",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
+    };
+
+    checkICPStatus();
+  }, [userProfile?.org_id, accounts, completeStep]);
+
+  // Load summary stats
+  useEffect(() => {
+    if (userProfile?.org_id) {
+      loadSummaryStats();
     }
-  };
+  }, [userProfile?.org_id]);
 
   const loadSummaryStats = async () => {
     if (!userProfile?.org_id) return;
@@ -709,15 +572,6 @@ export default function Accounts() {
     fetchFilterOptions();
   }, [userProfile?.org_id]);
 
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  const handlePageSizeChange = (size: number) => {
-    setPageSize(size);
-    setCurrentPage(1);
-  };
-
   const clearFilters = () => {
     setSearchParams({});
     setSourceFilter(null);
@@ -738,7 +592,7 @@ export default function Accounts() {
 
   const hasActiveFilters = sourceFilter || fitFilter || countryFilter || stateFilter || icpFilter || searchTerm || industryFilter !== "all" || subIndustryFilter !== "all";
 
-  if (loading) {
+  if (isLoading && accounts.length === 0) {
     return <TableSkeleton rows={10} columns={7} showMetrics showFilters />;
   }
 
@@ -1070,7 +924,7 @@ export default function Accounts() {
       <CorrelationInsights />
 
       {/* Bulk Scoring */}
-      <BulkScoring onComplete={loadAccounts} />
+      <BulkScoring onComplete={refresh} />
 
       {/* Filters */}
       <Card>
@@ -1329,7 +1183,7 @@ export default function Accounts() {
                         <span className="text-sm">{completeness.toFixed(2)}%</span>
                       </div>
                     </TableCell>
-                    <TableCell>{account.contacts?.length || 0}</TableCell>
+                    <TableCell>0</TableCell>
                     <TableCell>
                       {account.score?.overall ? (
                         <div className="flex items-center gap-2">
@@ -1400,13 +1254,14 @@ export default function Accounts() {
             </TableBody>
           </Table>
 
-          <PaginationControls
-            currentPage={currentPage}
-            totalPages={totalPages}
-            pageSize={pageSize}
-            totalItems={totalCount}
-            onPageChange={handlePageChange}
-            onPageSizeChange={handlePageSizeChange}
+          {/* Infinite Scroll Trigger */}
+          <InfiniteScrollTrigger
+            observerTarget={observerTarget}
+            isLoading={isLoadingMore}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
+            itemsCount={accounts.length}
+            totalCount={totalCount}
           />
         </CardContent>
       </Card>
