@@ -595,6 +595,101 @@ export type Database = {
           },
         ]
       }
+      enrichment_field_coverage: {
+        Row: {
+          coverage_percentage: number | null
+          enriched_accounts: number | null
+          field_name: string
+          id: string
+          org_id: string
+          primary_provider: string | null
+          total_accounts: number | null
+          updated_at: string
+        }
+        Insert: {
+          coverage_percentage?: number | null
+          enriched_accounts?: number | null
+          field_name: string
+          id?: string
+          org_id: string
+          primary_provider?: string | null
+          total_accounts?: number | null
+          updated_at?: string
+        }
+        Update: {
+          coverage_percentage?: number | null
+          enriched_accounts?: number | null
+          field_name?: string
+          id?: string
+          org_id?: string
+          primary_provider?: string | null
+          total_accounts?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      enrichment_history: {
+        Row: {
+          account_external_id: string
+          created_at: string
+          credits_used: number | null
+          data_after: Json | null
+          data_before: Json | null
+          enrichment_type: string
+          error_code: string | null
+          error_message: string | null
+          fields_enriched: string[] | null
+          id: string
+          job_id: string | null
+          org_id: string
+          provider: string
+          response_time_ms: number | null
+          status: string
+        }
+        Insert: {
+          account_external_id: string
+          created_at?: string
+          credits_used?: number | null
+          data_after?: Json | null
+          data_before?: Json | null
+          enrichment_type: string
+          error_code?: string | null
+          error_message?: string | null
+          fields_enriched?: string[] | null
+          id?: string
+          job_id?: string | null
+          org_id: string
+          provider: string
+          response_time_ms?: number | null
+          status: string
+        }
+        Update: {
+          account_external_id?: string
+          created_at?: string
+          credits_used?: number | null
+          data_after?: Json | null
+          data_before?: Json | null
+          enrichment_type?: string
+          error_code?: string | null
+          error_message?: string | null
+          fields_enriched?: string[] | null
+          id?: string
+          job_id?: string | null
+          org_id?: string
+          provider?: string
+          response_time_ms?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_history_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "enrichment_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enrichment_jobs: {
         Row: {
           batch_size: number | null
@@ -1552,6 +1647,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      provider_health: {
+        Row: {
+          avg_response_time_ms: number | null
+          error_details: Json | null
+          failed_requests: number | null
+          id: string
+          last_failure_at: string | null
+          last_success_at: string | null
+          org_id: string
+          provider: string
+          status: string
+          success_rate: number | null
+          total_requests: number | null
+          updated_at: string
+        }
+        Insert: {
+          avg_response_time_ms?: number | null
+          error_details?: Json | null
+          failed_requests?: number | null
+          id?: string
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          org_id: string
+          provider: string
+          status: string
+          success_rate?: number | null
+          total_requests?: number | null
+          updated_at?: string
+        }
+        Update: {
+          avg_response_time_ms?: number | null
+          error_details?: Json | null
+          failed_requests?: number | null
+          id?: string
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          org_id?: string
+          provider?: string
+          status?: string
+          success_rate?: number | null
+          total_requests?: number | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       rate_limits: {
         Row: {
