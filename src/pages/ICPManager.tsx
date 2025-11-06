@@ -18,9 +18,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ClosedWonInsights } from "@/components/icp/ClosedWonInsights";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ICPRecommendationDialog } from "@/components/icp/ICPRecommendationDialog";
+import { ICPGridSkeleton } from "@/components/ICPGridSkeleton";
 
 export default function ICPManager() {
   const [icps, setIcps] = useState<ICPProfile[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [editingIcp, setEditingIcp] = useState<ICPProfile | null>(null);
   const [recommendationDialogOpen, setRecommendationDialogOpen] = useState(false);
@@ -41,6 +43,7 @@ export default function ICPManager() {
   const loadICPs = async () => {
     if (!userProfile?.org_id) return;
     
+    setLoading(true);
     try {
       // Use demo data if demo mode is enabled
       if (flags.demo_mode) {
@@ -76,6 +79,8 @@ export default function ICPManager() {
         description: "Failed to load ICP profiles",
         variant: "destructive"
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -211,6 +216,10 @@ export default function ICPManager() {
   };
 
   const activeCount = icps.filter(icp => icp.status === 'active').length;
+  
+  if (loading) {
+    return <ICPGridSkeleton cards={3} />;
+  }
   
   return (
     <>

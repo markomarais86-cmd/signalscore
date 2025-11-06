@@ -69,6 +69,7 @@ import { IntegrationCredentialManager } from "@/components/settings/IntegrationC
 import { IntegrationHealthDashboard } from "@/components/settings/IntegrationHealthDashboard";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { SettingsSkeleton } from "@/components/SettingsSkeleton";
 
 interface TeamMember {
   id: string;
@@ -239,6 +240,10 @@ export default function Settings() {
     } as const;
     return <Badge variant={variants[status as keyof typeof variants]}>{status}</Badge>;
   };
+
+  if (loading) {
+    return <SettingsSkeleton />;
+  }
 
   return (
     <div className="space-y-6">

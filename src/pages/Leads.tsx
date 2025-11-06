@@ -59,6 +59,7 @@ import { PaginationControls } from "@/components/ui/pagination-controls";
 import { LeadAccountMatcher } from "@/components/data-upload/LeadAccountMatcher";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Link2, AlertTriangle } from "lucide-react";
+import { TableSkeleton } from "@/components/TableSkeleton";
 
 export default function Leads() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -518,6 +519,10 @@ export default function Leads() {
       description: `Exported ${leads.length} leads to CSV`
     });
   };
+
+  if (loading) {
+    return <TableSkeleton rows={10} columns={8} showMetrics showFilters />;
+  }
 
   return (
     <div className="space-y-6">

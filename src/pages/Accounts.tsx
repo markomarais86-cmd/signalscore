@@ -26,6 +26,7 @@ import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { getSourceLabel, getSourceBadgeVariant } from "@/utils/data-source-attribution";
 import { EmptyDataState } from "@/components/EmptyDataState";
 import { PRIMARY_INDUSTRIES, SUB_INDUSTRIES_MAP } from "@/constants/zoominfo-industries";
+import { TableSkeleton } from "@/components/TableSkeleton";
 
 interface Account {
   id: string;
@@ -738,19 +739,7 @@ export default function Accounts() {
   const hasActiveFilters = sourceFilter || fitFilter || countryFilter || stateFilter || icpFilter || searchTerm || industryFilter !== "all" || subIndustryFilter !== "all";
 
   if (loading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Accounts</h1>
-          <p className="text-muted-foreground mt-2">Complete CRM database view</p>
-        </div>
-        <Card>
-          <CardContent className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <TableSkeleton rows={10} columns={7} showMetrics showFilters />;
   }
 
   return (
