@@ -348,7 +348,42 @@ export default function IntegrationManager() {
               Cancel
             </Button>
             <Button onClick={async () => {
-              if (selectedIntegration?.id === 'salesforce') {
+              if (selectedIntegration?.oauth_required) {
+                // Handle OAuth flow for HubSpot and other OAuth integrations
+                if (!userProfile?.org_id) {
+                  toast({ 
+                    title: "Error", 
+                    description: "Organization not found",
+                    variant: "destructive"
+                  });
+                  return;
+                }
+
+                try {
+                  // Initiate OAuth flow
+                  const { data, error } = await supabase.functions.invoke('oauth-initiate', {
+                    body: {
+                      provider: selectedIntegration.id,
+                      org_id: userProfile.org_id,
+                      redirect_url: `${window.location.origin}/settings?tab=integrations`
+                    }
+                  });
+
+                  if (error) throw error;
+
+                  // Redirect to OAuth provider
+                  if (data?.authUrl) {
+                    window.location.href = data.authUrl;
+                  }
+                } catch (error: any) {
+                  console.error('OAuth initiation error:', error);
+                  toast({ 
+                    title: "Connection Failed", 
+                    description: error.message || "Failed to initiate OAuth flow",
+                    variant: "destructive"
+                  });
+                }
+              } else if (selectedIntegration?.id === 'salesforce') {
                 if (!credentials.instanceUrl || !credentials.username || !credentials.password || !credentials.securityToken) {
                   toast({ 
                     title: "Missing credentials", 

@@ -413,6 +413,52 @@ async function triggerSync(supabase: any, orgId: string, req: Request) {
     }
   }
 
+  // If it's HubSpot, call the dedicated sync function
+  if (config.provider_name.toLowerCase() === 'hubspot') {
+    console.log('Calling HubSpot sync edge function');
+    
+    try {
+      const syncResponse = await fetch(
+        `${Deno.env.get('SUPABASE_URL')}/functions/v1/hubspot-sync`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            org_id: orgId,
+            integration_config_id: config.id,
+            full_sync: full_sync,
+          }),
+        }
+      );
+
+      const result = await syncResponse.json();
+
+      if (!syncResponse.ok) {
+        throw new Error(result.error || 'HubSpot sync failed');
+      }
+
+      return new Response(
+        JSON.stringify(result),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } catch (error: any) {
+      console.error('HubSpot sync error:', error);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: error.message 
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+  }
+
   // For other providers, create sync log and simulate
   const { data: syncLog, error: logError } = await supabase
     .from('integration_sync_logs')

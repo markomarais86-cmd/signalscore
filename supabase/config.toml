@@ -6,6 +6,9 @@ verify_jwt = false
 [functions.salesforce-sync]
 verify_jwt = true
 
+[functions.hubspot-sync]
+verify_jwt = true
+
 [functions.integration-service]
 verify_jwt = true
 
