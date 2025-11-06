@@ -156,7 +156,6 @@ async function connectIntegration(supabase: any, orgId: string, body: any) {
       .update({
         status: 'connected',
         config: integrationConfig,
-        is_active: true,
         error_message: null,
         error_count: 0,
         updated_at: new Date().toISOString()
@@ -176,8 +175,7 @@ async function connectIntegration(supabase: any, orgId: string, body: any) {
         provider_name,
         integration_type,
         status: 'connected',
-        config: integrationConfig,
-        is_active: true
+        config: integrationConfig
       })
       .select()
       .single();
@@ -259,7 +257,6 @@ async function disconnectIntegration(supabase: any, orgId: string, body: any) {
     .from('integration_configs')
     .update({
       status: 'disconnected',
-      is_active: false,
       updated_at: new Date().toISOString()
     })
     .eq('org_id', orgId)
