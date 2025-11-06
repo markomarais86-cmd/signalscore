@@ -54,21 +54,20 @@ interface Lead {
   } | null;
 }
 
-import { usePagination } from "@/hooks/use-pagination";
-import { PaginationControls } from "@/components/ui/pagination-controls";
+import { useInfiniteLeads } from "@/hooks/use-infinite-leads";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { InfiniteScrollTrigger } from "@/components/InfiniteScrollTrigger";
 import { LeadAccountMatcher } from "@/components/data-upload/LeadAccountMatcher";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Link2, AlertTriangle } from "lucide-react";
 import { TableSkeleton } from "@/components/TableSkeleton";
 
 export default function Leads() {
-  const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [linkFilter, setLinkFilter] = useState("all");
   const [personaFilter, setPersonaFilter] = useState("all");
-  const [loading, setLoading] = useState(true);
   const [showMatcher, setShowMatcher] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
   const [hasAttemptedMatch, setHasAttemptedMatch] = useState(false);
@@ -76,235 +75,32 @@ export default function Leads() {
   const { toast } = useToast();
   const { flags } = useFeatureFlags();
 
-  // Server-side pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
-  const [totalCount, setTotalCount] = useState(0);
-  
-  const totalPages = Math.ceil(totalCount / pageSize);
+  // Use infinite scroll hook
+  const {
+    leads,
+    isLoading,
+    isLoadingMore,
+    hasMore,
+    totalCount,
+    loadMore,
+    refresh
+  } = useInfiniteLeads({
+    orgId: userProfile?.org_id || null,
+    pageSize: 25,
+    searchTerm,
+    statusFilter: statusFilter !== 'all' ? statusFilter : undefined,
+    linkFilter: linkFilter !== 'all' ? linkFilter : undefined,
+    personaFilter: personaFilter !== 'all' ? personaFilter : undefined
+  });
 
-  useEffect(() => {
-    if (userProfile?.org_id) {
-      loadLeads();
-    }
-  }, [userProfile?.org_id, currentPage, pageSize, searchTerm, statusFilter, linkFilter, personaFilter]);
+  // Set up infinite scroll observer
+  const { observerTarget } = useInfiniteScroll({
+    onLoadMore: loadMore,
+    hasMore,
+    isLoading: isLoadingMore
+  });
 
   // Removed auto-match on page load - it causes timeouts and poor UX
-
-  const loadLeads = async () => {
-    if (!userProfile?.org_id) return;
-    
-    setLoading(true);
-    try {
-      // Use demo data if demo mode is enabled
-      if (flags.demo_mode) {
-        const demoLeads: Lead[] = DEMO_ACCOUNTS.map(account => ({
-          id: account.id,
-          external_id: account.id,
-          name: account.name,
-          first_name: account.contacts[0]?.first_name || null,
-          last_name: account.contacts[0]?.last_name || null,
-          email: account.contacts[0]?.email || null,
-          phone: null,
-          mobile: null,
-          title: account.contacts[0]?.title_raw || null,
-          persona: null,
-          company: account.name,
-          website: account.domain,
-          industry: account.industry_norm,
-          employee_count: account.employee_count,
-          revenue_range: account.revenue_range,
-          country: account.country,
-          state_province: null,
-          status: 'qualified',
-          account_external_id: account.id,
-          contact_external_id: account.contacts[0]?.id || null,
-          account: {
-            name: account.name,
-            domain: account.domain,
-            industry_norm: account.industry_norm,
-            employee_count: account.employee_count,
-            revenue_range: account.revenue_range,
-            country: account.country
-          },
-          score: {
-            overall: account.score.overall,
-            fit: account.score.fit,
-            intent: account.score.intent,
-            reachability: account.score.reachability,
-            reasons: {
-              industry_match: account.score.fit > 70,
-              size_match: account.score.fit > 70,
-              revenue_match: account.score.fit > 70,
-              geography_match: account.score.fit > 70
-            }
-          }
-        }));
-        setLeads(demoLeads);
-        setLoading(false);
-        return;
-      }
-
-      // Build query with filters and server-side pagination
-      let leadsQuery = supabase
-        .from('Leads')
-        .select('*', { count: 'exact' })
-        .eq('org_id', userProfile.org_id);
-
-      // Apply filters
-      if (searchTerm) {
-        leadsQuery = leadsQuery.or(
-          `name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,company.ilike.%${searchTerm}%`
-        );
-      }
-
-      if (statusFilter !== 'all') {
-        leadsQuery = leadsQuery.eq('status', statusFilter);
-      }
-
-      if (linkFilter === 'linked') {
-        leadsQuery = leadsQuery.not('account_external_id', 'is', null);
-      } else if (linkFilter === 'unlinked') {
-        leadsQuery = leadsQuery.is('account_external_id', null);
-      }
-
-      if (personaFilter !== 'all') {
-        leadsQuery = leadsQuery.eq('persona', personaFilter);
-      }
-
-      // Add pagination
-      const from = (currentPage - 1) * pageSize;
-      const to = from + pageSize - 1;
-
-      const { data: leadsData, count, error: leadsError } = await leadsQuery
-        .range(from, to)
-        .order('created_at', { ascending: false });
-
-      if (leadsError) throw leadsError;
-
-      setTotalCount(count || 0);
-      console.log(`Loaded ${leadsData?.length || 0} leads of ${count || 0} total`);
-
-      // Get unique account external IDs that have a link
-      const linkedAccountIds = [...new Set(
-        (leadsData || [])
-          .filter(lead => lead.account_external_id)
-          .map(lead => lead.account_external_id)
-      )];
-
-      // Only fetch accounts and scores if we have linked accounts
-      if (linkedAccountIds.length === 0) {
-        // No linked accounts, just show leads without enrichment
-        const simpleLeads: Lead[] = (leadsData || []).map(lead => ({
-          id: lead.id?.toString() || lead.external_id,
-          external_id: lead.external_id,
-          name: lead.name,
-          first_name: lead.first_name,
-          last_name: lead.last_name,
-          email: lead.email,
-          phone: lead.phone,
-          mobile: lead.mobile,
-          title: lead.title,
-          persona: lead.persona,
-          company: lead.company,
-          website: lead.website,
-          industry: lead.industry,
-          employee_count: lead.employee_count,
-          revenue_range: lead.revenue_range,
-          country: lead.country,
-          state_province: lead.state_province,
-          status: lead.status,
-          account_external_id: lead.account_external_id,
-          contact_external_id: lead.contact_external_id,
-          account: null,
-          score: null
-        }));
-        setLeads(simpleLeads);
-        return;
-      }
-
-      // Batch fetch accounts
-      const { data: accountsData, error: accountsError } = await supabase
-        .from('accounts')
-        .select('external_id, name, domain, industry_norm, employee_count, revenue_range, country')
-        .eq('org_id', userProfile.org_id)
-        .in('external_id', linkedAccountIds);
-
-      if (accountsError) throw accountsError;
-
-      // Create a Map for O(1) lookups
-      const accountsMap = new Map(
-        (accountsData || []).map(acc => [acc.external_id, acc])
-      );
-
-      // Batch fetch all scores for linked accounts
-      const { data: scoresData, error: scoresError } = await supabase
-        .from('scores')
-        .select('overall, fit, intent, reachability, reasons, account_external_id')
-        .eq('org_id', userProfile.org_id)
-        .in('account_external_id', linkedAccountIds);
-
-      if (scoresError) throw scoresError;
-
-      // Create a Map for scores
-      const scoresMap = new Map(
-        (scoresData || []).map(score => [score.account_external_id, score])
-      );
-
-      // Combine leads with their account and score data
-      const enrichedLeads: Lead[] = (leadsData || []).map(lead => {
-        const linkedAccount = lead.account_external_id 
-          ? accountsMap.get(lead.account_external_id) 
-          : null;
-        
-        const scoreData = lead.account_external_id 
-          ? scoresMap.get(lead.account_external_id) 
-          : null;
-
-        return {
-          id: lead.id?.toString() || lead.external_id,
-          external_id: lead.external_id,
-          name: lead.name,
-          first_name: lead.first_name,
-          last_name: lead.last_name,
-          email: lead.email,
-          phone: lead.phone,
-          mobile: lead.mobile,
-          title: lead.title,
-          persona: lead.persona,
-          company: lead.company || linkedAccount?.name,
-          website: lead.website || linkedAccount?.domain,
-          industry: lead.industry || linkedAccount?.industry_norm,
-          employee_count: lead.employee_count || linkedAccount?.employee_count,
-          revenue_range: lead.revenue_range || linkedAccount?.revenue_range,
-          country: lead.country || linkedAccount?.country,
-          state_province: lead.state_province,
-          status: lead.status,
-          account_external_id: lead.account_external_id,
-          contact_external_id: lead.contact_external_id,
-          account: linkedAccount || null,
-          score: scoreData ? {
-            overall: scoreData.overall,
-            fit: scoreData.fit,
-            intent: scoreData.intent,
-            reachability: scoreData.reachability,
-            reasons: scoreData.reasons
-          } : null
-        };
-      });
-
-      setLeads(enrichedLeads);
-    } catch (error) {
-      console.error('Error loading leads:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load leads",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleAutoMatch = async () => {
     if (!userProfile?.org_id) {
@@ -347,7 +143,7 @@ export default function Leads() {
         });
         
         // Reload leads to show updated data
-        await loadLeads();
+        await refresh();
       } else {
         throw new Error('Matching failed');
       }
@@ -361,15 +157,6 @@ export default function Leads() {
     } finally {
       setIsMatching(false);
     }
-  };
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  const handlePageSizeChange = (size: number) => {
-    setPageSize(size);
-    setCurrentPage(1); // Reset to first page when changing page size
   };
 
   const handleRescore = async (lead: Lead) => {
@@ -395,7 +182,7 @@ export default function Leads() {
 
       if (response.ok) {
         toast({ title: "Success", description: "Account rescored successfully" });
-        loadLeads();
+        refresh();
       } else {
         throw new Error('Scoring API not available');
       }
@@ -416,7 +203,7 @@ export default function Leads() {
     return <Badge variant="destructive">Low ({score})</Badge>;
   };
 
-  if (loading || isMatching) {
+  if ((isLoading && leads.length === 0) || isMatching) {
     return (
       <div className="space-y-6">
         <div>
@@ -519,10 +306,6 @@ export default function Leads() {
       description: `Exported ${leads.length} leads to CSV`
     });
   };
-
-  if (loading) {
-    return <TableSkeleton rows={10} columns={8} showMetrics showFilters />;
-  }
 
   return (
     <div className="space-y-6">
@@ -972,17 +755,6 @@ export default function Leads() {
                   : "No leads found. Upload some data to get started."}
               </p>
             </div>
-          )}
-
-          {leads.length > 0 && (
-            <PaginationControls
-              currentPage={currentPage}
-              totalPages={totalPages}
-              pageSize={pageSize}
-              totalItems={totalCount}
-              onPageChange={handlePageChange}
-              onPageSizeChange={handlePageSizeChange}
-            />
           )}
         </CardContent>
       </Card>
