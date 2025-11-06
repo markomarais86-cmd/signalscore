@@ -132,7 +132,13 @@ async function listIntegrations(supabase: any, orgId: string) {
 
 async function connectIntegration(supabase: any, orgId: string, req: Request) {
   const body = await req.json();
-  const { provider_name, integration_type, api_key, config, salesforce_credentials } = body;
+  const { provider_name, integration_type, api_key, config, salesforce_credentials, sync_frequency } = body;
+
+  // Build the config object with sync frequency
+  const integrationConfig = {
+    ...(config || {}),
+    sync_frequency: sync_frequency || 'manual'
+  };
 
   // Check if integration already exists
   const { data: existing } = await supabase
@@ -150,7 +156,7 @@ async function connectIntegration(supabase: any, orgId: string, req: Request) {
       .from('integration_configs')
       .update({
         status: 'connected',
-        config: config || {},
+        config: integrationConfig,
         is_active: true,
         error_message: null,
         error_count: 0,
@@ -171,7 +177,7 @@ async function connectIntegration(supabase: any, orgId: string, req: Request) {
         provider_name,
         integration_type,
         status: 'connected',
-        config: config || {},
+        config: integrationConfig,
         is_active: true
       })
       .select()
@@ -238,7 +244,11 @@ async function connectIntegration(supabase: any, orgId: string, req: Request) {
     });
 
   return new Response(
-    JSON.stringify({ success: true, config_id: configId }),
+    JSON.stringify({ 
+      success: true, 
+      config_id: configId,
+      integration_id: configId  // Alias for backward compatibility
+    }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );
 }

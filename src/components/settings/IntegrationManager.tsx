@@ -346,15 +346,54 @@ export default function IntegrationManager() {
                   <label className="text-sm font-medium">API Key</label>
                   <Input placeholder="Enter your API key" type="password" />
                 </div>
+              </div>
+            )}
+
+            {/* Sync Frequency Configuration (for all CRMs) */}
+            {(selectedIntegration?.id === 'salesforce' || selectedIntegration?.id === 'hubspot') && (
+              <div className="mt-4 pt-4 border-t space-y-3">
                 <div>
-                  <label className="text-sm font-medium">Sync Frequency</label>
-                  <select className="w-full p-2 border rounded-md">
-                    <option>Every 15 minutes</option>
-                    <option>Every hour</option>
-                    <option>Every 6 hours</option>
-                    <option>Daily</option>
+                  <label className="text-sm font-medium">Auto-Sync Frequency</label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Configure how often data should automatically sync from {selectedIntegration.name}
+                  </p>
+                  <select 
+                    className="w-full p-2 border rounded-md"
+                    value={selectedIntegration?.config?.sync_frequency || 'manual'}
+                    onChange={(e) => {
+                      if (selectedIntegration) {
+                        setIntegrations(prev => prev.map(i => 
+                          i.id === selectedIntegration.id 
+                            ? { 
+                                ...i, 
+                                config: { 
+                                  ...i.config, 
+                                  sync_frequency: e.target.value 
+                                } 
+                              }
+                            : i
+                        ));
+                        setSelectedIntegration({
+                          ...selectedIntegration,
+                          config: {
+                            ...selectedIntegration.config,
+                            sync_frequency: e.target.value
+                          }
+                        });
+                      }
+                    }}
+                  >
+                    <option value="manual">Manual only (no auto-sync)</option>
+                    <option value="hourly">Every hour</option>
+                    <option value="daily">Daily at 2 AM</option>
+                    <option value="weekly">Weekly (Monday at 2 AM)</option>
                   </select>
                 </div>
+                {selectedIntegration?.config?.last_scheduled_sync && (
+                  <div className="text-xs text-muted-foreground">
+                    Last auto-sync: {new Date(selectedIntegration.config.last_scheduled_sync).toLocaleString()}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -416,6 +455,52 @@ export default function IntegrationManager() {
                     variant: "destructive"
                   });
                   return;
+                } else {
+                  // For OAuth integrations, just update the config
+                  if (!userProfile?.org_id || !selectedIntegration?.config?.integration_config_id) {
+                    toast({ 
+                      title: "Error", 
+                      description: "Missing configuration",
+                      variant: "destructive"
+                    });
+                    return;
+                  }
+
+                  try {
+                    // Get current config
+                    const { data: currentConfig, error: fetchError } = await supabase
+                      .from('integration_configs')
+                      .select('config')
+                      .eq('id', selectedIntegration.config.integration_config_id)
+                      .single();
+
+                    if (fetchError) throw fetchError;
+
+                    const existingConfig = (currentConfig?.config as any) || {};
+                    const updatedConfig = {
+                      ...existingConfig,
+                      sync_frequency: selectedIntegration.config?.sync_frequency || 'manual'
+                    };
+
+                    const { error: updateError } = await supabase
+                      .from('integration_configs')
+                      .update({ config: updatedConfig as any })
+                      .eq('id', selectedIntegration.config.integration_config_id);
+
+                    if (updateError) throw updateError;
+
+                    toast({ 
+                      title: "Updated", 
+                      description: `Sync frequency updated for ${selectedIntegration.name}` 
+                    });
+                  } catch (error: any) {
+                    console.error('Update error:', error);
+                    toast({ 
+                      title: "Update Failed", 
+                      description: error.message || "Failed to update configuration",
+                      variant: "destructive"
+                    });
+                  }
                 }
 
                 try {
@@ -432,6 +517,7 @@ export default function IntegrationManager() {
                         security_token: credentials.securityToken,
                         instance_url: credentials.instanceUrl,
                       },
+                      sync_frequency: selectedIntegration.config?.sync_frequency || 'manual',
                     },
                   });
 
@@ -446,7 +532,8 @@ export default function IntegrationManager() {
                           sync_status: 'success', 
                           config: { 
                             ...credentials, 
-                            integration_config_id: data?.integration_id 
+                            integration_config_id: data?.integration_id || data?.config_id,
+                            sync_frequency: selectedIntegration.config?.sync_frequency || 'manual'
                           }
                         }
                       : i
