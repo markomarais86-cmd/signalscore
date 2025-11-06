@@ -197,8 +197,8 @@ export default function IntegrationManager() {
         body: {
           action: 'test',
           org_id: userProfile.org_id,
-          provider: 'salesforce',
-          credentials: {
+          provider_name: 'salesforce',
+          salesforce_credentials: {
             username: credentials.username,
             password: credentials.password,
             security_token: credentials.securityToken,
