@@ -2,6 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Minus, LucideIcon } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
+import { formatNumber } from "@/utils/format-numbers";
 
 interface HeroMetricProps {
   label: string;
@@ -70,7 +71,9 @@ export function HeroMetric({
 
         <div className="flex items-end justify-between">
           <div>
-            <div className="text-5xl font-bold tracking-tight mb-1">{value}</div>
+            <div className="text-5xl font-bold tracking-tight mb-1">
+              {typeof value === 'number' ? formatNumber(value) : value}
+            </div>
             {trend && (
               <div className={`flex items-center gap-1 text-sm font-medium ${getTrendColor()}`}>
                 {getTrendIcon()}
