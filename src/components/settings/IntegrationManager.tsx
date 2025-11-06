@@ -574,52 +574,6 @@ export default function IntegrationManager() {
                     variant: "destructive"
                   });
                   return;
-                } else {
-                  // For OAuth integrations, just update the config
-                  if (!userProfile?.org_id || !selectedIntegration?.config?.integration_config_id) {
-                    toast({ 
-                      title: "Error", 
-                      description: "Missing configuration",
-                      variant: "destructive"
-                    });
-                    return;
-                  }
-
-                  try {
-                    // Get current config
-                    const { data: currentConfig, error: fetchError } = await supabase
-                      .from('integration_configs')
-                      .select('config')
-                      .eq('id', selectedIntegration.config.integration_config_id)
-                      .single();
-
-                    if (fetchError) throw fetchError;
-
-                    const existingConfig = (currentConfig?.config as any) || {};
-                    const updatedConfig = {
-                      ...existingConfig,
-                      sync_frequency: selectedIntegration.config?.sync_frequency || 'manual'
-                    };
-
-                    const { error: updateError } = await supabase
-                      .from('integration_configs')
-                      .update({ config: updatedConfig as any })
-                      .eq('id', selectedIntegration.config.integration_config_id);
-
-                    if (updateError) throw updateError;
-
-                    toast({ 
-                      title: "Updated", 
-                      description: `Sync frequency updated for ${selectedIntegration.name}` 
-                    });
-                  } catch (error: any) {
-                    console.error('Update error:', error);
-                    toast({ 
-                      title: "Update Failed", 
-                      description: error.message || "Failed to update configuration",
-                      variant: "destructive"
-                    });
-                  }
                 }
 
                 try {
@@ -628,13 +582,13 @@ export default function IntegrationManager() {
                     body: {
                       action: 'connect',
                       org_id: userProfile.org_id,
-                      provider: 'salesforce',
+                      provider_name: 'salesforce',
                       integration_type: 'crm',
-                      credentials: {
+                      salesforce_credentials: {
                         username: credentials.username,
                         password: credentials.password,
-                        security_token: credentials.securityToken,
-                        instance_url: credentials.instanceUrl,
+                        securityToken: credentials.securityToken,
+                        instanceUrl: credentials.instanceUrl,
                       },
                       sync_frequency: selectedIntegration.config?.sync_frequency || 'manual',
                     },
