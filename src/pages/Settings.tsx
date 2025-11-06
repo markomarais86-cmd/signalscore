@@ -70,6 +70,8 @@ import { IntegrationCredentialManager } from "@/components/settings/IntegrationC
 import { IntegrationHealthDashboard } from "@/components/settings/IntegrationHealthDashboard";
 import { BulkLeadEnrichment } from "@/components/settings/BulkLeadEnrichment";
 import { EnrichmentHealthCard } from "@/components/settings/EnrichmentHealthCard";
+import { EnhancedEnrichmentHealth } from "@/components/settings/EnhancedEnrichmentHealth";
+import { EnrichmentHistoryViewer } from "@/components/settings/EnrichmentHistoryViewer";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
@@ -496,8 +498,10 @@ export default function Settings() {
               </AccordionTrigger>
               <AccordionContent className="pt-4">
                 <div className="space-y-4">
+                  <EnhancedEnrichmentHealth />
                   <EnrichmentHealthCard />
                   <EnrichmentJobMonitor />
+                  <EnrichmentHistoryViewer />
                 </div>
               </AccordionContent>
             </AccordionItem>
