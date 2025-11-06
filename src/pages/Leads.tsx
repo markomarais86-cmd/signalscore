@@ -68,6 +68,7 @@ export default function Leads() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [linkFilter, setLinkFilter] = useState("all");
   const [personaFilter, setPersonaFilter] = useState("all");
+  const [campaignReadyFilter, setCampaignReadyFilter] = useState("all");
   const [showMatcher, setShowMatcher] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
   const [hasAttemptedMatch, setHasAttemptedMatch] = useState(false);
@@ -92,7 +93,8 @@ export default function Leads() {
     searchTerm,
     statusFilter: statusFilter !== 'all' ? statusFilter : undefined,
     linkFilter: linkFilter !== 'all' ? linkFilter : undefined,
-    personaFilter: personaFilter !== 'all' ? personaFilter : undefined
+    personaFilter: personaFilter !== 'all' ? personaFilter : undefined,
+    campaignReadyFilter: campaignReadyFilter !== 'all' ? campaignReadyFilter : undefined
   });
 
   // Set up infinite scroll observer
@@ -210,7 +212,7 @@ export default function Leads() {
       <div className="space-y-6">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Leads</h1>
-          <p className="text-muted-foreground mt-2">Manage and qualify your account pipeline</p>
+          <p className="text-muted-foreground mt-2">All people (contacts) linked to accounts in your pipeline</p>
         </div>
         <Card>
           <CardContent className="flex items-center justify-center py-12">
@@ -218,7 +220,7 @@ export default function Leads() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
               {isMatching && (
                 <p className="text-sm text-muted-foreground">
-                  Linking leads to accounts... This may take a moment.
+                  Linking contacts to accounts... This may take a moment.
                 </p>
               )}
             </div>
@@ -231,6 +233,9 @@ export default function Leads() {
   const highSignalLeads = leads.filter(lead => (lead.score?.overall || 0) >= 70);
   const unlinkedLeads = leads.filter(lead => !lead.account_external_id);
   const linkedLeads = leads.filter(lead => lead.account_external_id);
+  const campaignReadyLeads = leads.filter(lead => 
+    lead.email && lead.title && lead.persona && lead.persona !== 'Unknown'
+  );
   const unlinkedPercentage = leads.length > 0 ? Math.round((unlinkedLeads.length / leads.length) * 100) : 0;
 
   const exportToCSV = () => {
@@ -244,12 +249,14 @@ export default function Leads() {
     }
 
     const headers = [
-      'Lead Name',
+      'Name',
       'First Name',
       'Last Name',
       'Email',
       'Phone',
       'Title',
+      'Persona',
+      'Campaign Ready',
       'Company',
       'Website',
       'Industry',
@@ -266,6 +273,7 @@ export default function Leads() {
 
     const rows = leads.map(lead => {
       const fullName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim();
+      const isCampaignReady = lead.email && lead.title && lead.persona && lead.persona !== 'Unknown';
       return [
         fullName || lead.name || '',
         lead.first_name || '',
@@ -273,6 +281,8 @@ export default function Leads() {
         lead.email || '',
         lead.phone || lead.mobile || '',
         lead.title || '',
+        lead.persona || '',
+        isCampaignReady ? 'Yes' : 'No',
         lead.company || '',
         lead.website || '',
         lead.industry || '',
@@ -305,7 +315,7 @@ export default function Leads() {
 
     toast({
       title: "Export successful",
-      description: `Exported ${leads.length} leads to CSV`
+      description: `Exported ${leads.length} contacts to CSV`
     });
   };
 
@@ -315,7 +325,7 @@ export default function Leads() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Leads</h1>
-          <p className="text-muted-foreground mt-2">All qualified accounts from your pipeline</p>
+          <p className="text-muted-foreground mt-2">All people (contacts) linked to accounts in your pipeline</p>
         </div>
         <Button onClick={exportToCSV} variant="outline">
           <Download className="h-4 w-4 mr-2" />
@@ -329,10 +339,10 @@ export default function Leads() {
           <Info className="h-4 w-4" />
           <AlertDescription className="space-y-3">
             <div>
-              <strong>Note:</strong> You have {unlinkedLeads.length.toLocaleString()} unlinked leads. 
+              <strong>Note:</strong> You have {unlinkedLeads.length.toLocaleString()} contacts without account links. 
             </div>
             <div className="text-sm">
-              <p>Leads are automatically matched to accounts and scored when you upload them via CSV. These unlinked leads may be from older uploads.</p>
+              <p>Contacts are automatically matched to accounts when uploaded via CSV. These unlinked contacts may be from older uploads.</p>
             </div>
             <Button
               onClick={handleAutoMatch}
@@ -345,7 +355,7 @@ export default function Leads() {
                   Matching...
                 </>
               ) : (
-                'Match Unlinked Leads'
+                'Link to Accounts'
               )}
             </Button>
           </AlertDescription>
@@ -358,8 +368,8 @@ export default function Leads() {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
             <div>
-              <strong>{unlinkedLeads.length.toLocaleString()} leads still unlinked after auto-matching.</strong>
-              <p className="text-sm mt-1">These leads may be missing email/website data needed for account matching.</p>
+              <strong>{unlinkedLeads.length.toLocaleString()} contacts still unlinked after auto-matching.</strong>
+              <p className="text-sm mt-1">These contacts may be missing email/website data needed for account matching.</p>
             </div>
             <Button onClick={handleAutoMatch} size="sm" className="ml-4" disabled={isMatching}>
               <Link2 className="h-4 w-4 mr-2" />
@@ -381,10 +391,21 @@ export default function Leads() {
 
       {/* Hero Metric */}
       {leads.length > 0 && (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardDescription>High-Signal Accounts</CardDescription>
+              <CardDescription>Campaign Ready</CardDescription>
+              <CardTitle className="text-4xl">{campaignReadyLeads.length}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xs text-muted-foreground">
+                Has email, title & persona
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription>High-Fit Accounts</CardDescription>
               <CardTitle className="text-4xl">{highSignalLeads.length}</CardTitle>
             </CardHeader>
             <CardContent>
@@ -400,13 +421,13 @@ export default function Leads() {
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                {leads.length > 0 ? Math.round((linkedLeads.length / leads.length) * 100) : 0}% of total leads
+                {leads.length > 0 ? Math.round((linkedLeads.length / leads.length) * 100) : 0}% of all contacts
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardDescription>Unlinked Leads</CardDescription>
+              <CardDescription>Unlinked</CardDescription>
               <CardTitle className="text-4xl">{unlinkedLeads.length.toLocaleString()}</CardTitle>
             </CardHeader>
             <CardContent>
@@ -420,7 +441,13 @@ export default function Leads() {
 
       {/* Search and Filters */}
       <Card>
-        <CardContent className="pt-6">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Filter & Search</CardTitle>
+          <CardDescription>
+            <strong>Campaign Ready</strong> = Contact has email, title, and persona (not Unknown)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
           <div className="flex gap-4 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -467,6 +494,16 @@ export default function Leads() {
                 <SelectItem value="Unknown">Unknown</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={campaignReadyFilter} onValueChange={setCampaignReadyFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Campaign ready" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Leads</SelectItem>
+                <SelectItem value="ready">Campaign Ready</SelectItem>
+                <SelectItem value="not_ready">Not Ready</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -474,23 +511,23 @@ export default function Leads() {
       {/* Leads Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Qualified Leads ({totalCount.toLocaleString()})</CardTitle>
+          <CardTitle>People ({totalCount.toLocaleString()})</CardTitle>
           <CardDescription>
-            High-scoring accounts ready for outreach - Click any row to view details and ICP fit reasons
+            All contacts linked to accounts - Use filters to find campaign-ready leads with email, title, and persona data
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Lead Name</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead>Company</TableHead>
                 <TableHead>Title</TableHead>
                 <TableHead>Persona</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>ICP Score</TableHead>
+                <TableHead>Campaign Ready</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -550,23 +587,21 @@ export default function Leads() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {lead.account_external_id && lead.score ? (
-                            <div className="flex gap-1">
-                              <Badge className="bg-success">{lead.score.overall}</Badge>
-                              <Badge variant="outline" className="text-xs">
-                                F: {lead.score.fit}
-                              </Badge>
-                            </div>
-                          ) : lead.account_external_id ? (
-                            <Badge variant="secondary">
-                              <Link2 className="h-3 w-3 mr-1" />
-                              Linked
+                          {lead.email && lead.title && lead.persona && lead.persona !== 'Unknown' ? (
+                            <Badge className="bg-[hsl(var(--signal-high))]">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Ready
                             </Badge>
                           ) : (
                             <Badge variant="outline">
-                              <AlertTriangle className="h-3 w-3 mr-1" />
-                              Unlinked
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Incomplete
                             </Badge>
+                          )}
+                          {lead.account_external_id && lead.score && (
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Score: {lead.score.overall}
+                            </div>
                           )}
                         </TableCell>
                       </TableRow>

@@ -49,6 +49,7 @@ interface UseInfiniteLeadsOptions {
   statusFilter?: string;
   linkFilter?: string;
   personaFilter?: string;
+  campaignReadyFilter?: string;
   enabled?: boolean;
 }
 
@@ -63,6 +64,7 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
     statusFilter = 'all',
     linkFilter = 'all',
     personaFilter = 'all',
+    campaignReadyFilter = 'all',
     enabled = true,
   } = options;
 
@@ -114,6 +116,21 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
 
         if (personaFilter && personaFilter !== 'all') {
           query = query.eq('persona', personaFilter);
+        }
+
+        // Campaign ready filter
+        if (campaignReadyFilter === 'ready') {
+          // Campaign ready: has email, title, and persona (not Unknown)
+          query = query
+            .not('email', 'is', null)
+            .not('title', 'is', null)
+            .not('persona', 'is', null)
+            .neq('persona', 'Unknown');
+        } else if (campaignReadyFilter === 'not_ready') {
+          // Not campaign ready: missing email, title, or has Unknown persona
+          query = query.or(
+            'email.is.null,title.is.null,persona.is.null,persona.eq.Unknown'
+          );
         }
 
         const { data, error, count } = await query;
@@ -226,6 +243,7 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
       statusFilter,
       linkFilter,
       personaFilter,
+      campaignReadyFilter,
       pagination,
       toast,
     ]
@@ -260,7 +278,7 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
   useEffect(() => {
     pagination.reset();
     loadLeads(false);
-  }, [orgId, searchTerm, statusFilter, linkFilter, personaFilter]);
+  }, [orgId, searchTerm, statusFilter, linkFilter, personaFilter, campaignReadyFilter]);
 
   return {
     leads: pagination.state.items,
