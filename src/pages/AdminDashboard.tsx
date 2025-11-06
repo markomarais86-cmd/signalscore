@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Shield, Users, Building, Search, RefreshCw, Plus, Power, PowerOff, Trash2, MoreVertical, UserCog, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { formatNumber } from '@/utils/format-numbers';
 import { CreateOrganizationDialog } from '@/components/settings/CreateOrganizationDialog';
 import { InvitationsManager } from '@/components/settings/InvitationsManager';
 import { AuditLogViewer } from '@/components/platform-admin/AuditLogViewer';
@@ -362,7 +363,7 @@ export default function AdminDashboard() {
                         </Badge>
                       </TableCell>
                       <TableCell>{org.total_users}</TableCell>
-                      <TableCell>{org.total_accounts.toLocaleString()}</TableCell>
+                      <TableCell>{formatNumber(org.total_accounts)}</TableCell>
                       <TableCell>{new Date(org.created_at).toLocaleDateString()}</TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>

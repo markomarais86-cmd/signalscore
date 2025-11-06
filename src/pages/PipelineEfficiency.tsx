@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { usePipelineData } from "@/hooks/use-pipeline-data";
 import { LoadingState } from "@/components/LoadingState";
 import { EmptyState } from "@/components/EmptyState";
+import { formatNumber } from "@/utils/format-numbers";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { TrendingUp, TrendingDown, Clock, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -72,7 +73,7 @@ export default function PipelineEfficiency() {
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{metrics.totalLeads}</div>
+              <div className="text-2xl font-bold">{formatNumber(metrics.totalLeads)}</div>
               <p className="text-xs text-muted-foreground mt-1">In pipeline</p>
             </CardContent>
           </Card>

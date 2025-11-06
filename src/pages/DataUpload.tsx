@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useOnboarding } from "@/hooks/use-onboarding";
+import { formatNumber } from "@/utils/format-numbers";
 import { FieldMappingDialog, FieldMapping } from "@/components/data-upload/FieldMappingDialog";
 import { DataValidationReport } from "@/components/data-upload/DataValidationReport";
 import { HeroMetric } from "@/components/executive/HeroMetric";
@@ -297,7 +298,7 @@ export default function DataUpload() {
           const sourceType = pendingFile.isExternalDatabase ? 'external database' : 'CRM';
           toast({
             title: "✓ Auto-Matching & Scoring Complete!",
-            description: `${result.total_linked.toLocaleString()} ${sourceType} leads linked to ${result.new_accounts_created.toLocaleString()} new + ${result.matched_to_existing.toLocaleString()} existing accounts${result.accounts_updated_to_both ? ` • ${result.accounts_updated_to_both} updated to BOTH` : ''} • ${result.accounts_scored || 0} scored`,
+            description: `${formatNumber(result.total_linked)} ${sourceType} leads linked to ${formatNumber(result.new_accounts_created)} new + ${formatNumber(result.matched_to_existing)} existing accounts${result.accounts_updated_to_both ? ` • ${result.accounts_updated_to_both} updated to BOTH` : ''} • ${result.accounts_scored || 0} scored`,
             duration: 8000,
           });
 
@@ -381,7 +382,7 @@ export default function DataUpload() {
 
       toast({
         title: "✓ Matching Complete!",
-        description: `${result.total_linked.toLocaleString()} leads linked • ${result.new_accounts_created.toLocaleString()} new accounts • ${result.accounts_scored || 0} scored`,
+        description: `${formatNumber(result.total_linked)} leads linked • ${formatNumber(result.new_accounts_created)} new accounts • ${result.accounts_scored || 0} scored`,
         duration: 8000,
       });
 

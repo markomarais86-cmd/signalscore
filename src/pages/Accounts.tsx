@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatNumber } from "@/utils/format-numbers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Search, Database, ExternalLink, AlertCircle, CheckCircle2, Download, TrendingUp, Sparkles, X, Filter, Target, Edit, ChevronDown, Building2, Globe, Briefcase } from "lucide-react";
@@ -525,7 +526,7 @@ export default function Accounts() {
 
       toast({
         title: "✓ Leads Exported",
-        description: `${leads.length.toLocaleString()} leads from ${dataToExport.length.toLocaleString()} accounts exported to CSV`
+        description: `${formatNumber(leads.length)} leads from ${formatNumber(dataToExport.length)} accounts exported to CSV`
       });
     } catch (error) {
       console.error('Export error:', error);
@@ -690,8 +691,8 @@ export default function Accounts() {
                       {icpSizes.map((size, index) => {
                         const nextSize = icpSizes[index + 1];
                         const label = nextSize 
-                          ? `${size.toLocaleString()}-${(nextSize - 1).toLocaleString()} employees` 
-                          : `${size.toLocaleString()}+ employees`;
+                          ? `${formatNumber(size)}-${formatNumber(nextSize - 1)} employees` 
+                          : `${formatNumber(size)}+ employees`;
                         return (
                           <Badge key={size} variant="secondary">
                             {label}
@@ -791,24 +792,24 @@ export default function Accounts() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-baseline gap-2">
-            <div className="text-3xl font-bold">{unfilteredTotals.total.toLocaleString()}</div>
+            <div className="text-3xl font-bold">{formatNumber(unfilteredTotals.total)}</div>
             <div className="text-sm text-muted-foreground">Total Accounts</div>
           </div>
           
           <div className="flex gap-6 text-sm">
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="font-normal">
-                {unfilteredTotals.crm.toLocaleString()} CRM
+                {formatNumber(unfilteredTotals.crm)} CRM
               </Badge>
               <Badge variant="secondary" className="font-normal">
-                {unfilteredTotals.database.toLocaleString()} Database
+                {formatNumber(unfilteredTotals.database)} Database
               </Badge>
             </div>
           </div>
 
           <div className="grid grid-cols-3 gap-4 pt-2 border-t">
             <div>
-              <div className="text-sm font-medium">{unfilteredTotals.highFit.toLocaleString()}</div>
+              <div className="text-sm font-medium">{formatNumber(unfilteredTotals.highFit)}</div>
               <div className="text-xs text-muted-foreground">
                 High-Fit ({unfilteredTotals.total > 0 ? Math.round((unfilteredTotals.highFit / unfilteredTotals.total) * 100) : 0}%)
               </div>
@@ -818,7 +819,7 @@ export default function Accounts() {
               <div className="text-xs text-muted-foreground">Avg Quality</div>
             </div>
             <div>
-              <div className="text-sm font-medium">{unfilteredTotals.withLeads.toLocaleString()}</div>
+              <div className="text-sm font-medium">{formatNumber(unfilteredTotals.withLeads)}</div>
               <div className="text-xs text-muted-foreground">High-Fit Leads</div>
             </div>
           </div>
@@ -829,7 +830,7 @@ export default function Accounts() {
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">
-                  Filtered Results: {totalAccountsForSummary.toLocaleString()} accounts
+                  Filtered Results: {formatNumber(totalAccountsForSummary)} accounts
                 </span>
                 <span className="text-xs text-muted-foreground">
                   ({summaryStats.crmAccounts} CRM, {summaryStats.databaseAccounts} Database)
@@ -1069,7 +1070,7 @@ export default function Accounts() {
       {/* Accounts Table */}
       <Card>
         <CardHeader>
-          <CardTitle>All Accounts ({totalCount.toLocaleString()})</CardTitle>
+          <CardTitle>All Accounts ({formatNumber(totalCount)})</CardTitle>
           <CardDescription>
             Click on any row to view detailed account information
           </CardDescription>

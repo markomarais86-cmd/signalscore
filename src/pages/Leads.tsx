@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { formatNumber } from "@/utils/format-numbers";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
@@ -143,7 +144,7 @@ export default function Leads() {
       if (result.success) {
         toast({
           title: "✓ Leads Matched Successfully",
-          description: `${result.total_linked.toLocaleString()} leads linked (${result.matched_to_existing.toLocaleString()} matched to existing accounts, ${result.new_accounts_created.toLocaleString()} new accounts created)`,
+          description: `${formatNumber(result.total_linked)} leads linked (${formatNumber(result.matched_to_existing)} matched to existing accounts, ${formatNumber(result.new_accounts_created)} new accounts created)`,
         });
         
         // Reload leads to show updated data
@@ -339,7 +340,7 @@ export default function Leads() {
           <Info className="h-4 w-4" />
           <AlertDescription className="space-y-3">
             <div>
-              <strong>Note:</strong> You have {unlinkedLeads.length.toLocaleString()} contacts without account links. 
+              <strong>Note:</strong> You have {formatNumber(unlinkedLeads.length)} contacts without account links.
             </div>
             <div className="text-sm">
               <p>Contacts are automatically matched to accounts when uploaded via CSV. These unlinked contacts may be from older uploads.</p>
@@ -368,7 +369,7 @@ export default function Leads() {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
             <div>
-              <strong>{unlinkedLeads.length.toLocaleString()} contacts still unlinked after auto-matching.</strong>
+              <strong>{formatNumber(unlinkedLeads.length)} contacts still unlinked after auto-matching.</strong>
               <p className="text-sm mt-1">These contacts may be missing email/website data needed for account matching.</p>
             </div>
             <Button onClick={handleAutoMatch} size="sm" className="ml-4" disabled={isMatching}>
@@ -417,7 +418,7 @@ export default function Leads() {
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Linked to Accounts</CardDescription>
-              <CardTitle className="text-4xl">{linkedLeads.length.toLocaleString()}</CardTitle>
+              <CardTitle className="text-4xl">{formatNumber(linkedLeads.length)}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
@@ -428,7 +429,7 @@ export default function Leads() {
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Unlinked</CardDescription>
-              <CardTitle className="text-4xl">{unlinkedLeads.length.toLocaleString()}</CardTitle>
+              <CardTitle className="text-4xl">{formatNumber(unlinkedLeads.length)}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
@@ -511,7 +512,7 @@ export default function Leads() {
       {/* Leads Table */}
       <Card>
         <CardHeader>
-          <CardTitle>People ({totalCount.toLocaleString()})</CardTitle>
+          <CardTitle>People ({formatNumber(totalCount)})</CardTitle>
           <CardDescription>
             All contacts linked to accounts - Use filters to find campaign-ready leads with email, title, and persona data
           </CardDescription>

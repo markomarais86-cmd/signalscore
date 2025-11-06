@@ -8,6 +8,7 @@ import { Zap, TrendingUp, TrendingDown, Minus, RefreshCw, CheckCircle2 } from "l
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { formatNumber } from "@/utils/format-numbers";
 
 interface BulkScoringProps {
   onComplete?: () => void;
@@ -164,7 +165,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
               org_id_param: userProfile.org_id
             });
 
-            toast.success(`Successfully scored ${scoredCount.toLocaleString()} accounts!`);
+            toast.success(`Successfully scored ${formatNumber(scoredCount)} accounts!`);
             onComplete?.();
           }
         }
@@ -229,7 +230,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
             scoringCoverage: coveragePercent,
           });
 
-          toast.success(`Successfully scored ${scoredCount.toLocaleString()} accounts!`);
+          toast.success(`Successfully scored ${formatNumber(scoredCount)} accounts!`);
           onComplete?.();
           clearInterval(pollInterval);
         }
@@ -355,7 +356,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         return;
       }
 
-      toast.info(`Starting bulk scoring for ${accountCount.toLocaleString()} accounts...`);
+      toast.info(`Starting bulk scoring for ${formatNumber(accountCount)} accounts...`);
 
       // Invoke edge function once - it will handle all chunking server-side
       const { error } = await supabase.functions.invoke("bulk-score-accounts", {
@@ -416,7 +417,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
             <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground">
               <div>
                 <p className="font-medium">Progress</p>
-                <p>{Math.min(currentJob.processed_accounts, currentJob.total_accounts).toLocaleString()} / {currentJob.total_accounts.toLocaleString()} accounts</p>
+                <p>{formatNumber(Math.min(currentJob.processed_accounts, currentJob.total_accounts))} / {formatNumber(currentJob.total_accounts)} accounts</p>
               </div>
               <div>
                 <p className="font-medium">Success Rate</p>
@@ -435,17 +436,17 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
             <Alert className="bg-primary/10 border-primary">
               <CheckCircle2 className="h-4 w-4 text-primary" />
               <AlertDescription>
-                <strong>Scoring Complete!</strong> {stats.scoredAccounts.toLocaleString()} of {stats.total.toLocaleString()} accounts now have scores ({stats.scoringCoverage}% coverage).
+                <strong>Scoring Complete!</strong> {formatNumber(stats.scoredAccounts)} of {formatNumber(stats.total)} accounts now have scores ({stats.scoringCoverage}% coverage).
               </AlertDescription>
             </Alert>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-2xl font-bold">{stats.total.toLocaleString()}</div>
+                <div className="text-2xl font-bold">{formatNumber(stats.total)}</div>
                 <div className="text-sm text-muted-foreground">Total Accounts</div>
               </div>
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{stats.scoredAccounts.toLocaleString()}</div>
+                <div className="text-2xl font-bold text-green-600">{formatNumber(stats.scoredAccounts)}</div>
                 <div className="text-sm text-muted-foreground">Scored ({stats.scoringCoverage}%)</div>
               </div>
               <div className="text-center p-4 border rounded-lg">
@@ -453,7 +454,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
                 <div className="text-sm text-muted-foreground">Avg Score</div>
               </div>
               <div className="text-center p-4 border rounded-lg">
-                <div className="text-2xl font-bold text-amber-600">{stats.unscoredAccounts.toLocaleString()}</div>
+                <div className="text-2xl font-bold text-amber-600">{formatNumber(stats.unscoredAccounts)}</div>
                 <div className="text-sm text-muted-foreground">Unscored</div>
               </div>
             </div>
