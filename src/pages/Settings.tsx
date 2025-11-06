@@ -68,6 +68,7 @@ import { ContactDiscovery } from "@/components/settings/ContactDiscovery";
 import { IntegrationCredentialManager } from "@/components/settings/IntegrationCredentialManager";
 import { IntegrationHealthDashboard } from "@/components/settings/IntegrationHealthDashboard";
 import { BulkLeadEnrichment } from "@/components/settings/BulkLeadEnrichment";
+import { EnrichmentHealthCard } from "@/components/settings/EnrichmentHealthCard";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
@@ -493,7 +494,10 @@ export default function Settings() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pt-4">
-                <EnrichmentJobMonitor />
+                <div className="space-y-4">
+                  <EnrichmentHealthCard />
+                  <EnrichmentJobMonitor />
+                </div>
               </AccordionContent>
             </AccordionItem>
 

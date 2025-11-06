@@ -60,9 +60,13 @@ async function enrichExistingLeads(supabaseClient: any, jobId: string, batchSize
     const PDL_API_KEY = Deno.env.get('PDL_API_KEY')
     const CLEARBIT_API_KEY = Deno.env.get('CLEARBIT_API_KEY')
 
+    console.log(`📊 Processing ${leads.length} leads that need enrichment`);
+
     // Process each lead
     for (let i = 0; i < leads.length; i++) {
       const lead = leads[i]
+      console.log(`\n🔄 [${i+1}/${leads.length}] Enriching: ${lead.name || lead.external_id}`);
+      console.log(`  Missing fields: ${!lead.email ? 'email ' : ''}${!lead.title ? 'title ' : ''}${lead.persona === 'Unknown' ? 'persona' : ''}`);
       
       try {
         const updateData: any = {}
@@ -71,6 +75,8 @@ async function enrichExistingLeads(supabaseClient: any, jobId: string, batchSize
         // If missing email, try to find it via People Data Labs
         if (!lead.email && lead.name && PDL_API_KEY) {
           try {
+            console.log(`  🔍 Attempting PDL enrichment...`);
+            const startTime = Date.now();
             const [firstName, ...lastNameParts] = lead.name.split(' ')
             const lastName = lastNameParts.join(' ')
             
@@ -90,10 +96,14 @@ async function enrichExistingLeads(supabaseClient: any, jobId: string, batchSize
               })
             })
 
+            const responseTime = Date.now() - startTime;
+            console.log(`  📡 PDL Response: ${pdlResponse.status} (${responseTime}ms)`);
+
             if (pdlResponse.ok) {
               const pdlData = await pdlResponse.json()
               if (pdlData.data && pdlData.data.length > 0) {
                 const person = pdlData.data[0]
+                console.log(`  ✅ PDL success - found ${person.emails?.length || 0} emails, title: ${person.job_title || 'none'}`);
                 if (person.emails && person.emails.length > 0) {
                   updateData.email = person.emails[0]
                   enrichmentSource = 'pdl'
@@ -102,9 +112,12 @@ async function enrichExistingLeads(supabaseClient: any, jobId: string, batchSize
                   updateData.title = person.job_title
                 }
               }
+            } else {
+              const errorBody = await pdlResponse.text();
+              console.error(`  ❌ PDL error: ${pdlResponse.status} - ${errorBody}`);
             }
           } catch (pdlError) {
-            console.error('PDL error:', pdlError)
+            console.error(`  ❌ PDL exception:`, pdlError.message);
           }
         }
 
@@ -126,13 +139,15 @@ async function enrichExistingLeads(supabaseClient: any, jobId: string, batchSize
             .eq('id', lead.id)
 
           if (updateError) {
-            console.error('Error updating lead:', updateError)
+            console.error(`  ❌ Error updating lead:`, updateError)
             failedCount++
           } else {
             enrichedCount++
+            console.log(`  💾 Lead updated successfully`);
           }
         } else {
           failedCount++
+          console.log(`  ⚠️  No enrichment data found`);
         }
 
         // Update job progress every 10 leads
@@ -147,10 +162,12 @@ async function enrichExistingLeads(supabaseClient: any, jobId: string, batchSize
             .eq('id', jobId)
         }
       } catch (error) {
-        console.error('Error enriching lead:', error)
+        console.error(`  ❌ Exception enriching lead:`, error.message)
         failedCount++
       }
     }
+
+    console.log(`\n✅ Enrichment complete: ${enrichedCount} enriched, ${failedCount} failed`);
 
     // Mark job as completed
     await supabaseClient
@@ -218,9 +235,12 @@ Deno.serve(async (req) => {
 
     const { jobId, orgId, accountExternalIds, batchSize = 100, provider = 'pdl' }: EnrichRequest = await req.json()
     
+    console.log('🚀 Starting bulk contact enrichment');
+    console.log(`📋 Request params: jobId=${jobId}, orgId=${orgId}, batchSize=${batchSize}, provider=${provider}`);
+    
     // If jobId is provided, this is a job-based enrichment for existing leads
     if (jobId) {
-      console.log(`🔄 Starting job-based lead enrichment: ${jobId}`)
+      console.log(`🔄 Processing existing enrichment job: ${jobId}`)
       return await enrichExistingLeads(supabaseClient, jobId, batchSize, provider)
     }
     

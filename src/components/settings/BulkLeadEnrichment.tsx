@@ -3,9 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Users, Mail, Briefcase, UserCheck, PlayCircle, CheckCircle, AlertCircle } from "lucide-react";
+import { Loader2, Users, Mail, Briefcase, UserCheck, PlayCircle, CheckCircle, AlertCircle, ExternalLink } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface EnrichmentStats {
@@ -24,7 +25,10 @@ interface EnrichmentJob {
   enriched_records: number;
   failed_records: number;
   started_at: string;
+  completed_at?: string;
+  created_at: string;
   provider: string;
+  error_message?: string;
 }
 
 export function BulkLeadEnrichment() {
@@ -288,15 +292,48 @@ export function BulkLeadEnrichment() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {getStatusIcon()}
-                  <span className="text-sm font-medium">
-                    {activeJob.status === 'processing' ? 'Enriching contacts...' : 'Job pending...'}
-                  </span>
-                  <Badge variant="outline">{activeJob.provider.toUpperCase()}</Badge>
+                  <div>
+                    <p className="font-medium capitalize">{activeJob.status}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Started {new Date(activeJob.created_at).toLocaleString()}
+                    </p>
+                    {activeJob.completed_at && (
+                      <p className="text-xs text-muted-foreground">
+                        Completed {new Date(activeJob.completed_at).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <span className="text-sm text-muted-foreground">
-                  {activeJob.processed_records} / {activeJob.total_records}
-                </span>
+                <div className="text-right">
+                  <p className="text-2xl font-bold">{getProgress()}%</p>
+                  <p className="text-sm text-muted-foreground">Complete</p>
+                </div>
               </div>
+
+              {/* Error Message Display */}
+              {activeJob.error_message && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <p className="font-medium">Enrichment Error:</p>
+                    <p className="mt-1 text-sm">{activeJob.error_message}</p>
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto p-0 mt-2"
+                      onClick={() => {
+                        window.open(
+                          `https://supabase.com/dashboard/project/${import.meta.env.VITE_SUPABASE_PROJECT_ID}/logs/edge-functions?search=enrich-contacts-bulk`,
+                          '_blank'
+                        );
+                      }}
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      View Detailed Logs
+                    </Button>
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <Progress value={getProgress()} className="h-2" />
 
