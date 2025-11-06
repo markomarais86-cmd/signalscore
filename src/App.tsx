@@ -47,7 +47,12 @@ function AppContent() {
   return (
     <>
       <Toaster />
-      <BrowserRouter>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
         <OnboardingWizard />
         <Routes>
                 <Route path="/landing" element={<Landing />} />
