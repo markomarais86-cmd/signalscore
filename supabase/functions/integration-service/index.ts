@@ -128,7 +128,7 @@ async function listIntegrations(supabase: any, orgId: string) {
 
 async function connectIntegration(supabase: any, orgId: string, req: Request) {
   const body = await req.json();
-  const { provider_name, integration_type, api_key, config } = body;
+  const { provider_name, integration_type, api_key, config, salesforce_credentials } = body;
 
   // Check if integration already exists
   const { data: existing } = await supabase
@@ -201,6 +201,28 @@ async function connectIntegration(supabase: any, orgId: string, req: Request) {
     if (credError) throw credError;
   }
 
+  // Store Salesforce credentials if provided
+  if (salesforce_credentials) {
+    // Delete old credentials
+    await supabase
+      .from('integration_credentials')
+      .delete()
+      .eq('integration_config_id', configId);
+
+    // Insert new credential
+    const { error: credError } = await supabase
+      .from('integration_credentials')
+      .insert({
+        org_id: orgId,
+        integration_config_id: configId,
+        credential_type: 'salesforce_api',
+        encrypted_value: JSON.stringify(salesforce_credentials), // Store all creds as JSON
+        key_prefix: salesforce_credentials.username?.substring(0, 8) + '...'
+      });
+
+    if (credError) throw credError;
+  }
+
   // Log the connection
   await supabase
     .from('audit_logs')
@@ -249,7 +271,7 @@ async function disconnectIntegration(supabase: any, orgId: string, req: Request)
 }
 
 async function testConnection(supabase: any, orgId: string, body: any) {
-  const { provider_name, api_key } = body;
+  const { provider_name, api_key, salesforce_credentials } = body;
   
   console.log('[testConnection] Testing:', provider_name);
 
@@ -258,6 +280,18 @@ async function testConnection(supabase: any, orgId: string, body: any) {
   try {
     // Test based on provider
     switch (provider_name.toLowerCase()) {
+      case 'salesforce':
+        if (!salesforce_credentials) {
+          result = { success: false, message: 'Salesforce credentials required' };
+        } else {
+          result = await testSalesforce(
+            salesforce_credentials.instanceUrl,
+            salesforce_credentials.username,
+            salesforce_credentials.password,
+            salesforce_credentials.securityToken
+          );
+        }
+        break;
       case 'zoominfo':
         result = await testZoomInfo(api_key);
         break;
@@ -393,6 +427,73 @@ async function getIntegrationStatus(supabase: any, orgId: string, req: Request) 
 }
 
 // Helper functions for testing integrations
+async function testSalesforce(
+  instanceUrl: string,
+  username: string,
+  password: string,
+  securityToken: string
+): Promise<TestConnectionResult> {
+  try {
+    // Ensure instance URL has proper format
+    const cleanUrl = instanceUrl.replace(/\/$/, '').replace(/^https?:\/\//, '');
+    const loginUrl = `https://${cleanUrl}/services/Soap/u/58.0`;
+    
+    const soapEnvelope = `<?xml version="1.0" encoding="utf-8" ?>
+<env:Envelope xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:env="http://schemas.xmlsoap.org/soap/envelope/">
+  <env:Body>
+    <n1:login xmlns:n1="urn:partner.soap.sforce.com">
+      <n1:username>${username}</n1:username>
+      <n1:password>${password}${securityToken}</n1:password>
+    </n1:login>
+  </env:Body>
+</env:Envelope>`;
+
+    console.log('[testSalesforce] Attempting login to:', loginUrl);
+
+    const response = await fetch(loginUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction': 'login',
+      },
+      body: soapEnvelope,
+    });
+
+    const responseText = await response.text();
+    console.log('[testSalesforce] Response status:', response.status);
+    
+    if (responseText.includes('<sessionId>')) {
+      return { success: true, message: 'Salesforce connection successful' };
+    } else if (responseText.includes('INVALID_LOGIN')) {
+      return {
+        success: false,
+        message: 'Invalid credentials. Please check your username, password, and security token.',
+      };
+    } else if (responseText.includes('faultcode')) {
+      // Extract error message from SOAP fault
+      const errorMatch = responseText.match(/<faultstring>(.*?)<\/faultstring>/);
+      const errorMsg = errorMatch ? errorMatch[1] : 'Unknown error';
+      return {
+        success: false,
+        message: `Salesforce error: ${errorMsg}`,
+      };
+    } else {
+      return {
+        success: false,
+        message: `Salesforce connection failed: ${response.statusText}`,
+      };
+    }
+  } catch (error: any) {
+    console.error('[testSalesforce] Error:', error);
+    return {
+      success: false,
+      message: `Salesforce connection error: ${error.message}`,
+    };
+  }
+}
+
 async function testZoomInfo(apiKey: string): Promise<TestConnectionResult> {
   try {
     const response = await fetch('https://api.zoominfo.com/lookup/person', {

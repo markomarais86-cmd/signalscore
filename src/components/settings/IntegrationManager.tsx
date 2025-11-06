@@ -42,7 +42,7 @@ const INTEGRATION_CATEGORIES = {
 
 const AVAILABLE_INTEGRATIONS: Integration[] = [
   // CRM
-  { id: 'salesforce', name: 'Salesforce', category: 'crm', status: 'connected', description: 'Sync accounts, contacts, and opportunities', oauth_required: true, last_sync: new Date(Date.now() - 30 * 60 * 1000).toISOString(), sync_status: 'success', records_synced: 1247 },
+  { id: 'salesforce', name: 'Salesforce', category: 'crm', status: 'disconnected', description: 'Sync accounts, contacts, and opportunities', oauth_required: false },
   { id: 'hubspot', name: 'HubSpot', category: 'crm', status: 'disconnected', description: 'Complete CRM and marketing automation', oauth_required: true },
   
   // Data Enrichment
@@ -63,6 +63,12 @@ export default function IntegrationManager() {
   const [integrations, setIntegrations] = useState<Integration[]>(AVAILABLE_INTEGRATIONS);
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [isConfiguring, setIsConfiguring] = useState(false);
+  const [credentials, setCredentials] = useState({
+    instanceUrl: '',
+    username: '',
+    password: '',
+    securityToken: ''
+  });
   const { toast } = useToast();
 
   const getStatusBadge = (status: Integration['status']) => {
@@ -86,21 +92,8 @@ export default function IntegrationManager() {
   };
 
   const handleConnect = (integration: Integration) => {
-    if (integration.oauth_required) {
-      // Simulate OAuth flow
-      toast({ title: "Redirecting to OAuth", description: `Connecting to ${integration.name}...` });
-      setTimeout(() => {
-        setIntegrations(prev => prev.map(i => 
-          i.id === integration.id 
-            ? { ...i, status: 'connected', last_sync: new Date().toISOString(), sync_status: 'success' }
-            : i
-        ));
-        toast({ title: "Connected", description: `Successfully connected to ${integration.name}` });
-      }, 2000);
-    } else {
-      setSelectedIntegration(integration);
-      setIsConfiguring(true);
-    }
+    setSelectedIntegration(integration);
+    setIsConfiguring(true);
   };
 
   const handleDisconnect = (integration: Integration) => {
@@ -251,6 +244,47 @@ export default function IntegrationManager() {
               <div className="p-4 bg-muted rounded-lg">
                 <p className="text-sm">This integration requires OAuth authentication. Click connect to authorize access.</p>
               </div>
+            ) : selectedIntegration?.id === 'salesforce' ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Salesforce Instance URL</label>
+                  <Input 
+                    placeholder="https://yourinstance.salesforce.com" 
+                    value={credentials.instanceUrl}
+                    onChange={(e) => setCredentials({...credentials, instanceUrl: e.target.value})}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Your Salesforce domain (e.g., na1.salesforce.com or mycompany.my.salesforce.com)</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Username</label>
+                  <Input 
+                    placeholder="user@company.com" 
+                    value={credentials.username}
+                    onChange={(e) => setCredentials({...credentials, username: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Password</label>
+                  <Input 
+                    type="password" 
+                    placeholder="Your Salesforce password" 
+                    value={credentials.password}
+                    onChange={(e) => setCredentials({...credentials, password: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Security Token</label>
+                  <Input 
+                    type="password" 
+                    placeholder="Your Salesforce security token" 
+                    value={credentials.securityToken}
+                    onChange={(e) => setCredentials({...credentials, securityToken: e.target.value})}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Get your token: Setup → Personal Setup → Reset My Security Token
+                  </p>
+                </div>
+              </div>
             ) : (
               <div className="space-y-4">
                 <div>
@@ -275,10 +309,27 @@ export default function IntegrationManager() {
               Cancel
             </Button>
             <Button onClick={() => {
-              setIsConfiguring(false);
-              if (selectedIntegration && !selectedIntegration.oauth_required) {
-                handleConnect(selectedIntegration);
+              if (selectedIntegration?.id === 'salesforce') {
+                if (!credentials.instanceUrl || !credentials.username || !credentials.password) {
+                  toast({ 
+                    title: "Missing credentials", 
+                    description: "Please fill in all required fields",
+                    variant: "destructive"
+                  });
+                  return;
+                }
+                
+                setIntegrations(prev => prev.map(i => 
+                  i.id === selectedIntegration.id 
+                    ? { ...i, status: 'connected', last_sync: new Date().toISOString(), sync_status: 'success', config: credentials }
+                    : i
+                ));
+                toast({ 
+                  title: "Connected", 
+                  description: `Successfully connected to ${selectedIntegration.name}` 
+                });
               }
+              setIsConfiguring(false);
             }}>
               Save Configuration
             </Button>
