@@ -126,7 +126,9 @@ export default function Accounts() {
     hasMore,
     totalCount,
     loadMore,
-    refresh
+    refresh,
+    retry,
+    lastError
   } = useInfiniteAccounts({
     orgId: userProfile?.org_id || null,
     pageSize: 25,
@@ -1260,6 +1262,8 @@ export default function Accounts() {
             isLoading={isLoadingMore}
             hasMore={hasMore}
             onLoadMore={loadMore}
+            onRetry={retry}
+            error={lastError}
             itemsCount={accounts.length}
             totalCount={totalCount}
           />

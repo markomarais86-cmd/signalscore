@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCursorPagination } from './use-cursor-pagination';
 import { useToast } from './use-toast';
@@ -57,6 +57,8 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
 
   const pagination = useCursorPagination<Account>({ pageSize });
   const { toast } = useToast();
+  const [retryCount, setRetryCount] = useState(0);
+  const [lastError, setLastError] = useState<Error | null>(null);
 
   const loadAccounts = useCallback(
     async (isLoadingMore = false) => {
@@ -181,9 +183,13 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
       } catch (error: any) {
         console.error('Error loading accounts:', error);
         pagination.setError(error);
+        setLastError(error);
+        
+        // Show toast notification
+        const errorMessage = error?.message || 'Failed to load accounts';
         toast({
-          title: 'Error',
-          description: 'Failed to load accounts',
+          title: isLoadingMore ? 'Error Loading More' : 'Error Loading Accounts',
+          description: retryCount < 3 ? `${errorMessage}. Click retry button below to try again.` : errorMessage,
           variant: 'destructive',
         });
       } finally {
@@ -217,9 +223,19 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
   }, [loadAccounts, pagination.state.isLoadingMore, pagination.state.hasMore, pagination.state.cursor]);
 
   const refresh = useCallback(() => {
+    setRetryCount(0);
+    setLastError(null);
     pagination.reset();
     loadAccounts(false);
   }, [loadAccounts, pagination]);
+
+  const retry = useCallback(() => {
+    if (lastError) {
+      setRetryCount(prev => prev + 1);
+      setLastError(null);
+      loadAccounts(pagination.state.items.length > 0);
+    }
+  }, [lastError, loadAccounts, pagination.state.items.length]);
 
   // Load initial data when filters change
   useEffect(() => {
@@ -241,8 +257,11 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
     isLoadingMore: pagination.state.isLoadingMore,
     hasMore: pagination.state.hasMore,
     error: pagination.state.error,
+    lastError,
+    retryCount,
     totalCount: pagination.state.totalCount,
     loadMore,
     refresh,
+    retry,
   };
 }

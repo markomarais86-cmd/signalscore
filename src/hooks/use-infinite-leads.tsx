@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCursorPagination } from './use-cursor-pagination';
 import { useToast } from './use-toast';
@@ -68,6 +68,8 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
 
   const pagination = useCursorPagination<Lead>({ pageSize });
   const { toast } = useToast();
+  const [retryCount, setRetryCount] = useState(0);
+  const [lastError, setLastError] = useState<Error | null>(null);
 
   const loadLeads = useCallback(
     async (isLoadingMore = false) => {
@@ -202,9 +204,13 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
       } catch (error: any) {
         console.error('Error loading leads:', error);
         pagination.setError(error);
+        setLastError(error);
+        
+        // Show toast notification
+        const errorMessage = error?.message || 'Failed to load leads';
         toast({
-          title: 'Error',
-          description: 'Failed to load leads',
+          title: isLoadingMore ? 'Error Loading More' : 'Error Loading Leads',
+          description: retryCount < 3 ? `${errorMessage}. Click retry button below to try again.` : errorMessage,
           variant: 'destructive',
         });
       } finally {
@@ -236,9 +242,19 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
   }, [loadLeads, pagination.state.isLoadingMore, pagination.state.hasMore, pagination.state.cursor]);
 
   const refresh = useCallback(() => {
+    setRetryCount(0);
+    setLastError(null);
     pagination.reset();
     loadLeads(false);
   }, [loadLeads, pagination]);
+
+  const retry = useCallback(() => {
+    if (lastError) {
+      setRetryCount(prev => prev + 1);
+      setLastError(null);
+      loadLeads(pagination.state.items.length > 0);
+    }
+  }, [lastError, loadLeads, pagination.state.items.length]);
 
   // Load initial data when filters change
   useEffect(() => {
@@ -252,8 +268,11 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
     isLoadingMore: pagination.state.isLoadingMore,
     hasMore: pagination.state.hasMore,
     error: pagination.state.error,
+    lastError,
+    retryCount,
     totalCount: pagination.state.totalCount,
     loadMore,
     refresh,
+    retry,
   };
 }

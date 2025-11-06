@@ -83,7 +83,9 @@ export default function Leads() {
     hasMore,
     totalCount,
     loadMore,
-    refresh
+    refresh,
+    retry,
+    lastError
   } = useInfiniteLeads({
     orgId: userProfile?.org_id || null,
     pageSize: 25,
@@ -747,7 +749,19 @@ export default function Leads() {
             </TableBody>
           </Table>
 
-          {leads.length === 0 && (
+          {/* Infinite Scroll Trigger */}
+          <InfiniteScrollTrigger
+            observerTarget={observerTarget}
+            isLoading={isLoadingMore}
+            hasMore={hasMore}
+            onLoadMore={loadMore}
+            onRetry={retry}
+            error={lastError}
+            itemsCount={leads.length}
+            totalCount={totalCount}
+          />
+
+          {leads.length === 0 && !isLoading && (
             <div className="text-center py-12">
               <p className="text-muted-foreground">
                 {searchTerm || statusFilter !== "all" 
