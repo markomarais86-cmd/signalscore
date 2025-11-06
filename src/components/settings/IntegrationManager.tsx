@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -78,6 +78,51 @@ export default function IntegrationManager() {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const { toast } = useToast();
   const { userProfile } = useAuth();
+
+  // Load integration statuses from database on mount
+  useEffect(() => {
+    const loadIntegrationStatuses = async () => {
+      if (!userProfile?.org_id) return;
+
+      try {
+        const { data, error } = await supabase.functions.invoke('integration-service', {
+          body: {
+            action: 'list',
+            org_id: userProfile.org_id,
+          },
+        });
+
+        if (error) throw error;
+
+        if (data?.integrations) {
+          // Merge database statuses with AVAILABLE_INTEGRATIONS
+          const updatedIntegrations = AVAILABLE_INTEGRATIONS.map(integration => {
+            const dbIntegration = data.integrations.find(
+              (db: any) => db.provider_name === integration.id
+            );
+
+            if (dbIntegration) {
+              return {
+                ...integration,
+                status: (dbIntegration.status === 'active' ? 'connected' : 'disconnected') as Integration['status'],
+                last_sync: dbIntegration.last_sync_at,
+                sync_status: dbIntegration.last_sync_status,
+                config: dbIntegration
+              };
+            }
+
+            return integration;
+          });
+
+          setIntegrations(updatedIntegrations);
+        }
+      } catch (error) {
+        console.error('Failed to load integration statuses:', error);
+      }
+    };
+
+    loadIntegrationStatuses();
+  }, [userProfile?.org_id]);
 
   const getStatusBadge = (status: Integration['status']) => {
     const variants = {
