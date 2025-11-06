@@ -2,7 +2,29 @@ import { createContext, useContext, useEffect, useState, useRef, ReactNode } fro
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { setUserContext, clearUserContext } from '@/config/sentry';
+
+// Helper functions for Sentry (loaded dynamically)
+const setUserContextSafe = async (user: { id: string; email?: string }) => {
+  if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
+    try {
+      const { setUserContext } = await import('@/config/sentry');
+      setUserContext(user);
+    } catch (e) {
+      console.error('Failed to set Sentry user context:', e);
+    }
+  }
+};
+
+const clearUserContextSafe = async () => {
+  if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
+    try {
+      const { clearUserContext } = await import('@/config/sentry');
+      clearUserContext();
+    } catch (e) {
+      console.error('Failed to clear Sentry user context:', e);
+    }
+  }
+};
 
 interface AuthContextType {
   user: User | null;
@@ -92,8 +114,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Set Sentry user context for error tracking
-          setUserContext({
+          // Set Sentry user context for error tracking (async, non-blocking)
+          setUserContextSafe({
             id: session.user.id,
             email: session.user.email,
           });
@@ -128,8 +150,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setLoading(false);
           }
         } else {
-          // Clear Sentry user context on sign out
-          clearUserContext();
+          // Clear Sentry user context on sign out (async, non-blocking)
+          clearUserContextSafe();
           
           setUserProfile(null);
           localStorage.removeItem('user_profile_cache');

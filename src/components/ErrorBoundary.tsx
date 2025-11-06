@@ -38,16 +38,20 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     // Store error info in state
     this.setState({ errorInfo });
     
-    // Send to Sentry for error tracking
-    if (typeof window !== 'undefined') {
+    // Send to Sentry for error tracking (only in production with DSN configured)
+    if (typeof window !== 'undefined' && import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
       import('@sentry/react').then((Sentry) => {
-        Sentry.captureException(error, {
-          extra: {
-            componentStack: errorInfo.componentStack,
-          },
-        });
+        try {
+          Sentry.captureException(error, {
+            extra: {
+              componentStack: errorInfo.componentStack,
+            },
+          });
+        } catch (sentryError) {
+          console.error('Failed to send error to Sentry:', sentryError);
+        }
       }).catch((err) => {
-        console.error('Failed to load Sentry:', err);
+        console.error('Failed to load Sentry module:', err);
       });
     }
   }

@@ -1,15 +1,18 @@
 import * as Sentry from "@sentry/react";
 
 export function initializeSentry() {
-  const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
-  
-  // Only initialize if DSN is provided
-  if (!sentryDsn) {
-    console.warn('Sentry DSN not configured. Error tracking is disabled.');
-    return;
-  }
+  try {
+    const sentryDsn = import.meta.env.VITE_SENTRY_DSN;
+    
+    // Only initialize if DSN is provided and in production
+    if (!sentryDsn || !import.meta.env.PROD) {
+      if (import.meta.env.DEV) {
+        console.log('Sentry: Disabled in development mode');
+      }
+      return;
+    }
 
-  Sentry.init({
+    Sentry.init({
     dsn: sentryDsn,
     integrations: [
       Sentry.browserTracingIntegration(),
@@ -24,38 +27,54 @@ export function initializeSentry() {
     replaysSessionSampleRate: 0.1, // 10% of sessions
     replaysOnErrorSampleRate: 1.0, // 100% of sessions with errors
     
-    environment: import.meta.env.MODE,
-    enabled: import.meta.env.PROD, // Only enable in production
+      environment: import.meta.env.MODE,
+      enabled: true,
+      
+      beforeSend(event, hint) {
+        // Filter out non-critical errors if needed
+        return event;
+      },
+    });
     
-    beforeSend(event, hint) {
-      // Filter out non-critical errors if needed
-      const error = hint.originalException;
-      
-      // Don't send errors during development
-      if (import.meta.env.DEV) {
-        console.log('Sentry event (not sent in dev):', event);
-        return null;
-      }
-      
-      return event;
-    },
-  });
+    console.log('Sentry initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize Sentry:', error);
+    // Don't throw - allow app to continue without Sentry
+  }
 }
 
 export function captureException(error: Error, context?: Record<string, any>) {
-  Sentry.captureException(error, {
-    extra: context,
-  });
+  try {
+    if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
+      Sentry.captureException(error, {
+        extra: context,
+      });
+    }
+  } catch (e) {
+    console.error('Failed to capture exception in Sentry:', e);
+  }
 }
 
 export function setUserContext(user: { id: string; email?: string; username?: string }) {
-  Sentry.setUser({
-    id: user.id,
-    email: user.email,
-    username: user.username,
-  });
+  try {
+    if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
+      Sentry.setUser({
+        id: user.id,
+        email: user.email,
+        username: user.username,
+      });
+    }
+  } catch (e) {
+    console.error('Failed to set user context in Sentry:', e);
+  }
 }
 
 export function clearUserContext() {
-  Sentry.setUser(null);
+  try {
+    if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
+      Sentry.setUser(null);
+    }
+  } catch (e) {
+    console.error('Failed to clear user context in Sentry:', e);
+  }
 }

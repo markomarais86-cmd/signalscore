@@ -1,12 +1,17 @@
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ErrorBoundary } from './components/ErrorBoundary'
-import { initializeSentry } from './config/sentry'
 import App from './App.tsx'
 import './index.css'
 
-// Initialize Sentry for error tracking
-initializeSentry();
+// Initialize Sentry for error tracking (only in production)
+if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
+  import('./config/sentry').then(({ initializeSentry }) => {
+    initializeSentry();
+  }).catch((error) => {
+    console.error('Failed to load Sentry:', error);
+  });
+}
 
 // Configure React Query for optimal performance
 const queryClient = new QueryClient({
