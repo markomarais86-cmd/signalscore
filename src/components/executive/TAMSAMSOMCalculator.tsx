@@ -442,14 +442,14 @@ export function TAMSAMSOMCalculator({
           {/* Assumptions Summary */}
           <div className="border-t pt-4">
             <div className="text-xs text-muted-foreground space-y-1">
-              <p className="font-medium flex items-center gap-2">
+              <div className="font-medium flex items-center gap-2">
                 {isCustomAssumptions ? "Custom Assumptions:" : "Assumptions:"}
                 {isCustomAssumptions && (
                   <Badge variant="secondary" className="text-xs">
                     Modified
                   </Badge>
                 )}
-              </p>
+              </div>
               <ul className="list-disc list-inside space-y-0.5 ml-2">
                 <li>Average Deal Size: {formatCurrency(assumptions.averageDealSize)}</li>
                 <li>{assumptions.timeHorizon}-Month Conversion Rate: {(assumptions.conversionRate * 100).toFixed(0)}%</li>
