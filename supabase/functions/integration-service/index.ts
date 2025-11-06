@@ -73,10 +73,14 @@ Deno.serve(async (req) => {
         return await checkSecrets(body.provider);
       
       case 'sync':
+      case 'triggerSync':
         return await triggerSync(supabase, profile.org_id, req);
       
       case 'status':
         return await getIntegrationStatus(supabase, profile.org_id, req);
+      
+      case 'getFields':
+        return await getFields(supabase, profile.org_id, body);
       
       default:
         return new Response(
@@ -725,6 +729,173 @@ async function checkSecrets(provider: string | null) {
     }),
     { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );
+}
+
+async function getFields(supabase: any, orgId: string, body: any) {
+  const { provider, integration_id } = body;
+
+  try {
+    // Get integration config and credentials
+    const { data: config, error: configError } = await supabase
+      .from('integration_configs')
+      .select('*')
+      .eq('id', integration_id)
+      .eq('org_id', orgId)
+      .single();
+
+    if (configError) throw configError;
+
+    const { data: credential } = await supabase
+      .from('integration_credentials')
+      .select('encrypted_credentials')
+      .eq('integration_config_id', integration_id)
+      .single();
+
+    if (!credential?.encrypted_credentials) {
+      throw new Error('No credentials found');
+    }
+
+    let fields = {
+      accounts: [],
+      contacts: [],
+      leads: []
+    };
+
+    if (provider === 'salesforce') {
+      // Get Salesforce fields via REST API
+      const creds = credential.encrypted_credentials as any;
+      
+      // Get session ID first
+      const sessionResponse = await fetch(
+        `${creds.instance_url}/services/Soap/u/58.0`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/xml', 'SOAPAction': 'login' },
+          body: `<?xml version="1.0" encoding="utf-8"?>
+            <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:partner.soap.sforce.com">
+              <soapenv:Body>
+                <urn:login>
+                  <urn:username>${creds.username}</urn:username>
+                  <urn:password>${creds.password}${creds.security_token}</urn:password>
+                </urn:login>
+              </soapenv:Body>
+            </soapenv:Envelope>`
+        }
+      );
+
+      const sessionText = await sessionResponse.text();
+      const sessionIdMatch = sessionText.match(/<sessionId>([^<]+)<\/sessionId>/);
+      const serverUrlMatch = sessionText.match(/<serverUrl>([^<]+)<\/serverUrl>/);
+
+      if (!sessionIdMatch || !serverUrlMatch) {
+        throw new Error('Failed to authenticate with Salesforce');
+      }
+
+      const sessionId = sessionIdMatch[1];
+      const baseUrl = serverUrlMatch[1].replace(/\/services\/.*/, '');
+
+      // Fetch Account fields
+      const accountFieldsResponse = await fetch(
+        `${baseUrl}/services/data/v58.0/sobjects/Account/describe`,
+        { headers: { 'Authorization': `Bearer ${sessionId}` } }
+      );
+      const accountFieldsData = await accountFieldsResponse.json();
+      fields.accounts = accountFieldsData.fields?.slice(0, 50).map((f: any) => ({
+        name: f.name,
+        label: f.label,
+        type: f.type,
+        required: !f.nillable && !f.defaultedOnCreate
+      })) || [];
+
+      // Fetch Contact fields
+      const contactFieldsResponse = await fetch(
+        `${baseUrl}/services/data/v58.0/sobjects/Contact/describe`,
+        { headers: { 'Authorization': `Bearer ${sessionId}` } }
+      );
+      const contactFieldsData = await contactFieldsResponse.json();
+      fields.contacts = contactFieldsData.fields?.slice(0, 50).map((f: any) => ({
+        name: f.name,
+        label: f.label,
+        type: f.type,
+        required: !f.nillable && !f.defaultedOnCreate
+      })) || [];
+
+      // Fetch Lead fields
+      const leadFieldsResponse = await fetch(
+        `${baseUrl}/services/data/v58.0/sobjects/Lead/describe`,
+        { headers: { 'Authorization': `Bearer ${sessionId}` } }
+      );
+      const leadFieldsData = await leadFieldsResponse.json();
+      fields.leads = leadFieldsData.fields?.slice(0, 50).map((f: any) => ({
+        name: f.name,
+        label: f.label,
+        type: f.type,
+        required: !f.nillable && !f.defaultedOnCreate
+      })) || [];
+
+    } else if (provider === 'hubspot') {
+      // Get HubSpot fields via REST API
+      const creds = credential.encrypted_credentials as any;
+      const accessToken = creds.access_token;
+
+      // Fetch Company properties
+      const companyPropsResponse = await fetch(
+        'https://api.hubapi.com/crm/v3/properties/companies',
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
+      );
+      const companyPropsData = await companyPropsResponse.json();
+      fields.accounts = companyPropsData.results?.slice(0, 50).map((p: any) => ({
+        name: p.name,
+        label: p.label,
+        type: p.type,
+        required: false
+      })) || [];
+
+      // Fetch Contact properties
+      const contactPropsResponse = await fetch(
+        'https://api.hubapi.com/crm/v3/properties/contacts',
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
+      );
+      const contactPropsData = await contactPropsResponse.json();
+      fields.contacts = contactPropsData.results?.slice(0, 50).map((p: any) => ({
+        name: p.name,
+        label: p.label,
+        type: p.type,
+        required: false
+      })) || [];
+
+      // Fetch Deal properties
+      const dealPropsResponse = await fetch(
+        'https://api.hubapi.com/crm/v3/properties/deals',
+        { headers: { 'Authorization': `Bearer ${accessToken}` } }
+      );
+      const dealPropsData = await dealPropsResponse.json();
+      fields.leads = dealPropsData.results?.slice(0, 50).map((p: any) => ({
+        name: p.name,
+        label: p.label,
+        type: p.type,
+        required: false
+      })) || [];
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        success: true,
+        fields 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error: any) {
+    console.error('Error fetching fields:', error);
+    return new Response(
+      JSON.stringify({ 
+        success: false,
+        error: error.message 
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 }
 
 async function hasCredentials(supabase: any, configId: string): Promise<boolean> {

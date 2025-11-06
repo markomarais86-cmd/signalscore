@@ -16,11 +16,13 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle,
-  Clock
+  Clock,
+  GitBranch
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import CRMFieldMappingDialog from "./CRMFieldMappingDialog";
 
 interface Integration {
   id: string;
@@ -65,6 +67,7 @@ export default function IntegrationManager() {
   const [integrations, setIntegrations] = useState<Integration[]>(AVAILABLE_INTEGRATIONS);
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [isConfiguring, setIsConfiguring] = useState(false);
+  const [isFieldMappingOpen, setIsFieldMappingOpen] = useState(false);
   const [credentials, setCredentials] = useState({
     instanceUrl: '',
     username: '',
@@ -233,6 +236,19 @@ export default function IntegrationManager() {
                                <RefreshCw className="h-4 w-4 mr-2" />
                                 Sync
                               </Button>
+                              {(integration.id === 'salesforce' || integration.id === 'hubspot') && (
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedIntegration(integration);
+                                    setIsFieldMappingOpen(true);
+                                  }}
+                                >
+                                  <GitBranch className="h-4 w-4 mr-2" />
+                                  Field Mapping
+                                </Button>
+                              )}
                               <Button 
                                 variant="outline" 
                                 size="sm"
@@ -456,6 +472,17 @@ export default function IntegrationManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Field Mapping Dialog */}
+      {selectedIntegration && (selectedIntegration.id === 'salesforce' || selectedIntegration.id === 'hubspot') && (
+        <CRMFieldMappingDialog
+          open={isFieldMappingOpen}
+          onOpenChange={setIsFieldMappingOpen}
+          integrationId={selectedIntegration.config?.integration_config_id || ''}
+          provider={selectedIntegration.id as 'salesforce' | 'hubspot'}
+          orgId={userProfile?.org_id || ''}
+        />
+      )}
     </div>
   );
 }
