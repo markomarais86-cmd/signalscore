@@ -62,14 +62,14 @@ serve(async (req) => {
       throw new Error(`Failed to fetch accounts: ${accountsError.message}`);
     }
 
-    // Get contacts
-    const { data: contacts, error: contactsError } = await supabase
-      .from('contacts')
+    // Get leads (contact data)
+    const { data: leads, error: leadsError } = await supabase
+      .from('Leads')
       .select('*')
       .eq('org_id', org_id);
 
-    if (contactsError) {
-      throw new Error(`Failed to fetch contacts: ${contactsError.message}`);
+    if (leadsError) {
+      throw new Error(`Failed to fetch leads: ${leadsError.message}`);
     }
 
     // Get closed won deals
@@ -110,12 +110,12 @@ serve(async (req) => {
     const personaDistribution: Record<string, number> = {};
     const titleDistribution: Record<string, number> = {};
 
-    contacts?.forEach(contact => {
-      if (contact.persona) {
-        personaDistribution[contact.persona] = (personaDistribution[contact.persona] || 0) + 1;
+    leads?.forEach(lead => {
+      if (lead.persona) {
+        personaDistribution[lead.persona] = (personaDistribution[lead.persona] || 0) + 1;
       }
-      if (contact.title_raw) {
-        titleDistribution[contact.title_raw] = (titleDistribution[contact.title_raw] || 0) + 1;
+      if (lead.title_raw) {
+        titleDistribution[lead.title_raw] = (titleDistribution[lead.title_raw] || 0) + 1;
       }
     });
 
@@ -251,7 +251,7 @@ Return ONLY the JSON array, no other text.`
         statistics: {
           total_accounts: accounts?.length || 0,
           high_score_accounts: highScoreAccounts.length,
-          total_contacts: contacts?.length || 0,
+          total_contacts: leads?.length || 0,
           total_deals: deals?.length || 0,
           avg_deal_value: avgDealValue
         }
