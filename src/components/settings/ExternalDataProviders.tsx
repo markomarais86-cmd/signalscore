@@ -47,15 +47,15 @@ export function ExternalDataProviders() {
     if (!userProfile.org_id) return;
 
     try {
-      // Get total contacts
+      // Get total leads
       const { count: totalCount } = await supabase
-        .from('contacts')
+        .from('Leads')
         .select('*', { count: 'exact', head: true })
         .eq('org_id', userProfile.org_id);
 
-      // Get enriched contacts (have persona and not 'Unknown')
+      // Get enriched leads (have persona and not 'Unknown')
       const { count: enrichedCount } = await supabase
-        .from('contacts')
+        .from('Leads')
         .select('*', { count: 'exact', head: true })
         .eq('org_id', userProfile.org_id)
         .not('persona', 'is', null)

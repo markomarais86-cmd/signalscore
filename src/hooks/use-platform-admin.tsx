@@ -52,9 +52,9 @@ export const usePlatformAdmin = () => {
             .select("*", { count: "exact", head: true })
             .eq("org_id", org.id);
 
-          // Count contacts
+          // Count leads (contacts are now in Leads table)
           const { count: contactCount } = await supabase
-            .from("contacts")
+            .from("Leads")
             .select("*", { count: "exact", head: true })
             .eq("org_id", org.id);
 

@@ -139,16 +139,16 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
             .eq('org_id', orgId)
             .in('account_external_id', accountIds);
 
-          // Fetch contact counts
-          const { data: contactCounts } = await supabase
-            .from('contacts')
+          // Fetch lead counts per account
+          const { data: leadCounts } = await supabase
+            .from('Leads')
             .select('account_external_id')
             .eq('org_id', orgId)
             .in('account_external_id', accountIds);
 
-          // Group contact counts by account
-          const contactCountMap = contactCounts?.reduce((acc, contact) => {
-            acc[contact.account_external_id] = (acc[contact.account_external_id] || 0) + 1;
+          // Group lead counts by account
+          const contactCountMap = leadCounts?.reduce((acc, lead) => {
+            acc[lead.account_external_id] = (acc[lead.account_external_id] || 0) + 1;
             return acc;
           }, {} as Record<string, number>) || {};
 

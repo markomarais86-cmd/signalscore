@@ -1,3 +1,5 @@
+// DEPRECATED: This function is no longer needed after contacts table consolidation
+// All contact data is now stored in the Leads table
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0'
 
 const corsHeaders = {

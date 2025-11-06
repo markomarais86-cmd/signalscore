@@ -498,80 +498,6 @@ export type Database = {
         }
         Relationships: []
       }
-      contacts: {
-        Row: {
-          account_external_id: string | null
-          country: string | null
-          data_source: string | null
-          email: string | null
-          enriched_at: string | null
-          enriched_from: string | null
-          external_database_match: boolean | null
-          external_id: string
-          first_name: string | null
-          id: string
-          last_name: string | null
-          level: string | null
-          mobile: string | null
-          org_id: string
-          persona: string | null
-          phone: string | null
-          state_province: string | null
-          title_raw: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          account_external_id?: string | null
-          country?: string | null
-          data_source?: string | null
-          email?: string | null
-          enriched_at?: string | null
-          enriched_from?: string | null
-          external_database_match?: boolean | null
-          external_id: string
-          first_name?: string | null
-          id?: string
-          last_name?: string | null
-          level?: string | null
-          mobile?: string | null
-          org_id: string
-          persona?: string | null
-          phone?: string | null
-          state_province?: string | null
-          title_raw?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          account_external_id?: string | null
-          country?: string | null
-          data_source?: string | null
-          email?: string | null
-          enriched_at?: string | null
-          enriched_from?: string | null
-          external_database_match?: boolean | null
-          external_id?: string
-          first_name?: string | null
-          id?: string
-          last_name?: string | null
-          level?: string | null
-          mobile?: string | null
-          org_id?: string
-          persona?: string | null
-          phone?: string | null
-          state_province?: string | null
-          title_raw?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contacts_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       custom_reports: {
         Row: {
           config: Json
@@ -1357,13 +1283,18 @@ export type Database = {
           contact_external_id: string | null
           country: string | null
           created_at: string
+          data_source: string | null
           email: string | null
           employee_count: number | null
+          enriched_at: string | null
+          enriched_from: string | null
+          external_database_match: boolean | null
           external_id: string | null
           first_name: string | null
           id: number
           industry: string | null
           last_name: string | null
+          level: string | null
           match_confidence: number | null
           mobile: string | null
           name: string | null
@@ -1374,6 +1305,8 @@ export type Database = {
           state_province: string | null
           status: string | null
           title: string | null
+          title_raw: string | null
+          updated_at: string | null
           website: string | null
         }
         Insert: {
@@ -1382,13 +1315,18 @@ export type Database = {
           contact_external_id?: string | null
           country?: string | null
           created_at?: string
+          data_source?: string | null
           email?: string | null
           employee_count?: number | null
+          enriched_at?: string | null
+          enriched_from?: string | null
+          external_database_match?: boolean | null
           external_id?: string | null
           first_name?: string | null
           id?: number
           industry?: string | null
           last_name?: string | null
+          level?: string | null
           match_confidence?: number | null
           mobile?: string | null
           name?: string | null
@@ -1399,6 +1337,8 @@ export type Database = {
           state_province?: string | null
           status?: string | null
           title?: string | null
+          title_raw?: string | null
+          updated_at?: string | null
           website?: string | null
         }
         Update: {
@@ -1407,13 +1347,18 @@ export type Database = {
           contact_external_id?: string | null
           country?: string | null
           created_at?: string
+          data_source?: string | null
           email?: string | null
           employee_count?: number | null
+          enriched_at?: string | null
+          enriched_from?: string | null
+          external_database_match?: boolean | null
           external_id?: string | null
           first_name?: string | null
           id?: number
           industry?: string | null
           last_name?: string | null
+          level?: string | null
           match_confidence?: number | null
           mobile?: string | null
           name?: string | null
@@ -1424,6 +1369,8 @@ export type Database = {
           state_province?: string | null
           status?: string | null
           title?: string | null
+          title_raw?: string | null
+          updated_at?: string | null
           website?: string | null
         }
         Relationships: [
@@ -2343,6 +2290,10 @@ export type Database = {
         Returns: string
       }
       is_current_user_admin: { Args: never; Returns: boolean }
+      is_lead_campaign_ready: {
+        Args: { p_email: string; p_persona: string; p_title: string }
+        Returns: boolean
+      }
       is_super_admin: { Args: never; Returns: boolean }
       map_title_to_persona: { Args: { title_input: string }; Returns: string }
       match_leads_fuzzy: {

@@ -43,14 +43,14 @@ export function ContactDiscovery() {
         .eq('org_id', userProfile.org_id)
         .gte('overall', 70);
 
-      // Get accounts with contacts
-      const { data: accountsWithContacts } = await supabase
-        .from('contacts')
+      // Get accounts with leads
+      const { data: accountsWithLeads } = await supabase
+        .from('Leads')
         .select('account_external_id')
         .eq('org_id', userProfile.org_id);
 
-      const accountIdsWithContacts = new Set(
-        (accountsWithContacts || []).map(c => c.account_external_id)
+      const accountIdsWithLeads = new Set(
+        (accountsWithLeads || []).map(c => c.account_external_id)
       );
 
       // Get high-fit accounts without contacts
@@ -61,20 +61,20 @@ export function ContactDiscovery() {
         .gte('overall', 70);
 
       const accountsWithoutContacts = (highFitAccounts || [])
-        .filter(a => !accountIdsWithContacts.has(a.account_external_id))
+        .filter(a => !accountIdsWithLeads.has(a.account_external_id))
         .length;
 
-      // Get total contacts from enrichment
-      const { count: enrichedContactCount } = await supabase
-        .from('contacts')
+      // Get total leads from enrichment
+      const { count: enrichedLeadCount } = await supabase
+        .from('Leads')
         .select('*', { count: 'exact', head: true })
         .eq('org_id', userProfile.org_id)
-        .eq('data_source', 'enrichment');
+        .eq('data_source', 'database');
 
       setStats({
         highFitAccounts: highFitCount || 0,
         accountsWithoutContacts,
-        totalContactsFound: enrichedContactCount || 0,
+        totalContactsFound: enrichedLeadCount || 0,
       });
     } catch (error) {
       console.error('Error loading contact discovery stats:', error);

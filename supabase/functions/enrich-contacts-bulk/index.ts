@@ -30,23 +30,23 @@ Deno.serve(async (req) => {
     const { orgId, accountExternalIds, batchSize = 100 }: EnrichRequest = await req.json()
     console.log(`🔄 Starting bulk contact enrichment for org: ${orgId}`)
 
-    // Get high-fit accounts with no contacts
+    // Get high-fit accounts with no leads
     let query = supabaseClient
       .from('accounts')
-      .select('external_id, name, domain, industry_norm')
+      .select('external_id, name, domain, industry_norm, country')
       .eq('org_id', orgId)
 
     if (accountExternalIds && accountExternalIds.length > 0) {
       query = query.in('external_id', accountExternalIds)
     } else {
-      // Find high-fit accounts with no contacts
-      const { data: accountsWithContacts } = await supabaseClient
-        .from('contacts')
+      // Find high-fit accounts with no leads
+      const { data: accountsWithLeads } = await supabaseClient
+        .from('Leads')
         .select('account_external_id')
         .eq('org_id', orgId)
 
-      const accountIdsWithContacts = new Set(
-        (accountsWithContacts || []).map(c => c.account_external_id)
+      const accountIdsWithLeads = new Set(
+        (accountsWithLeads || []).map(c => c.account_external_id)
       )
 
       const { data: highFitAccounts } = await supabaseClient
@@ -55,23 +55,23 @@ Deno.serve(async (req) => {
         .eq('org_id', orgId)
         .gte('overall', 70)
 
-      const highFitWithoutContacts = (highFitAccounts || [])
+      const highFitWithoutLeads = (highFitAccounts || [])
         .map(s => s.account_external_id)
-        .filter(id => !accountIdsWithContacts.has(id))
+        .filter(id => !accountIdsWithLeads.has(id))
 
-      if (highFitWithoutContacts.length === 0) {
-        console.log('✅ No high-fit accounts need contact enrichment')
+      if (highFitWithoutLeads.length === 0) {
+        console.log('✅ No high-fit accounts need lead enrichment')
         return new Response(
           JSON.stringify({
             success: true,
             enriched: 0,
-            message: 'No accounts need contact enrichment'
+            message: 'No accounts need lead enrichment'
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
-      query = query.in('external_id', highFitWithoutContacts.slice(0, batchSize))
+      query = query.in('external_id', highFitWithoutLeads.slice(0, batchSize))
     }
 
     const { data: accounts, error: fetchError } = await query
@@ -93,9 +93,9 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log(`Found ${accounts.length} accounts to enrich with contacts`)
+    console.log(`Found ${accounts.length} accounts to enrich with leads`)
 
-    // Enrich contacts using waterfall: PDL → Clearbit → AI fallback
+    // Enrich leads using waterfall: PDL → Clearbit → AI fallback
     let enrichedCount = 0
     const errors: string[] = []
     
@@ -187,17 +187,20 @@ Deno.serve(async (req) => {
             last_name: 'Maker',
             email: `contact@${account.domain}`,
             title_raw: titles[0],
+            level: 'C-Level',
+            persona: 'Business Decision Maker',
+            country: account.country || 'Unknown',
             source: 'ai_placeholder'
           }]
           console.log(`⚡ AI placeholder created for ${account.name}`)
         }
 
-        // Insert discovered contacts
+        // Insert discovered leads
         for (const contact of contactsFound) {
           if (!contact.email) continue
 
           const { error: insertError } = await supabaseClient
-            .from('contacts')
+            .from('Leads')
             .insert({
               org_id: orgId,
               external_id: `${account.external_id}-${contact.email}`,
@@ -205,14 +208,19 @@ Deno.serve(async (req) => {
               email: contact.email,
               first_name: contact.first_name,
               last_name: contact.last_name,
+              title: contact.title_raw,
               title_raw: contact.title_raw,
-              data_source: 'enrichment',
+              persona: contact.persona || 'Unknown',
+              level: contact.level,
+              country: contact.country,
+              data_source: 'database',
               enriched_from: contact.source,
-              enriched_at: new Date().toISOString()
+              enriched_at: new Date().toISOString(),
+              status: 'open'
             })
 
           if (insertError && insertError.code !== '23505') { // Ignore duplicates
-            console.error(`Error inserting contact for ${account.name}:`, insertError)
+            console.error(`Error inserting lead for ${account.name}:`, insertError)
             errors.push(`${account.name}: ${insertError.message}`)
           } else if (!insertError) {
             enrichedCount++
@@ -226,7 +234,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    console.log(`✅ Created ${enrichedCount} contacts for ${accounts.length} accounts`)
+    console.log(`✅ Created ${enrichedCount} leads for ${accounts.length} accounts`)
 
     return new Response(
       JSON.stringify({
@@ -236,7 +244,7 @@ Deno.serve(async (req) => {
         errors: errors.length > 0 ? errors : undefined,
         note: PDL_API_KEY || CLEARBIT_API_KEY 
           ? 'Using PDL and Clearbit enrichment APIs with AI fallback' 
-          : 'Using AI-powered placeholders. Configure PDL_API_KEY or CLEARBIT_API_KEY for real contact data.'
+          : 'Using AI-powered placeholders. Configure PDL_API_KEY or CLEARBIT_API_KEY for real lead data.'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

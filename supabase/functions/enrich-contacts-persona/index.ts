@@ -46,10 +46,10 @@ Deno.serve(async (req) => {
     const { orgId, batchSize = 1000 }: EnrichRequest = await req.json()
     console.log(`🔄 Starting contact persona enrichment for org: ${orgId}`)
 
-    // Get all contacts that need persona enrichment
+    // Get all leads that need persona enrichment
     const { data: contacts, error: fetchError } = await supabaseClient
-      .from('contacts')
-      .select('id, title_raw, persona')
+      .from('Leads')
+      .select('id, title_raw, persona, title')
       .eq('org_id', orgId)
       .or('persona.is.null,persona.eq.Unknown')
       .not('title_raw', 'is', null)
@@ -78,17 +78,17 @@ Deno.serve(async (req) => {
     const enrichedContacts = await Promise.all(
       contacts.map(async (contact) => ({
         id: contact.id,
-        persona: await mapTitleToPersona(supabaseClient, contact.title_raw)
+        persona: await mapTitleToPersona(supabaseClient, contact.title_raw || contact.title)
       }))
     )
 
-    // Update contacts with persona
+    // Update leads with persona
     let enrichedCount = 0
     const errors: string[] = []
 
     for (const contact of enrichedContacts) {
       const { error: updateError } = await supabaseClient
-        .from('contacts')
+        .from('Leads')
         .update({ persona: contact.persona })
         .eq('id', contact.id)
 

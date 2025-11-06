@@ -36,9 +36,9 @@ export function useDataSources() {
 
       if (crmAccountError) throw crmAccountError;
 
-      // Get CRM contact count
+      // Get CRM lead count
       const { count: crmContactCount, error: crmContactError } = await supabase
-        .from('contacts')
+        .from('Leads')
         .select('*', { count: 'exact', head: true })
         .eq('org_id', userProfile.org_id)
         .eq('data_source', 'crm');

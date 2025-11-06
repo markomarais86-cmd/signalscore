@@ -47,25 +47,25 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
       });
     }
 
-    // Risk 2: High-fit accounts missing contacts
-    const { data: highFitWithoutContacts } = await supabase
+    // Risk 2: High-fit accounts missing leads
+    const { data: highFitWithoutLeads } = await supabase
       .from('scores')
       .select('account_external_id')
       .eq('org_id', orgId)
       .gte('overall', 70)
       .limit(10000);
 
-    if (highFitWithoutContacts) {
-      const highFitIds = highFitWithoutContacts.map(s => s.account_external_id);
+    if (highFitWithoutLeads) {
+      const highFitIds = highFitWithoutLeads.map(s => s.account_external_id);
       
-      const { data: accountsWithContacts } = await supabase
-        .from('contacts')
+      const { data: accountsWithLeads } = await supabase
+        .from('Leads')
         .select('account_external_id')
         .eq('org_id', orgId)
         .in('account_external_id', highFitIds);
 
-      const accountsWithContactsSet = new Set(accountsWithContacts?.map(c => c.account_external_id) || []);
-      const missingContacts = highFitIds.filter(id => !accountsWithContactsSet.has(id)).length;
+      const accountsWithLeadsSet = new Set(accountsWithLeads?.map(c => c.account_external_id) || []);
+      const missingContacts = highFitIds.filter(id => !accountsWithLeadsSet.has(id)).length;
 
       if (missingContacts > 50) {
         risks.push({
