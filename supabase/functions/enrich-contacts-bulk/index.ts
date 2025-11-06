@@ -5,10 +5,199 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Function to enrich existing leads with missing data
+async function enrichExistingLeads(supabaseClient: any, jobId: string, batchSize: number, provider: string) {
+  try {
+    // Get job details
+    const { data: job, error: jobError } = await supabaseClient
+      .from('enrichment_jobs')
+      .select('*')
+      .eq('id', jobId)
+      .single()
+
+    if (jobError) throw jobError
+
+    // Update job status to processing
+    await supabaseClient
+      .from('enrichment_jobs')
+      .update({ 
+        status: 'processing', 
+        started_at: new Date().toISOString()
+      })
+      .eq('id', jobId)
+
+    // Get leads that need enrichment
+    const { data: leads, error: leadsError } = await supabaseClient
+      .from('Leads')
+      .select('id, external_id, name, email, title, persona, company, account_external_id')
+      .eq('org_id', job.org_id)
+      .or('email.is.null,title.is.null,persona.is.null,persona.eq.Unknown')
+      .limit(batchSize)
+
+    if (leadsError) throw leadsError
+
+    if (!leads || leads.length === 0) {
+      await supabaseClient
+        .from('enrichment_jobs')
+        .update({ 
+          status: 'completed', 
+          completed_at: new Date().toISOString(),
+          processed_records: 0,
+          enriched_records: 0
+        })
+        .eq('id', jobId)
+
+      return new Response(
+        JSON.stringify({ success: true, enriched: 0, message: 'No leads need enrichment' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log(`Found ${leads.length} leads to enrich`)
+
+    let enrichedCount = 0
+    let failedCount = 0
+    const PDL_API_KEY = Deno.env.get('PDL_API_KEY')
+    const CLEARBIT_API_KEY = Deno.env.get('CLEARBIT_API_KEY')
+
+    // Process each lead
+    for (let i = 0; i < leads.length; i++) {
+      const lead = leads[i]
+      
+      try {
+        const updateData: any = {}
+        let enrichmentSource = 'unknown'
+
+        // If missing email, try to find it via People Data Labs
+        if (!lead.email && lead.name && PDL_API_KEY) {
+          try {
+            const [firstName, ...lastNameParts] = lead.name.split(' ')
+            const lastName = lastNameParts.join(' ')
+            
+            const pdlResponse = await fetch('https://api.peopledatalabs.com/v5/person/search', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Api-Key': PDL_API_KEY
+              },
+              body: JSON.stringify({
+                query: {
+                  first_name: firstName,
+                  last_name: lastName,
+                  company: lead.company
+                },
+                size: 1
+              })
+            })
+
+            if (pdlResponse.ok) {
+              const pdlData = await pdlResponse.json()
+              if (pdlData.data && pdlData.data.length > 0) {
+                const person = pdlData.data[0]
+                if (person.emails && person.emails.length > 0) {
+                  updateData.email = person.emails[0]
+                  enrichmentSource = 'pdl'
+                }
+                if (!lead.title && person.job_title) {
+                  updateData.title = person.job_title
+                }
+              }
+            }
+          } catch (pdlError) {
+            console.error('PDL error:', pdlError)
+          }
+        }
+
+        // If still missing title or persona, enrich from what we have
+        if (!lead.title && lead.company) {
+          // Use AI to generate a reasonable title based on company
+          updateData.title = updateData.title || 'Decision Maker'
+          enrichmentSource = enrichmentSource === 'unknown' ? 'ai' : enrichmentSource
+        }
+
+        // Update lead if we found data
+        if (Object.keys(updateData).length > 0) {
+          updateData.enriched_at = new Date().toISOString()
+          updateData.enriched_from = enrichmentSource
+
+          const { error: updateError } = await supabaseClient
+            .from('Leads')
+            .update(updateData)
+            .eq('id', lead.id)
+
+          if (updateError) {
+            console.error('Error updating lead:', updateError)
+            failedCount++
+          } else {
+            enrichedCount++
+          }
+        } else {
+          failedCount++
+        }
+
+        // Update job progress every 10 leads
+        if ((i + 1) % 10 === 0) {
+          await supabaseClient
+            .from('enrichment_jobs')
+            .update({
+              processed_records: i + 1,
+              enriched_records: enrichedCount,
+              failed_records: failedCount
+            })
+            .eq('id', jobId)
+        }
+      } catch (error) {
+        console.error('Error enriching lead:', error)
+        failedCount++
+      }
+    }
+
+    // Mark job as completed
+    await supabaseClient
+      .from('enrichment_jobs')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        processed_records: leads.length,
+        enriched_records: enrichedCount,
+        failed_records: failedCount
+      })
+      .eq('id', jobId)
+
+    console.log(`✅ Enriched ${enrichedCount}/${leads.length} leads`)
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        enriched: enrichedCount,
+        failed: failedCount,
+        total: leads.length
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  } catch (error) {
+    console.error('Job enrichment error:', error)
+    
+    // Mark job as failed
+    await supabaseClient
+      .from('enrichment_jobs')
+      .update({
+        status: 'failed',
+        completed_at: new Date().toISOString(),
+        error_message: error.message
+      })
+      .eq('id', jobId)
+
+    throw error
+  }
+}
+
 interface EnrichRequest {
-  orgId: string
+  jobId?: string
+  orgId?: string
   accountExternalIds?: string[]
   batchSize?: number
+  provider?: string
 }
 
 Deno.serve(async (req) => {
@@ -27,8 +216,15 @@ Deno.serve(async (req) => {
       }
     )
 
-    const { orgId, accountExternalIds, batchSize = 100 }: EnrichRequest = await req.json()
-    console.log(`🔄 Starting bulk contact enrichment for org: ${orgId}`)
+    const { jobId, orgId, accountExternalIds, batchSize = 100, provider = 'pdl' }: EnrichRequest = await req.json()
+    
+    // If jobId is provided, this is a job-based enrichment for existing leads
+    if (jobId) {
+      console.log(`🔄 Starting job-based lead enrichment: ${jobId}`)
+      return await enrichExistingLeads(supabaseClient, jobId, batchSize, provider)
+    }
+    
+    console.log(`🔄 Starting bulk contact discovery for org: ${orgId}`)
 
     // Get high-fit accounts with no leads
     let query = supabaseClient

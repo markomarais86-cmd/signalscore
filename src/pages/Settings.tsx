@@ -67,6 +67,7 @@ import { ContactsBackfill } from "@/components/settings/ContactsBackfill";
 import { ContactDiscovery } from "@/components/settings/ContactDiscovery";
 import { IntegrationCredentialManager } from "@/components/settings/IntegrationCredentialManager";
 import { IntegrationHealthDashboard } from "@/components/settings/IntegrationHealthDashboard";
+import { BulkLeadEnrichment } from "@/components/settings/BulkLeadEnrichment";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
@@ -470,6 +471,9 @@ export default function Settings() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4 pt-4">
+                <BulkLeadEnrichment />
+                
+                <div className="text-sm font-medium text-muted-foreground mt-6 mb-2">Legacy Actions</div>
                 <div id="enrichment-card" className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FirmographicEnrichmentCard />
                   <ContactDiscovery />
