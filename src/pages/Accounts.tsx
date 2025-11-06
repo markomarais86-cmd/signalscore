@@ -51,7 +51,7 @@ interface Account {
     intent: number;
     reachability: number;
   } | null;
-  contacts?: any[];
+  contacts?: number;
 }
 
 export default function Accounts() {
@@ -414,7 +414,7 @@ export default function Accounts() {
             intent: scoresMap.get(account.external_id)!.intent,
             reachability: scoresMap.get(account.external_id)!.reachability
           } : null,
-          contacts: Array(leadsMap.get(account.external_id) || 0).fill({})
+          contacts: leadsMap.get(account.external_id) || 0
         }));
 
         exportCSVData(fullAccounts, exportAll);
@@ -1279,7 +1279,7 @@ export default function Accounts() {
             fit_positives: selectedAccountForScore.industry_norm ? [`Industry: ${selectedAccountForScore.industry_norm}`] : [],
             fit_negatives: !selectedAccountForScore.employee_count ? ['Missing employee count data'] : [],
             intent_signals: [],
-            reachability_factors: selectedAccountForScore.contacts && selectedAccountForScore.contacts.length > 0 ? [`${selectedAccountForScore.contacts.length} contacts available`] : ['No contacts available']
+            reachability_factors: selectedAccountForScore.contacts && selectedAccountForScore.contacts > 0 ? [`${selectedAccountForScore.contacts} contacts available`] : ['No contacts available']
           }
         } : null}
       />

@@ -40,7 +40,7 @@ interface Account {
     intent: number;
     reachability: number;
   } | null;
-  contacts?: any[];
+  contacts?: number;
 }
 
 interface AccountDetailDrawerProps {
@@ -110,8 +110,8 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="leads">
               Leads
-              {account.contacts && account.contacts.length > 0 && (
-                <Badge variant="secondary" className="ml-2">{account.contacts.length}</Badge>
+              {account.contacts && account.contacts > 0 && (
+                <Badge variant="secondary" className="ml-2">{account.contacts}</Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="insights">AI Insights</TabsTrigger>
@@ -237,46 +237,23 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
 
           {/* Leads Tab */}
           <TabsContent value="leads" className="space-y-4 mt-4">
-            {account.contacts && account.contacts.length > 0 ? (
-              account.contacts.map((lead, idx) => (
-                <Card key={idx}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-lg">
-                          {lead.first_name} {lead.last_name}
-                        </h4>
-                        <p className="text-sm text-muted-foreground mt-1">{lead.title || '-'}</p>
-                        <div className="flex gap-4 mt-3">
-                          {lead.email && (
-                            <a href={`mailto:${lead.email}`} className="text-sm flex items-center gap-1 text-primary hover:underline">
-                              <Mail className="h-3 w-3" />
-                              {lead.email}
-                            </a>
-                          )}
-                          {lead.phone && (
-                            <a href={`tel:${lead.phone}`} className="text-sm flex items-center gap-1 text-muted-foreground hover:text-primary">
-                              <Phone className="h-3 w-3" />
-                              {lead.phone}
-                            </a>
-                          )}
-                          {lead.country && (
-                            <span className="text-sm flex items-center gap-1 text-muted-foreground">
-                              <MapPin className="h-3 w-3" />
-                              {lead.country}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col gap-2">
-                        {lead.persona && (
-                          <Badge variant="outline">{lead.persona}</Badge>
-                        )}
-                      </div>
+            {account.contacts && account.contacts > 0 ? (
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Users className="h-5 w-5 text-primary" />
+                    <div>
+                      <h3 className="font-semibold">Contacts Available</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {account.contacts} {account.contacts === 1 ? 'contact' : 'contacts'} associated with this account
+                      </p>
                     </div>
-                  </CardContent>
-                </Card>
-              ))
+                  </div>
+                  <Button asChild className="w-full">
+                    <a href="/leads">View All Contacts</a>
+                  </Button>
+                </CardContent>
+              </Card>
             ) : (
               <Card>
                 <CardContent className="p-8 text-center">
@@ -285,7 +262,9 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
                   <p className="text-sm text-muted-foreground mb-4">
                     Link leads to this account to improve campaign readiness
                   </p>
-                  <Button variant="outline">Import Leads</Button>
+                  <Button variant="outline" asChild>
+                    <a href="/leads">Go to Leads</a>
+                  </Button>
                 </CardContent>
               </Card>
             )}
@@ -324,7 +303,7 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
                   <div className="flex-1">
                     <h4 className="font-medium text-sm">Recommended Approach</h4>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Multi-threaded outreach with emphasis on {account.contacts && account.contacts.length > 0 ? 'existing contacts' : 'decision-makers'}
+                      Multi-threaded outreach with emphasis on {account.contacts && account.contacts > 0 ? 'existing contacts' : 'decision-makers'}
                     </p>
                   </div>
                 </div>

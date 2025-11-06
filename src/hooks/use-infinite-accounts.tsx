@@ -18,6 +18,7 @@ interface Account {
   external_database_match?: boolean;
   enriched_from?: string | null;
   enriched_at?: string | null;
+  contacts?: number;
   score?: {
     overall: number;
     fit: number;
@@ -125,17 +126,32 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
           pagination.setHasMore(false);
         }
 
-        // Also load scores for accounts
+        // Also load scores and contacts for accounts
         if (accounts.length > 0) {
           const accountIds = accounts.map((a) => a.external_id);
+          
+          // Fetch scores
           const { data: scores } = await supabase
             .from('scores')
             .select('*')
             .eq('org_id', orgId)
             .in('account_external_id', accountIds);
 
-          // Merge scores with accounts
-          const accountsWithScores = accounts.map((account) => {
+          // Fetch contact counts
+          const { data: contactCounts } = await supabase
+            .from('contacts')
+            .select('account_external_id')
+            .eq('org_id', orgId)
+            .in('account_external_id', accountIds);
+
+          // Group contact counts by account
+          const contactCountMap = contactCounts?.reduce((acc, contact) => {
+            acc[contact.account_external_id] = (acc[contact.account_external_id] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>) || {};
+
+          // Merge scores and contact counts with accounts
+          const accountsWithScoresAndContacts = accounts.map((account) => {
             const score = scores?.find(
               (s) => s.account_external_id === account.external_id
             );
@@ -149,16 +165,17 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
                     reachability: score.reachability,
                   }
                 : null,
+              contacts: contactCountMap[account.external_id] || 0,
             };
           }) as Account[];
 
           if (isLoadingMore) {
             pagination.setItems([
               ...pagination.state.items.slice(0, -accounts.length),
-              ...accountsWithScores,
+              ...accountsWithScoresAndContacts,
             ] as Account[]);
           } else {
-            pagination.setItems(accountsWithScores);
+            pagination.setItems(accountsWithScoresAndContacts);
           }
         }
       } catch (error: any) {
