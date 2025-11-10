@@ -72,21 +72,15 @@ export function ICPCoverageCard({
       isTAM: false
     },
     {
-      source: "Database",
+      source: tamAccounts > 0 ? `Database (${tamProvider}, ZoomInfo, etc.)` : "Database",
       icon: Users,
-      total: databaseAccounts,
+      total: databaseAccounts + tamAccounts,
       highFit: highFitDatabaseAccounts,
       route: "/accounts?source=database",
-      isTAM: false
-    },
-    ...(tamAccounts > 0 ? [{
-      source: `${tamProvider} (Available)`,
-      icon: Users,
-      total: tamAccounts,
-      highFit: 0, // Unknown high-fit for external TAM
-      route: "#",
-      isTAM: true
-    }] : [])
+      isTAM: false,
+      hasExternalTAM: tamAccounts > 0,
+      tamCount: tamAccounts
+    }
   ];
 
   const leadsTableRows = [
@@ -99,21 +93,15 @@ export function ICPCoverageCard({
       isTAM: false
     },
     {
-      source: "Database",
+      source: tamLeads > 0 ? `Database (${tamProvider}, ZoomInfo, etc.)` : "Database",
       icon: Users,
-      total: databaseLeads,
+      total: databaseLeads + tamLeads,
       highFit: highFitDatabaseLeads,
       route: "/leads?source=database",
-      isTAM: false
-    },
-    ...(tamLeads > 0 ? [{
-      source: `${tamProvider} (Available)`,
-      icon: Users,
-      total: tamLeads,
-      highFit: 0, // Unknown high-fit for external TAM
-      route: "#",
-      isTAM: true
-    }] : [])
+      isTAM: false,
+      hasExternalTAM: tamLeads > 0,
+      tamCount: tamLeads
+    }
   ];
 
   return (
@@ -206,9 +194,14 @@ export function ICPCoverageCard({
                         <td className="p-3">
                           <div className="flex items-center gap-2">
                             <Icon className="h-4 w-4 text-muted-foreground" />
-                            <span className={row.isTAM ? "font-medium text-primary" : ""}>
-                              {row.source}
-                            </span>
+                            <div className="flex flex-col">
+                              <span>{row.source}</span>
+                              {row.hasExternalTAM && (
+                                <span className="text-xs text-muted-foreground">
+                                  {row.tamCount?.toLocaleString()} available from external sources
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="text-right p-3 font-mono text-sm">
@@ -266,9 +259,14 @@ export function ICPCoverageCard({
                         <td className="p-3">
                           <div className="flex items-center gap-2">
                             <Icon className="h-4 w-4 text-muted-foreground" />
-                            <span className={row.isTAM ? "font-medium text-primary" : ""}>
-                              {row.source}
-                            </span>
+                            <div className="flex flex-col">
+                              <span>{row.source}</span>
+                              {row.hasExternalTAM && (
+                                <span className="text-xs text-muted-foreground">
+                                  {row.tamCount?.toLocaleString()} available from external sources
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </td>
                         <td className="text-right p-3 font-mono text-sm">
