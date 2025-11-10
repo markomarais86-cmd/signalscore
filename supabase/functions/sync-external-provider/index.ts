@@ -51,61 +51,17 @@ serve(async (req) => {
       }
 
       // Build Apollo API request body based on ICP
+      // Start with minimal required parameters to avoid validation errors
       const requestBody: any = {
         page: 1,
         per_page: 1, // We only need pagination data, not actual results
       };
 
       if (icpProfile) {
-        // Map geographies to Apollo locations
+        // Map geographies to Apollo locations (use country names)
         if (icpProfile.geographies && icpProfile.geographies.length > 0) {
           requestBody.organization_locations = icpProfile.geographies;
         }
-
-        // Map company_sizes to employee ranges
-        if (icpProfile.company_sizes && icpProfile.company_sizes.length > 0) {
-          const employeeRanges = icpProfile.company_sizes.map((size: string) => {
-            switch(size) {
-              case '1-10': return '1,10';
-              case '11-50': return '11,50';
-              case '51-200': return '51,200';
-              case '201-500': return '201,500';
-              case '501-1000': return '501,1000';
-              case '1001-5000': return '1001,5000';
-              case '5001-10000': return '5001,10000';
-              case '10000+': return '10001,max';
-              default: return null;
-            }
-          }).filter(Boolean);
-          
-          if (employeeRanges.length > 0) {
-            requestBody.organization_num_employees_ranges = employeeRanges;
-          }
-        }
-
-        // Map revenue_ranges to Apollo revenue filter
-        if (icpProfile.revenue_ranges && icpProfile.revenue_ranges.length > 0) {
-          // Apollo uses min/max in dollars
-          // Example ranges: "$1M-$10M", "$10M-$50M", etc.
-          const revenueMap: any = {
-            '$0-$1M': { min: 0, max: 1000000 },
-            '$1M-$10M': { min: 1000000, max: 10000000 },
-            '$10M-$50M': { min: 10000000, max: 50000000 },
-            '$50M-$100M': { min: 50000000, max: 100000000 },
-            '$100M-$500M': { min: 100000000, max: 500000000 },
-            '$500M-$1B': { min: 500000000, max: 1000000000 },
-            '$1B+': { min: 1000000000, max: null }
-          };
-          
-          // For simplicity, use the first revenue range
-          const firstRange = icpProfile.revenue_ranges[0];
-          if (revenueMap[firstRange]) {
-            requestBody.revenue_range = revenueMap[firstRange];
-          }
-        }
-
-        // Note: Apollo's organization_industry_tag_ids requires specific Apollo tag IDs
-        // For broad TAM calculation, we rely on location, size, and revenue filters
       }
 
       console.log('Apollo API request:', JSON.stringify(requestBody, null, 2));
