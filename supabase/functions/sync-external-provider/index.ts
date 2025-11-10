@@ -123,94 +123,53 @@ serve(async (req) => {
         throw new Error(`Apollo API error: ${response.status} - ${errorText}`);
       }
 
-      // Estimate contact/lead counts using sampling approach
-      // Apollo paid plan doesn't include /people/search, so we use /mixed_people/organization_top_people
-      console.log('🔍 Estimating contact TAM using organization sampling...');
+      // Estimate contact/lead counts using industry standard multiplier
+      // Apollo paid plan doesn't include /people/search endpoint access
+      console.log('🔍 Estimating contact TAM using industry multiplier...');
 
       if (totalAccounts > 0) {
-        // Step 1: Fetch a sample of organizations
-        const sampleSize = Math.min(50, totalAccounts);
-        const orgSampleResponse = await fetch('https://api.apollo.io/v1/organizations/search', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache',
-            'X-Api-Key': apolloKey,
-          },
-          body: JSON.stringify({
-            ...requestBody,
-            page: 1,
-            per_page: sampleSize
-          })
-        });
-
-        if (orgSampleResponse.ok) {
-          const orgSampleData = await orgSampleResponse.json();
-          const sampleOrgs = orgSampleData.organizations || [];
+        // Calculate multiplier based on ICP seniority levels
+        let multiplier = 2.5; // Default: 2-3 decision makers per enterprise org
+        
+        // Adjust multiplier based on seniority inclusiveness
+        if (icpProfile?.persona_seniority_levels) {
+          const seniorityLevels = icpProfile.persona_seniority_levels;
           
-          console.log(`📊 Sampled ${sampleOrgs.length} organizations`);
-
-          // Step 2: For each org, count decision makers using mixed_people API
-          let totalContactsSample = 0;
-          const orgsToSample = Math.min(20, sampleOrgs.length); // Sample up to 20 to avoid rate limits
-
-          // Build filters for decision makers
-          const personFilters: any = {};
-          if (icpProfile?.persona_job_titles && icpProfile.persona_job_titles.length > 0) {
-            personFilters.person_titles = icpProfile.persona_job_titles;
+          if (seniorityLevels.includes('C-Level') && seniorityLevels.length === 1) {
+            // Only C-Level: very narrow, ~1-2 per org
+            multiplier = 1.5;
+          } else if (seniorityLevels.includes('C-Level') && seniorityLevels.includes('VP')) {
+            // C-Level + VP: ~3-4 per org
+            multiplier = 3.5;
+          } else if (seniorityLevels.includes('Director') || seniorityLevels.includes('Manager')) {
+            // Including Directors/Managers: ~4-6 per org
+            multiplier = 5.0;
           }
-          if (icpProfile?.persona_seniority_levels && icpProfile.persona_seniority_levels.length > 0) {
-            personFilters.person_seniorities = icpProfile.persona_seniority_levels;
-          }
-
-          for (let i = 0; i < orgsToSample; i++) {
-            const org = sampleOrgs[i];
-            
-            const peopleResponse = await fetch('https://api.apollo.io/v1/mixed_people/search', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Cache-Control': 'no-cache',
-                'X-Api-Key': apolloKey,
-              },
-              body: JSON.stringify({
-                page: 1,
-                per_page: 100,
-                organization_ids: [org.id],
-                ...personFilters
-              })
-            });
-
-            if (peopleResponse.ok) {
-              const peopleData = await peopleResponse.json();
-              const contactCount = peopleData.pagination?.total_entries || 0;
-              totalContactsSample += contactCount;
-            }
-            
-            // Small delay to avoid rate limiting
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-
-          // Step 3: Extrapolate total contacts
-          const avgContactsPerOrg = totalContactsSample / orgsToSample;
-          totalContacts = Math.round(avgContactsPerOrg * totalAccounts);
-
-          console.log(`📊 Contact estimation results:
-  - Sample size: ${orgsToSample} organizations
-  - Contacts found in sample: ${totalContactsSample}
-  - Average contacts per org: ${avgContactsPerOrg.toFixed(1)}
-  - Estimated total contacts: ${totalContacts.toLocaleString()}
-`);
-
-          console.log(`✅ Apollo estimated contacts for ICP "${icpProfile?.name}": ${totalContacts.toLocaleString()} leads`);
-        } else {
-          const errorText = await orgSampleResponse.text();
-          console.error(`Organization sampling error: ${orgSampleResponse.status} - ${errorText}`);
-          
-          // Fallback: Use industry average (2-3 decision makers per org)
-          totalContacts = Math.round(totalAccounts * 2.5);
-          console.log(`⚠️ Using fallback estimate: ${totalContacts.toLocaleString()} leads (2.5x multiplier)`);
         }
+        
+        // Apply employee count adjustment
+        if (icpProfile?.company_sizes) {
+          const avgEmployees = icpProfile.company_sizes.reduce((a, b) => a + b, 0) / icpProfile.company_sizes.length;
+          
+          if (avgEmployees < 100) {
+            // Small companies: fewer decision makers
+            multiplier *= 0.6;
+          } else if (avgEmployees > 5000) {
+            // Very large companies: more decision makers
+            multiplier *= 1.4;
+          }
+        }
+        
+        totalContacts = Math.round(totalAccounts * multiplier);
+        
+        console.log(`📊 Contact estimation:
+  - Total accounts: ${totalAccounts.toLocaleString()}
+  - Multiplier applied: ${multiplier.toFixed(1)}x
+  - Estimated contacts: ${totalContacts.toLocaleString()}
+  - Reasoning: Industry avg decision makers per enterprise org matching ICP criteria
+`);
+        
+        console.log(`✅ Apollo estimated contacts for ICP "${icpProfile?.name}": ${totalContacts.toLocaleString()} leads`);
       }
     }
 
