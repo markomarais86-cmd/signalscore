@@ -27,9 +27,10 @@ interface StateData {
 interface EnhancedGeographyCardProps {
   geoData: GeoData[];
   invalidCount?: number;
+  geoTrends?: Record<string, number>;
 }
 
-export function EnhancedGeographyCard({ geoData, invalidCount = 0 }: EnhancedGeographyCardProps) {
+export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {} }: EnhancedGeographyCardProps) {
   const navigate = useNavigate();
   const { userProfile } = useAuth();
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
@@ -248,25 +249,35 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0 }: EnhancedGeo
           <span>High ({maxCount.toLocaleString()})</span>
         </div>
 
-        {/* Top Countries Summary */}
+        {/* Top Countries Summary with Trends */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-4 border-t">
-          {geoData.slice(0, 4).map((geo, idx) => (
-            <div 
-              key={geo.country}
-              className="text-center p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
-              onClick={() => setSelectedCountry(geo.country)}
-            >
-              <div className="text-xl font-bold text-primary">
-                {geo.count.toLocaleString()}
+          {geoData.slice(0, 4).map((geo, idx) => {
+            const trend = geoTrends[geo.country];
+            const isPositive = (trend || 0) >= 0;
+            
+            return (
+              <div 
+                key={geo.country}
+                className="text-center p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                onClick={() => setSelectedCountry(geo.country)}
+              >
+                <div className="text-xl font-bold text-primary">
+                  {geo.count.toLocaleString()}
+                </div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {geo.country}
+                </div>
+                <div className="flex items-center justify-center gap-1 text-xs font-medium mt-1">
+                  <span>{((geo.count / totalAccounts) * 100).toFixed(1)}%</span>
+                  {trend !== undefined && trend !== 0 && (
+                    <span className={`flex items-center ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                      {isPositive ? '↑' : '↓'}{Math.abs(trend)}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground truncate">
-                {geo.country}
-              </div>
-              <div className="text-xs font-medium mt-1">
-                {((geo.count / totalAccounts) * 100).toFixed(1)}%
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
 

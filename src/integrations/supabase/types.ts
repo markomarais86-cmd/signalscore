@@ -590,10 +590,17 @@ export type Database = {
           accounts_with_size: number
           created_at: string | null
           high_fit_accounts: number
+          high_fit_accounts_delta: number | null
           id: string
+          low_fit_accounts: number | null
+          low_fit_accounts_delta: number | null
+          medium_fit_accounts: number | null
+          medium_fit_accounts_delta: number | null
           org_id: string
           overall_completeness: number
+          sam_accounts: number | null
           scored_accounts: number
+          tam_accounts: number | null
           total_accounts: number
         }
         Insert: {
@@ -604,10 +611,17 @@ export type Database = {
           accounts_with_size: number
           created_at?: string | null
           high_fit_accounts: number
+          high_fit_accounts_delta?: number | null
           id?: string
+          low_fit_accounts?: number | null
+          low_fit_accounts_delta?: number | null
+          medium_fit_accounts?: number | null
+          medium_fit_accounts_delta?: number | null
           org_id: string
           overall_completeness: number
+          sam_accounts?: number | null
           scored_accounts: number
+          tam_accounts?: number | null
           total_accounts: number
         }
         Update: {
@@ -618,10 +632,17 @@ export type Database = {
           accounts_with_size?: number
           created_at?: string | null
           high_fit_accounts?: number
+          high_fit_accounts_delta?: number | null
           id?: string
+          low_fit_accounts?: number | null
+          low_fit_accounts_delta?: number | null
+          medium_fit_accounts?: number | null
+          medium_fit_accounts_delta?: number | null
           org_id?: string
           overall_completeness?: number
+          sam_accounts?: number | null
           scored_accounts?: number
+          tam_accounts?: number | null
           total_accounts?: number
         }
         Relationships: [
@@ -2425,6 +2446,66 @@ export type Database = {
           record_id?: string
           retry_count?: number | null
           webhook_type?: string
+        }
+        Relationships: []
+      }
+      weekly_analytics_snapshots: {
+        Row: {
+          created_at: string | null
+          data_completeness: number | null
+          geography_distribution: Json | null
+          high_fit_accounts: number
+          high_fit_percentage: number | null
+          id: string
+          low_fit_accounts: number
+          low_fit_percentage: number | null
+          medium_fit_accounts: number
+          medium_fit_percentage: number | null
+          org_id: string
+          sam_accounts: number | null
+          snapshot_date: string
+          som_accounts: number | null
+          tam_accounts: number | null
+          top_countries: Json | null
+          total_accounts: number
+        }
+        Insert: {
+          created_at?: string | null
+          data_completeness?: number | null
+          geography_distribution?: Json | null
+          high_fit_accounts?: number
+          high_fit_percentage?: number | null
+          id?: string
+          low_fit_accounts?: number
+          low_fit_percentage?: number | null
+          medium_fit_accounts?: number
+          medium_fit_percentage?: number | null
+          org_id: string
+          sam_accounts?: number | null
+          snapshot_date: string
+          som_accounts?: number | null
+          tam_accounts?: number | null
+          top_countries?: Json | null
+          total_accounts?: number
+        }
+        Update: {
+          created_at?: string | null
+          data_completeness?: number | null
+          geography_distribution?: Json | null
+          high_fit_accounts?: number
+          high_fit_percentage?: number | null
+          id?: string
+          low_fit_accounts?: number
+          low_fit_percentage?: number | null
+          medium_fit_accounts?: number
+          medium_fit_percentage?: number | null
+          org_id?: string
+          sam_accounts?: number | null
+          snapshot_date?: string
+          som_accounts?: number | null
+          tam_accounts?: number | null
+          top_countries?: Json | null
+          total_accounts?: number
         }
         Relationships: []
       }

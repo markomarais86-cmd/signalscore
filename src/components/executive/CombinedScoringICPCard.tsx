@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Target, TrendingUp, Database, Sparkles, AlertCircle } from "lucide-react";
+import { Target, TrendingUp, TrendingDown, Database, Sparkles, AlertCircle } from "lucide-react";
 import { TrendIndicator } from "./TrendIndicator";
 import { useNavigate } from "react-router-dom";
 
@@ -24,6 +24,14 @@ interface CombinedScoringICPCardProps {
   geoCompleteness: number;
   scoringTrend?: number;
   completenessTrend?: number;
+  fitTrends?: {
+    highFitAccounts?: number;
+    mediumFitAccounts?: number;
+    lowFitAccounts?: number;
+    highFitPercentage?: number;
+    mediumFitPercentage?: number;
+    lowFitPercentage?: number;
+  };
 }
 
 export function CombinedScoringICPCard({
@@ -39,7 +47,8 @@ export function CombinedScoringICPCard({
   revenueCompleteness,
   geoCompleteness,
   scoringTrend,
-  completenessTrend
+  completenessTrend,
+  fitTrends
 }: CombinedScoringICPCardProps) {
   const navigate = useNavigate();
 
@@ -73,6 +82,18 @@ export function CombinedScoringICPCard({
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {fitDistribution.map((item) => {
               const FitIcon = getFitIcon(item.name);
+              const fitTrend = 
+                item.name === 'High Fit' ? fitTrends?.highFitAccounts :
+                item.name === 'Medium Fit' ? fitTrends?.mediumFitAccounts :
+                fitTrends?.lowFitAccounts;
+              
+              const fitTrendPct = 
+                item.name === 'High Fit' ? fitTrends?.highFitPercentage :
+                item.name === 'Medium Fit' ? fitTrends?.mediumFitPercentage :
+                fitTrends?.lowFitPercentage;
+              
+              const isPositive = (fitTrend || 0) >= 0;
+              
               return (
                 <div
                   key={item.name}
@@ -111,8 +132,16 @@ export function CombinedScoringICPCard({
                       <div className="text-5xl font-bold tracking-tight" style={{ color: item.color }}>
                         {item.value.toLocaleString()}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        accounts
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="text-xs text-muted-foreground">
+                          accounts
+                        </div>
+                        {fitTrend !== undefined && fitTrend !== 0 && (
+                          <div className={`flex items-center gap-1 text-xs font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                            {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                            <span>{isPositive ? '+' : ''}{fitTrend} ({isPositive ? '+' : ''}{fitTrendPct?.toFixed(1)}%) vs 7d</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

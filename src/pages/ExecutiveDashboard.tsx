@@ -32,6 +32,7 @@ import { EnhancedRisksCard } from "@/components/executive/EnhancedRisksCard";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { TAMSAMSOMCalculator } from "@/components/executive/TAMSAMSOMCalculator";
+import { TAMTrendCard } from "@/components/executive/TAMTrendCard";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -49,6 +50,7 @@ export default function ExecutiveDashboard() {
   const [showAllRisks, setShowAllRisks] = useState(false);
   const [refreshingInsights, setRefreshingInsights] = useState(false);
   const [trendData, setTrendData] = useState<TrendData | null>(null);
+  const [weeklyTrendData, setWeeklyTrendData] = useState<TrendData | null>(null);
   const [risks, setRisks] = useState<RiskItem[]>([]);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
@@ -107,9 +109,14 @@ export default function ExecutiveDashboard() {
 
   useEffect(() => {
     if (dashboardData) {
-      // Calculate trends asynchonously
-      calculateTrends(userProfile?.org_id || '', dashboardData?.metrics)
+      // Calculate 30-day trends
+      calculateTrends(userProfile?.org_id || '', dashboardData?.metrics, '30d')
         .then(setTrendData)
+        .catch(console.error);
+      
+      // Calculate 7-day (weekly) trends for fit levels
+      calculateTrends(userProfile?.org_id || '', dashboardData?.metrics, '7d')
+        .then(setWeeklyTrendData)
         .catch(console.error);
 
       // Detect risks asynchronously
@@ -297,17 +304,36 @@ export default function ExecutiveDashboard() {
                 geoCompleteness={80}
                 scoringTrend={trendData?.scoringProgress}
                 completenessTrend={trendData?.completeness}
+                fitTrends={weeklyTrendData ? {
+                  highFitAccounts: weeklyTrendData.highFitAccounts,
+                  mediumFitAccounts: weeklyTrendData.mediumFitAccounts,
+                  lowFitAccounts: weeklyTrendData.lowFitAccounts,
+                  highFitPercentage: weeklyTrendData.highFitPercentage,
+                  mediumFitPercentage: weeklyTrendData.mediumFitPercentage,
+                  lowFitPercentage: weeklyTrendData.lowFitPercentage,
+                } : undefined}
               />
 
               {/* TAM/SAM/SOM Calculator */}
-              <TAMSAMSOMCalculator
-                totalAccounts={totalAccounts}
-                highFitAccounts={highFitAccounts}
-                campaignReadyAccounts={campaignReadyAccounts}
-                averageDealSize={75000}
-                conversionRate={0.15}
-                externalTAMAccounts={tamData?.totalAccounts}
-              />
+              {tamData && tamData.totalAccounts > 0 ? (
+                <TAMTrendCard
+                  currentTAM={{
+                    totalAccounts: tamData.totalAccounts,
+                    totalContacts: tamData.totalLeads || 0,
+                    provider: tamData.provider || 'External Data',
+                    lastSyncedAt: tamData.lastSyncedAt,
+                  }}
+                />
+              ) : (
+                <TAMSAMSOMCalculator
+                  totalAccounts={totalAccounts}
+                  highFitAccounts={highFitAccounts}
+                  campaignReadyAccounts={campaignReadyAccounts}
+                  averageDealSize={75000}
+                  conversionRate={0.15}
+                  externalTAMAccounts={tamData?.totalAccounts}
+                />
+              )}
 
               {/* Enhanced Geography Card */}
               <EnhancedGeographyCard geoData={geographyDistribution} invalidCount={0} />
