@@ -32,7 +32,6 @@ import { EnhancedRisksCard } from "@/components/executive/EnhancedRisksCard";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { TAMSAMSOMCalculator } from "@/components/executive/TAMSAMSOMCalculator";
-import { MarketOpportunityCard } from "@/components/executive/MarketOpportunityCard";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -259,17 +258,6 @@ export default function ExecutiveDashboard() {
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Market Opportunity Card - Show if TAM data available */}
-              {tamData && tamData.totalAccounts > 0 && (
-                <MarketOpportunityCard
-                  crmAccounts={crmAccounts}
-                  tamAccounts={tamData.totalAccounts}
-                  crmLeads={crmLeads}
-                  tamLeads={tamData.totalContacts}
-                  provider={tamData.provider}
-                  lastSyncedAt={tamData.lastSyncedAt}
-                />
-              )}
 
               {/* ICP Coverage Card */}
               <ICPCoverageCard
