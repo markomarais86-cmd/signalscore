@@ -129,7 +129,7 @@ serve(async (req) => {
         per_page: 1, // We only need pagination data
       };
 
-      // Apply same filters to people search
+      // Apply filters to contacts search
       if (icpProfile) {
         if (icpProfile.geographies && icpProfile.geographies.length > 0) {
           peopleRequestBody.person_locations = icpProfile.geographies;
@@ -145,17 +145,20 @@ serve(async (req) => {
           peopleRequestBody.person_seniorities = icpProfile.persona_seniority_levels;
         }
 
-        // Add organization filters to ensure contacts are from matching companies
-        if (icpProfile.geographies && icpProfile.geographies.length > 0) {
-          peopleRequestBody.organization_locations = icpProfile.geographies;
-        }
-
+        // Add company size filter (but NOT org location to avoid overly restrictive filtering)
         if (icpProfile.company_sizes && icpProfile.company_sizes.length > 0) {
           const minEmployees = Math.min(...icpProfile.company_sizes);
           const maxEmployees = Math.max(...icpProfile.company_sizes);
           peopleRequestBody.organization_num_employees_ranges = [`${minEmployees},${maxEmployees}`];
         }
       }
+
+      console.log('🔍 Contact search filters:', {
+        person_locations: peopleRequestBody.person_locations?.length || 0,
+        person_titles: peopleRequestBody.person_titles?.length || 0,
+        person_seniorities: peopleRequestBody.person_seniorities?.length || 0,
+        org_employee_range: peopleRequestBody.organization_num_employees_ranges
+      });
 
       console.log('Apollo contacts search request:', JSON.stringify(peopleRequestBody, null, 2));
 
