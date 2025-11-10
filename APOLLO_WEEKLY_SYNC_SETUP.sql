@@ -2,7 +2,7 @@
 -- Apollo Weekly Auto-Sync Setup
 -- =====================================================
 -- This script sets up a weekly cron job to automatically sync
--- Apollo TAM data every Monday at 9:00 AM UTC
+-- Apollo TAM data every Friday at 9:00 AM UTC
 -- 
 -- INSTRUCTIONS:
 -- 1. Go to: https://supabase.com/dashboard/project/dhyfbaptcprxxixgnpby/sql/new
@@ -19,10 +19,10 @@ GRANT USAGE ON SCHEMA cron TO postgres;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA cron TO postgres;
 
 -- Create the weekly Apollo sync job
--- Runs every Monday at 9:00 AM UTC (cron format: minute hour day month weekday)
+-- Runs every Friday at 9:00 AM UTC (cron format: minute hour day month weekday)
 SELECT cron.schedule(
   'apollo-weekly-tam-sync',
-  '0 9 * * 1', -- Every Monday at 9:00 AM UTC
+  '0 9 * * 5', -- Every Friday at 9:00 AM UTC
   $$
   SELECT
     net.http_post(
