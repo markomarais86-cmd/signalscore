@@ -299,9 +299,37 @@ Companies: ${batch.map(a => `${a.name} (${a.domain})`).join(', ')}`;
       failed_records: accounts.length - enrichedCount
     }).eq('id', jobId);
 
+    // PHASE 4: Deep Research for high-value accounts (optional, rate-limited)
+    const needsDeepResearch = accounts.filter(a => {
+      const stillNeedsData = !enrichedAccounts.has(a.external_id);
+      return stillNeedsData && a.domain; // Only accounts with domain that still need data
+    }).slice(0, 50); // Max 50 per job to control costs
+
+    if (needsDeepResearch.length > 0) {
+      console.log(`🔬 Phase 4: Deep Research available (${needsDeepResearch.length} candidates)`);
+      console.log('⚠️ Deep research not auto-triggered. Requires manual activation or high propensity scores.');
+      
+      // Store candidates for potential deep research
+      await supabase.from('deep_research_candidates').insert(
+        needsDeepResearch.map(a => ({
+          org_id: job.org_id,
+          account_external_id: a.external_id,
+          company_data: { name: a.name, domain: a.domain },
+          match_reasoning: 'Incomplete after Phase 1-3 enrichment',
+          confidence: 0.5,
+          citations: []
+        }))
+      ).select();
+    }
+
     console.log(`✨ Complete: ${enrichedCount}/${accounts.length} enriched`);
 
-    return new Response(JSON.stringify({ success: true, enriched: enrichedCount, total: accounts.length }), {
+    return new Response(JSON.stringify({ 
+      success: true, 
+      enriched: enrichedCount, 
+      total: accounts.length,
+      deep_research_candidates: needsDeepResearch.length 
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 

@@ -54,11 +54,13 @@ export function EnrichmentJobMonitor() {
       )
       .subscribe();
 
-    // Poll every 5 seconds for active jobs
+    // Poll every 30 seconds only if there are active jobs
     const interval = setInterval(() => {
-      loadJobs();
-      loadCredits();
-    }, 5000);
+      if (jobs.length > 0) {
+        loadJobs();
+        loadCredits();
+      }
+    }, 30000);
 
     return () => {
       supabase.removeChannel(channel);

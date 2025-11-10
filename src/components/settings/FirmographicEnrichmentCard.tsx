@@ -77,7 +77,7 @@ export function FirmographicEnrichmentCard() {
           }
         }
       }
-    }, 3000);
+    }, 5000); // Increased to 5 seconds
 
     return () => clearInterval(interval);
   }, [enriching, currentJob]);

@@ -18,16 +18,26 @@ export type Database = {
         Row: {
           country: string | null
           data_source: string | null
+          deep_research_completed_at: string | null
+          deep_research_requested: boolean | null
           domain: string | null
           employee_count: number | null
           enriched_at: string | null
           enriched_from: string | null
+          enrichment_citations: Json | null
+          enrichment_confidence: number | null
+          enrichment_phase: string | null
           external_database_match: boolean | null
           external_id: string
           id: string
           industry_norm: string | null
           industry_raw: string | null
+          last_funding_date: string | null
+          last_funding_round: string | null
+          legal_name: string | null
+          linkedin_url: string | null
           mobile: string | null
+          naics: string | null
           name: string | null
           org_id: string
           phone: string | null
@@ -35,21 +45,34 @@ export type Database = {
           propensity_score: number | null
           revenue_range: string | null
           state_province: string | null
+          tech_stack: string[] | null
+          total_raised_usd: number | null
+          trust_signals: Json | null
           updated_at: string | null
         }
         Insert: {
           country?: string | null
           data_source?: string | null
+          deep_research_completed_at?: string | null
+          deep_research_requested?: boolean | null
           domain?: string | null
           employee_count?: number | null
           enriched_at?: string | null
           enriched_from?: string | null
+          enrichment_citations?: Json | null
+          enrichment_confidence?: number | null
+          enrichment_phase?: string | null
           external_database_match?: boolean | null
           external_id: string
           id?: string
           industry_norm?: string | null
           industry_raw?: string | null
+          last_funding_date?: string | null
+          last_funding_round?: string | null
+          legal_name?: string | null
+          linkedin_url?: string | null
           mobile?: string | null
+          naics?: string | null
           name?: string | null
           org_id: string
           phone?: string | null
@@ -57,21 +80,34 @@ export type Database = {
           propensity_score?: number | null
           revenue_range?: string | null
           state_province?: string | null
+          tech_stack?: string[] | null
+          total_raised_usd?: number | null
+          trust_signals?: Json | null
           updated_at?: string | null
         }
         Update: {
           country?: string | null
           data_source?: string | null
+          deep_research_completed_at?: string | null
+          deep_research_requested?: boolean | null
           domain?: string | null
           employee_count?: number | null
           enriched_at?: string | null
           enriched_from?: string | null
+          enrichment_citations?: Json | null
+          enrichment_confidence?: number | null
+          enrichment_phase?: string | null
           external_database_match?: boolean | null
           external_id?: string
           id?: string
           industry_norm?: string | null
           industry_raw?: string | null
+          last_funding_date?: string | null
+          last_funding_round?: string | null
+          legal_name?: string | null
+          linkedin_url?: string | null
           mobile?: string | null
+          naics?: string | null
           name?: string | null
           org_id?: string
           phone?: string | null
@@ -79,6 +115,9 @@ export type Database = {
           propensity_score?: number | null
           revenue_range?: string | null
           state_province?: string | null
+          tech_stack?: string[] | null
+          total_raised_usd?: number | null
+          trust_signals?: Json | null
           updated_at?: string | null
         }
         Relationships: [
@@ -588,6 +627,75 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "data_quality_history_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deep_research_candidates: {
+        Row: {
+          account_external_id: string | null
+          citations: Json | null
+          company_data: Json | null
+          confidence: number | null
+          created_at: string | null
+          dismissed: boolean | null
+          dismissed_reason: string | null
+          id: string
+          lead_id: number | null
+          match_reasoning: string | null
+          org_id: string
+          person_data: Json | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          selected: boolean | null
+        }
+        Insert: {
+          account_external_id?: string | null
+          citations?: Json | null
+          company_data?: Json | null
+          confidence?: number | null
+          created_at?: string | null
+          dismissed?: boolean | null
+          dismissed_reason?: string | null
+          id?: string
+          lead_id?: number | null
+          match_reasoning?: string | null
+          org_id: string
+          person_data?: Json | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          selected?: boolean | null
+        }
+        Update: {
+          account_external_id?: string | null
+          citations?: Json | null
+          company_data?: Json | null
+          confidence?: number | null
+          created_at?: string | null
+          dismissed?: boolean | null
+          dismissed_reason?: string | null
+          id?: string
+          lead_id?: number | null
+          match_reasoning?: string | null
+          org_id?: string
+          person_data?: Json | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          selected?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deep_research_candidates_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deep_research_candidates_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -1409,10 +1517,14 @@ export type Database = {
           country: string | null
           created_at: string
           data_source: string | null
+          deep_research_completed_at: string | null
           email: string | null
+          email_status: string | null
           employee_count: number | null
           enriched_at: string | null
           enriched_from: string | null
+          enrichment_citations: Json | null
+          enrichment_confidence: number | null
           external_database_match: boolean | null
           external_id: string | null
           first_name: string | null
@@ -1420,16 +1532,24 @@ export type Database = {
           industry: string | null
           last_name: string | null
           level: string | null
+          linkedin_url: string | null
+          location_city: string | null
+          location_region: string | null
           match_confidence: number | null
+          match_reasoning: string | null
           mobile: string | null
           name: string | null
           org_id: string | null
           persona: string | null
           phone: string | null
+          phone_e164: string | null
+          phone_type: string | null
           revenue_range: string | null
           state_province: string | null
           status: string | null
+          timezone: string | null
           title: string | null
+          title_as_of: string | null
           title_raw: string | null
           updated_at: string | null
           website: string | null
@@ -1441,10 +1561,14 @@ export type Database = {
           country?: string | null
           created_at?: string
           data_source?: string | null
+          deep_research_completed_at?: string | null
           email?: string | null
+          email_status?: string | null
           employee_count?: number | null
           enriched_at?: string | null
           enriched_from?: string | null
+          enrichment_citations?: Json | null
+          enrichment_confidence?: number | null
           external_database_match?: boolean | null
           external_id?: string | null
           first_name?: string | null
@@ -1452,16 +1576,24 @@ export type Database = {
           industry?: string | null
           last_name?: string | null
           level?: string | null
+          linkedin_url?: string | null
+          location_city?: string | null
+          location_region?: string | null
           match_confidence?: number | null
+          match_reasoning?: string | null
           mobile?: string | null
           name?: string | null
           org_id?: string | null
           persona?: string | null
           phone?: string | null
+          phone_e164?: string | null
+          phone_type?: string | null
           revenue_range?: string | null
           state_province?: string | null
           status?: string | null
+          timezone?: string | null
           title?: string | null
+          title_as_of?: string | null
           title_raw?: string | null
           updated_at?: string | null
           website?: string | null
@@ -1473,10 +1605,14 @@ export type Database = {
           country?: string | null
           created_at?: string
           data_source?: string | null
+          deep_research_completed_at?: string | null
           email?: string | null
+          email_status?: string | null
           employee_count?: number | null
           enriched_at?: string | null
           enriched_from?: string | null
+          enrichment_citations?: Json | null
+          enrichment_confidence?: number | null
           external_database_match?: boolean | null
           external_id?: string | null
           first_name?: string | null
@@ -1484,16 +1620,24 @@ export type Database = {
           industry?: string | null
           last_name?: string | null
           level?: string | null
+          linkedin_url?: string | null
+          location_city?: string | null
+          location_region?: string | null
           match_confidence?: number | null
+          match_reasoning?: string | null
           mobile?: string | null
           name?: string | null
           org_id?: string | null
           persona?: string | null
           phone?: string | null
+          phone_e164?: string | null
+          phone_type?: string | null
           revenue_range?: string | null
           state_province?: string | null
           status?: string | null
+          timezone?: string | null
           title?: string | null
+          title_as_of?: string | null
           title_raw?: string | null
           updated_at?: string | null
           website?: string | null

@@ -57,6 +57,13 @@ export function EnrichmentModal({
       description: "Uses PDL → Clearbit → AI in sequence for best coverage",
       tier: "free",
       fields: ["Industry", "Company Size", "Revenue", "Location", "Employee Count"]
+    },
+    {
+      id: "deep_research",
+      name: "Deep Research (High-Value Accounts)",
+      description: "AI-powered web research with citations, tech stack, funding, and confidence scores",
+      tier: "premium",
+      fields: ["All Fields", "Tech Stack", "Funding", "Trust Signals", "Verified Contacts", "Citations"]
     }
   ];
 
@@ -73,12 +80,14 @@ export function EnrichmentModal({
 
     setEnriching(true);
     try {
+      const isDeepResearch = selectedProviders.includes('deep_research');
+      
       // Create enrichment job
       const { data: job, error: jobError } = await supabase
         .from('enrichment_jobs')
         .insert({
           org_id: userProfile.org_id,
-          provider: 'smart-waterfall',
+          provider: isDeepResearch ? 'deep-research' : 'smart-waterfall',
           job_type: 'accounts',
           status: 'pending',
           total_records: selectedAccounts || 0
@@ -89,16 +98,39 @@ export function EnrichmentModal({
       if (jobError) throw jobError;
       if (!job) throw new Error('No job data returned');
 
-      toast.info("Starting enrichment...", {
-        description: "Enrichment waterfall: PDL → Clearbit → AI"
-      });
+      if (isDeepResearch) {
+        toast.info("Starting deep research enrichment...", {
+          description: "AI-powered research with citations and confidence scores"
+        });
 
-      // Call smart-enrich edge function
-      const { error } = await supabase.functions.invoke('smart-enrich', {
-        body: { jobId: job.id, batchSize }
-      });
+        // Call deep-enrich-contact edge function
+        const { data: accounts } = await supabase
+          .from('accounts')
+          .select('external_id, name, domain')
+          .eq('org_id', userProfile.org_id)
+          .or('employee_count.is.null,revenue_range.is.null')
+          .not('domain', 'is', null)
+          .limit(Math.min(batchSize, 50)); // Max 50 for deep research
 
-      if (error) throw error;
+        if (accounts && accounts.length > 0) {
+          const { error } = await supabase.functions.invoke('deep-enrich-contact', {
+            body: { accounts, orgId: userProfile.org_id }
+          });
+
+          if (error) throw error;
+        }
+      } else {
+        toast.info("Starting enrichment...", {
+          description: "Enrichment waterfall: PDL → Clearbit → AI"
+        });
+
+        // Call smart-enrich edge function
+        const { error } = await supabase.functions.invoke('smart-enrich', {
+          body: { jobId: job.id, batchSize }
+        });
+
+        if (error) throw error;
+      }
 
       // Poll job status every 2 seconds with progress updates
       const pollInterval = setInterval(async () => {
@@ -206,9 +238,20 @@ export function EnrichmentModal({
               </span>
               {batchSize > 0 && (
                 <span className="text-xs text-muted-foreground">
-                  Est. cost: ~{Math.ceil(Math.min(batchSize, selectedAccounts || batchSize) * 0.25)} credits
+                  Est. cost: ~{Math.ceil(Math.min(batchSize, selectedAccounts || batchSize) * (selectedProviders.includes('deep_research') ? 2.5 : 0.25))} credits
                 </span>
               )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {selectedProviders.includes('deep_research') && (
+          <Alert variant="default" className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+            <AlertCircle className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="text-yellow-900 dark:text-yellow-100">
+              ⚠️ Deep Research: ~10x cost vs standard enrichment (~${(Math.min(batchSize, selectedAccounts || batchSize) * 0.10).toFixed(2)})
+              <br />
+              <span className="text-xs">Provides: Tech stack, funding data, trust signals, verified contacts with citations</span>
             </AlertDescription>
           </Alert>
         )}

@@ -55,7 +55,7 @@ export function EnrichmentHealthCard() {
       };
     },
     enabled: !!userProfile?.org_id,
-    refetchInterval: 10000, // Refresh every 10 seconds
+    refetchInterval: 60000, // Refresh every 60 seconds
   });
 
   if (isLoading) {
