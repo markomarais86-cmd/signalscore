@@ -123,67 +123,94 @@ serve(async (req) => {
         throw new Error(`Apollo API error: ${response.status} - ${errorText}`);
       }
 
-      // Now query Apollo for contact/lead counts using people search
-      const peopleRequestBody: any = {
-        page: 1,
-        per_page: 1, // We only need pagination data
-      };
+      // Estimate contact/lead counts using sampling approach
+      // Apollo paid plan doesn't include /people/search, so we use /mixed_people/organization_top_people
+      console.log('🔍 Estimating contact TAM using organization sampling...');
 
-      // Apply filters to contacts search
-      if (icpProfile) {
-        if (icpProfile.geographies && icpProfile.geographies.length > 0) {
-          peopleRequestBody.person_locations = icpProfile.geographies;
+      if (totalAccounts > 0) {
+        // Step 1: Fetch a sample of organizations
+        const sampleSize = Math.min(50, totalAccounts);
+        const orgSampleResponse = await fetch('https://api.apollo.io/v1/organizations/search', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
+            'X-Api-Key': apolloKey,
+          },
+          body: JSON.stringify({
+            ...requestBody,
+            page: 1,
+            per_page: sampleSize
+          })
+        });
+
+        if (orgSampleResponse.ok) {
+          const orgSampleData = await orgSampleResponse.json();
+          const sampleOrgs = orgSampleData.organizations || [];
+          
+          console.log(`📊 Sampled ${sampleOrgs.length} organizations`);
+
+          // Step 2: For each org, count decision makers using mixed_people API
+          let totalContactsSample = 0;
+          const orgsToSample = Math.min(20, sampleOrgs.length); // Sample up to 20 to avoid rate limits
+
+          // Build filters for decision makers
+          const personFilters: any = {};
+          if (icpProfile?.persona_job_titles && icpProfile.persona_job_titles.length > 0) {
+            personFilters.person_titles = icpProfile.persona_job_titles;
+          }
+          if (icpProfile?.persona_seniority_levels && icpProfile.persona_seniority_levels.length > 0) {
+            personFilters.person_seniorities = icpProfile.persona_seniority_levels;
+          }
+
+          for (let i = 0; i < orgsToSample; i++) {
+            const org = sampleOrgs[i];
+            
+            const peopleResponse = await fetch('https://api.apollo.io/v1/mixed_people/search', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache',
+                'X-Api-Key': apolloKey,
+              },
+              body: JSON.stringify({
+                page: 1,
+                per_page: 100,
+                organization_ids: [org.id],
+                ...personFilters
+              })
+            });
+
+            if (peopleResponse.ok) {
+              const peopleData = await peopleResponse.json();
+              const contactCount = peopleData.pagination?.total_entries || 0;
+              totalContactsSample += contactCount;
+            }
+            
+            // Small delay to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+
+          // Step 3: Extrapolate total contacts
+          const avgContactsPerOrg = totalContactsSample / orgsToSample;
+          totalContacts = Math.round(avgContactsPerOrg * totalAccounts);
+
+          console.log(`📊 Contact estimation results:
+  - Sample size: ${orgsToSample} organizations
+  - Contacts found in sample: ${totalContactsSample}
+  - Average contacts per org: ${avgContactsPerOrg.toFixed(1)}
+  - Estimated total contacts: ${totalContacts.toLocaleString()}
+`);
+
+          console.log(`✅ Apollo estimated contacts for ICP "${icpProfile?.name}": ${totalContacts.toLocaleString()} leads`);
+        } else {
+          const errorText = await orgSampleResponse.text();
+          console.error(`Organization sampling error: ${orgSampleResponse.status} - ${errorText}`);
+          
+          // Fallback: Use industry average (2-3 decision makers per org)
+          totalContacts = Math.round(totalAccounts * 2.5);
+          console.log(`⚠️ Using fallback estimate: ${totalContacts.toLocaleString()} leads (2.5x multiplier)`);
         }
-
-        // Map persona job titles to Apollo person_titles
-        if (icpProfile.persona_job_titles && icpProfile.persona_job_titles.length > 0) {
-          peopleRequestBody.person_titles = icpProfile.persona_job_titles;
-        }
-
-        // Map seniority levels
-        if (icpProfile.persona_seniority_levels && icpProfile.persona_seniority_levels.length > 0) {
-          peopleRequestBody.person_seniorities = icpProfile.persona_seniority_levels;
-        }
-
-        // Add company size filter (but NOT org location to avoid overly restrictive filtering)
-        if (icpProfile.company_sizes && icpProfile.company_sizes.length > 0) {
-          const minEmployees = Math.min(...icpProfile.company_sizes);
-          const maxEmployees = Math.max(...icpProfile.company_sizes);
-          peopleRequestBody.organization_num_employees_ranges = [`${minEmployees},${maxEmployees}`];
-        }
-      }
-
-      console.log('🔍 Contact search filters:', {
-        person_locations: peopleRequestBody.person_locations?.length || 0,
-        person_titles: peopleRequestBody.person_titles?.length || 0,
-        person_seniorities: peopleRequestBody.person_seniorities?.length || 0,
-        org_employee_range: peopleRequestBody.organization_num_employees_ranges
-      });
-
-      console.log('Apollo people search request:', JSON.stringify(peopleRequestBody, null, 2));
-
-      const peopleResponse = await fetch('https://api.apollo.io/v1/people/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-          'X-Api-Key': apolloKey,
-        },
-        body: JSON.stringify(peopleRequestBody)
-      });
-
-      if (peopleResponse.ok) {
-        const peopleData = await peopleResponse.json();
-        console.log('Apollo people response:', JSON.stringify(peopleData, null, 2));
-        
-        // Extract contact count from pagination data
-        totalContacts = peopleData.pagination?.total_entries || 0;
-        
-        console.log(`✅ Apollo contacts for ICP "${icpProfile?.name}": ${totalContacts.toLocaleString()} leads`);
-      } else {
-        const errorText = await peopleResponse.text();
-        console.error(`Apollo contacts search error: ${peopleResponse.status} - ${errorText}`);
-        // Don't throw error for contacts search - we still have account data
       }
     }
 
