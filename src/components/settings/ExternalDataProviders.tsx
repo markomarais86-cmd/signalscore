@@ -115,7 +115,27 @@ export function ExternalDataProviders() {
         .eq('org_id', userProfile.org_id);
 
       if (error) throw error;
-      setProviders(data || []);
+      
+      // Auto-fix any providers where is_active is true but api_key_configured is false
+      const providersToFix = (data || []).filter(p => p.is_active && !p.api_key_configured);
+      if (providersToFix.length > 0) {
+        await Promise.all(
+          providersToFix.map(p => 
+            supabase
+              .from('external_data_sources')
+              .update({ api_key_configured: true })
+              .eq('id', p.id)
+          )
+        );
+        // Reload to get updated data
+        const { data: refreshedData } = await supabase
+          .from('external_data_sources')
+          .select('*')
+          .eq('org_id', userProfile.org_id);
+        setProviders(refreshedData || []);
+      } else {
+        setProviders(data || []);
+      }
     } catch (error) {
       console.error('Error loading providers:', error);
       toast({
@@ -138,7 +158,10 @@ export function ExternalDataProviders() {
       if (existingProvider) {
         const { error } = await supabase
           .from('external_data_sources')
-          .update({ is_active: isActive })
+          .update({ 
+            is_active: isActive,
+            api_key_configured: isActive 
+          })
           .eq('id', existingProvider.id);
 
         if (error) throw error;
@@ -149,6 +172,7 @@ export function ExternalDataProviders() {
             org_id: userProfile.org_id,
             provider: providerKey,
             is_active: isActive,
+            api_key_configured: isActive,
           });
 
         if (error) throw error;
