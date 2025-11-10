@@ -32,7 +32,6 @@ import { EnhancedRisksCard } from "@/components/executive/EnhancedRisksCard";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { TAMSAMSOMCalculator } from "@/components/executive/TAMSAMSOMCalculator";
-import { TAMTrendCard } from "@/components/executive/TAMTrendCard";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -315,25 +314,14 @@ export default function ExecutiveDashboard() {
               />
 
               {/* TAM/SAM/SOM Calculator */}
-              {tamData && tamData.totalAccounts > 0 ? (
-                <TAMTrendCard
-                  currentTAM={{
-                    totalAccounts: tamData.totalAccounts,
-                    totalContacts: tamData.totalLeads || 0,
-                    provider: tamData.provider || 'External Data',
-                    lastSyncedAt: tamData.lastSyncedAt,
-                  }}
-                />
-              ) : (
-                <TAMSAMSOMCalculator
-                  totalAccounts={totalAccounts}
-                  highFitAccounts={highFitAccounts}
-                  campaignReadyAccounts={campaignReadyAccounts}
-                  averageDealSize={75000}
-                  conversionRate={0.15}
-                  externalTAMAccounts={tamData?.totalAccounts}
-                />
-              )}
+              <TAMSAMSOMCalculator
+                totalAccounts={totalAccounts}
+                highFitAccounts={highFitAccounts}
+                campaignReadyAccounts={campaignReadyAccounts}
+                averageDealSize={75000}
+                conversionRate={0.15}
+                externalTAMAccounts={tamData?.totalAccounts}
+              />
 
               {/* Enhanced Geography Card */}
               <EnhancedGeographyCard geoData={geographyDistribution} invalidCount={0} />
