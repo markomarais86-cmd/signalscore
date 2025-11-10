@@ -160,9 +160,9 @@ serve(async (req) => {
         org_employee_range: peopleRequestBody.organization_num_employees_ranges
       });
 
-      console.log('Apollo contacts search request:', JSON.stringify(peopleRequestBody, null, 2));
+      console.log('Apollo people search request:', JSON.stringify(peopleRequestBody, null, 2));
 
-      const peopleResponse = await fetch('https://api.apollo.io/v1/contacts/search', {
+      const peopleResponse = await fetch('https://api.apollo.io/v1/people/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -174,7 +174,7 @@ serve(async (req) => {
 
       if (peopleResponse.ok) {
         const peopleData = await peopleResponse.json();
-        console.log('Apollo contacts response:', JSON.stringify(peopleData, null, 2));
+        console.log('Apollo people response:', JSON.stringify(peopleData, null, 2));
         
         // Extract contact count from pagination data
         totalContacts = peopleData.pagination?.total_entries || 0;
