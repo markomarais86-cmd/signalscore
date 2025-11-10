@@ -10,6 +10,9 @@ export interface TrendData {
   highFitPercentage?: number;
   mediumFitPercentage?: number;
   lowFitPercentage?: number;
+  totalAccountsGrowth?: number;
+  totalLeadsGrowth?: number;
+  highFitAccountsGrowth?: number;
 }
 
 export interface WeeklyTrendData extends TrendData {
@@ -81,6 +84,10 @@ export async function calculateTrends(orgId: string, currentMetrics: any, period
     const historicalMediumFitPct = (historicalMediumFit / historicalTotal) * 100;
     const historicalLowFitPct = (historicalLowFit / historicalTotal) * 100;
     
+    // Calculate growth for total accounts and leads
+    const totalAccountsGrowth = currentTotal - historicalTotal;
+    const highFitAccountsGrowth = currentHighFit - historicalHighFit;
+    
     return {
       scoringProgress: Number(scoringProgressDelta.toFixed(1)),
       completeness: Number(completenessDelta.toFixed(1)),
@@ -91,6 +98,9 @@ export async function calculateTrends(orgId: string, currentMetrics: any, period
       highFitPercentage: Number((currentHighFitPct - historicalHighFitPct).toFixed(1)),
       mediumFitPercentage: Number((currentMediumFitPct - historicalMediumFitPct).toFixed(1)),
       lowFitPercentage: Number((currentLowFitPct - historicalLowFitPct).toFixed(1)),
+      totalAccountsGrowth,
+      totalLeadsGrowth: 0, // Note: No historical leads data in data_quality_history
+      highFitAccountsGrowth,
     };
   } catch (error) {
     console.error('Error calculating trends:', error);
@@ -104,6 +114,9 @@ export async function calculateTrends(orgId: string, currentMetrics: any, period
       highFitPercentage: 0,
       mediumFitPercentage: 0,
       lowFitPercentage: 0,
+      totalAccountsGrowth: 0,
+      totalLeadsGrowth: 0,
+      highFitAccountsGrowth: 0,
     };
   }
 }

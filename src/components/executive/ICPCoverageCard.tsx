@@ -72,9 +72,9 @@ export function ICPCoverageCard({
       isTAM: false
     },
     {
-      source: tamAccounts > 0 ? `Database (${tamProvider}, ZoomInfo, etc.)` : "Database",
+      source: "Database",
       icon: Users,
-      total: databaseAccounts + tamAccounts,
+      total: databaseAccounts,
       highFit: highFitDatabaseAccounts,
       route: "/accounts?source=database",
       isTAM: false,
@@ -93,9 +93,9 @@ export function ICPCoverageCard({
       isTAM: false
     },
     {
-      source: tamLeads > 0 ? `Database (${tamProvider}, ZoomInfo, etc.)` : "Database",
+      source: "Database",
       icon: Users,
-      total: databaseLeads + tamLeads,
+      total: databaseLeads,
       highFit: highFitDatabaseLeads,
       route: "/leads?source=database",
       isTAM: false,

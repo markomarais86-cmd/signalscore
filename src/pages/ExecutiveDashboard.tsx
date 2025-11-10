@@ -33,6 +33,7 @@ import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { TAMSAMSOMCalculator } from "@/components/executive/TAMSAMSOMCalculator";
 import { AvailableMarketCard } from "@/components/executive/AvailableMarketCard";
+import { FitDistributionHero } from "@/components/executive/FitDistributionHero";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -238,20 +239,20 @@ export default function ExecutiveDashboard() {
                   label="Total Accounts"
                   value={totalAccounts}
                   subtitle="In your database"
-                  trend={trendData ? { value: trendData.scoringProgress, period: "last week" } : undefined}
+                  trend={trendData?.totalAccountsGrowth ? { value: trendData.totalAccountsGrowth, period: "last week" } : undefined}
                   icon={Building2}
                 />
                 <HeroMetric
                   label="Total Leads"
                   value={totalLeads}
                   subtitle="Contacts tracked"
-                  trend={trendData ? { value: trendData.completeness, period: "last week" } : undefined}
                   icon={Users}
                 />
                 <HeroMetric
                   label="High Fit Accounts"
                   value={highFitAccounts}
                   subtitle={`${totalScores > 0 ? Math.round((highFitAccounts / totalScores) * 100) : 0}% of scored accounts`}
+                  trend={trendData?.highFitAccountsGrowth ? { value: trendData.highFitAccountsGrowth, period: "last week" } : undefined}
                   icon={Target}
                   status={highFitAccounts > 0 ? 'success' : 'warning'}
                 />
@@ -265,6 +266,22 @@ export default function ExecutiveDashboard() {
                 />
               </div>
             </div>
+
+            {/* Fit Distribution Hero Section */}
+            {totalScores > 0 && (
+              <FitDistributionHero
+                highFitAccounts={highFitAccounts}
+                mediumFitAccounts={medFitAccounts}
+                lowFitAccounts={lowFitAccounts}
+                totalScored={totalScores}
+                highFitTrend={weeklyTrendData?.highFitAccounts}
+                mediumFitTrend={weeklyTrendData?.mediumFitAccounts}
+                lowFitTrend={weeklyTrendData?.lowFitAccounts}
+                highFitPercentageTrend={weeklyTrendData?.highFitPercentage}
+                mediumFitPercentageTrend={weeklyTrendData?.mediumFitPercentage}
+                lowFitPercentageTrend={weeklyTrendData?.lowFitPercentage}
+              />
+            )}
 
             {/* Available Market TAM Reference */}
             {tamData && tamData.totalAccounts > 0 && (
