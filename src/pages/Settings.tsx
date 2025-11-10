@@ -594,6 +594,22 @@ export default function Settings() {
               </AccordionContent>
             </AccordionItem>
 
+            {/* External Database Connections */}
+            <AccordionItem value="external-data" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Database className="h-5 w-5 text-primary" />
+                  <div className="text-left">
+                    <p className="font-semibold">External Database Connections</p>
+                    <p className="text-sm text-muted-foreground">Apollo, ZoomInfo, and other data providers</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4 space-y-4">
+                <ExternalDataProviders />
+              </AccordionContent>
+            </AccordionItem>
+
             {/* External Integrations */}
             <AccordionItem value="integrations" className="border rounded-lg px-4">
               <AccordionTrigger className="hover:no-underline">
