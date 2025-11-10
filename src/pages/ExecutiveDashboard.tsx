@@ -32,6 +32,7 @@ import { EnhancedRisksCard } from "@/components/executive/EnhancedRisksCard";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { TAMSAMSOMCalculator } from "@/components/executive/TAMSAMSOMCalculator";
+import { AvailableMarketCard } from "@/components/executive/AvailableMarketCard";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -226,41 +227,54 @@ export default function ExecutiveDashboard() {
           <DashboardSkeleton />
         ) : (
           <>
-            {/* Hero Metrics Row */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <HeroMetric
-                label="Total Accounts"
-                value={totalAccounts}
-                subtitle="Accounts in database"
-                trend={trendData ? { value: trendData.scoringProgress, period: "last week" } : undefined}
-                icon={Users}
-              />
-              <HeroMetric
-                label="Total Leads"
-                value={totalLeads}
-                subtitle="Leads tracked"
-                trend={trendData ? { value: trendData.completeness, period: "last week" } : undefined}
-                icon={Target}
-              />
-              {tamData && tamData.totalAccounts > 0 ? (
+            {/* Your Database Metrics */}
+            <div>
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Your Database
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <HeroMetric
-                  label="TAM Available"
-                  value={tamData.totalAccounts}
-                  subtitle={`${tamData.provider} matching ICP`}
-                  icon={Database}
-                  status="success"
+                  label="Total Accounts"
+                  value={totalAccounts}
+                  subtitle="In your database"
+                  trend={trendData ? { value: trendData.scoringProgress, period: "last week" } : undefined}
+                  icon={Building2}
                 />
-              ) : (
                 <HeroMetric
-                  label="Campaign Ready Leads"
+                  label="Total Leads"
+                  value={totalLeads}
+                  subtitle="Contacts tracked"
+                  trend={trendData ? { value: trendData.completeness, period: "last week" } : undefined}
+                  icon={Users}
+                />
+                <HeroMetric
+                  label="High Fit Accounts"
+                  value={highFitAccounts}
+                  subtitle={`${totalScores > 0 ? Math.round((highFitAccounts / totalScores) * 100) : 0}% of scored accounts`}
+                  icon={Target}
+                  status={highFitAccounts > 0 ? 'success' : 'warning'}
+                />
+                <HeroMetric
+                  label="Campaign Ready"
                   value={campaignReadyContacts}
-                  subtitle={`${campaignReadyAccounts} accounts with leads`}
+                  subtitle={`${campaignReadyAccounts} accounts with contacts`}
                   trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
                   icon={Sparkles}
                   status={campaignReadyContacts > 0 ? 'success' : 'warning'}
                 />
-              )}
+              </div>
             </div>
+
+            {/* Available Market TAM Reference */}
+            {tamData && tamData.totalAccounts > 0 && (
+              <AvailableMarketCard
+                totalAccounts={tamData.totalAccounts}
+                totalContacts={tamData.totalLeads || 0}
+                provider={tamData.provider || 'External Data'}
+                lastSyncedAt={tamData.lastSyncedAt}
+              />
+            )}
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
