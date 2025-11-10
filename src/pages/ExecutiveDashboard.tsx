@@ -34,6 +34,7 @@ import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { TAMSAMSOMCalculator } from "@/components/executive/TAMSAMSOMCalculator";
 import { AvailableMarketCard } from "@/components/executive/AvailableMarketCard";
 import { FitDistributionHero } from "@/components/executive/FitDistributionHero";
+import { SourceFilterToggle, type SourceFilter } from "@/components/executive/SourceFilterToggle";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -42,9 +43,11 @@ export default function ExecutiveDashboard() {
   const sidebar = useSidebar();
   const { insights, statistics, loading: insightsLoading, generateInsights } = useICPInsights();
   
-  // Use optimized React Query hooks - 22 queries reduced to 2!
-  const { data: dashboardData, isLoading, error: queryError, refetch } = useDashboardData(userProfile?.org_id);
-  const { data: geographyData } = useGeographyData(userProfile?.org_id, !!dashboardData);
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+  
+  // Use optimized React Query hooks with source filtering
+  const { data: dashboardData, isLoading, error: queryError, refetch } = useDashboardData(userProfile?.org_id, sourceFilter);
+  const { data: geographyData } = useGeographyData(userProfile?.org_id, !!dashboardData, sourceFilter);
 
   const [isEnrichmentModalOpen, setIsEnrichmentModalOpen] = useState(false);
   const [showAISuggestions, setShowAISuggestions] = useState(true);
@@ -196,12 +199,21 @@ export default function ExecutiveDashboard() {
     <div className="min-h-screen bg-background">
       <div className="container mx-auto p-6 space-y-6">
         {/* Header Section */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
           <div>
             <h1 className="text-2xl font-semibold">Executive Dashboard</h1>
-            <p className="text-muted-foreground">Insights into your ideal customer profile and overall data health.</p>
+            <p className="text-muted-foreground">Filter data by source to focus on your CRM, database, or combined view</p>
           </div>
-          <div className="space-x-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <SourceFilterToggle
+              value={sourceFilter}
+              onChange={setSourceFilter}
+              stats={{
+                total: totalAccounts,
+                crm: crmAccounts + bothAccounts,
+                database: databaseAccounts + bothAccounts,
+              }}
+            />
             <Button 
               variant="outline" 
               onClick={() => {
@@ -209,15 +221,16 @@ export default function ExecutiveDashboard() {
                 toast.success('Refreshing dashboard data...');
               }}
               disabled={isLoading}
+              size="sm"
             >
               <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh Data
+              Refresh
             </Button>
-            <Button variant="outline" onClick={() => setIsEnrichmentModalOpen(true)}>
+            <Button variant="outline" size="sm" onClick={() => setIsEnrichmentModalOpen(true)}>
               <Sparkles className="mr-2 h-4 w-4" />
-              Enrich Data
+              Enrich
             </Button>
-            <Button variant="outline" onClick={() => navigate('/settings')}>
+            <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </Button>

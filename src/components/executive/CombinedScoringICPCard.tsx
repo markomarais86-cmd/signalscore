@@ -71,83 +71,33 @@ export function CombinedScoringICPCard({
           <Target className="h-6 w-6 text-primary" />
           Scoring & ICP Performance
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="flex items-center gap-2">
           Account quality, ICP fit distribution, and data completeness
+          <Badge variant="outline" className="text-xs">
+            <Database className="h-3 w-3 mr-1" />
+            Your Database
+          </Badge>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Hero Section: ICP Fit Distribution */}
-        <div>
-          <h3 className="text-sm font-semibold text-muted-foreground mb-4">ICP Fit Distribution</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {fitDistribution.map((item) => {
-              const FitIcon = getFitIcon(item.name);
-              const fitTrend = 
-                item.name === 'High Fit' ? fitTrends?.highFitAccounts :
-                item.name === 'Medium Fit' ? fitTrends?.mediumFitAccounts :
-                fitTrends?.lowFitAccounts;
-              
-              const fitTrendPct = 
-                item.name === 'High Fit' ? fitTrends?.highFitPercentage :
-                item.name === 'Medium Fit' ? fitTrends?.mediumFitPercentage :
-                fitTrends?.lowFitPercentage;
-              
-              const isPositive = (fitTrend || 0) >= 0;
-              
-              return (
-                <div
-                  key={item.name}
-                  onClick={() => {
-                    const fitLevel = item.name === 'High Fit' ? 'high' : item.name === 'Medium Fit' ? 'medium' : 'low';
-                    navigate(`/accounts?fit=${fitLevel}`);
-                  }}
-                  className="group relative p-6 rounded-xl border-2 transition-all duration-300 hover:shadow-lg hover:scale-105 cursor-pointer overflow-hidden"
-                  style={{ borderColor: item.color }}
-                >
-                  {/* Gradient Background */}
-                  <div 
-                    className="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity"
-                    style={{ 
-                      background: `linear-gradient(135deg, ${item.color}20, ${item.color}05)` 
-                    }}
-                  />
-                  
-                  {/* Content */}
-                  <div className="relative space-y-3">
-                    <div className="flex items-center justify-between">
-                      <FitIcon className="h-6 w-6" style={{ color: item.color }} />
-                      <Badge 
-                        variant="outline" 
-                        className="text-xl font-bold px-3 py-1.5"
-                        style={{ borderColor: item.color, color: item.color }}
-                      >
-                        {item.percentage}%
-                      </Badge>
-                    </div>
-                    
-                    <div>
-                      <div className="text-sm font-medium text-muted-foreground mb-1">
-                        {item.name}
-                      </div>
-                      <div className="text-5xl font-bold tracking-tight" style={{ color: item.color }}>
-                        {item.value.toLocaleString()}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="text-xs text-muted-foreground">
-                          accounts
-                        </div>
-                        {fitTrend !== undefined && fitTrend !== 0 && (
-                          <div className={`flex items-center gap-1 text-xs font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                            {isPositive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                            <span>{isPositive ? '+' : ''}{fitTrend} ({isPositive ? '+' : ''}{fitTrendPct?.toFixed(1)}%) vs 7d</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+        {/* Compact ICP Fit Summary - Full details in hero section above */}
+        <div className="flex items-center gap-2 text-sm flex-wrap">
+          <span className="text-muted-foreground">ICP Fit:</span>
+          <div className="flex gap-2 flex-wrap">
+            {fitDistribution.map((item) => (
+              <Badge 
+                key={item.name}
+                variant="outline"
+                className="cursor-pointer hover:bg-accent transition-colors"
+                onClick={() => {
+                  const fitLevel = item.name === 'High Fit' ? 'high' : item.name === 'Medium Fit' ? 'medium' : 'low';
+                  navigate(`/accounts?fit=${fitLevel}`);
+                }}
+                style={{ borderColor: item.color, color: item.color }}
+              >
+                {item.name}: {item.value.toLocaleString()} ({item.percentage}%)
+              </Badge>
+            ))}
           </div>
         </div>
 

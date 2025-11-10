@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, Users, TrendingUp } from "lucide-react";
+import { Building2, Users, TrendingUp, Database } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -195,7 +195,21 @@ export function ICPCoverageCard({
                           <div className="flex items-center gap-2">
                             <Icon className="h-4 w-4 text-muted-foreground" />
                             <div className="flex flex-col">
-                              <span>{row.source}</span>
+                              <div className="flex items-center gap-2">
+                                <span>{row.source}</span>
+                                {row.source === 'CRM' && (
+                                  <Badge variant="outline" className="text-xs">
+                                    <Building2 className="h-3 w-3 mr-1" />
+                                    Salesforce/HubSpot
+                                  </Badge>
+                                )}
+                                {row.source === 'Database' && (
+                                  <Badge variant="outline" className="text-xs">
+                                    <Database className="h-3 w-3 mr-1" />
+                                    Your Data
+                                  </Badge>
+                                )}
+                              </div>
                               {row.hasExternalTAM && (
                                 <span className="text-xs text-muted-foreground">
                                   {row.tamCount?.toLocaleString()} available from external sources
@@ -260,7 +274,21 @@ export function ICPCoverageCard({
                           <div className="flex items-center gap-2">
                             <Icon className="h-4 w-4 text-muted-foreground" />
                             <div className="flex flex-col">
-                              <span>{row.source}</span>
+                              <div className="flex items-center gap-2">
+                                <span>{row.source}</span>
+                                {row.source === 'CRM' && (
+                                  <Badge variant="outline" className="text-xs">
+                                    <Building2 className="h-3 w-3 mr-1" />
+                                    Salesforce/HubSpot
+                                  </Badge>
+                                )}
+                                {row.source === 'Database' && (
+                                  <Badge variant="outline" className="text-xs">
+                                    <Database className="h-3 w-3 mr-1" />
+                                    Your Data
+                                  </Badge>
+                                )}
+                              </div>
                               {row.hasExternalTAM && (
                                 <span className="text-xs text-muted-foreground">
                                   {row.tamCount?.toLocaleString()} available from external sources

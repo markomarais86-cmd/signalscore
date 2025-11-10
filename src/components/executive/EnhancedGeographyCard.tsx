@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, X, Building2, ChevronRight } from "lucide-react";
+import { MapPin, X, Building2, ChevronRight, Database, BarChart3 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useNavigate } from "react-router-dom";
@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simple-maps";
 import { scaleLinear } from "d3-scale";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
@@ -38,6 +39,8 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
   const [loadingStates, setLoadingStates] = useState(false);
   const [hoveredCountry, setHoveredCountry] = useState<string>("");
   const [tooltipContent, setTooltipContent] = useState({ country: "", count: 0 });
+  const [showComparison, setShowComparison] = useState(false);
+  const [comparisonData, setComparisonData] = useState<Array<{ country: string; crm: number; database: number }>>([]);
   
   const totalAccounts = geoData.reduce((sum, g) => sum + g.count, 0);
   const maxCount = geoData[0]?.count || 1;
@@ -62,6 +65,12 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
       loadStateData(selectedCountry);
     }
   }, [selectedCountry, userProfile?.org_id]);
+
+  useEffect(() => {
+    if (showComparison && userProfile?.org_id) {
+      loadComparisonData();
+    }
+  }, [showComparison, userProfile?.org_id]);
 
   const loadStateData = async (country: string) => {
     setLoadingStates(true);
@@ -123,6 +132,42 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
     return mappings[lower] || lower;
   };
 
+  const loadComparisonData = async () => {
+    try {
+      const { data: accounts, error } = await supabase
+        .from('accounts')
+        .select('country, data_source')
+        .eq('org_id', userProfile!.org_id)
+        .not('country', 'is', null);
+      
+      if (error) throw error;
+
+      // Group by country and source
+      const comparison: Record<string, { country: string; crm: number; database: number }> = {};
+      
+      accounts?.forEach((a) => {
+        if (!comparison[a.country]) {
+          comparison[a.country] = { country: a.country, crm: 0, database: 0 };
+        }
+        if (a.data_source === 'crm' || a.data_source === 'both') {
+          comparison[a.country].crm++;
+        }
+        if (a.data_source === 'database' || a.data_source === 'both') {
+          comparison[a.country].database++;
+        }
+      });
+      
+      const sorted = Object.values(comparison)
+        .sort((a, b) => (b.crm + b.database) - (a.crm + a.database))
+        .slice(0, 10);
+      
+      setComparisonData(sorted);
+    } catch (error) {
+      console.error('Error loading comparison data:', error);
+      setComparisonData([]);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -131,6 +176,10 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
             <CardTitle className="flex items-center gap-2">
               <MapPin className="h-5 w-5 text-primary" />
               Geographic Heat Map
+              <Badge variant="outline" className="text-xs">
+                <Database className="h-3 w-3 mr-1" />
+                Your Database
+              </Badge>
             </CardTitle>
             <CardDescription>
               {totalAccounts.toLocaleString()} accounts across {geoData.length} countries - Click to drill down
@@ -140,6 +189,14 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
             <Badge variant="secondary" className="text-xs">
               Top: {geoData[0]?.country} ({geoData[0]?.count.toLocaleString()})
             </Badge>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowComparison(!showComparison)}
+            >
+              <BarChart3 className="h-4 w-4 mr-2" />
+              {showComparison ? 'Hide' : 'Show'} Source Comparison
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -279,6 +336,34 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
             );
           })}
         </div>
+
+        {/* Source Comparison Chart */}
+        {showComparison && comparisonData.length > 0 && (
+          <div className="mt-6 pt-6 border-t">
+            <h3 className="text-sm font-semibold mb-4">CRM vs Database Distribution</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={comparisonData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis 
+                  dataKey="country" 
+                  stroke="hsl(var(--muted-foreground))"
+                  fontSize={12}
+                />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <RechartsTooltip 
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--popover))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px'
+                  }}
+                />
+                <Legend />
+                <Bar dataKey="crm" fill="hsl(var(--primary))" name="CRM" />
+                <Bar dataKey="database" fill="hsl(var(--chart-2))" name="Database" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </CardContent>
 
       {/* State/Region Drill-down Sheet */}

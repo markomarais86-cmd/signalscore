@@ -2722,17 +2722,27 @@ export type Database = {
         }[]
       }
       get_current_user_org_id: { Args: never; Returns: string }
-      get_dashboard_metrics_fast: {
-        Args: { p_icp_id?: string; p_org_id: string }
-        Returns: Json
-      }
-      get_geography_distribution: {
-        Args: { p_org_id: string }
-        Returns: {
-          count: number
-          country: string
-        }[]
-      }
+      get_dashboard_metrics_fast:
+        | {
+            Args: { p_org_id: string; p_source_filter?: string }
+            Returns: Json
+          }
+        | { Args: { p_icp_id?: string; p_org_id: string }; Returns: Json }
+      get_geography_distribution:
+        | {
+            Args: { p_org_id: string }
+            Returns: {
+              count: number
+              country: string
+            }[]
+          }
+        | {
+            Args: { p_org_id: string; p_source_filter?: string }
+            Returns: {
+              count: number
+              country: string
+            }[]
+          }
       get_industry_drilldown: {
         Args: { p_org_id: string }
         Returns: {

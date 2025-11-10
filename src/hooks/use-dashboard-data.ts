@@ -38,15 +38,18 @@ interface DashboardData {
   tamData: ExternalTAMData | null;
 }
 
-export function useDashboardData(orgId: string | undefined) {
+export function useDashboardData(orgId: string | undefined, sourceFilter: 'all' | 'crm' | 'database' = 'all') {
   return useQuery({
-    queryKey: ['dashboard-metrics', orgId],
+    queryKey: ['dashboard-metrics', orgId, sourceFilter],
     queryFn: async (): Promise<DashboardData> => {
       if (!orgId) throw new Error('No org ID provided');
       
       // Parallel fetch: metrics + ICP profiles + TAM data (3 queries instead of 22+)
       const [metricsResult, icpResult, tamResult] = await Promise.all([
-        supabase.rpc('get_dashboard_metrics_fast' as any, { p_org_id: orgId }),
+        supabase.rpc('get_dashboard_metrics_fast' as any, { 
+          p_org_id: orgId,
+          p_source_filter: sourceFilter
+        }),
         supabase
           .from('icp_profiles')
           .select('*')
@@ -127,14 +130,15 @@ export function useDashboardData(orgId: string | undefined) {
 }
 
 // Hook for geography data (lazy loaded)
-export function useGeographyData(orgId: string | undefined, enabled: boolean = true) {
+export function useGeographyData(orgId: string | undefined, enabled: boolean = true, sourceFilter: 'all' | 'crm' | 'database' = 'all') {
   return useQuery({
-    queryKey: ['geography-distribution', orgId],
+    queryKey: ['geography-distribution', orgId, sourceFilter],
     queryFn: async () => {
       if (!orgId) throw new Error('No org ID provided');
       
       const { data, error } = await supabase.rpc('get_geography_distribution', {
-        p_org_id: orgId
+        p_org_id: orgId,
+        p_source_filter: sourceFilter
       });
       
       if (error) throw error;
