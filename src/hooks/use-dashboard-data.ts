@@ -119,9 +119,9 @@ export function useDashboardData(orgId: string | undefined) {
       };
     },
     enabled: !!orgId,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    staleTime: 0, // Always fetch fresh data to see TAM updates immediately
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus: true,
     retry: 2,
   });
 }
