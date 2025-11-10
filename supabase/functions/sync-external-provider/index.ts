@@ -122,6 +122,66 @@ serve(async (req) => {
         const errorText = await response.text();
         throw new Error(`Apollo API error: ${response.status} - ${errorText}`);
       }
+
+      // Now query Apollo for contact/lead counts using people search
+      const peopleRequestBody: any = {
+        page: 1,
+        per_page: 1, // We only need pagination data
+      };
+
+      // Apply same filters to people search
+      if (icpProfile) {
+        if (icpProfile.geographies && icpProfile.geographies.length > 0) {
+          peopleRequestBody.person_locations = icpProfile.geographies;
+        }
+
+        // Map persona job titles to Apollo person_titles
+        if (icpProfile.persona_job_titles && icpProfile.persona_job_titles.length > 0) {
+          peopleRequestBody.person_titles = icpProfile.persona_job_titles;
+        }
+
+        // Map seniority levels
+        if (icpProfile.persona_seniority_levels && icpProfile.persona_seniority_levels.length > 0) {
+          peopleRequestBody.person_seniorities = icpProfile.persona_seniority_levels;
+        }
+
+        // Add organization filters to ensure contacts are from matching companies
+        if (icpProfile.geographies && icpProfile.geographies.length > 0) {
+          peopleRequestBody.organization_locations = icpProfile.geographies;
+        }
+
+        if (icpProfile.company_sizes && icpProfile.company_sizes.length > 0) {
+          const minEmployees = Math.min(...icpProfile.company_sizes);
+          const maxEmployees = Math.max(...icpProfile.company_sizes);
+          peopleRequestBody.organization_num_employees_ranges = [`${minEmployees},${maxEmployees}`];
+        }
+      }
+
+      console.log('Apollo people search request:', JSON.stringify(peopleRequestBody, null, 2));
+
+      const peopleResponse = await fetch('https://api.apollo.io/v1/mixed_people/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'X-Api-Key': apolloKey,
+        },
+        body: JSON.stringify(peopleRequestBody)
+      });
+
+      if (peopleResponse.ok) {
+        const peopleData = await peopleResponse.json();
+        console.log('Apollo people response:', JSON.stringify(peopleData, null, 2));
+        
+        // Extract contact count from pagination data
+        totalContacts = peopleData.pagination?.total_entries || 0;
+        
+        console.log(`✅ Apollo contacts for ICP "${icpProfile?.name}": ${totalContacts.toLocaleString()} leads`);
+      } else {
+        const errorText = await peopleResponse.text();
+        console.error(`Apollo people search error: ${peopleResponse.status} - ${errorText}`);
+        // Don't throw error for people search - we still have account data
+      }
     }
 
     // Update provider sync status
