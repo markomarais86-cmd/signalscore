@@ -157,9 +157,9 @@ serve(async (req) => {
         }
       }
 
-      console.log('Apollo people search request:', JSON.stringify(peopleRequestBody, null, 2));
+      console.log('Apollo contacts search request:', JSON.stringify(peopleRequestBody, null, 2));
 
-      const peopleResponse = await fetch('https://api.apollo.io/v1/mixed_people/search', {
+      const peopleResponse = await fetch('https://api.apollo.io/v1/contacts/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -171,7 +171,7 @@ serve(async (req) => {
 
       if (peopleResponse.ok) {
         const peopleData = await peopleResponse.json();
-        console.log('Apollo people response:', JSON.stringify(peopleData, null, 2));
+        console.log('Apollo contacts response:', JSON.stringify(peopleData, null, 2));
         
         // Extract contact count from pagination data
         totalContacts = peopleData.pagination?.total_entries || 0;
@@ -179,8 +179,8 @@ serve(async (req) => {
         console.log(`✅ Apollo contacts for ICP "${icpProfile?.name}": ${totalContacts.toLocaleString()} leads`);
       } else {
         const errorText = await peopleResponse.text();
-        console.error(`Apollo people search error: ${peopleResponse.status} - ${errorText}`);
-        // Don't throw error for people search - we still have account data
+        console.error(`Apollo contacts search error: ${peopleResponse.status} - ${errorText}`);
+        // Don't throw error for contacts search - we still have account data
       }
     }
 
