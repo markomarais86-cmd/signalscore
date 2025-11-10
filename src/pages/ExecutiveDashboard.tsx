@@ -32,6 +32,7 @@ import { EnhancedRisksCard } from "@/components/executive/EnhancedRisksCard";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { TAMSAMSOMCalculator } from "@/components/executive/TAMSAMSOMCalculator";
+import { MarketOpportunityCard } from "@/components/executive/MarketOpportunityCard";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -78,6 +79,7 @@ export default function ExecutiveDashboard() {
   const campaignReadyLeads = dashboardData?.metrics?.campaign_ready_leads || 0;
 
   const icpProfiles = dashboardData?.icpProfiles || [];
+  const tamData = dashboardData?.tamData;
 
   const geographyDistribution = geographyData || [];
 
@@ -220,7 +222,7 @@ export default function ExecutiveDashboard() {
         ) : (
           <>
             {/* Hero Metrics Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <HeroMetric
                 label="Total Accounts"
                 value={totalAccounts}
@@ -235,18 +237,40 @@ export default function ExecutiveDashboard() {
                 trend={trendData ? { value: trendData.completeness, period: "last week" } : undefined}
                 icon={Target}
               />
-              <HeroMetric
-                label="Campaign Ready Leads"
-                value={campaignReadyContacts}
-                subtitle={`${campaignReadyAccounts} accounts with leads`}
-                trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
-                icon={Sparkles}
-                status={campaignReadyContacts > 0 ? 'success' : 'warning'}
-              />
+              {tamData && tamData.totalAccounts > 0 ? (
+                <HeroMetric
+                  label="TAM Available"
+                  value={tamData.totalAccounts}
+                  subtitle={`${tamData.provider} matching ICP`}
+                  icon={Database}
+                  status="success"
+                />
+              ) : (
+                <HeroMetric
+                  label="Campaign Ready Leads"
+                  value={campaignReadyContacts}
+                  subtitle={`${campaignReadyAccounts} accounts with leads`}
+                  trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
+                  icon={Sparkles}
+                  status={campaignReadyContacts > 0 ? 'success' : 'warning'}
+                />
+              )}
             </div>
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Market Opportunity Card - Show if TAM data available */}
+              {tamData && tamData.totalAccounts > 0 && (
+                <MarketOpportunityCard
+                  crmAccounts={crmAccounts}
+                  tamAccounts={tamData.totalAccounts}
+                  crmLeads={crmLeads}
+                  tamLeads={tamData.totalContacts}
+                  provider={tamData.provider}
+                  lastSyncedAt={tamData.lastSyncedAt}
+                />
+              )}
+
               {/* ICP Coverage Card */}
               <ICPCoverageCard
                 totalAccounts={totalAccounts}
@@ -261,6 +285,9 @@ export default function ExecutiveDashboard() {
                 highFitLeads={highFitLeadsTotal}
                 highFitCrmLeads={highFitCrmLeads}
                 highFitDatabaseLeads={highFitDatabaseLeads}
+                tamAccounts={tamData?.totalAccounts}
+                tamLeads={tamData?.totalContacts}
+                tamProvider={tamData?.provider}
               />
 
               {/* Combined Scoring ICP Card */}
@@ -291,6 +318,7 @@ export default function ExecutiveDashboard() {
                 campaignReadyAccounts={campaignReadyAccounts}
                 averageDealSize={75000}
                 conversionRate={0.15}
+                externalTAMAccounts={tamData?.totalAccounts}
               />
 
               {/* Enhanced Geography Card */}

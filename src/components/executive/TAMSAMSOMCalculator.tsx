@@ -26,6 +26,7 @@ interface TAMSAMSOMCalculatorProps {
   campaignReadyAccounts: number;
   averageDealSize?: number;
   conversionRate?: number;
+  externalTAMAccounts?: number; // TAM from Apollo or other external source
 }
 
 interface TAMAssumptions {
@@ -47,7 +48,8 @@ export function TAMSAMSOMCalculator({
   highFitAccounts,
   campaignReadyAccounts,
   averageDealSize: propAverageDealSize,
-  conversionRate: propConversionRate
+  conversionRate: propConversionRate,
+  externalTAMAccounts
 }: TAMSAMSOMCalculatorProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [assumptions, setAssumptions] = useState<TAMAssumptions>(() => {
@@ -94,9 +96,13 @@ export function TAMSAMSOMCalculator({
     setIsEditMode(false);
   };
 
-  // TAM: Total Addressable Market - ALL accounts in database
-  const tamAccounts = totalAccounts;
+  // TAM: Total Addressable Market
+  // Use external TAM (Apollo) if available, otherwise use database accounts
+  const tamAccounts = externalTAMAccounts && externalTAMAccounts > totalAccounts 
+    ? externalTAMAccounts 
+    : totalAccounts;
   const tamValue = tamAccounts * assumptions.averageDealSize;
+  const isExternalTAM = externalTAMAccounts && externalTAMAccounts > totalAccounts;
 
   // SAM: Serviceable Addressable Market - Accounts matching ICP (high fit)
   // Adjust based on custom threshold (proportional estimation)
@@ -393,7 +399,9 @@ export function TAMSAMSOMCalculator({
                 
                 {index === 0 && (
                   <div className="text-xs text-muted-foreground">
-                    Methodology: Bottom-up calculation based on actual database accounts
+                    {isExternalTAM 
+                      ? "Methodology: Top-down calculation based on external database TAM (Apollo)"
+                      : "Methodology: Bottom-up calculation based on actual database accounts"}
                   </div>
                 )}
                 {index === 1 && (

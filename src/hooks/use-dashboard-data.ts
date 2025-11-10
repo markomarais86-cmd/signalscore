@@ -25,9 +25,17 @@ interface DashboardMetrics {
   data_completeness: number;
 }
 
+interface ExternalTAMData {
+  totalAccounts: number;
+  totalContacts: number;
+  provider: string;
+  lastSyncedAt: string | null;
+}
+
 interface DashboardData {
   metrics: DashboardMetrics;
   icpProfiles: any[];
+  tamData: ExternalTAMData | null;
 }
 
 export function useDashboardData(orgId: string | undefined) {
@@ -36,14 +44,22 @@ export function useDashboardData(orgId: string | undefined) {
     queryFn: async (): Promise<DashboardData> => {
       if (!orgId) throw new Error('No org ID provided');
       
-      // Parallel fetch: metrics + ICP profiles (only 2 queries instead of 22+)
-      const [metricsResult, icpResult] = await Promise.all([
+      // Parallel fetch: metrics + ICP profiles + TAM data (3 queries instead of 22+)
+      const [metricsResult, icpResult, tamResult] = await Promise.all([
         supabase.rpc('get_dashboard_metrics_fast' as any, { p_org_id: orgId }),
         supabase
           .from('icp_profiles')
           .select('*')
           .eq('org_id', orgId)
-          .eq('status', 'active')
+          .eq('status', 'active'),
+        supabase
+          .from('external_data_sources')
+          .select('provider, total_accounts, total_contacts, last_synced_at')
+          .eq('org_id', orgId)
+          .eq('is_active', true)
+          .order('last_synced_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
       ]);
       
       if (metricsResult.error) {
@@ -54,6 +70,11 @@ export function useDashboardData(orgId: string | undefined) {
       if (icpResult.error) {
         console.error('[useDashboardData] ❌ ICP fetch error:', icpResult.error);
         throw icpResult.error;
+      }
+
+      // TAM data is optional, don't throw if missing
+      if (tamResult.error) {
+        console.warn('[useDashboardData] ⚠️ TAM fetch error:', tamResult.error);
       }
       
       // Map the function response to expected structure
@@ -83,9 +104,18 @@ export function useDashboardData(orgId: string | undefined) {
         data_completeness: rawMetrics?.dataCompleteness || 0,
       };
       
+      // Map TAM data
+      const tamData: ExternalTAMData | null = tamResult.data ? {
+        totalAccounts: Number(tamResult.data.total_accounts) || 0,
+        totalContacts: Number(tamResult.data.total_contacts) || 0,
+        provider: tamResult.data.provider || 'Unknown',
+        lastSyncedAt: tamResult.data.last_synced_at
+      } : null;
+
       return {
         metrics: mappedMetrics,
-        icpProfiles: icpResult.data || []
+        icpProfiles: icpResult.data || [],
+        tamData
       };
     },
     enabled: !!orgId,

@@ -22,6 +22,11 @@ interface ICPCoverageCardProps {
   highFitLeads: number;
   highFitCrmLeads: number;
   highFitDatabaseLeads: number;
+
+  // TAM data (optional)
+  tamAccounts?: number;
+  tamLeads?: number;
+  tamProvider?: string;
 }
 
 export function ICPCoverageCard({
@@ -37,6 +42,9 @@ export function ICPCoverageCard({
   highFitLeads,
   highFitCrmLeads,
   highFitDatabaseLeads,
+  tamAccounts = 0,
+  tamLeads = 0,
+  tamProvider = 'External DB',
 }: ICPCoverageCardProps) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("accounts");
@@ -60,15 +68,25 @@ export function ICPCoverageCard({
       icon: Building2,
       total: crmAccounts,
       highFit: highFitCrmAccounts,
-      route: "/accounts?source=crm"
+      route: "/accounts?source=crm",
+      isTAM: false
     },
     {
       source: "Database",
       icon: Users,
       total: databaseAccounts,
       highFit: highFitDatabaseAccounts,
-      route: "/accounts?source=database"
-    }
+      route: "/accounts?source=database",
+      isTAM: false
+    },
+    ...(tamAccounts > 0 ? [{
+      source: `${tamProvider} (Available)`,
+      icon: Users,
+      total: tamAccounts,
+      highFit: 0, // Unknown high-fit for external TAM
+      route: "#",
+      isTAM: true
+    }] : [])
   ];
 
   const leadsTableRows = [
@@ -77,15 +95,25 @@ export function ICPCoverageCard({
       icon: Building2,
       total: crmLeads,
       highFit: highFitCrmLeads,
-      route: "/leads?source=crm"
+      route: "/leads?source=crm",
+      isTAM: false
     },
     {
       source: "Database",
       icon: Users,
       total: databaseLeads,
       highFit: highFitDatabaseLeads,
-      route: "/leads?source=database"
-    }
+      route: "/leads?source=database",
+      isTAM: false
+    },
+    ...(tamLeads > 0 ? [{
+      source: `${tamProvider} (Available)`,
+      icon: Users,
+      total: tamLeads,
+      highFit: 0, // Unknown high-fit for external TAM
+      route: "#",
+      isTAM: true
+    }] : [])
   ];
 
   return (
@@ -168,27 +196,39 @@ export function ICPCoverageCard({
                     return (
                       <tr
                         key={row.source}
-                        className="border-b transition-colors cursor-pointer hover:bg-muted/50"
-                        onClick={() => navigate(row.route)}
+                        className={cn(
+                          "border-b transition-colors",
+                          !row.isTAM && "cursor-pointer hover:bg-muted/50",
+                          row.isTAM && "bg-muted/20"
+                        )}
+                        onClick={() => !row.isTAM && navigate(row.route)}
                       >
                         <td className="p-3">
                           <div className="flex items-center gap-2">
                             <Icon className="h-4 w-4 text-muted-foreground" />
-                            <span>{row.source}</span>
+                            <span className={row.isTAM ? "font-medium text-primary" : ""}>
+                              {row.source}
+                            </span>
                           </div>
                         </td>
                         <td className="text-right p-3 font-mono text-sm">
                           {row.total.toLocaleString()}
                         </td>
                         <td className="text-right p-3 font-mono text-sm font-semibold">
-                          {row.highFit.toLocaleString()}
+                          {row.isTAM ? "—" : row.highFit.toLocaleString()}
                         </td>
                         <td className="text-center p-3">
-                          <Badge
-                            className={cn("font-semibold", getPercentageColor(pct))}
-                          >
-                            {pct}%
-                          </Badge>
+                          {row.isTAM ? (
+                            <Badge variant="outline" className="text-muted-foreground">
+                              N/A
+                            </Badge>
+                          ) : (
+                            <Badge
+                              className={cn("font-semibold", getPercentageColor(pct))}
+                            >
+                              {pct}%
+                            </Badge>
+                          )}
                         </td>
                       </tr>
                     );
@@ -216,27 +256,39 @@ export function ICPCoverageCard({
                     return (
                       <tr
                         key={row.source}
-                        className="border-b transition-colors cursor-pointer hover:bg-muted/50"
-                        onClick={() => navigate(row.route)}
+                        className={cn(
+                          "border-b transition-colors",
+                          !row.isTAM && "cursor-pointer hover:bg-muted/50",
+                          row.isTAM && "bg-muted/20"
+                        )}
+                        onClick={() => !row.isTAM && navigate(row.route)}
                       >
                         <td className="p-3">
                           <div className="flex items-center gap-2">
                             <Icon className="h-4 w-4 text-muted-foreground" />
-                            <span>{row.source}</span>
+                            <span className={row.isTAM ? "font-medium text-primary" : ""}>
+                              {row.source}
+                            </span>
                           </div>
                         </td>
                         <td className="text-right p-3 font-mono text-sm">
                           {row.total.toLocaleString()}
                         </td>
                         <td className="text-right p-3 font-mono text-sm font-semibold">
-                          {row.highFit.toLocaleString()}
+                          {row.isTAM ? "—" : row.highFit.toLocaleString()}
                         </td>
                         <td className="text-center p-3">
-                          <Badge
-                            className={cn("font-semibold", getPercentageColor(pct))}
-                          >
-                            {pct}%
-                          </Badge>
+                          {row.isTAM ? (
+                            <Badge variant="outline" className="text-muted-foreground">
+                              N/A
+                            </Badge>
+                          ) : (
+                            <Badge
+                              className={cn("font-semibold", getPercentageColor(pct))}
+                            >
+                              {pct}%
+                            </Badge>
+                          )}
                         </td>
                       </tr>
                     );
