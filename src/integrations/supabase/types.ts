@@ -769,6 +769,8 @@ export type Database = {
       enrichment_history: {
         Row: {
           account_external_id: string
+          cost_breakdown: Json | null
+          cost_usd: number | null
           created_at: string
           credits_used: number | null
           data_after: Json | null
@@ -786,6 +788,8 @@ export type Database = {
         }
         Insert: {
           account_external_id: string
+          cost_breakdown?: Json | null
+          cost_usd?: number | null
           created_at?: string
           credits_used?: number | null
           data_after?: Json | null
@@ -803,6 +807,8 @@ export type Database = {
         }
         Update: {
           account_external_id?: string
+          cost_breakdown?: Json | null
+          cost_usd?: number | null
           created_at?: string
           credits_used?: number | null
           data_after?: Json | null
@@ -898,6 +904,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      enrichment_spending: {
+        Row: {
+          created_at: string | null
+          id: string
+          month_start: string
+          org_id: string
+          phase: string
+          total_calls: number
+          total_spent: number
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          month_start: string
+          org_id: string
+          phase: string
+          total_calls?: number
+          total_spent?: number
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          month_start?: string
+          org_id?: string
+          phase?: string
+          total_calls?: number
+          total_spent?: number
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       external_data_sources: {
         Row: {

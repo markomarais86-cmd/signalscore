@@ -72,6 +72,9 @@ import { BulkLeadEnrichment } from "@/components/settings/BulkLeadEnrichment";
 import { EnrichmentHealthCard } from "@/components/settings/EnrichmentHealthCard";
 import { EnhancedEnrichmentHealth } from "@/components/settings/EnhancedEnrichmentHealth";
 import { EnrichmentHistoryViewer } from "@/components/settings/EnrichmentHistoryViewer";
+import { DeepResearchSettings } from "@/components/settings/DeepResearchSettings";
+import { EnrichmentAnalyticsDashboard } from "@/components/settings/EnrichmentAnalyticsDashboard";
+import { CandidateSelector } from "@/components/enrichment/CandidateSelector";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
@@ -91,6 +94,7 @@ export default function Settings() {
   const [triggerEnrich, setTriggerEnrich] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showEnrichmentModal, setShowEnrichmentModal] = useState(false);
+  const [showCandidateSelector, setShowCandidateSelector] = useState(false);
   
   // Account settings
   const [profile, setProfile] = useState({
@@ -537,6 +541,26 @@ export default function Settings() {
               </AccordionContent>
             </AccordionItem>
 
+            {/* Deep Research */}
+            <AccordionItem value="deep-research" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <div className="text-left">
+                    <p className="font-semibold">Deep Research & Analytics</p>
+                    <p className="text-sm text-muted-foreground">AI-powered enrichment and cost management</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4 space-y-4">
+                <DeepResearchSettings />
+                <Button onClick={() => setShowCandidateSelector(true)} variant="outline" className="w-full">
+                  Review Ambiguous Matches
+                </Button>
+                <EnrichmentAnalyticsDashboard />
+              </AccordionContent>
+            </AccordionItem>
+
             {/* Advanced Tools */}
             <AccordionItem value="advanced" className="border rounded-lg px-4">
               <AccordionTrigger className="hover:no-underline">
@@ -591,6 +615,11 @@ export default function Settings() {
             </AccordionItem>
 
           </Accordion>
+
+          <CandidateSelector 
+            isOpen={showCandidateSelector} 
+            onClose={() => setShowCandidateSelector(false)} 
+          />
         </TabsContent>
 
         {/* Security */}

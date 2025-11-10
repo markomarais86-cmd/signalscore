@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { SignalScoreDisplay } from "@/components/SignalScoreDisplay";
 import { AITechnologyInsights } from "@/components/AITechnologyInsights";
+import { EnrichmentSourceViewer } from "@/components/enrichment/EnrichmentSourceViewer";
 
 interface Account {
   id: string;
@@ -106,7 +107,7 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
         </SheetHeader>
 
         <Tabs defaultValue="overview" className="mt-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="leads">
               Leads
@@ -115,6 +116,7 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
               )}
             </TabsTrigger>
             <TabsTrigger value="insights">AI Insights</TabsTrigger>
+            <TabsTrigger value="sources">Data Sources</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
           </TabsList>
 
@@ -268,6 +270,11 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* Data Sources Tab */}
+          <TabsContent value="sources" className="space-y-4 mt-4">
+            <EnrichmentSourceViewer account={account as any} />
           </TabsContent>
 
           {/* AI Insights Tab */}
