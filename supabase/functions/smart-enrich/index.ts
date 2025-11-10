@@ -283,12 +283,15 @@ Companies: ${batch.map(a => `${a.name} (${a.domain})`).join(', ')}`;
     console.log(`📊 Scoring ${enrichedCount} enriched accounts...`);
     const enrichedAccountsList = Array.from(enrichedAccounts);
     await Promise.all(
-      enrichedAccountsList.map(external_id =>
-        supabase.rpc('auto_score_account', {
+      enrichedAccountsList.map(async external_id => {
+        const { error } = await supabase.rpc('auto_score_account', {
           p_account_external_id: external_id,
           p_org_id: job.org_id
-        }).catch(e => console.error(`Score error for ${external_id}:`, e))
-      )
+        });
+        if (error) {
+          console.error(`Score error for ${external_id}:`, error);
+        }
+      })
     );
 
     await supabase.from('enrichment_jobs').update({
