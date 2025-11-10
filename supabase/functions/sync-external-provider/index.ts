@@ -104,10 +104,8 @@ serve(async (req) => {
           }
         }
 
-        // Map industries (Apollo uses free-text search for industries)
-        if (icpProfile.industries && icpProfile.industries.length > 0) {
-          requestBody.organization_industry_tag_ids = icpProfile.industries;
-        }
+        // Note: Apollo's organization_industry_tag_ids requires specific Apollo tag IDs
+        // For broad TAM calculation, we rely on location, size, and revenue filters
       }
 
       console.log('Apollo API request:', JSON.stringify(requestBody, null, 2));
