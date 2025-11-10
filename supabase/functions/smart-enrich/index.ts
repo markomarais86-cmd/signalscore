@@ -248,30 +248,48 @@ Companies: ${batch.map(a => `${a.name} (${a.domain})`).join(', ')}`;
             });
 
             if (aiResponse.ok) {
+              console.log(`✅ AI response received for batch of ${batch.length}`);
               const aiData = await aiResponse.json();
+              console.log(`📊 AI raw response:`, JSON.stringify(aiData).substring(0, 500));
               const jsonMatch = aiData.choices[0].message.content.match(/\[[\s\S]*\]/);
               if (jsonMatch) {
-                const estimates = JSON.parse(jsonMatch[0]);
-                for (const est of estimates) {
-                  if (est.confidence >= 70) {
-                    const acc = batch.find(a => a.external_id === est.external_id);
-                    if (!acc) continue;
+                try {
+                  const estimates = JSON.parse(jsonMatch[0]);
+                  console.log(`📈 AI parsed ${estimates.length} estimates`);
+                  
+                  for (const est of estimates) {
+                    console.log(`  - ${est.external_id}: confidence ${est.confidence}%, employees: ${est.employee_count}, revenue: ${est.revenue_range}`);
+                    
+                    if (est.confidence >= 50) { // Lowered from 70 to 50
+                      const acc = batch.find(a => a.external_id === est.external_id);
+                      if (!acc) continue;
 
-                    const updateData: any = { enriched_at: new Date().toISOString(), enriched_from: 'ai' };
-                    if (!acc.employee_count && est.employee_count) updateData.employee_count = est.employee_count;
-                    if (!acc.revenue_range && est.revenue_range) updateData.revenue_range = est.revenue_range;
+                      const updateData: any = { enriched_at: new Date().toISOString(), enriched_from: 'ai' };
+                      if (!acc.employee_count && est.employee_count) updateData.employee_count = est.employee_count;
+                      if (!acc.revenue_range && est.revenue_range) updateData.revenue_range = est.revenue_range;
 
-                    if (Object.keys(updateData).length > 2) {
-                      pendingUpdates.push({ external_id: est.external_id, data: updateData });
-                      enrichedCount++;
+                      if (Object.keys(updateData).length > 2) {
+                        console.log(`✅ Queueing update for ${est.external_id}: ${Object.keys(updateData).join(', ')}`);
+                        pendingUpdates.push({ external_id: est.external_id, data: updateData });
+                        enrichedAccounts.add(est.external_id);
+                        enrichedCount++;
+                      } else {
+                        console.log(`⏭️  Skipping ${est.external_id}: no new data to add`);
+                      }
+                    } else {
+                      console.log(`⏭️  Skipping ${est.external_id}: confidence too low (${est.confidence}%)`);
                     }
                   }
+                } catch (parseError) {
+                  console.error(`❌ Failed to parse AI JSON:`, parseError);
+                  console.error(`Raw content:`, jsonMatch[0].substring(0, 500));
                 }
               }
             }
             
             // Flush AI batch updates
             await flushUpdates();
+            console.log(`💾 Flushed ${pendingUpdates.length} AI updates to database`);
           } catch (e) {
             console.error('AI batch error:', e);
           }
