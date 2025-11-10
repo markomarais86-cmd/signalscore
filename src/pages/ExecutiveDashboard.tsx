@@ -274,7 +274,7 @@ export default function ExecutiveDashboard() {
                 highFitCrmLeads={highFitCrmLeads}
                 highFitDatabaseLeads={highFitDatabaseLeads}
                 tamAccounts={tamData?.totalAccounts}
-                tamLeads={tamData?.totalContacts}
+                tamLeads={tamData?.totalLeads}
                 tamProvider={tamData?.provider}
               />
 

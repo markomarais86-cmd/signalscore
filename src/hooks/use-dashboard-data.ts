@@ -27,7 +27,7 @@ interface DashboardMetrics {
 
 interface ExternalTAMData {
   totalAccounts: number;
-  totalContacts: number;
+  totalLeads: number;
   provider: string;
   lastSyncedAt: string | null;
 }
@@ -107,7 +107,7 @@ export function useDashboardData(orgId: string | undefined) {
       // Map TAM data
       const tamData: ExternalTAMData | null = tamResult.data ? {
         totalAccounts: Number(tamResult.data.total_accounts) || 0,
-        totalContacts: Number(tamResult.data.total_contacts) || 0,
+        totalLeads: Number(tamResult.data.total_contacts) || 0,
         provider: tamResult.data.provider || 'Unknown',
         lastSyncedAt: tamResult.data.last_synced_at
       } : null;
