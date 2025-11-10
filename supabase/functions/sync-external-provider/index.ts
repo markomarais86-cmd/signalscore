@@ -62,6 +62,39 @@ serve(async (req) => {
         if (icpProfile.geographies && icpProfile.geographies.length > 0) {
           requestBody.organization_locations = icpProfile.geographies;
         }
+
+        // Map company sizes to Apollo employee ranges
+        // Format: ["min,max"] where min is lowest company_size and max is highest
+        if (icpProfile.company_sizes && icpProfile.company_sizes.length > 0) {
+          const minEmployees = Math.min(...icpProfile.company_sizes);
+          const maxEmployees = Math.max(...icpProfile.company_sizes);
+          requestBody.organization_num_employees_ranges = [`${minEmployees},${maxEmployees}`];
+          console.log(`Employee range filter: ${minEmployees}-${maxEmployees}`);
+        }
+
+        // Map revenue ranges to Apollo revenue filter
+        // Parse revenue_ranges array to get min/max values
+        if (icpProfile.revenue_ranges && icpProfile.revenue_ranges.length > 0) {
+          const parseRevenue = (range: string): number => {
+            // Extract numbers from formats like "$1M-$5M", "$5B+"
+            const match = range.match(/\$?([\d.]+)([MBK])?/);
+            if (match) {
+              const value = parseFloat(match[1]);
+              const multiplier = match[2] === 'B' ? 1000000000 : match[2] === 'M' ? 1000000 : match[2] === 'K' ? 1000 : 1;
+              return value * multiplier;
+            }
+            return 0;
+          };
+
+          // Get minimum revenue from first range
+          const firstRange = icpProfile.revenue_ranges[0];
+          const minRevenue = parseRevenue(firstRange);
+          
+          if (minRevenue > 0) {
+            requestBody.revenue_range = { min: minRevenue };
+            console.log(`Revenue filter: min $${(minRevenue / 1000000).toFixed(1)}M`);
+          }
+        }
       }
 
       console.log('Apollo API request:', JSON.stringify(requestBody, null, 2));
