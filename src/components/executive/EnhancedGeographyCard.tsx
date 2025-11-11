@@ -172,11 +172,11 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
       if (externalSource?.geography_breakdown) {
         const geoBreakdown = externalSource.geography_breakdown as Record<string, { accounts: number; contacts: number }>;
         Object.entries(geoBreakdown).forEach(([country, data]) => {
-          const countryName = country.charAt(0).toUpperCase() + country.slice(1);
-          if (!comparison[countryName]) {
-            comparison[countryName] = { country: countryName, crm: 0, database: 0 };
+          // Apollo data already has proper case, don't modify
+          if (!comparison[country]) {
+            comparison[country] = { country, crm: 0, database: 0 };
           }
-          comparison[countryName].database = data.accounts;
+          comparison[country].database = data.accounts;
         });
       }
       
