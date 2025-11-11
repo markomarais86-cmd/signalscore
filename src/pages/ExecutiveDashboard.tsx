@@ -414,24 +414,6 @@ export default function ExecutiveDashboard() {
                 isExternalView={sourceFilter === 'database'}
               />
 
-              {/* External Database Geography - Show real breakdown */}
-              {sourceFilter === 'database' && tamData?.geography_breakdown && Object.keys(tamData.geography_breakdown).length > 0 && (
-                <ExternalGeographyBreakdownCard 
-                  geographyData={tamData.geography_breakdown}
-                  provider={tamData.provider}
-                />
-              )}
-
-              {/* External Database Market Breakdown */}
-              {sourceFilter === 'database' && (tamData?.industry_breakdown || tamData?.company_size_breakdown || tamData?.revenue_breakdown) && (
-                <ExternalMarketBreakdownCard 
-                  industryData={tamData?.industry_breakdown}
-                  companySizeData={tamData?.company_size_breakdown}
-                  revenueData={tamData?.revenue_breakdown}
-                  provider={tamData?.provider || 'Apollo'}
-                />
-              )}
-
               {/* Geography Distribution - Only for CRM or All */}
               {sourceFilter !== 'database' && geographyData && geographyData.length > 0 && (
                 <EnhancedGeographyCard geoData={geographyDistribution} invalidCount={0} />
