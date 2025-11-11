@@ -390,6 +390,10 @@ export type Database = {
           max_contacts_per_account: number | null
           org_id: string
           persona_filters_applied: Json | null
+          source_filter: string | null
+          sync_destination: string | null
+          sync_error: string | null
+          sync_status: string | null
           total_accounts: number
           total_contacts: number
         }
@@ -409,6 +413,10 @@ export type Database = {
           max_contacts_per_account?: number | null
           org_id: string
           persona_filters_applied?: Json | null
+          source_filter?: string | null
+          sync_destination?: string | null
+          sync_error?: string | null
+          sync_status?: string | null
           total_accounts?: number
           total_contacts?: number
         }
@@ -428,6 +436,10 @@ export type Database = {
           max_contacts_per_account?: number | null
           org_id?: string
           persona_filters_applied?: Json | null
+          source_filter?: string | null
+          sync_destination?: string | null
+          sync_error?: string | null
+          sync_status?: string | null
           total_accounts?: number
           total_contacts?: number
         }
@@ -2893,21 +2905,13 @@ export type Database = {
             Returns: Json
           }
         | { Args: { p_icp_id?: string; p_org_id: string }; Returns: Json }
-      get_geography_distribution:
-        | {
-            Args: { p_org_id: string; p_source_filter?: string }
-            Returns: {
-              count: number
-              country: string
-            }[]
-          }
-        | {
-            Args: { p_org_id: string }
-            Returns: {
-              count: number
-              country: string
-            }[]
-          }
+      get_geography_distribution: {
+        Args: { p_org_id: string; p_source_filter?: string }
+        Returns: {
+          count: number
+          country: string
+        }[]
+      }
       get_industry_drilldown: {
         Args: { p_org_id: string }
         Returns: {

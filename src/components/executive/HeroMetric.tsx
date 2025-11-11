@@ -18,6 +18,7 @@ interface HeroMetricProps {
     color?: string;
   };
   status?: 'success' | 'warning' | 'danger' | 'default';
+  onClick?: () => void;
 }
 
 export function HeroMetric({ 
@@ -27,7 +28,8 @@ export function HeroMetric({
   trend, 
   icon: Icon,
   chart,
-  status = 'default'
+  status = 'default',
+  onClick
 }: HeroMetricProps) {
   const getTrendIcon = () => {
     if (!trend) return null;
@@ -53,7 +55,10 @@ export function HeroMetric({
   };
 
   return (
-    <Card className={`relative overflow-hidden border-l-4 ${getStatusColor()} hover:shadow-lg transition-all duration-300`}>
+    <Card 
+      className={`relative overflow-hidden border-l-4 ${getStatusColor()} hover:shadow-lg transition-all duration-300 ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
+    >
       <div className="p-3 lg:p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2 lg:gap-3">

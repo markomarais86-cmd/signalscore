@@ -38,6 +38,7 @@ import { ExternalMarketBreakdownCard } from "@/components/executive/ExternalMark
 import { EnhancedTAMCard } from "@/components/executive/EnhancedTAMCard";
 import { FitDistributionHero } from "@/components/executive/FitDistributionHero";
 import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
+import { CampaignExportModal } from "@/components/executive/CampaignExportModal";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -48,6 +49,7 @@ export default function ExecutiveDashboard() {
   
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showCampaignExportModal, setShowCampaignExportModal] = useState(false);
   
   // Use optimized React Query hooks with source filtering
   const { data: dashboardData, isLoading, error: queryError, refetch } = useDashboardData(userProfile?.org_id, sourceFilter);
@@ -317,6 +319,7 @@ export default function ExecutiveDashboard() {
                   trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
                   icon={Sparkles}
                   status={campaignReadyContacts > 0 ? 'success' : 'warning'}
+                  onClick={() => setShowCampaignExportModal(true)}
                 />
               </div>
             </div>
@@ -473,6 +476,15 @@ export default function ExecutiveDashboard() {
 
         {/* Enrichment Modal */}
         <EnrichmentModal open={isEnrichmentModalOpen} onOpenChange={setIsEnrichmentModalOpen} />
+
+        {/* Campaign Export Modal */}
+        <CampaignExportModal
+          isOpen={showCampaignExportModal}
+          onClose={() => setShowCampaignExportModal(false)}
+          orgId={userProfile?.org_id || ''}
+          sourceFilter={sourceFilter}
+          totalCampaignReady={campaignReadyContacts}
+        />
       </div>
   );
 }
