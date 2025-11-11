@@ -53,6 +53,11 @@ export function AccountLeadsDialog({
   const navigate = useNavigate();
 
   const fetchLeads = useCallback(async () => {
+    console.log("fetchLeads called with:", {
+      accountExternalId,
+      orgId: user?.user_metadata?.organization_id
+    });
+    
     setIsLoading(true);
     try {
       const { data, error } = await supabase
@@ -63,17 +68,29 @@ export function AccountLeadsDialog({
         .order("created_at", { ascending: false })
         .limit(50);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase query error:", error);
+        throw error;
+      }
+      console.log("Leads fetched successfully:", { count: data?.length, data });
       setLeads(data || []);
     } catch (error) {
       console.error("Error fetching leads:", error);
       setLeads([]);
     } finally {
+      console.log("Setting isLoading to false");
       setIsLoading(false);
     }
   }, [accountExternalId, user?.user_metadata?.organization_id]);
 
   useEffect(() => {
+    console.log("AccountLeadsDialog useEffect triggered:", {
+      open,
+      accountExternalId,
+      orgId: user?.user_metadata?.organization_id,
+      willFetch: open && accountExternalId && user?.user_metadata?.organization_id
+    });
+    
     if (open && accountExternalId && user?.user_metadata?.organization_id) {
       fetchLeads();
     }
