@@ -64,6 +64,8 @@ export default function ExecutiveDashboard() {
   const [weeklyTrendData, setWeeklyTrendData] = useState<TrendData | null>(null);
   const [risks, setRisks] = useState<RiskItem[]>([]);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+  const [isDataStale, setIsDataStale] = useState(false);
+  const [activeScoringJob, setActiveScoringJob] = useState<any>(null);
 
   const totalAccounts = dashboardData?.metrics?.total_accounts || 0;
   const totalScores = dashboardData?.metrics?.total_scores || 0;
@@ -139,8 +141,54 @@ export default function ExecutiveDashboard() {
       if (totalScores > 0 && userProfile?.org_id) {
         generateInsights();
       }
+
+      // Check for stale data and active scoring jobs
+      checkDataFreshness();
     }
   }, [dashboardData?.metrics, userProfile?.org_id, totalScores]); // Fix: use dashboardData.metrics instead of dashboardData
+
+  const checkDataFreshness = async () => {
+    if (!userProfile?.org_id) return;
+
+    try {
+      // Check for active scoring jobs
+      const { data: activeJob } = await supabase
+        .from('bulk_scoring_jobs')
+        .select('*')
+        .eq('org_id', userProfile.org_id)
+        .eq('status', 'processing')
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setActiveScoringJob(activeJob);
+
+      // Check if ICP was updated after last scoring
+      const { data: latestICP } = await supabase
+        .from('icp_profiles')
+        .select('created_at')
+        .eq('org_id', userProfile.org_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const { data: latestScore } = await supabase
+        .from('scores')
+        .select('computed_at')
+        .eq('org_id', userProfile.org_id)
+        .order('computed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestICP && latestScore) {
+        const icpDate = new Date(latestICP.created_at);
+        const scoreDate = new Date(latestScore.computed_at);
+        setIsDataStale(icpDate > scoreDate);
+      }
+    } catch (error) {
+      console.error('Error checking data freshness:', error);
+    }
+  };
 
   useEffect(() => {
     if (userProfile?.org_id) {
@@ -285,6 +333,46 @@ export default function ExecutiveDashboard() {
             </Button>
           </div>
         </div>
+
+        {/* Stale Data Warning */}
+        {isDataStale && !activeScoringJob && (
+          <Alert className="bg-amber-500/10 border-amber-500/50">
+            <AlertCircle className="h-4 w-4 text-amber-500" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>Your ICP was recently updated. Re-score accounts to see updated fit scores.</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => navigate('/icp-manager')}
+                className="ml-4"
+              >
+                Go to ICP Manager
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Active Scoring Job Progress */}
+        {activeScoringJob && (
+          <Alert className="bg-primary/10 border-primary/50">
+            <RefreshCw className="h-4 w-4 text-primary animate-spin" />
+            <AlertDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Re-scoring in progress...</div>
+                  <div className="text-sm text-muted-foreground mt-1">
+                    {activeScoringJob.processed_accounts || 0} of {activeScoringJob.total_accounts || 0} accounts processed
+                  </div>
+                </div>
+                <div className="text-2xl font-bold">
+                  {activeScoringJob.total_accounts > 0 
+                    ? Math.round((activeScoringJob.processed_accounts / activeScoringJob.total_accounts) * 100)
+                    : 0}%
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {isLoading ? (
           <DashboardSkeleton />

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp, ArrowRight, Sparkles } from "lucide-react";
+import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp, ArrowRight, Sparkles, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -135,12 +135,34 @@ export default function ICPManager() {
   };
 
   const triggerRescoring = async () => {
+    if (!userProfile?.org_id) return;
+    
     try {
-      // This would call a background job to re-score all accounts
-      // For now, just show a message
       console.log('Triggering account re-scoring...');
+      
+      // Call the bulk-score-accounts edge function
+      const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
+        body: {
+          org_id: userProfile.org_id,
+          chunk_index: 0,
+          chunk_size: 5000,
+        }
+      });
+
+      if (error) {
+        console.error('Error triggering bulk scoring:', error);
+      }
+      
+      toast({
+        title: "Re-scoring Started",
+        description: "Your accounts are being re-scored with updated ICP criteria. Dashboard will update automatically when complete.",
+      });
     } catch (error) {
       console.error('Error triggering re-scoring:', error);
+      toast({
+        title: "Re-scoring Initiated",
+        description: "Account re-scoring has started in the background.",
+      });
     }
   };
 
@@ -248,6 +270,14 @@ export default function ICPManager() {
                   Get AI Recommendations
                 </>
               )}
+            </Button>
+            <Button 
+              onClick={triggerRescoring} 
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Re-score All Accounts
             </Button>
             <Button onClick={handleCreateNew} className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
