@@ -24,7 +24,7 @@ export function Layout({ children }: LayoutProps) {
               <ThemeToggle />
             </div>
           </header>
-          <div className="flex-1 p-6 overflow-auto bg-muted/20">
+          <div className="flex-1 p-4 overflow-auto bg-muted/20">
             {children}
           </div>
           <footer className="border-t bg-card px-6 py-3 text-xs text-muted-foreground">

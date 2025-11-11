@@ -231,10 +231,9 @@ export default function ExecutiveDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto p-6 space-y-6">
-        {/* Header Section */}
-        <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+    <div className="max-w-[1600px] mx-auto space-y-4">
+      {/* Header Section */}
+      <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-2xl font-semibold">Executive Dashboard</h1>
             <p className="text-muted-foreground">Filter data by source to focus on your CRM, database, or combined view</p>
@@ -294,7 +293,7 @@ export default function ExecutiveDashboard() {
                 <Database className="h-5 w-5" />
                 Your Database
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 <HeroMetric
                   label="Total Accounts"
                   value={totalAccounts}
@@ -338,7 +337,7 @@ export default function ExecutiveDashboard() {
             {/* Available Market Card - NOT shown for database filter (redundant with TAM calculator) */}
 
             {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
 
               {/* ICP Coverage Card */}
               <ICPCoverageCard
@@ -390,16 +389,18 @@ export default function ExecutiveDashboard() {
 
               {/* Enhanced TAM Card for Database View */}
               {sourceFilter === 'database' && tamData && tamData.totalAccounts > 0 && (
-                <EnhancedTAMCard
-                  totalAccounts={tamData.totalAccounts || 0}
-                  totalContacts={tamData.totalLeads || 0}
-                  averageDealSize={75000}
-                  geographyBreakdown={tamData.geography_breakdown}
-                  industryBreakdown={tamData.industry_breakdown}
-                  companySizeBreakdown={tamData.company_size_breakdown}
-                  revenueBreakdown={tamData.revenue_breakdown}
-                  provider={tamData.provider}
-                />
+                <div className="lg:col-span-2 xl:col-span-3">
+                  <EnhancedTAMCard
+                    totalAccounts={tamData.totalAccounts || 0}
+                    totalContacts={tamData.totalLeads || 0}
+                    averageDealSize={75000}
+                    geographyBreakdown={tamData.geography_breakdown}
+                    industryBreakdown={tamData.industry_breakdown}
+                    companySizeBreakdown={tamData.company_size_breakdown}
+                    revenueBreakdown={tamData.revenue_breakdown}
+                    provider={tamData.provider}
+                  />
+                </div>
               )}
 
               {/* TAM/SAM/SOM Calculator - Show for CRM and All views */}
@@ -458,6 +459,5 @@ export default function ExecutiveDashboard() {
         {/* Enrichment Modal */}
         <EnrichmentModal open={isEnrichmentModalOpen} onOpenChange={setIsEnrichmentModalOpen} />
       </div>
-    </div>
   );
 }

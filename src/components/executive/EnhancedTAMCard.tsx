@@ -47,8 +47,8 @@ export function EnhancedTAMCard({
   const topIndustryPercent = topIndustries.length > 0 ? topIndustries[0][1].percentage : 0;
 
   return (
-    <Card className="col-span-full border-primary/20 bg-gradient-to-br from-primary/5 via-background to-background">
-      <CardHeader className="pb-3">
+    <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-background to-background">
+      <CardHeader className="pb-2 p-4">
         <div className="flex items-start justify-between">
           <div>
             <CardTitle className="text-lg font-medium text-muted-foreground">Total Addressable Market</CardTitle>
@@ -63,9 +63,9 @@ export function EnhancedTAMCard({
         </div>
       </CardHeader>
       
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4 p-4 pt-0">
         {/* Market Overview Stats */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Building2 className="h-4 w-4" />

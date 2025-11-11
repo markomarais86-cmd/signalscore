@@ -95,13 +95,13 @@ All colors MUST be HSL.
 
   .dark {
     /* LaunchPulse Brand Colors - Dark Mode */
-    --background: 210 94% 18%; /* Darker Navy */
+    --background: 210 88% 22%; /* Navy instead of black */
     --foreground: 0 0% 98%;
 
-    --card: 210 88% 22%; /* Dark Navy */
+    --card: 210 85% 25%; /* Lighter navy for better contrast */
     --card-foreground: 0 0% 98%;
 
-    --popover: 210 88% 22%;
+    --popover: 210 85% 25%;
     --popover-foreground: 0 0% 98%;
 
     --primary: 161 85% 60%; /* LaunchPulse Green */
@@ -110,7 +110,7 @@ All colors MUST be HSL.
     --secondary: 161 88% 67%; /* Accent Green */
     --secondary-foreground: 210 94% 18%;
 
-    --muted: 198 20% 19%; /* Darker Grey */
+    --muted: 198 20% 28%; /* More visible grey */
     --muted-foreground: 223 23% 87%; /* Platinum */
 
     --accent: 161 85% 60%;
@@ -119,8 +119,8 @@ All colors MUST be HSL.
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 198 15% 25%; /* Dark Grey */
-    --input: 198 15% 25%;
+    --border: 198 15% 30%; /* Slightly lighter border */
+    --input: 198 15% 30%;
     --ring: 161 85% 60%;
 
     /* Chart colors - dark mode */
@@ -130,13 +130,13 @@ All colors MUST be HSL.
     --chart-4: 198 10% 41%; /* Grey */
     --chart-5: 198 15% 25%; /* Dark Grey */
 
-    --sidebar-background: 210 94% 18%;
+    --sidebar-background: 210 88% 22%;
     --sidebar-foreground: 0 0% 98%;
     --sidebar-primary: 161 85% 60%;
     --sidebar-primary-foreground: 210 94% 18%;
-    --sidebar-accent: 210 88% 25%;
+    --sidebar-accent: 210 85% 28%;
     --sidebar-accent-foreground: 161 85% 60%;
-    --sidebar-border: 198 15% 25%;
+    --sidebar-border: 198 15% 30%;
     --sidebar-ring: 161 85% 60%;
   }
 }
