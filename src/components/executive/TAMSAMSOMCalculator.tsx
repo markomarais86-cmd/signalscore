@@ -27,6 +27,7 @@ interface TAMSAMSOMCalculatorProps {
   averageDealSize?: number;
   conversionRate?: number;
   externalTAMAccounts?: number; // TAM from Apollo or other external source
+  isExternalView?: boolean; // When true, show only TAM (for "Database Only" view)
 }
 
 interface TAMAssumptions {
@@ -49,7 +50,8 @@ export function TAMSAMSOMCalculator({
   campaignReadyAccounts,
   averageDealSize: propAverageDealSize,
   conversionRate: propConversionRate,
-  externalTAMAccounts
+  externalTAMAccounts,
+  isExternalView = false
 }: TAMSAMSOMCalculatorProps) {
   const [isEditMode, setIsEditMode] = useState(false);
   const [assumptions, setAssumptions] = useState<TAMAssumptions>(() => {
@@ -179,26 +181,30 @@ export function TAMSAMSOMCalculator({
           <div>
             <CardTitle className="flex items-center gap-2">
               <Target className="h-5 w-5" />
-              TAM/SAM/SOM Analysis
-              {isCustomAssumptions && (
+              {isExternalView ? "Available Market (TAM)" : "TAM/SAM/SOM Analysis"}
+              {isCustomAssumptions && !isExternalView && (
                 <Badge variant="outline" className="ml-2">
                   Custom
                 </Badge>
               )}
             </CardTitle>
             <CardDescription>
-              Market opportunity sizing based on ICP fit and campaign readiness
+              {isExternalView 
+                ? "Total addressable market from external data sources"
+                : "Market opportunity sizing based on ICP fit and campaign readiness"}
             </CardDescription>
           </div>
-          <Collapsible open={isEditMode} onOpenChange={setIsEditMode}>
-            <CollapsibleTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4 mr-2" />
-                Edit Assumptions
-                <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${isEditMode ? 'rotate-180' : ''}`} />
-              </Button>
-            </CollapsibleTrigger>
-          </Collapsible>
+          {!isExternalView && (
+            <Collapsible open={isEditMode} onOpenChange={setIsEditMode}>
+              <CollapsibleTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Edit Assumptions
+                  <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${isEditMode ? 'rotate-180' : ''}`} />
+                </Button>
+              </CollapsibleTrigger>
+            </Collapsible>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -326,44 +332,73 @@ export function TAMSAMSOMCalculator({
           </Collapsible>
 
           {/* Market Size Summary */}
-          <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-[hsl(var(--primary))]">
-                {formatCurrency(tamValue)}
-              </div>
-              <div className="text-sm text-muted-foreground">Total Market (TAM)</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {tamAccounts.toLocaleString()} accounts
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-[hsl(var(--chart-2))]">
-                {formatCurrency(samValue)}
-              </div>
-              <div className="text-sm text-muted-foreground">Serviceable (SAM)</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {samAccounts.toLocaleString()} high-fit
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-[hsl(var(--chart-3))]">
-                {formatCurrency(somValue)}
-              </div>
-              <div className="text-sm text-muted-foreground">Obtainable (SOM)</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {somAccounts.toLocaleString()} ready
-              </div>
-              {somAccounts === 0 && (
-                <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                  ⚠️ No campaign-ready accounts
+          {isExternalView ? (
+            // External view - Show only TAM with emphasis
+            <div className="p-6 bg-gradient-to-br from-primary/10 to-primary/5 rounded-lg border border-primary/20">
+              <div className="text-center space-y-2">
+                <div className="text-sm text-muted-foreground font-medium">Total Addressable Market</div>
+                <div className="text-5xl font-bold text-primary">
+                  {formatCurrency(tamValue)}
                 </div>
-              )}
+                <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <Building2 className="h-4 w-4" />
+                    {tamAccounts.toLocaleString()} accounts
+                  </div>
+                  <div className="text-muted-foreground">•</div>
+                  <div>
+                    Avg. deal size: {formatCurrency(assumptions.averageDealSize)}
+                  </div>
+                </div>
+                <div className="mt-4 text-xs text-muted-foreground max-w-md mx-auto">
+                  {isExternalTAM 
+                    ? "Based on external database matching your ICP criteria. This represents your total addressable market opportunity."
+                    : "Based on accounts in your database. This represents your current addressable market."}
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            // Normal view - Show TAM/SAM/SOM breakdown
+            <div className="grid grid-cols-3 gap-4 p-4 bg-muted/50 rounded-lg">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-[hsl(var(--primary))]">
+                  {formatCurrency(tamValue)}
+                </div>
+                <div className="text-sm text-muted-foreground">Total Market (TAM)</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {tamAccounts.toLocaleString()} accounts
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-[hsl(var(--chart-2))]">
+                  {formatCurrency(samValue)}
+                </div>
+                <div className="text-sm text-muted-foreground">Serviceable (SAM)</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {samAccounts.toLocaleString()} high-fit
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-[hsl(var(--chart-3))]">
+                  {formatCurrency(somValue)}
+                </div>
+                <div className="text-sm text-muted-foreground">Obtainable (SOM)</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {somAccounts.toLocaleString()} ready
+                </div>
+                {somAccounts === 0 && (
+                  <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    ⚠️ No campaign-ready accounts
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
-          {/* Market Funnel Visualization */}
-          <div className="space-y-4">
-            {segments.map((segment, index) => (
+          {/* Market Funnel Visualization - Skip for external view */}
+          {!isExternalView && (
+            <div className="space-y-4">
+              {segments.map((segment, index) => (
               <div key={segment.label} className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -420,11 +455,13 @@ export function TAMSAMSOMCalculator({
                   </div>
                 )}
               </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
-          {/* Key Insights */}
-          <div className="border-t pt-4 space-y-2">
+          {/* Key Insights - Skip for external view */}
+          {!isExternalView && (
+            <div className="border-t pt-4 space-y-2">
             <div className="flex items-center gap-2 text-sm">
               <TrendingUp className="h-4 w-4 text-[hsl(var(--signal-high))]" />
               <span className="font-medium">Market Opportunity:</span>
@@ -450,27 +487,30 @@ export function TAMSAMSOMCalculator({
                 {somPercentage.toFixed(0)}% of high-fit accounts have contact data
               </span>
             </div>
-          </div>
-
-          {/* Assumptions Summary */}
-          <div className="border-t pt-4">
-            <div className="text-xs text-muted-foreground space-y-1">
-              <div className="font-medium flex items-center gap-2">
-                {isCustomAssumptions ? "Custom Assumptions:" : "Assumptions:"}
-                {isCustomAssumptions && (
-                  <Badge variant="secondary" className="text-xs">
-                    Modified
-                  </Badge>
-                )}
-              </div>
-              <ul className="list-disc list-inside space-y-0.5 ml-2">
-                <li>Average Deal Size: {formatCurrency(assumptions.averageDealSize)}</li>
-                <li>{assumptions.timeHorizon}-Month Conversion Rate: {(assumptions.conversionRate * 100).toFixed(0)}%</li>
-                <li>High-fit defined as ICP match score ≥ {assumptions.highFitThreshold}</li>
-                <li>Campaign ready = High-fit + valid contact data</li>
-              </ul>
             </div>
-          </div>
+          )}
+
+          {/* Assumptions Summary - Skip for external view */}
+          {!isExternalView && (
+            <div className="border-t pt-4">
+              <div className="text-xs text-muted-foreground space-y-1">
+                <div className="font-medium flex items-center gap-2">
+                  {isCustomAssumptions ? "Custom Assumptions:" : "Assumptions:"}
+                  {isCustomAssumptions && (
+                    <Badge variant="secondary" className="text-xs">
+                      Modified
+                    </Badge>
+                  )}
+                </div>
+                <ul className="list-disc list-inside space-y-0.5 ml-2">
+                  <li>Average Deal Size: {formatCurrency(assumptions.averageDealSize)}</li>
+                  <li>{assumptions.timeHorizon}-Month Conversion Rate: {(assumptions.conversionRate * 100).toFixed(0)}%</li>
+                  <li>High-fit defined as ICP match score ≥ {assumptions.highFitThreshold}</li>
+                  <li>Campaign ready = High-fit + valid contact data</li>
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

@@ -33,6 +33,8 @@ import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { TAMSAMSOMCalculator } from "@/components/executive/TAMSAMSOMCalculator";
 import { AvailableMarketCard } from "@/components/executive/AvailableMarketCard";
+import { ExternalGeographyBreakdownCard } from "@/components/executive/ExternalGeographyBreakdownCard";
+import { ExternalMarketBreakdownCard } from "@/components/executive/ExternalMarketBreakdownCard";
 import { FitDistributionHero } from "@/components/executive/FitDistributionHero";
 import { SourceFilterToggle, type SourceFilter } from "@/components/executive/SourceFilterToggle";
 
@@ -289,15 +291,7 @@ export default function ExecutiveDashboard() {
               />
             )}
 
-            {/* Available Market TAM - Only show for "Database Only" filter */}
-            {sourceFilter === 'database' && tamData && tamData.totalAccounts > 0 && (
-              <AvailableMarketCard
-                totalAccounts={tamData.totalAccounts}
-                totalContacts={tamData.totalLeads || 0}
-                provider={tamData.provider || 'External Data'}
-                lastSyncedAt={tamData.lastSyncedAt}
-              />
-            )}
+            {/* Available Market Card - NOT shown for database filter (redundant with TAM calculator) */}
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -350,44 +344,36 @@ export default function ExecutiveDashboard() {
                 } : undefined}
               />
 
-              {/* TAM/SAM/SOM Calculator - Hide for Database Only (shown in AvailableMarketCard instead) */}
-              {sourceFilter !== 'database' && (
-                <TAMSAMSOMCalculator
-                  totalAccounts={totalAccounts}
-                  highFitAccounts={highFitAccounts}
-                  campaignReadyAccounts={campaignReadyAccounts}
-                  averageDealSize={75000}
-                  conversionRate={0.15}
-                  externalTAMAccounts={tamData?.totalAccounts}
-                />
+              {/* TAM/SAM/SOM Calculator - Show for all filters, adjust display for database only */}
+              <TAMSAMSOMCalculator
+                totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
+                highFitAccounts={sourceFilter === 'database' ? 0 : highFitAccounts}
+                campaignReadyAccounts={sourceFilter === 'database' ? 0 : campaignReadyAccounts}
+                averageDealSize={75000}
+                conversionRate={0.15}
+                externalTAMAccounts={sourceFilter === 'database' ? 0 : tamData?.totalAccounts}
+                isExternalView={sourceFilter === 'database'}
+              />
+
+              {/* External Database Geography - Show real breakdown */}
+              {sourceFilter === 'database' && tamData?.geography_breakdown && Object.keys(tamData.geography_breakdown).length > 0 && (
+                <>
+                  <ExternalGeographyBreakdownCard 
+                    geographyData={tamData.geography_breakdown}
+                    provider={tamData.provider}
+                  />
+                  <ExternalMarketBreakdownCard
+                    industryData={tamData.industry_breakdown}
+                    companySizeData={tamData.company_size_breakdown}
+                    revenueData={tamData.revenue_breakdown}
+                    provider={tamData.provider}
+                  />
+                </>
               )}
 
-              {/* Enhanced Geography Card - Hide for Database Only */}
-              {sourceFilter !== 'database' && (
+              {/* Geography Distribution - Only for CRM or All */}
+              {sourceFilter !== 'database' && geographyData && geographyData.length > 0 && (
                 <EnhancedGeographyCard geoData={geographyDistribution} invalidCount={0} />
-              )}
-
-              {/* Database Only - Show Geography Explanation */}
-              {sourceFilter === 'database' && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <MapPin className="h-5 w-5" />
-                      Geography Distribution
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Alert>
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        Geography data is not available for external database accounts. These are aggregate totals from {tamData?.provider} 
-                        ({(tamData?.totalAccounts || 0).toLocaleString()} accounts matching your ICP filters).
-                        <br /><br />
-                        To see detailed geography breakdowns, switch to "All Sources" or "CRM Only".
-                      </AlertDescription>
-                    </Alert>
-                  </CardContent>
-                </Card>
               )}
             </div>
 

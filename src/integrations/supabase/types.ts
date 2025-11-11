@@ -962,36 +962,54 @@ export type Database = {
       external_data_sources: {
         Row: {
           api_key_configured: boolean | null
+          company_size_breakdown: Json | null
           created_at: string | null
+          funding_breakdown: Json | null
+          geography_breakdown: Json | null
           id: string
+          industry_breakdown: Json | null
           is_active: boolean | null
           last_synced_at: string | null
           org_id: string
           provider: string
+          revenue_breakdown: Json | null
+          technology_breakdown: Json | null
           total_accounts: number | null
           total_contacts: number | null
           updated_at: string | null
         }
         Insert: {
           api_key_configured?: boolean | null
+          company_size_breakdown?: Json | null
           created_at?: string | null
+          funding_breakdown?: Json | null
+          geography_breakdown?: Json | null
           id?: string
+          industry_breakdown?: Json | null
           is_active?: boolean | null
           last_synced_at?: string | null
           org_id: string
           provider: string
+          revenue_breakdown?: Json | null
+          technology_breakdown?: Json | null
           total_accounts?: number | null
           total_contacts?: number | null
           updated_at?: string | null
         }
         Update: {
           api_key_configured?: boolean | null
+          company_size_breakdown?: Json | null
           created_at?: string | null
+          funding_breakdown?: Json | null
+          geography_breakdown?: Json | null
           id?: string
+          industry_breakdown?: Json | null
           is_active?: boolean | null
           last_synced_at?: string | null
           org_id?: string
           provider?: string
+          revenue_breakdown?: Json | null
+          technology_breakdown?: Json | null
           total_accounts?: number | null
           total_contacts?: number | null
           updated_at?: string | null
