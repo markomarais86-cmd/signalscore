@@ -1,3 +1,5 @@
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   ExternalLink, 
   Mail, 
@@ -23,6 +27,18 @@ import {
 import { SignalScoreDisplay } from "@/components/SignalScoreDisplay";
 import { AITechnologyInsights } from "@/components/AITechnologyInsights";
 import { EnrichmentSourceViewer } from "@/components/enrichment/EnrichmentSourceViewer";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+
+interface Lead {
+  id: number;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  title: string | null;
+  persona: string | null;
+  status: string | null;
+}
 
 interface Account {
   id: string;
@@ -52,6 +68,11 @@ interface AccountDetailDrawerProps {
 }
 
 export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: AccountDetailDrawerProps) {
+  const { userProfile } = useAuth();
+  const navigate = useNavigate();
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [isLoadingLeads, setIsLoadingLeads] = useState(false);
+
   if (!account) return null;
 
   const calculateDataCompleteness = (acc: Account) => {
@@ -67,6 +88,56 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
     if (score >= 60) return <Badge className="bg-[hsl(var(--signal-medium))]">Good</Badge>;
     if (score >= 40) return <Badge className="bg-primary">Fair</Badge>;
     return <Badge className="bg-[hsl(var(--signal-low))]">Needs Enrichment</Badge>;
+  };
+
+  const fetchLeads = useCallback(async () => {
+    if (!account || !userProfile?.org_id) return;
+    
+    setIsLoadingLeads(true);
+    try {
+      const { data, error } = await supabase
+        .from("Leads")
+        .select("id, first_name, last_name, email, title, persona, status")
+        .eq("org_id", userProfile.org_id)
+        .eq("account_external_id", account.external_id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      setLeads(data || []);
+    } catch (error) {
+      console.error("Error fetching leads:", error);
+      setLeads([]);
+    } finally {
+      setIsLoadingLeads(false);
+    }
+  }, [account, userProfile?.org_id]);
+
+  useEffect(() => {
+    if (isOpen && account) {
+      fetchLeads();
+    }
+  }, [isOpen, account, fetchLeads]);
+
+  const handleViewAllLeads = () => {
+    navigate(`/leads?account=${account.external_id}`);
+    onClose();
+  };
+
+  const getPersonaBadgeVariant = (persona: string | null) => {
+    if (!persona) return "outline";
+    const lower = persona.toLowerCase();
+    if (lower.includes("decision") || lower.includes("executive")) return "default";
+    if (lower.includes("champion")) return "secondary";
+    return "outline";
+  };
+
+  const getStatusBadgeVariant = (status: string | null) => {
+    if (!status) return "outline";
+    const lower = status.toLowerCase();
+    if (lower === "qualified") return "default";
+    if (lower === "contacted") return "secondary";
+    return "outline";
   };
 
   // Mock activity timeline
@@ -239,37 +310,89 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
 
           {/* Leads Tab */}
           <TabsContent value="leads" className="space-y-4 mt-4">
-            {account.contacts && account.contacts > 0 ? (
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Users className="h-5 w-5 text-primary" />
-                    <div>
-                      <h3 className="font-semibold">Contacts Available</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {account.contacts} {account.contacts === 1 ? 'contact' : 'contacts'} associated with this account
-                      </p>
-                    </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Associated Leads
+                  </span>
+                  {account.contacts && account.contacts > 0 && (
+                    <Badge variant="secondary">{account.contacts} total</Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Showing {leads.length} of {account.contacts || 0} total contacts
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingLeads ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div key={i} className="flex items-center gap-4">
+                        <Skeleton className="h-10 w-full" />
+                      </div>
+                    ))}
                   </div>
-                  <Button asChild className="w-full">
-                    <a href="/leads">View All Contacts</a>
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <Users className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
-                  <h4 className="font-semibold mb-2">No Leads Found</h4>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Link leads to this account to improve campaign readiness
-                  </p>
-                  <Button variant="outline" asChild>
-                    <a href="/leads">Go to Leads</a>
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
+                ) : leads.length > 0 ? (
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Persona</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {leads.map((lead) => (
+                          <TableRow key={lead.id}>
+                            <TableCell className="font-medium">
+                              {[lead.first_name, lead.last_name].filter(Boolean).join(" ") || "-"}
+                            </TableCell>
+                            <TableCell>{lead.email || "-"}</TableCell>
+                            <TableCell className="max-w-[200px] truncate">
+                              {lead.title || "-"}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={getPersonaBadgeVariant(lead.persona)}>
+                                {lead.persona || "Unknown"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={getStatusBadgeVariant(lead.status)}>
+                                {lead.status || "Unknown"}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    
+                    {account.contacts && account.contacts > 50 && (
+                      <div className="mt-4">
+                        <Button variant="outline" className="w-full" onClick={handleViewAllLeads}>
+                          View All {account.contacts} Leads on Leads Page
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center py-8">
+                    <Users className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                    <h4 className="font-semibold mb-2">No Leads Found</h4>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Link leads to this account to improve campaign readiness
+                    </p>
+                    <Button variant="outline" onClick={() => navigate("/leads")}>
+                      Go to Leads Page
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Data Sources Tab */}
