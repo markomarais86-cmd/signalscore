@@ -19,6 +19,7 @@ import { useOnboarding } from "@/hooks/use-onboarding";
 import { Progress } from "@/components/ui/progress";
 import { ScoreBreakdownDialog } from "@/components/scoring/ScoreBreakdownDialog";
 import { AccountDetailDrawer } from "@/components/accounts/AccountDetailDrawer";
+import { AccountLeadsDialog } from "@/components/accounts/AccountLeadsDialog";
 import { BulkScoring } from "@/components/BulkScoring";
 import { CorrelationInsights } from "@/components/CorrelationInsights";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -85,6 +86,12 @@ export default function Accounts() {
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
   const [enrichingSingleAccount, setEnrichingSingleAccount] = useState<string | null>(null);
   const [showEnrichmentModal, setShowEnrichmentModal] = useState(false);
+  const [showLeadsDialog, setShowLeadsDialog] = useState(false);
+  const [selectedAccountForLeads, setSelectedAccountForLeads] = useState<{
+    external_id: string;
+    name: string;
+    count: number;
+  } | null>(null);
   const [hasActiveICP, setHasActiveICP] = useState(false);
   const [needsScoring, setNeedsScoring] = useState(false);
   const [icpDetailsOpen, setIcpDetailsOpen] = useState(true);
@@ -1187,9 +1194,22 @@ export default function Accounts() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="text-center font-medium">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="font-medium hover:underline"
+                        onClick={() => {
+                          setSelectedAccountForLeads({
+                            external_id: account.external_id,
+                            name: account.name || "Unknown Account",
+                            count: account.contacts || 0,
+                          });
+                          setShowLeadsDialog(true);
+                        }}
+                        disabled={!account.contacts || account.contacts === 0}
+                      >
                         {account.contacts || 0}
-                      </div>
+                      </Button>
                     </TableCell>
                     <TableCell>
                       {account.score?.overall ? (
@@ -1314,6 +1334,16 @@ export default function Accounts() {
         onOpenChange={setShowEnrichmentModal}
         selectedAccounts={totalCount}
       />
+
+      {selectedAccountForLeads && (
+        <AccountLeadsDialog
+          open={showLeadsDialog}
+          onOpenChange={setShowLeadsDialog}
+          accountExternalId={selectedAccountForLeads.external_id}
+          accountName={selectedAccountForLeads.name}
+          leadCount={selectedAccountForLeads.count}
+        />
+      )}
     </div>
   );
 }
