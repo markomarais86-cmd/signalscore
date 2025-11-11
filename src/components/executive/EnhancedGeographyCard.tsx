@@ -30,9 +30,10 @@ interface EnhancedGeographyCardProps {
   invalidCount?: number;
   geoTrends?: Record<string, number>;
   title?: string;
+  sourceFilter?: 'all' | 'crm' | 'database';
 }
 
-export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {}, title = "Geographic Heat Map" }: EnhancedGeographyCardProps) {
+export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {}, title = "Geographic Heat Map", sourceFilter = 'all' }: EnhancedGeographyCardProps) {
   const navigate = useNavigate();
   const { userProfile } = useAuth();
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
@@ -135,15 +136,24 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
 
   const loadComparisonData = async () => {
     try {
-      const { data: accounts, error } = await supabase
+      // Get CRM data from accounts table
+      const { data: accounts, error: accountsError } = await supabase
         .from('accounts')
         .select('country, data_source')
         .eq('org_id', userProfile!.org_id)
         .not('country', 'is', null);
       
-      if (error) throw error;
+      if (accountsError) throw accountsError;
 
-      // Group by country and source
+      // Get Database data from external_data_sources
+      const { data: externalSource, error: externalError } = await supabase
+        .from('external_data_sources')
+        .select('geography_breakdown')
+        .eq('org_id', userProfile!.org_id)
+        .eq('is_active', true)
+        .single();
+
+      // Group CRM accounts by country
       const comparison: Record<string, { country: string; crm: number; database: number }> = {};
       
       accounts?.forEach((a) => {
@@ -157,6 +167,18 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
           comparison[a.country].database++;
         }
       });
+
+      // Add external database data from Apollo
+      if (externalSource?.geography_breakdown) {
+        const geoBreakdown = externalSource.geography_breakdown as Record<string, { accounts: number; contacts: number }>;
+        Object.entries(geoBreakdown).forEach(([country, data]) => {
+          const countryName = country.charAt(0).toUpperCase() + country.slice(1);
+          if (!comparison[countryName]) {
+            comparison[countryName] = { country: countryName, crm: 0, database: 0 };
+          }
+          comparison[countryName].database = data.accounts;
+        });
+      }
       
       const sorted = Object.values(comparison)
         .sort((a, b) => (b.crm + b.database) - (a.crm + a.database))
@@ -359,8 +381,8 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
                   }}
                 />
                 <Legend />
-                <Bar dataKey="crm" fill="hsl(var(--primary))" name="CRM" />
-                <Bar dataKey="database" fill="hsl(var(--chart-2))" name="Database" />
+                <Bar dataKey="crm" fill="#3b82f6" name="CRM" />
+                <Bar dataKey="database" fill="#10b981" name="Database" />
               </BarChart>
             </ResponsiveContainer>
           </div>

@@ -37,6 +37,7 @@ import { ExternalGeographyBreakdownCard } from "@/components/executive/ExternalG
 import { ExternalMarketBreakdownCard } from "@/components/executive/ExternalMarketBreakdownCard";
 import { EnhancedTAMCard } from "@/components/executive/EnhancedTAMCard";
 import { FitDistributionHero } from "@/components/executive/FitDistributionHero";
+import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -390,15 +391,37 @@ export default function ExecutiveDashboard() {
               />
 
               {/* TAM/SAM/SOM Calculator - Shown for all filters */}
-              <TAMSAMSOMCalculator
-                totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-                highFitAccounts={sourceFilter === 'database' ? 0 : highFitAccounts}
-                campaignReadyAccounts={sourceFilter === 'database' ? 0 : campaignReadyAccounts}
-                averageDealSize={75000}
-                conversionRate={0.15}
-                externalTAMAccounts={tamData?.totalAccounts}
-                isExternalView={sourceFilter === 'database'}
-              />
+              {sourceFilter === 'database' && tamData ? (
+                (() => {
+                  const { sam, som } = calculateExternalTAMMetrics(
+                    tamData,
+                    icpProfiles[0] || null,
+                    0.15,
+                    12
+                  );
+                  return (
+                    <TAMSAMSOMCalculator
+                      totalAccounts={tamData.totalAccounts}
+                      highFitAccounts={sam}
+                      campaignReadyAccounts={som}
+                      averageDealSize={75000}
+                      conversionRate={0.15}
+                      externalTAMAccounts={tamData.totalAccounts}
+                      isExternalView={true}
+                    />
+                  );
+                })()
+              ) : (
+                <TAMSAMSOMCalculator
+                  totalAccounts={totalAccounts}
+                  highFitAccounts={highFitAccounts}
+                  campaignReadyAccounts={campaignReadyAccounts}
+                  averageDealSize={75000}
+                  conversionRate={0.15}
+                  externalTAMAccounts={tamData?.totalAccounts}
+                  isExternalView={false}
+                />
+              )}
 
               {/* Geography Distribution - Shown for all filters */}
               {geographyData && geographyData.length > 0 && (
@@ -406,6 +429,7 @@ export default function ExecutiveDashboard() {
                   geoData={geographyDistribution} 
                   invalidCount={0}
                   title={sourceFilter === 'database' ? 'TAM Geographic Distribution' : 'Your Geographic Distribution'}
+                  sourceFilter={sourceFilter}
                 />
               )}
             </div>
