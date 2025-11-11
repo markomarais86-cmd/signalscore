@@ -54,16 +54,16 @@ export function HeroMetric({
 
   return (
     <Card className={`relative overflow-hidden border-l-4 ${getStatusColor()} hover:shadow-lg transition-all duration-300`}>
-      <div className="p-6">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-3">
+      <div className="p-3 lg:p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2 lg:gap-3">
             {Icon && (
-              <div className="p-3 bg-primary/10 rounded-lg">
-                <Icon className="h-6 w-6 text-primary" />
+              <div className="p-2 lg:p-3 bg-primary/10 rounded-lg">
+                <Icon className="h-5 w-5 lg:h-6 lg:w-6 text-primary" />
               </div>
             )}
             <div>
-              <p className="text-sm font-medium text-muted-foreground">{label}</p>
+              <p className="text-xs lg:text-sm font-medium text-muted-foreground leading-tight">{label}</p>
               {subtitle && <p className="text-xs text-muted-foreground/70">{subtitle}</p>}
             </div>
           </div>
@@ -71,11 +71,11 @@ export function HeroMetric({
 
         <div className="flex items-end justify-between">
           <div>
-            <div className="text-5xl font-bold tracking-tight mb-1">
+            <div className="text-3xl lg:text-4xl 2xl:text-5xl font-bold tracking-tight mb-1 leading-tight">
               {typeof value === 'number' ? formatNumber(value) : value}
             </div>
             {trend && (
-              <div className={`flex items-center gap-1 text-sm font-medium ${getTrendColor()}`}>
+              <div className={`flex items-center gap-1 text-xs lg:text-sm font-medium ${getTrendColor()}`}>
                 {getTrendIcon()}
                 <span>{Math.abs(trend.value).toFixed(2)}% vs {trend.period}</span>
               </div>
@@ -83,7 +83,7 @@ export function HeroMetric({
           </div>
 
           {chart && (
-            <div className="w-32 h-16">
+            <div className="w-24 lg:w-32 h-12 lg:h-16">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chart.data}>
                   <defs>

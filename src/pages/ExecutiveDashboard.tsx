@@ -231,12 +231,12 @@ export default function ExecutiveDashboard() {
   }
 
   return (
-    <div className="max-w-[1600px] mx-auto space-y-4">
+    <div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-3 lg:space-y-4">
       {/* Header Section */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex items-center justify-between flex-wrap gap-3 lg:gap-4">
           <div>
-            <h1 className="text-2xl font-semibold">Executive Dashboard</h1>
-            <p className="text-muted-foreground">Filter data by source to focus on your CRM, database, or combined view</p>
+            <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">Executive Dashboard</h1>
+            <p className="text-xs lg:text-sm text-muted-foreground mt-1">Filter data by source to focus on your CRM, database, or combined view</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <SourceFilterToggle
@@ -289,11 +289,11 @@ export default function ExecutiveDashboard() {
           <>
             {/* Your Database Metrics */}
             <div>
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <h2 className="text-lg lg:text-xl font-semibold mb-3 flex items-center gap-2">
                 <Database className="h-5 w-5" />
                 Your Database
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 lg:gap-4 xl:gap-5">
                 <HeroMetric
                   label="Total Accounts"
                   value={totalAccounts}
@@ -337,7 +337,7 @@ export default function ExecutiveDashboard() {
             {/* Available Market Card - NOT shown for database filter (redundant with TAM calculator) */}
 
             {/* Main Content Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 lg:gap-4 xl:gap-5">
 
               {/* ICP Coverage Card */}
               <ICPCoverageCard
@@ -389,7 +389,7 @@ export default function ExecutiveDashboard() {
 
               {/* Enhanced TAM Card for Database View */}
               {sourceFilter === 'database' && tamData && tamData.totalAccounts > 0 && (
-                <div className="lg:col-span-2 xl:col-span-3">
+                <div className="md:col-span-2 xl:col-span-3 2xl:col-span-4">
                   <EnhancedTAMCard
                     totalAccounts={tamData.totalAccounts || 0}
                     totalContacts={tamData.totalLeads || 0}

@@ -48,61 +48,61 @@ export function EnhancedTAMCard({
 
   return (
     <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-background to-background">
-      <CardHeader className="pb-2 p-4">
+      <CardHeader className="pb-2 p-3 lg:p-4">
         <div className="flex items-start justify-between">
           <div>
-            <CardTitle className="text-lg font-medium text-muted-foreground">Total Addressable Market</CardTitle>
+            <CardTitle className="text-base lg:text-lg font-medium text-muted-foreground leading-tight">Total Addressable Market</CardTitle>
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-4xl font-bold text-primary">{formatCurrency(totalTAMValue)}</span>
-              <span className="text-sm text-muted-foreground">via {provider}</span>
+              <span className="text-2xl lg:text-3xl 2xl:text-4xl font-bold text-primary leading-tight">{formatCurrency(totalTAMValue)}</span>
+              <span className="text-xs lg:text-sm text-muted-foreground">via {provider}</span>
             </div>
           </div>
-          <div className="rounded-lg bg-primary/10 p-3">
-            <TrendingUp className="h-6 w-6 text-primary" />
+          <div className="rounded-lg bg-primary/10 p-2 lg:p-3">
+            <TrendingUp className="h-5 w-5 lg:h-6 lg:w-6 text-primary" />
           </div>
         </div>
       </CardHeader>
       
-      <CardContent className="space-y-4 p-4 pt-0">
+      <CardContent className="space-y-3 lg:space-y-4 p-3 lg:p-4 pt-0">
         {/* Market Overview Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
+          <div className="space-y-1 bg-muted/30 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-xs lg:text-sm text-muted-foreground">
               <Building2 className="h-4 w-4" />
               <span>Total Accounts</span>
             </div>
-            <div className="text-2xl font-bold">{formatAbbreviated(totalAccounts)}</div>
+            <div className="text-xl lg:text-2xl font-bold leading-tight">{formatAbbreviated(totalAccounts)}</div>
           </div>
           
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="space-y-1 bg-muted/30 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-xs lg:text-sm text-muted-foreground">
               <Users className="h-4 w-4" />
               <span>Total Contacts</span>
             </div>
-            <div className="text-2xl font-bold">{formatAbbreviated(totalContacts)}</div>
+            <div className="text-xl lg:text-2xl font-bold leading-tight">{formatAbbreviated(totalContacts)}</div>
           </div>
           
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="space-y-1 bg-muted/30 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-xs lg:text-sm text-muted-foreground">
               <Globe className="h-4 w-4" />
               <span>Geographic Reach</span>
             </div>
-            <div className="text-2xl font-bold">{totalCountries} countries</div>
+            <div className="text-xl lg:text-2xl font-bold leading-tight">{totalCountries} countries</div>
           </div>
           
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="space-y-1 bg-muted/30 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-xs lg:text-sm text-muted-foreground">
               <DollarSign className="h-4 w-4" />
               <span>Avg Deal Size</span>
             </div>
-            <div className="text-2xl font-bold">{formatCurrency(averageDealSize)}</div>
+            <div className="text-xl lg:text-2xl font-bold leading-tight">{formatCurrency(averageDealSize)}</div>
           </div>
         </div>
 
         {/* Top Industries */}
         {topIndustries.length > 0 && (
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium text-foreground">Top Industries</h4>
+          <div className="space-y-2 lg:space-y-3">
+            <h4 className="text-xs lg:text-sm font-medium text-foreground">Top Industries</h4>
             <div className="space-y-2">
               {topIndustries.map(([industry, data]: [string, any]) => (
                 <div key={industry} className="space-y-1">
