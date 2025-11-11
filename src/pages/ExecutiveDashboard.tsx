@@ -403,18 +403,16 @@ export default function ExecutiveDashboard() {
                 </div>
               )}
 
-              {/* TAM/SAM/SOM Calculator - Show for CRM and All views */}
-              {sourceFilter !== 'database' && (
-                <TAMSAMSOMCalculator
-                  totalAccounts={totalAccounts}
-                  highFitAccounts={highFitAccounts}
-                  campaignReadyAccounts={campaignReadyAccounts}
-                  averageDealSize={75000}
-                  conversionRate={0.15}
-                  externalTAMAccounts={tamData?.totalAccounts}
-                  isExternalView={false}
-                />
-              )}
+              {/* TAM/SAM/SOM Calculator - Uses Apollo data in Database view, local data in CRM/All views */}
+              <TAMSAMSOMCalculator
+                totalAccounts={totalAccounts}
+                highFitAccounts={highFitAccounts}
+                campaignReadyAccounts={campaignReadyAccounts}
+                averageDealSize={75000}
+                conversionRate={0.15}
+                externalTAMAccounts={tamData?.totalAccounts}
+                isExternalView={sourceFilter === 'database'}
+              />
 
               {/* External Database Geography - Show real breakdown */}
               {sourceFilter === 'database' && tamData?.geography_breakdown && Object.keys(tamData.geography_breakdown).length > 0 && (
