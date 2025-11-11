@@ -67,7 +67,7 @@ export default function ExecutiveDashboard() {
   const totalLeads = dashboardData?.metrics?.total_leads || 0;
   const campaignReadyAccounts = dashboardData?.metrics?.campaign_ready_accounts || 0;
   const campaignReadyContacts = dashboardData?.metrics?.campaign_ready_contacts || 0;
-  const dataCompleteness = dashboardData?.metrics?.data_completeness || 0;
+  const dataCompleteness = Math.round(dashboardData?.metrics?.data_completeness || 0);
 
   const highFitAccounts = dashboardData?.metrics?.high_fit_scores || 0;
   const medFitAccounts = dashboardData?.metrics?.med_fit_scores || 0;
