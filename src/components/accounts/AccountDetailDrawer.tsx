@@ -73,23 +73,7 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
 
-  if (!account) return null;
-
-  const calculateDataCompleteness = (acc: Account) => {
-    const fields = [acc.name, acc.domain, acc.industry_norm, acc.employee_count, acc.revenue_range, acc.country];
-    const filledFields = fields.filter(Boolean).length;
-    return Number(((filledFields / fields.length) * 100).toFixed(2));
-  };
-
-  const completeness = calculateDataCompleteness(account);
-
-  const getDataQualityBadge = (score: number) => {
-    if (score >= 80) return <Badge className="bg-[hsl(var(--signal-high))]">Excellent</Badge>;
-    if (score >= 60) return <Badge className="bg-[hsl(var(--signal-medium))]">Good</Badge>;
-    if (score >= 40) return <Badge className="bg-primary">Fair</Badge>;
-    return <Badge className="bg-[hsl(var(--signal-low))]">Needs Enrichment</Badge>;
-  };
-
+  // All hooks must be called before any conditional returns
   const fetchLeads = useCallback(async () => {
     if (!account || !userProfile?.org_id) return;
     
@@ -118,6 +102,24 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
       fetchLeads();
     }
   }, [isOpen, account, fetchLeads]);
+
+  // Now safe to return early after all hooks are called
+  if (!account) return null;
+
+  const calculateDataCompleteness = (acc: Account) => {
+    const fields = [acc.name, acc.domain, acc.industry_norm, acc.employee_count, acc.revenue_range, acc.country];
+    const filledFields = fields.filter(Boolean).length;
+    return Number(((filledFields / fields.length) * 100).toFixed(2));
+  };
+
+  const completeness = calculateDataCompleteness(account);
+
+  const getDataQualityBadge = (score: number) => {
+    if (score >= 80) return <Badge className="bg-[hsl(var(--signal-high))]">Excellent</Badge>;
+    if (score >= 60) return <Badge className="bg-[hsl(var(--signal-medium))]">Good</Badge>;
+    if (score >= 40) return <Badge className="bg-primary">Fair</Badge>;
+    return <Badge className="bg-[hsl(var(--signal-low))]">Needs Enrichment</Badge>;
+  };
 
   const handleViewAllLeads = () => {
     navigate(`/leads?account=${account.external_id}`);
