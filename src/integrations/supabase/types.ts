@@ -2835,6 +2835,14 @@ export type Database = {
         }
         Returns: Json
       }
+      calculate_account_score_readonly: {
+        Args: {
+          account_external_id: string
+          icp_id: string
+          org_id_param: string
+        }
+        Returns: Json
+      }
       calculate_data_completeness: {
         Args: { p_org_id: string }
         Returns: number

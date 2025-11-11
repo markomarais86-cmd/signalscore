@@ -19,6 +19,7 @@ import { ClosedWonInsights } from "@/components/icp/ClosedWonInsights";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ICPRecommendationDialog } from "@/components/icp/ICPRecommendationDialog";
 import { ICPGridSkeleton } from "@/components/ICPGridSkeleton";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function ICPManager() {
   const [icps, setIcps] = useState<ICPProfile[]>([]);
@@ -33,6 +34,7 @@ export default function ICPManager() {
   const { completeStep } = useOnboarding();
   const { flags } = useFeatureFlags();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (userProfile?.org_id) {
@@ -133,49 +135,44 @@ export default function ICPManager() {
     if (!userProfile?.org_id) return;
     
     try {
-      console.log('🚀 Starting fast SQL-based re-scoring...');
+      console.log('🚀 Starting SQL bulk scoring...');
       const startTime = Date.now();
       
-      // Use SQL bulk scoring function for instant results
       const { data, error } = await supabase
         .rpc('bulk_score_all_accounts', {
           p_org_id: userProfile.org_id,
-          p_icp_id: null  // Score against all active ICPs
+          p_icp_id: null
         });
-
-      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
       if (error) {
-        console.error('SQL scoring error:', error);
-        // Fallback to chunked approach if SQL fails
-        console.log('Falling back to chunked scoring...');
-        await supabase.functions.invoke('bulk-score-accounts', {
-          body: {
-            org_id: userProfile.org_id,
-            chunk_index: 0,
-            chunk_size: 5000,
-          }
-        });
+        console.error('❌ SQL scoring failed:', error);
         
         toast({
-          title: "Re-scoring Started",
-          description: "Using standard processing method. May take a few minutes.",
+          title: "Scoring Failed",
+          description: error.message || "Please contact support",
+          variant: "destructive"
         });
-      } else {
-        console.log(`✅ SQL scoring completed in ${duration}s:`, data);
-        
-        const result = data as { success: boolean; processed: number; total_accounts: number; duration_seconds: number };
-        
-        toast({
-          title: "Re-scoring Complete! ⚡",
-          description: `${result.processed} accounts scored in ${duration}s. Dashboard updated!`,
-        });
+        return;
       }
-    } catch (error) {
-      console.error('Error triggering re-scoring:', error);
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      const result = data as { success: boolean; processed: number; total_accounts: number; duration_seconds: number };
+      
+      console.log(`✅ Scored ${result.processed} accounts in ${duration}s`);
+      
       toast({
-        title: "Re-scoring Error",
-        description: "Please try again or contact support.",
+        title: "Re-scoring Complete! ⚡",
+        description: `${result.processed} accounts scored in ${duration}s`,
+      });
+      
+      // Force refresh dashboard data
+      queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+      
+    } catch (error) {
+      console.error('💥 Unexpected error:', error);
+      toast({
+        title: "Scoring Error",
+        description: "An unexpected error occurred",
         variant: "destructive"
       });
     }
