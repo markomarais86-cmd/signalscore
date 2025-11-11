@@ -109,7 +109,9 @@ const Carousel = React.forwardRef<
         return
       }
 
+      // Initialize button states immediately on mount
       onSelect(api)
+      
       api.on("reInit", onSelect)
       api.on("select", onSelect)
 
