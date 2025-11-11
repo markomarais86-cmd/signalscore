@@ -191,8 +191,8 @@ serve(async (req) => {
       
       // Adjust multiplier based on company sizes
       if (icpData.company_sizes && icpData.company_sizes.length > 0) {
-        const hasLargeCompanies = icpData.company_sizes.some((size: string) => 
-          size.includes('1000') || size.includes('5000')
+        const hasLargeCompanies = icpData.company_sizes.some((size: number) => 
+          size >= 1000 // Companies with 1000+ employees
         );
         if (hasLargeCompanies) contactMultiplier *= 1.5; // More contacts in larger companies
       }
