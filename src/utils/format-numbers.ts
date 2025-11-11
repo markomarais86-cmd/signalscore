@@ -5,9 +5,11 @@
  * @returns Formatted string with commas
  */
 export function formatNumber(value: number | string, decimals?: number): string {
+  if (value === null || value === undefined) return '0';
+  
   const num = typeof value === 'string' ? parseFloat(value) : value;
   
-  if (isNaN(num)) return String(value);
+  if (isNaN(num)) return '0';
   
   if (decimals !== undefined) {
     return num.toLocaleString('en-US', {
@@ -26,6 +28,8 @@ export function formatNumber(value: number | string, decimals?: number): string 
  * @returns Formatted currency string
  */
 export function formatCurrency(value: number, currency: string = 'USD'): string {
+  if (value === null || value === undefined) return '$0';
+  
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency,
@@ -40,6 +44,8 @@ export function formatCurrency(value: number, currency: string = 'USD'): string 
  * @returns Abbreviated string (e.g., "1.2K", "5.3M")
  */
 export function formatAbbreviated(value: number): string {
+  if (value === null || value === undefined) return '0';
+  
   if (value >= 1_000_000_000) {
     return `${(value / 1_000_000_000).toFixed(1)}B`;
   }
