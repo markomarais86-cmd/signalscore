@@ -33,19 +33,23 @@ serve(async (req) => {
 
     console.log('Analyzing correlations for org:', org_id);
 
-    // Get closed won leads with their accounts
-    const { data: leads, error: leadsError } = await supabase
-      .from('Leads')
-      .select('external_id, status')
-      .eq('org_id', org_id)
-      .in('status', ['won', 'closed_won', 'qualified']);
+    // Fetch closed won deals to identify customer accounts
+    const { data: closedWonDeals, error: dealsError } = await supabase
+      .from('closed_won_deals')
+      .select('account_external_id')
+      .eq('org_id', org_id);
 
-    if (leadsError) throw leadsError;
+    if (dealsError) {
+      console.error('Error fetching closed won deals:', dealsError);
+      return new Response(JSON.stringify({ error: 'Failed to fetch closed won deals' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    const wonLeadIds = new Set(
-      (leads || [])
-        .filter(l => l.status === 'won' || l.status === 'closed_won')
-        .map(l => l.external_id)
+    // Create set of won account IDs for fast lookup
+    const wonAccountIds = new Set(
+      (closedWonDeals || []).map(d => d.account_external_id)
     );
 
     // Get all accounts with their associated lead status
@@ -63,18 +67,23 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Analyzing ${accounts.length} accounts, ${wonLeadIds.size} closed won`);
+    console.log(`Analyzing ${accounts.length} accounts, ${wonAccountIds.size} closed won`);
 
-    // Get contacts to measure reachability
-    const { data: contacts, error: contactsError } = await supabase
-      .from('contacts')
+    // Fetch leads for reachability analysis (contacts per account)
+    const { data: leads, error: leadsError } = await supabase
+      .from('Leads')
       .select('account_external_id')
       .eq('org_id', org_id);
 
-    if (contactsError) throw contactsError;
+    if (leadsError) {
+      console.error('Error fetching leads:', leadsError);
+    }
 
-    const contactCounts = (contacts || []).reduce((acc, c) => {
-      acc[c.account_external_id] = (acc[c.account_external_id] || 0) + 1;
+    // Count leads per account
+    const leadCounts = (leads || []).reduce((acc, lead) => {
+      if (lead.account_external_id) {
+        acc[lead.account_external_id] = (acc[lead.account_external_id] || 0) + 1;
+      }
       return acc;
     }, {} as Record<string, number>);
 
@@ -101,8 +110,8 @@ serve(async (req) => {
 
     // Prepare data for statistical analysis
     const analysisData = accounts.map(account => {
-      const contactCount = contactCounts[account.external_id] || 0;
-      const isClosedWon = wonLeadIds.has(account.external_id);
+      const contactCount = leadCounts[account.external_id] || 0;
+      const isClosedWon = wonAccountIds.has(account.external_id);
       
       return {
         name: account.name,
@@ -285,6 +294,83 @@ Mark significant=true if p < 0.05. Strength: strong if |r| > 0.5, moderate if > 
 
     if (!correlationAnalysis) {
       throw new Error('Failed to parse AI response');
+    }
+
+    // Store feature weights using the v2.0 formula: weight = |r| × (1 - p)
+    const featureWeights = [
+      { 
+        feature_name: 'industry', 
+        r_value: industryCorr.r, 
+        p_value: industryCorr.p,
+        weight: Math.abs(industryCorr.r) * (1 - industryCorr.p),
+        is_significant: industryCorr.p < 0.1,
+        sample_size: industryCorr.sampleSize
+      },
+      { 
+        feature_name: 'size', 
+        r_value: sizeCorr.r, 
+        p_value: sizeCorr.p,
+        weight: Math.abs(sizeCorr.r) * (1 - sizeCorr.p),
+        is_significant: sizeCorr.p < 0.1,
+        sample_size: sizeCorr.sampleSize
+      },
+      { 
+        feature_name: 'revenue', 
+        r_value: revenueCorr.r, 
+        p_value: revenueCorr.p,
+        weight: Math.abs(revenueCorr.r) * (1 - revenueCorr.p),
+        is_significant: revenueCorr.p < 0.1,
+        sample_size: revenueCorr.sampleSize
+      },
+      { 
+        feature_name: 'geography', 
+        r_value: geoCorr.r, 
+        p_value: geoCorr.p,
+        weight: Math.abs(geoCorr.r) * (1 - geoCorr.p),
+        is_significant: geoCorr.p < 0.1,
+        sample_size: geoCorr.sampleSize
+      },
+      { 
+        feature_name: 'contacts', 
+        r_value: contactsCorr.r, 
+        p_value: contactsCorr.p,
+        weight: Math.abs(contactsCorr.r) * (1 - contactsCorr.p),
+        is_significant: contactsCorr.p < 0.1,
+        sample_size: analysisData.length
+      },
+      { 
+        feature_name: 'data_quality', 
+        r_value: dataQualityCorr.r, 
+        p_value: dataQualityCorr.p,
+        weight: Math.abs(dataQualityCorr.r) * (1 - dataQualityCorr.p),
+        is_significant: dataQualityCorr.p < 0.1,
+        sample_size: analysisData.length
+      }
+    ];
+
+    console.log('Storing feature weights in database...');
+
+    // Upsert feature weights
+    for (const fw of featureWeights) {
+      const { error: weightError } = await supabase
+        .from('icp_feature_weights')
+        .upsert({
+          org_id,
+          icp_id: icp.id,
+          feature_name: fw.feature_name,
+          r_value: fw.r_value,
+          p_value: fw.p_value,
+          weight: fw.weight,
+          is_significant: fw.is_significant,
+          sample_size: fw.sample_size,
+          computed_at: new Date().toISOString()
+        }, {
+          onConflict: 'org_id,icp_id,feature_name'
+        });
+
+      if (weightError) {
+        console.error(`Error storing weight for ${fw.feature_name}:`, weightError);
+      }
     }
 
     // Store correlation weights and statistics in database

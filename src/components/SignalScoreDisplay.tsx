@@ -6,6 +6,8 @@ interface SignalScoreDisplayProps {
   showLabel?: boolean;
   trend?: number;
   className?: string;
+  showBand?: boolean;
+  band?: 'A' | 'B' | 'C';
 }
 
 export function SignalScoreDisplay({
@@ -13,8 +15,12 @@ export function SignalScoreDisplay({
   size = "md",
   showLabel = true,
   trend,
-  className
+  className,
+  showBand = false,
+  band
 }: SignalScoreDisplayProps) {
+  // Auto-calculate band if not provided
+  const scoreBand = band || (score >= 70 ? 'A' : score >= 40 ? 'B' : 'C');
   const getScoreColor = (score: number) => {
     if (score >= 80) return "text-[hsl(var(--signal-high))]";
     if (score >= 50) return "text-[hsl(var(--signal-medium))]";
@@ -47,6 +53,12 @@ export function SignalScoreDisplay({
     xl: "text-lg px-6 py-3"
   };
 
+  const getBandClass = (band: 'A' | 'B' | 'C') => {
+    if (band === 'A') return 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20';
+    if (band === 'B') return 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20';
+    return 'bg-muted text-muted-foreground border-border';
+  };
+
   return (
     <div className={cn("flex items-center gap-3", className)}>
       <div className="relative">
@@ -63,7 +75,17 @@ export function SignalScoreDisplay({
         )}
       </div>
       
-      {showLabel && (
+      {showBand && (
+        <div className={cn(
+          "rounded-md border font-semibold px-2 py-1",
+          badgeSizeClasses[size],
+          getBandClass(scoreBand)
+        )}>
+          {scoreBand}
+        </div>
+      )}
+      
+      {showLabel && !showBand && (
         <div className="flex flex-col">
           <div className={cn(
             "rounded-full font-medium text-white",

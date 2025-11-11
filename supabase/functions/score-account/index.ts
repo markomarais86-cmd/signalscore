@@ -67,78 +67,77 @@ serve(async (req) => {
 
     console.log(`Found ${icpProfiles.length} ICP profiles to score against`);
 
-    // Calculate score using the database function and correlation weights
+    // Check if we have cached feature weights (v2.0 scoring)
+    const { data: hasWeights } = await supabase
+      .from('icp_feature_weights')
+      .select('id')
+      .eq('org_id', org_id)
+      .limit(1);
+
     let bestScore = null;
     let bestIcpId = null;
-    let correlationWeights: any = null;
 
-    // Try to get correlation weights for smarter scoring
-    try {
-      const { data: correlationData } = await supabase.functions.invoke('analyze-correlations', {
-        body: { org_id }
-      });
-      
-      if (correlationData?.correlations) {
-        correlationWeights = correlationData.correlations;
-        console.log('Using correlation-based weights:', correlationWeights);
-      }
-    } catch (corrError) {
-      console.log('Falling back to equal weights (no correlation data available)');
-    }
-
+    // Iterate through ICPs
     for (const icp of icpProfiles) {
-      // Get base score from database function
-      const { data: scoreResult, error: scoreError } = await supabase
-        .rpc('calculate_account_score', {
-          account_external_id,
-          icp_id: icp.id,
-          org_id_param: org_id
-        });
+      try {
+        let scoreData: any;
+        
+        // Use weighted scoring v2.0 if weights are available
+        if (hasWeights && hasWeights.length > 0) {
+          console.log('Using Statistical Scoring v2.0 with cached weights');
+          
+          const { data, error: scoreError } = await supabase
+            .rpc('calculate_weighted_account_score', {
+              p_account_external_id: account_external_id,
+              p_icp_id: icp.id,
+              p_org_id: org_id
+            });
 
-      if (scoreError) {
-        console.error('Score calculation error:', scoreError);
+          if (scoreError) throw scoreError;
+          
+          // Calculate score band (A/B/C)
+          let band = 'C';
+          if (data.overall >= 70) band = 'A';
+          else if (data.overall >= 40) band = 'B';
+          
+          scoreData = {
+            overall: data.overall,
+            fit: data.overall, // Use overall score for fit in v2
+            intent: 50, // Placeholder for future intent signals
+            reachability: 50, // Placeholder for future reachability calculation
+            breakdown: data.breakdown,
+            band: band,
+            confidence: data.confidence,
+            scoring_version: 'statistical_v2.0'
+          };
+          
+          console.log(`Score: ${data.overall} (Band ${band}, Confidence ${data.confidence}%)`);
+        } else {
+          console.log('Falling back to legacy scoring (no weights available)');
+          
+          // Fallback to legacy scoring
+          const { data, error: scoreError } = await supabase
+            .rpc('calculate_account_score', {
+              account_external_id,
+              icp_id: icp.id,
+              org_id_param: org_id
+            });
+
+          if (scoreError) throw scoreError;
+          
+          scoreData = {
+            ...data,
+            scoring_version: 'legacy_v1.0'
+          };
+        }
+
+        if (!bestScore || scoreData.overall > bestScore.overall) {
+          bestScore = scoreData;
+          bestIcpId = icp.id;
+        }
+      } catch (error) {
+        console.error(`Error scoring against ICP ${icp.id}:`, error);
         continue;
-      }
-
-      if (!scoreResult) continue;
-
-      // Apply correlation-based weighting if available
-      let adjustedScore = scoreResult;
-      
-      if (correlationWeights) {
-        const breakdown = scoreResult.breakdown || {};
-        
-        // Recalculate overall score using correlation weights
-        const industryScore = breakdown.industry_score || 0;
-        const sizeScore = breakdown.size_score || 0;
-        const revenueScore = breakdown.revenue_score || 0;
-        const geoScore = breakdown.geo_score || 0;
-        
-        const weightedOverall = Math.round(
-          (industryScore * (correlationWeights.industry?.weight || 25) / 25) +
-          (sizeScore * (correlationWeights.size?.weight || 25) / 25) +
-          (revenueScore * (correlationWeights.revenue?.weight || 25) / 25) +
-          (geoScore * (correlationWeights.geography?.weight || 25) / 25)
-        );
-        
-        adjustedScore = {
-          ...scoreResult,
-          overall: weightedOverall,
-          correlation_adjusted: true,
-          weights_used: {
-            industry: correlationWeights.industry?.weight || 25,
-            size: correlationWeights.size?.weight || 25,
-            revenue: correlationWeights.revenue?.weight || 25,
-            geography: correlationWeights.geography?.weight || 25
-          }
-        };
-        
-        console.log(`Adjusted score from ${scoreResult.overall} to ${weightedOverall} using correlations`);
-      }
-
-      if (!bestScore || adjustedScore.overall > bestScore.overall) {
-        bestScore = adjustedScore;
-        bestIcpId = icp.id;
       }
     }
 
@@ -149,7 +148,7 @@ serve(async (req) => {
     console.log('Best score calculated:', bestScore);
 
     // Store score in database
-    const scoringVersion = version_hint || 'icp_v2.0';
+    const scoringVersion = bestScore.scoring_version || version_hint || 'statistical_v2.0';
     const { error: scoreError } = await supabase
       .from('scores')
       .upsert({
@@ -198,6 +197,8 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         overall: bestScore.overall,
+        band: bestScore.band,
+        confidence: bestScore.confidence,
         components: {
           fit: bestScore.fit,
           intent: bestScore.intent,

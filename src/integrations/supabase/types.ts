@@ -1205,6 +1205,63 @@ export type Database = {
           },
         ]
       }
+      icp_feature_weights: {
+        Row: {
+          computed_at: string | null
+          created_at: string | null
+          feature_name: string
+          icp_id: string
+          id: string
+          is_significant: boolean
+          org_id: string
+          p_value: number
+          r_value: number
+          sample_size: number | null
+          weight: number
+        }
+        Insert: {
+          computed_at?: string | null
+          created_at?: string | null
+          feature_name: string
+          icp_id: string
+          id?: string
+          is_significant?: boolean
+          org_id: string
+          p_value: number
+          r_value: number
+          sample_size?: number | null
+          weight: number
+        }
+        Update: {
+          computed_at?: string | null
+          created_at?: string | null
+          feature_name?: string
+          icp_id?: string
+          id?: string
+          is_significant?: boolean
+          org_id?: string
+          p_value?: number
+          r_value?: number
+          sample_size?: number | null
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "icp_feature_weights_icp_id_fkey"
+            columns: ["icp_id"]
+            isOneToOne: false
+            referencedRelation: "icp_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "icp_feature_weights_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       icp_profiles: {
         Row: {
           budget_indicators: string[] | null
@@ -2765,6 +2822,14 @@ export type Database = {
       calculate_data_completeness: {
         Args: { p_org_id: string }
         Returns: number
+      }
+      calculate_weighted_account_score: {
+        Args: {
+          p_account_external_id: string
+          p_icp_id: string
+          p_org_id: string
+        }
+        Returns: Json
       }
       check_rate_limit: {
         Args: {
