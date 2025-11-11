@@ -353,6 +353,11 @@ export function TAMSAMSOMCalculator({
               <div className="text-xs text-muted-foreground mt-1">
                 {somAccounts.toLocaleString()} ready
               </div>
+              {somAccounts === 0 && (
+                <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                  ⚠️ No campaign-ready accounts
+                </div>
+              )}
             </div>
           </div>
 

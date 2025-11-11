@@ -209,8 +209,8 @@ export default function ExecutiveDashboard() {
               value={sourceFilter}
               onChange={setSourceFilter}
               stats={{
-                total: totalAccounts,
-                crm: totalAccounts,
+                total: totalAccounts + (tamData?.totalAccounts || 0),
+                crm: crmAccounts,
                 database: tamData?.totalAccounts || 0,
               }}
             />
@@ -247,7 +247,7 @@ export default function ExecutiveDashboard() {
                 <Database className="h-5 w-5" />
                 Your Database
               </h2>
-              <div className={`grid grid-cols-1 md:grid-cols-${sourceFilter === 'database' ? '4' : '3'} gap-4`}>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <HeroMetric
                   label="Total Accounts"
                   value={totalAccounts}
@@ -264,22 +264,11 @@ export default function ExecutiveDashboard() {
                 <HeroMetric
                   label="Campaign Ready"
                   value={campaignReadyContacts}
-                  subtitle={`${campaignReadyAccounts} accounts with contacts`}
+                  subtitle={`${campaignReadyAccounts} high-fit accounts with valid contacts (email + title + persona)`}
                   trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
                   icon={Sparkles}
                   status={campaignReadyContacts > 0 ? 'success' : 'warning'}
                 />
-                
-                {/* Available TAM - Only show when Database filter is active */}
-                {sourceFilter === 'database' && tamData && (
-                  <HeroMetric
-                    label="Available TAM"
-                    value={tamData.totalAccounts}
-                    subtitle={`${tamData.provider} opportunity`}
-                    icon={Database}
-                    status="success"
-                  />
-                )}
               </div>
             </div>
 
@@ -370,8 +359,33 @@ export default function ExecutiveDashboard() {
                 externalTAMAccounts={tamData?.totalAccounts}
               />
 
-              {/* Enhanced Geography Card */}
-              <EnhancedGeographyCard geoData={geographyDistribution} invalidCount={0} />
+              {/* Enhanced Geography Card - Hide for Database Only */}
+              {sourceFilter !== 'database' && (
+                <EnhancedGeographyCard geoData={geographyDistribution} invalidCount={0} />
+              )}
+
+              {/* Database Only - Show Geography Explanation */}
+              {sourceFilter === 'database' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MapPin className="h-5 w-5" />
+                      Geography Distribution
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Geography data is not available for external database accounts. These are aggregate totals from {tamData?.provider} 
+                        ({(tamData?.totalAccounts || 0).toLocaleString()} accounts matching your ICP filters).
+                        <br /><br />
+                        To see detailed geography breakdowns, switch to "All Sources" or "CRM Only".
+                      </AlertDescription>
+                    </Alert>
+                  </CardContent>
+                </Card>
+              )}
             </div>
 
             {/* Bottom Cards */}
