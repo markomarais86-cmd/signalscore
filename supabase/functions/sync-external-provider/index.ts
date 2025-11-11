@@ -107,25 +107,23 @@ serve(async (req) => {
         return { min: minRevenue, max: maxRevenue };
       };
 
-      // Build Apollo search criteria from ICP
-      const requestBody: any = {
+      // Build Apollo search criteria from ICP - we'll paginate to get enough data
+      const baseRequestBody: any = {
         page: 1,
-        per_page: 2500, // Fetch actual records to calculate breakdowns client-side
-        // Request specific fields we need for breakdowns
-        organization_ids: [],
-        q_organization_keyword_tags: []
+        // Don't include per_page or page_size - Apollo doesn't support it
+        // Apollo returns default number of records per page (typically 25-100)
       };
 
       // Add geography filters
       if (icpData.geographies && icpData.geographies.length > 0) {
-        requestBody.organization_locations = icpData.geographies;
+        baseRequestBody.organization_locations = icpData.geographies;
       }
 
       // Add company size filters - convert to Apollo comma-separated format
       if (icpData.company_sizes && icpData.company_sizes.length > 0) {
         const apolloRanges = mapCompanySizesToApolloRanges(icpData.company_sizes);
         if (apolloRanges.length > 0) {
-          requestBody.organization_num_employees_ranges = apolloRanges;
+          baseRequestBody.organization_num_employees_ranges = apolloRanges;
         }
       }
 
@@ -134,41 +132,58 @@ serve(async (req) => {
         const { min, max } = parseRevenueRanges(icpData.revenue_ranges);
         // Apollo uses bracket notation: revenue_range[min] and revenue_range[max]
         if (min !== null) {
-          requestBody['revenue_range[min]'] = min;
+          baseRequestBody['revenue_range[min]'] = min;
         }
         if (max !== null) {
-          requestBody['revenue_range[max]'] = max;
+          baseRequestBody['revenue_range[max]'] = max;
         }
       }
 
       // Skip industry filters - Apollo expects numeric tag IDs, not names
 
-      console.log('Calling Apollo API with filters:', JSON.stringify(requestBody, null, 2));
+      console.log('Calling Apollo API with filters:', JSON.stringify(baseRequestBody, null, 2));
 
-      const apolloResponse = await fetch('https://api.apollo.io/v1/organizations/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Api-Key': apolloApiKey
-        },
-        body: JSON.stringify(requestBody)
-      });
+      // Fetch multiple pages to get a good sample (aim for ~1000-2000 records)
+      const allOrganizations: any[] = [];
+      let currentPage = 1;
+      const maxPages = 20; // Limit to 20 pages to avoid timeouts
+      let totalAccounts = 0;
 
-      if (!apolloResponse.ok) {
-        const errorText = await apolloResponse.text();
-        throw new Error(`Apollo API error: ${apolloResponse.status} - ${errorText}`);
+      while (currentPage <= maxPages) {
+        const requestBody = { ...baseRequestBody, page: currentPage };
+        
+        const apolloResponse = await fetch('https://api.apollo.io/v1/organizations/search', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Api-Key': apolloApiKey
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!apolloResponse.ok) {
+          const errorText = await apolloResponse.text();
+          throw new Error(`Apollo API error: ${apolloResponse.status} - ${errorText}`);
+        }
+
+        const apolloData = await apolloResponse.json();
+        const organizations = apolloData.organizations || [];
+        totalAccounts = apolloData.pagination?.total_entries || 0;
+        
+        allOrganizations.push(...organizations);
+        
+        console.log(`Page ${currentPage}: fetched ${organizations.length} organizations (total so far: ${allOrganizations.length})`);
+        
+        // Stop if we have enough data or no more pages
+        if (organizations.length === 0 || allOrganizations.length >= 1000 || currentPage >= (apolloData.pagination?.total_pages || 1)) {
+          break;
+        }
+        
+        currentPage++;
       }
 
-      const apolloData = await apolloResponse.json();
-      const organizations = apolloData.organizations || [];
-      const totalAccounts = apolloData.pagination?.total_entries || 0;
-      
-      console.log('Apollo response:', {
-        totalAccounts,
-        organizationsReturned: organizations.length,
-        page: apolloData.pagination?.page,
-        totalPages: apolloData.pagination?.total_pages
-      });
+      console.log(`Fetched ${allOrganizations.length} organizations from ${currentPage} pages. Total available: ${totalAccounts}`);
+
       
       // Estimate contacts based on ICP criteria
       let contactMultiplier = 3.5; // Base multiplier
@@ -200,7 +215,7 @@ serve(async (req) => {
       const revenueCounts: Record<string, number> = {};
 
       // Process each organization to build breakdowns
-      for (const org of organizations) {
+      for (const org of allOrganizations) {
         // Geography
         const country = org.country || 'Unknown';
         geographyCounts[country] = (geographyCounts[country] || 0) + 1;
