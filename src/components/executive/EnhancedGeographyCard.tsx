@@ -135,18 +135,28 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
   };
 
   const loadComparisonData = async () => {
+    console.log('[Geography] Loading comparison data for sourceFilter:', sourceFilter);
+    
     try {
       const comparison: Record<string, { country: string; crm: number; database: number }> = {};
 
       // When showing 'all', fetch both sources separately for side-by-side comparison
       if (sourceFilter === 'all') {
-        // Get CRM data
-        const { data: crmAccounts } = await supabase
+        // Get CRM data from accounts table
+        console.log('[Geography] Fetching CRM accounts...');
+        const { data: crmAccounts, error: crmError } = await supabase
           .from('accounts')
           .select('country')
           .eq('org_id', userProfile!.org_id)
           .not('country', 'is', null);
 
+        if (crmError) {
+          console.error('[Geography] CRM accounts error:', crmError);
+        } else {
+          console.log('[Geography] CRM accounts fetched:', crmAccounts?.length);
+        }
+
+        // Count CRM accounts by country
         crmAccounts?.forEach(account => {
           const country = account.country || 'Unknown';
           if (!comparison[country]) {
@@ -155,16 +165,28 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
           comparison[country].crm += 1;
         });
 
-        // Get Database data
-        const { data: externalSource } = await supabase
+        console.log('[Geography] CRM comparison after processing:', Object.keys(comparison).length, 'countries');
+        console.log('[Geography] Sample CRM data for United States:', comparison['United States']);
+
+        // Get Database data from external_data_sources
+        console.log('[Geography] Fetching external data source...');
+        const { data: externalSource, error: extError } = await supabase
           .from('external_data_sources')
           .select('geography_breakdown')
           .eq('org_id', userProfile!.org_id)
           .eq('is_active', true)
-          .single();
+          .maybeSingle();
+
+        if (extError) {
+          console.error('[Geography] External source error:', extError);
+        } else {
+          console.log('[Geography] External source fetched:', !!externalSource);
+        }
 
         if (externalSource?.geography_breakdown) {
           const geoBreakdown = externalSource.geography_breakdown as Record<string, { accounts: number }>;
+          console.log('[Geography] Processing geography_breakdown with', Object.keys(geoBreakdown).length, 'countries');
+          
           Object.entries(geoBreakdown).forEach(([country, data]) => {
             if (!comparison[country]) {
               comparison[country] = { country, crm: 0, database: 0 };
@@ -174,11 +196,18 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
         }
       } else {
         // For CRM or Database only, still show comparison with one bar populated
-        const { data: accounts } = await supabase
+        console.log('[Geography] Fetching accounts for single source filter...');
+        const { data: accounts, error: accountsError } = await supabase
           .from('accounts')
           .select('country, data_source')
           .eq('org_id', userProfile!.org_id)
           .not('country', 'is', null);
+
+        if (accountsError) {
+          console.error('[Geography] Accounts error:', accountsError);
+        } else {
+          console.log('[Geography] Accounts fetched:', accounts?.length);
+        }
 
         accounts?.forEach((a) => {
           if (!comparison[a.country]) {
@@ -192,12 +221,19 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
           }
         });
 
-        const { data: externalSource } = await supabase
+        console.log('[Geography] Fetching external source for single filter...');
+        const { data: externalSource, error: extError } = await supabase
           .from('external_data_sources')
           .select('geography_breakdown')
           .eq('org_id', userProfile!.org_id)
           .eq('is_active', true)
-          .single();
+          .maybeSingle();
+
+        if (extError) {
+          console.error('[Geography] External source error:', extError);
+        } else {
+          console.log('[Geography] External source fetched:', !!externalSource);
+        }
 
         if (externalSource?.geography_breakdown) {
           const geoBreakdown = externalSource.geography_breakdown as Record<string, { accounts: number }>;
@@ -210,13 +246,17 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
         }
       }
       
+      // Sort and limit to top 10
       const sorted = Object.values(comparison)
         .sort((a, b) => (b.crm + b.database) - (a.crm + a.database))
         .slice(0, 10);
       
+      console.log('[Geography] Final comparison data:', sorted);
+      console.log('[Geography] Sample data for United States:', sorted.find(c => c.country === 'United States'));
+      
       setComparisonData(sorted);
     } catch (error) {
-      console.error('Error loading comparison data:', error);
+      console.error('[Geography] Error loading comparison data:', error);
       setComparisonData([]);
     }
   };
