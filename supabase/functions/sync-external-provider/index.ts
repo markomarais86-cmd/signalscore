@@ -54,19 +54,57 @@ serve(async (req) => {
       // Helper function to map company sizes to Apollo ranges
       const mapCompanySizesToApolloRanges = (sizes: number[]): string[] => {
         const rangeMapping: Record<number, string> = {
-          1: '1-10',
-          10: '11-50',
-          50: '51-200',
-          200: '201-500',
-          500: '501-1000',
-          1000: '1001-5000',
-          2000: '1001-5000',
-          5000: '5001-10000',
-          10000: '10001+'
+          1: '1,10',
+          10: '11,50',
+          50: '51,200',
+          200: '201,500',
+          500: '501,1000',
+          1000: '1001,5000',
+          2000: '1001,5000',
+          5000: '5001,10000',
+          10000: '10001,999999'
         };
         
         const ranges = sizes.map(size => rangeMapping[size]).filter(Boolean);
         return [...new Set(ranges)]; // Remove duplicates
+      };
+
+      // Helper function to parse revenue range strings and get min/max values
+      const parseRevenueRanges = (revenueRanges: string[]): { min: number | null, max: number | null } => {
+        const parseAmount = (str: string): number => {
+          // Remove $, commas, and convert M/B to numbers
+          const clean = str.replace(/[$,]/g, '').trim();
+          if (clean.includes('B')) {
+            return parseFloat(clean.replace('B', '')) * 1000000000;
+          } else if (clean.includes('M')) {
+            return parseFloat(clean.replace('M', '')) * 1000000;
+          } else if (clean.includes('K')) {
+            return parseFloat(clean.replace('K', '')) * 1000;
+          }
+          return parseFloat(clean);
+        };
+
+        let minRevenue: number | null = null;
+        let maxRevenue: number | null = null;
+
+        for (const range of revenueRanges) {
+          // Handle ranges like "$1M-$5M", "$5M-$10M", "$10B+"
+          if (range.includes('-')) {
+            const parts = range.split('-');
+            const rangeMin = parseAmount(parts[0]);
+            const rangeMax = parseAmount(parts[1]);
+            
+            if (minRevenue === null || rangeMin < minRevenue) minRevenue = rangeMin;
+            if (maxRevenue === null || rangeMax > maxRevenue) maxRevenue = rangeMax;
+          } else if (range.includes('+')) {
+            // Handle ranges like "$10B+"
+            const rangeMin = parseAmount(range.replace('+', ''));
+            if (minRevenue === null || rangeMin < minRevenue) minRevenue = rangeMin;
+            // No max for "+" ranges
+          }
+        }
+
+        return { min: minRevenue, max: maxRevenue };
       };
 
       // Build Apollo search criteria from ICP
@@ -90,7 +128,7 @@ serve(async (req) => {
         requestBody.organization_locations = icpData.geographies;
       }
 
-      // Add company size filters - convert to Apollo range format
+      // Add company size filters - convert to Apollo comma-separated format
       if (icpData.company_sizes && icpData.company_sizes.length > 0) {
         const apolloRanges = mapCompanySizesToApolloRanges(icpData.company_sizes);
         if (apolloRanges.length > 0) {
@@ -98,13 +136,19 @@ serve(async (req) => {
         }
       }
 
-      // Add revenue filters
+      // Add revenue filters - parse and convert to min/max format
       if (icpData.revenue_ranges && icpData.revenue_ranges.length > 0) {
-        requestBody.revenue_range = icpData.revenue_ranges;
+        const { min, max } = parseRevenueRanges(icpData.revenue_ranges);
+        if (min !== null) {
+          requestBody.revenue_range = { min };
+        }
+        if (max !== null) {
+          if (!requestBody.revenue_range) requestBody.revenue_range = {};
+          requestBody.revenue_range.max = max;
+        }
       }
 
-      // Skip industry filters for now - Apollo expects numeric tag IDs, not names
-      // We would need a mapping table from industry names to Apollo tag IDs
+      // Skip industry filters - Apollo expects numeric tag IDs, not names
 
       console.log('Calling Apollo API with filters:', JSON.stringify(requestBody, null, 2));
 
