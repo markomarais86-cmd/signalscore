@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -52,13 +52,7 @@ export function AccountLeadsDialog({
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (open && accountExternalId && user?.user_metadata?.organization_id) {
-      fetchLeads();
-    }
-  }, [open, accountExternalId, user?.user_metadata?.organization_id]);
-
-  const fetchLeads = async () => {
+  const fetchLeads = useCallback(async () => {
     setIsLoading(true);
     try {
       const { data, error } = await supabase
@@ -77,7 +71,13 @@ export function AccountLeadsDialog({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [accountExternalId, user?.user_metadata?.organization_id]);
+
+  useEffect(() => {
+    if (open && accountExternalId && user?.user_metadata?.organization_id) {
+      fetchLeads();
+    }
+  }, [open, accountExternalId, user?.user_metadata?.organization_id, fetchLeads]);
 
   const handleViewAllLeads = () => {
     onOpenChange(false);
