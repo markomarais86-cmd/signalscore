@@ -16,9 +16,27 @@ interface SourceFilterToggleProps {
 
 export function SourceFilterToggle({ value, onChange, stats }: SourceFilterToggleProps) {
   const filters = [
-    { value: 'all' as const, label: 'All Sources', icon: Layers, count: stats.total },
-    { value: 'crm' as const, label: 'CRM Only', icon: Building2, count: stats.crm },
-    { value: 'database' as const, label: 'Database Only', icon: Database, count: stats.database },
+    { 
+      value: 'all' as const, 
+      label: 'All Sources', 
+      icon: Layers, 
+      count: stats.total,
+      tooltip: 'All internal data: CRM, manual uploads, closed-won accounts'
+    },
+    { 
+      value: 'crm' as const, 
+      label: 'CRM Only', 
+      icon: Building2, 
+      count: stats.crm,
+      tooltip: 'Internal database: CRM syncs, CSV uploads, closed-won deals'
+    },
+    { 
+      value: 'database' as const, 
+      label: 'Database Only', 
+      icon: Database, 
+      count: stats.database,
+      tooltip: 'Third-party databases: Apollo, ZoomInfo, Clearbit, Clay'
+    },
   ];
 
   return (
@@ -34,6 +52,7 @@ export function SourceFilterToggle({ value, onChange, stats }: SourceFilterToggl
             size="sm"
             onClick={() => onChange(filter.value)}
             className="gap-2"
+            title={filter.tooltip}
           >
             <Icon className="h-4 w-4" />
             {filter.label}

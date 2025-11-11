@@ -210,8 +210,8 @@ export default function ExecutiveDashboard() {
               onChange={setSourceFilter}
               stats={{
                 total: totalAccounts,
-                crm: crmAccounts + bothAccounts,
-                database: databaseAccounts + bothAccounts,
+                crm: totalAccounts,
+                database: tamData?.totalAccounts || 0,
               }}
             />
             <Button 
@@ -247,7 +247,7 @@ export default function ExecutiveDashboard() {
                 <Database className="h-5 w-5" />
                 Your Database
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className={`grid grid-cols-1 md:grid-cols-${sourceFilter === 'database' ? '4' : '3'} gap-4`}>
                 <HeroMetric
                   label="Total Accounts"
                   value={totalAccounts}
@@ -262,14 +262,6 @@ export default function ExecutiveDashboard() {
                   icon={Users}
                 />
                 <HeroMetric
-                  label="High Fit Accounts"
-                  value={highFitAccounts}
-                  subtitle={`${totalScores > 0 ? Math.round((highFitAccounts / totalScores) * 100) : 0}% of scored accounts`}
-                  trend={trendData?.highFitAccountsGrowth ? { value: trendData.highFitAccountsGrowth, period: "last week" } : undefined}
-                  icon={Target}
-                  status={highFitAccounts > 0 ? 'success' : 'warning'}
-                />
-                <HeroMetric
                   label="Campaign Ready"
                   value={campaignReadyContacts}
                   subtitle={`${campaignReadyAccounts} accounts with contacts`}
@@ -277,6 +269,17 @@ export default function ExecutiveDashboard() {
                   icon={Sparkles}
                   status={campaignReadyContacts > 0 ? 'success' : 'warning'}
                 />
+                
+                {/* Available TAM - Only show when Database filter is active */}
+                {sourceFilter === 'database' && tamData && (
+                  <HeroMetric
+                    label="Available TAM"
+                    value={tamData.totalAccounts}
+                    subtitle={`${tamData.provider} opportunity`}
+                    icon={Database}
+                    status="success"
+                  />
+                )}
               </div>
             </div>
 
@@ -296,8 +299,8 @@ export default function ExecutiveDashboard() {
               />
             )}
 
-            {/* Available Market TAM Reference */}
-            {tamData && tamData.totalAccounts > 0 && (
+            {/* Available Market TAM - Only show for "Database Only" filter */}
+            {sourceFilter === 'database' && tamData && tamData.totalAccounts > 0 && (
               <AvailableMarketCard
                 totalAccounts={tamData.totalAccounts}
                 totalContacts={tamData.totalLeads || 0}
