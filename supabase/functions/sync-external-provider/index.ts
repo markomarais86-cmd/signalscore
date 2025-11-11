@@ -136,15 +136,15 @@ serve(async (req) => {
         }
       }
 
-      // Add revenue filters - parse and convert to min/max format
+      // Add revenue filters - parse and convert to Apollo's flat bracket notation
       if (icpData.revenue_ranges && icpData.revenue_ranges.length > 0) {
         const { min, max } = parseRevenueRanges(icpData.revenue_ranges);
+        // Apollo uses bracket notation: revenue_range[min] and revenue_range[max]
         if (min !== null) {
-          requestBody.revenue_range = { min };
+          requestBody['revenue_range[min]'] = min;
         }
         if (max !== null) {
-          if (!requestBody.revenue_range) requestBody.revenue_range = {};
-          requestBody.revenue_range.max = max;
+          requestBody['revenue_range[max]'] = max;
         }
       }
 
