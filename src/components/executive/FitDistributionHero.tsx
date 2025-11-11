@@ -59,7 +59,7 @@ export function FitDistributionHero({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* High Fit */}
           <div
-            className="cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-high/20 bg-fit-high/5"
+            className="relative z-10 cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-high/20 bg-fit-high/5"
             onClick={() => navigate('/accounts?fit=high')}
           >
             <div className="flex items-center justify-between mb-2">
@@ -97,7 +97,7 @@ export function FitDistributionHero({
 
           {/* Medium Fit */}
           <div
-            className="cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-medium/20 bg-fit-medium/5"
+            className="relative z-10 cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-medium/20 bg-fit-medium/5"
             onClick={() => navigate('/accounts?fit=medium')}
           >
             <div className="flex items-center justify-between mb-2">
@@ -135,7 +135,7 @@ export function FitDistributionHero({
 
           {/* Low Fit */}
           <div
-            className="cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-low/20 bg-fit-low/5"
+            className="relative z-10 cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-low/20 bg-fit-low/5"
             onClick={() => navigate('/accounts?fit=low')}
           >
             <div className="flex items-center justify-between mb-2">
