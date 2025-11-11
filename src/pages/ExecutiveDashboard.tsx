@@ -293,7 +293,7 @@ export default function ExecutiveDashboard() {
                 <Database className="h-5 w-5" />
                 Your Database
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 lg:gap-4 xl:gap-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
                 <HeroMetric
                   label="Total Accounts"
                   value={totalAccounts}
@@ -337,7 +337,7 @@ export default function ExecutiveDashboard() {
             {/* Available Market Card - NOT shown for database filter (redundant with TAM calculator) */}
 
             {/* Main Content Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 lg:gap-4 xl:gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
 
               {/* ICP Coverage Card */}
               <ICPCoverageCard
@@ -389,7 +389,7 @@ export default function ExecutiveDashboard() {
 
               {/* Enhanced TAM Card for Database View */}
               {sourceFilter === 'database' && tamData && tamData.totalAccounts > 0 && (
-                <div className="md:col-span-2 xl:col-span-3 2xl:col-span-4">
+                <div className="md:col-span-2">
                   <EnhancedTAMCard
                     totalAccounts={tamData.totalAccounts || 0}
                     totalContacts={tamData.totalLeads || 0}
