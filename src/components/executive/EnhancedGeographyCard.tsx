@@ -72,7 +72,7 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
     if (showComparison && userProfile?.org_id) {
       loadComparisonData();
     }
-  }, [showComparison, userProfile?.org_id]);
+  }, [showComparison, userProfile?.org_id, sourceFilter]);
 
   const loadStateData = async (country: string) => {
     setLoadingStates(true);
@@ -136,48 +136,78 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
 
   const loadComparisonData = async () => {
     try {
-      // Get CRM data from accounts table
-      const { data: accounts, error: accountsError } = await supabase
-        .from('accounts')
-        .select('country, data_source')
-        .eq('org_id', userProfile!.org_id)
-        .not('country', 'is', null);
-      
-      if (accountsError) throw accountsError;
-
-      // Get Database data from external_data_sources
-      const { data: externalSource, error: externalError } = await supabase
-        .from('external_data_sources')
-        .select('geography_breakdown')
-        .eq('org_id', userProfile!.org_id)
-        .eq('is_active', true)
-        .single();
-
-      // Group CRM accounts by country
       const comparison: Record<string, { country: string; crm: number; database: number }> = {};
-      
-      accounts?.forEach((a) => {
-        if (!comparison[a.country]) {
-          comparison[a.country] = { country: a.country, crm: 0, database: 0 };
-        }
-        if (a.data_source === 'crm' || a.data_source === 'both') {
-          comparison[a.country].crm++;
-        }
-        if (a.data_source === 'database' || a.data_source === 'both') {
-          comparison[a.country].database++;
-        }
-      });
 
-      // Add external database data from Apollo
-      if (externalSource?.geography_breakdown) {
-        const geoBreakdown = externalSource.geography_breakdown as Record<string, { accounts: number; contacts: number }>;
-        Object.entries(geoBreakdown).forEach(([country, data]) => {
-          // Apollo data already has proper case, don't modify
+      // When showing 'all', fetch both sources separately for side-by-side comparison
+      if (sourceFilter === 'all') {
+        // Get CRM data
+        const { data: crmAccounts } = await supabase
+          .from('accounts')
+          .select('country')
+          .eq('org_id', userProfile!.org_id)
+          .not('country', 'is', null);
+
+        crmAccounts?.forEach(account => {
+          const country = account.country || 'Unknown';
           if (!comparison[country]) {
             comparison[country] = { country, crm: 0, database: 0 };
           }
-          comparison[country].database = data.accounts;
+          comparison[country].crm += 1;
         });
+
+        // Get Database data
+        const { data: externalSource } = await supabase
+          .from('external_data_sources')
+          .select('geography_breakdown')
+          .eq('org_id', userProfile!.org_id)
+          .eq('is_active', true)
+          .single();
+
+        if (externalSource?.geography_breakdown) {
+          const geoBreakdown = externalSource.geography_breakdown as Record<string, { accounts: number }>;
+          Object.entries(geoBreakdown).forEach(([country, data]) => {
+            if (!comparison[country]) {
+              comparison[country] = { country, crm: 0, database: 0 };
+            }
+            comparison[country].database = data.accounts;
+          });
+        }
+      } else {
+        // For CRM or Database only, still show comparison with one bar populated
+        const { data: accounts } = await supabase
+          .from('accounts')
+          .select('country, data_source')
+          .eq('org_id', userProfile!.org_id)
+          .not('country', 'is', null);
+
+        accounts?.forEach((a) => {
+          if (!comparison[a.country]) {
+            comparison[a.country] = { country: a.country, crm: 0, database: 0 };
+          }
+          if (a.data_source === 'crm' || a.data_source === 'both') {
+            comparison[a.country].crm++;
+          }
+          if (a.data_source === 'database' || a.data_source === 'both') {
+            comparison[a.country].database++;
+          }
+        });
+
+        const { data: externalSource } = await supabase
+          .from('external_data_sources')
+          .select('geography_breakdown')
+          .eq('org_id', userProfile!.org_id)
+          .eq('is_active', true)
+          .single();
+
+        if (externalSource?.geography_breakdown) {
+          const geoBreakdown = externalSource.geography_breakdown as Record<string, { accounts: number }>;
+          Object.entries(geoBreakdown).forEach(([country, data]) => {
+            if (!comparison[country]) {
+              comparison[country] = { country, crm: 0, database: 0 };
+            }
+            comparison[country].database = data.accounts;
+          });
+        }
       }
       
       const sorted = Object.values(comparison)
