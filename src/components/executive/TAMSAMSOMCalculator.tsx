@@ -181,17 +181,20 @@ export function TAMSAMSOMCalculator({
           <div>
             <CardTitle className="flex items-center gap-2">
               <Target className="h-5 w-5" />
-              {isExternalView ? "Available Market (TAM)" : "TAM/SAM/SOM Analysis"}
+              TAM/SAM/SOM Analysis
+              {isExternalView && (
+                <Badge variant="outline" className="ml-2 text-xs">
+                  External TAM
+                </Badge>
+              )}
               {isCustomAssumptions && !isExternalView && (
-                <Badge variant="outline" className="ml-2">
+                <Badge variant="outline" className="ml-2 text-xs">
                   Custom
                 </Badge>
               )}
             </CardTitle>
             <CardDescription>
-              {isExternalView 
-                ? "Total addressable market from external data sources"
-                : "Market opportunity sizing based on ICP fit and campaign readiness"}
+              Market opportunity sizing based on {isExternalView ? 'addressable market data' : 'ICP fit and campaign readiness'}
             </CardDescription>
           </div>
           {!isExternalView && (
