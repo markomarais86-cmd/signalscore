@@ -46,6 +46,7 @@ export default function ExecutiveDashboard() {
   const { insights, statistics, loading: insightsLoading, generateInsights } = useICPInsights();
   
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+  const [isSyncing, setIsSyncing] = useState(false);
   
   // Use optimized React Query hooks with source filtering
   const { data: dashboardData, isLoading, error: queryError, refetch } = useDashboardData(userProfile?.org_id, sourceFilter);
@@ -171,6 +172,37 @@ export default function ExecutiveDashboard() {
     }
   };
 
+  const handleSyncApollo = async () => {
+    if (!userProfile?.org_id) {
+      toast.error('Organization not found');
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-external-provider', {
+        body: {
+          org_id: userProfile.org_id,
+          provider: 'apollo'
+        }
+      });
+
+      if (error) throw error;
+
+      toast.success('Apollo sync completed! Refreshing dashboard...');
+      
+      // Refresh the dashboard data to show the new breakdowns
+      setTimeout(() => {
+        refetch();
+      }, 1000);
+    } catch (error: any) {
+      console.error('Error syncing Apollo:', error);
+      toast.error(error.message || 'Failed to sync Apollo data');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   if (authLoading) {
     return <div className="flex justify-center items-center h-screen">Loading Auth...</div>;
   }
@@ -217,6 +249,18 @@ export default function ExecutiveDashboard() {
                 database: filterStats?.database || 0,
               }}
             />
+            {sourceFilter === 'database' && (
+              <Button 
+                variant="default" 
+                onClick={handleSyncApollo}
+                disabled={isSyncing}
+                size="sm"
+                className="bg-primary"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? 'Syncing...' : 'Sync Apollo Data'}
+              </Button>
+            )}
             <Button 
               variant="outline" 
               onClick={() => {
