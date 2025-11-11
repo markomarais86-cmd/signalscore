@@ -29,9 +29,10 @@ interface EnhancedGeographyCardProps {
   geoData: GeoData[];
   invalidCount?: number;
   geoTrends?: Record<string, number>;
+  title?: string;
 }
 
-export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {} }: EnhancedGeographyCardProps) {
+export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {}, title = "Geographic Heat Map" }: EnhancedGeographyCardProps) {
   const navigate = useNavigate();
   const { userProfile } = useAuth();
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
@@ -175,7 +176,7 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
           <div>
             <CardTitle className="flex items-center gap-2">
               <MapPin className="h-5 w-5 text-primary" />
-              Geographic Heat Map
+              {title}
               <Badge variant="outline" className="text-xs">
                 <Database className="h-3 w-3 mr-1" />
                 Your Database

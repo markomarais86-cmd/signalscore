@@ -297,20 +297,22 @@ export default function ExecutiveDashboard() {
                 <HeroMetric
                   label="Total Accounts"
                   value={totalAccounts}
-                  subtitle="In your database"
+                  subtitle={sourceFilter === 'database' ? 'From addressable market (Apollo)' : 'In your database'}
                   trend={trendData?.totalAccountsGrowth ? { value: trendData.totalAccountsGrowth, period: "last week" } : undefined}
                   icon={Building2}
                 />
                 <HeroMetric
                   label="Total Leads"
                   value={totalLeads}
-                  subtitle="Contacts tracked"
+                  subtitle={sourceFilter === 'database' ? 'From addressable market' : 'Contacts tracked'}
                   icon={Users}
                 />
                 <HeroMetric
                   label="Campaign Ready"
                   value={campaignReadyContacts}
-                  subtitle={`${campaignReadyAccounts} high-fit accounts with valid contacts (email + title + persona)`}
+                  subtitle={sourceFilter === 'database' 
+                    ? 'From addressable market with valid contacts' 
+                    : `${campaignReadyAccounts} high-fit accounts with valid contacts (email + title + persona)`}
                   trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
                   icon={Sparkles}
                   status={campaignReadyContacts > 0 ? 'success' : 'warning'}
@@ -387,38 +389,24 @@ export default function ExecutiveDashboard() {
                 } : undefined}
               />
 
-              {/* Enhanced TAM Card for Database View */}
-              {sourceFilter === 'database' && tamData && tamData.totalAccounts > 0 && (
-                <div className="md:col-span-2">
-                  <EnhancedTAMCard
-                    totalAccounts={tamData.totalAccounts || 0}
-                    totalContacts={tamData.totalLeads || 0}
-                    averageDealSize={75000}
-                    geographyBreakdown={tamData.geography_breakdown}
-                    industryBreakdown={tamData.industry_breakdown}
-                    companySizeBreakdown={tamData.company_size_breakdown}
-                    revenueBreakdown={tamData.revenue_breakdown}
-                    provider={tamData.provider}
-                  />
-                </div>
-              )}
+              {/* TAM/SAM/SOM Calculator - Shown for all filters */}
+              <TAMSAMSOMCalculator
+                totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
+                highFitAccounts={sourceFilter === 'database' ? 0 : highFitAccounts}
+                campaignReadyAccounts={sourceFilter === 'database' ? 0 : campaignReadyAccounts}
+                averageDealSize={75000}
+                conversionRate={0.15}
+                externalTAMAccounts={tamData?.totalAccounts}
+                isExternalView={sourceFilter === 'database'}
+              />
 
-              {/* TAM/SAM/SOM Calculator - Only for CRM or All views */}
-              {sourceFilter !== 'database' && (
-                <TAMSAMSOMCalculator
-                  totalAccounts={totalAccounts}
-                  highFitAccounts={highFitAccounts}
-                  campaignReadyAccounts={campaignReadyAccounts}
-                  averageDealSize={75000}
-                  conversionRate={0.15}
-                  externalTAMAccounts={tamData?.totalAccounts}
-                  isExternalView={false}
+              {/* Geography Distribution - Shown for all filters */}
+              {geographyData && geographyData.length > 0 && (
+                <EnhancedGeographyCard 
+                  geoData={geographyDistribution} 
+                  invalidCount={0}
+                  title={sourceFilter === 'database' ? 'TAM Geographic Distribution' : 'Your Geographic Distribution'}
                 />
-              )}
-
-              {/* Geography Distribution - Only for CRM or All */}
-              {sourceFilter !== 'database' && geographyData && geographyData.length > 0 && (
-                <EnhancedGeographyCard geoData={geographyDistribution} invalidCount={0} />
               )}
             </div>
 
