@@ -65,7 +65,19 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				'executive-green': 'hsl(var(--executive-green))',
+				'executive-amber': 'hsl(var(--executive-amber))',
+				'executive-red': 'hsl(var(--executive-red))',
+				'executive-navy': 'hsl(var(--executive-navy))',
+				'executive-cyan': 'hsl(var(--executive-cyan))',
+				'signal-high': 'hsl(var(--signal-high))',
+				'signal-medium': 'hsl(var(--signal-medium))',
+				'signal-low': 'hsl(var(--signal-low))',
+				'status-success': 'hsl(var(--status-success))',
+				'status-warning': 'hsl(var(--status-warning))',
+				'status-danger': 'hsl(var(--status-danger))',
+				'status-info': 'hsl(var(--status-info))'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
