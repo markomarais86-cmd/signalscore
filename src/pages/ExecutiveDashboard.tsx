@@ -209,7 +209,7 @@ export default function ExecutiveDashboard() {
               value={sourceFilter}
               onChange={setSourceFilter}
               stats={{
-                total: totalAccounts + (tamData?.totalAccounts || 0),
+                total: totalAccounts,
                 crm: crmAccounts,
                 database: tamData?.totalAccounts || 0,
               }}
