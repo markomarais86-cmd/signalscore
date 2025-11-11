@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Zap, Plus, Trash2, ExternalLink, Activity } from "lucide-react";
+import { Zap, Plus, Trash2, ExternalLink, Activity, Database } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -335,11 +335,17 @@ export function ZapierWebhookManager() {
           })
         )}
 
-        <div className="pt-4 border-t">
+        <div className="pt-4 border-t space-y-2">
           <Button variant="outline" className="w-full" asChild>
             <a href="https://zapier.com" target="_blank" rel="noopener noreferrer">
               <ExternalLink className="h-4 w-4 mr-2" />
               Open Zapier Dashboard
+            </a>
+          </Button>
+          <Button variant="outline" className="w-full" asChild>
+            <a href="/CLAY_INTEGRATION_SETUP.md" target="_blank" rel="noopener noreferrer">
+              <Database className="h-4 w-4 mr-2" />
+              Clay Integration Guide
             </a>
           </Button>
         </div>
@@ -347,3 +353,4 @@ export function ZapierWebhookManager() {
     </Card>
   );
 }
+

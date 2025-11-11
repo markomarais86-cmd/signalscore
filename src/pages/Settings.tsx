@@ -53,6 +53,7 @@ import { ExternalDataProviders } from "@/components/settings/ExternalDataProvide
 import { RateLimitSettings } from "@/components/settings/RateLimitSettings";
 import { AutomationSettings } from "@/components/settings/AutomationSettings";
 import { ZapierWebhookManager } from "@/components/settings/ZapierWebhookManager";
+import { ClayIncomingWebhooks } from "@/components/settings/ClayIncomingWebhooks";
 import { DuplicateAccountMerger } from "@/components/settings/DuplicateAccountMerger";
 import { FirmographicEnrichmentCard } from "@/components/settings/FirmographicEnrichmentCard";
 import { EnrichmentQualityDashboard } from "@/components/settings/EnrichmentQualityDashboard";
@@ -627,6 +628,7 @@ export default function Settings() {
                 <IntegrationManager />
                 <WebhookLogViewer />
                 <ZapierIntegration />
+                <ClayIncomingWebhooks />
               </AccordionContent>
             </AccordionItem>
 

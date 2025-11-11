@@ -116,3 +116,6 @@ verify_jwt = false
 
 [functions.deep-enrich-contact]
 verify_jwt = false
+
+[functions.clay-webhook-receiver]
+verify_jwt = false

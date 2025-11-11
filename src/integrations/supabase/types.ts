@@ -507,6 +507,88 @@ export type Database = {
           },
         ]
       }
+      clay_webhook_config: {
+        Row: {
+          created_at: string
+          field_mappings: Json
+          id: string
+          is_enabled: boolean
+          org_id: string
+          updated_at: string
+          webhook_type: string
+        }
+        Insert: {
+          created_at?: string
+          field_mappings?: Json
+          id?: string
+          is_enabled?: boolean
+          org_id: string
+          updated_at?: string
+          webhook_type: string
+        }
+        Update: {
+          created_at?: string
+          field_mappings?: Json
+          id?: string
+          is_enabled?: boolean
+          org_id?: string
+          updated_at?: string
+          webhook_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clay_webhook_config_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clay_webhook_logs: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          org_id: string
+          payload: Json
+          processed: boolean
+          processed_at: string | null
+          processing_started_at: string | null
+          webhook_type: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          org_id: string
+          payload?: Json
+          processed?: boolean
+          processed_at?: string | null
+          processing_started_at?: string | null
+          webhook_type: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          org_id?: string
+          payload?: Json
+          processed?: boolean
+          processed_at?: string | null
+          processing_started_at?: string | null
+          webhook_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clay_webhook_logs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       closed_won_deals: {
         Row: {
           account_external_id: string
