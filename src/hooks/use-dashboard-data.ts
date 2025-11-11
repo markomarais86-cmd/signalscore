@@ -149,3 +149,38 @@ export function useGeographyData(orgId: string | undefined, enabled: boolean = t
     gcTime: 15 * 60 * 1000,
   });
 }
+
+// Hook for source filter toggle stats (always fetches unfiltered data)
+export function useSourceFilterStats(orgId: string | undefined) {
+  return useQuery({
+    queryKey: ['source-filter-stats', orgId],
+    queryFn: async () => {
+      if (!orgId) throw new Error('No org ID provided');
+      
+      // Fetch all three views in parallel
+      const [allResult, crmResult, dbResult] = await Promise.all([
+        supabase.rpc('get_dashboard_metrics_fast' as any, { 
+          p_org_id: orgId,
+          p_source_filter: 'all'
+        }),
+        supabase.rpc('get_dashboard_metrics_fast' as any, { 
+          p_org_id: orgId,
+          p_source_filter: 'crm'
+        }),
+        supabase.rpc('get_dashboard_metrics_fast' as any, { 
+          p_org_id: orgId,
+          p_source_filter: 'database'
+        }),
+      ]);
+      
+      return {
+        total: (allResult.data as any)?.totalAccounts || 0,
+        crm: (crmResult.data as any)?.totalAccounts || 0,
+        database: (dbResult.data as any)?.totalAccounts || 0,
+      };
+    },
+    enabled: !!orgId,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    gcTime: 10 * 60 * 1000,
+  });
+}

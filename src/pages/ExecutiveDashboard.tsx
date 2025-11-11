@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
 import { TrendingUp, Target, Database, Download, MapPin, Sparkles, Building2, Settings, AlertCircle, Users, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useDashboardData, useGeographyData } from "@/hooks/use-dashboard-data";
+import { useDashboardData, useGeographyData, useSourceFilterStats } from "@/hooks/use-dashboard-data";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { useDataChangeListener } from "@/hooks/use-data-change-listener";
 import { supabase } from "@/integrations/supabase/client";
@@ -48,6 +48,7 @@ export default function ExecutiveDashboard() {
   // Use optimized React Query hooks with source filtering
   const { data: dashboardData, isLoading, error: queryError, refetch } = useDashboardData(userProfile?.org_id, sourceFilter);
   const { data: geographyData } = useGeographyData(userProfile?.org_id, !!dashboardData, sourceFilter);
+  const { data: filterStats } = useSourceFilterStats(userProfile?.org_id);
 
   const [isEnrichmentModalOpen, setIsEnrichmentModalOpen] = useState(false);
   const [showAISuggestions, setShowAISuggestions] = useState(true);
@@ -209,9 +210,9 @@ export default function ExecutiveDashboard() {
               value={sourceFilter}
               onChange={setSourceFilter}
               stats={{
-                total: totalAccounts,
-                crm: crmAccounts,
-                database: tamData?.totalAccounts || 0,
+                total: filterStats?.total || 0,
+                crm: filterStats?.crm || 0,
+                database: filterStats?.database || 0,
               }}
             />
             <Button 
