@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Target, TrendingUp, TrendingDown, Database, Sparkles, AlertCircle } from "lucide-react";
 import { TrendIndicator } from "./TrendIndicator";
 import { useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 interface CombinedScoringICPCardProps {
   scoringProgress: number;
@@ -64,6 +65,12 @@ export function CombinedScoringICPCard({
     return AlertCircle;
   };
 
+  const getFitBadgeClass = (name: string) => {
+    if (name === 'High Fit') return "border-fit-high text-fit-high hover:bg-fit-high hover:text-fit-high-foreground";
+    if (name === 'Medium Fit') return "border-fit-medium text-fit-medium hover:bg-fit-medium hover:text-fit-medium-foreground";
+    return "border-fit-low text-fit-low hover:bg-fit-low hover:text-fit-low-foreground";
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -88,12 +95,11 @@ export function CombinedScoringICPCard({
               <Badge 
                 key={item.name}
                 variant="outline"
-                className="cursor-pointer hover:bg-accent transition-colors"
+                className={cn("cursor-pointer transition-colors border-2 font-semibold", getFitBadgeClass(item.name))}
                 onClick={() => {
                   const fitLevel = item.name === 'High Fit' ? 'high' : item.name === 'Medium Fit' ? 'medium' : 'low';
                   navigate(`/accounts?fit=${fitLevel}`);
                 }}
-                style={{ borderColor: item.color, color: item.color }}
               >
                 {item.name}: {item.value.toLocaleString()} ({item.percentage}%)
               </Badge>

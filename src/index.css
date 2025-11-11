@@ -46,6 +46,14 @@ All colors MUST be HSL.
     --chart-4: 198 15% 25%; /* Dark Grey */
     --chart-5: 198 10% 41%; /* Grey */
     
+    /* ICP Fit Level Colors - Semantic Design System */
+    --fit-high: 161 85% 60%; /* LaunchPulse Green */
+    --fit-high-foreground: 0 0% 100%; /* White text */
+    --fit-medium: 43 96% 56%; /* Amber */
+    --fit-medium-foreground: 0 0% 9%; /* Dark text for contrast */
+    --fit-low: 0 84% 60%; /* Rose */
+    --fit-low-foreground: 0 0% 100%; /* White text */
+    
     /* Signal scoring colors - keeping for compatibility */
     --signal-high: 161 85% 60%; /* LaunchPulse Green for high */
     --signal-medium: 43 96% 56%; /* Amber */

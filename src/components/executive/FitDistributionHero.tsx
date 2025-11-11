@@ -59,17 +59,17 @@ export function FitDistributionHero({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* High Fit */}
           <div
-            className="cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-executive-green/20 bg-executive-green/5"
+            className="cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-high/20 bg-fit-high/5"
             onClick={() => navigate('/accounts?fit=high')}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-medium text-muted-foreground">High Fit</div>
-              <Badge className="bg-executive-green text-white">
+              <Badge className="bg-fit-high text-fit-high-foreground border-fit-high">
                 Score ≥ 70
               </Badge>
             </div>
             <div className="flex items-baseline gap-2 mb-1">
-              <div className="text-3xl font-bold text-executive-green">
+              <div className="text-3xl font-bold text-fit-high">
                 {highFitAccounts.toLocaleString()}
               </div>
               <div className="text-lg text-muted-foreground">
@@ -97,17 +97,17 @@ export function FitDistributionHero({
 
           {/* Medium Fit */}
           <div
-            className="cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-executive-amber/20 bg-executive-amber/5"
+            className="cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-medium/20 bg-fit-medium/5"
             onClick={() => navigate('/accounts?fit=medium')}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-medium text-muted-foreground">Medium Fit</div>
-              <Badge className="bg-executive-amber text-black">
+              <Badge className="bg-fit-medium text-fit-medium-foreground border-fit-medium">
                 Score 40-69
               </Badge>
             </div>
             <div className="flex items-baseline gap-2 mb-1">
-              <div className="text-3xl font-bold text-executive-amber">
+              <div className="text-3xl font-bold text-fit-medium">
                 {mediumFitAccounts.toLocaleString()}
               </div>
               <div className="text-lg text-muted-foreground">
@@ -135,17 +135,17 @@ export function FitDistributionHero({
 
           {/* Low Fit */}
           <div
-            className="cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-executive-red/20 bg-executive-red/5"
+            className="cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-low/20 bg-fit-low/5"
             onClick={() => navigate('/accounts?fit=low')}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-medium text-muted-foreground">Low Fit</div>
-              <Badge className="bg-executive-red text-white">
+              <Badge className="bg-fit-low text-fit-low-foreground border-fit-low">
                 Score &lt; 40
               </Badge>
             </div>
             <div className="flex items-baseline gap-2 mb-1">
-              <div className="text-3xl font-bold text-executive-red">
+              <div className="text-3xl font-bold text-fit-low">
                 {lowFitAccounts.toLocaleString()}
               </div>
               <div className="text-lg text-muted-foreground">

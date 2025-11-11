@@ -53,10 +53,10 @@ export function ICPCoverageCard({
     return total > 0 ? Math.round((value / total) * 100) : 0;
   };
 
-  const getPercentageColor = (percentage: number) => {
-    if (percentage >= 70) return "bg-executive-green text-white";
-    if (percentage >= 50) return "bg-executive-amber text-black";
-    return "bg-executive-red text-white";
+  const getFitBadgeStyles = (percentage: number) => {
+    if (percentage >= 70) return "bg-fit-high text-fit-high-foreground border-fit-high";
+    if (percentage >= 50) return "bg-fit-medium text-fit-medium-foreground border-fit-medium";
+    return "bg-fit-low text-fit-low-foreground border-fit-low";
   };
 
   const accountsHighFitPct = calculatePercentage(highFitAccounts, totalAccounts);
@@ -127,7 +127,7 @@ export function ICPCoverageCard({
                 {totalAccounts.toLocaleString()}
               </div>
               <Badge 
-                className={cn("text-sm font-semibold px-3 py-1", getPercentageColor(accountsHighFitPct))}
+                className={cn("text-sm font-semibold px-3 py-1 border", getFitBadgeStyles(accountsHighFitPct))}
               >
                 {accountsHighFitPct}% High-Fit
               </Badge>
@@ -147,7 +147,7 @@ export function ICPCoverageCard({
                 {totalLeads.toLocaleString()}
               </div>
               <Badge 
-                className={cn("text-sm font-semibold px-3 py-1", getPercentageColor(leadsHighFitPct))}
+                className={cn("text-sm font-semibold px-3 py-1 border", getFitBadgeStyles(leadsHighFitPct))}
               >
                 {leadsHighFitPct}% High-Fit
               </Badge>
@@ -231,7 +231,7 @@ export function ICPCoverageCard({
                             </Badge>
                           ) : (
                             <Badge
-                              className={cn("font-semibold", getPercentageColor(pct))}
+                              className={cn("font-semibold border", getFitBadgeStyles(pct))}
                             >
                               {pct}%
                             </Badge>
@@ -310,7 +310,7 @@ export function ICPCoverageCard({
                             </Badge>
                           ) : (
                             <Badge
-                              className={cn("font-semibold", getPercentageColor(pct))}
+                              className={cn("font-semibold border", getFitBadgeStyles(pct))}
                             >
                               {pct}%
                             </Badge>
