@@ -143,10 +143,11 @@ serve(async (req) => {
 
       console.log('Calling Apollo API with filters:', JSON.stringify(baseRequestBody, null, 2));
 
-      // Fetch multiple pages to get a good sample (aim for ~1000-2000 records)
+      // Fetch only 1 page for statistical sample (~25-100 orgs)
+      // We get total_entries from pagination for full TAM count
       const allOrganizations: any[] = [];
       let currentPage = 1;
-      const maxPages = 20; // Limit to 20 pages to avoid timeouts
+      const maxPages = 1; // Only fetch 1 page - use statistical sampling
       let totalAccounts = 0;
 
       while (currentPage <= maxPages) {
@@ -173,9 +174,11 @@ serve(async (req) => {
         allOrganizations.push(...organizations);
         
         console.log(`Page ${currentPage}: fetched ${organizations.length} organizations (total so far: ${allOrganizations.length})`);
+        console.log(`📊 Total Available Market: ${totalAccounts.toLocaleString()} accounts`);
+        console.log(`💰 Credits Used: ~${allOrganizations.length} (statistical sample)`);
         
-        // Stop if we have enough data or no more pages
-        if (organizations.length === 0 || allOrganizations.length >= 1000 || currentPage >= (apolloData.pagination?.total_pages || 1)) {
+        // Stop after fetching sample - we already have total count from pagination
+        if (organizations.length === 0 || currentPage >= maxPages) {
           break;
         }
         
