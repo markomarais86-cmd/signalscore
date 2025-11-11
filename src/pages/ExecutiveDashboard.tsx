@@ -349,15 +349,17 @@ export default function ExecutiveDashboard() {
                 } : undefined}
               />
 
-              {/* TAM/SAM/SOM Calculator */}
-              <TAMSAMSOMCalculator
-                totalAccounts={totalAccounts}
-                highFitAccounts={highFitAccounts}
-                campaignReadyAccounts={campaignReadyAccounts}
-                averageDealSize={75000}
-                conversionRate={0.15}
-                externalTAMAccounts={tamData?.totalAccounts}
-              />
+              {/* TAM/SAM/SOM Calculator - Hide for Database Only (shown in AvailableMarketCard instead) */}
+              {sourceFilter !== 'database' && (
+                <TAMSAMSOMCalculator
+                  totalAccounts={totalAccounts}
+                  highFitAccounts={highFitAccounts}
+                  campaignReadyAccounts={campaignReadyAccounts}
+                  averageDealSize={75000}
+                  conversionRate={0.15}
+                  externalTAMAccounts={tamData?.totalAccounts}
+                />
+              )}
 
               {/* Enhanced Geography Card - Hide for Database Only */}
               {sourceFilter !== 'database' && (
