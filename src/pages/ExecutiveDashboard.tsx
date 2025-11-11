@@ -32,11 +32,11 @@ import { EnhancedRisksCard } from "@/components/executive/EnhancedRisksCard";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { TAMSAMSOMCalculator } from "@/components/executive/TAMSAMSOMCalculator";
-import { AvailableMarketCard } from "@/components/executive/AvailableMarketCard";
+import { SourceFilterToggle, type SourceFilter } from "@/components/executive/SourceFilterToggle";
 import { ExternalGeographyBreakdownCard } from "@/components/executive/ExternalGeographyBreakdownCard";
 import { ExternalMarketBreakdownCard } from "@/components/executive/ExternalMarketBreakdownCard";
+import { EnhancedTAMCard } from "@/components/executive/EnhancedTAMCard";
 import { FitDistributionHero } from "@/components/executive/FitDistributionHero";
-import { SourceFilterToggle, type SourceFilter } from "@/components/executive/SourceFilterToggle";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -344,31 +344,49 @@ export default function ExecutiveDashboard() {
                 } : undefined}
               />
 
-              {/* TAM/SAM/SOM Calculator - Show for all filters, adjust display for database only */}
-              <TAMSAMSOMCalculator
-                totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-                highFitAccounts={sourceFilter === 'database' ? 0 : highFitAccounts}
-                campaignReadyAccounts={sourceFilter === 'database' ? 0 : campaignReadyAccounts}
-                averageDealSize={75000}
-                conversionRate={0.15}
-                externalTAMAccounts={sourceFilter === 'database' ? 0 : tamData?.totalAccounts}
-                isExternalView={sourceFilter === 'database'}
-              />
+              {/* Enhanced TAM Card for Database View */}
+              {sourceFilter === 'database' && tamData && tamData.totalAccounts > 0 && (
+                <EnhancedTAMCard
+                  totalAccounts={tamData.totalAccounts || 0}
+                  totalContacts={tamData.totalLeads || 0}
+                  averageDealSize={75000}
+                  geographyBreakdown={tamData.geography_breakdown}
+                  industryBreakdown={tamData.industry_breakdown}
+                  companySizeBreakdown={tamData.company_size_breakdown}
+                  revenueBreakdown={tamData.revenue_breakdown}
+                  provider={tamData.provider}
+                />
+              )}
+
+              {/* TAM/SAM/SOM Calculator - Show for CRM and All views */}
+              {sourceFilter !== 'database' && (
+                <TAMSAMSOMCalculator
+                  totalAccounts={totalAccounts}
+                  highFitAccounts={highFitAccounts}
+                  campaignReadyAccounts={campaignReadyAccounts}
+                  averageDealSize={75000}
+                  conversionRate={0.15}
+                  externalTAMAccounts={tamData?.totalAccounts}
+                  isExternalView={false}
+                />
+              )}
 
               {/* External Database Geography - Show real breakdown */}
               {sourceFilter === 'database' && tamData?.geography_breakdown && Object.keys(tamData.geography_breakdown).length > 0 && (
-                <>
-                  <ExternalGeographyBreakdownCard 
-                    geographyData={tamData.geography_breakdown}
-                    provider={tamData.provider}
-                  />
-                  <ExternalMarketBreakdownCard
-                    industryData={tamData.industry_breakdown}
-                    companySizeData={tamData.company_size_breakdown}
-                    revenueData={tamData.revenue_breakdown}
-                    provider={tamData.provider}
-                  />
-                </>
+                <ExternalGeographyBreakdownCard 
+                  geographyData={tamData.geography_breakdown}
+                  provider={tamData.provider}
+                />
+              )}
+
+              {/* External Database Market Breakdown */}
+              {sourceFilter === 'database' && (tamData?.industry_breakdown || tamData?.company_size_breakdown || tamData?.revenue_breakdown) && (
+                <ExternalMarketBreakdownCard 
+                  industryData={tamData?.industry_breakdown}
+                  companySizeData={tamData?.company_size_breakdown}
+                  revenueData={tamData?.revenue_breakdown}
+                  provider={tamData?.provider || 'Apollo'}
+                />
               )}
 
               {/* Geography Distribution - Only for CRM or All */}

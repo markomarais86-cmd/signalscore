@@ -1,8 +1,9 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Building2, DollarSign, Users, TrendingUp, Database } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Building2, Briefcase, DollarSign, TrendingUp, Target } from "lucide-react";
 import { useMemo } from "react";
+import { Progress } from "@/components/ui/progress";
+import { formatAbbreviated } from "@/utils/format-numbers";
+import { Badge } from "@/components/ui/badge";
 
 interface BreakdownData {
   [key: string]: {
@@ -24,13 +25,6 @@ export function ExternalMarketBreakdownCard({
   revenueData,
   provider
 }: ExternalMarketBreakdownCardProps) {
-  const formatNumber = (num: number) => {
-    return new Intl.NumberFormat('en-US', { 
-      notation: 'compact',
-      maximumFractionDigits: 1 
-    }).format(num);
-  };
-
   const getColorForIndex = (index: number) => {
     const colors = [
       "hsl(var(--chart-1))",
@@ -53,189 +47,151 @@ export function ExternalMarketBreakdownCard({
     if (!companySizeData) return [];
     return Object.entries(companySizeData)
       .sort(([, a], [, b]) => b.accounts - a.accounts)
-      .slice(0, 5);
+      .slice(0, 4);
   }, [companySizeData]);
 
-  const topRevenueRanges = useMemo(() => {
+  const topRevenueBands = useMemo(() => {
     if (!revenueData) return [];
     return Object.entries(revenueData)
       .sort(([, a], [, b]) => b.accounts - a.accounts)
-      .slice(0, 5);
+      .slice(0, 3);
   }, [revenueData]);
 
-  const hasData = topIndustries.length > 0 || topCompanySizes.length > 0 || topRevenueRanges.length > 0;
+  const hasData = topIndustries.length > 0 || topCompanySizes.length > 0 || topRevenueBands.length > 0;
 
   if (!hasData) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-5 w-5" />
-            Market Breakdown
-          </CardTitle>
-          <CardDescription>No breakdown data available</CardDescription>
-        </CardHeader>
-      </Card>
-    );
+    return null;
   }
+
+  // Calculate insights
+  const topIndustry = topIndustries[0];
+  const topSize = topCompanySizes[0];
+  const topRevenue = topRevenueBands[0];
 
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              Market Breakdown (External TAM)
-            </CardTitle>
-            <CardDescription>
-              Industry, company size, and revenue distribution from {provider}
-            </CardDescription>
-          </div>
-          <Badge variant="outline" className="gap-1">
-            <Database className="h-3 w-3" />
-            {provider}
-          </Badge>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-5 w-5 text-primary" />
+            Market Breakdown
+          </CardTitle>
+          <Badge variant="outline">via {provider}</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Industry Breakdown */}
+        {/* Top Industries with enhanced visuals */}
         {topIndustries.length > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-              <h4 className="font-semibold text-sm">Top Industries</h4>
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <Briefcase className="h-4 w-4" />
+                Top Industries
+              </h4>
+              <span className="text-xs text-muted-foreground">{Object.keys(industryData || {}).length} total</span>
             </div>
-            
             <div className="space-y-3">
               {topIndustries.map(([industry, data], index) => (
-                <div key={industry} className="space-y-1.5">
+                <div key={industry} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium truncate flex-1">{industry}</span>
-                    <div className="flex items-center gap-3 ml-2">
-                      <span className="font-semibold text-foreground">
-                        {formatNumber(data.accounts)}
-                      </span>
-                      <Badge 
-                        variant="secondary"
-                        style={{ 
-                          backgroundColor: `${getColorForIndex(index)}20`,
-                          color: getColorForIndex(index)
-                        }}
-                      >
-                        {data.percentage.toFixed(1)}%
-                      </Badge>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full`} style={{ backgroundColor: getColorForIndex(index) }} />
+                      <span className="font-medium truncate max-w-[200px]">{industry}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-muted-foreground">{formatAbbreviated(data.accounts)}</span>
+                      <span className="font-bold min-w-[3rem] text-right">{data.percentage}%</span>
                     </div>
                   </div>
-                  <Progress 
-                    value={data.percentage} 
-                    className="h-2"
-                    style={{
-                      // @ts-ignore
-                      '--progress-background': getColorForIndex(index)
-                    }}
-                  />
+                  <Progress value={data.percentage} className="h-2" />
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Company Size Breakdown */}
+        {/* Company Size Distribution with visual bars */}
         {topCompanySizes.length > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <h4 className="font-semibold text-sm">Company Size Distribution</h4>
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                Company Size
+              </h4>
+              <span className="text-xs text-muted-foreground">employee count</span>
             </div>
-            
             <div className="grid grid-cols-2 gap-3">
-              {topCompanySizes.map(([size, data], index) => (
-                <div 
-                  key={size} 
-                  className="p-3 border rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-muted-foreground">{size} employees</span>
-                    <Badge 
-                      variant="secondary" 
-                      className="text-xs"
-                      style={{ 
-                        backgroundColor: `${getColorForIndex(index)}20`,
-                        color: getColorForIndex(index)
-                      }}
-                    >
-                      {data.percentage.toFixed(0)}%
-                    </Badge>
+              {topCompanySizes.map(([size, data]) => (
+                <div key={size} className="rounded-lg border bg-card p-3 space-y-2">
+                  <div className="text-xs text-muted-foreground truncate">{size}</div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold">{data.percentage}%</span>
                   </div>
-                  <div className="text-2xl font-bold" style={{ color: getColorForIndex(index) }}>
-                    {formatNumber(data.accounts)}
+                  <div className="text-xs text-muted-foreground">
+                    {formatAbbreviated(data.accounts)} accounts
                   </div>
-                  <Progress 
-                    value={data.percentage} 
-                    className="h-1.5 mt-2"
-                    style={{
-                      // @ts-ignore
-                      '--progress-background': getColorForIndex(index)
-                    }}
-                  />
+                  <Progress value={data.percentage} className="h-1" />
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Revenue Breakdown */}
-        {topRevenueRanges.length > 0 && (
+        {/* Revenue Distribution */}
+        {topRevenueBands.length > 0 && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <h4 className="font-semibold text-sm">Revenue Distribution</h4>
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <DollarSign className="h-4 w-4" />
+                Revenue Bands
+              </h4>
+              <span className="text-xs text-muted-foreground">annual revenue</span>
             </div>
-            
-            <div className="space-y-3">
-              {topRevenueRanges.map(([range, data], index) => (
-                <div key={range} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{range}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold text-foreground">
-                        {formatNumber(data.accounts)}
-                      </span>
-                      <Badge 
-                        variant="secondary"
-                        style={{ 
-                          backgroundColor: `${getColorForIndex(index)}20`,
-                          color: getColorForIndex(index)
-                        }}
-                      >
-                        {data.percentage.toFixed(1)}%
-                      </Badge>
-                    </div>
+            <div className="space-y-2">
+              {topRevenueBands.map(([revenue, data]) => (
+                <div key={revenue} className="flex items-center justify-between text-sm py-2">
+                  <span className="text-muted-foreground font-medium">{revenue}</span>
+                  <div className="flex items-center gap-3">
+                    <Progress value={data.percentage} className="h-2 w-32" />
+                    <span className="font-bold min-w-[3rem] text-right">{data.percentage}%</span>
                   </div>
-                  <Progress 
-                    value={data.percentage} 
-                    className="h-2"
-                    style={{
-                      // @ts-ignore
-                      '--progress-background': getColorForIndex(index)
-                    }}
-                  />
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Market Intelligence Insight */}
-        <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm">
-          <div className="flex items-start gap-2">
-            <TrendingUp className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-            <p className="text-muted-foreground">
-              <strong className="text-foreground">Market Intelligence:</strong> This breakdown shows the 
-              composition of your total addressable market. Use these insights to refine your ICP criteria 
-              and prioritize segments with the highest potential.
-            </p>
+        {/* Market Intelligence Insights */}
+        <div className="space-y-3">
+          <h4 className="text-sm font-semibold flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Key Insights
+          </h4>
+          <div className="space-y-2">
+            {topIndustry && (
+              <div className="rounded-lg border bg-muted/50 p-3 text-sm">
+                <span className="font-medium text-foreground">Leading Industry: </span>
+                <span className="text-muted-foreground">
+                  {topIndustry[1].percentage}% of market in {topIndustry[0]}
+                </span>
+              </div>
+            )}
+            {topSize && (
+              <div className="rounded-lg border bg-muted/50 p-3 text-sm">
+                <span className="font-medium text-foreground">Dominant Size: </span>
+                <span className="text-muted-foreground">
+                  {topSize[1].percentage}% are {topSize[0]} employee companies
+                </span>
+              </div>
+            )}
+            {topRevenue && (
+              <div className="rounded-lg border bg-muted/50 p-3 text-sm">
+                <span className="font-medium text-foreground">Revenue Sweet Spot: </span>
+                <span className="text-muted-foreground">
+                  {topRevenue[1].percentage}% generate {topRevenue[0]}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </CardContent>

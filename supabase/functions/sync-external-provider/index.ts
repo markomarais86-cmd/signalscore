@@ -104,7 +104,12 @@ serve(async (req) => {
       }
 
       const apolloData = await apolloResponse.json();
-      console.log('Apollo API response received');
+      console.log('Apollo response structure:', {
+        accountCount: apolloData.pagination?.total_entries,
+        hasAggregations: !!apolloData.aggregations,
+        aggregationKeys: apolloData.aggregations ? Object.keys(apolloData.aggregations) : [],
+        sampleAggregation: apolloData.aggregations ? JSON.stringify(Object.values(apolloData.aggregations)[0]?.slice(0, 2)) : null
+      });
 
       const totalAccounts = apolloData.pagination?.total_entries || 0;
       
@@ -131,64 +136,72 @@ serve(async (req) => {
 
       const totalContacts = Math.round(totalAccounts * contactMultiplier);
 
-      // Transform aggregations into breakdown format
+      // Transform Apollo aggregations into structured breakdowns
       const aggregations = apolloData.aggregations || {};
+      console.log('Processing aggregations with keys:', Object.keys(aggregations));
       
-      // Geography breakdown
-      const geographyBreakdown: any = {};
-      if (aggregations.country) {
-        for (const [country, count] of Object.entries(aggregations.country)) {
-          const accountCount = count as number;
-          geographyBreakdown[country] = {
-            accounts: accountCount,
-            contacts: Math.round(accountCount * contactMultiplier),
-            percentage: (accountCount / totalAccounts) * 100
+      // Helper function to safely process aggregation arrays
+      const processAggregation = (aggData: any[], totalCount: number, includeContacts = false) => {
+        if (!aggData || !Array.isArray(aggData)) return {};
+        
+        const result: Record<string, any> = {};
+        for (const item of aggData.slice(0, 50)) { // Limit to top 50
+          const name = item.display_name || item.name || item.value || 'Unknown';
+          const count = item.count || item.doc_count || 0;
+          
+          result[name] = {
+            accounts: count,
+            percentage: totalCount > 0 ? parseFloat(((count / totalCount) * 100).toFixed(1)) : 0
           };
+          
+          if (includeContacts) {
+            result[name].contacts = Math.round(count * contactMultiplier);
+          }
         }
-      }
+        return result;
+      };
+      
+      // Geography breakdown - try multiple possible keys
+      const geographyBreakdown = processAggregation(
+        aggregations.person_locations || 
+        aggregations.organization_locations || 
+        aggregations.country ||
+        aggregations.countries ||
+        [],
+        totalAccounts,
+        true
+      );
+      console.log('Geography breakdown entries:', Object.keys(geographyBreakdown).length);
 
-      // Industry breakdown
-      const industryBreakdown: any = {};
-      if (aggregations.industry) {
-        for (const [industry, count] of Object.entries(aggregations.industry)) {
-          const accountCount = count as number;
-          industryBreakdown[industry] = {
-            accounts: accountCount,
-            percentage: (accountCount / totalAccounts) * 100
-          };
-        }
-      }
+      // Industry breakdown - try multiple possible keys
+      const industryBreakdown = processAggregation(
+        aggregations.organization_industry_tag_ids || 
+        aggregations.industry ||
+        aggregations.industries ||
+        [],
+        totalAccounts
+      );
+      console.log('Industry breakdown entries:', Object.keys(industryBreakdown).length);
 
       // Company size breakdown
-      const companySizeBreakdown: any = {};
-      if (aggregations.organization_num_employees_ranges) {
-        for (const [range, count] of Object.entries(aggregations.organization_num_employees_ranges)) {
-          const accountCount = count as number;
-          companySizeBreakdown[range] = {
-            accounts: accountCount,
-            percentage: (accountCount / totalAccounts) * 100
-          };
-        }
-      }
+      const companySizeBreakdown = processAggregation(
+        aggregations.organization_num_employees_ranges || 
+        aggregations.employee_ranges ||
+        aggregations.company_size ||
+        [],
+        totalAccounts
+      );
+      console.log('Company size breakdown entries:', Object.keys(companySizeBreakdown).length);
 
       // Revenue breakdown
-      const revenueBreakdown: any = {};
-      if (aggregations.revenue_range) {
-        for (const [range, count] of Object.entries(aggregations.revenue_range)) {
-          const accountCount = count as number;
-          revenueBreakdown[range] = {
-            accounts: accountCount,
-            percentage: (accountCount / totalAccounts) * 100
-          };
-        }
-      }
-
-      console.log('Transformed breakdowns:', {
-        geographyCount: Object.keys(geographyBreakdown).length,
-        industryCount: Object.keys(industryBreakdown).length,
-        companySizeCount: Object.keys(companySizeBreakdown).length,
-        revenueCount: Object.keys(revenueBreakdown).length
-      });
+      const revenueBreakdown = processAggregation(
+        aggregations.organization_estimated_revenue_range || 
+        aggregations.revenue_range ||
+        aggregations.revenue ||
+        [],
+        totalAccounts
+      );
+      console.log('Revenue breakdown entries:', Object.keys(revenueBreakdown).length);
 
       // Update external_data_sources with all breakdown data
       const { error: updateError } = await supabase
