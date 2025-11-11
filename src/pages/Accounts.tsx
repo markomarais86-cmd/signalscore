@@ -1186,7 +1186,11 @@ export default function Accounts() {
                         <span className="text-sm">{completeness.toFixed(2)}%</span>
                       </div>
                     </TableCell>
-                    <TableCell>0</TableCell>
+                    <TableCell>
+                      <div className="text-center font-medium">
+                        {account.contacts || 0}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       {account.score?.overall ? (
                         <div className="flex items-center gap-2">
