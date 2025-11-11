@@ -122,15 +122,10 @@ export default function ICPManager() {
     setEditingIcp(null);
     completeStep('create_icp');
     
-    // Trigger re-scoring for all accounts with the new/updated ICP
-    toast({
-      title: "ICP saved successfully",
-      description: "Account scoring will be updated based on the new ICP criteria"
-    });
-    
-    // Optional: trigger background re-scoring job
+    // Automatically trigger fast SQL-based re-scoring
+    console.log("ICP saved successfully, triggering automatic re-scoring...");
     if (userProfile?.org_id) {
-      triggerRescoring();
+      await triggerRescoring();
     }
   };
 
@@ -138,30 +133,50 @@ export default function ICPManager() {
     if (!userProfile?.org_id) return;
     
     try {
-      console.log('Triggering account re-scoring...');
+      console.log('🚀 Starting fast SQL-based re-scoring...');
+      const startTime = Date.now();
       
-      // Call the bulk-score-accounts edge function
-      const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
-        body: {
-          org_id: userProfile.org_id,
-          chunk_index: 0,
-          chunk_size: 5000,
-        }
-      });
+      // Use SQL bulk scoring function for instant results
+      const { data, error } = await supabase
+        .rpc('bulk_score_all_accounts', {
+          p_org_id: userProfile.org_id,
+          p_icp_id: null  // Score against all active ICPs
+        });
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
       if (error) {
-        console.error('Error triggering bulk scoring:', error);
+        console.error('SQL scoring error:', error);
+        // Fallback to chunked approach if SQL fails
+        console.log('Falling back to chunked scoring...');
+        await supabase.functions.invoke('bulk-score-accounts', {
+          body: {
+            org_id: userProfile.org_id,
+            chunk_index: 0,
+            chunk_size: 5000,
+          }
+        });
+        
+        toast({
+          title: "Re-scoring Started",
+          description: "Using standard processing method. May take a few minutes.",
+        });
+      } else {
+        console.log(`✅ SQL scoring completed in ${duration}s:`, data);
+        
+        const result = data as { success: boolean; processed: number; total_accounts: number; duration_seconds: number };
+        
+        toast({
+          title: "Re-scoring Complete! ⚡",
+          description: `${result.processed} accounts scored in ${duration}s. Dashboard updated!`,
+        });
       }
-      
-      toast({
-        title: "Re-scoring Started",
-        description: "Your accounts are being re-scored with updated ICP criteria. Dashboard will update automatically when complete.",
-      });
     } catch (error) {
       console.error('Error triggering re-scoring:', error);
       toast({
-        title: "Re-scoring Initiated",
-        description: "Account re-scoring has started in the background.",
+        title: "Re-scoring Error",
+        description: "Please try again or contact support.",
+        variant: "destructive"
       });
     }
   };

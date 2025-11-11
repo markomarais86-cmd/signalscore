@@ -2823,6 +2823,10 @@ export type Database = {
         Args: { p_account_external_id: string; p_org_id: string }
         Returns: undefined
       }
+      bulk_score_all_accounts: {
+        Args: { p_icp_id?: string; p_org_id: string }
+        Returns: Json
+      }
       calculate_account_score: {
         Args: {
           account_external_id: string
