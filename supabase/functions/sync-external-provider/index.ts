@@ -51,6 +51,24 @@ serve(async (req) => {
         throw new Error('Apollo API key not configured');
       }
 
+      // Helper function to map company sizes to Apollo ranges
+      const mapCompanySizesToApolloRanges = (sizes: number[]): string[] => {
+        const rangeMapping: Record<number, string> = {
+          1: '1-10',
+          10: '11-50',
+          50: '51-200',
+          200: '201-500',
+          500: '501-1000',
+          1000: '1001-5000',
+          2000: '1001-5000',
+          5000: '5001-10000',
+          10000: '10001+'
+        };
+        
+        const ranges = sizes.map(size => rangeMapping[size]).filter(Boolean);
+        return [...new Set(ranges)]; // Remove duplicates
+      };
+
       // Build Apollo search criteria from ICP
       const requestBody: any = {
         page: 1,
@@ -72,9 +90,12 @@ serve(async (req) => {
         requestBody.organization_locations = icpData.geographies;
       }
 
-      // Add company size filters
+      // Add company size filters - convert to Apollo range format
       if (icpData.company_sizes && icpData.company_sizes.length > 0) {
-        requestBody.organization_num_employees_ranges = icpData.company_sizes;
+        const apolloRanges = mapCompanySizesToApolloRanges(icpData.company_sizes);
+        if (apolloRanges.length > 0) {
+          requestBody.organization_num_employees_ranges = apolloRanges;
+        }
       }
 
       // Add revenue filters
@@ -82,10 +103,8 @@ serve(async (req) => {
         requestBody.revenue_range = icpData.revenue_ranges;
       }
 
-      // Add industry filters
-      if (icpData.industries && icpData.industries.length > 0) {
-        requestBody.organization_industry_tag_ids = icpData.industries;
-      }
+      // Skip industry filters for now - Apollo expects numeric tag IDs, not names
+      // We would need a mapping table from industry names to Apollo tag IDs
 
       console.log('Calling Apollo API with filters:', JSON.stringify(requestBody, null, 2));
 
