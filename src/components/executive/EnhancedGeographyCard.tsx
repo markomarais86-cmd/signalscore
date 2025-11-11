@@ -142,57 +142,47 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
 
       // When showing 'all', fetch both sources separately for side-by-side comparison
       if (sourceFilter === 'all') {
-        // Get CRM data from accounts table
-        console.log('[Geography] Fetching CRM accounts...');
-        const { data: crmAccounts, error: crmError } = await supabase
-          .from('accounts')
-          .select('country')
-          .eq('org_id', userProfile!.org_id)
-          .not('country', 'is', null);
+        // Use RPC to get CRM data (no row limits)
+        console.log('[Geography] Fetching CRM data via RPC...');
+        const { data: crmData, error: crmError } = await supabase
+          .rpc('get_geography_distribution', {
+            p_org_id: userProfile!.org_id,
+            p_source_filter: 'crm'
+          });
 
         if (crmError) {
-          console.error('[Geography] CRM accounts error:', crmError);
+          console.error('[Geography] RPC error for CRM:', crmError);
         } else {
-          console.log('[Geography] CRM accounts fetched:', crmAccounts?.length);
-        }
-
-        // Count CRM accounts by country
-        crmAccounts?.forEach(account => {
-          const country = account.country || 'Unknown';
-          if (!comparison[country]) {
-            comparison[country] = { country, crm: 0, database: 0 };
-          }
-          comparison[country].crm += 1;
-        });
-
-        console.log('[Geography] CRM comparison after processing:', Object.keys(comparison).length, 'countries');
-        console.log('[Geography] Sample CRM data for United States:', comparison['United States']);
-
-        // Get Database data from external_data_sources
-        console.log('[Geography] Fetching external data source...');
-        const { data: externalSource, error: extError } = await supabase
-          .from('external_data_sources')
-          .select('geography_breakdown')
-          .eq('org_id', userProfile!.org_id)
-          .eq('is_active', true)
-          .maybeSingle();
-
-        if (extError) {
-          console.error('[Geography] External source error:', extError);
-        } else {
-          console.log('[Geography] External source fetched:', !!externalSource);
-        }
-
-        if (externalSource?.geography_breakdown) {
-          const geoBreakdown = externalSource.geography_breakdown as Record<string, { accounts: number }>;
-          console.log('[Geography] Processing geography_breakdown with', Object.keys(geoBreakdown).length, 'countries');
-          
-          Object.entries(geoBreakdown).forEach(([country, data]) => {
-            if (!comparison[country]) {
-              comparison[country] = { country, crm: 0, database: 0 };
-            }
-            comparison[country].database = data.accounts;
+          console.log('[Geography] CRM data from RPC:', crmData?.length, 'countries');
+          crmData?.forEach((row: any) => {
+            comparison[row.country] = { 
+              country: row.country, 
+              crm: Number(row.combined_total),
+              database: 0 
+            };
           });
+          console.log('[Geography] Sample CRM data for United States:', comparison['United States']);
+        }
+
+        // Use RPC to get Database data (no row limits)
+        console.log('[Geography] Fetching Database data via RPC...');
+        const { data: dbData, error: dbError } = await supabase
+          .rpc('get_geography_distribution', {
+            p_org_id: userProfile!.org_id,
+            p_source_filter: 'database'
+          });
+
+        if (dbError) {
+          console.error('[Geography] RPC error for database:', dbError);
+        } else {
+          console.log('[Geography] Database data from RPC:', dbData?.length, 'countries');
+          dbData?.forEach((row: any) => {
+            if (!comparison[row.country]) {
+              comparison[row.country] = { country: row.country, crm: 0, database: 0 };
+            }
+            comparison[row.country].database = Number(row.combined_total);
+          });
+          console.log('[Geography] Sample Database data for United States:', comparison['United States']);
         }
       } else {
         // For CRM or Database only, still show comparison with one bar populated
