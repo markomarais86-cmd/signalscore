@@ -185,7 +185,7 @@ export function FirmographicEnrichmentCard() {
       const { data, error: funcError } = await supabase.functions.invoke(functionName, {
         body: { 
           org_id: userProfile.org_id, 
-          job_id: job.id,
+          jobId: job.id,
           limit: 100 
         }
       });

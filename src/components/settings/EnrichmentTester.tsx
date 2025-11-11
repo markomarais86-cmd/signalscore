@@ -57,7 +57,7 @@ export function EnrichmentTester() {
       else if (provider === "smart_sequential") functionName = "smart-enrich";
 
       const { data, error } = await supabase.functions.invoke(functionName, {
-        body: { job_id: job.id }
+        body: { jobId: job.id }
       });
 
       const duration = Date.now() - startTime;
