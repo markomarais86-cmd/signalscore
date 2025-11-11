@@ -157,7 +157,7 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
           crmData?.forEach((row: any) => {
             comparison[row.country] = { 
               country: row.country, 
-              crm: Number(row.combined_total),
+              crm: Number(row.count),
               database: 0 
             };
           });
@@ -180,7 +180,7 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
             if (!comparison[row.country]) {
               comparison[row.country] = { country: row.country, crm: 0, database: 0 };
             }
-            comparison[row.country].database = Number(row.combined_total);
+            comparison[row.country].database = Number(row.count);
           });
           console.log('[Geography] Sample Database data for United States:', comparison['United States']);
         }
