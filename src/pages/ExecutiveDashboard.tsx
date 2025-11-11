@@ -411,6 +411,27 @@ export default function ExecutiveDashboard() {
                     />
                   );
                 })()
+              ) : sourceFilter === 'all' && tamData ? (
+                (() => {
+                  const { sam: apolloSam, som: apolloSom } = calculateExternalTAMMetrics(
+                    tamData,
+                    icpProfiles[0] || null,
+                    0.15,
+                    12
+                  );
+                  
+                  return (
+                    <TAMSAMSOMCalculator
+                      totalAccounts={totalAccounts + tamData.totalAccounts}
+                      highFitAccounts={highFitAccounts + apolloSam}
+                      campaignReadyAccounts={campaignReadyAccounts + apolloSom}
+                      averageDealSize={75000}
+                      conversionRate={0.15}
+                      externalTAMAccounts={tamData.totalAccounts}
+                      isExternalView={false}
+                    />
+                  );
+                })()
               ) : (
                 <TAMSAMSOMCalculator
                   totalAccounts={totalAccounts}
