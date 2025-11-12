@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     // Generate unique batch ID
     const batchId = `CAMP-${new Date().toISOString().slice(0, 10)}-${crypto.randomUUID().slice(0, 8)}`;
 
-    // Query campaign-ready leads
+    // Query campaign-ready leads with scores
     let query = supabase
       .from('Leads')
       .select(`
@@ -49,11 +49,12 @@ Deno.serve(async (req) => {
         company, persona, data_source, account_external_id, email_verified,
         email_verification_status, consent_status, country, state_province,
         location_city, industry, employee_count, revenue_range,
-        enriched_at, enrichment_confidence
+        enriched_at, enrichment_confidence, export_eligible
       `)
       .eq('org_id', org_id)
-      .eq('export_eligible', true)
-      .not('email', 'is', null);
+      .not('email', 'is', null)
+      .not('title', 'is', null)
+      .not('persona', 'is', null)
 
     // Apply source filter
     if (source_filter !== 'all') {
@@ -65,15 +66,35 @@ Deno.serve(async (req) => {
       query = query.in('persona', personas);
     }
 
-    // Fetch leads
-    const { data: leads, error: leadsError } = await query;
+    // Fetch leads with scores in single query
+    const { data: leadsData, error: leadsError } = await query;
 
     if (leadsError) throw leadsError;
 
-    console.log(`📊 Found ${leads?.length || 0} potential leads`);
+    console.log(`📊 Found ${leadsData?.length || 0} potential leads`);
 
-    // Fetch scores for filtering
-    const accountIds = [...new Set(leads?.map(l => l.account_external_id).filter(Boolean))];
+    // Fetch scores for all leads
+    const accountIds = [...new Set(leadsData?.map(l => l.account_external_id).filter(Boolean))];
+    
+    if (accountIds.length === 0) {
+      console.log('⚠️ No accounts found with external IDs');
+      return new Response(
+        JSON.stringify({
+          success: true,
+          batch_id: batchId,
+          csv_data: '',
+          metadata: {
+            total_queried: 0,
+            eligible_count: 0,
+            export_count: 0,
+            skipped_count: 0,
+            skip_reasons: { unverified: 0, no_consent: 0, suppressed: 0, duplicate: 0, low_score: 0 }
+          }
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { data: scores } = await supabase
       .from('scores')
       .select('account_external_id, overall, fit')
@@ -81,6 +102,13 @@ Deno.serve(async (req) => {
       .eq('org_id', org_id);
 
     const scoreMap = new Map(scores?.map(s => [s.account_external_id, s]) || []);
+    console.log(`📊 Found scores for ${scoreMap.size} accounts`);
+
+    // Filter out leads without scores or with export_eligible = false
+    const leads = leadsData?.filter(lead => {
+      if (lead.export_eligible === false) return false;
+      return scoreMap.has(lead.account_external_id);
+    }) || [];
 
     // Pre-flight checks and filtering
     const skipReasons = {
@@ -94,10 +122,10 @@ Deno.serve(async (req) => {
     const seenEmails = new Set<string>();
     const eligibleLeads: any[] = [];
 
-    for (const lead of leads || []) {
-      // Check score
-      const score = scoreMap.get(lead.account_external_id);
-      const overallScore = score?.overall || 50;
+    for (const lead of leads) {
+      // Check score (now guaranteed to exist)
+      const score = scoreMap.get(lead.account_external_id)!;
+      const overallScore = score.overall;
       
       if (overallScore < min_score || overallScore > max_score) {
         skipReasons.low_score++;

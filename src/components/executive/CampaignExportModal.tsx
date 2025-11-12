@@ -1,9 +1,9 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Upload, Database, Sparkles, Settings2, Building2, Users, History } from "lucide-react";
+import { Download, Upload, Database, Sparkles, Settings2, Building2, Users, History, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useCampaignReady } from "@/hooks/use-campaign-ready";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,6 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
@@ -99,6 +100,47 @@ export function CampaignExportModal({
             Export History
           </Button>
         </div>
+
+        {/* Pre-Export Validation Summary */}
+        {data && (
+          <Card className="border-muted bg-muted/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-primary" />
+                Pre-Export Validation
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Total Leads Available</span>
+                <span className="font-medium">{data.total.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Estimated Export Count</span>
+                <span className="font-medium text-primary">~{Math.min(maxRecords, Math.floor(data.total * 0.7)).toLocaleString()}</span>
+              </div>
+              <Separator className="my-2" />
+              <div className="space-y-1 text-xs text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+                  <span>Unverified emails: {includeUnverified ? 'Included' : 'Excluded'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+                  <span>Duplicates: Automatically removed</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+                  <span>Consent & suppression: Active</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+                  <span>Score range: {minScore}-{maxScore}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="space-y-6">
           {/* Overview Stats */}
