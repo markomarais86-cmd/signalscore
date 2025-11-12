@@ -15,13 +15,13 @@ interface ICPCoverageCardProps {
   highFitCrmAccounts: number;
   highFitDatabaseAccounts: number;
   
-  // Leads data
-  totalLeads: number;
-  crmLeads: number;
-  databaseLeads: number;
-  highFitLeads: number;
-  highFitCrmLeads: number;
-  highFitDatabaseLeads: number;
+  // Leads data (optional - deprecated in account-centric workflow)
+  totalLeads?: number;
+  crmLeads?: number;
+  databaseLeads?: number;
+  highFitLeads?: number;
+  highFitCrmLeads?: number;
+  highFitDatabaseLeads?: number;
 
   // TAM data (optional)
   tamAccounts?: number;
@@ -36,12 +36,12 @@ export function ICPCoverageCard({
   highFitAccounts,
   highFitCrmAccounts,
   highFitDatabaseAccounts,
-  totalLeads,
-  crmLeads,
-  databaseLeads,
-  highFitLeads,
-  highFitCrmLeads,
-  highFitDatabaseLeads,
+  totalLeads = 0,
+  crmLeads = 0,
+  databaseLeads = 0,
+  highFitLeads = 0,
+  highFitCrmLeads = 0,
+  highFitDatabaseLeads = 0,
   tamAccounts = 0,
   tamLeads = 0,
   tamProvider = 'External DB',

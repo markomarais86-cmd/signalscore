@@ -38,7 +38,6 @@ import { ExternalMarketBreakdownCard } from "@/components/executive/ExternalMark
 import { EnhancedTAMCard } from "@/components/executive/EnhancedTAMCard";
 import { FitDistributionHero } from "@/components/executive/FitDistributionHero";
 import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
-import { CampaignExportModal } from "@/components/executive/CampaignExportModal";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -49,7 +48,6 @@ export default function ExecutiveDashboard() {
   
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [isSyncing, setIsSyncing] = useState(false);
-  const [showCampaignExportModal, setShowCampaignExportModal] = useState(false);
   
   // Use optimized React Query hooks with source filtering
   const { data: dashboardData, isLoading, error: queryError, refetch } = useDashboardData(userProfile?.org_id, sourceFilter);
@@ -69,9 +67,7 @@ export default function ExecutiveDashboard() {
 
   const totalAccounts = dashboardData?.metrics?.total_accounts || 0;
   const totalScores = dashboardData?.metrics?.total_scores || 0;
-  const totalLeads = dashboardData?.metrics?.total_leads || 0;
   const campaignReadyAccounts = dashboardData?.metrics?.campaign_ready_accounts || 0;
-  const campaignReadyContacts = dashboardData?.metrics?.campaign_ready_contacts || 0;
   const dataCompleteness = Math.round(dashboardData?.metrics?.data_completeness || 0);
 
   const highFitAccounts = dashboardData?.metrics?.high_fit_scores || 0;
@@ -85,12 +81,6 @@ export default function ExecutiveDashboard() {
   const highFitCrmAccounts = dashboardData?.metrics?.high_fit_crm_accounts || 0;
   const highFitDatabaseAccounts = dashboardData?.metrics?.high_fit_database_accounts || 0;
 
-  const crmLeads = dashboardData?.metrics?.crm_leads || 0;
-  const databaseLeads = dashboardData?.metrics?.database_leads || 0;
-  const highFitLeadsTotal = dashboardData?.metrics?.high_fit_leads_total || 0;
-  const highFitCrmLeads = dashboardData?.metrics?.high_fit_crm_leads || 0;
-  const highFitDatabaseLeads = dashboardData?.metrics?.high_fit_database_leads || 0;
-  const campaignReadyLeads = dashboardData?.metrics?.campaign_ready_leads || 0;
 
   const icpProfiles = dashboardData?.icpProfiles || [];
   const tamData = dashboardData?.tamData;
@@ -441,21 +431,13 @@ export default function ExecutiveDashboard() {
                   icon={Building2}
                 />
                 <HeroMetric
-                  label="Total Leads"
-                  value={totalLeads}
-                  subtitle={sourceFilter === 'database' ? 'From addressable market' : 'Contacts tracked'}
-                  icon={Users}
-                />
-                <HeroMetric
-                  label="Campaign Ready"
-                  value={campaignReadyContacts}
-                  subtitle={sourceFilter === 'database' 
-                    ? 'From addressable market with valid contacts' 
-                    : `${campaignReadyAccounts} high-fit accounts with valid contacts (email + title + persona)`}
+                  label="Campaign Ready Accounts"
+                  value={campaignReadyAccounts}
+                  subtitle="High-fit accounts ready for campaign building"
                   trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
                   icon={Sparkles}
-                  status={campaignReadyContacts > 0 ? 'success' : 'warning'}
-                  onClick={() => setShowCampaignExportModal(true)}
+                  status={campaignReadyAccounts > 0 ? 'success' : 'warning'}
+                  onClick={() => navigate('/accounts?campaign_ready=true')}
                 />
               </div>
             </div>
@@ -489,12 +471,6 @@ export default function ExecutiveDashboard() {
                 highFitAccounts={highFitAccounts}
                 highFitCrmAccounts={highFitCrmAccounts}
                 highFitDatabaseAccounts={highFitDatabaseAccounts}
-                totalLeads={totalLeads}
-                crmLeads={crmLeads}
-                databaseLeads={databaseLeads}
-                highFitLeads={highFitLeadsTotal}
-                highFitCrmLeads={highFitCrmLeads}
-                highFitDatabaseLeads={highFitDatabaseLeads}
                 tamAccounts={tamData?.totalAccounts}
                 tamLeads={tamData?.totalLeads}
                 tamProvider={tamData?.provider}
@@ -612,15 +588,6 @@ export default function ExecutiveDashboard() {
 
         {/* Enrichment Modal */}
         <EnrichmentModal open={isEnrichmentModalOpen} onOpenChange={setIsEnrichmentModalOpen} />
-
-        {/* Campaign Export Modal */}
-        <CampaignExportModal
-          isOpen={showCampaignExportModal}
-          onClose={() => setShowCampaignExportModal(false)}
-          orgId={userProfile?.org_id || ''}
-          sourceFilter={sourceFilter}
-          totalCampaignReady={campaignReadyContacts}
-        />
       </div>
   );
 }

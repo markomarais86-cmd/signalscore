@@ -9,9 +9,6 @@ verify_jwt = true
 [functions.deduplicate-contacts]
 verify_jwt = true
 
-[functions.export-campaign-csv]
-verify_jwt = true
-
 [functions.retry-failed-webhooks]
 verify_jwt = false
 
