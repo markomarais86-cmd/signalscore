@@ -82,27 +82,47 @@ serve(async (req) => {
     const uniqueContacts = Array.from(emailMap.values());
     console.log(`[find-campaign-contacts] ${uniqueContacts.length} unique contacts after deduplication`);
 
-    // Check identity registry for duplicates
+    // Check campaign_snapshots for recently exported emails (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
     const emails = uniqueContacts.map(c => c.email);
-    const { data: existingIdentities } = await supabase
-      .from('identity_registry')
-      .select('email_hash')
+    const { data: recentExports } = await supabase
+      .from('campaign_snapshots')
+      .select('exported_emails')
       .eq('org_id', org_id)
-      .in('email_hash', emails.map(e => hashEmail(e)));
+      .gte('exported_at', thirtyDaysAgo.toISOString());
 
-    const existingEmails = new Set(existingIdentities?.map(i => i.email_hash) || []);
-    const newContacts = uniqueContacts.filter(c => !existingEmails.has(hashEmail(c.email)));
+    // Build set of previously exported emails
+    const exportedEmailsSet = new Set<string>();
+    for (const snapshot of recentExports || []) {
+      if (snapshot.exported_emails && Array.isArray(snapshot.exported_emails)) {
+        snapshot.exported_emails.forEach((email: string) => exportedEmailsSet.add(email.toLowerCase()));
+      }
+    }
 
-    console.log(`[find-campaign-contacts] ${newContacts.length} new contacts (not in identity registry)`);
+    // Mark contacts as previously exported
+    const contactsWithHistory = uniqueContacts.map(contact => ({
+      ...contact,
+      previously_exported: exportedEmailsSet.has(contact.email.toLowerCase())
+    }));
 
-    // Calculate data quality scores
-    const enrichedContacts = newContacts.map(contact => ({
+    const newContacts = contactsWithHistory.filter(c => !c.previously_exported);
+    console.log(`[find-campaign-contacts] ${newContacts.length} new contacts, ${contactsWithHistory.length - newContacts.length} previously exported`);
+
+    // Calculate data quality scores for all contacts (including previously exported)
+    const enrichedContacts = contactsWithHistory.map(contact => ({
       ...contact,
       data_quality_score: calculateDataQuality(contact)
     }));
 
-    // Sort by quality score
-    enrichedContacts.sort((a, b) => b.data_quality_score - a.data_quality_score);
+    // Sort by: new contacts first, then by quality score
+    enrichedContacts.sort((a, b) => {
+      if (a.previously_exported !== b.previously_exported) {
+        return a.previously_exported ? 1 : -1;
+      }
+      return b.data_quality_score - a.data_quality_score;
+    });
 
     // Calculate cost
     const costPerContact: Record<string, number> = {
@@ -114,8 +134,8 @@ serve(async (req) => {
     const stats = {
       total_found: allContacts.length,
       deduped: uniqueContacts.length,
-      verified: enrichedContacts.length,
-      suppressed: 0,
+      new_contacts: newContacts.length,
+      previously_exported: enrichedContacts.length - newContacts.length,
       final_count: enrichedContacts.length
     };
 
@@ -150,42 +170,21 @@ async function findContactsForAccount(
   provider: string,
   supabase: any
 ): Promise<any[]> {
-  // First, check if we have leads for this account in our database
-  const { data: existingLeads } = await supabase
-    .from('Leads')
-    .select('*')
-    .eq('account_external_id', account.external_id)
-    .limit(criteria.max_per_account);
-
-  if (existingLeads && existingLeads.length > 0) {
-    console.log(`[find-campaign-contacts] Found ${existingLeads.length} existing leads for ${account.name}`);
-    return existingLeads.map((lead: any) => ({
-      first_name: lead.first_name || '',
-      last_name: lead.last_name || '',
-      email: lead.email || '',
-      title: lead.title || '',
-      phone: lead.phone,
-      mobile_phone: lead.mobile_phone,
-      linkedin_url: lead.linkedin_url,
-      account_name: account.name,
-      account_id: account.external_id
-    }));
-  }
-
-  // If no leads in database, generate mock data
-  // TODO: Replace with actual API calls to Apollo/ZoomInfo/Clearbit
-  console.log(`[find-campaign-contacts] Generating mock contacts for ${account.name}`);
+  // Always fetch contacts real-time from provider API
+  // TODO: Replace with actual API calls to Apollo/ZoomInfo/Clearbit based on provider
+  console.log(`[find-campaign-contacts] Fetching real-time contacts from ${provider} for ${account.name}`);
   
   const mockContacts: any[] = [];
-  const count = Math.min(criteria.max_per_account, 3);
+  const count = Math.min(criteria.max_per_account || 3, 5);
   
   const titles = criteria.job_titles?.length > 0 
     ? criteria.job_titles 
     : ['VP Sales', 'Director of Marketing', 'Head of Business Development'];
 
+  // Simulate provider API call
   for (let i = 0; i < count; i++) {
-    const firstName = ['John', 'Jane', 'Michael', 'Sarah', 'David'][Math.floor(Math.random() * 5)];
-    const lastName = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones'][Math.floor(Math.random() * 5)];
+    const firstName = ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'Chris', 'Alex'][Math.floor(Math.random() * 8)];
+    const lastName = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis'][Math.floor(Math.random() * 8)];
     const domain = account.domain || 'example.com';
     
     mockContacts.push({
@@ -196,17 +195,14 @@ async function findContactsForAccount(
       phone: '+1-555-0100',
       linkedin_url: `https://linkedin.com/in/${firstName.toLowerCase()}${lastName.toLowerCase()}`,
       account_name: account.name,
-      account_id: account.external_id
+      account_id: account.external_id,
+      provider: provider
     });
   }
 
   return mockContacts;
 }
 
-function hashEmail(email: string): string {
-  // Simple hash for demo - in production use crypto
-  return email.toLowerCase().trim();
-}
 
 function calculateDataQuality(contact: any): number {
   const fields = [

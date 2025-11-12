@@ -34,6 +34,8 @@ interface Contact {
   account_name: string;
   account_id: string;
   data_quality_score: number;
+  previously_exported?: boolean;
+  provider?: string;
 }
 
 interface CampaignBuilderProps {
@@ -188,6 +190,31 @@ export function CampaignBuilder({ isOpen, onClose, selectedAccounts }: CampaignB
         a.href = url;
         a.download = `${campaignName.replace(/[^a-z0-9]/gi, '_')}.csv`;
         a.click();
+
+        // Log CSV export to campaign_snapshots
+        const exportedEmails = finalContacts.map(c => c.email);
+        await supabase.from('campaign_snapshots').insert({
+          org_id: userProfile.org_id,
+          campaign_name: campaignName,
+          total_accounts: selectedAccounts.length,
+          total_contacts: finalContacts.length,
+          exported_at: new Date().toISOString(),
+          sync_destination: 'csv',
+          sync_status: 'completed',
+          exported_emails: exportedEmails,
+          icp_name: 'Custom Campaign',
+          persona_filters_applied: {
+            titles: selectedTitles,
+            seniority: selectedSeniority,
+            departments: selectedDepartments
+          },
+          firmographic_filters: {
+            avg_score: avgScore,
+            industries: industries.slice(0, 3),
+            countries: countries.slice(0, 3)
+          },
+          export_type: 'campaign_builder'
+        });
 
         setCampaignResult({
           success: true,
@@ -505,9 +532,15 @@ export function CampaignBuilder({ isOpen, onClose, selectedAccounts }: CampaignB
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-medium">Found {previewContacts.length} Contacts</h3>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-lg font-medium">Found {previewContacts.length} Contacts</h3>
+                  <Badge variant="outline" className="text-xs">
+                    <span className="inline-block w-2 h-2 bg-red-500 rounded-full mr-1.5 animate-pulse"></span>
+                    Live from {provider.charAt(0).toUpperCase() + provider.slice(1)}
+                  </Badge>
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  {selectedContactEmails.size} selected for campaign
+                  {selectedContactEmails.size} selected • {previewContacts.filter(c => c.previously_exported).length} previously exported
                 </p>
               </div>
               <Button
@@ -533,12 +566,12 @@ export function CampaignBuilder({ isOpen, onClose, selectedAccounts }: CampaignB
                     <TableHead>Name</TableHead>
                     <TableHead>Title</TableHead>
                     <TableHead>Account</TableHead>
-                    <TableHead>Quality</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {previewContacts.map((contact) => (
-                    <TableRow key={contact.email}>
+                    <TableRow key={contact.email} className={contact.previously_exported ? 'bg-muted/30' : ''}>
                       <TableCell>
                         <Checkbox
                           checked={selectedContactEmails.has(contact.email)}
@@ -554,9 +587,16 @@ export function CampaignBuilder({ isOpen, onClose, selectedAccounts }: CampaignB
                       <TableCell className="text-sm">{contact.title}</TableCell>
                       <TableCell className="text-sm">{contact.account_name}</TableCell>
                       <TableCell>
-                        <Badge variant={contact.data_quality_score >= 80 ? 'default' : 'secondary'}>
-                          {contact.data_quality_score}%
-                        </Badge>
+                        <div className="flex gap-1.5">
+                          <Badge variant={contact.data_quality_score >= 80 ? 'default' : 'secondary'} className="text-xs">
+                            {contact.data_quality_score}%
+                          </Badge>
+                          {contact.previously_exported && (
+                            <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20">
+                              Previously Exported
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

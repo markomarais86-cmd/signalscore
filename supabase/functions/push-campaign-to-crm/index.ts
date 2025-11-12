@@ -76,17 +76,25 @@ serve(async (req) => {
       }
     }
 
-    // Log to campaign_snapshots
+    // Log to campaign_snapshots for audit and deduplication
+    const exportedEmails = contacts.map((c: any) => c.email);
+    
     const { error: snapshotError } = await supabase
       .from('campaign_snapshots')
       .insert({
         org_id,
-        batch_id: batchId,
         campaign_name,
-        total_leads: contacts.length,
-        icp_breakdown: batch_metadata.icp_criteria || {},
-        persona_breakdown: batch_metadata.persona_criteria || {},
-        exported_at: new Date().toISOString()
+        total_accounts: batch_metadata.source_accounts || 0,
+        total_contacts: contacts.length,
+        exported_at: new Date().toISOString(),
+        sync_destination: 'salesforce',
+        sync_status: 'completed',
+        exported_emails: exportedEmails,
+        icp_id: batch_metadata.icp_id || null,
+        icp_name: batch_metadata.icp_name || 'Custom Campaign',
+        persona_filters_applied: batch_metadata.persona_criteria || {},
+        firmographic_filters: batch_metadata.icp_criteria || {},
+        export_type: 'campaign_builder'
       });
 
     if (snapshotError) {

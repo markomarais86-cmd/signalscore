@@ -415,6 +415,7 @@ export type Database = {
           export_filename: string | null
           export_type: string
           exported_at: string
+          exported_emails: Json | null
           firmographic_filters: Json | null
           icp_id: string | null
           icp_name: string
@@ -438,6 +439,7 @@ export type Database = {
           export_filename?: string | null
           export_type: string
           exported_at?: string
+          exported_emails?: Json | null
           firmographic_filters?: Json | null
           icp_id?: string | null
           icp_name: string
@@ -461,6 +463,7 @@ export type Database = {
           export_filename?: string | null
           export_type?: string
           exported_at?: string
+          exported_emails?: Json | null
           firmographic_filters?: Json | null
           icp_id?: string | null
           icp_name?: string
