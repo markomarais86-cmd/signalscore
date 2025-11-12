@@ -2829,9 +2829,9 @@ export type Database = {
       }
       calculate_account_score: {
         Args: {
-          account_external_id: string
-          icp_id: string
-          org_id_param: string
+          p_account_external_id: string
+          p_icp_id: string
+          p_org_id: string
         }
         Returns: Json
       }

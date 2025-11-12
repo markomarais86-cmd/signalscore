@@ -135,47 +135,67 @@ export default function ICPManager() {
     if (!userProfile?.org_id) return;
     
     try {
-      console.log('🚀 Starting SQL bulk scoring...');
-      const startTime = Date.now();
+      console.log('🚀 Starting automatic background rescoring...');
       
-      const { data, error } = await supabase
-        .rpc('bulk_score_all_accounts', {
-          p_org_id: userProfile.org_id,
-          p_icp_id: null
-        });
+      // Call edge function for background processing
+      const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
+        body: {
+          org_id: userProfile.org_id,
+          icp_id: null,
+          chunk_size: 5000
+        }
+      });
 
-      if (error) {
-        console.error('❌ SQL scoring failed:', error);
-        
-        toast({
-          title: "Scoring Failed",
-          description: error.message || "Please contact support",
-          variant: "destructive"
-        });
-        return;
-      }
+      if (error) throw error;
 
-      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-      const result = data as { success: boolean; processed: number; total_accounts: number; duration_seconds: number };
-      
-      console.log(`✅ Scored ${result.processed} accounts in ${duration}s`);
-      
+      // Just confirm it started - no progress bars
       toast({
-        title: "Re-scoring Complete! ⚡",
-        description: `${result.processed} accounts scored in ${duration}s`,
+        title: "Rescoring Started",
+        description: "Your accounts are being scored automatically in the background",
       });
       
-      // Force refresh dashboard data
-      queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+      // Silent polling for completion (no UI)
+      pollScoringCompletion(data.job_id);
       
-    } catch (error) {
-      console.error('💥 Unexpected error:', error);
+    } catch (error: any) {
+      console.error('❌ Scoring failed:', error);
       toast({
         title: "Scoring Error",
-        description: "An unexpected error occurred",
+        description: error.message || "Please try again",
         variant: "destructive"
       });
     }
+  };
+
+  // Silent background polling - no progress UI
+  const pollScoringCompletion = async (jobId: string) => {
+    const maxPolls = 120; // 6 minutes max
+    let pollCount = 0;
+    
+    const interval = setInterval(async () => {
+      pollCount++;
+      
+      const { data: job } = await supabase
+        .from('bulk_scoring_jobs')
+        .select('status, processed_accounts, total_accounts')
+        .eq('id', jobId)
+        .maybeSingle();
+      
+      if (job?.status === 'completed' || pollCount >= maxPolls) {
+        clearInterval(interval);
+        
+        if (job?.status === 'completed') {
+          // Refresh dashboard silently
+          queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+          
+          // Small success toast
+          toast({
+            title: "Scoring Complete",
+            description: `${job.processed_accounts.toLocaleString()} accounts updated`,
+          });
+        }
+      }
+    }, 3000); // Poll every 3 seconds
   };
 
   const handleWizardClose = () => {
@@ -282,14 +302,6 @@ export default function ICPManager() {
                   Get AI Recommendations
                 </>
               )}
-            </Button>
-            <Button 
-              onClick={triggerRescoring} 
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Re-score All Accounts
             </Button>
             <Button onClick={handleCreateNew} className="flex items-center gap-2">
               <Plus className="h-4 w-4" />

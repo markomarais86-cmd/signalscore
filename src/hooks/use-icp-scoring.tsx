@@ -186,9 +186,9 @@ export function useICPScoring() {
         for (const icp of icpProfiles) {
           const { data: scoreResult, error } = await supabase
             .rpc('calculate_account_score', {
-              account_external_id: account.external_id,
-              icp_id: icp.id,
-              org_id_param: userProfile.org_id
+              p_account_external_id: account.external_id,
+              p_icp_id: icp.id,
+              p_org_id: userProfile.org_id
             });
 
           if (error) {

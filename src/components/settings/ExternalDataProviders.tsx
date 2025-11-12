@@ -11,7 +11,8 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Database, Check, X, Loader2, UserCheck, Sparkles } from "lucide-react";
+import { Database, Check, X, Loader2, UserCheck, Sparkles, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Provider {
   id: string;
@@ -35,6 +36,7 @@ export function ExternalDataProviders() {
   const [saving, setSaving] = useState<string | null>(null);
   const [enriching, setEnriching] = useState(false);
   const [contactStats, setContactStats] = useState({ total: 0, enriched: 0, pending: 0 });
+  const [apolloSyncError, setApolloSyncError] = useState<string | null>(null);
   const { toast } = useToast();
   const { userProfile } = useAuth();
 
@@ -214,9 +216,16 @@ export function ExternalDataProviders() {
       });
 
       if (syncError) {
+        // Check if it's an Apollo credits error
+        if (syncError.message?.includes('insufficient credits')) {
+          setApolloSyncError(syncError.message);
+        }
         throw syncError;
       }
 
+      // Clear any previous error
+      setApolloSyncError(null);
+      
       await loadProviders();
       
       toast({
@@ -225,11 +234,15 @@ export function ExternalDataProviders() {
       });
     } catch (error: any) {
       console.error('Error syncing provider:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to sync provider data",
-        variant: "destructive",
-      });
+      
+      // Don't show toast for Apollo credit errors (we show alert instead)
+      if (!error.message?.includes('insufficient credits')) {
+        toast({
+          title: "Error",
+          description: error.message || "Failed to sync provider data",
+          variant: "destructive",
+        });
+      }
     } finally {
       setSaving(null);
     }
@@ -245,6 +258,24 @@ export function ExternalDataProviders() {
 
   return (
     <div className="space-y-6">
+      {/* Apollo Credits Error Alert */}
+      {apolloSyncError?.includes('insufficient credits') && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Your Apollo account is out of credits. 
+            <a 
+              href="https://app.apollo.io/#/settings/plans/upgrade"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold ml-1"
+            >
+              Upgrade your plan
+            </a> to continue syncing external TAM data.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div>
         <h3 className="text-lg font-semibold mb-2">Contact Persona Enrichment</h3>
         <p className="text-sm text-muted-foreground">

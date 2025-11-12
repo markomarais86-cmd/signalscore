@@ -80,13 +80,93 @@ function rateLimitResponse(result: RateLimitResult, corsHeaders: Record<string, 
   );
 }
 
+// Background processing function
+async function processAllChunks(
+  supabase: SupabaseClient,
+  jobId: string,
+  orgId: string,
+  icpProfiles: any[],
+  totalAccounts: number,
+  chunkSize: number
+) {
+  const totalChunks = Math.ceil(totalAccounts / chunkSize);
+  console.log(`🚀 Background processing: ${totalChunks} chunks, ${totalAccounts} accounts`);
+  
+  for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+    try {
+      const startIndex = chunkIndex * chunkSize;
+      const endIndex = startIndex + chunkSize - 1;
+      
+      console.log(`\n[Chunk ${chunkIndex + 1}/${totalChunks}] Fetching accounts ${startIndex}-${endIndex}`);
+      
+      const { data: accounts, error: accountsError } = await supabase
+        .from('accounts')
+        .select('external_id, name')
+        .eq('org_id', orgId)
+        .range(startIndex, endIndex);
+      
+      if (accountsError || !accounts) {
+        console.error(`❌ Chunk ${chunkIndex + 1} failed to fetch accounts:`, accountsError);
+        continue;
+      }
+      
+      console.log(`✓ Processing ${accounts.length} accounts`);
+      
+      let chunkSuccessful = 0;
+      let chunkErrors = 0;
+      
+      // Process accounts in batches of 100 for efficiency
+      const batchSize = 100;
+      for (let i = 0; i < accounts.length; i += batchSize) {
+        const batchAccounts = accounts.slice(i, Math.min(i + batchSize, accounts.length));
+        
+        const scoringPromises = [];
+        for (const account of batchAccounts) {
+          for (const icp of icpProfiles) {
+            scoringPromises.push(
+              supabase.rpc('calculate_account_score', {
+                p_account_external_id: account.external_id,
+                p_icp_id: icp.id,
+                p_org_id: orgId
+              })
+              .then(({ data, error }) => ({ success: !error, account, icp, data, error }))
+            );
+          }
+        }
+        
+        const results = await Promise.all(scoringPromises);
+        chunkSuccessful += results.filter(r => r.success).length;
+        chunkErrors += results.filter(r => !r.success).length;
+      }
+      
+      // Update progress
+      const processedSoFar = Math.min((chunkIndex + 1) * chunkSize, totalAccounts);
+      const isLastChunk = processedSoFar >= totalAccounts;
+      
+      await supabase.rpc('increment_bulk_scoring_job_progress', {
+        job_id_param: jobId,
+        chunk_successful: chunkSuccessful,
+        chunk_failed: chunkErrors,
+        processed_count: processedSoFar,
+        current_chunk_num: chunkIndex + 1,
+        is_last_chunk: isLastChunk
+      });
+      
+      console.log(`✅ Chunk ${chunkIndex + 1}/${totalChunks} complete: ${chunkSuccessful} scored, ${chunkErrors} failed`);
+      
+    } catch (error) {
+      console.error(`❌ Chunk ${chunkIndex + 1} error:`, error);
+    }
+  }
+  
+  console.log(`🎉 All ${totalAccounts} accounts scored!`);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const startTime = Date.now();
-  
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -94,168 +174,63 @@ serve(async (req) => {
 
   try {
     const requestBody = await req.json() as BulkScoreRequest;
-    const { org_id, icp_id, job_id, chunk_index, chunk_size = 5000 } = requestBody;
+    const { org_id, icp_id, chunk_size = 5000 } = requestBody;
     
-    // Check rate limit (10 requests per minute for bulk scoring)
-    const rateLimitResult = await checkRateLimit(supabase, org_id, 'bulk-score-accounts', 10, 60);
-    if (!rateLimitResult.allowed) {
-      console.log('Rate limit exceeded for org:', org_id);
-      return rateLimitResponse(rateLimitResult, corsHeaders);
-    }
-    
-    console.log('\n=== BULK SCORING CHUNK STARTED ===');
+    console.log('\n=== BULK SCORING JOB STARTED ===');
     console.log('Org ID:', org_id);
-    console.log('Job ID:', job_id);
-    console.log('Chunk Index:', chunk_index);
+    console.log('ICP ID:', icp_id);
     console.log('Chunk Size:', chunk_size);
-    console.log('Timestamp:', new Date().toISOString());
 
-    // STEP 1: Detect and cleanup stuck jobs (>1 hour old, still processing)
+    // Clean up stuck jobs
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { data: stuckJobs } = await supabase
       .from('bulk_scoring_jobs')
-      .select('id, started_at, processed_accounts, total_accounts')
+      .select('id')
       .eq('org_id', org_id)
       .eq('status', 'processing')
       .lt('last_processed_at', oneHourAgo);
 
     if (stuckJobs && stuckJobs.length > 0) {
-      console.log(`⚠️ Found ${stuckJobs.length} stuck job(s). Cleaning up...`);
-      
-      for (const stuckJob of stuckJobs) {
-        await supabase
-          .from('bulk_scoring_jobs')
-          .update({
-            status: 'failed',
-            completed_at: new Date().toISOString(),
-            error_message: 'Job stuck for >1 hour. Auto-failed by system.',
-            error_details: {
-              stuck_at_processed: stuckJob.processed_accounts,
-              total_accounts: stuckJob.total_accounts,
-              last_seen: stuckJob.started_at,
-            }
-          })
-          .eq('id', stuckJob.id);
-        
-        console.log(`✓ Auto-failed stuck job: ${stuckJob.id}`);
-      }
-
-      // Log cleanup action
-      await supabase.from('audit_logs').insert({
-        org_id,
-        actor: 'system',
-        action: 'bulk_score_stuck_jobs_cleanup',
-        meta: {
-          stuck_jobs_count: stuckJobs.length,
-          stuck_job_ids: stuckJobs.map(j => j.id),
-        }
-      });
-    }
-
-    // SERVER-SIDE IDEMPOTENCY: Check if this chunk has already been processed
-    if (job_id && chunk_index !== undefined) {
-      const startIndex = chunk_index * chunk_size;
-      const endIndex = startIndex + chunk_size;
-      
-      // Check if we already have scores for accounts in this range
-      const { data: existingJob } = await supabase
+      await supabase
         .from('bulk_scoring_jobs')
-        .select('processed_accounts, current_chunk, status')
-        .eq('id', job_id)
-        .single();
-      
-      if (existingJob) {
-        const expectedProcessed = (chunk_index + 1) * chunk_size;
-        
-        // If this chunk was already processed, skip it
-        if (existingJob.processed_accounts >= expectedProcessed) {
-          console.log(`⚠️ SKIPPING: Chunk ${chunk_index} already processed (processed: ${existingJob.processed_accounts}, expected: ${expectedProcessed})`);
-          
-          return new Response(
-            JSON.stringify({
-              success: true,
-              skipped: true,
-              reason: 'Chunk already processed',
-              job_id: job_id,
-              chunk_index: chunk_index,
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        
-        console.log(`✓ Idempotency check passed: Processing chunk ${chunk_index} (processed: ${existingJob.processed_accounts}, expected: ${expectedProcessed})`);
-      }
+        .update({ status: 'failed', error_message: 'Job stuck for >1 hour' })
+        .in('id', stuckJobs.map(j => j.id));
     }
-
-    // If no job_id provided, create a new job
-    let currentJobId = job_id;
-    let currentChunkIndex = chunk_index ?? 0;
     
-    // Get total account count first
+    // Get total account count
     const { count: totalAccounts, error: countError } = await supabase
       .from('accounts')
       .select('*', { count: 'exact', head: true })
       .eq('org_id', org_id);
 
-    if (countError) {
-      console.error('Failed to count accounts:', countError);
-      throw new Error(`Failed to count accounts: ${countError.message}`);
+    if (countError || !totalAccounts) {
+      throw new Error(`Failed to count accounts: ${countError?.message}`);
     }
 
-    console.log(`Total accounts to score: ${totalAccounts}`);
+    console.log(`✓ Total accounts: ${totalAccounts}`);
 
-    // Create job if this is the first chunk
-    if (!currentJobId) {
-      const totalChunks = Math.ceil((totalAccounts || 0) / chunk_size);
-      
-      const { data: newJob, error: jobError } = await supabase
-        .from('bulk_scoring_jobs')
-        .insert({
-          org_id,
-          icp_id,
-          total_accounts: totalAccounts || 0,
-          total_chunks: totalChunks,
-          chunk_size,
-          status: 'processing',
-          started_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
+    // Create new job
+    const totalChunks = Math.ceil(totalAccounts / chunk_size);
+    const { data: newJob, error: jobError } = await supabase
+      .from('bulk_scoring_jobs')
+      .insert({
+        org_id,
+        icp_id,
+        total_accounts: totalAccounts,
+        total_chunks: totalChunks,
+        chunk_size,
+        status: 'processing',
+        started_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
 
-      if (jobError || !newJob) {
-        console.error('Failed to create job:', jobError);
-        throw new Error(`Failed to create job: ${jobError?.message}`);
-      }
-
-      currentJobId = newJob.id;
-      console.log(`✓ Created new job: ${currentJobId} (${totalChunks} chunks)`);
-    } else {
-      // Update existing job
-      await supabase
-        .from('bulk_scoring_jobs')
-        .update({
-          status: 'processing',
-          last_processed_at: new Date().toISOString(),
-        })
-        .eq('id', currentJobId);
+    if (jobError || !newJob) {
+      throw new Error(`Failed to create job: ${jobError?.message}`);
     }
 
-    // Fetch accounts for this chunk
-    const startIndex = currentChunkIndex * chunk_size;
-    const endIndex = startIndex + chunk_size - 1;
-    
-    const { data: accounts, error: accountsError } = await supabase
-      .from('accounts')
-      .select('external_id, name')
-      .eq('org_id', org_id)
-      .range(startIndex, endIndex);
-
-    if (accountsError || !accounts) {
-      console.error('Failed to fetch accounts:', accountsError);
-      throw new Error(`Failed to fetch accounts: ${accountsError?.message}`);
-    }
-
-    console.log(`✓ Fetched ${accounts.length} accounts for chunk ${currentChunkIndex + 1}`);
+    const jobId = newJob.id;
+    console.log(`✓ Created job: ${jobId} (${totalChunks} chunks)`);
 
     // Get ICP profiles
     const icpQuery = supabase
@@ -271,177 +246,25 @@ serve(async (req) => {
     const { data: icpProfiles, error: icpError } = await icpQuery;
 
     if (icpError || !icpProfiles || icpProfiles.length === 0) {
-      console.error('No active ICP profiles found:', icpError);
       throw new Error('No active ICP profiles found');
     }
 
     console.log(`✓ Found ${icpProfiles.length} active ICP profile(s)`);
 
-    console.log(`\n=== PROCESSING CHUNK ${currentChunkIndex + 1} ===`);
-    console.log(`Accounts in this chunk: ${accounts.length}\n`);
+    // Start background processing immediately
+    // @ts-ignore - EdgeRuntime is available in Deno
+    EdgeRuntime.waitUntil(
+      processAllChunks(supabase, jobId, org_id, icpProfiles, totalAccounts, chunk_size)
+    );
 
-    let chunkSuccessful = 0;
-    let chunkErrors = 0;
-    const batchSize = 500;
-    const totalBatches = Math.ceil(accounts.length / batchSize);
-
-    // Process in smaller batches within the chunk
-    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-      const batchStart = batchIndex * batchSize;
-      const batchEnd = Math.min(batchStart + batchSize, accounts.length);
-      const batchAccounts = accounts.slice(batchStart, batchEnd);
-      
-      console.log(`\n[Batch ${batchIndex + 1}/${totalBatches}] Processing accounts ${startIndex + batchStart + 1}-${startIndex + batchEnd}`);
-      const batchStartTime = Date.now();
-
-      const scoringPromises = [];
-      for (const account of batchAccounts) {
-        for (const icp of icpProfiles) {
-          scoringPromises.push(
-            supabase.rpc('calculate_account_score', {
-              account_external_id: account.external_id,
-              icp_id: icp.id,
-              org_id_param: org_id
-            })
-            .then(({ data: scoreData, error: scoreError }) => {
-              if (scoreError) {
-                console.error(`Error scoring ${account.name}:`, scoreError.message);
-                return { success: false, account, icp, error: scoreError };
-              }
-              return { success: true, account, icp, scoreData };
-            })
-          );
-        }
-      }
-
-      const results = await Promise.all(scoringPromises);
-      
-      const scoresToUpsert = results
-        .filter(r => r.success && r.scoreData)
-        .map(r => ({
-          org_id,
-          account_external_id: r.account.external_id,
-          overall: r.scoreData.overall,
-          fit: r.scoreData.fit,
-          intent: r.scoreData.intent || 50,
-          reachability: r.scoreData.reachability || 70,
-          reasons: r.scoreData.breakdown,
-          scoring_version: 'icp_v2.0',
-          computed_at: new Date().toISOString(),
-        }));
-
-      if (scoresToUpsert.length > 0) {
-        const { error: upsertError } = await supabase
-          .from('scores')
-          .upsert(scoresToUpsert, {
-            onConflict: 'org_id,account_external_id',
-            ignoreDuplicates: false
-          });
-
-        if (upsertError) {
-          console.error('Failed to upsert scores:', upsertError);
-          chunkErrors += scoresToUpsert.length;
-        } else {
-          chunkSuccessful += scoresToUpsert.length;
-        }
-      }
-
-      // Log failed scores for monitoring
-      const errorResults = results.filter(r => !r.success);
-      chunkErrors += errorResults.length;
-
-      if (errorResults.length > 0) {
-        const failedScoresToLog = errorResults.map(r => ({
-          org_id,
-          job_id: currentJobId,
-          account_external_id: r.account.external_id,
-          account_name: r.account.name,
-          icp_id: r.icp.id,
-          error_message: r.error?.message || 'Unknown error',
-          error_details: { 
-            error: r.error?.message,
-            hint: r.error?.hint,
-            details: r.error?.details 
-          }
-        }));
-
-        // Log failed scores (best effort, don't fail the chunk if this fails)
-        await supabase
-          .from('failed_scores')
-          .insert(failedScoresToLog)
-          .then(({ error: logError }) => {
-            if (logError) {
-              console.error('Failed to log error records:', logError);
-            } else {
-              console.log(`Logged ${failedScoresToLog.length} failed scoring attempts`);
-            }
-          });
-      }
-
-      const batchDuration = Date.now() - batchStartTime;
-      const successRate = ((chunkSuccessful / (chunkSuccessful + chunkErrors)) * 100).toFixed(1);
-      
-      console.log(`[Batch ${batchIndex + 1}] Complete in ${batchDuration}ms | Success: ${chunkSuccessful} | Errors: ${chunkErrors} | Rate: ${successRate}%\n`);
-    }
-
-    // Update job progress atomically to prevent race conditions
-    const processedSoFar = (currentChunkIndex + 1) * chunk_size;
-    const isLastChunk = processedSoFar >= (totalAccounts || 0);
-    
-    // Use atomic increment function to avoid race conditions
-    const { error: updateError } = await supabase.rpc('increment_bulk_scoring_job_progress', {
-      job_id_param: currentJobId,
-      chunk_successful: chunkSuccessful,
-      chunk_failed: chunkErrors,
-      processed_count: Math.min(processedSoFar, totalAccounts || 0),
-      current_chunk_num: currentChunkIndex + 1,
-      is_last_chunk: isLastChunk
-    });
-
-    if (updateError) {
-      console.error('Failed to update job progress:', updateError);
-    }
-
-    // Log audit entry for this chunk
-    await supabase.from('audit_logs').insert({
-      org_id,
-      actor: 'system',
-      action: 'bulk_score_chunk_completed',
-      meta: {
-        job_id: currentJobId,
-        chunk_index: currentChunkIndex,
-        accounts_in_chunk: accounts.length,
-        successful_scores: chunkSuccessful,
-        failed_scores: chunkErrors,
-      }
-    });
-
-    const endTime = Date.now();
-    const chunkDuration = Math.round((endTime - startTime) / 1000);
-
-    console.log('\n=== CHUNK COMPLETED ===');
-    console.log(`Chunk Duration: ${chunkDuration}s`);
-    console.log(`Accounts in Chunk: ${accounts.length}`);
-    console.log(`Successful Scores: ${chunkSuccessful}`);
-    console.log(`Failed Scores: ${chunkErrors}`);
-    console.log(`Success Rate: ${((chunkSuccessful / (chunkErrors > 0 ? chunkSuccessful + chunkErrors : chunkSuccessful)) * 100).toFixed(1)}%`);
-    console.log(`Overall Progress: ${Math.min(processedSoFar, totalAccounts || 0)} / ${totalAccounts}`);
-    console.log(`Is Last Chunk: ${isLastChunk}`);
-    console.log(`Next Chunk: ${isLastChunk ? 'None (Complete)' : currentChunkIndex + 1}`);
-
+    // Return immediately - scoring happens in background
     return new Response(
       JSON.stringify({
         success: true,
-        job_id: currentJobId,
-        chunk_index: currentChunkIndex,
-        chunk_completed: true,
-        is_last_chunk: isLastChunk,
-        accounts_in_chunk: accounts.length,
-        successful_scores: chunkSuccessful,
-        failed_scores: chunkErrors,
-        total_processed: Math.min(processedSoFar, totalAccounts || 0),
+        job_id: jobId,
+        message: "Scoring started in background",
         total_accounts: totalAccounts,
-        duration_seconds: chunkDuration,
+        total_chunks: totalChunks,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
