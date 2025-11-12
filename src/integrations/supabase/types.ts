@@ -373,6 +373,39 @@ export type Database = {
           },
         ]
       }
+      campaign_naming_registry: {
+        Row: {
+          campaign_name: string
+          created_at: string | null
+          icp_segment: string
+          id: string
+          org_id: string
+          region: string
+          signal_type: string
+          week_year: string
+        }
+        Insert: {
+          campaign_name: string
+          created_at?: string | null
+          icp_segment: string
+          id?: string
+          org_id: string
+          region: string
+          signal_type: string
+          week_year: string
+        }
+        Update: {
+          campaign_name?: string
+          created_at?: string | null
+          icp_segment?: string
+          id?: string
+          org_id?: string
+          region?: string
+          signal_type?: string
+          week_year?: string
+        }
+        Relationships: []
+      }
       campaign_snapshots: {
         Row: {
           campaign_ready_contacts: number
@@ -630,6 +663,53 @@ export type Database = {
           sales_cycle_days?: number | null
         }
         Relationships: []
+      }
+      consent_registry: {
+        Row: {
+          consent_given: boolean | null
+          consent_source: string | null
+          consent_timestamp: string | null
+          contact_id: number | null
+          created_at: string | null
+          email: string
+          id: string
+          legal_basis: string | null
+          opt_out_timestamp: string | null
+          org_id: string
+        }
+        Insert: {
+          consent_given?: boolean | null
+          consent_source?: string | null
+          consent_timestamp?: string | null
+          contact_id?: number | null
+          created_at?: string | null
+          email: string
+          id?: string
+          legal_basis?: string | null
+          opt_out_timestamp?: string | null
+          org_id: string
+        }
+        Update: {
+          consent_given?: boolean | null
+          consent_source?: string | null
+          consent_timestamp?: string | null
+          contact_id?: number | null
+          created_at?: string | null
+          email?: string
+          id?: string
+          legal_basis?: string | null
+          opt_out_timestamp?: string | null
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consent_registry_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       custom_reports: {
         Row: {
@@ -1543,6 +1623,63 @@ export type Database = {
           },
         ]
       }
+      identity_registry: {
+        Row: {
+          account_id: string | null
+          contact_id: number | null
+          created_at: string | null
+          crm_object_type: string | null
+          email_hash: string
+          external_source_id: string | null
+          id: string
+          org_id: string
+          primary_domain: string | null
+          primary_email: string
+          updated_at: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          contact_id?: number | null
+          created_at?: string | null
+          crm_object_type?: string | null
+          email_hash: string
+          external_source_id?: string | null
+          id?: string
+          org_id: string
+          primary_domain?: string | null
+          primary_email: string
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          contact_id?: number | null
+          created_at?: string | null
+          crm_object_type?: string | null
+          email_hash?: string
+          external_source_id?: string | null
+          id?: string
+          org_id?: string
+          primary_domain?: string | null
+          primary_email?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "identity_registry_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "identity_registry_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integration_configs: {
         Row: {
           config: Json | null
@@ -1742,6 +1879,7 @@ export type Database = {
         Row: {
           account_external_id: string | null
           company: string | null
+          consent_status: string | null
           contact_external_id: string | null
           country: string | null
           created_at: string
@@ -1749,21 +1887,27 @@ export type Database = {
           deep_research_completed_at: string | null
           email: string | null
           email_status: string | null
+          email_verification_status: string | null
+          email_verified: boolean | null
+          email_verified_at: string | null
           employee_count: number | null
           enriched_at: string | null
           enriched_from: string | null
           enrichment_citations: Json | null
           enrichment_confidence: number | null
+          export_eligible: boolean | null
           external_database_match: boolean | null
           external_id: string | null
           first_name: string | null
           id: number
           industry: string | null
+          last_exported_at: string | null
           last_name: string | null
           level: string | null
           linkedin_url: string | null
           location_city: string | null
           location_region: string | null
+          lp_batch_id: string | null
           match_confidence: number | null
           match_reasoning: string | null
           mobile: string | null
@@ -1773,9 +1917,13 @@ export type Database = {
           phone: string | null
           phone_e164: string | null
           phone_type: string | null
+          phone_verification_status: string | null
+          phone_verified: boolean | null
+          priority_rank: number | null
           revenue_range: string | null
           state_province: string | null
           status: string | null
+          suppression_reason: string | null
           timezone: string | null
           title: string | null
           title_as_of: string | null
@@ -1786,6 +1934,7 @@ export type Database = {
         Insert: {
           account_external_id?: string | null
           company?: string | null
+          consent_status?: string | null
           contact_external_id?: string | null
           country?: string | null
           created_at?: string
@@ -1793,21 +1942,27 @@ export type Database = {
           deep_research_completed_at?: string | null
           email?: string | null
           email_status?: string | null
+          email_verification_status?: string | null
+          email_verified?: boolean | null
+          email_verified_at?: string | null
           employee_count?: number | null
           enriched_at?: string | null
           enriched_from?: string | null
           enrichment_citations?: Json | null
           enrichment_confidence?: number | null
+          export_eligible?: boolean | null
           external_database_match?: boolean | null
           external_id?: string | null
           first_name?: string | null
           id?: number
           industry?: string | null
+          last_exported_at?: string | null
           last_name?: string | null
           level?: string | null
           linkedin_url?: string | null
           location_city?: string | null
           location_region?: string | null
+          lp_batch_id?: string | null
           match_confidence?: number | null
           match_reasoning?: string | null
           mobile?: string | null
@@ -1817,9 +1972,13 @@ export type Database = {
           phone?: string | null
           phone_e164?: string | null
           phone_type?: string | null
+          phone_verification_status?: string | null
+          phone_verified?: boolean | null
+          priority_rank?: number | null
           revenue_range?: string | null
           state_province?: string | null
           status?: string | null
+          suppression_reason?: string | null
           timezone?: string | null
           title?: string | null
           title_as_of?: string | null
@@ -1830,6 +1989,7 @@ export type Database = {
         Update: {
           account_external_id?: string | null
           company?: string | null
+          consent_status?: string | null
           contact_external_id?: string | null
           country?: string | null
           created_at?: string
@@ -1837,21 +1997,27 @@ export type Database = {
           deep_research_completed_at?: string | null
           email?: string | null
           email_status?: string | null
+          email_verification_status?: string | null
+          email_verified?: boolean | null
+          email_verified_at?: string | null
           employee_count?: number | null
           enriched_at?: string | null
           enriched_from?: string | null
           enrichment_citations?: Json | null
           enrichment_confidence?: number | null
+          export_eligible?: boolean | null
           external_database_match?: boolean | null
           external_id?: string | null
           first_name?: string | null
           id?: number
           industry?: string | null
+          last_exported_at?: string | null
           last_name?: string | null
           level?: string | null
           linkedin_url?: string | null
           location_city?: string | null
           location_region?: string | null
+          lp_batch_id?: string | null
           match_confidence?: number | null
           match_reasoning?: string | null
           mobile?: string | null
@@ -1861,9 +2027,13 @@ export type Database = {
           phone?: string | null
           phone_e164?: string | null
           phone_type?: string | null
+          phone_verification_status?: string | null
+          phone_verified?: boolean | null
+          priority_rank?: number | null
           revenue_range?: string | null
           state_province?: string | null
           status?: string | null
+          suppression_reason?: string | null
           timezone?: string | null
           title?: string | null
           title_as_of?: string | null
@@ -1880,6 +2050,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      lp_exports: {
+        Row: {
+          batch_id: string
+          campaign_name: string | null
+          eligible_count: number | null
+          export_count: number
+          export_type: string | null
+          exported_at: string | null
+          exported_by: string | null
+          filter_params: Json
+          id: string
+          org_id: string
+          skip_reasons: Json | null
+          skipped_count: number | null
+        }
+        Insert: {
+          batch_id: string
+          campaign_name?: string | null
+          eligible_count?: number | null
+          export_count: number
+          export_type?: string | null
+          exported_at?: string | null
+          exported_by?: string | null
+          filter_params: Json
+          id?: string
+          org_id: string
+          skip_reasons?: Json | null
+          skipped_count?: number | null
+        }
+        Update: {
+          batch_id?: string
+          campaign_name?: string | null
+          eligible_count?: number | null
+          export_count?: number
+          export_type?: string | null
+          exported_at?: string | null
+          exported_by?: string | null
+          filter_params?: Json
+          id?: string
+          org_id?: string
+          skip_reasons?: Json | null
+          skipped_count?: number | null
+        }
+        Relationships: []
       }
       ml_models: {
         Row: {
@@ -2452,6 +2667,39 @@ export type Database = {
           },
         ]
       }
+      suppression_rules: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          domain: string | null
+          email: string | null
+          id: string
+          org_id: string
+          reason: string
+          suppression_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          domain?: string | null
+          email?: string | null
+          id?: string
+          org_id: string
+          reason: string
+          suppression_type: string
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          domain?: string | null
+          email?: string | null
+          id?: string
+          org_id?: string
+          reason?: string
+          suppression_type?: string
+        }
+        Relationships: []
+      }
       sync_jobs: {
         Row: {
           finished_at: string | null
@@ -2557,6 +2805,53 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      verification_log: {
+        Row: {
+          confidence_score: number | null
+          contact_id: number | null
+          id: string
+          org_id: string
+          provider: string | null
+          provider_response: Json | null
+          status: string | null
+          value_checked: string
+          verification_type: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          confidence_score?: number | null
+          contact_id?: number | null
+          id?: string
+          org_id: string
+          provider?: string | null
+          provider_response?: Json | null
+          status?: string | null
+          value_checked: string
+          verification_type?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          confidence_score?: number | null
+          contact_id?: number | null
+          id?: string
+          org_id?: string
+          provider?: string | null
+          provider_response?: Json | null
+          status?: string | null
+          value_checked?: string
+          verification_type?: string | null
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_log_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       webhook_logs: {
         Row: {
