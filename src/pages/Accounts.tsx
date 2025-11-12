@@ -23,6 +23,7 @@ import { BulkScoring } from "@/components/BulkScoring";
 import { CorrelationInsights } from "@/components/CorrelationInsights";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
+import { CampaignBuilder } from "@/components/campaigns/CampaignBuilder";
 import { getSourceLabel, getSourceBadgeVariant } from "@/utils/data-source-attribution";
 import { EmptyDataState } from "@/components/EmptyDataState";
 import { PRIMARY_INDUSTRIES, SUB_INDUSTRIES_MAP } from "@/constants/zoominfo-industries";
@@ -85,6 +86,7 @@ export default function Accounts() {
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
   const [enrichingSingleAccount, setEnrichingSingleAccount] = useState<string | null>(null);
   const [showEnrichmentModal, setShowEnrichmentModal] = useState(false);
+  const [showCampaignBuilder, setShowCampaignBuilder] = useState(false);
   const [hasActiveICP, setHasActiveICP] = useState(false);
   const [needsScoring, setNeedsScoring] = useState(false);
   const [icpDetailsOpen, setIcpDetailsOpen] = useState(true);
@@ -751,33 +753,36 @@ export default function Accounts() {
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Accounts</h1>
           <p className="text-muted-foreground mt-2">
-            {icpContext ? 'Build targeted account lists for campaigns using ICP criteria' : 'Complete CRM database view'}
+            {icpContext ? 'Build targeted campaigns from high-fit accounts' : 'Complete account database view'}
           </p>
         </div>
         <div className="flex gap-2">
           <Button 
             variant="default" 
+            onClick={() => {
+              const highFitAccounts = accounts.filter(a => a.score && a.score.overall >= 70);
+              if (highFitAccounts.length === 0) {
+                toast({
+                  title: "No high-fit accounts",
+                  description: "Select accounts with ICP scores ≥70 to build campaigns",
+                  variant: "destructive"
+                });
+                return;
+              }
+              setShowCampaignBuilder(true);
+            }}
+            className="bg-primary"
+          >
+            <Target className="h-4 w-4 mr-2" />
+            Build Campaign
+          </Button>
+          <Button 
+            variant="outline" 
             onClick={() => setShowEnrichmentModal(true)}
           >
             <Sparkles className="h-4 w-4 mr-2" />
-            Enrich Account Data
+            Enrich Data
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline">
-                <Download className="h-4 w-4 mr-2" />
-                Export to CSV
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => exportToCSV(false)}>
-                Export Current Page ({accounts.length} accounts)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => exportToCSV(true)}>
-                Export All Filtered ({totalCount} accounts)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
 
@@ -1334,6 +1339,12 @@ export default function Accounts() {
         open={showEnrichmentModal}
         onOpenChange={setShowEnrichmentModal}
         selectedAccounts={totalCount}
+      />
+
+      <CampaignBuilder
+        isOpen={showCampaignBuilder}
+        onClose={() => setShowCampaignBuilder(false)}
+        selectedAccounts={accounts.filter(a => a.score && a.score.overall >= 70)}
       />
     </div>
   );
