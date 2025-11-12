@@ -81,6 +81,13 @@ export default function ExecutiveDashboard() {
   const highFitCrmAccounts = dashboardData?.metrics?.high_fit_crm_accounts || 0;
   const highFitDatabaseAccounts = dashboardData?.metrics?.high_fit_database_accounts || 0;
 
+  const totalLeads = dashboardData?.metrics?.total_leads || 0;
+  const crmLeads = dashboardData?.metrics?.crm_leads || 0;
+  const databaseLeads = dashboardData?.metrics?.database_leads || 0;
+  const highFitLeads = dashboardData?.metrics?.high_fit_leads_total || 0;
+  const highFitCrmLeads = dashboardData?.metrics?.high_fit_crm_leads || 0;
+  const highFitDatabaseLeads = dashboardData?.metrics?.high_fit_database_leads || 0;
+
 
   const icpProfiles = dashboardData?.icpProfiles || [];
   const tamData = dashboardData?.tamData;
@@ -471,6 +478,12 @@ export default function ExecutiveDashboard() {
                 highFitAccounts={highFitAccounts}
                 highFitCrmAccounts={highFitCrmAccounts}
                 highFitDatabaseAccounts={highFitDatabaseAccounts}
+                totalLeads={totalLeads}
+                crmLeads={crmLeads}
+                databaseLeads={databaseLeads}
+                highFitLeads={highFitLeads}
+                highFitCrmLeads={highFitCrmLeads}
+                highFitDatabaseLeads={highFitDatabaseLeads}
                 tamAccounts={tamData?.totalAccounts}
                 tamLeads={tamData?.totalLeads}
                 tamProvider={tamData?.provider}
