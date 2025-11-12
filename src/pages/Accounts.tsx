@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { formatNumber } from "@/utils/format-numbers";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -90,6 +91,7 @@ export default function Accounts() {
   const [hasActiveICP, setHasActiveICP] = useState(false);
   const [needsScoring, setNeedsScoring] = useState(false);
   const [icpDetailsOpen, setIcpDetailsOpen] = useState(true);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
   
   // URL-based filters
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
@@ -757,24 +759,51 @@ export default function Accounts() {
           </p>
         </div>
         <div className="flex gap-2">
+          {selectedAccountIds.size > 0 && (
+            <Badge variant="secondary" className="px-3 py-2 text-sm">
+              {selectedAccountIds.size} selected
+            </Badge>
+          )}
           <Button 
             variant="default" 
             onClick={() => {
-              const highFitAccounts = accounts.filter(a => a.score && a.score.overall >= 70);
-              if (highFitAccounts.length === 0) {
+              if (selectedAccountIds.size === 0) {
                 toast({
-                  title: "No high-fit accounts",
-                  description: "Select accounts with ICP scores ≥70 to build campaigns",
+                  title: "No accounts selected",
+                  description: "Select at least one account to build a campaign",
                   variant: "destructive"
                 });
                 return;
               }
+              
+              const selectedAccounts = accounts.filter(a => selectedAccountIds.has(a.external_id));
+              const lowFitAccounts = selectedAccounts.filter(a => !a.score || a.score.overall < 70);
+              
+              if (lowFitAccounts.length > 0) {
+                toast({
+                  title: "Low-fit accounts detected",
+                  description: `${lowFitAccounts.length} selected account(s) have ICP scores below 70. Only high-fit accounts will be included.`,
+                  variant: "destructive"
+                });
+              }
+              
+              const highFitAccounts = selectedAccounts.filter(a => a.score && a.score.overall >= 70);
+              if (highFitAccounts.length === 0) {
+                toast({
+                  title: "No high-fit accounts",
+                  description: "Selected accounts must have ICP scores ≥70 to build campaigns",
+                  variant: "destructive"
+                });
+                return;
+              }
+              
               setShowCampaignBuilder(true);
             }}
             className="bg-primary"
+            disabled={selectedAccountIds.size === 0}
           >
             <Target className="h-4 w-4 mr-2" />
-            Build Campaign
+            Build Campaign {selectedAccountIds.size > 0 && `(${selectedAccountIds.size})`}
           </Button>
           <Button 
             variant="outline" 
@@ -1088,6 +1117,18 @@ export default function Accounts() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectedAccountIds.size > 0 && selectedAccountIds.size === accounts.length}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedAccountIds(new Set(accounts.map(a => a.external_id)));
+                      } else {
+                        setSelectedAccountIds(new Set());
+                      }
+                    }}
+                  />
+                </TableHead>
                 <TableHead>Company</TableHead>
                 <TableHead>Industry</TableHead>
                 <TableHead>Size</TableHead>
@@ -1138,16 +1179,31 @@ export default function Accounts() {
               ) : (
                 accounts.map((account) => {
                   const completeness = calculateDataCompleteness(account);
+                  const isSelected = selectedAccountIds.has(account.external_id);
+                  
                   return (
                     <TableRow
                     key={account.id}
                     className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => {
+                  >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={(checked) => {
+                          const newSelected = new Set(selectedAccountIds);
+                          if (checked) {
+                            newSelected.add(account.external_id);
+                          } else {
+                            newSelected.delete(account.external_id);
+                          }
+                          setSelectedAccountIds(newSelected);
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell onClick={() => {
                       setSelectedAccountForDetail(account);
                       setShowDetailDrawer(true);
-                    }}
-                  >
-                    <TableCell>
+                    }}>
                       <div>
                         <div className="font-medium">{account.name || 'Unknown Company'}</div>
                         <div className="text-sm text-muted-foreground">{account.domain}</div>
@@ -1344,7 +1400,7 @@ export default function Accounts() {
       <CampaignBuilder
         isOpen={showCampaignBuilder}
         onClose={() => setShowCampaignBuilder(false)}
-        selectedAccounts={accounts.filter(a => a.score && a.score.overall >= 70)}
+        selectedAccounts={accounts.filter(a => selectedAccountIds.has(a.external_id) && a.score && a.score.overall >= 70)}
       />
     </div>
   );
