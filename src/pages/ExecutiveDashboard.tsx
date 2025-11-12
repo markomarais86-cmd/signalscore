@@ -337,6 +337,40 @@ export default function ExecutiveDashboard() {
               <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={async () => {
+                try {
+                  console.log('🚀 Manual scoring trigger clicked');
+                  console.log('Org ID:', userProfile.org_id);
+                  
+                  const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
+                    body: { 
+                      org_id: userProfile.org_id, 
+                      chunk_size: 5000 
+                    }
+                  });
+                  
+                  if (error) {
+                    console.error('❌ Scoring error:', error);
+                    console.error('Full error:', JSON.stringify(error, null, 2));
+                    toast.error(error.message || 'Failed to start scoring');
+                  } else {
+                    console.log('✅ Scoring job started:', data);
+                    toast.success('Scoring started! Processing in background...');
+                    checkDataFreshness(); // Refresh to show active job
+                  }
+                } catch (err) {
+                  console.error('❌ Exception during scoring:', err);
+                  toast.error('Failed to start scoring');
+                }
+              }}
+              disabled={!!activeScoringJob}
+            >
+              <Target className="mr-2 h-4 w-4" />
+              {activeScoringJob ? 'Scoring...' : 'Start Scoring'}
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setIsEnrichmentModalOpen(true)}>
               <Sparkles className="mr-2 h-4 w-4" />
               Enrich

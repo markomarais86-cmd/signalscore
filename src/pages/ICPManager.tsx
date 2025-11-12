@@ -136,6 +136,7 @@ export default function ICPManager() {
     
     try {
       console.log('🚀 Starting automatic background rescoring...');
+      console.log('Invoking edge function with org_id:', userProfile.org_id);
       
       // Call edge function for background processing
       const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
@@ -159,9 +160,10 @@ export default function ICPManager() {
       
     } catch (error: any) {
       console.error('❌ Scoring failed:', error);
+      console.error('Full error details:', JSON.stringify(error, null, 2));
       toast({
         title: "Scoring Error",
-        description: error.message || "Please try again",
+        description: error.message || error.toString() || "Please try again",
         variant: "destructive"
       });
     }
