@@ -181,20 +181,37 @@ serve(async (req) => {
     console.log('ICP ID:', icp_id);
     console.log('Chunk Size:', chunk_size);
 
-    // Clean up stuck jobs
+    // 🧹 Clean up zombie jobs (stuck for >1 hour)
+    console.log('🧹 Cleaning up zombie jobs...');
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    
     const { data: stuckJobs } = await supabase
       .from('bulk_scoring_jobs')
-      .select('id')
+      .select('id, started_at, last_processed_at')
       .eq('org_id', org_id)
       .eq('status', 'processing')
-      .lt('last_processed_at', oneHourAgo);
+      .or(`last_processed_at.lt.${oneHourAgo},last_processed_at.is.null,started_at.lt.${oneHourAgo}`);
 
     if (stuckJobs && stuckJobs.length > 0) {
-      await supabase
+      console.log(`Found ${stuckJobs.length} stuck jobs - marking as failed`);
+      
+      const { error: updateError } = await supabase
         .from('bulk_scoring_jobs')
-        .update({ status: 'failed', error_message: 'Job stuck for >1 hour' })
+        .update({ 
+          status: 'failed',
+          error_message: 'Job stuck for >1 hour - cleaned up automatically',
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
         .in('id', stuckJobs.map(j => j.id));
+      
+      if (updateError) {
+        console.error('Failed to update stuck jobs:', updateError);
+      } else {
+        console.log(`✅ Cleaned up ${stuckJobs.length} zombie job(s)`);
+      }
+    } else {
+      console.log('✓ No stuck jobs found');
     }
     
     // Get total account count

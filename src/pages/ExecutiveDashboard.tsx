@@ -190,21 +190,19 @@ export default function ExecutiveDashboard() {
     }
   };
 
-  // Poll for active scoring job status
+  // Poll for active scoring job status every 3 seconds
   useEffect(() => {
     if (!userProfile?.org_id) return;
 
     checkDataFreshness();
     
-    // Poll every 2 seconds while scoring is active
+    // Poll every 3 seconds (faster polling for better UX)
     const interval = setInterval(() => {
-      if (activeScoringJob) {
-        checkDataFreshness();
-      }
-    }, 2000);
+      checkDataFreshness();
+    }, 3000);
     
     return () => clearInterval(interval);
-  }, [userProfile?.org_id, activeScoringJob]);
+  }, [userProfile?.org_id]);
 
   useEffect(() => {
     if (userProfile?.org_id) {
