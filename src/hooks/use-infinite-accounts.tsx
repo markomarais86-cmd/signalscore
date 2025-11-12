@@ -106,23 +106,17 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
           query = query.eq('country', countryFilter);
         }
 
-        // Campaign ready filter - accounts with campaign-ready leads
+        // Campaign ready filter - accounts with high ICP score (≥70) AND campaign-ready contacts
         if (campaignReadyFilter === true) {
-          // Get accounts that have at least one campaign-ready lead
-          const { data: campaignReadyAccountIds } = await supabase
-            .from('Leads')
+          // Step 1: Get accounts with ICP score ≥ 70
+          const { data: highFitScores } = await supabase
+            .from('scores')
             .select('account_external_id')
             .eq('org_id', orgId)
-            .not('email', 'is', null)
-            .not('title', 'is', null)
-            .not('persona', 'is', null)
-            .neq('persona', 'Unknown');
+            .gte('overall', 70);
           
-          if (campaignReadyAccountIds && campaignReadyAccountIds.length > 0) {
-            const uniqueAccountIds = [...new Set(campaignReadyAccountIds.map(l => l.account_external_id))];
-            query = query.in('external_id', uniqueAccountIds);
-          } else {
-            // No campaign-ready leads found, return empty result
+          if (!highFitScores || highFitScores.length === 0) {
+            // No high-fit accounts found, return empty result
             pagination.setItems([]);
             pagination.setHasMore(false);
             pagination.setTotalCount(0);
@@ -130,6 +124,33 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
             pagination.setLoadingMore(false);
             return;
           }
+          
+          const highFitAccountIds = highFitScores.map(s => s.account_external_id);
+          
+          // Step 2: Get accounts that have at least one campaign-ready lead
+          const { data: campaignReadyLeads } = await supabase
+            .from('Leads')
+            .select('account_external_id')
+            .eq('org_id', orgId)
+            .in('account_external_id', highFitAccountIds)
+            .not('email', 'is', null)
+            .not('title', 'is', null)
+            .not('persona', 'is', null)
+            .neq('persona', 'Unknown');
+          
+          if (!campaignReadyLeads || campaignReadyLeads.length === 0) {
+            // No accounts with both high score AND campaign-ready contacts
+            pagination.setItems([]);
+            pagination.setHasMore(false);
+            pagination.setTotalCount(0);
+            pagination.setLoading(false);
+            pagination.setLoadingMore(false);
+            return;
+          }
+          
+          // Get unique account IDs that meet BOTH criteria
+          const uniqueAccountIds = [...new Set(campaignReadyLeads.map(l => l.account_external_id))];
+          query = query.in('external_id', uniqueAccountIds);
         }
 
         const { data, error, count } = await query;
