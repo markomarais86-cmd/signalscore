@@ -76,6 +76,7 @@ import { EnrichmentHistoryViewer } from "@/components/settings/EnrichmentHistory
 import { DeepResearchSettings } from "@/components/settings/DeepResearchSettings";
 import { EnrichmentAnalyticsDashboard } from "@/components/settings/EnrichmentAnalyticsDashboard";
 import { CandidateSelector } from "@/components/enrichment/CandidateSelector";
+import { ExportHistory } from "@/components/settings/ExportHistory";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
@@ -263,7 +264,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="account" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Account
@@ -283,6 +284,10 @@ export default function Settings() {
           <TabsTrigger value="automation" className="flex items-center gap-2">
             <Bot className="h-4 w-4" />
             Automation & AI
+          </TabsTrigger>
+          <TabsTrigger value="export-history" className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Exports
           </TabsTrigger>
         </TabsList>
 
@@ -723,6 +728,11 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Export History */}
+        <TabsContent value="export-history" className="space-y-6">
+          <ExportHistory />
         </TabsContent>
       </Tabs>
 

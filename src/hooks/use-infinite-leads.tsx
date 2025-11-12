@@ -119,14 +119,14 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
         }
 
         // Campaign ready filter
-        if (campaignReadyFilter === 'ready') {
+        if (campaignReadyFilter === 'yes') {
           // Campaign ready: has email, title, and persona (not Unknown)
           query = query
             .not('email', 'is', null)
             .not('title', 'is', null)
             .not('persona', 'is', null)
             .neq('persona', 'Unknown');
-        } else if (campaignReadyFilter === 'not_ready') {
+        } else if (campaignReadyFilter === 'no') {
           // Not campaign ready: missing email, title, or has Unknown persona
           query = query.or(
             'email.is.null,title.is.null,persona.is.null,persona.eq.Unknown'

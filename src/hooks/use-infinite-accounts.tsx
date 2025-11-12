@@ -19,6 +19,7 @@ interface Account {
   enriched_from?: string | null;
   enriched_at?: string | null;
   contacts?: number;
+  campaignReadyContacts?: number;
   score?: {
     overall: number;
     fit: number;
@@ -36,6 +37,7 @@ interface UseInfiniteAccountsOptions {
   sourceFilter?: string | null;
   fitFilter?: string | null;
   countryFilter?: string | null;
+  campaignReadyFilter?: boolean | null;
   enabled?: boolean;
 }
 
@@ -52,6 +54,7 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
     sourceFilter = null,
     fitFilter = null,
     countryFilter = null,
+    campaignReadyFilter = null,
     enabled = true,
   } = options;
 
@@ -103,6 +106,32 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
           query = query.eq('country', countryFilter);
         }
 
+        // Campaign ready filter - accounts with campaign-ready leads
+        if (campaignReadyFilter === true) {
+          // Get accounts that have at least one campaign-ready lead
+          const { data: campaignReadyAccountIds } = await supabase
+            .from('Leads')
+            .select('account_external_id')
+            .eq('org_id', orgId)
+            .not('email', 'is', null)
+            .not('title', 'is', null)
+            .not('persona', 'is', null)
+            .neq('persona', 'Unknown');
+          
+          if (campaignReadyAccountIds && campaignReadyAccountIds.length > 0) {
+            const uniqueAccountIds = [...new Set(campaignReadyAccountIds.map(l => l.account_external_id))];
+            query = query.in('external_id', uniqueAccountIds);
+          } else {
+            // No campaign-ready leads found, return empty result
+            pagination.setItems([]);
+            pagination.setHasMore(false);
+            pagination.setTotalCount(0);
+            pagination.setLoading(false);
+            pagination.setLoadingMore(false);
+            return;
+          }
+        }
+
         const { data, error, count } = await query;
 
         if (error) throw error;
@@ -142,15 +171,22 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
           // Fetch lead counts per account
           const { data: leadCounts } = await supabase
             .from('Leads')
-            .select('account_external_id')
+            .select('account_external_id, email, title, persona')
             .eq('org_id', orgId)
             .in('account_external_id', accountIds);
 
           // Group lead counts by account
-          const contactCountMap = leadCounts?.reduce((acc, lead) => {
-            acc[lead.account_external_id] = (acc[lead.account_external_id] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>) || {};
+          const contactCountMap: Record<string, number> = {};
+          const campaignReadyCountMap: Record<string, number> = {};
+          
+          leadCounts?.forEach(lead => {
+            contactCountMap[lead.account_external_id] = (contactCountMap[lead.account_external_id] || 0) + 1;
+            
+            // Check if campaign ready
+            if (lead.email && lead.title && lead.persona && lead.persona !== 'Unknown') {
+              campaignReadyCountMap[lead.account_external_id] = (campaignReadyCountMap[lead.account_external_id] || 0) + 1;
+            }
+          });
 
           // Merge scores and contact counts with accounts
           const accountsWithScoresAndContacts = accounts.map((account) => {
@@ -168,6 +204,7 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
                   }
                 : null,
               contacts: contactCountMap[account.external_id] || 0,
+              campaignReadyContacts: campaignReadyCountMap[account.external_id] || 0,
             };
           }) as Account[];
 
@@ -249,6 +286,7 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
     sourceFilter,
     fitFilter,
     countryFilter,
+    campaignReadyFilter,
   ]);
 
   return {

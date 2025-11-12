@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Upload, Database, Sparkles, Settings2 } from "lucide-react";
+import { Download, Upload, Database, Sparkles, Settings2, Building2, Users, History } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useCampaignReady } from "@/hooks/use-campaign-ready";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
@@ -32,6 +33,7 @@ export function CampaignExportModal({
 }: CampaignExportModalProps) {
   const { data, isLoading } = useCampaignReady(orgId, sourceFilter);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Filter state
   const [exportFormat, setExportFormat] = useState<'standard' | 'outreach' | 'salesloft'>('standard');
@@ -60,6 +62,43 @@ export function CampaignExportModal({
             High-fit leads with complete contact information (email, title, persona)
           </DialogDescription>
         </DialogHeader>
+
+        {/* Navigation Links */}
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              onClose();
+              navigate('/accounts?campaign_ready=true');
+            }}
+          >
+            <Building2 className="h-4 w-4 mr-2" />
+            View Accounts
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              onClose();
+              navigate('/leads?campaign_ready=yes');
+            }}
+          >
+            <Users className="h-4 w-4 mr-2" />
+            View All Contacts
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => {
+              onClose();
+              navigate('/settings?tab=export-history');
+            }}
+          >
+            <History className="h-4 w-4 mr-2" />
+            Export History
+          </Button>
+        </div>
 
         <div className="space-y-6">
           {/* Overview Stats */}

@@ -95,6 +95,7 @@ export default function Accounts() {
   const [countryFilter, setCountryFilter] = useState<string | null>(null);
   const [stateFilter, setStateFilter] = useState<string | null>(null);
   const [icpFilter, setIcpFilter] = useState<string | null>(null);
+  const [campaignReadyFilter, setCampaignReadyFilter] = useState<boolean | null>(null);
   
   const [totalAccountsForSummary, setTotalAccountsForSummary] = useState(0);
   const [summaryStats, setSummaryStats] = useState({
@@ -139,6 +140,7 @@ export default function Accounts() {
     sourceFilter,
     fitFilter,
     countryFilter,
+    campaignReadyFilter,
     enabled: !!userProfile?.org_id,
   });
 
@@ -156,12 +158,14 @@ export default function Accounts() {
     const country = searchParams.get('country');
     const state = searchParams.get('state');
     const icp = searchParams.get('icp_id');
+    const campaignReady = searchParams.get('campaign_ready');
     
     setSourceFilter(source);
     setFitFilter(fit);
     setCountryFilter(country);
     setStateFilter(state);
     setIcpFilter(icp);
+    setCampaignReadyFilter(campaignReady === 'true');
   }, [searchParams]);
 
   // Pre-populate filters from ICP context - store ALL ICP criteria
@@ -1087,6 +1091,7 @@ export default function Accounts() {
                 <TableHead>Enriched</TableHead>
                 <TableHead>Data Quality</TableHead>
                 <TableHead>Leads</TableHead>
+                <TableHead>Campaign Ready</TableHead>
                 <TableHead>Score</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
@@ -1190,6 +1195,22 @@ export default function Accounts() {
                       <span className="text-sm">
                         {account.contacts || 0}
                       </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        {account.campaignReadyContacts !== undefined && account.campaignReadyContacts > 0 ? (
+                          <>
+                            <Badge variant="default" className="w-fit">
+                              {account.campaignReadyContacts}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              of {account.contacts || 0}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {account.score?.overall ? (
