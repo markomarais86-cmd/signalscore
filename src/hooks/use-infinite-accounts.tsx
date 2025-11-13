@@ -188,6 +188,42 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
           query = query.eq('country', countryFilter);
         }
 
+        // Fit filter - requires querying scores table
+        if (fitFilter && fitFilter !== 'all') {
+          let minScore = 0;
+          let maxScore = 100;
+          
+          if (fitFilter === 'high') {
+            minScore = 70;
+          } else if (fitFilter === 'medium') {
+            minScore = 40;
+            maxScore = 69;
+          } else if (fitFilter === 'low') {
+            maxScore = 39;
+          }
+          
+          // Get account IDs that match the fit criteria
+          const { data: matchingScores } = await supabase
+            .from('scores')
+            .select('account_external_id')
+            .eq('org_id', orgId)
+            .gte('overall', minScore)
+            .lte('overall', maxScore);
+          
+          if (!matchingScores || matchingScores.length === 0) {
+            // No accounts match the fit criteria
+            pagination.setItems([]);
+            pagination.setHasMore(false);
+            pagination.setTotalCount(0);
+            pagination.setLoading(false);
+            pagination.setLoadingMore(false);
+            return;
+          }
+          
+          const matchingAccountIds = matchingScores.map(s => s.account_external_id);
+          query = query.in('external_id', matchingAccountIds);
+        }
+
         // Campaign ready filter - accounts with high ICP score (≥70) AND campaign-ready contacts
         if (campaignReadyFilter === true) {
           // Step 1: Get accounts with ICP score ≥ 70
