@@ -217,6 +217,7 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
         }
 
         // Use database function for filtering
+        // @ts-ignore - Type will be available after regenerating Supabase types
         const { data, error } = await supabase.rpc('get_filtered_accounts', {
           p_org_id: orgId,
           p_cursor: isLoadingMore ? pagination.state.cursor : null,
