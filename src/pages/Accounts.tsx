@@ -849,26 +849,24 @@ export default function Accounts() {
           <Button 
             variant="default" 
             onClick={() => {
-              console.log('Build Campaign clicked:', { 
-                selectedCount: selectedAccountIds.size, 
-                totalCount,
-                isDisabled: isLoading || selectedAccountIds.size === 0,
-                accounts: accounts.length
-              });
-              if (selectedAccountIds.size === 0) {
+              // Use selected accounts if any, otherwise use all filtered accounts
+              const accountsToUse = selectedAccountIds.size > 0 
+                ? selectedAccountIds 
+                : new Set(accounts.map(a => a.id));
+              
+              if (accountsToUse.size === 0) {
                 toast({
-                  title: "No accounts selected",
-                  description: "Select at least one account to build a campaign",
+                  title: "No accounts available",
+                  description: "No accounts match your current filters",
                   variant: "destructive"
                 });
                 return;
               }
               
-              console.log('Opening campaign builder');
               setShowCampaignBuilder(true);
             }}
             className="bg-primary"
-            disabled={isLoading || selectedAccountIds.size === 0}
+            disabled={isLoading || accounts.length === 0}
           >
             <Target className="h-4 w-4 mr-2" />
             Build Campaign
@@ -1468,7 +1466,7 @@ export default function Accounts() {
       <CampaignBuilder
         isOpen={showCampaignBuilder}
         onClose={() => setShowCampaignBuilder(false)}
-        selectedAccountIds={selectedAccountIds}
+        selectedAccountIds={selectedAccountIds.size > 0 ? selectedAccountIds : new Set(accounts.map(a => a.id))}
       />
     </div>
   );
