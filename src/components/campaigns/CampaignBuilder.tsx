@@ -104,7 +104,7 @@ export function CampaignBuilder({ isOpen, onClose, selectedAccountIds: parentSel
       // Load the pre-selected accounts
       loadSelectedAccounts();
     }
-  }, [isOpen, userProfile?.org_id, parentSelectedAccountIds]);
+  }, [isOpen, userProfile?.org_id]);
 
   const loadSelectedAccounts = async () => {
     if (!userProfile?.org_id || parentSelectedAccountIds.size === 0) return;
