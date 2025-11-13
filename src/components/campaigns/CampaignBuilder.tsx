@@ -41,7 +41,6 @@ interface Contact {
 interface CampaignBuilderProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedAccounts: Account[];
 }
 
 const PERSONA_TITLES = [
@@ -55,12 +54,24 @@ const PERSONA_TITLES = [
 const SENIORITY_LEVELS = ["C-Level", "VP", "Director", "Manager"];
 const DEPARTMENTS = ["Sales", "Marketing", "Revenue", "Business Development", "Executive"];
 
-export function CampaignBuilder({ isOpen, onClose, selectedAccounts }: CampaignBuilderProps) {
+export function CampaignBuilder({ isOpen, onClose }: CampaignBuilderProps) {
   const { userProfile } = useAuth();
   const { toast } = useToast();
   
   const [step, setStep] = useState(1);
   const [campaignName, setCampaignName] = useState("");
+  
+  // Account filtering state
+  const [filters, setFilters] = useState({
+    fitLevels: ['high', 'medium'] as string[],
+    dataSources: ['all'] as string[],
+    industries: [] as string[],
+    countries: [] as string[]
+  });
+  const [filteredAccounts, setFilteredAccounts] = useState<Account[]>([]);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
+  const [accountCount, setAccountCount] = useState(0);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
   
   // Persona criteria
   const [selectedTitles, setSelectedTitles] = useState<string[]>([]);
@@ -86,11 +97,60 @@ export function CampaignBuilder({ isOpen, onClose, selectedAccounts }: CampaignB
   const [destination, setDestination] = useState<'salesforce' | 'csv'>('salesforce');
   const [salesforceCampaignId, setSalesforceCampaignId] = useState("");
 
+  const loadFilteredAccounts = async () => {
+    if (!userProfile?.org_id) return;
+    
+    setLoadingAccounts(true);
+    try {
+      const minScore = filters.fitLevels.includes('high') ? 80 : 
+                       filters.fitLevels.includes('medium') ? 60 : 0;
+      
+      const { data, error, count } = await supabase.rpc('get_filtered_accounts', {
+        p_org_id: userProfile.org_id,
+        p_search_term: null,
+        p_min_score: minScore,
+        p_max_score: null,
+        p_industries: filters.industries.length > 0 ? filters.industries : null,
+        p_countries: filters.countries.length > 0 ? filters.countries : null,
+        p_data_source: filters.dataSources[0] === 'all' ? null : filters.dataSources[0],
+        p_page_size: 100,
+        p_cursor: null
+      });
+
+      if (error) throw error;
+      
+      setFilteredAccounts(data || []);
+      setAccountCount(count || 0);
+      setSelectedAccountIds(new Set((data || []).map(a => a.external_id)));
+      
+      toast({
+        title: "Accounts loaded",
+        description: `Found ${count || 0} matching accounts`
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error loading accounts",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       // Reset state when modal opens
       setStep(1);
       setCampaignName(`Campaign ${new Date().toLocaleDateString()}`);
+      setFilters({
+        fitLevels: ['high', 'medium'],
+        dataSources: ['all'],
+        industries: [],
+        countries: []
+      });
+      setFilteredAccounts([]);
+      setSelectedAccountIds(new Set());
       setPreviewContacts([]);
       setSelectedContactEmails(new Set());
       setCampaignResult(null);
@@ -104,6 +164,7 @@ export function CampaignBuilder({ isOpen, onClose, selectedAccounts }: CampaignB
       zoominfo: 0.10,
       clearbit: 0.05
     };
+    const selectedAccounts = filteredAccounts.filter(a => selectedAccountIds.has(a.external_id));
     const estimatedContactCount = selectedAccounts.length * maxContactsPerAccount;
     setEstimatedCost(estimatedContactCount * costPerContact[provider]);
   }, [selectedAccounts.length, maxContactsPerAccount, provider]);
