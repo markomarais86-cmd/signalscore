@@ -39,6 +39,8 @@ interface UseInfiniteAccountsOptions {
   countryFilter?: string | null;
   campaignReadyFilter?: boolean | null;
   enabled?: boolean;
+  mode?: 'realtime' | 'cached';
+  integrationConfigId?: string;
 }
 
 /**
@@ -56,6 +58,8 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
     countryFilter = null,
     campaignReadyFilter = null,
     enabled = true,
+    mode = 'cached',
+    integrationConfigId,
   } = options;
 
   const pagination = useCursorPagination<Account>({ pageSize });
@@ -74,7 +78,85 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
       }
 
       try {
-        // Build query
+        // Real-time mode: fetch from CRM via edge function
+        if (mode === 'realtime' && integrationConfigId) {
+          // Check cache first (5 minute TTL)
+          const CACHE_KEY_PREFIX = 'crm-accounts-cache';
+          const CACHE_TTL = 5 * 60 * 1000;
+          
+          if (!isLoadingMore) {
+            const cacheKey = `${CACHE_KEY_PREFIX}-${orgId}-${JSON.stringify({ searchTerm, industryFilter, countryFilter, fitFilter })}`;
+            const cached = sessionStorage.getItem(cacheKey);
+            if (cached) {
+              try {
+                const { data, timestamp } = JSON.parse(cached);
+                if (Date.now() - timestamp < CACHE_TTL) {
+                  console.log('Using cached real-time data');
+                  pagination.setItems(data.accounts);
+                  pagination.setCursor(data.cursor);
+                  pagination.setHasMore(data.hasMore);
+                  pagination.setTotalCount(data.totalCount);
+                  pagination.setLoading(false);
+                  return;
+                }
+              } catch (e) {
+                console.error('Cache parse error:', e);
+              }
+            }
+          }
+
+          // Fetch from edge function
+          const { data, error } = await supabase.functions.invoke('fetch-crm-accounts', {
+            body: {
+              org_id: orgId,
+              integration_config_id: integrationConfigId,
+              filters: {
+                searchTerm: searchTerm || undefined,
+                industry: industryFilter !== 'all' ? industryFilter : undefined,
+                country: countryFilter || undefined,
+                fitScore: fitFilter ? parseInt(fitFilter) : undefined,
+              },
+              pagination: {
+                cursor: isLoadingMore ? pagination.state.cursor : null,
+                pageSize,
+              },
+            },
+          });
+
+          if (error) throw error;
+
+          const newAccounts = data.accounts || [];
+          
+          if (isLoadingMore) {
+            pagination.appendItems(newAccounts);
+          } else {
+            pagination.setItems(newAccounts);
+            
+            // Cache the result
+            const cacheKey = `${CACHE_KEY_PREFIX}-${orgId}-${JSON.stringify({ searchTerm, industryFilter, countryFilter, fitFilter })}`;
+            sessionStorage.setItem(cacheKey, JSON.stringify({
+              data: {
+                accounts: newAccounts,
+                cursor: data.cursor,
+                hasMore: data.hasMore,
+                totalCount: data.totalCount,
+              },
+              timestamp: Date.now(),
+            }));
+          }
+          
+          pagination.setCursor(data.cursor);
+          pagination.setHasMore(data.hasMore);
+          pagination.setTotalCount(data.totalCount);
+          
+          setLastError(null);
+          setRetryCount(0);
+          pagination.setLoading(false);
+          pagination.setLoadingMore(false);
+          return;
+        }
+
+        // Cached mode: Build query from local DB
         let query = supabase
           .from('accounts')
           .select('*', { count: 'exact' })
@@ -265,8 +347,12 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
       sourceFilter,
       fitFilter,
       countryFilter,
+      campaignReadyFilter,
+      mode,
+      integrationConfigId,
       pagination,
       toast,
+      retryCount,
     ]
   );
 

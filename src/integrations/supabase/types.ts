@@ -1685,6 +1685,7 @@ export type Database = {
       }
       integration_configs: {
         Row: {
+          cache_settings: Json | null
           config: Json | null
           created_at: string | null
           created_by: string | null
@@ -1699,6 +1700,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          cache_settings?: Json | null
           config?: Json | null
           created_at?: string | null
           created_by?: string | null
@@ -1713,6 +1715,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          cache_settings?: Json | null
           config?: Json | null
           created_at?: string | null
           created_by?: string | null

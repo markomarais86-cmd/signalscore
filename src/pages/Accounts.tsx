@@ -100,6 +100,8 @@ export default function Accounts() {
   const [stateFilter, setStateFilter] = useState<string | null>(null);
   const [icpFilter, setIcpFilter] = useState<string | null>(null);
   const [campaignReadyFilter, setCampaignReadyFilter] = useState<boolean | null>(null);
+  const [displayMode, setDisplayMode] = useState<'realtime' | 'cached'>('cached');
+  const [integrationConfigId, setIntegrationConfigId] = useState<string | null>(null);
   
   const [totalAccountsForSummary, setTotalAccountsForSummary] = useState(0);
   const [summaryStats, setSummaryStats] = useState({
@@ -124,6 +126,27 @@ export default function Accounts() {
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
 
+  // Fetch integration config on mount
+  useEffect(() => {
+    const fetchIntegrationConfig = async () => {
+      if (!userProfile?.org_id) return;
+      
+      const { data } = await supabase
+        .from('integration_configs')
+        .select('id, integration_type, status')
+        .eq('org_id', userProfile.org_id)
+        .eq('status', 'connected')
+        .in('integration_type', ['salesforce', 'hubspot'])
+        .maybeSingle();
+      
+      if (data) {
+        setIntegrationConfigId(data.id);
+      }
+    };
+    
+    fetchIntegrationConfig();
+  }, [userProfile?.org_id]);
+
   // Infinite scroll hook
   const {
     accounts,
@@ -146,6 +169,8 @@ export default function Accounts() {
     countryFilter,
     campaignReadyFilter,
     enabled: !!userProfile?.org_id,
+    mode: displayMode,
+    integrationConfigId: integrationConfigId || undefined,
   });
 
   // Infinite scroll observer
@@ -751,6 +776,32 @@ export default function Accounts() {
         </div>
       )}
       
+      {/* Real-time mode indicator */}
+      {displayMode === 'realtime' && (
+        <Alert className="mb-4 border-primary/20 bg-primary/5">
+          <AlertCircle className="h-4 w-4 text-primary" />
+          <AlertDescription className="text-sm text-foreground">
+            <span className="font-semibold">🔴 Live from CRM</span>
+            {' '}- Displaying real-time data from your CRM. ICP scores are enriched from local analysis.
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-2 h-6 text-xs"
+              onClick={() => {
+                sessionStorage.clear();
+                refresh();
+                toast({
+                  title: "Cache cleared",
+                  description: "Fetching fresh data from CRM..."
+                });
+              }}
+            >
+              Clear Cache & Refresh
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Accounts</h1>
@@ -759,6 +810,31 @@ export default function Accounts() {
           </p>
         </div>
         <div className="flex gap-2">
+          {integrationConfigId && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg mr-2">
+              <Label className="text-xs text-muted-foreground">Display:</Label>
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  variant={displayMode === 'cached' ? 'default' : 'ghost'}
+                  onClick={() => setDisplayMode('cached')}
+                  className="h-7 text-xs"
+                >
+                  <Database className="h-3 w-3 mr-1" />
+                  Cached
+                </Button>
+                <Button
+                  size="sm"
+                  variant={displayMode === 'realtime' ? 'default' : 'ghost'}
+                  onClick={() => setDisplayMode('realtime')}
+                  className="h-7 text-xs"
+                >
+                  <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse mr-1" />
+                  Live CRM
+                </Button>
+              </div>
+            </div>
+          )}
           {selectedAccountIds.size > 0 && (
             <Badge variant="secondary" className="px-3 py-2 text-sm">
               {selectedAccountIds.size} selected
