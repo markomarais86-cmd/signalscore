@@ -180,8 +180,15 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
           query = query.eq('industry_norm', industryFilter);
         }
 
-        if (sourceFilter) {
-          query = query.eq('data_source', sourceFilter);
+        // Source filter - handle 'all', 'crm', and 'database'
+        if (sourceFilter && sourceFilter !== 'all') {
+          if (sourceFilter === 'crm') {
+            // Include CRM-synced, manually uploaded, and closed-won accounts
+            query = query.in('data_source', ['crm', 'both', 'closed_won']);
+          } else if (sourceFilter === 'database') {
+            // Only external database accounts
+            query = query.eq('data_source', 'database');
+          }
         }
 
         if (countryFilter) {
