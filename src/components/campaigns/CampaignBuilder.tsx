@@ -41,7 +41,7 @@ interface Contact {
 interface CampaignBuilderProps {
   isOpen: boolean;
   onClose: () => void;
-  selectedAccountIds: Set<string>;
+  accounts: Account[];
 }
 
 const PERSONA_TITLES = [
@@ -55,7 +55,7 @@ const PERSONA_TITLES = [
 const SENIORITY_LEVELS = ["C-Level", "VP", "Director", "Manager"];
 const DEPARTMENTS = ["Sales", "Marketing", "Revenue", "Business Development", "Executive"];
 
-export function CampaignBuilder({ isOpen, onClose, selectedAccountIds: parentSelectedAccountIds }: CampaignBuilderProps) {
+export function CampaignBuilder({ isOpen, onClose, accounts: parentAccounts }: CampaignBuilderProps) {
   const { userProfile } = useAuth();
   const { toast } = useToast();
   
@@ -101,53 +101,13 @@ export function CampaignBuilder({ isOpen, onClose, selectedAccountIds: parentSel
       setSelectedContactEmails(new Set());
       setCampaignResult(null);
       
-      // Load the pre-selected accounts
-      loadSelectedAccounts();
+      // Use the passed accounts directly
+      setFilteredAccounts(parentAccounts);
+      setSelectedAccountIds(new Set(parentAccounts.map(a => a.external_id)));
+      setAccountCount(parentAccounts.length);
     }
-  }, [isOpen, userProfile?.org_id]);
+  }, [isOpen, userProfile?.org_id, parentAccounts]);
 
-  const loadSelectedAccounts = async () => {
-    if (!userProfile?.org_id || parentSelectedAccountIds.size === 0) return;
-    
-    setLoadingAccounts(true);
-    try {
-      const accountIdsArray = Array.from(parentSelectedAccountIds);
-      
-      const { data, error } = await supabase
-        .from('accounts')
-        .select('*, scores!left(overall, fit, intent, reachability)')
-        .eq('org_id', userProfile.org_id)
-        .in('external_id', accountIdsArray);
-
-      if (error) throw error;
-      
-      const accounts: Account[] = (data || []).map(acc => ({
-        external_id: acc.external_id,
-        name: acc.name,
-        domain: acc.domain,
-        industry_norm: acc.industry_norm,
-        country: acc.country,
-        score: acc.scores?.[0] ? {
-          overall: acc.scores[0].overall,
-          fit: acc.scores[0].fit,
-          intent: acc.scores[0].intent,
-          reachability: acc.scores[0].reachability
-        } : null
-      }));
-      
-      setFilteredAccounts(accounts);
-      setSelectedAccountIds(new Set(accounts.map(a => a.external_id)));
-      setAccountCount(accounts.length);
-    } catch (error: any) {
-      toast({
-        title: "Error loading accounts",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setLoadingAccounts(false);
-    }
-  };
 
   // Computed values from filtered accounts
   const selectedAccounts = filteredAccounts.filter(a => selectedAccountIds.has(a.external_id));
