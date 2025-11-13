@@ -93,6 +93,7 @@ export function CampaignBuilder({ isOpen, onClose, selectedAccountIds: parentSel
   const [salesforceCampaignId, setSalesforceCampaignId] = useState("");
 
   useEffect(() => {
+    console.log('CampaignBuilder useEffect:', { isOpen, orgId: userProfile?.org_id, selectedCount: parentSelectedAccountIds.size });
     if (isOpen && userProfile?.org_id) {
       // Reset state when modal opens
       setStep(1);
@@ -104,7 +105,7 @@ export function CampaignBuilder({ isOpen, onClose, selectedAccountIds: parentSel
       // Load the pre-selected accounts
       loadSelectedAccounts();
     }
-  }, [isOpen, userProfile?.org_id]);
+  }, [isOpen, userProfile?.org_id, parentSelectedAccountIds]);
 
   const loadSelectedAccounts = async () => {
     if (!userProfile?.org_id || parentSelectedAccountIds.size === 0) return;

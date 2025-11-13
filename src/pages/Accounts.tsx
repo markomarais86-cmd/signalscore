@@ -849,6 +849,12 @@ export default function Accounts() {
           <Button 
             variant="default" 
             onClick={() => {
+              console.log('Build Campaign clicked:', { 
+                selectedCount: selectedAccountIds.size, 
+                totalCount,
+                isDisabled: isLoading || selectedAccountIds.size === 0,
+                accounts: accounts.length
+              });
               if (selectedAccountIds.size === 0) {
                 toast({
                   title: "No accounts selected",
@@ -858,10 +864,11 @@ export default function Accounts() {
                 return;
               }
               
+              console.log('Opening campaign builder');
               setShowCampaignBuilder(true);
             }}
             className="bg-primary"
-            disabled={totalCount === 0}
+            disabled={isLoading || selectedAccountIds.size === 0}
           >
             <Target className="h-4 w-4 mr-2" />
             Build Campaign
