@@ -1461,6 +1461,7 @@ export default function Accounts() {
       <CampaignBuilder
         isOpen={showCampaignBuilder}
         onClose={() => setShowCampaignBuilder(false)}
+        selectedAccountIds={selectedAccountIds}
       />
     </div>
   );
