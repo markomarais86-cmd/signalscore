@@ -858,34 +858,13 @@ export default function Accounts() {
                 return;
               }
               
-              const selectedAccounts = accounts.filter(a => selectedAccountIds.has(a.external_id));
-              const lowFitAccounts = selectedAccounts.filter(a => !a.score || a.score.overall < 70);
-              
-              if (lowFitAccounts.length > 0) {
-                toast({
-                  title: "Low-fit accounts detected",
-                  description: `${lowFitAccounts.length} selected account(s) have ICP scores below 70. Only high-fit accounts will be included.`,
-                  variant: "destructive"
-                });
-              }
-              
-              const highFitAccounts = selectedAccounts.filter(a => a.score && a.score.overall >= 70);
-              if (highFitAccounts.length === 0) {
-                toast({
-                  title: "No high-fit accounts",
-                  description: "Selected accounts must have ICP scores ≥70 to build campaigns",
-                  variant: "destructive"
-                });
-                return;
-              }
-              
               setShowCampaignBuilder(true);
             }}
             className="bg-primary"
-            disabled={selectedAccountIds.size === 0}
+            disabled={totalCount === 0}
           >
             <Target className="h-4 w-4 mr-2" />
-            Build Campaign {selectedAccountIds.size > 0 && `(${selectedAccountIds.size})`}
+            Build Campaign
           </Button>
           <Button 
             variant="outline" 
@@ -1482,7 +1461,6 @@ export default function Accounts() {
       <CampaignBuilder
         isOpen={showCampaignBuilder}
         onClose={() => setShowCampaignBuilder(false)}
-        selectedAccounts={accounts.filter(a => selectedAccountIds.has(a.external_id) && a.score && a.score.overall >= 70)}
       />
     </div>
   );
