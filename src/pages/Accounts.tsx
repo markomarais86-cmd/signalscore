@@ -849,12 +849,7 @@ export default function Accounts() {
           <Button 
             variant="default" 
             onClick={() => {
-              // Use selected accounts if any, otherwise use all filtered accounts
-              const accountsToUse = selectedAccountIds.size > 0 
-                ? selectedAccountIds 
-                : new Set(accounts.map(a => a.id));
-              
-              if (accountsToUse.size === 0) {
+              if (accounts.length === 0) {
                 toast({
                   title: "No accounts available",
                   description: "No accounts match your current filters",
@@ -1466,7 +1461,7 @@ export default function Accounts() {
       <CampaignBuilder
         isOpen={showCampaignBuilder}
         onClose={() => setShowCampaignBuilder(false)}
-        selectedAccountIds={selectedAccountIds.size > 0 ? selectedAccountIds : new Set(accounts.map(a => a.id))}
+        accounts={accounts}
       />
     </div>
   );
