@@ -41,6 +41,7 @@ interface Contact {
 interface CampaignBuilderProps {
   isOpen: boolean;
   onClose: () => void;
+  selectedAccountIds: Set<string>;
 }
 
 const PERSONA_TITLES = [
@@ -54,20 +55,14 @@ const PERSONA_TITLES = [
 const SENIORITY_LEVELS = ["C-Level", "VP", "Director", "Manager"];
 const DEPARTMENTS = ["Sales", "Marketing", "Revenue", "Business Development", "Executive"];
 
-export function CampaignBuilder({ isOpen, onClose }: CampaignBuilderProps) {
+export function CampaignBuilder({ isOpen, onClose, selectedAccountIds: parentSelectedAccountIds }: CampaignBuilderProps) {
   const { userProfile } = useAuth();
   const { toast } = useToast();
   
   const [step, setStep] = useState(1);
   const [campaignName, setCampaignName] = useState("");
   
-  // Account filtering state
-  const [filters, setFilters] = useState({
-    fitLevels: ['high', 'medium'] as string[],
-    dataSources: ['all'] as string[],
-    industries: [] as string[],
-    countries: [] as string[]
-  });
+  // Account state
   const [filteredAccounts, setFilteredAccounts] = useState<Account[]>([]);
   const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
   const [accountCount, setAccountCount] = useState(0);
@@ -97,55 +92,52 @@ export function CampaignBuilder({ isOpen, onClose }: CampaignBuilderProps) {
   const [destination, setDestination] = useState<'salesforce' | 'csv'>('salesforce');
   const [salesforceCampaignId, setSalesforceCampaignId] = useState("");
 
-  const loadFilteredAccounts = async () => {
-    if (!userProfile?.org_id) return;
+  useEffect(() => {
+    if (isOpen && userProfile?.org_id) {
+      // Reset state when modal opens
+      setStep(1);
+      setCampaignName(`Campaign ${new Date().toLocaleDateString()}`);
+      setPreviewContacts([]);
+      setSelectedContactEmails(new Set());
+      setCampaignResult(null);
+      
+      // Load the pre-selected accounts
+      loadSelectedAccounts();
+    }
+  }, [isOpen, userProfile?.org_id]);
+
+  const loadSelectedAccounts = async () => {
+    if (!userProfile?.org_id || parentSelectedAccountIds.size === 0) return;
     
     setLoadingAccounts(true);
     try {
-      let accountsQuery = supabase
+      const accountIdsArray = Array.from(parentSelectedAccountIds);
+      
+      const { data, error } = await supabase
         .from('accounts')
-        .select('*, scores!left(overall, fit, intent, reachability)', { count: 'exact' })
-        .eq('org_id', userProfile.org_id);
-
-      if (filters.fitLevels.length > 0) {
-        const minScore = filters.fitLevels.includes('high') ? 80 : 
-                         filters.fitLevels.includes('medium') ? 60 : 0;
-        accountsQuery = accountsQuery.gte('scores.overall', minScore);
-      }
-
-      if (filters.dataSources[0] !== 'all') {
-        accountsQuery = accountsQuery.eq('data_source', filters.dataSources[0]);
-      }
-
-      if (filters.industries.length > 0) {
-        accountsQuery = accountsQuery.in('industry_norm', filters.industries);
-      }
-
-      if (filters.countries.length > 0) {
-        accountsQuery = accountsQuery.in('country', filters.countries);
-      }
-
-      const { data, error, count } = await accountsQuery
-        .order('name')
-        .limit(100);
+        .select('*, scores!left(overall, fit, intent, reachability)')
+        .eq('org_id', userProfile.org_id)
+        .in('external_id', accountIdsArray);
 
       if (error) throw error;
       
       const accounts: Account[] = (data || []).map(acc => ({
-        ...acc,
-        data_source: (acc.data_source || 'crm') as 'crm' | 'database' | 'both',
-        score: acc.scores?.[0] || null,
-        contacts: 0
+        external_id: acc.external_id,
+        name: acc.name,
+        domain: acc.domain,
+        industry_norm: acc.industry_norm,
+        country: acc.country,
+        score: acc.scores?.[0] ? {
+          overall: acc.scores[0].overall,
+          fit: acc.scores[0].fit,
+          intent: acc.scores[0].intent,
+          reachability: acc.scores[0].reachability
+        } : null
       }));
       
       setFilteredAccounts(accounts);
-      setAccountCount(count || 0);
       setSelectedAccountIds(new Set(accounts.map(a => a.external_id)));
-      
-      toast({
-        title: "Accounts loaded",
-        description: `Found ${count || 0} matching accounts`
-      });
+      setAccountCount(accounts.length);
     } catch (error: any) {
       toast({
         title: "Error loading accounts",
@@ -156,25 +148,6 @@ export function CampaignBuilder({ isOpen, onClose }: CampaignBuilderProps) {
       setLoadingAccounts(false);
     }
   };
-
-  useEffect(() => {
-    if (isOpen) {
-      // Reset state when modal opens
-      setStep(1);
-      setCampaignName(`Campaign ${new Date().toLocaleDateString()}`);
-      setFilters({
-        fitLevels: ['high', 'medium'],
-        dataSources: ['all'],
-        industries: [],
-        countries: []
-      });
-      setFilteredAccounts([]);
-      setSelectedAccountIds(new Set());
-      setPreviewContacts([]);
-      setSelectedContactEmails(new Set());
-      setCampaignResult(null);
-    }
-  }, [isOpen]);
 
   // Computed values from filtered accounts
   const selectedAccounts = filteredAccounts.filter(a => selectedAccountIds.has(a.external_id));
