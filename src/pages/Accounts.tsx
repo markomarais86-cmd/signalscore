@@ -1037,8 +1037,8 @@ export default function Accounts() {
         </Alert>
       )}
 
-      {/* Correlation Analysis */}
-      <CorrelationInsights />
+      {/* Correlation Analysis - Deferred to Phase 4 */}
+      {/* <CorrelationInsights /> */}
 
       {/* Bulk Scoring */}
       <BulkScoring onComplete={refresh} />
