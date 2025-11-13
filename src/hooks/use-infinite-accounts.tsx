@@ -298,8 +298,19 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
         }
 
         // Apply the single .in() filter if we have account IDs
+        // Limit IN clause size to avoid PostgreSQL query failures
+        const MAX_IN_CLAUSE_SIZE = 1000;
+        let totalFilteredCount: number | null = null;
+        
         if (finalAccountIds) {
-          query = query.in('external_id', finalAccountIds);
+          totalFilteredCount = finalAccountIds.length;
+          
+          // If we have more IDs than the max, only use the first batch
+          const idsToQuery = finalAccountIds.length > MAX_IN_CLAUSE_SIZE 
+            ? finalAccountIds.slice(0, MAX_IN_CLAUSE_SIZE)
+            : finalAccountIds;
+          
+          query = query.in('external_id', idsToQuery);
         }
 
         const { data, error, count } = await query;
@@ -307,14 +318,17 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
         if (error) throw error;
 
         const accounts = (data || []) as Account[];
+        
+        // Use the pre-computed count if we limited the IN clause
+        const actualCount = totalFilteredCount !== null ? totalFilteredCount : (count || 0);
 
         // Update state
         if (isLoadingMore) {
           pagination.appendItems(accounts);
         } else {
           pagination.setItems(accounts);
-          if (count !== null) {
-            pagination.setTotalCount(count);
+          if (actualCount !== null) {
+            pagination.setTotalCount(actualCount);
           }
         }
 
