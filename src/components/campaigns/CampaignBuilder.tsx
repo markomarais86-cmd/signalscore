@@ -102,26 +102,45 @@ export function CampaignBuilder({ isOpen, onClose }: CampaignBuilderProps) {
     
     setLoadingAccounts(true);
     try {
-      const minScore = filters.fitLevels.includes('high') ? 80 : 
-                       filters.fitLevels.includes('medium') ? 60 : 0;
-      
-      const { data, error, count } = await supabase.rpc('get_filtered_accounts', {
-        p_org_id: userProfile.org_id,
-        p_search_term: null,
-        p_min_score: minScore,
-        p_max_score: null,
-        p_industries: filters.industries.length > 0 ? filters.industries : null,
-        p_countries: filters.countries.length > 0 ? filters.countries : null,
-        p_data_source: filters.dataSources[0] === 'all' ? null : filters.dataSources[0],
-        p_page_size: 100,
-        p_cursor: null
-      });
+      let accountsQuery = supabase
+        .from('accounts')
+        .select('*, scores!left(overall, fit, intent, reachability)', { count: 'exact' })
+        .eq('org_id', userProfile.org_id);
+
+      if (filters.fitLevels.length > 0) {
+        const minScore = filters.fitLevels.includes('high') ? 80 : 
+                         filters.fitLevels.includes('medium') ? 60 : 0;
+        accountsQuery = accountsQuery.gte('scores.overall', minScore);
+      }
+
+      if (filters.dataSources[0] !== 'all') {
+        accountsQuery = accountsQuery.eq('data_source', filters.dataSources[0]);
+      }
+
+      if (filters.industries.length > 0) {
+        accountsQuery = accountsQuery.in('industry_norm', filters.industries);
+      }
+
+      if (filters.countries.length > 0) {
+        accountsQuery = accountsQuery.in('country', filters.countries);
+      }
+
+      const { data, error, count } = await accountsQuery
+        .order('name')
+        .limit(100);
 
       if (error) throw error;
       
-      setFilteredAccounts(data || []);
+      const accounts: Account[] = (data || []).map(acc => ({
+        ...acc,
+        data_source: (acc.data_source || 'crm') as 'crm' | 'database' | 'both',
+        score: acc.scores?.[0] || null,
+        contacts: 0
+      }));
+      
+      setFilteredAccounts(accounts);
       setAccountCount(count || 0);
-      setSelectedAccountIds(new Set((data || []).map(a => a.external_id)));
+      setSelectedAccountIds(new Set(accounts.map(a => a.external_id)));
       
       toast({
         title: "Accounts loaded",
@@ -157,18 +176,9 @@ export function CampaignBuilder({ isOpen, onClose }: CampaignBuilderProps) {
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    // Calculate cost estimate
-    const costPerContact: Record<string, number> = {
-      apollo: 0.02,
-      zoominfo: 0.10,
-      clearbit: 0.05
-    };
-    const selectedAccounts = filteredAccounts.filter(a => selectedAccountIds.has(a.external_id));
-    const estimatedContactCount = selectedAccounts.length * maxContactsPerAccount;
-    setEstimatedCost(estimatedContactCount * costPerContact[provider]);
-  }, [selectedAccounts.length, maxContactsPerAccount, provider]);
-
+  // Computed values from filtered accounts
+  const selectedAccounts = filteredAccounts.filter(a => selectedAccountIds.has(a.external_id));
+  
   const avgScore = selectedAccounts.length > 0
     ? Math.round(
         selectedAccounts.reduce((sum, acc) => sum + (acc.score?.overall || 0), 0) / selectedAccounts.length
@@ -177,6 +187,17 @@ export function CampaignBuilder({ isOpen, onClose }: CampaignBuilderProps) {
 
   const industries = [...new Set(selectedAccounts.map(a => a.industry_norm).filter(Boolean))];
   const countries = [...new Set(selectedAccounts.map(a => a.country).filter(Boolean))];
+
+  useEffect(() => {
+    // Calculate cost estimate
+    const costPerContact: Record<string, number> = {
+      apollo: 0.02,
+      zoominfo: 0.10,
+      clearbit: 0.05
+    };
+    const estimatedContactCount = selectedAccounts.length * maxContactsPerAccount;
+    setEstimatedCost(estimatedContactCount * costPerContact[provider]);
+  }, [selectedAccounts.length, maxContactsPerAccount, provider]);
 
   const handlePreviewContacts = async () => {
     if (!userProfile?.org_id) return;
@@ -251,31 +272,6 @@ export function CampaignBuilder({ isOpen, onClose }: CampaignBuilderProps) {
         a.href = url;
         a.download = `${campaignName.replace(/[^a-z0-9]/gi, '_')}.csv`;
         a.click();
-
-        // Log CSV export to campaign_snapshots
-        const exportedEmails = finalContacts.map(c => c.email);
-        await supabase.from('campaign_snapshots').insert({
-          org_id: userProfile.org_id,
-          campaign_name: campaignName,
-          total_accounts: selectedAccounts.length,
-          total_contacts: finalContacts.length,
-          exported_at: new Date().toISOString(),
-          sync_destination: 'csv',
-          sync_status: 'completed',
-          exported_emails: exportedEmails,
-          icp_name: 'Custom Campaign',
-          persona_filters_applied: {
-            titles: selectedTitles,
-            seniority: selectedSeniority,
-            departments: selectedDepartments
-          },
-          firmographic_filters: {
-            avg_score: avgScore,
-            industries: industries.slice(0, 3),
-            countries: countries.slice(0, 3)
-          },
-          export_type: 'campaign_builder'
-        });
 
         setCampaignResult({
           success: true,
@@ -386,7 +382,7 @@ export function CampaignBuilder({ isOpen, onClose }: CampaignBuilderProps) {
                 <div className="col-span-2">
                   <div className="text-sm font-medium mb-1">Industries</div>
                   <div className="flex flex-wrap gap-1">
-                    {industries.slice(0, 5).map(ind => (
+                    {industries.slice(0, 5).map((ind: string | null) => ind && (
                       <Badge key={ind} variant="secondary" className="text-xs">{ind}</Badge>
                     ))}
                     {industries.length > 5 && <Badge variant="outline" className="text-xs">+{industries.length - 5}</Badge>}
@@ -395,7 +391,7 @@ export function CampaignBuilder({ isOpen, onClose }: CampaignBuilderProps) {
                 <div className="col-span-2">
                   <div className="text-sm font-medium mb-1">Countries</div>
                   <div className="flex flex-wrap gap-1">
-                    {countries.slice(0, 5).map(country => (
+                    {countries.slice(0, 5).map((country: string | null) => country && (
                       <Badge key={country} variant="secondary" className="text-xs">{country}</Badge>
                     ))}
                     {countries.length > 5 && <Badge variant="outline" className="text-xs">+{countries.length - 5}</Badge>}
