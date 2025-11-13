@@ -199,137 +199,50 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
         let fitFilterAccountIds: string[] | null = null;
         let campaignReadyAccountIds: string[] | null = null;
 
-        // Fit filter - requires querying scores table
-        if (fitFilter && fitFilter !== 'all') {
-          let minScore = 0;
-          let maxScore = 100;
-          
-          if (fitFilter === 'high') {
-            minScore = 70;
-          } else if (fitFilter === 'medium') {
-            minScore = 40;
-            maxScore = 69;
-          } else if (fitFilter === 'low') {
-            maxScore = 39;
-          }
-          
-          const { data: matchingScores } = await supabase
-            .from('scores')
-            .select('account_external_id')
-            .eq('org_id', orgId)
-            .gte('overall', minScore)
-            .lte('overall', maxScore);
-          
-          if (!matchingScores || matchingScores.length === 0) {
-            pagination.setItems([]);
-            pagination.setHasMore(false);
-            pagination.setTotalCount(0);
-            pagination.setLoading(false);
-            pagination.setLoadingMore(false);
-            return;
-          }
-          
-          fitFilterAccountIds = matchingScores.map(s => s.account_external_id);
-        }
-
-        // Campaign ready filter - accounts with high ICP score (≥70) AND campaign-ready contacts
-        if (campaignReadyFilter === true) {
-          // Step 1: Get accounts with ICP score ≥ 70
-          const { data: highFitScores } = await supabase
-            .from('scores')
-            .select('account_external_id')
-            .eq('org_id', orgId)
-            .gte('overall', 70);
-          
-          if (!highFitScores || highFitScores.length === 0) {
-            pagination.setItems([]);
-            pagination.setHasMore(false);
-            pagination.setTotalCount(0);
-            pagination.setLoading(false);
-            pagination.setLoadingMore(false);
-            return;
-          }
-          
-          const highFitAccountIds = highFitScores.map(s => s.account_external_id);
-          
-          // Step 2: Get accounts that have at least one campaign-ready lead
-          const { data: campaignReadyLeads } = await supabase
-            .from('Leads')
-            .select('account_external_id')
-            .eq('org_id', orgId)
-            .in('account_external_id', highFitAccountIds)
-            .not('email', 'is', null)
-            .not('title', 'is', null)
-            .not('persona', 'is', null)
-            .neq('persona', 'Unknown');
-          
-          if (!campaignReadyLeads || campaignReadyLeads.length === 0) {
-            pagination.setItems([]);
-            pagination.setHasMore(false);
-            pagination.setTotalCount(0);
-            pagination.setLoading(false);
-            pagination.setLoadingMore(false);
-            return;
-          }
-          
-          campaignReadyAccountIds = [...new Set(campaignReadyLeads.map(l => l.account_external_id))];
-        }
-
-        // Compute intersection of all active filters
-        let finalAccountIds: string[] | null = null;
-
-        if (fitFilterAccountIds && campaignReadyAccountIds) {
-          // Both filters active - intersect them
-          const campaignReadySet = new Set(campaignReadyAccountIds);
-          finalAccountIds = fitFilterAccountIds.filter(id => campaignReadySet.has(id));
-          
-          if (finalAccountIds.length === 0) {
-            pagination.setItems([]);
-            pagination.setHasMore(false);
-            pagination.setTotalCount(0);
-            pagination.setLoading(false);
-            pagination.setLoadingMore(false);
-            return;
-          }
-        } else if (fitFilterAccountIds) {
-          finalAccountIds = fitFilterAccountIds;
-        } else if (campaignReadyAccountIds) {
-          finalAccountIds = campaignReadyAccountIds;
-        }
-
-        // Apply the single .in() filter if we have account IDs
-        // Limit IN clause size to avoid PostgreSQL query failures
-        const MAX_IN_CLAUSE_SIZE = 1000;
-        let totalFilteredCount: number | null = null;
+        // Determine fit score range
+        let fitMin: number | null = null;
+        let fitMax: number | null = null;
         
-        if (finalAccountIds) {
-          totalFilteredCount = finalAccountIds.length;
-          
-          // If we have more IDs than the max, only use the first batch
-          const idsToQuery = finalAccountIds.length > MAX_IN_CLAUSE_SIZE 
-            ? finalAccountIds.slice(0, MAX_IN_CLAUSE_SIZE)
-            : finalAccountIds;
-          
-          query = query.in('external_id', idsToQuery);
+        if (fitFilter && fitFilter !== 'all') {
+          if (fitFilter === 'high') {
+            fitMin = 70;
+            fitMax = 100;
+          } else if (fitFilter === 'medium') {
+            fitMin = 40;
+            fitMax = 69;
+          } else if (fitFilter === 'low') {
+            fitMin = 0;
+            fitMax = 39;
+          }
         }
 
-        const { data, error, count } = await query;
+        // Use database function for filtering
+        const { data, error } = await supabase.rpc('get_filtered_accounts', {
+          p_org_id: orgId,
+          p_cursor: isLoadingMore ? pagination.state.cursor : null,
+          p_limit: pageSize,
+          p_search_term: searchTerm || null,
+          p_industry: (industryFilter && industryFilter !== 'all') ? industryFilter : null,
+          p_country: countryFilter || null,
+          p_data_source: (sourceFilter && sourceFilter !== 'all') ? sourceFilter : null,
+          p_fit_min: fitMin,
+          p_fit_max: fitMax,
+          p_campaign_ready: campaignReadyFilter || false,
+        });
 
         if (error) throw error;
 
-        const accounts = (data || []) as Account[];
-        
-        // Use the pre-computed count if we limited the IN clause
-        const actualCount = totalFilteredCount !== null ? totalFilteredCount : (count || 0);
+        // Extract accounts and total count from RPC response
+        const rawData = (data || []) as unknown as Array<Account & { total_count: number }>;
+        const accounts = rawData.map(({ total_count, ...account }) => account) as Account[];
+        const totalCount = rawData.length > 0 ? Number(rawData[0].total_count) : 0;
 
         // Update state
         if (isLoadingMore) {
           pagination.appendItems(accounts);
         } else {
           pagination.setItems(accounts);
-          if (actualCount !== null) {
-            pagination.setTotalCount(actualCount);
-          }
+          pagination.setTotalCount(totalCount);
         }
 
         // Update cursor and hasMore
