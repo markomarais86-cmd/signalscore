@@ -628,6 +628,12 @@ export default function Accounts() {
 
   const hasActiveFilters = sourceFilter || fitFilter || countryFilter || stateFilter || icpFilter || searchTerm || industryFilter !== "all" || subIndustryFilter !== "all";
 
+  // Show loading skeleton while auth is loading
+  if (!userProfile) {
+    return <TableSkeleton rows={10} columns={7} showMetrics showFilters />;
+  }
+
+  // Show loading skeleton while accounts are loading
   if (isLoading && accounts.length === 0) {
     return <TableSkeleton rows={10} columns={7} showMetrics showFilters />;
   }

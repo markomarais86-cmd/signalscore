@@ -394,6 +394,8 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
     fitFilter,
     countryFilter,
     campaignReadyFilter,
+    mode,
+    integrationConfigId,
   ]);
 
   return {
