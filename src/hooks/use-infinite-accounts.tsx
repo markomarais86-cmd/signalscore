@@ -188,6 +188,10 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
           query = query.eq('country', countryFilter);
         }
 
+        // Collect account IDs from various filters
+        let fitFilterAccountIds: string[] | null = null;
+        let campaignReadyAccountIds: string[] | null = null;
+
         // Fit filter - requires querying scores table
         if (fitFilter && fitFilter !== 'all') {
           let minScore = 0;
@@ -202,7 +206,6 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
             maxScore = 39;
           }
           
-          // Get account IDs that match the fit criteria
           const { data: matchingScores } = await supabase
             .from('scores')
             .select('account_external_id')
@@ -211,7 +214,6 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
             .lte('overall', maxScore);
           
           if (!matchingScores || matchingScores.length === 0) {
-            // No accounts match the fit criteria
             pagination.setItems([]);
             pagination.setHasMore(false);
             pagination.setTotalCount(0);
@@ -220,8 +222,7 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
             return;
           }
           
-          const matchingAccountIds = matchingScores.map(s => s.account_external_id);
-          query = query.in('external_id', matchingAccountIds);
+          fitFilterAccountIds = matchingScores.map(s => s.account_external_id);
         }
 
         // Campaign ready filter - accounts with high ICP score (≥70) AND campaign-ready contacts
@@ -234,7 +235,6 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
             .gte('overall', 70);
           
           if (!highFitScores || highFitScores.length === 0) {
-            // No high-fit accounts found, return empty result
             pagination.setItems([]);
             pagination.setHasMore(false);
             pagination.setTotalCount(0);
@@ -257,7 +257,6 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
             .neq('persona', 'Unknown');
           
           if (!campaignReadyLeads || campaignReadyLeads.length === 0) {
-            // No accounts with both high score AND campaign-ready contacts
             pagination.setItems([]);
             pagination.setHasMore(false);
             pagination.setTotalCount(0);
@@ -266,9 +265,34 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
             return;
           }
           
-          // Get unique account IDs that meet BOTH criteria
-          const uniqueAccountIds = [...new Set(campaignReadyLeads.map(l => l.account_external_id))];
-          query = query.in('external_id', uniqueAccountIds);
+          campaignReadyAccountIds = [...new Set(campaignReadyLeads.map(l => l.account_external_id))];
+        }
+
+        // Compute intersection of all active filters
+        let finalAccountIds: string[] | null = null;
+
+        if (fitFilterAccountIds && campaignReadyAccountIds) {
+          // Both filters active - intersect them
+          const campaignReadySet = new Set(campaignReadyAccountIds);
+          finalAccountIds = fitFilterAccountIds.filter(id => campaignReadySet.has(id));
+          
+          if (finalAccountIds.length === 0) {
+            pagination.setItems([]);
+            pagination.setHasMore(false);
+            pagination.setTotalCount(0);
+            pagination.setLoading(false);
+            pagination.setLoadingMore(false);
+            return;
+          }
+        } else if (fitFilterAccountIds) {
+          finalAccountIds = fitFilterAccountIds;
+        } else if (campaignReadyAccountIds) {
+          finalAccountIds = campaignReadyAccountIds;
+        }
+
+        // Apply the single .in() filter if we have account IDs
+        if (finalAccountIds) {
+          query = query.in('external_id', finalAccountIds);
         }
 
         const { data, error, count } = await query;
