@@ -217,6 +217,19 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
         }
 
         // Use database function for filtering
+        console.log('[useInfiniteAccounts] Calling get_filtered_accounts with params:', {
+          p_org_id: orgId,
+          p_cursor: isLoadingMore ? pagination.state.cursor : null,
+          p_limit: pageSize,
+          p_search_term: searchTerm || null,
+          p_industry: (industryFilter && industryFilter !== 'all') ? industryFilter : null,
+          p_country: countryFilter || null,
+          p_data_source: (sourceFilter && sourceFilter !== 'all') ? sourceFilter : null,
+          p_fit_min: fitMin,
+          p_fit_max: fitMax,
+          p_campaign_ready: campaignReadyFilter || false,
+        });
+        
         // @ts-ignore - Type will be available after regenerating Supabase types
         const { data, error } = await supabase.rpc('get_filtered_accounts', {
           p_org_id: orgId,
@@ -231,7 +244,15 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
           p_campaign_ready: campaignReadyFilter || false,
         });
 
-        if (error) throw error;
+        console.log('[useInfiniteAccounts] RPC result:', { 
+          dataType: Array.isArray(data) ? 'array' : typeof data,
+          dataLength: Array.isArray(data) ? data.length : 'not an array',
+          error 
+        });
+        if (error) {
+          console.error('[useInfiniteAccounts] RPC error:', error);
+          throw error;
+        }
 
         // Extract accounts and total count from RPC response
         const rawData = (data || []) as unknown as Array<Account & { total_count: number }>;
