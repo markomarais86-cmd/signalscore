@@ -3277,6 +3277,7 @@ export type Database = {
           cursor: string
           domain: string
           external_id: string
+          id: string
           industry_norm: string
           name: string
           overall_score: number
