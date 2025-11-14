@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ICPRecommendationDialog } from "@/components/icp/ICPRecommendationDialog";
 import { ICPGridSkeleton } from "@/components/ICPGridSkeleton";
 import { useQueryClient } from "@tanstack/react-query";
+import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 
 export default function ICPManager() {
   const [icps, setIcps] = useState<ICPProfile[]>([]);
@@ -29,6 +30,8 @@ export default function ICPManager() {
   const [recommendationDialogOpen, setRecommendationDialogOpen] = useState(false);
   const [aiRecommendation, setAiRecommendation] = useState<any>(null);
   const [loadingRecommendation, setLoadingRecommendation] = useState(false);
+  const [showCampaignBuilder, setShowCampaignBuilder] = useState(false);
+  const [selectedICPForCampaign, setSelectedICPForCampaign] = useState<string | undefined>();
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
@@ -250,25 +253,8 @@ export default function ICPManager() {
   };
 
   const navigateToCampaign = (icp: ICPProfile) => {
-    navigate('/accounts', {
-      state: {
-        icpId: icp.id,
-        icpName: icp.name,
-        icpDescription: icp.description,
-        icpVersion: icp.version || 1,
-        prefilters: {
-          industries: icp.industries || [],
-          subIndustries: icp.sub_industries || [],
-          geographies: icp.geographies || [],
-          companySizes: icp.company_sizes || [],
-          revenueRanges: icp.revenue_ranges || [],
-          personaJobTitles: icp.persona_job_titles || [],
-          personaSeniorityLevels: icp.persona_seniority_levels || [],
-          personaDepartments: icp.persona_departments || [],
-          personaDecisionRoles: icp.persona_decision_roles || []
-        }
-      }
-    });
+    setSelectedICPForCampaign(icp.id);
+    setShowCampaignBuilder(true);
   };
 
   const activeCount = icps.filter(icp => icp.status === 'active').length;
@@ -535,6 +521,17 @@ export default function ICPManager() {
         open={recommendationDialogOpen}
         onOpenChange={setRecommendationDialogOpen}
         data={aiRecommendation}
+      />
+      
+      {/* Campaign Builder */}
+      <CampaignBuilderV2
+        isOpen={showCampaignBuilder}
+        onClose={() => {
+          setShowCampaignBuilder(false);
+          setSelectedICPForCampaign(undefined);
+        }}
+        icpId={selectedICPForCampaign}
+        source="icp-manager"
       />
 
     </>
