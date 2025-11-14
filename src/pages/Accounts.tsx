@@ -849,7 +849,7 @@ export default function Accounts() {
           <Button 
             variant="default" 
             onClick={() => {
-              if (accounts.length === 0) {
+              if (totalCount === 0) {
                 toast({
                   title: "No accounts available",
                   description: "No accounts match your current filters",
@@ -861,7 +861,7 @@ export default function Accounts() {
               setShowCampaignBuilder(true);
             }}
             className="bg-primary"
-            disabled={isLoading || accounts.length === 0}
+            disabled={isLoading || totalCount === 0}
           >
             <Target className="h-4 w-4 mr-2" />
             Build Campaign
