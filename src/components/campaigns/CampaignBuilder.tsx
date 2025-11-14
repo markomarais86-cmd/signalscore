@@ -41,7 +41,18 @@ interface Contact {
 interface CampaignBuilderProps {
   isOpen: boolean;
   onClose: () => void;
-  accounts: Account[];
+  filterCriteria: {
+    orgId: string;
+    searchTerm: string | null;
+    industryFilter: string | null;
+    subIndustryFilter: string | null;
+    sourceFilter: string | null;
+    fitFilter: string | null;
+    countryFilter: string | null;
+    stateFilter: string | null;
+    campaignReadyFilter: boolean;
+    mode: 'cached' | 'realtime';
+  };
 }
 
 const PERSONA_TITLES = [
@@ -55,7 +66,7 @@ const PERSONA_TITLES = [
 const SENIORITY_LEVELS = ["C-Level", "VP", "Director", "Manager"];
 const DEPARTMENTS = ["Sales", "Marketing", "Revenue", "Business Development", "Executive"];
 
-export function CampaignBuilder({ isOpen, onClose, accounts: parentAccounts }: CampaignBuilderProps) {
+export function CampaignBuilder({ isOpen, onClose, filterCriteria }: CampaignBuilderProps) {
   const { userProfile } = useAuth();
   const { toast } = useToast();
   
@@ -101,12 +112,73 @@ export function CampaignBuilder({ isOpen, onClose, accounts: parentAccounts }: C
       setSelectedContactEmails(new Set());
       setCampaignResult(null);
       
-      // Use the passed accounts directly
-      setFilteredAccounts(parentAccounts);
-      setSelectedAccountIds(new Set(parentAccounts.map(a => a.external_id)));
-      setAccountCount(parentAccounts.length);
+      // Load ALL matching accounts
+      loadAllFilteredAccounts();
     }
-  }, [isOpen, userProfile?.org_id, parentAccounts]);
+  }, [isOpen, userProfile?.org_id, filterCriteria]);
+
+  const loadAllFilteredAccounts = async () => {
+    setLoadingAccounts(true);
+    try {
+      // Determine fit score range
+      let fitMin: number | null = null;
+      let fitMax: number | null = null;
+      
+      if (filterCriteria.fitFilter && filterCriteria.fitFilter !== 'all') {
+        if (filterCriteria.fitFilter === 'high') {
+          fitMin = 70;
+          fitMax = 100;
+        } else if (filterCriteria.fitFilter === 'medium') {
+          fitMin = 40;
+          fitMax = 69;
+        } else if (filterCriteria.fitFilter === 'low') {
+          fitMin = 0;
+          fitMax = 39;
+        }
+      }
+
+      // @ts-ignore - Type will be available after regenerating Supabase types
+      const { data, error } = await supabase.rpc('get_filtered_accounts', {
+        p_org_id: filterCriteria.orgId,
+        p_cursor: null,
+        p_limit: 10000, // Load ALL accounts
+        p_search_term: filterCriteria.searchTerm || null,
+        p_industry: (filterCriteria.industryFilter && filterCriteria.industryFilter !== 'all') ? filterCriteria.industryFilter : null,
+        p_country: filterCriteria.countryFilter || null,
+        p_data_source: (filterCriteria.sourceFilter && filterCriteria.sourceFilter !== 'all') ? filterCriteria.sourceFilter : null,
+        p_fit_min: fitMin,
+        p_fit_max: fitMax,
+        p_campaign_ready: filterCriteria.campaignReadyFilter || false,
+      });
+      
+      if (error) throw error;
+      
+      // Extract accounts from RPC response
+      const rawData = (data || []) as unknown as Array<any>;
+      const accounts: Account[] = rawData.map((acc: any) => ({
+        external_id: acc.external_id,
+        name: acc.name,
+        domain: acc.domain,
+        industry_norm: acc.industry_norm,
+        country: acc.country,
+        score: acc.overall_score ? {
+          overall: acc.overall_score
+        } : null
+      }));
+      
+      setFilteredAccounts(accounts);
+      setSelectedAccountIds(new Set(accounts.map(a => a.external_id)));
+      setAccountCount(accounts.length);
+    } catch (error: any) {
+      toast({
+        title: "Error loading accounts",
+        description: error.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingAccounts(false);
+    }
+  };
 
 
   // Computed values from filtered accounts

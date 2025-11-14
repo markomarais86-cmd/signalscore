@@ -1461,7 +1461,18 @@ export default function Accounts() {
       <CampaignBuilder
         isOpen={showCampaignBuilder}
         onClose={() => setShowCampaignBuilder(false)}
-        accounts={accounts}
+        filterCriteria={{
+          orgId: userProfile?.org_id || '',
+          searchTerm: searchTerm,
+          industryFilter,
+          subIndustryFilter,
+          sourceFilter,
+          fitFilter,
+          countryFilter,
+          stateFilter,
+          campaignReadyFilter,
+          mode: displayMode
+        }}
       />
     </div>
   );
