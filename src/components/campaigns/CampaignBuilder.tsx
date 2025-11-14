@@ -78,6 +78,13 @@ export function CampaignBuilder({ isOpen, onClose, filterCriteria }: CampaignBui
   const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(new Set());
   const [accountCount, setAccountCount] = useState(0);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [activeICP, setActiveICP] = useState<{ 
+    id: string;
+    name: string;
+    persona_job_titles?: string[];
+    persona_seniority_levels?: string[];
+    persona_departments?: string[];
+  } | null>(null);
   
   // Persona criteria
   const [selectedTitles, setSelectedTitles] = useState<string[]>([]);
@@ -112,10 +119,53 @@ export function CampaignBuilder({ isOpen, onClose, filterCriteria }: CampaignBui
       setSelectedContactEmails(new Set());
       setCampaignResult(null);
       
-      // Load ALL matching accounts
-      loadAllFilteredAccounts();
+      // Load active ICP first, then accounts
+      loadActiveICP();
     }
   }, [isOpen, userProfile?.org_id, filterCriteria]);
+
+  const loadActiveICP = async () => {
+    if (!userProfile?.org_id) return;
+    
+    try {
+      // @ts-ignore - Supabase type inference issue
+      const { data: icpData, error: icpError } = await supabase
+        .from('icp_profiles')
+        .select('id, name, persona_job_titles, persona_seniority_levels, persona_departments')
+        .eq('org_id', userProfile.org_id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (icpError) {
+        console.error('Error loading ICP:', icpError);
+        setActiveICP(null);
+        setSelectedTitles([]);
+        setSelectedSeniority(["VP", "C-Level"]);
+        setSelectedDepartments(["Sales"]);
+      } else if (icpData) {
+        setActiveICP(icpData);
+        // Pre-populate persona criteria from ICP
+        setSelectedTitles(icpData.persona_job_titles || []);
+        setSelectedSeniority(icpData.persona_seniority_levels || ["VP", "C-Level"]);
+        setSelectedDepartments(icpData.persona_departments || ["Sales"]);
+      } else {
+        setActiveICP(null);
+        setSelectedTitles([]);
+        setSelectedSeniority(["VP", "C-Level"]);
+        setSelectedDepartments(["Sales"]);
+      }
+
+      // Load accounts after ICP is loaded
+      loadAllFilteredAccounts();
+    } catch (error) {
+      console.error('Error loading ICP:', error);
+      setActiveICP(null);
+      setSelectedTitles([]);
+      setSelectedSeniority(["VP", "C-Level"]);
+      setSelectedDepartments(["Sales"]);
+      loadAllFilteredAccounts();
+    }
+  };
 
   const loadAllFilteredAccounts = async () => {
     setLoadingAccounts(true);
@@ -137,38 +187,60 @@ export function CampaignBuilder({ isOpen, onClose, filterCriteria }: CampaignBui
         }
       }
 
-      // @ts-ignore - Type will be available after regenerating Supabase types
-      const { data, error } = await supabase.rpc('get_filtered_accounts', {
-        p_org_id: filterCriteria.orgId,
-        p_cursor: null,
-        p_limit: 10000, // Load ALL accounts
-        p_search_term: filterCriteria.searchTerm || null,
-        p_industry: (filterCriteria.industryFilter && filterCriteria.industryFilter !== 'all') ? filterCriteria.industryFilter : null,
-        p_country: filterCriteria.countryFilter || null,
-        p_data_source: (filterCriteria.sourceFilter && filterCriteria.sourceFilter !== 'all') ? filterCriteria.sourceFilter : null,
-        p_fit_min: fitMin,
-        p_fit_max: fitMax,
-        p_campaign_ready: filterCriteria.campaignReadyFilter || false,
-      });
+      // Load ALL accounts using cursor-based pagination
+      const allAccounts: Account[] = [];
+      let cursor: string | null = null;
+      let totalCount = 0;
       
-      if (error) throw error;
+      do {
+        const { data, error } = await supabase.rpc('get_filtered_accounts', {
+          p_org_id: filterCriteria.orgId,
+          p_cursor: cursor,
+          p_limit: 1000, // Batch size
+          p_search_term: filterCriteria.searchTerm || null,
+          p_industry: (filterCriteria.industryFilter && filterCriteria.industryFilter !== 'all') ? filterCriteria.industryFilter : null,
+          p_country: filterCriteria.countryFilter || null,
+          p_data_source: (filterCriteria.sourceFilter && filterCriteria.sourceFilter !== 'all') ? filterCriteria.sourceFilter : null,
+          p_fit_min: fitMin,
+          p_fit_max: fitMax,
+          p_campaign_ready: filterCriteria.campaignReadyFilter || false,
+        });
+        
+        if (error) throw error;
+        
+        const rawData = (data || []) as unknown as Array<any>;
+        if (rawData.length === 0) break;
+        
+        // Get total count from first record
+        if (totalCount === 0 && rawData.length > 0) {
+          totalCount = rawData[0].total_count || 0;
+        }
+        
+        // Map to Account format
+        const batchAccounts: Account[] = rawData.map((acc: any) => ({
+          external_id: acc.external_id,
+          name: acc.name,
+          domain: acc.domain,
+          industry_norm: acc.industry_norm,
+          country: acc.country,
+          score: {
+            overall: acc.overall_score || 0
+          }
+        }));
+        
+        allAccounts.push(...batchAccounts);
+        
+        // Update cursor for next batch
+        cursor = rawData[rawData.length - 1]?.cursor || null;
+        
+        // Break if we got fewer records than requested (end of data)
+        if (rawData.length < 1000) break;
+        
+      } while (cursor && allAccounts.length < 10000); // Safety limit of 10k accounts
       
-      // Extract accounts from RPC response
-      const rawData = (data || []) as unknown as Array<any>;
-      const accounts: Account[] = rawData.map((acc: any) => ({
-        external_id: acc.external_id,
-        name: acc.name,
-        domain: acc.domain,
-        industry_norm: acc.industry_norm,
-        country: acc.country,
-        score: acc.overall_score ? {
-          overall: acc.overall_score
-        } : null
-      }));
-      
-      setFilteredAccounts(accounts);
-      setSelectedAccountIds(new Set(accounts.map(a => a.external_id)));
-      setAccountCount(accounts.length);
+      setFilteredAccounts(allAccounts);
+      setSelectedAccountIds(new Set(allAccounts.map(a => a.external_id)));
+      setAccountCount(totalCount || allAccounts.length);
     } catch (error: any) {
       toast({
         title: "Error loading accounts",
@@ -352,7 +424,11 @@ export function CampaignBuilder({ isOpen, onClose, filterCriteria }: CampaignBui
             Campaign Builder
           </DialogTitle>
           <DialogDescription>
-            Build targeted campaigns from high-fit accounts
+            {activeICP ? (
+              <>Building campaign based on ICP: <strong>{activeICP.name}</strong></>
+            ) : (
+              <>Build targeted campaigns from high-fit accounts</>
+            )}
           </DialogDescription>
         </DialogHeader>
 
