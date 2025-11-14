@@ -496,6 +496,47 @@ export type Database = {
           },
         ]
       }
+      campaign_templates: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          org_id: string
+          persona_criteria: Json
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          id?: string
+          name: string
+          org_id: string
+          persona_criteria?: Json
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          id?: string
+          name?: string
+          org_id?: string
+          persona_criteria?: Json
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       capital_tracking: {
         Row: {
           cac: number | null
@@ -3218,6 +3259,37 @@ export type Database = {
             Returns: Json
           }
         | { Args: { p_icp_id?: string; p_org_id: string }; Returns: Json }
+      get_filtered_accounts: {
+        Args: {
+          p_campaign_ready?: boolean
+          p_country?: string
+          p_cursor?: string
+          p_data_source?: string
+          p_fit_max?: number
+          p_fit_min?: number
+          p_industry?: string
+          p_limit?: number
+          p_org_id: string
+          p_search_term?: string
+        }
+        Returns: {
+          country: string
+          data_source: string
+          domain: string
+          employee_count: number
+          enriched_at: string
+          enriched_from: string
+          external_id: string
+          id: string
+          industry_norm: string
+          industry_raw: string
+          name: string
+          org_id: string
+          revenue_range: string
+          total_count: number
+          updated_at: string
+        }[]
+      }
       get_geography_distribution: {
         Args: { p_org_id: string; p_source_filter?: string }
         Returns: {
