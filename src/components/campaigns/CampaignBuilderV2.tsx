@@ -136,6 +136,19 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   const [pushComplete, setPushComplete] = useState(false);
   const [destination, setDestination] = useState<'salesforce' | 'csv'>('salesforce');
 
+  // Update cost calculation when data source or provider changes
+  useEffect(() => {
+    if (previewData) {
+      if (dataSource === 'database') {
+        const costPerContact = provider === 'apollo' ? 0.50 : provider === 'zoominfo' ? 0.75 : 1.00;
+        const contactsEstimate = (previewData.length || 0) * 3;
+        setEstimatedCost(contactsEstimate * costPerContact);
+      } else {
+        setEstimatedCost(0);
+      }
+    }
+  }, [dataSource, provider, previewData]);
+
   useEffect(() => {
     console.log('[Campaign Builder] Opening with:', { icpId, source, useICP, org_id: userProfile?.org_id });
     if (isOpen && userProfile?.org_id) {
@@ -197,11 +210,17 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
     console.log(`[Campaign Builder] Moving from step ${step} to ${step + 1}`, {
       useICP,
       campaignName,
-      filterCriteria
+      filterCriteria,
+      dataSource,
+      provider
     });
     
-    if (step < 7) setStep(step + 1);
-    if (step === 5) handleLoadPreview();
+    if (step < 7) {
+      const nextStep = step + 1;
+      setStep(nextStep);
+      // Load preview when entering step 6
+      if (nextStep === 6) handleLoadPreview();
+    }
   };
 
   const handleBack = () => { if (step > 1) setStep(step - 1); };
@@ -225,8 +244,8 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
         const rpcParams: any = { 
           p_org_id: userProfile.org_id, 
           p_fit_min: filterCriteria.fitScoreMin, 
-          p_limit: 100, 
-          p_campaign_ready: true 
+          p_limit: 1000,
+          p_data_source: dataSource
         };
         
         if (!useICP) {
@@ -247,7 +266,8 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
           .from('accounts')
           .select('*')
           .eq('org_id', userProfile.org_id)
-          .limit(100);
+          .eq('data_source', dataSource)
+          .limit(1000);
         
         if (!useICP && filterCriteria.employeeMin) {
           query = query.gte('employee_count', filterCriteria.employeeMin);
@@ -325,9 +345,18 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
     }
   };
 
-  const generateCSV = (data: any[]) => {
+  const generateCSV = (data: any[] | null) => {
+    if (!data || data.length === 0) {
+      throw new Error('No preview data available. Please load the preview first.');
+    }
     const headers = ['Account Name', 'Domain', 'Industry', 'Country', 'Fit Score'];
-    const rows = data.map(d => [d.name, d.domain, d.industry_norm, d.country, d.overall_score].join(','));
+    const rows = data.map(d => [
+      d.name || '', 
+      d.domain || '', 
+      d.industry_norm || '', 
+      d.country || '', 
+      d.overall_score || ''
+    ].join(','));
     return [headers.join(','), ...rows].join('\n');
   };
 
@@ -419,8 +448,8 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="font-semibold mb-2">Refine Targeting Criteria</h3>
-              <p className="text-sm text-muted-foreground">Add filters to narrow down your target accounts.</p>
+              <h3 className="font-semibold mb-2">Targeting Filters</h3>
+              <p className="text-sm text-muted-foreground">Define who you want to target by company size, revenue, market segment, and management level</p>
             </div>
             {!useICP && (
               <div className="grid grid-cols-2 gap-4">
@@ -467,7 +496,12 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
               </div>
             )}
             <div>
-              <Label className="mb-3 block">Market Segment (Select all that apply)</Label>
+              <Label className="mb-3 block">
+                Market Segment (Select all that apply)
+                <span className="text-xs text-muted-foreground block mt-1">
+                  These segments combine employee count and revenue filters
+                </span>
+              </Label>
               <div className="space-y-2">
                 {MARKET_SEGMENTS.map(segment => (
                   <div key={segment.value} className="flex items-center space-x-2">
@@ -791,7 +825,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                 </div>
                 <Button
                   onClick={handleCreateCampaign}
-                  disabled={isPushing}
+                  disabled={isPushing || !previewData || previewData.length === 0}
                   className="w-full"
                   size="lg"
                 >
