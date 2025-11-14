@@ -137,6 +137,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   const [destination, setDestination] = useState<'salesforce' | 'csv'>('salesforce');
 
   useEffect(() => {
+    console.log('[Campaign Builder] Opening with:', { icpId, source, useICP, org_id: userProfile?.org_id });
     if (isOpen && userProfile?.org_id) {
       loadICP();
     }
@@ -144,12 +145,14 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
 
   const loadICP = async () => {
     if (!userProfile?.org_id) return;
+    console.log('[Campaign Builder] Loading ICP...', { icpId, org_id: userProfile.org_id });
     setLoadingICP(true);
     try {
       let icpToLoad = icpId;
       if (!icpToLoad) {
         const { data: activeICPs } = await supabase.from('icp_profiles').select('id').eq('org_id', userProfile.org_id).eq('status', 'active').order('created_at', { ascending: false }).limit(1);
         if (!activeICPs || activeICPs.length === 0) {
+          console.log('[Campaign Builder] No active ICP found');
           toast({ title: "No Active ICP", description: "You can still create a campaign without an ICP" });
           setUseICP(false);
           setLoadingICP(false);
@@ -159,12 +162,13 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       }
       const { data: icp, error } = await supabase.from('icp_profiles').select('*').eq('id', icpToLoad).single();
       if (error) throw error;
+      console.log('[Campaign Builder] ICP loaded:', icp);
       setActiveICP(icp);
       if (icp.persona_job_titles) setSelectedTitles(icp.persona_job_titles);
       if (icp.persona_seniority_levels) setSelectedSeniority(icp.persona_seniority_levels);
       if (icp.persona_departments) setSelectedDepartments(icp.persona_departments);
     } catch (error: any) {
-      console.error('Error loading ICP:', error);
+      console.error('[Campaign Builder] Error loading ICP:', error);
       toast({ title: "Error", description: "Failed to load ICP profile", variant: "destructive" });
     } finally {
       setLoadingICP(false);
@@ -172,10 +176,30 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   };
 
   const handleNext = () => {
+    // Step 1 validation
     if (step === 1 && !campaignName.trim()) {
       toast({ title: "Campaign name required", variant: "destructive" });
       return;
     }
+    
+    // Step 2 validation - if not using ICP, require at least employee OR revenue range
+    if (step === 2 && !useICP) {
+      if (!filterCriteria.employeeMin && !filterCriteria.revenueMin) {
+        toast({ 
+          title: "Filter criteria required", 
+          description: "Please select at least employee count or revenue range",
+          variant: "destructive" 
+        });
+        return;
+      }
+    }
+    
+    console.log(`[Campaign Builder] Moving from step ${step} to ${step + 1}`, {
+      useICP,
+      campaignName,
+      filterCriteria
+    });
+    
     if (step < 7) setStep(step + 1);
     if (step === 5) handleLoadPreview();
   };
@@ -185,18 +209,64 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   const handleLoadPreview = async () => {
     if (!userProfile?.org_id) return;
     setIsLoadingPreview(true);
+    
     try {
-      const rpcParams: any = { p_org_id: userProfile.org_id, p_fit_min: filterCriteria.fitScoreMin, p_limit: 100, p_campaign_ready: true };
-      if (!useICP) {
-        if (filterCriteria.employeeMin) rpcParams.p_employee_min = filterCriteria.employeeMin;
-        if (filterCriteria.employeeMax) rpcParams.p_employee_max = filterCriteria.employeeMax;
-        if (filterCriteria.revenueMin) rpcParams.p_revenue_min = filterCriteria.revenueMin;
-        if (filterCriteria.revenueMax) rpcParams.p_revenue_max = filterCriteria.revenueMax;
+      console.log('[Campaign Builder] Loading preview with params:', {
+        useICP,
+        filterCriteria,
+        dataSource,
+        provider
+      });
+      
+      let data, error;
+      
+      // Try RPC first
+      try {
+        const rpcParams: any = { 
+          p_org_id: userProfile.org_id, 
+          p_fit_min: filterCriteria.fitScoreMin, 
+          p_limit: 100, 
+          p_campaign_ready: true 
+        };
+        
+        if (!useICP) {
+          if (filterCriteria.employeeMin) rpcParams.p_employee_min = filterCriteria.employeeMin;
+          if (filterCriteria.employeeMax) rpcParams.p_employee_max = filterCriteria.employeeMax;
+          if (filterCriteria.revenueMin) rpcParams.p_revenue_min = filterCriteria.revenueMin;
+          if (filterCriteria.revenueMax) rpcParams.p_revenue_max = filterCriteria.revenueMax;
+        }
+        
+        const result = await supabase.rpc('get_filtered_accounts', rpcParams);
+        data = result.data;
+        error = result.error;
+      } catch (rpcError) {
+        console.error('[Campaign Builder] RPC failed, falling back to direct query:', rpcError);
+        
+        // Fallback: Direct table query
+        let query = supabase
+          .from('accounts')
+          .select('*')
+          .eq('org_id', userProfile.org_id)
+          .limit(100);
+        
+        if (!useICP && filterCriteria.employeeMin) {
+          query = query.gte('employee_count', filterCriteria.employeeMin);
+        }
+        if (!useICP && filterCriteria.employeeMax) {
+          query = query.lte('employee_count', filterCriteria.employeeMax);
+        }
+        
+        const result = await query;
+        data = result.data;
+        error = result.error;
       }
-      const { data, error } = await supabase.rpc('get_filtered_accounts', rpcParams);
+      
       if (error) throw error;
+      
+      console.log('[Campaign Builder] Loaded accounts:', data?.length);
       setPreviewData(data);
       setEstimatedContacts(data?.length || 0);
+      
       if (dataSource === 'database') {
         const costPerContact = provider === 'apollo' ? 0.50 : provider === 'zoominfo' ? 0.75 : 1.00;
         setEstimatedCost((data?.length || 0) * costPerContact);
@@ -204,8 +274,12 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
         setEstimatedCost(0);
       }
     } catch (error: any) {
-      console.error('Error loading preview:', error);
-      toast({ title: "Error", description: "Failed to load campaign preview", variant: "destructive" });
+      console.error('[Campaign Builder] Error loading preview:', error);
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to load campaign preview", 
+        variant: "destructive" 
+      });
     } finally {
       setIsLoadingPreview(false);
     }
@@ -291,9 +365,24 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                 id="use-icp"
                 checked={useICP}
                 onCheckedChange={(checked) => setUseICP(checked === true)}
+                disabled={!activeICP}
               />
-              <Label htmlFor="use-icp">Use Ideal Customer Profile (ICP)</Label>
+              <Label htmlFor="use-icp">
+                Use Ideal Customer Profile (ICP)
+                {!activeICP && <span className="text-muted-foreground ml-2">(No ICP configured)</span>}
+              </Label>
             </div>
+            
+            {/* Show alert if ICP checked but no ICP exists */}
+            {useICP && !activeICP && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  No ICP profile found. Please create an ICP first or uncheck "Use ICP" to target all accounts.
+                </AlertDescription>
+              </Alert>
+            )}
+            
             {activeICP && useICP && (
               <Card className="bg-muted/50">
                 <CardHeader>
@@ -302,8 +391,10 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div>
-                    <div className="text-sm font-medium">Description</div>
-                    <div className="text-muted-foreground">{activeICP.description}</div>
+                    <span className="text-sm font-medium">Industries:</span>
+                    <span className="text-sm text-muted-foreground ml-2">
+                      {activeICP.industries?.join(', ') || 'All'}
+                    </span>
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {activeICP.industries?.map(ind => <Badge key={ind} variant="secondary">{ind}</Badge>)}
@@ -311,6 +402,16 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                   </div>
                 </CardContent>
               </Card>
+            )}
+            
+            {/* Show what happens when NOT using ICP */}
+            {!useICP && (
+              <Alert>
+                <Target className="h-4 w-4" />
+                <AlertDescription>
+                  Will target all available accounts. You can refine criteria in the next step.
+                </AlertDescription>
+              </Alert>
             )}
           </div>
         );
@@ -366,22 +467,31 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
               </div>
             )}
             <div>
-              <Label>Market Segment</Label>
-              <Select
-                onValueChange={(value) => {
-                  setFilterCriteria({
-                    ...filterCriteria,
-                    marketSegments: [value]
-                  });
-                }}
-              >
-                <SelectTrigger><SelectValue placeholder="Select segment" /></SelectTrigger>
-                <SelectContent>
-                  {MARKET_SEGMENTS.map(segment => (
-                    <SelectItem key={segment.value} value={segment.value}>{segment.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="mb-3 block">Market Segment (Select all that apply)</Label>
+              <div className="space-y-2">
+                {MARKET_SEGMENTS.map(segment => (
+                  <div key={segment.value} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={segment.value}
+                      checked={filterCriteria.marketSegments.includes(segment.value)}
+                      onCheckedChange={(checked) => {
+                        if (checked === true) {
+                          setFilterCriteria({
+                            ...filterCriteria,
+                            marketSegments: [...filterCriteria.marketSegments, segment.value]
+                          });
+                        } else {
+                          setFilterCriteria({
+                            ...filterCriteria,
+                            marketSegments: filterCriteria.marketSegments.filter(s => s !== segment.value)
+                          });
+                        }
+                      }}
+                    />
+                    <Label htmlFor={segment.value} className="cursor-pointer">{segment.label}</Label>
+                  </div>
+                ))}
+              </div>
             </div>
             <div>
               <Label className="mb-3 block">Management Levels</Label>
