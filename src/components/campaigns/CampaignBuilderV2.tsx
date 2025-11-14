@@ -290,7 +290,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
               <Checkbox
                 id="use-icp"
                 checked={useICP}
-                onCheckedChange={(checked) => setUseICP(checked)}
+                onCheckedChange={(checked) => setUseICP(checked === true)}
               />
               <Label htmlFor="use-icp">Use Ideal Customer Profile (ICP)</Label>
             </div>
@@ -539,7 +539,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
             </div>
             <div className="flex items-center space-x-4">
               <Label>Data Source:</Label>
-              <Select value={dataSource} onValueChange={setDataSource}>
+              <Select value={dataSource} onValueChange={(value) => setDataSource(value as 'crm' | 'database')}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="crm">CRM</SelectItem>
