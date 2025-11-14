@@ -119,7 +119,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   const [filterCriteria, setFilterCriteria] = useState<FilterCriteria>({
     marketSegments: [],
     managementLevels: ["VP", "C-Level"],
-    fitScoreMin: 70
+    fitScoreMin: 0
   });
   const [selectedTemplate, setSelectedTemplate] = useState<keyof typeof SEQUENCE_TEMPLATES>('enterprise');
   const [sequenceSteps, setSequenceSteps] = useState<SequenceStep[]>(SEQUENCE_TEMPLATES.enterprise.steps);
@@ -526,6 +526,25 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                   </div>
                 ))}
               </div>
+            </div>
+            <div>
+              <Label className="mb-2 block">
+                Minimum Fit Score: <span className="font-semibold text-primary">{filterCriteria.fitScoreMin}</span>
+              </Label>
+              <Slider
+                value={[filterCriteria.fitScoreMin]}
+                onValueChange={(value) => setFilterCriteria({
+                  ...filterCriteria,
+                  fitScoreMin: value[0]
+                })}
+                min={0}
+                max={100}
+                step={5}
+                className="mt-2"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Filter accounts by their fit score (0 = include all accounts, 100 = only perfect fits)
+              </p>
             </div>
             <div>
               <Label className="mb-3 block">Management Levels</Label>
