@@ -245,7 +245,8 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
           p_org_id: userProfile.org_id, 
           p_fit_min: filterCriteria.fitScoreMin, 
           p_limit: 1000,
-          p_data_source: dataSource
+          p_data_source: dataSource,
+          p_icp_id: useICP ? icpId : null
         };
         
         if (!useICP) {
