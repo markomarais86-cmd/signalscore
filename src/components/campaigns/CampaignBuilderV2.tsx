@@ -45,6 +45,7 @@ interface FilterCriteria {
   marketSegments: string[];
   managementLevels: string[];
   fitScoreMin: number;
+  fitScoreMax: number;
 }
 
 interface SequenceStep {
@@ -119,7 +120,8 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   const [filterCriteria, setFilterCriteria] = useState<FilterCriteria>({
     marketSegments: [],
     managementLevels: ["VP", "C-Level"],
-    fitScoreMin: 0
+    fitScoreMin: 0,
+    fitScoreMax: 100
   });
   const [selectedTemplate, setSelectedTemplate] = useState<keyof typeof SEQUENCE_TEMPLATES>('enterprise');
   const [sequenceSteps, setSequenceSteps] = useState<SequenceStep[]>(SEQUENCE_TEMPLATES.enterprise.steps);
@@ -243,7 +245,8 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       try {
         const rpcParams: any = { 
           p_org_id: userProfile.org_id, 
-          p_fit_min: filterCriteria.fitScoreMin, 
+          p_fit_min: filterCriteria.fitScoreMin,
+          p_fit_max: filterCriteria.fitScoreMax,
           p_limit: 1000,
           p_data_source: dataSource,
           p_icp_id: useICP ? icpId : null
@@ -530,13 +533,14 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
             </div>
             <div>
               <Label className="mb-2 block">
-                Minimum Fit Score: <span className="font-semibold text-primary">{filterCriteria.fitScoreMin}</span>
+                Fit Score Range: <span className="font-semibold text-primary">{filterCriteria.fitScoreMin} - {filterCriteria.fitScoreMax}</span>
               </Label>
               <Slider
-                value={[filterCriteria.fitScoreMin]}
+                value={[filterCriteria.fitScoreMin, filterCriteria.fitScoreMax]}
                 onValueChange={(value) => setFilterCriteria({
                   ...filterCriteria,
-                  fitScoreMin: value[0]
+                  fitScoreMin: value[0],
+                  fitScoreMax: value[1]
                 })}
                 min={0}
                 max={100}
@@ -544,7 +548,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                 className="mt-2"
               />
               <p className="text-xs text-muted-foreground mt-2">
-                Filter accounts by their fit score (0 = include all accounts, 100 = only perfect fits)
+                Filter accounts by their fit score range (0-100)
               </p>
             </div>
             <div>
