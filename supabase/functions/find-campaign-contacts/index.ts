@@ -170,37 +170,63 @@ async function findContactsForAccount(
   provider: string,
   supabase: any
 ): Promise<any[]> {
-  // Always fetch contacts real-time from provider API
-  // TODO: Replace with actual API calls to Apollo/ZoomInfo/Clearbit based on provider
-  console.log(`[find-campaign-contacts] Fetching real-time contacts from ${provider} for ${account.name}`);
+  console.log(`[find-campaign-contacts] Finding contacts from Leads table for ${account.name}`);
   
-  const mockContacts: any[] = [];
-  const count = Math.min(criteria.max_per_account || 3, 5);
-  
-  const titles = criteria.job_titles?.length > 0 
-    ? criteria.job_titles 
-    : ['VP Sales', 'Director of Marketing', 'Head of Business Development'];
+  try {
+    // Build query to fetch contacts from Leads table
+    let query = supabase
+      .from('Leads')
+      .select('id, first_name, last_name, email, title, phone, linkedin_url, persona, level')
+      .eq('account_external_id', account.external_id);
 
-  // Simulate provider API call
-  for (let i = 0; i < count; i++) {
-    const firstName = ['John', 'Jane', 'Michael', 'Sarah', 'David', 'Emily', 'Chris', 'Alex'][Math.floor(Math.random() * 8)];
-    const lastName = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis'][Math.floor(Math.random() * 8)];
-    const domain = account.domain || 'example.com';
-    
-    mockContacts.push({
-      first_name: firstName,
-      last_name: lastName,
-      email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@${domain}`,
-      title: titles[i % titles.length],
-      phone: '+1-555-0100',
-      linkedin_url: `https://linkedin.com/in/${firstName.toLowerCase()}${lastName.toLowerCase()}`,
+    // Apply persona filters if provided
+    if (criteria.job_titles && criteria.job_titles.length > 0) {
+      // Match titles using ILIKE for case-insensitive pattern matching
+      const titleConditions = criteria.job_titles.map((t: string) => `title.ilike.%${t}%`).join(',');
+      query = query.or(titleConditions);
+    }
+
+    if (criteria.seniority_levels && criteria.seniority_levels.length > 0) {
+      query = query.in('level', criteria.seniority_levels);
+    }
+
+    if (criteria.departments && criteria.departments.length > 0) {
+      query = query.in('persona', criteria.departments);
+    }
+
+    // Limit results per account
+    const maxPerAccount = criteria.max_per_account || 10;
+    query = query.limit(maxPerAccount);
+
+    const { data: leads, error } = await query;
+
+    if (error) {
+      console.error(`[find-campaign-contacts] Error fetching leads:`, error);
+      return [];
+    }
+
+    console.log(`[find-campaign-contacts] Found ${leads?.length || 0} contacts for ${account.name}`);
+
+    // Transform leads into contact format
+    const contacts = (leads || []).map(lead => ({
+      first_name: lead.first_name || '',
+      last_name: lead.last_name || '',
+      email: lead.email || '',
+      title: lead.title || '',
+      phone: lead.phone || '',
+      linkedin_url: lead.linkedin_url || '',
       account_name: account.name,
       account_id: account.external_id,
-      provider: provider
-    });
-  }
+      provider: provider,
+      persona: lead.persona,
+      level: lead.level
+    }));
 
-  return mockContacts;
+    return contacts;
+  } catch (error) {
+    console.error(`[find-campaign-contacts] Unexpected error:`, error);
+    return [];
+  }
 }
 
 
