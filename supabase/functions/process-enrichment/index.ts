@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { withHttpRetry, DEFAULT_RETRY_CONFIG, isRetryableError } from '../_shared/retry-helper.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -78,9 +79,12 @@ serve(async (req) => {
           
           if (clearbitKey && account.domain) {
             try {
-              const response = await fetch(apiEndpoint, {
-                headers: { 'Authorization': `Bearer ${clearbitKey}` }
-              });
+              const response = await withHttpRetry(
+                () => fetch(apiEndpoint, {
+                  headers: { 'Authorization': `Bearer ${clearbitKey}` }
+                }),
+                DEFAULT_RETRY_CONFIG
+              );
               
               if (response.ok) {
                 enrichmentData = await response.json();
@@ -91,12 +95,12 @@ serve(async (req) => {
                 throw new Error(`Clearbit API error: ${response.status}`);
               }
             } catch (error) {
-              console.error(`❌ Clearbit error for ${account.domain}:`, error);
+              console.error(`❌ Clearbit error for ${account.domain} after retries:`, error);
               await supabase.rpc('update_provider_health', {
                 p_provider: 'clearbit',
                 p_status: 'degraded',
                 p_success: false,
-                p_error_message: error.message
+                p_error_message: `${error.message} (retries exhausted)`
               });
             }
           }
@@ -106,9 +110,12 @@ serve(async (req) => {
           
           if (pdlKey && account.domain) {
             try {
-              const response = await fetch(apiEndpoint, {
-                headers: { 'X-Api-Key': pdlKey }
-              });
+              const response = await withHttpRetry(
+                () => fetch(apiEndpoint, {
+                  headers: { 'X-Api-Key': pdlKey }
+                }),
+                DEFAULT_RETRY_CONFIG
+              );
               
               if (response.ok) {
                 enrichmentData = await response.json();

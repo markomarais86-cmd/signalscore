@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { withHttpRetry, DEFAULT_RETRY_CONFIG } from '../_shared/retry-helper.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -113,10 +114,13 @@ serve(async (req) => {
         if (!account.domain) return null;
 
         try {
-          const response = await fetch(`https://api.peopledatalabs.com/v5/company/enrich?website=${encodeURIComponent(account.domain)}`, {
-            method: 'GET',
-            headers: { 'X-Api-Key': PDL_API_KEY },
-          });
+          const response = await withHttpRetry(
+            () => fetch(`https://api.peopledatalabs.com/v5/company/enrich?website=${encodeURIComponent(account.domain)}`, {
+              method: 'GET',
+              headers: { 'X-Api-Key': PDL_API_KEY },
+            }),
+            DEFAULT_RETRY_CONFIG
+          );
 
           if (response.ok) {
             const data = await response.json();
@@ -173,7 +177,10 @@ serve(async (req) => {
         if (!account.domain) return null;
 
         try {
-          const response = await fetch(`https://company.clearbit.com/v1/domains/find?domain=${account.domain}`);
+          const response = await withHttpRetry(
+            () => fetch(`https://company.clearbit.com/v1/domains/find?domain=${account.domain}`),
+            DEFAULT_RETRY_CONFIG
+          );
           if (response.ok) {
             const data = await response.json();
             const updateData: any = {};
@@ -235,17 +242,20 @@ Revenue ranges: "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M", "$50M
 Companies: ${batch.map(a => `${a.name} (${a.domain})`).join(', ')}`;
 
           try {
-            const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-              method: 'POST',
-              headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                model: 'google/gemini-2.5-flash',
-                messages: [
-                  { role: 'system', content: 'B2B data analyst. Provide realistic estimates.' },
-                  { role: 'user', content: prompt }
-                ],
+            const aiResponse = await withHttpRetry(
+              () => fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${LOVABLE_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  model: 'google/gemini-2.5-flash',
+                  messages: [
+                    { role: 'system', content: 'B2B data analyst. Provide realistic estimates.' },
+                    { role: 'user', content: prompt }
+                  ],
+                }),
               }),
-            });
+              DEFAULT_RETRY_CONFIG
+            );
 
             if (aiResponse.ok) {
               console.log(`✅ AI response received for batch of ${batch.length}`);
