@@ -36,6 +36,20 @@ serve(async (req) => {
 
     console.log('Scoring account:', account_external_id, 'for org:', org_id);
 
+    // Get organization scoring version
+    const { data: org, error: orgError } = await supabase
+      .from('organizations')
+      .select('scoring_version')
+      .eq('id', org_id)
+      .single();
+
+    if (orgError || !org) {
+      throw new Error(`Organization not found: ${org_id}`);
+    }
+
+    const orgScoringVersion = org.scoring_version || 'legacy_v1.0';
+    console.log(`Using org-level scoring version: ${orgScoringVersion}`);
+
     // Get account data
     const { data: account, error: accountError } = await supabase
       .from('accounts')
@@ -67,13 +81,6 @@ serve(async (req) => {
 
     console.log(`Found ${icpProfiles.length} ICP profiles to score against`);
 
-    // Check if we have cached feature weights (v2.0 scoring)
-    const { data: hasWeights } = await supabase
-      .from('icp_feature_weights')
-      .select('id')
-      .eq('org_id', org_id)
-      .limit(1);
-
     let bestScore = null;
     let bestIcpId = null;
 
@@ -82,9 +89,9 @@ serve(async (req) => {
       try {
         let scoreData: any;
         
-        // Use weighted scoring v2.0 if weights are available
-        if (hasWeights && hasWeights.length > 0) {
-          console.log('Using Statistical Scoring v2.0 with cached weights');
+        // Use org-level scoring version
+        if (orgScoringVersion === 'statistical_v2.0') {
+          console.log('Using Statistical Scoring v2.0 (org-level)');
           
           const { data, error: scoreError } = await supabase
             .rpc('calculate_weighted_account_score', {
@@ -147,8 +154,8 @@ serve(async (req) => {
 
     console.log('Best score calculated:', bestScore);
 
-    // Store score in database
-    const scoringVersion = bestScore.scoring_version || version_hint || 'statistical_v2.0';
+    // Store score in database with org-level version
+    const scoringVersion = orgScoringVersion;
     const { error: scoreError } = await supabase
       .from('scores')
       .upsert({
