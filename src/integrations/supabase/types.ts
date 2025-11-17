@@ -1071,6 +1071,13 @@ export type Database = {
             referencedRelation: "enrichment_jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "fk_enrichment_history_account"
+            columns: ["org_id", "account_external_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["org_id", "external_id"]
+          },
         ]
       }
       enrichment_jobs: {
@@ -2089,6 +2096,13 @@ export type Database = {
           website?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_leads_account"
+            columns: ["org_id", "account_external_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["org_id", "external_id"]
+          },
           {
             foreignKeyName: "leads_org_id_fkey"
             columns: ["org_id"]
