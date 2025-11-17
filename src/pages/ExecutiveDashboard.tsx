@@ -38,7 +38,7 @@ import { ExternalMarketBreakdownCard } from "@/components/executive/ExternalMark
 import { EnhancedTAMCard } from "@/components/executive/EnhancedTAMCard";
 import { FitDistributionHero } from "@/components/executive/FitDistributionHero";
 import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
-import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
+
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -65,7 +65,7 @@ export default function ExecutiveDashboard() {
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [isDataStale, setIsDataStale] = useState(false);
   const [activeScoringJob, setActiveScoringJob] = useState<any>(null);
-  const [showCampaignBuilder, setShowCampaignBuilder] = useState(false);
+  
 
   const totalAccounts = dashboardData?.metrics?.total_accounts || 0;
   const totalScores = dashboardData?.metrics?.total_scores || 0;
@@ -446,7 +446,7 @@ export default function ExecutiveDashboard() {
                   trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
                   icon={Sparkles}
                   status={campaignReadyAccounts > 0 ? 'success' : 'warning'}
-                  onClick={() => setShowCampaignBuilder(true)}
+                  onClick={() => navigate('/accounts?campaign_ready=true')}
                 />
               </div>
             </div>
@@ -604,12 +604,6 @@ export default function ExecutiveDashboard() {
         {/* Enrichment Modal */}
         <EnrichmentModal open={isEnrichmentModalOpen} onOpenChange={setIsEnrichmentModalOpen} />
         
-        {/* Campaign Builder */}
-        <CampaignBuilderV2
-          isOpen={showCampaignBuilder}
-          onClose={() => setShowCampaignBuilder(false)}
-          source="executive-dashboard"
-        />
       </div>
   );
 }
