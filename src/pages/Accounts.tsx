@@ -618,6 +618,7 @@ export default function Accounts() {
     setSearchTerm("");
     setIndustryFilter("all");
     setSubIndustryFilter("all");
+    setCampaignReadyFilter(false);
   };
 
   const removeFilter = (filterType: string) => {
@@ -626,7 +627,7 @@ export default function Accounts() {
     setSearchParams(params);
   };
 
-  const hasActiveFilters = sourceFilter || fitFilter || countryFilter || stateFilter || icpFilter || searchTerm || industryFilter !== "all" || subIndustryFilter !== "all";
+  const hasActiveFilters = sourceFilter || fitFilter || countryFilter || stateFilter || icpFilter || searchTerm || industryFilter !== "all" || subIndustryFilter !== "all" || campaignReadyFilter;
 
   // Show loading skeleton while auth is loading
   if (!userProfile) {
@@ -1005,6 +1006,15 @@ export default function Accounts() {
                     <X className="h-3 w-3" onClick={() => setSubIndustryFilter("all")} />
                   </Badge>
                 )}
+                {campaignReadyFilter && (
+                  <Badge 
+                    className="gap-1 cursor-pointer bg-primary/10 text-primary border-primary/30 hover:bg-primary/20"
+                  >
+                    <Target className="h-3 w-3" />
+                    Campaign Ready
+                    <X className="h-3 w-3" onClick={() => setCampaignReadyFilter(false)} />
+                  </Badge>
+                )}
               </div>
             </div>
           )}
@@ -1161,6 +1171,22 @@ export default function Accounts() {
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* Campaign Ready Filter Toggle */}
+              <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-background">
+                <Checkbox
+                  id="campaign-ready-filter"
+                  checked={campaignReadyFilter}
+                  onCheckedChange={(checked) => setCampaignReadyFilter(checked === true)}
+                />
+                <Label 
+                  htmlFor="campaign-ready-filter" 
+                  className="text-sm font-medium cursor-pointer flex items-center gap-2"
+                >
+                  <Target className="h-4 w-4 text-primary" />
+                  Campaign Ready
+                </Label>
+              </div>
             </div>
           </div>
         </CardContent>

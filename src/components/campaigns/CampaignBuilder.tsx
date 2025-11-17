@@ -187,12 +187,16 @@ export function CampaignBuilder({ isOpen, onClose, filterCriteria }: CampaignBui
         }
       }
 
-      // Load ALL accounts using cursor-based pagination
+      // Load ALL accounts using cursor-based pagination (NO safety limit)
       const allAccounts: Account[] = [];
       let cursor: string | null = null;
       let totalCount = 0;
+      let batchNumber = 0;
       
       do {
+        batchNumber++;
+        console.log(`[CampaignBuilder] Fetching batch ${batchNumber}, current count: ${allAccounts.length}`);
+        
         const { data, error } = await supabase.rpc('get_filtered_accounts', {
           p_org_id: filterCriteria.orgId,
           p_cursor: cursor,
@@ -234,9 +238,12 @@ export function CampaignBuilder({ isOpen, onClose, filterCriteria }: CampaignBui
         cursor = rawData[rawData.length - 1]?.cursor || null;
         
         // Break if we got fewer records than requested (end of data)
-        if (rawData.length < 1000) break;
+        if (rawData.length < 1000) {
+          console.log(`[CampaignBuilder] Reached end of data, total loaded: ${allAccounts.length}`);
+          break;
+        }
         
-      } while (cursor && allAccounts.length < 10000); // Safety limit of 10k accounts
+      } while (cursor); // Load ALL accounts, no safety limit
       
       setFilteredAccounts(allAccounts);
       setSelectedAccountIds(new Set(allAccounts.map(a => a.external_id)));
