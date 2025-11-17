@@ -73,14 +73,20 @@ export function ICPCoverageCard({
     },
     {
       source: "Database",
-      icon: Users,
+      icon: Database,
       total: databaseAccounts,
       highFit: highFitDatabaseAccounts,
       route: "/accounts?source=database",
-      isTAM: false,
-      hasExternalTAM: tamAccounts > 0,
-      tamCount: tamAccounts
-    }
+      isTAM: false
+    },
+    ...(tamAccounts > 0 ? [{
+      source: `${tamProvider || 'Apollo'}`,
+      icon: Users,
+      total: tamAccounts,
+      highFit: 0,
+      route: "/accounts?source=database",
+      isTAM: true
+    }] : [])
   ];
 
   const leadsTableRows = [
@@ -94,14 +100,20 @@ export function ICPCoverageCard({
     },
     {
       source: "Database",
-      icon: Users,
+      icon: Database,
       total: databaseLeads,
       highFit: highFitDatabaseLeads,
       route: "/leads?source=database",
-      isTAM: false,
-      hasExternalTAM: tamLeads > 0,
-      tamCount: tamLeads
-    }
+      isTAM: false
+    },
+    ...(tamLeads > 0 ? [{
+      source: `${tamProvider || 'Apollo'}`,
+      icon: Users,
+      total: tamLeads,
+      highFit: 0,
+      route: "/leads?source=database",
+      isTAM: true
+    }] : [])
   ];
 
   return (
@@ -209,12 +221,13 @@ export function ICPCoverageCard({
                                     Your Data
                                   </Badge>
                                 )}
+                                {row.isTAM && (
+                                  <Badge variant="outline" className="text-xs bg-accent/10">
+                                    <Users className="h-3 w-3 mr-1" />
+                                    External
+                                  </Badge>
+                                )}
                               </div>
-                              {row.hasExternalTAM && (
-                                <span className="text-xs text-muted-foreground">
-                                  {row.tamCount?.toLocaleString()} available from external sources
-                                </span>
-                              )}
                             </div>
                           </div>
                         </td>
@@ -288,12 +301,13 @@ export function ICPCoverageCard({
                                     Your Data
                                   </Badge>
                                 )}
+                                {row.isTAM && (
+                                  <Badge variant="outline" className="text-xs bg-accent/10">
+                                    <Users className="h-3 w-3 mr-1" />
+                                    External
+                                  </Badge>
+                                )}
                               </div>
-                              {row.hasExternalTAM && (
-                                <span className="text-xs text-muted-foreground">
-                                  {row.tamCount?.toLocaleString()} available from external sources
-                                </span>
-                              )}
                             </div>
                           </div>
                         </td>
