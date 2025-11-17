@@ -80,15 +80,16 @@ function rateLimitResponse(result: RateLimitResult, corsHeaders: Record<string, 
   );
 }
 
-// Background processing function
-async function processAllChunks(
-  supabase: SupabaseClient,
-  jobId: string,
-  orgId: string,
-  icpProfiles: any[],
-  totalAccounts: number,
-  chunkSize: number
-) {
+  // Background processing function
+  async function processAllChunks(
+    supabase: SupabaseClient,
+    jobId: string,
+    orgId: string,
+    orgScoringVersion: string,
+    icpProfiles: any[],
+    totalAccounts: number,
+    chunkSize: number
+  ) {
   const totalChunks = Math.ceil(totalAccounts / chunkSize);
   console.log(`🚀 Background processing: ${totalChunks} chunks, ${totalAccounts} accounts`);
   
@@ -249,6 +250,20 @@ serve(async (req) => {
     const jobId = newJob.id;
     console.log(`✓ Created job: ${jobId} (${totalChunks} chunks)`);
 
+    // Get organization scoring version
+    const { data: org, error: orgError } = await supabase
+      .from('organizations')
+      .select('scoring_version')
+      .eq('id', org_id)
+      .single();
+
+    if (orgError || !org) {
+      throw new Error(`Organization not found: ${org_id}`);
+    }
+
+    const orgScoringVersion = org.scoring_version || 'legacy_v1.0';
+    console.log(`✓ Using org-level scoring version: ${orgScoringVersion}`);
+
     // Get ICP profiles
     const icpQuery = supabase
       .from('icp_profiles')
@@ -271,7 +286,7 @@ serve(async (req) => {
     // Start background processing immediately
     // @ts-ignore - EdgeRuntime is available in Deno
     EdgeRuntime.waitUntil(
-      processAllChunks(supabase, jobId, org_id, icpProfiles, totalAccounts, chunk_size)
+      processAllChunks(supabase, jobId, org_id, orgScoringVersion, icpProfiles, totalAccounts, chunk_size)
     );
 
     // Return immediately - scoring happens in background
