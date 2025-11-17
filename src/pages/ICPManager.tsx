@@ -253,8 +253,19 @@ export default function ICPManager() {
   };
 
   const navigateToCampaign = (icp: ICPProfile) => {
-    setSelectedICPForCampaign(icp.id);
-    setShowCampaignBuilder(true);
+    // Navigate to accounts page with ICP filters pre-applied
+    navigate(`/accounts?icp_id=${icp.id}`, {
+      state: {
+        icpId: icp.id,
+        icpName: icp.name,
+        prefilters: {
+          industries: icp.industries || [],
+          geographies: icp.geographies || [],
+          companySizes: icp.company_sizes || [],
+          revenueRanges: icp.revenue_ranges || []
+        }
+      }
+    });
   };
 
   const activeCount = icps.filter(icp => icp.status === 'active').length;
@@ -436,7 +447,7 @@ export default function ICPManager() {
                         </div>
                       )}
 
-                      {/* Build Campaign CTA */}
+                      {/* View Matching Accounts CTA */}
                       <div className="pt-4 border-t">
                         <Button 
                           variant="outline" 
@@ -444,8 +455,8 @@ export default function ICPManager() {
                           onClick={() => navigateToCampaign(icp)}
                           className="w-full flex items-center justify-center gap-2"
                         >
-                          <Target className="h-4 w-4" />
-                          Build Campaign
+                          <Users className="h-4 w-4" />
+                          View Matching Accounts
                           <ArrowRight className="h-4 w-4" />
                         </Button>
                       </div>

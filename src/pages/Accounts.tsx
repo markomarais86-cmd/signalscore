@@ -850,6 +850,15 @@ export default function Accounts() {
           <Button 
             variant="default" 
             onClick={() => {
+              if (selectedAccountIds.size === 0 && !hasActiveFilters) {
+                toast({
+                  title: "No accounts selected",
+                  description: "Please select accounts or apply filters to build a campaign",
+                  variant: "destructive"
+                });
+                return;
+              }
+              
               if (totalCount === 0) {
                 toast({
                   title: "No accounts available",
@@ -865,7 +874,12 @@ export default function Accounts() {
             disabled={isLoading || totalCount === 0}
           >
             <Target className="h-4 w-4 mr-2" />
-            Build Campaign
+            {selectedAccountIds.size > 0 
+              ? `Build Campaign with Selected (${selectedAccountIds.size})` 
+              : hasActiveFilters 
+                ? "Build Campaign with Filters" 
+                : "Build Campaign"
+            }
           </Button>
           <Button 
             variant="outline" 
