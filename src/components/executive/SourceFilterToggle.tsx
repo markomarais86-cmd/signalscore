@@ -21,21 +21,21 @@ export function SourceFilterToggle({ value, onChange, stats }: SourceFilterToggl
       label: 'All Sources', 
       icon: Layers, 
       count: stats.total,
-      tooltip: 'All internal data: CRM, manual uploads, closed-won accounts'
+      tooltip: 'All actual records: CRM syncs, manual uploads, imported contacts (excludes Apollo metadata)'
     },
     { 
       value: 'crm' as const, 
       label: 'CRM Only', 
       icon: Building2, 
       count: stats.crm,
-      tooltip: 'Internal database: CRM syncs, CSV uploads, closed-won deals'
+      tooltip: 'CRM-sourced records: Salesforce/HubSpot syncs, CSV uploads, closed-won deals'
     },
     { 
       value: 'database' as const, 
       label: 'Database Only', 
       icon: Database, 
       count: stats.database,
-      tooltip: 'Third-party databases: Apollo, ZoomInfo, Clearbit, Clay'
+      tooltip: 'Imported records only: Previously redeemed contacts from Apollo or other imports'
     },
   ];
 

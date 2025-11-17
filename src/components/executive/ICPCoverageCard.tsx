@@ -80,11 +80,11 @@ export function ICPCoverageCard({
       isTAM: false
     },
     ...(tamAccounts > 0 ? [{
-      source: `${tamProvider || 'Apollo'}`,
+      source: `${tamProvider || 'Apollo'} (Available to Redeem)`,
       icon: Users,
       total: tamAccounts,
       highFit: 0,
-      route: "/accounts?source=database",
+      route: "#",
       isTAM: true
     }] : [])
   ];
@@ -107,11 +107,11 @@ export function ICPCoverageCard({
       isTAM: false
     },
     ...(tamLeads > 0 ? [{
-      source: `${tamProvider || 'Apollo'}`,
+      source: `${tamProvider || 'Apollo'} (Available to Redeem)`,
       icon: Users,
       total: tamLeads,
       highFit: 0,
-      route: "/leads?source=database",
+      route: "#",
       isTAM: true
     }] : [])
   ];
@@ -199,16 +199,17 @@ export function ICPCoverageCard({
                         className={cn(
                           "border-b transition-colors",
                           !row.isTAM && "cursor-pointer hover:bg-muted/50",
-                          row.isTAM && "bg-muted/20"
+                          row.isTAM && "bg-muted/20 border-dashed"
                         )}
                         onClick={() => !row.isTAM && navigate(row.route)}
+                        title={row.isTAM ? "These contacts are available but not yet imported. Use the Campaign Builder to redeem specific contacts." : ""}
                       >
                         <td className="p-3">
                           <div className="flex items-center gap-2">
-                            <Icon className="h-4 w-4 text-muted-foreground" />
+                            <Icon className={cn("h-4 w-4", row.isTAM ? "text-primary" : "text-muted-foreground")} />
                             <div className="flex flex-col">
                               <div className="flex items-center gap-2">
-                                <span>{row.source}</span>
+                                <span className={cn(row.isTAM && "text-primary font-medium")}>{row.source}</span>
                                 {row.source === 'CRM' && (
                                   <Badge variant="outline" className="text-xs">
                                     <Building2 className="h-3 w-3 mr-1" />
@@ -222,9 +223,8 @@ export function ICPCoverageCard({
                                   </Badge>
                                 )}
                                 {row.isTAM && (
-                                  <Badge variant="outline" className="text-xs bg-accent/10">
-                                    <Users className="h-3 w-3 mr-1" />
-                                    External
+                                  <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
+                                    Not Imported
                                   </Badge>
                                 )}
                               </div>
@@ -279,16 +279,17 @@ export function ICPCoverageCard({
                         className={cn(
                           "border-b transition-colors",
                           !row.isTAM && "cursor-pointer hover:bg-muted/50",
-                          row.isTAM && "bg-muted/20"
+                          row.isTAM && "bg-muted/20 border-dashed"
                         )}
                         onClick={() => !row.isTAM && navigate(row.route)}
+                        title={row.isTAM ? "These contacts are available but not yet imported. Use the Campaign Builder to redeem specific contacts." : ""}
                       >
                         <td className="p-3">
                           <div className="flex items-center gap-2">
-                            <Icon className="h-4 w-4 text-muted-foreground" />
+                            <Icon className={cn("h-4 w-4", row.isTAM ? "text-primary" : "text-muted-foreground")} />
                             <div className="flex flex-col">
                               <div className="flex items-center gap-2">
-                                <span>{row.source}</span>
+                                <span className={cn(row.isTAM && "text-primary font-medium")}>{row.source}</span>
                                 {row.source === 'CRM' && (
                                   <Badge variant="outline" className="text-xs">
                                     <Building2 className="h-3 w-3 mr-1" />
@@ -302,9 +303,8 @@ export function ICPCoverageCard({
                                   </Badge>
                                 )}
                                 {row.isTAM && (
-                                  <Badge variant="outline" className="text-xs bg-accent/10">
-                                    <Users className="h-3 w-3 mr-1" />
-                                    External
+                                  <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
+                                    Not Imported
                                   </Badge>
                                 )}
                               </div>

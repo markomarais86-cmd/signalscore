@@ -5,6 +5,8 @@ interface CampaignReadyBreakdown {
   total: number;
   crm: number;
   database: number;
+  apolloAvailable?: number;
+  apolloContactsAvailable?: number;
   preview: Array<{
     id: string;
     name: string;
@@ -63,6 +65,15 @@ export function useCampaignReady(
         .not('title', 'is', null)
         .not('persona', 'is', null);
 
+      // Get Apollo available data
+      const { data: apolloData } = await supabase
+        .from('external_data_sources')
+        .select('total_accounts, total_contacts')
+        .eq('org_id', orgId)
+        .eq('provider', 'apollo')
+        .eq('is_active', true)
+        .single();
+
       // Format preview data (top 10)
       const preview = (allLeads || []).slice(0, 10).map(lead => ({
         id: lead.id.toString(),
@@ -77,6 +88,8 @@ export function useCampaignReady(
         total: allLeads?.length || 0,
         crm: crmCount || 0,
         database: databaseCount || 0,
+        apolloAvailable: apolloData?.total_accounts || 0,
+        apolloContactsAvailable: apolloData?.total_contacts || 0,
         preview
       };
     },
