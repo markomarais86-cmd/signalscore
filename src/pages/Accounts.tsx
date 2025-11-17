@@ -24,7 +24,7 @@ import { BulkScoring } from "@/components/BulkScoring";
 import { CorrelationInsights } from "@/components/CorrelationInsights";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
-import { CampaignBuilder } from "@/components/campaigns/CampaignBuilder";
+import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import { getSourceLabel, getSourceBadgeVariant } from "@/utils/data-source-attribution";
 import { EmptyDataState } from "@/components/EmptyDataState";
 import { PRIMARY_INDUSTRIES, SUB_INDUSTRIES_MAP } from "@/constants/zoominfo-industries";
@@ -1480,21 +1480,11 @@ export default function Accounts() {
         selectedAccounts={totalCount}
       />
 
-      <CampaignBuilder
+      <CampaignBuilderV2
         isOpen={showCampaignBuilder}
         onClose={() => setShowCampaignBuilder(false)}
-        filterCriteria={{
-          orgId: userProfile?.org_id || '',
-          searchTerm: searchTerm,
-          industryFilter,
-          subIndustryFilter,
-          sourceFilter,
-          fitFilter,
-          countryFilter,
-          stateFilter,
-          campaignReadyFilter,
-          mode: displayMode
-        }}
+        icpId={icpContext?.icpId}
+        source="icp-manager"
       />
     </div>
   );
