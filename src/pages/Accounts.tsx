@@ -83,6 +83,7 @@ export default function Accounts() {
   const [icpRevenues, setIcpRevenues] = useState<string[]>([]);
   const [selectedAccountForScore, setSelectedAccountForScore] = useState<Account | null>(null);
   const [selectedAccountForDetail, setSelectedAccountForDetail] = useState<Account | null>(null);
+  const [activeIcpId, setActiveIcpId] = useState<string | null>(null);
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
   const [enrichingSingleAccount, setEnrichingSingleAccount] = useState<string | null>(null);
@@ -146,6 +147,28 @@ export default function Accounts() {
     
     fetchIntegrationConfig();
   }, [userProfile?.org_id]);
+
+  // Fetch active ICP as fallback when icpContext is missing
+  useEffect(() => {
+    const fetchActiveIcp = async () => {
+      if (!userProfile?.org_id || icpContext?.icpId) return;
+      
+      const { data } = await supabase
+        .from('icp_profiles')
+        .select('id')
+        .eq('org_id', userProfile.org_id)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (data) {
+        setActiveIcpId(data.id);
+      }
+    };
+    
+    fetchActiveIcp();
+  }, [userProfile?.org_id, icpContext?.icpId]);
 
   // Infinite scroll hook
   const {
@@ -1483,7 +1506,7 @@ export default function Accounts() {
       <CampaignBuilderV2
         isOpen={showCampaignBuilder}
         onClose={() => setShowCampaignBuilder(false)}
-        icpId={icpContext?.icpId}
+        icpId={activeIcpId || icpContext?.icpId}
         source="icp-manager"
       />
     </div>
