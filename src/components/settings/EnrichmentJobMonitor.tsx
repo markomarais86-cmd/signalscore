@@ -2,9 +2,13 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Activity, Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Activity, Loader2, CheckCircle2, XCircle, AlertCircle, Pause, Play, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { pauseEnrichmentJob, resumeEnrichmentJob } from "@/hooks/use-enrichment-progress";
+import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 
 interface EnrichmentJob {
   id: string;
@@ -19,6 +23,12 @@ interface EnrichmentJob {
   completed_at?: string;
   credits_used?: number;
   credits_remaining?: number;
+  progress_percentage?: number;
+  estimated_completion_at?: string | null;
+  current_batch?: number;
+  total_batches?: number;
+  can_pause?: boolean;
+  paused_at?: string | null;
 }
 
 interface OrgCredits {
@@ -31,6 +41,8 @@ export function EnrichmentJobMonitor() {
   const [jobs, setJobs] = useState<EnrichmentJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [orgCredits, setOrgCredits] = useState<OrgCredits | null>(null);
+  const [pausingJobs, setPausingJobs] = useState<Set<string>>(new Set());
+  const [resumingJobs, setResumingJobs] = useState<Set<string>>(new Set());
   const { userProfile } = useAuth();
 
   useEffect(() => {
@@ -73,7 +85,7 @@ export function EnrichmentJobMonitor() {
       const { data, error } = await supabase
         .from("enrichment_jobs")
         .select("*")
-        .in("status", ["pending", "processing"])
+        .in("status", ["pending", "processing", "paused"])
         .order("started_at", { ascending: false })
         .limit(5);
 
@@ -131,9 +143,48 @@ export function EnrichmentJobMonitor() {
     }
   };
 
-  const getProgress = (job: EnrichmentJob) => {
+  const getProgress = (job: EnrichmentJob): number => {
+    if (job.progress_percentage !== undefined && job.progress_percentage !== null) {
+      return job.progress_percentage;
+    }
     if (job.total_records === 0) return 0;
     return (job.processed_records / job.total_records) * 100;
+  };
+
+  const handlePause = async (jobId: string) => {
+    setPausingJobs(prev => new Set(prev).add(jobId));
+    try {
+      await pauseEnrichmentJob(jobId);
+      toast.success('Enrichment job paused');
+      loadJobs();
+    } catch (error) {
+      toast.error('Failed to pause job');
+      console.error('Pause error:', error);
+    } finally {
+      setPausingJobs(prev => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+    }
+  };
+
+  const handleResume = async (jobId: string) => {
+    setResumingJobs(prev => new Set(prev).add(jobId));
+    try {
+      await resumeEnrichmentJob(jobId);
+      toast.success('Enrichment job resumed');
+      loadJobs();
+    } catch (error) {
+      toast.error('Failed to resume job');
+      console.error('Resume error:', error);
+    } finally {
+      setResumingJobs(prev => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+    }
   };
 
   if (loading) {
@@ -198,65 +249,107 @@ export function EnrichmentJobMonitor() {
       <CardContent className="space-y-4">
         {jobs.map((job) => (
           <div key={job.id} className="border rounded-lg p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {getStatusIcon(job.status)}
-                <span className="font-medium capitalize">
-                  {job.provider.replace(/_/g, " ")}
-                </span>
-                <Badge variant="outline" className="text-xs">
-                  {job.job_type}
-                </Badge>
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  {getStatusIcon(job.status)}
+                  <span className="font-medium capitalize">
+                    {job.provider} - {job.job_type.replace(/_/g, ' ')}
+                  </span>
+                  <Badge variant={job.status === "processing" ? "default" : job.status === "paused" ? "outline" : "secondary"}>
+                    {job.status}
+                  </Badge>
+                  {job.paused_at && (
+                    <Badge variant="outline" className="gap-1">
+                      <Pause className="h-3 w-3" />
+                      Paused
+                    </Badge>
+                  )}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Started: {new Date(job.started_at).toLocaleString()}
+                </div>
+                {job.total_batches && job.total_batches > 0 && (
+                  <div className="text-sm text-muted-foreground">
+                    Batch {job.current_batch || 0} of {job.total_batches}
+                  </div>
+                )}
               </div>
-              <Badge variant={job.status === "processing" ? "default" : "secondary"}>
-                {job.status}
-              </Badge>
+              <div className="text-right text-sm space-y-1">
+                <div className="font-medium">
+                  {job.processed_records.toLocaleString()} / {job.total_records.toLocaleString()}
+                </div>
+                <div className="text-muted-foreground">
+                  {getProgress(job).toFixed(1)}%
+                </div>
+                {job.status === 'processing' && job.estimated_completion_at && (
+                  <div className="text-muted-foreground flex items-center gap-1 justify-end">
+                    <Clock className="h-3 w-3" />
+                    {formatDistanceToNow(new Date(job.estimated_completion_at), { addSuffix: true })}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Progress</span>
-                <div className="text-right">
-                  <span className="font-medium">
-                    {job.processed_records} / {job.total_records}
-                  </span>
-                  {job.status === 'processing' && (
-                    <span className="text-xs text-muted-foreground ml-2">
-                      {calculateETR(job)}
-                    </span>
-                  )}
-                </div>
-              </div>
               <Progress value={getProgress(job)} className="h-2" />
-              {job.credits_used !== undefined && job.credits_used > 0 && (
-                <div className="text-xs text-muted-foreground">
-                  Credits used: {job.credits_used.toLocaleString()}
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-3 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">Enriched</p>
-                <p className="font-medium text-green-600">{job.enriched_records}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Failed</p>
-                <p className="font-medium text-destructive">{job.failed_records}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Success Rate</p>
-                <p className="font-medium">
-                  {job.processed_records > 0
-                    ? Math.round((job.enriched_records / job.processed_records) * 100)
-                    : 0}%
-                </p>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>✓ {job.enriched_records.toLocaleString()} enriched</span>
+                <span>✗ {job.failed_records.toLocaleString()} failed</span>
               </div>
             </div>
 
-            <div className="text-xs text-muted-foreground">
-              Started: {new Date(job.started_at).toLocaleString()}
-            </div>
+            {job.credits_used !== undefined && (
+              <div className="text-xs text-muted-foreground pt-2 border-t">
+                Credits used: {job.credits_used.toLocaleString()} | 
+                Remaining: {job.credits_remaining?.toLocaleString() || '—'}
+              </div>
+            )}
+
+            {/* Pause/Resume Controls */}
+            {job.can_pause && job.status === 'processing' && (
+              <Button
+                onClick={() => handlePause(job.id)}
+                disabled={pausingJobs.has(job.id)}
+                variant="outline"
+                size="sm"
+                className="w-full"
+              >
+                {pausingJobs.has(job.id) ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Pausing...
+                  </>
+                ) : (
+                  <>
+                    <Pause className="mr-2 h-4 w-4" />
+                    Pause Job
+                  </>
+                )}
+              </Button>
+            )}
+
+            {job.status === 'paused' && (
+              <Button
+                onClick={() => handleResume(job.id)}
+                disabled={resumingJobs.has(job.id)}
+                variant="default"
+                size="sm"
+                className="w-full"
+              >
+                {resumingJobs.has(job.id) ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Resuming...
+                  </>
+                ) : (
+                  <>
+                    <Play className="mr-2 h-4 w-4" />
+                    Resume Job
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         ))}
       </CardContent>
