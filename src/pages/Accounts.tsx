@@ -850,24 +850,6 @@ export default function Accounts() {
           <Button 
             variant="default" 
             onClick={() => {
-              if (selectedAccountIds.size === 0 && !hasActiveFilters) {
-                toast({
-                  title: "No accounts selected",
-                  description: "Please select accounts or apply filters to build a campaign",
-                  variant: "destructive"
-                });
-                return;
-              }
-              
-              if (totalCount === 0) {
-                toast({
-                  title: "No accounts available",
-                  description: "No accounts match your current filters",
-                  variant: "destructive"
-                });
-                return;
-              }
-              
               setShowCampaignBuilder(true);
             }}
             className="bg-primary"
