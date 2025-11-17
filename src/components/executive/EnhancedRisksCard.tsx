@@ -205,13 +205,13 @@ export function EnhancedRisksCard({
             )}
             {campaignReadyCount > 0 && (
               <Button 
-                onClick={() => navigate('/accounts')} 
+                onClick={() => navigate('/accounts?campaign_ready=true')} 
                 variant="outline"
                 size="sm"
                 className="justify-start"
               >
                 <Sparkles className="h-4 w-4 mr-2" />
-                Build Campaign
+                View Campaign-Ready Accounts
               </Button>
             )}
             <Button 
