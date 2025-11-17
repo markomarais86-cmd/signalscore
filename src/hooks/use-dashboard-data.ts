@@ -124,8 +124,19 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'all' 
         data_completeness: rawMetrics?.data_completeness || 0,
       };
       
-      // Map TAM data with all breakdowns
-      const tamData: ExternalTAMData | null = tamResult.data ? {
+      // Map TAM data - prefer metrics function data over separate TAM query
+      const tamData: ExternalTAMData | null = rawMetrics?.apollo_accounts_available ? {
+        totalAccounts: Number(rawMetrics.apollo_accounts_available) || 0,
+        totalLeads: Number(rawMetrics.apollo_contacts_available) || 0,
+        provider: rawMetrics.apollo_provider || 'Apollo',
+        lastSyncedAt: tamResult.data?.last_synced_at,
+        geography_breakdown: tamResult.data?.geography_breakdown,
+        industry_breakdown: tamResult.data?.industry_breakdown,
+        company_size_breakdown: tamResult.data?.company_size_breakdown,
+        revenue_breakdown: tamResult.data?.revenue_breakdown,
+        technology_breakdown: tamResult.data?.technology_breakdown,
+        funding_breakdown: tamResult.data?.funding_breakdown
+      } : (tamResult.data ? {
         totalAccounts: Number(tamResult.data.total_accounts) || 0,
         totalLeads: Number(tamResult.data.total_contacts) || 0,
         provider: tamResult.data.provider || 'Unknown',
@@ -136,7 +147,7 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'all' 
         revenue_breakdown: tamResult.data.revenue_breakdown,
         technology_breakdown: tamResult.data.technology_breakdown,
         funding_breakdown: tamResult.data.funding_breakdown
-      } : null;
+      } : null);
 
       return {
         metrics: mappedMetrics,
