@@ -1083,62 +1083,83 @@ export type Database = {
       enrichment_jobs: {
         Row: {
           batch_size: number | null
+          can_pause: boolean | null
           completed_at: string | null
           created_at: string | null
           created_by: string | null
           credits_remaining: number | null
           credits_used: number | null
+          current_batch: number | null
           enriched_records: number | null
           error_message: string | null
+          estimated_completion_at: string | null
           failed_records: number | null
           filter_criteria: Json | null
           id: string
           job_type: string
+          last_progress_update: string | null
           org_id: string
+          paused_at: string | null
           processed_records: number | null
+          progress_percentage: number | null
           provider: string
           started_at: string | null
           status: string | null
+          total_batches: number | null
           total_records: number | null
         }
         Insert: {
           batch_size?: number | null
+          can_pause?: boolean | null
           completed_at?: string | null
           created_at?: string | null
           created_by?: string | null
           credits_remaining?: number | null
           credits_used?: number | null
+          current_batch?: number | null
           enriched_records?: number | null
           error_message?: string | null
+          estimated_completion_at?: string | null
           failed_records?: number | null
           filter_criteria?: Json | null
           id?: string
           job_type: string
+          last_progress_update?: string | null
           org_id: string
+          paused_at?: string | null
           processed_records?: number | null
+          progress_percentage?: number | null
           provider: string
           started_at?: string | null
           status?: string | null
+          total_batches?: number | null
           total_records?: number | null
         }
         Update: {
           batch_size?: number | null
+          can_pause?: boolean | null
           completed_at?: string | null
           created_at?: string | null
           created_by?: string | null
           credits_remaining?: number | null
           credits_used?: number | null
+          current_batch?: number | null
           enriched_records?: number | null
           error_message?: string | null
+          estimated_completion_at?: string | null
           failed_records?: number | null
           filter_criteria?: Json | null
           id?: string
           job_type?: string
+          last_progress_update?: string | null
           org_id?: string
+          paused_at?: string | null
           processed_records?: number | null
+          progress_percentage?: number | null
           provider?: string
           started_at?: string | null
           status?: string | null
+          total_batches?: number | null
           total_records?: number | null
         }
         Relationships: [
@@ -3418,14 +3439,26 @@ export type Database = {
       merge_duplicate_accounts: { Args: { p_org_id: string }; Returns: Json }
       normalize_country: { Args: { country_input: string }; Returns: string }
       normalize_domain_text: { Args: { domain_input: string }; Returns: string }
+      pause_enrichment_job: { Args: { p_job_id: string }; Returns: Json }
       record_data_quality_snapshot: {
         Args: { org_id_param: string }
         Returns: undefined
       }
       refresh_all_materialized_views: { Args: never; Returns: undefined }
       refresh_reporting_views: { Args: never; Returns: undefined }
+      resume_enrichment_job: { Args: { p_job_id: string }; Returns: Json }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      update_enrichment_job_progress: {
+        Args: {
+          p_current_batch?: number
+          p_enriched_records: number
+          p_failed_records: number
+          p_job_id: string
+          p_processed_records: number
+        }
+        Returns: Json
+      }
       validate_api_key: {
         Args: { key_to_validate: string }
         Returns: {

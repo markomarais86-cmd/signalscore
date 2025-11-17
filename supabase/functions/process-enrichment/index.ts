@@ -37,9 +37,31 @@ serve(async (req) => {
 
     let enriched = 0;
     let failed = 0;
+    let processed = 0;
 
     // Process each account
     for (const accountId of account_ids) {
+      // Check if job has been paused
+      const { data: jobStatus } = await supabase
+        .from('enrichment_jobs')
+        .select('status, paused_at')
+        .eq('id', job_id)
+        .single();
+      
+      if (jobStatus?.status === 'paused') {
+        console.log('⏸️  Job paused, waiting for resume...');
+        // Wait and check again
+        while (jobStatus?.status === 'paused') {
+          await new Promise(resolve => setTimeout(resolve, 5000)); // Check every 5 seconds
+          const { data: updatedStatus } = await supabase
+            .from('enrichment_jobs')
+            .select('status')
+            .eq('id', job_id)
+            .single();
+          if (updatedStatus?.status !== 'paused') break;
+        }
+        console.log('▶️  Job resumed');
+      }
       const startTime = Date.now();
       
       try {
@@ -258,6 +280,19 @@ serve(async (req) => {
           });
         
         failed++;
+      } finally {
+        processed++;
+        
+        // Update progress every 5 records or at the end
+        if (processed % 5 === 0 || processed === account_ids.length) {
+          await supabase.rpc('update_enrichment_job_progress', {
+            p_job_id: job_id,
+            p_processed_records: processed,
+            p_enriched_records: enriched,
+            p_failed_records: failed,
+          });
+          console.log(`📊 Progress: ${processed}/${account_ids.length} (${enriched} enriched, ${failed} failed)`);
+        }
       }
     }
 
