@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Building2, Database, LucideIcon } from "lucide-react";
+import { Building2, Database, LucideIcon, Sparkles } from "lucide-react";
 
 interface DataSourceBreakdownCardProps {
   title: "Accounts" | "Leads";
@@ -16,6 +16,11 @@ interface DataSourceBreakdownCardProps {
     highFit: number;
     highFitPercentage: number;
   };
+  apollo?: {
+    count: number;
+    highFit?: number;
+    highFitPercentage?: number;
+  };
 }
 
 export function DataSourceBreakdownCard({
@@ -24,6 +29,7 @@ export function DataSourceBreakdownCard({
   total,
   crm,
   database,
+  apollo,
 }: DataSourceBreakdownCardProps) {
   const getPercentageBarColor = (percentage: number) => {
     if (percentage >= 70) return "bg-success";
@@ -109,6 +115,43 @@ export function DataSourceBreakdownCard({
             </div>
           </CardContent>
         </Card>
+
+        {/* Apollo/External Database Breakdown */}
+        {apollo && apollo.count > 0 && (
+          <Card className="border-l-4 border-l-accent bg-card/80 backdrop-blur-sm hover:bg-card hover:shadow-md transition-all">
+            <CardContent className="pt-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-accent" />
+                  <span className="font-semibold text-sm">Apollo</span>
+                </div>
+                <span className="text-2xl font-bold">{apollo.count.toLocaleString()}</span>
+              </div>
+              
+              {apollo.highFit !== undefined && apollo.highFitPercentage !== undefined ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">High-Fit Matches</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{apollo.highFit.toLocaleString()}</span>
+                      <Badge variant={getPercentageBadgeVariant(apollo.highFitPercentage)} className="text-xs">
+                        {apollo.highFitPercentage}%
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all ${getPercentageBarColor(apollo.highFitPercentage)}`}
+                      style={{ width: `${apollo.highFitPercentage}%` }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">External data source • Not scored yet</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </CardContent>
     </Card>
   );
