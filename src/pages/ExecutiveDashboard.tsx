@@ -498,8 +498,8 @@ export default function ExecutiveDashboard() {
                 scoringProgress={totalAccounts > 0 ? Math.round((totalScores / totalAccounts) * 100) : 0}
                 totalScored={totalScores}
                 totalAccounts={totalAccounts}
-            crmScored={crmScoredAccounts}
-            databaseScored={databaseScoredAccounts}
+                crmScored={crmScoredAccounts}
+                databaseScored={databaseScoredAccounts}
                 fitDistribution={[
                   { name: 'High Fit', value: highFitAccounts, percentage: totalScores > 0 ? Math.round((highFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-green))' },
                   { name: 'Medium Fit', value: medFitAccounts, percentage: totalScores > 0 ? Math.round((medFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-amber))' },
