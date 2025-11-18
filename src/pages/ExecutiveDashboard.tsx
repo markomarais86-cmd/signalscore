@@ -440,12 +440,12 @@ export default function ExecutiveDashboard() {
                   icon={Building2}
                 />
                 <HeroMetric
-                  label="Campaign Ready Accounts"
-                  value={campaignReadyAccounts}
-                  subtitle="High-fit accounts ready for campaign building"
+                  label={sourceFilter === 'all' ? 'Campaign Ready Accounts' : 'High-Fit Accounts'}
+                  value={sourceFilter === 'all' ? campaignReadyAccounts : highFitAccounts}
+                  subtitle={sourceFilter === 'all' ? 'Accounts with campaign-ready leads' : `High-fit accounts from ${sourceFilter === 'crm' ? 'CRM' : 'database'}`}
                   trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
                   icon={Sparkles}
-                  status={campaignReadyAccounts > 0 ? 'success' : 'warning'}
+                  status={(sourceFilter === 'all' ? campaignReadyAccounts : highFitAccounts) > 0 ? 'success' : 'warning'}
                   onClick={() => navigate('/accounts?campaign_ready=true')}
                 />
               </div>
