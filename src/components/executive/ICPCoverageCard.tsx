@@ -14,6 +14,12 @@ interface ICPCoverageCardProps {
   highFitAccounts: number;
   highFitCrmAccounts: number;
   highFitDatabaseAccounts: number;
+  mediumFitAccounts: number;
+  mediumFitCrmAccounts: number;
+  mediumFitDatabaseAccounts: number;
+  lowFitAccounts: number;
+  lowFitCrmAccounts: number;
+  lowFitDatabaseAccounts: number;
   
   // Leads data (optional - deprecated in account-centric workflow)
   totalLeads?: number;
@@ -36,6 +42,12 @@ export function ICPCoverageCard({
   highFitAccounts,
   highFitCrmAccounts,
   highFitDatabaseAccounts,
+  mediumFitAccounts,
+  mediumFitCrmAccounts,
+  mediumFitDatabaseAccounts,
+  lowFitAccounts,
+  lowFitCrmAccounts,
+  lowFitDatabaseAccounts,
   totalLeads = 0,
   crmLeads = 0,
   databaseLeads = 0,
@@ -61,6 +73,33 @@ export function ICPCoverageCard({
 
   const accountsHighFitPct = calculatePercentage(highFitAccounts, totalAccounts);
   const leadsHighFitPct = calculatePercentage(highFitLeads, totalLeads);
+
+  const accountsFitTableRows = [
+    {
+      fitLevel: "High Fit",
+      total: highFitAccounts,
+      crm: highFitCrmAccounts,
+      database: highFitDatabaseAccounts,
+      color: "text-fit-high",
+      bgColor: "bg-fit-high/10"
+    },
+    {
+      fitLevel: "Medium Fit",
+      total: mediumFitAccounts,
+      crm: mediumFitCrmAccounts,
+      database: mediumFitDatabaseAccounts,
+      color: "text-fit-medium",
+      bgColor: "bg-fit-medium/10"
+    },
+    {
+      fitLevel: "Low Fit",
+      total: lowFitAccounts,
+      crm: lowFitCrmAccounts,
+      database: lowFitDatabaseAccounts,
+      color: "text-fit-low",
+      bgColor: "bg-fit-low/10"
+    }
+  ];
 
   const accountsTableRows = [
     {
