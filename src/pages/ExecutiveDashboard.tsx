@@ -480,8 +480,14 @@ export default function ExecutiveDashboard() {
                 crmAccounts={crmAccounts}
                 databaseAccounts={databaseAccounts}
                 highFitAccounts={highFitAccounts}
-                highFitCrmAccounts={highFitCrmAccounts}
-                highFitDatabaseAccounts={highFitDatabaseAccounts}
+                highFitCrmAccounts={dashboardData.metrics.high_fit_crm_accounts}
+                highFitDatabaseAccounts={dashboardData.metrics.high_fit_database_accounts}
+                mediumFitAccounts={medFitAccounts}
+                mediumFitCrmAccounts={dashboardData.metrics.medium_fit_crm_accounts}
+                mediumFitDatabaseAccounts={dashboardData.metrics.medium_fit_database_accounts}
+                lowFitAccounts={lowFitAccounts}
+                lowFitCrmAccounts={dashboardData.metrics.low_fit_crm_accounts}
+                lowFitDatabaseAccounts={dashboardData.metrics.low_fit_database_accounts}
                 totalLeads={totalLeads}
                 crmLeads={crmLeads}
                 databaseLeads={databaseLeads}
