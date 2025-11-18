@@ -102,7 +102,7 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'all' 
       
       const mappedMetrics: DashboardMetrics = {
         total_accounts: rawMetrics?.total_accounts || 0,
-        total_scores: rawMetrics?.scored_accounts || 0,
+        total_scores: (rawMetrics?.high_fit_accounts || 0) + (rawMetrics?.medium_fit_accounts || 0) + (rawMetrics?.low_fit_accounts || 0),
         total_leads: rawMetrics?.total_leads || 0,
         crm_accounts: rawMetrics?.crm_accounts || 0,
         database_accounts: rawMetrics?.database_accounts || 0,
