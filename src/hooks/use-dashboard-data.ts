@@ -97,8 +97,8 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'all' 
         console.warn('[useDashboardData] ⚠️ TAM fetch error:', tamResult.error);
       }
       
-      // Map the function response to expected structure
-      const rawMetrics = metricsResult.data as any;
+      // Map the function response to expected structure (function returns an array of rows)
+      const rawMetrics = (metricsResult.data as any)?.[0];
       
       const mappedMetrics: DashboardMetrics = {
         total_accounts: rawMetrics?.total_accounts || 0,
@@ -215,10 +215,14 @@ export function useSourceFilterStats(orgId: string | undefined) {
         });
       }
       
+      const allMetrics = (allResult.data as any)?.[0] ?? allResult.data;
+      const crmMetrics = (crmResult.data as any)?.[0] ?? crmResult.data;
+      const dbMetrics = (dbResult.data as any)?.[0] ?? dbResult.data;
+
       return {
-        total: (allResult.data as any)?.total_accounts ?? (allResult.data as any)?.totalAccounts ?? 0,
-        crm: (crmResult.data as any)?.total_accounts ?? (crmResult.data as any)?.totalAccounts ?? 0,
-        database: (dbResult.data as any)?.total_accounts ?? (dbResult.data as any)?.totalAccounts ?? 0,
+        total: allMetrics?.total_accounts ?? allMetrics?.totalAccounts ?? 0,
+        crm: crmMetrics?.total_accounts ?? crmMetrics?.totalAccounts ?? 0,
+        database: dbMetrics?.total_accounts ?? dbMetrics?.totalAccounts ?? 0,
       };
     },
     enabled: !!orgId,
