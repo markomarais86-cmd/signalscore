@@ -410,41 +410,6 @@ export function ICPCoverageCard({
                 </tbody>
               </table>
             </div>
-
-            {/* Leads Fit Level Breakdown Table */}
-            <div className="mt-6">
-              <h4 className="text-sm font-semibold mb-3 text-foreground">Contacts Fit Level Distribution</h4>
-              <div className="rounded-lg border">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b bg-muted/30">
-                      <th className="text-left p-3 font-semibold text-sm">Fit Level</th>
-                      <th className="text-right p-3 font-semibold text-sm">Total</th>
-                      <th className="text-right p-3 font-semibold text-sm">CRM</th>
-                      <th className="text-right p-3 font-semibold text-sm">Database</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leadsFitTableRows.map((row) => (
-                      <tr key={row.fitLevel} className="border-b hover:bg-muted/30 transition-colors">
-                        <td className="p-3">
-                          <span className={cn("font-medium", row.color)}>{row.fitLevel}</span>
-                        </td>
-                        <td className="text-right p-3 font-mono text-sm font-semibold">
-                          {row.total.toLocaleString()}
-                        </td>
-                        <td className="text-right p-3 font-mono text-sm">
-                          {row.crm.toLocaleString()}
-                        </td>
-                        <td className="text-right p-3 font-mono text-sm">
-                          {row.database.toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
           </TabsContent>
         </Tabs>
 
