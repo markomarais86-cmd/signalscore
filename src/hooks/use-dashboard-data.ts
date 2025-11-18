@@ -207,10 +207,18 @@ export function useSourceFilterStats(orgId: string | undefined) {
         }),
       ]);
       
+      if (allResult.error || crmResult.error || dbResult.error) {
+        console.error('[useSourceFilterStats] RPC error(s)', {
+          allError: allResult.error,
+          crmError: crmResult.error,
+          dbError: dbResult.error,
+        });
+      }
+      
       return {
-        total: (allResult.data as any)?.totalAccounts || 0,
-        crm: (crmResult.data as any)?.totalAccounts || 0,
-        database: (dbResult.data as any)?.totalAccounts || 0,
+        total: (allResult.data as any)?.total_accounts ?? (allResult.data as any)?.totalAccounts ?? 0,
+        crm: (crmResult.data as any)?.total_accounts ?? (crmResult.data as any)?.totalAccounts ?? 0,
+        database: (dbResult.data as any)?.total_accounts ?? (dbResult.data as any)?.totalAccounts ?? 0,
       };
     },
     enabled: !!orgId,
