@@ -494,6 +494,10 @@ export default function ExecutiveDashboard() {
                 highFitLeads={highFitLeads}
                 highFitCrmLeads={highFitCrmLeads}
                 highFitDatabaseLeads={highFitDatabaseLeads}
+                mediumFitCrmLeads={dashboardData.metrics.medium_fit_crm_leads}
+                mediumFitDatabaseLeads={dashboardData.metrics.medium_fit_database_leads}
+                lowFitCrmLeads={dashboardData.metrics.low_fit_crm_leads}
+                lowFitDatabaseLeads={dashboardData.metrics.low_fit_database_leads}
                 tamAccounts={tamData?.totalAccounts}
                 tamLeads={tamData?.totalLeads}
                 tamProvider={tamData?.provider}

@@ -25,6 +25,10 @@ interface DashboardMetrics {
   high_fit_leads_total: number;
   high_fit_crm_leads: number;
   high_fit_database_leads: number;
+  medium_fit_crm_leads: number;
+  medium_fit_database_leads: number;
+  low_fit_crm_leads: number;
+  low_fit_database_leads: number;
   campaign_ready_accounts: number;
   campaign_ready_contacts: number;
   campaign_ready_leads: number;
@@ -130,6 +134,10 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'all' 
         high_fit_leads_total: rawMetrics?.high_fit_leads_total || 0,
         high_fit_crm_leads: rawMetrics?.high_fit_crm_leads || 0,
         high_fit_database_leads: rawMetrics?.high_fit_database_leads || 0,
+        medium_fit_crm_leads: rawMetrics?.medium_fit_crm_leads || 0,
+        medium_fit_database_leads: rawMetrics?.medium_fit_database_leads || 0,
+        low_fit_crm_leads: rawMetrics?.low_fit_crm_leads || 0,
+        low_fit_database_leads: rawMetrics?.low_fit_database_leads || 0,
         campaign_ready_accounts: rawMetrics?.campaign_ready_accounts || 0,
         campaign_ready_contacts: rawMetrics?.campaign_ready_leads || 0,
         campaign_ready_leads: rawMetrics?.campaign_ready_leads || 0,
