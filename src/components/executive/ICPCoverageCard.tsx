@@ -28,6 +28,10 @@ interface ICPCoverageCardProps {
   highFitLeads?: number;
   highFitCrmLeads?: number;
   highFitDatabaseLeads?: number;
+  mediumFitCrmLeads?: number;
+  mediumFitDatabaseLeads?: number;
+  lowFitCrmLeads?: number;
+  lowFitDatabaseLeads?: number;
 
   // TAM data (optional)
   tamAccounts?: number;
@@ -54,6 +58,10 @@ export function ICPCoverageCard({
   highFitLeads = 0,
   highFitCrmLeads = 0,
   highFitDatabaseLeads = 0,
+  mediumFitCrmLeads = 0,
+  mediumFitDatabaseLeads = 0,
+  lowFitCrmLeads = 0,
+  lowFitDatabaseLeads = 0,
   tamAccounts = 0,
   tamLeads = 0,
   tamProvider = 'External DB',
@@ -96,6 +104,33 @@ export function ICPCoverageCard({
       total: lowFitAccounts,
       crm: lowFitCrmAccounts,
       database: lowFitDatabaseAccounts,
+      color: "text-fit-low",
+      bgColor: "bg-fit-low/10"
+    }
+  ];
+
+  const leadsFitTableRows = [
+    {
+      fitLevel: "High Fit",
+      total: highFitLeads,
+      crm: highFitCrmLeads,
+      database: highFitDatabaseLeads,
+      color: "text-fit-high",
+      bgColor: "bg-fit-high/10"
+    },
+    {
+      fitLevel: "Medium Fit",
+      total: mediumFitCrmLeads + mediumFitDatabaseLeads,
+      crm: mediumFitCrmLeads,
+      database: mediumFitDatabaseLeads,
+      color: "text-fit-medium",
+      bgColor: "bg-fit-medium/10"
+    },
+    {
+      fitLevel: "Low Fit",
+      total: lowFitCrmLeads + lowFitDatabaseLeads,
+      crm: lowFitCrmLeads,
+      database: lowFitDatabaseLeads,
       color: "text-fit-low",
       bgColor: "bg-fit-low/10"
     }
@@ -374,6 +409,41 @@ export function ICPCoverageCard({
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Leads Fit Level Breakdown Table */}
+            <div className="mt-6">
+              <h4 className="text-sm font-semibold mb-3 text-foreground">Contacts Fit Level Distribution</h4>
+              <div className="rounded-lg border">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="text-left p-3 font-semibold text-sm">Fit Level</th>
+                      <th className="text-right p-3 font-semibold text-sm">Total</th>
+                      <th className="text-right p-3 font-semibold text-sm">CRM</th>
+                      <th className="text-right p-3 font-semibold text-sm">Database</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leadsFitTableRows.map((row) => (
+                      <tr key={row.fitLevel} className="border-b hover:bg-muted/30 transition-colors">
+                        <td className="p-3">
+                          <span className={cn("font-medium", row.color)}>{row.fitLevel}</span>
+                        </td>
+                        <td className="text-right p-3 font-mono text-sm font-semibold">
+                          {row.total.toLocaleString()}
+                        </td>
+                        <td className="text-right p-3 font-mono text-sm">
+                          {row.crm.toLocaleString()}
+                        </td>
+                        <td className="text-right p-3 font-mono text-sm">
+                          {row.database.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </TabsContent>
         </Tabs>

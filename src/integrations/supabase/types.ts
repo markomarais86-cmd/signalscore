@@ -3294,22 +3294,36 @@ export type Database = {
       get_dashboard_metrics_fast: {
         Args: { p_org_id: string; p_source_filter?: string }
         Returns: {
+          apollo_accounts_available: number
+          apollo_contacts_available: number
+          apollo_provider: string
+          both_accounts: number
+          campaign_ready_accounts: number
+          campaign_ready_leads: number
           crm_accounts: number
+          crm_leads: number
           crm_scored_accounts: number
           data_completeness: number
           database_accounts: number
+          database_leads: number
           database_scored_accounts: number
           high_fit_accounts: number
           high_fit_crm_accounts: number
+          high_fit_crm_leads: number
           high_fit_database_accounts: number
-          high_fit_leads: number
+          high_fit_database_leads: number
+          high_fit_leads_total: number
+          linked_leads: number
           low_fit_accounts: number
           low_fit_crm_accounts: number
+          low_fit_crm_leads: number
           low_fit_database_accounts: number
+          low_fit_database_leads: number
           medium_fit_accounts: number
           medium_fit_crm_accounts: number
+          medium_fit_crm_leads: number
           medium_fit_database_accounts: number
-          scored_accounts: number
+          medium_fit_database_leads: number
           total_accounts: number
           total_leads: number
         }[]
