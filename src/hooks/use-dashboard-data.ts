@@ -7,6 +7,8 @@ interface DashboardMetrics {
   total_leads: number;
   crm_accounts: number;
   database_accounts: number;
+  crm_scored_accounts: number;
+  database_scored_accounts: number;
   both_accounts: number;
   linked_leads: number;
   high_fit_scores: number;
@@ -106,6 +108,8 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'all' 
         total_leads: rawMetrics?.total_leads || 0,
         crm_accounts: rawMetrics?.crm_accounts || 0,
         database_accounts: rawMetrics?.database_accounts || 0,
+        crm_scored_accounts: rawMetrics?.crm_scored_accounts || 0,
+        database_scored_accounts: rawMetrics?.database_scored_accounts || 0,
         both_accounts: rawMetrics?.both_accounts || 0,
         linked_leads: rawMetrics?.linked_leads || 0,
         high_fit_scores: rawMetrics?.high_fit_accounts || 0,

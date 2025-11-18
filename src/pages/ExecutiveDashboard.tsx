@@ -79,6 +79,8 @@ export default function ExecutiveDashboard() {
   const crmAccounts = dashboardData?.metrics?.crm_accounts || 0;
   const databaseAccounts = dashboardData?.metrics?.database_accounts || 0;
   const bothAccounts = dashboardData?.metrics?.both_accounts || 0;
+  const crmScoredAccounts = dashboardData?.metrics?.crm_scored_accounts || 0;
+  const databaseScoredAccounts = dashboardData?.metrics?.database_scored_accounts || 0;
 
   const highFitCrmAccounts = dashboardData?.metrics?.high_fit_crm_accounts || 0;
   const highFitDatabaseAccounts = dashboardData?.metrics?.high_fit_database_accounts || 0;
@@ -496,8 +498,8 @@ export default function ExecutiveDashboard() {
                 scoringProgress={totalAccounts > 0 ? Math.round((totalScores / totalAccounts) * 100) : 0}
                 totalScored={totalScores}
                 totalAccounts={totalAccounts}
-                crmScored={Math.floor((totalScores / (totalAccounts || 1)) * crmAccounts)}
-                databaseScored={Math.floor((totalScores / (totalAccounts || 1)) * databaseAccounts)}
+            crmScored={crmScoredAccounts}
+            databaseScored={databaseScoredAccounts}
                 fitDistribution={[
                   { name: 'High Fit', value: highFitAccounts, percentage: totalScores > 0 ? Math.round((highFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-green))' },
                   { name: 'Medium Fit', value: medFitAccounts, percentage: totalScores > 0 ? Math.round((medFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-amber))' },
