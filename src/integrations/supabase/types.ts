@@ -3294,19 +3294,11 @@ export type Database = {
       get_dashboard_metrics_fast: {
         Args: { p_org_id: string; p_source_filter?: string }
         Returns: {
-          accounts_with_contacts: number
           campaign_ready_accounts: number
-          crm_accounts: number
-          crm_leads: number
-          database_accounts: number
-          database_leads: number
+          campaign_ready_contacts: number
           high_fit_accounts: number
-          high_fit_crm_accounts: number
-          high_fit_crm_leads: number
-          high_fit_database_accounts: number
-          high_fit_database_leads: number
-          high_fit_leads_total: number
-          scored_accounts: number
+          low_fit_accounts: number
+          medium_fit_accounts: number
           total_accounts: number
           total_leads: number
         }[]
