@@ -80,10 +80,6 @@ export function CombinedScoringICPCard({
         </CardTitle>
         <CardDescription className="flex items-center gap-2">
           Account quality, ICP fit distribution, and data completeness
-          <Badge variant="outline" className="text-xs">
-            <Database className="h-3 w-3 mr-1" />
-            Your Database
-          </Badge>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">

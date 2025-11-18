@@ -3296,6 +3296,10 @@ export type Database = {
         Returns: {
           campaign_ready_accounts: number
           campaign_ready_contacts: number
+          crm_accounts: number
+          crm_scored_accounts: number
+          database_accounts: number
+          database_scored_accounts: number
           high_fit_accounts: number
           low_fit_accounts: number
           medium_fit_accounts: number
