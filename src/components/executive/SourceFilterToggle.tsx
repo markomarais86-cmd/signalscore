@@ -35,7 +35,7 @@ export function SourceFilterToggle({ value, onChange, stats }: SourceFilterToggl
       label: 'Database Only', 
       icon: Database, 
       count: stats.database,
-      tooltip: 'Imported records only: Previously redeemed contacts from Apollo or other imports'
+      tooltip: 'Available in external databases (Apollo, ZoomInfo) matching your ICP - ready to import'
     },
   ];
 
