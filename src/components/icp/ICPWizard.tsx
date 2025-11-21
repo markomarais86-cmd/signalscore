@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { ChevronLeft, ChevronRight, Save, Check, ArrowLeft } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Save, Check, ArrowLeft, Sparkles } from 'lucide-react';
 import { ICPFormData, ICPTemplate } from '@/types/icp';
 import { ICPTemplateSelector } from './ICPTemplateSelector';
 import { ICPWizardStep1 } from './ICPWizardStep1';
@@ -14,6 +14,7 @@ import { ClosedWonInsights } from './ClosedWonInsights';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { useAccountInsights } from '@/hooks/use-account-insights';
 
 interface ICPWizardProps {
   isOpen: boolean;
@@ -86,6 +87,7 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { userProfile } = useAuth();
   const { toast } = useToast();
+  const { data: insights } = useAccountInsights();
 
   useEffect(() => {
     if (editingICP && isOpen) {
@@ -167,6 +169,35 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
   const handleBackFromClosedWon = () => {
     setShowClosedWonFlow(false);
     setCurrentStep(0);
+  };
+
+  const handleUseSmartDefaults = () => {
+    if (!insights?.hasData) {
+      toast({
+        title: "No Data Available",
+        description: "Please upload some account data first to use Smart Defaults.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Pre-populate form with insights from user's data
+    setFormData({
+      ...initialFormData,
+      name: 'My ICP - Auto-Generated',
+      description: `Generated from analysis of ${insights.totalAccounts} accounts`,
+      industries: insights.topIndustries.slice(0, 3).map(i => i.name),
+      company_sizes: insights.topSizes.slice(0, 2).map(s => s.size),
+      geographies: insights.topCountries.slice(0, 5).map(c => c.name),
+      status: 'draft'
+    });
+
+    toast({
+      title: "✨ Smart Defaults Applied",
+      description: "Form pre-populated with insights from your account data. Review and adjust as needed.",
+    });
+
+    setCurrentStep(1); // Skip to step 1
   };
 
   const validateCurrentStep = (): boolean => {
@@ -290,6 +321,9 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
             onSelectTemplate={handleTemplateSelection}
             onSkip={handleSkipTemplate}
             onSelectClosedWon={handleSelectClosedWon}
+            onUseSmartDefaults={handleUseSmartDefaults}
+            hasAccountData={insights?.hasData || false}
+            accountInsights={insights}
           />
         );
       case 1:

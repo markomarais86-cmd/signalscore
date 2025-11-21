@@ -1,9 +1,13 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Database, FileCheck, Info } from "lucide-react";
+import { Database, FileCheck, Info, Sparkles, Download, Upload } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +33,7 @@ interface UploadResult {
 
 export default function DataUpload() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(() => {
     const tabParam = searchParams.get('tab');
     return tabParam === 'closed-won' ? 'closed-won' : 'leads';
@@ -43,6 +48,10 @@ export default function DataUpload() {
   const [totalRecords, setTotalRecords] = useState(0);
   const [isExternalDatabase, setIsExternalDatabase] = useState(false);
   const [unlinkedLeads, setUnlinkedLeads] = useState(0);
+  const [showAdvanced, setShowAdvanced] = useState(() => {
+    const saved = localStorage.getItem('showAdvancedDataUpload');
+    return saved === 'true';
+  });
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
@@ -84,10 +93,54 @@ export default function DataUpload() {
       const headers = Object.keys(rawData[0]);
       const sampleRows = rawData.slice(0, 5);
       
-      setCsvHeaders(headers);
-      setSampleData(sampleRows);
-      setPendingFile({ file, type, isExternalDatabase: isExternal });
-      setShowFieldMapping(true);
+      // Smart auto-mapping with common variations
+      const autoMapping: FieldMapping = {};
+      const expectedFields = LEADS_HEADERS;
+      
+      headers.forEach(header => {
+        const normalized = header.toLowerCase().trim();
+        
+        // Company name variations
+        if (normalized.match(/^(company|company_name|account|account_name)$/)) {
+          autoMapping[header] = 'company';
+        }
+        // Email variations
+        else if (normalized.match(/^(email|email_address|contact_email|e-mail)$/)) {
+          autoMapping[header] = 'email';
+        }
+        // First name variations
+        else if (normalized.match(/^(first_name|firstname|fname|first|given_name)$/)) {
+          autoMapping[header] = 'first_name';
+        }
+        // Last name variations
+        else if (normalized.match(/^(last_name|lastname|lname|last|surname|family_name)$/)) {
+          autoMapping[header] = 'last_name';
+        }
+        // Title variations
+        else if (normalized.match(/^(title|job_title|position|role)$/)) {
+          autoMapping[header] = 'title';
+        }
+        // Other common fields
+        else if (expectedFields.includes(normalized)) {
+          autoMapping[header] = normalized;
+        }
+      });
+      
+      // Calculate mapping confidence (percentage of expected fields mapped)
+      const mappedCount = Object.keys(autoMapping).length;
+      const confidence = (mappedCount / Math.min(expectedFields.length, headers.length)) * 100;
+      
+      console.log(`Auto-mapping confidence: ${confidence.toFixed(0)}%`, autoMapping);
+      
+      // If high confidence (>80%), proceed directly. Otherwise show mapping dialog
+      if (confidence > 80 && !showAdvanced) {
+        handleFileUpload(autoMapping);
+      } else {
+        setCsvHeaders(headers);
+        setSampleData(sampleRows);
+        setPendingFile({ file, type, isExternalDatabase: isExternal });
+        setShowFieldMapping(true);
+      }
       
     } catch (error: any) {
       console.error('Error analyzing CSV:', error);
@@ -436,6 +489,93 @@ export default function DataUpload() {
         <p className="text-muted-foreground mt-2">Import leads via CSV - accounts are automatically created, matched, and scored</p>
       </div>
 
+      {/* Quick Start Section - Only show if no data yet */}
+      {totalRecords === 0 && (
+        <Card className="bg-gradient-to-br from-primary/5 via-secondary/5 to-background border-primary/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              🚀 Quick Start: Upload Your First Leads
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Get started in under 2 minutes. Download our sample CSV template with example data, then upload your own leads.
+            </p>
+            
+            <div className="flex flex-wrap gap-3">
+              <Button 
+                onClick={() => downloadTemplate('leads')}
+                variant="outline"
+                className="gap-2"
+              >
+                <Download className="h-4 w-4" />
+                Download Sample CSV
+              </Button>
+              
+              <Button 
+                onClick={() => document.getElementById('quick-upload-input')?.click()}
+                disabled={uploading}
+                className="gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                {uploading ? 'Uploading...' : 'Upload CSV'}
+              </Button>
+              
+              <input
+                id="quick-upload-input"
+                type="file"
+                accept=".csv"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) analyzeCSVStructure(file, 'leads', false);
+                  e.target.value = '';
+                }}
+                style={{ display: 'none' }}
+              />
+            </div>
+
+            {uploading && (
+              <div className="space-y-2">
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-primary transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {uploadProgress < 10 && "📁 Reading CSV..."}
+                  {uploadProgress >= 10 && uploadProgress < 20 && "🔍 Analyzing data..."}
+                  {uploadProgress >= 20 && uploadProgress < 80 && "💾 Uploading leads..."}
+                  {uploadProgress >= 80 && uploadProgress < 90 && "🔗 Matching to accounts..."}
+                  {uploadProgress >= 90 && uploadProgress < 100 && "🎯 Scoring accounts..."}
+                  {uploadProgress === 100 && "✅ Complete!"}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Success message with ICP CTA */}
+      {uploadResult && uploadResult.errors.length === 0 && (
+        <Alert className="bg-gradient-to-r from-primary/10 to-secondary/10 border-primary">
+          <Sparkles className="h-4 w-4" />
+          <AlertDescription className="flex items-center justify-between gap-4">
+            <div>
+              <strong>Great start!</strong> Your data is ready. Next step: Create your first ICP profile to identify your best-fit accounts.
+            </div>
+            <Button 
+              onClick={() => navigate('/icp-manager')}
+              variant="default"
+              size="sm"
+            >
+              Create ICP →
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {totalRecords > 0 && (
         <HeroMetric
           label="Leads Uploaded"
@@ -448,30 +588,54 @@ export default function DataUpload() {
       )}
 
       {/* Lead Processing Status */}
-      {unlinkedLeads > 0 && (
+      {unlinkedLeads > 0 && !showAdvanced && (
         <BulkLeadMatcher 
           unlinkedLeads={unlinkedLeads} 
           onComplete={loadTotalRecords}
         />
       )}
 
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertDescription className="flex items-center justify-between">
-          <div>
-            <strong>Quick Start:</strong> Download a template CSV with sample data to get started quickly.
+      {/* Advanced Settings Toggle */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="advanced-upload-toggle" className="text-base font-semibold">
+                Advanced Upload Options
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Show external database connections, field mapping, and advanced tools
+              </p>
+            </div>
+            <Switch
+              id="advanced-upload-toggle"
+              checked={showAdvanced}
+              onCheckedChange={(checked) => {
+                setShowAdvanced(checked);
+                localStorage.setItem('showAdvancedDataUpload', checked.toString());
+              }}
+            />
           </div>
-        </AlertDescription>
-      </Alert>
+          {showAdvanced && (
+            <div className="mt-4 pt-4 border-t">
+              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                🔓 Advanced Options Enabled
+              </Badge>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="leads">Leads</TabsTrigger>
-          <TabsTrigger value="closed-won">Closed Won</TabsTrigger>
-        </TabsList>
+      {showAdvanced && (
+        <>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList>
+              <TabsTrigger value="leads">Leads</TabsTrigger>
+              <TabsTrigger value="closed-won">Closed Won</TabsTrigger>
+            </TabsList>
 
-        <TabsContent value="leads" className="space-y-6">
-          <UploadSection
+            <TabsContent value="leads" className="space-y-6">
+              <UploadSection
             type="leads"
             headers={['external_id', 'first_name', 'last_name', 'email', 'phone', 'mobile', 'title', 'company', 'website', 'industry', 'revenue_range', 'employee_count', 'country', 'state_province', 'status']}
             uploading={uploading}
@@ -573,6 +737,9 @@ export default function DataUpload() {
             />
           </CardContent>
         </Card>
+      )}
+
+        </>
       )}
 
       <FieldMappingDialog

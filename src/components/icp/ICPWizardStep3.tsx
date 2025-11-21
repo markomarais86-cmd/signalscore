@@ -4,7 +4,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { User, Crown, Building2, Target, Lightbulb } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { User, Crown, Building2, Target, Lightbulb, Sparkles } from 'lucide-react';
 import { ICPFormData } from '@/types/icp';
 import { 
   PERSONA_JOB_TITLES, 
@@ -12,6 +13,9 @@ import {
   PERSONA_DEPARTMENTS, 
   PERSONA_DECISION_ROLES 
 } from '@/constants/icp';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 
 interface ICPWizardStep3Props {
   formData: ICPFormData;
@@ -20,6 +24,42 @@ interface ICPWizardStep3Props {
 
 export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Props) {
   const [jobTitleInput, setJobTitleInput] = useState('');
+  const { userProfile } = useAuth();
+
+  // Fetch top job titles from user's leads
+  const { data: topTitles } = useQuery({
+    queryKey: ['top-lead-titles', userProfile?.org_id],
+    queryFn: async () => {
+      if (!userProfile?.org_id) return [];
+      
+      const { data, error } = await supabase
+        .from('Leads')
+        .select('title')
+        .eq('org_id', userProfile.org_id)
+        .not('title', 'is', null)
+        .limit(1000);
+      
+      if (error || !data) return [];
+      
+      // Aggregate and count titles
+      const titleCounts: Record<string, number> = {};
+      data.forEach(row => {
+        if (row.title) {
+          titleCounts[row.title] = (titleCounts[row.title] || 0) + 1;
+        }
+      });
+      
+      // Return top 5 most common titles not already selected
+      return Object.entries(titleCounts)
+        .map(([title, count]) => ({ title, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5)
+        .map(t => t.title)
+        .filter(title => !formData.persona_job_titles.includes(title));
+    },
+    enabled: !!userProfile?.org_id,
+    staleTime: 5 * 60 * 1000 // Cache for 5 minutes
+  });
 
   const addToArray = (field: keyof ICPFormData, value: string) => {
     const currentArray = formData[field] as string[];
@@ -59,6 +99,28 @@ export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Pro
           </p>
         </div>
       </div>
+
+      {/* Persona Suggestions from Leads */}
+      {topTitles && topTitles.length > 0 && (
+        <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-800">
+          <Sparkles className="h-4 w-4 text-blue-600" />
+          <AlertDescription>
+            <strong className="text-blue-900 dark:text-blue-100">We found these job titles in your leads:</strong>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {topTitles.map(title => (
+                <Badge 
+                  key={title}
+                  variant="outline" 
+                  className="cursor-pointer hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors"
+                  onClick={() => addToArray('persona_job_titles', title)}
+                >
+                  + {title}
+                </Badge>
+              ))}
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
