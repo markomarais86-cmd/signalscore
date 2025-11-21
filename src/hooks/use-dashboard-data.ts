@@ -54,7 +54,7 @@ interface DashboardData {
   tamData: ExternalTAMData | null;
 }
 
-export function useDashboardData(orgId: string | undefined, sourceFilter: 'all' | 'crm' | 'database' = 'all') {
+export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' | 'database' = 'crm') {
   return useQuery({
     queryKey: ['dashboard-metrics', orgId, sourceFilter],
     queryFn: async (): Promise<DashboardData> => {
@@ -184,7 +184,7 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'all' 
 }
 
 // Hook for geography data (lazy loaded)
-export function useGeographyData(orgId: string | undefined, enabled: boolean = true, sourceFilter: 'all' | 'crm' | 'database' = 'all') {
+export function useGeographyData(orgId: string | undefined, enabled: boolean = true, sourceFilter: 'crm' | 'database' = 'crm') {
   return useQuery({
     queryKey: ['geography-distribution', orgId, sourceFilter],
     queryFn: async () => {
@@ -212,11 +212,7 @@ export function useSourceFilterStats(orgId: string | undefined) {
       if (!orgId) throw new Error('No org ID provided');
       
       // Fetch metrics + TAM data in parallel
-      const [allResult, crmResult, tamResult] = await Promise.all([
-        supabase.rpc('get_dashboard_metrics_fast' as any, { 
-          p_org_id: orgId,
-          p_source_filter: 'all'
-        }),
+      const [crmResult, tamResult] = await Promise.all([
         supabase.rpc('get_dashboard_metrics_fast' as any, { 
           p_org_id: orgId,
           p_source_filter: 'crm'
@@ -231,21 +227,16 @@ export function useSourceFilterStats(orgId: string | undefined) {
           .maybeSingle()
       ]);
       
-      if (allResult.error || crmResult.error) {
-        console.error('[useSourceFilterStats] RPC error(s)', {
-          allError: allResult.error,
-          crmError: crmResult.error,
-        });
+      if (crmResult.error) {
+        console.error('[useSourceFilterStats] RPC error', crmResult.error);
       }
       
-      const allMetrics = (allResult.data as any)?.[0] ?? allResult.data;
       const crmMetrics = (crmResult.data as any)?.[0] ?? crmResult.data;
       const tamAccounts = Number(tamResult.data?.total_accounts) || 0;
 
       return {
-        total: allMetrics?.total_accounts ?? allMetrics?.totalAccounts ?? 0,
         crm: crmMetrics?.total_accounts ?? crmMetrics?.totalAccounts ?? 0,
-        database: tamAccounts, // Now shows Apollo TAM instead of imported records
+        database: tamAccounts,
       };
     },
     enabled: !!orgId,

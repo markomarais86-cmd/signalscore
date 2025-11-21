@@ -47,7 +47,7 @@ export default function ExecutiveDashboard() {
   const sidebar = useSidebar();
   const { insights, statistics, loading: insightsLoading, generateInsights } = useICPInsights();
   
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('crm');
   const [isSyncing, setIsSyncing] = useState(false);
   
   // Use optimized React Query hooks with source filtering
@@ -309,7 +309,6 @@ export default function ExecutiveDashboard() {
               value={sourceFilter}
               onChange={setSourceFilter}
               stats={{
-                total: filterStats?.total || 0,
                 crm: filterStats?.crm || 0,
                 database: filterStats?.database || 0,
               }}
@@ -437,23 +436,20 @@ export default function ExecutiveDashboard() {
                 <HeroMetric
                   label="Total Accounts"
                   value={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-                  subtitle={sourceFilter === 'database' ? 'Available in addressable market' : 'In your database'}
-                  trend={trendData?.totalAccountsGrowth ? { value: trendData.totalAccountsGrowth, period: "last week" } : undefined}
+                  subtitle={sourceFilter === 'database' ? 'Available in addressable market' : 'In your CRM'}
+                  trend={sourceFilter === 'crm' && trendData?.totalAccountsGrowth ? { value: trendData.totalAccountsGrowth, period: "last week" } : undefined}
                   icon={Building2}
                 />
                 <HeroMetric
-                  label={sourceFilter === 'all' ? 'Campaign Ready Accounts' : 'High-Fit Accounts'}
-                  value={
-                    sourceFilter === 'all' 
-                      ? campaignReadyAccounts 
-                      : sourceFilter === 'database' 
-                        ? (tamData ? calculateExternalTAMMetrics(tamData, icpProfiles[0] || null, 0.15, 12).sam : 0)
-                        : highFitAccounts
+                  label="High-Fit Accounts"
+                  value={sourceFilter === 'database' 
+                    ? (tamData ? calculateExternalTAMMetrics(tamData, icpProfiles[0] || null, 0.15, 12).sam : 0)
+                    : highFitAccounts
                   }
-                  subtitle={sourceFilter === 'all' ? 'Accounts with campaign-ready leads' : `High-fit accounts from ${sourceFilter === 'crm' ? 'CRM' : 'available market'}`}
-                  trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
+                  subtitle={`High-fit accounts in ${sourceFilter === 'crm' ? 'CRM' : 'available market'}`}
+                  trend={sourceFilter === 'crm' && trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
                   icon={Sparkles}
-                  status={(sourceFilter === 'all' ? campaignReadyAccounts : (sourceFilter === 'database' ? (tamData ? calculateExternalTAMMetrics(tamData, icpProfiles[0] || null, 0.15, 12).sam : 0) : highFitAccounts)) > 0 ? 'success' : 'warning'}
+                  status={(sourceFilter === 'database' ? (tamData ? calculateExternalTAMMetrics(tamData, icpProfiles[0] || null, 0.15, 12).sam : 0) : highFitAccounts) > 0 ? 'success' : 'warning'}
                   onClick={() => navigate('/accounts?campaign_ready=true')}
                 />
               </div>
@@ -538,7 +534,7 @@ export default function ExecutiveDashboard() {
                 } : undefined}
               />
 
-              {/* TAM/SAM/SOM Calculator - Shown for all filters */}
+              {/* TAM/SAM/SOM Calculator */}
               {sourceFilter === 'database' && tamData ? (
                 (() => {
                   const { sam, som } = calculateExternalTAMMetrics(
@@ -556,27 +552,6 @@ export default function ExecutiveDashboard() {
                       conversionRate={0.15}
                       externalTAMAccounts={tamData.totalAccounts}
                       isExternalView={true}
-                    />
-                  );
-                })()
-              ) : sourceFilter === 'all' && tamData ? (
-                (() => {
-                  const { sam: apolloSam, som: apolloSom } = calculateExternalTAMMetrics(
-                    tamData,
-                    icpProfiles[0] || null,
-                    0.15,
-                    12
-                  );
-                  
-                  return (
-                    <TAMSAMSOMCalculator
-                      totalAccounts={totalAccounts + tamData.totalAccounts}
-                      highFitAccounts={highFitAccounts + apolloSam}
-                      campaignReadyAccounts={campaignReadyAccounts + apolloSom}
-                      averageDealSize={75000}
-                      conversionRate={0.15}
-                      externalTAMAccounts={tamData.totalAccounts}
-                      isExternalView={false}
                     />
                   );
                 })()
