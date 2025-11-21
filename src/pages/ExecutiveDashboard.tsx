@@ -437,17 +437,23 @@ export default function ExecutiveDashboard() {
                 <HeroMetric
                   label="Total Accounts"
                   value={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-                  subtitle={sourceFilter === 'database' ? 'From addressable market (Apollo)' : 'In your database'}
+                  subtitle={sourceFilter === 'database' ? 'Available in addressable market' : 'In your database'}
                   trend={trendData?.totalAccountsGrowth ? { value: trendData.totalAccountsGrowth, period: "last week" } : undefined}
                   icon={Building2}
                 />
                 <HeroMetric
                   label={sourceFilter === 'all' ? 'Campaign Ready Accounts' : 'High-Fit Accounts'}
-                  value={sourceFilter === 'all' ? campaignReadyAccounts : sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : highFitAccounts}
-                  subtitle={sourceFilter === 'all' ? 'Accounts with campaign-ready leads' : `High-fit accounts from ${sourceFilter === 'crm' ? 'CRM' : 'database'}`}
+                  value={
+                    sourceFilter === 'all' 
+                      ? campaignReadyAccounts 
+                      : sourceFilter === 'database' 
+                        ? (tamData ? calculateExternalTAMMetrics(tamData, icpProfiles[0] || null, 0.15, 12).sam : 0)
+                        : highFitAccounts
+                  }
+                  subtitle={sourceFilter === 'all' ? 'Accounts with campaign-ready leads' : `High-fit accounts from ${sourceFilter === 'crm' ? 'CRM' : 'available market'}`}
                   trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
                   icon={Sparkles}
-                  status={(sourceFilter === 'all' ? campaignReadyAccounts : (sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : highFitAccounts)) > 0 ? 'success' : 'warning'}
+                  status={(sourceFilter === 'all' ? campaignReadyAccounts : (sourceFilter === 'database' ? (tamData ? calculateExternalTAMMetrics(tamData, icpProfiles[0] || null, 0.15, 12).sam : 0) : highFitAccounts)) > 0 ? 'success' : 'warning'}
                   onClick={() => navigate('/accounts?campaign_ready=true')}
                 />
               </div>
