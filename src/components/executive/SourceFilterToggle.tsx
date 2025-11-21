@@ -18,7 +18,7 @@ export function SourceFilterToggle({ value, onChange, stats }: SourceFilterToggl
   const filters = [
     { 
       value: 'all' as const, 
-      label: 'All Sources', 
+      label: 'CRM + Database', 
       icon: Layers, 
       count: stats.total,
       tooltip: 'All actual records: CRM syncs, manual uploads, imported contacts (excludes Apollo metadata)'
