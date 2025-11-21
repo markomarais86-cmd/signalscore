@@ -69,7 +69,7 @@ import { ContactsBackfill } from "@/components/settings/ContactsBackfill";
 import { ContactDiscovery } from "@/components/settings/ContactDiscovery";
 import { IntegrationCredentialManager } from "@/components/settings/IntegrationCredentialManager";
 import { IntegrationHealthDashboard } from "@/components/settings/IntegrationHealthDashboard";
-import { BulkLeadEnrichment } from "@/components/settings/BulkLeadEnrichment";
+import { SmartEnrichmentPanel } from "@/components/settings/SmartEnrichmentPanel";
 import { EnrichmentHealthCard } from "@/components/settings/EnrichmentHealthCard";
 import { EnhancedEnrichmentHealth } from "@/components/settings/EnhancedEnrichmentHealth";
 import { EnrichmentHistoryViewer } from "@/components/settings/EnrichmentHistoryViewer";
@@ -485,13 +485,7 @@ export default function Settings() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4 pt-4">
-                <BulkLeadEnrichment />
-                
-                <div className="text-sm font-medium text-muted-foreground mt-6 mb-2">Legacy Actions</div>
-                <div id="enrichment-card" className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FirmographicEnrichmentCard />
-                  <ContactDiscovery />
-                </div>
+                <SmartEnrichmentPanel />
               </AccordionContent>
             </AccordionItem>
 
