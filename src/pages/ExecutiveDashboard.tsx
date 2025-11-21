@@ -439,6 +439,11 @@ export default function ExecutiveDashboard() {
                   subtitle={sourceFilter === 'database' ? 'Available in addressable market' : 'In your CRM'}
                   trend={sourceFilter === 'crm' && trendData?.totalAccountsGrowth ? { value: trendData.totalAccountsGrowth, period: "last week" } : undefined}
                   icon={Building2}
+                  tooltip={{
+                    title: "Total Accounts",
+                    description: "The total number of accounts in your system. CRM view shows accounts from your sales system, Database view shows your full addressable market.",
+                    example: "Filter by data source to see different views"
+                  }}
                 />
                 <HeroMetric
                   label="High-Fit Accounts"
@@ -451,6 +456,11 @@ export default function ExecutiveDashboard() {
                   icon={Sparkles}
                   status={(sourceFilter === 'database' ? (tamData ? calculateExternalTAMMetrics(tamData, icpProfiles[0] || null, 0.15, 12).sam : 0) : highFitAccounts) > 0 ? 'success' : 'warning'}
                   onClick={() => navigate('/accounts?campaign_ready=true')}
+                  tooltip={{
+                    title: "High-Fit Accounts",
+                    description: "Accounts with an ICP fit score of 70 or higher, indicating strong alignment with your Ideal Customer Profile. These are your best targets.",
+                    example: "Click to view all high-fit accounts"
+                  }}
                 />
               </div>
             </div>

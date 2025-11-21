@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { HelpPanel } from "@/components/help/HelpPanel";
 
 interface LayoutProps {
   children: ReactNode;
@@ -19,7 +20,10 @@ export function Layout({ children }: LayoutProps) {
               <div className="flex items-center gap-4">
                 <SidebarTrigger />
               </div>
-              <ThemeToggle />
+              <div className="flex items-center gap-2">
+                <HelpPanel />
+                <ThemeToggle />
+              </div>
             </div>
           </header>
           <div className="flex-1 p-2 sm:p-3 lg:p-4 overflow-auto bg-muted/20">
