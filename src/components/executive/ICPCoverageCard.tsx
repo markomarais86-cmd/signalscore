@@ -201,9 +201,6 @@ export function ICPCoverageCard({
               {totalAccounts.toLocaleString()}
             </div>
             <div className="text-sm text-muted-foreground">Total Accounts</div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {highFitAccounts.toLocaleString()} high-fit accounts
-            </div>
           </div>
 
           <div 
@@ -214,9 +211,6 @@ export function ICPCoverageCard({
               {totalLeads.toLocaleString()}
             </div>
             <div className="text-sm text-muted-foreground">Total Leads</div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {highFitLeads.toLocaleString()} high-fit leads
-            </div>
           </div>
         </div>
 
