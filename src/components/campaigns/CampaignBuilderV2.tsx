@@ -131,7 +131,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   const [dataSource, setDataSource] = useState<'crm' | 'database'>('crm');
   const [provider, setProvider] = useState<'apollo' | 'zoominfo' | 'clearbit'>('apollo');
   const [estimatedCost, setEstimatedCost] = useState(0);
-  const [estimatedContacts, setEstimatedContacts] = useState(0);
+  const [estimatedLeads, setEstimatedLeads] = useState(0);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [previewData, setPreviewData] = useState<any>(null);
   const [isPushing, setIsPushing] = useState(false);
@@ -142,9 +142,9 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   useEffect(() => {
     if (previewData) {
       if (dataSource === 'database') {
-        const costPerContact = provider === 'apollo' ? 0.50 : provider === 'zoominfo' ? 0.75 : 1.00;
-        const contactsEstimate = (previewData.length || 0) * 3;
-        setEstimatedCost(contactsEstimate * costPerContact);
+        const costPerLead = provider === 'apollo' ? 0.50 : provider === 'zoominfo' ? 0.75 : 1.00;
+        const leadsEstimate = (previewData.length || 0) * 3;
+        setEstimatedCost(leadsEstimate * costPerLead);
       } else {
         setEstimatedCost(0);
       }
@@ -289,7 +289,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       
       console.log('[Campaign Builder] Loaded accounts:', data?.length);
       setPreviewData(data);
-      setEstimatedContacts(data?.length || 0);
+      setEstimatedLeads(data?.length || 0);
       
       if (dataSource === 'database') {
         const costPerContact = provider === 'apollo' ? 0.50 : provider === 'zoominfo' ? 0.75 : 1.00;
@@ -334,11 +334,11 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
           body: campaignData
         });
         if (error) throw error;
-        toast({ title: "Campaign Created", description: `Successfully pushed ${estimatedContacts} contacts to Salesforce` });
+        toast({ title: "Campaign Created", description: `Successfully pushed ${estimatedLeads} leads to Salesforce` });
       } else {
         const csvContent = generateCSV(previewData);
         downloadCSV(csvContent, `${campaignName}.csv`);
-        toast({ title: "Campaign Exported", description: `Downloaded ${estimatedContacts} contacts as CSV` });
+        toast({ title: "Campaign Exported", description: `Downloaded ${estimatedLeads} leads as CSV` });
       }
       setPushComplete(true);
     } catch (error: any) {
@@ -748,7 +748,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
           <div className="space-y-6">
             <div>
               <h3 className="font-semibold mb-2">Campaign Preview</h3>
-              <p className="text-sm text-muted-foreground">Review the accounts and contacts that will be included</p>
+              <p className="text-sm text-muted-foreground">Review the accounts and leads that will be included</p>
             </div>
             {isLoadingPreview ? (
               <div className="flex items-center justify-center py-12">
@@ -759,8 +759,8 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                 <div className="grid grid-cols-3 gap-4">
                   <Card>
                     <CardContent className="pt-6">
-                      <div className="text-2xl font-bold">{estimatedContacts}</div>
-                      <div className="text-sm text-muted-foreground">Contacts</div>
+                      <div className="text-2xl font-bold">{estimatedLeads}</div>
+                      <div className="text-sm text-muted-foreground">Leads</div>
                     </CardContent>
                   </Card>
                   <Card>
@@ -811,8 +811,8 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                 <h3 className="text-xl font-semibold mb-2">Campaign Created Successfully!</h3>
                 <p className="text-muted-foreground">
                   {destination === 'salesforce'
-                    ? `${estimatedContacts} contacts pushed to Salesforce`
-                    : `${estimatedContacts} contacts exported as CSV`
+                    ? `${estimatedLeads} leads pushed to Salesforce`
+                    : `${estimatedLeads} leads exported as CSV`
                   }
                 </p>
                 <Button onClick={onClose} className="mt-6">Close</Button>
