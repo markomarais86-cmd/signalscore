@@ -191,29 +191,6 @@ export function ICPCoverageCard({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {/* Totals on Top */}
-        <div className="grid grid-cols-2 gap-4 mb-4 p-4 bg-muted/30 rounded-lg">
-          <div 
-            className="cursor-pointer hover:bg-muted/50 p-3 rounded-lg transition-colors"
-            onClick={() => navigate('/accounts')}
-          >
-            <div className="text-4xl font-bold text-primary mb-2">
-              {totalAccounts.toLocaleString()}
-            </div>
-            <div className="text-sm text-muted-foreground">Total Accounts</div>
-          </div>
-
-          <div 
-            className="cursor-pointer hover:bg-muted/50 p-3 rounded-lg transition-colors"
-            onClick={() => navigate('/leads')}
-          >
-            <div className="text-4xl font-bold text-primary mb-2">
-              {totalLeads.toLocaleString()}
-            </div>
-            <div className="text-sm text-muted-foreground">Total Leads</div>
-          </div>
-        </div>
-
         {/* Tabs for detailed breakdown */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-2 mb-4">
