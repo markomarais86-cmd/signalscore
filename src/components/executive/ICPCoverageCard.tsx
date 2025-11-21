@@ -314,20 +314,14 @@ export function ICPCoverageCard({
                           {row.total.toLocaleString()}
                         </td>
                         <td className="text-right p-3 font-mono text-sm font-semibold">
-                          {row.isTAM ? "—" : row.highFit.toLocaleString()}
+                          {row.highFit.toLocaleString()}
                         </td>
                         <td className="text-center p-3">
-                          {row.isTAM ? (
-                            <Badge variant="outline" className="text-muted-foreground">
-                              N/A
-                            </Badge>
-                          ) : (
-                            <Badge
-                              className={cn("font-semibold border", getFitBadgeStyles(pct))}
-                            >
-                              {pct}%
-                            </Badge>
-                          )}
+                          <Badge
+                            className={cn("font-semibold border", getFitBadgeStyles(pct))}
+                          >
+                            {pct}%
+                          </Badge>
                         </td>
                       </tr>
                     );
@@ -410,20 +404,14 @@ export function ICPCoverageCard({
                           {row.total.toLocaleString()}
                         </td>
                         <td className="text-right p-3 font-mono text-sm font-semibold">
-                          {row.isTAM ? "—" : row.highFit.toLocaleString()}
+                          {row.highFit.toLocaleString()}
                         </td>
                         <td className="text-center p-3">
-                          {row.isTAM ? (
-                            <Badge variant="outline" className="text-muted-foreground">
-                              N/A
-                            </Badge>
-                          ) : (
-                            <Badge
-                              className={cn("font-semibold border", getFitBadgeStyles(pct))}
-                            >
-                              {pct}%
-                            </Badge>
-                          )}
+                          <Badge
+                            className={cn("font-semibold border", getFitBadgeStyles(pct))}
+                          >
+                            {pct}%
+                          </Badge>
                         </td>
                       </tr>
                     );
