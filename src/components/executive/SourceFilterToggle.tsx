@@ -1,14 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Database, Building2, Layers } from "lucide-react";
+import { Database, Building2 } from "lucide-react";
 
-export type SourceFilter = 'all' | 'crm' | 'database';
+export type SourceFilter = 'crm' | 'database';
 
 interface SourceFilterToggleProps {
   value: SourceFilter;
   onChange: (filter: SourceFilter) => void;
   stats: {
-    total: number;
     crm: number;
     database: number;
   };
@@ -17,22 +16,15 @@ interface SourceFilterToggleProps {
 export function SourceFilterToggle({ value, onChange, stats }: SourceFilterToggleProps) {
   const filters = [
     { 
-      value: 'all' as const, 
-      label: 'CRM + Database', 
-      icon: Layers, 
-      count: stats.total,
-      tooltip: 'All actual records: CRM syncs, manual uploads, imported contacts (excludes Apollo metadata)'
-    },
-    { 
       value: 'crm' as const, 
-      label: 'CRM Only', 
+      label: 'CRM', 
       icon: Building2, 
       count: stats.crm,
       tooltip: 'CRM-sourced records: Salesforce/HubSpot syncs, CSV uploads, closed-won deals'
     },
     { 
       value: 'database' as const, 
-      label: 'Database Only', 
+      label: 'Database', 
       icon: Database, 
       count: stats.database,
       tooltip: 'Available in external databases (Apollo, ZoomInfo) matching your ICP - ready to import'
