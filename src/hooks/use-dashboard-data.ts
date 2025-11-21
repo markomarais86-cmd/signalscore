@@ -211,8 +211,8 @@ export function useSourceFilterStats(orgId: string | undefined) {
     queryFn: async () => {
       if (!orgId) throw new Error('No org ID provided');
       
-      // Fetch all three views in parallel
-      const [allResult, crmResult, dbResult] = await Promise.all([
+      // Fetch metrics + TAM data in parallel
+      const [allResult, crmResult, tamResult] = await Promise.all([
         supabase.rpc('get_dashboard_metrics_fast' as any, { 
           p_org_id: orgId,
           p_source_filter: 'all'
@@ -221,28 +221,31 @@ export function useSourceFilterStats(orgId: string | undefined) {
           p_org_id: orgId,
           p_source_filter: 'crm'
         }),
-        supabase.rpc('get_dashboard_metrics_fast' as any, { 
-          p_org_id: orgId,
-          p_source_filter: 'database'
-        }),
+        supabase
+          .from('external_data_sources')
+          .select('total_accounts')
+          .eq('org_id', orgId)
+          .eq('is_active', true)
+          .order('last_synced_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
       ]);
       
-      if (allResult.error || crmResult.error || dbResult.error) {
+      if (allResult.error || crmResult.error) {
         console.error('[useSourceFilterStats] RPC error(s)', {
           allError: allResult.error,
           crmError: crmResult.error,
-          dbError: dbResult.error,
         });
       }
       
       const allMetrics = (allResult.data as any)?.[0] ?? allResult.data;
       const crmMetrics = (crmResult.data as any)?.[0] ?? crmResult.data;
-      const dbMetrics = (dbResult.data as any)?.[0] ?? dbResult.data;
+      const tamAccounts = Number(tamResult.data?.total_accounts) || 0;
 
       return {
         total: allMetrics?.total_accounts ?? allMetrics?.totalAccounts ?? 0,
         crm: crmMetrics?.total_accounts ?? crmMetrics?.totalAccounts ?? 0,
-        database: dbMetrics?.total_accounts ?? dbMetrics?.totalAccounts ?? 0,
+        database: tamAccounts, // Now shows Apollo TAM instead of imported records
       };
     },
     enabled: !!orgId,
