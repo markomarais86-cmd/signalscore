@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, Users, TrendingUp, Database } from "lucide-react";
+import { Building2, Users, TrendingUp, Database, Info } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface ICPCoverageCardProps {
   // Accounts data
@@ -143,23 +144,26 @@ export function ICPCoverageCard({
       total: crmAccounts,
       highFit: highFitCrmAccounts,
       route: "/accounts?source=crm",
-      isTAM: false
+      isTAM: false,
+      tooltip: "Accounts from your connected CRM (Salesforce, HubSpot, etc.)"
     },
     {
-      source: "Database",
+      source: "Imported Accounts",
       icon: Database,
       total: databaseAccounts,
       highFit: highFitDatabaseAccounts,
       route: "/accounts?source=database",
-      isTAM: false
+      isTAM: false,
+      tooltip: "Previously redeemed contacts from Apollo or other imports"
     },
     ...(tamAccounts > 0 ? [{
-      source: `${tamProvider || 'Apollo'} (Available to Redeem)`,
+      source: `Available Market (${tamProvider || 'Apollo'})`,
       icon: Users,
       total: tamAccounts,
       highFit: 0,
       route: "#",
-      isTAM: true
+      isTAM: true,
+      tooltip: "Total accounts matching your ICP in Apollo's database - not yet imported. Use Campaign Builder to import specific contacts."
     }] : [])
   ];
 
@@ -170,23 +174,26 @@ export function ICPCoverageCard({
       total: crmLeads,
       highFit: highFitCrmLeads,
       route: "/leads?source=crm",
-      isTAM: false
+      isTAM: false,
+      tooltip: "Contacts from your connected CRM (Salesforce, HubSpot, etc.)"
     },
     {
-      source: "Database",
+      source: "Imported Accounts",
       icon: Database,
       total: databaseLeads,
       highFit: highFitDatabaseLeads,
       route: "/leads?source=database",
-      isTAM: false
+      isTAM: false,
+      tooltip: "Previously redeemed contacts from Apollo or other imports"
     },
     ...(tamLeads > 0 ? [{
-      source: `${tamProvider || 'Apollo'} (Available to Redeem)`,
+      source: `Available Market (${tamProvider || 'Apollo'})`,
       icon: Users,
       total: tamLeads,
       highFit: 0,
       route: "#",
-      isTAM: true
+      isTAM: true,
+      tooltip: "Total contacts matching your ICP in Apollo's database - not yet imported. Use Campaign Builder to import specific contacts."
     }] : [])
   ];
 
@@ -198,7 +205,7 @@ export function ICPCoverageCard({
           ICP Coverage Overview
         </CardTitle>
         <CardDescription>
-          Total reach and high-fit distribution across data sources
+          Your CRM data, imported accounts, and available market from external databases
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -276,24 +283,35 @@ export function ICPCoverageCard({
                           row.isTAM && "bg-muted/20 border-dashed"
                         )}
                         onClick={() => !row.isTAM && navigate(row.route)}
-                        title={row.isTAM ? "These contacts are available but not yet imported. Use the Campaign Builder to redeem specific contacts." : ""}
                       >
                         <td className="p-3">
                           <div className="flex items-center gap-2">
                             <Icon className={cn("h-4 w-4", row.isTAM ? "text-primary" : "text-muted-foreground")} />
-                            <div className="flex flex-col">
+                            <div className="flex flex-col gap-1">
                               <div className="flex items-center gap-2">
-                                <span className={cn(row.isTAM && "text-primary font-medium")}>{row.source}</span>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="flex items-center gap-1">
+                                        <span className={cn(row.isTAM && "text-primary font-medium")}>{row.source}</span>
+                                        <Info className="h-3 w-3 text-muted-foreground" />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="max-w-xs">{row.tooltip}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                                 {row.source === 'CRM' && (
                                   <Badge variant="outline" className="text-xs">
                                     <Building2 className="h-3 w-3 mr-1" />
                                     Salesforce/HubSpot
                                   </Badge>
                                 )}
-                                {row.source === 'Database' && (
+                                {row.source === 'Imported Accounts' && (
                                   <Badge variant="outline" className="text-xs">
                                     <Database className="h-3 w-3 mr-1" />
-                                    Your Data
+                                    Imported
                                   </Badge>
                                 )}
                                 {row.isTAM && (
@@ -302,6 +320,11 @@ export function ICPCoverageCard({
                                   </Badge>
                                 )}
                               </div>
+                              {row.source === 'Imported Accounts' && databaseAccounts === 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                  No imported accounts yet. Import contacts from Apollo via Campaign Builder to see them here.
+                                </p>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -356,24 +379,35 @@ export function ICPCoverageCard({
                           row.isTAM && "bg-muted/20 border-dashed"
                         )}
                         onClick={() => !row.isTAM && navigate(row.route)}
-                        title={row.isTAM ? "These contacts are available but not yet imported. Use the Campaign Builder to redeem specific contacts." : ""}
                       >
                         <td className="p-3">
                           <div className="flex items-center gap-2">
                             <Icon className={cn("h-4 w-4", row.isTAM ? "text-primary" : "text-muted-foreground")} />
-                            <div className="flex flex-col">
+                            <div className="flex flex-col gap-1">
                               <div className="flex items-center gap-2">
-                                <span className={cn(row.isTAM && "text-primary font-medium")}>{row.source}</span>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="flex items-center gap-1">
+                                        <span className={cn(row.isTAM && "text-primary font-medium")}>{row.source}</span>
+                                        <Info className="h-3 w-3 text-muted-foreground" />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="max-w-xs">{row.tooltip}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                                 {row.source === 'CRM' && (
                                   <Badge variant="outline" className="text-xs">
                                     <Building2 className="h-3 w-3 mr-1" />
                                     Salesforce/HubSpot
                                   </Badge>
                                 )}
-                                {row.source === 'Database' && (
+                                {row.source === 'Imported Accounts' && (
                                   <Badge variant="outline" className="text-xs">
                                     <Database className="h-3 w-3 mr-1" />
-                                    Your Data
+                                    Imported
                                   </Badge>
                                 )}
                                 {row.isTAM && (
@@ -382,6 +416,11 @@ export function ICPCoverageCard({
                                   </Badge>
                                 )}
                               </div>
+                              {row.source === 'Imported Accounts' && databaseLeads === 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                  No imported contacts yet. Import contacts from Apollo via Campaign Builder to see them here.
+                                </p>
+                              )}
                             </div>
                           </div>
                         </td>
