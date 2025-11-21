@@ -197,15 +197,8 @@ export function ICPCoverageCard({
             className="cursor-pointer hover:bg-muted/50 p-3 rounded-lg transition-colors"
             onClick={() => navigate('/accounts')}
           >
-            <div className="flex items-baseline gap-3 mb-2">
-              <div className="text-4xl font-bold text-primary">
-                {totalAccounts.toLocaleString()}
-              </div>
-              <Badge 
-                className={cn("text-sm font-semibold px-3 py-1 border", getFitBadgeStyles(accountsHighFitPct))}
-              >
-                {accountsHighFitPct}% High-Fit
-              </Badge>
+            <div className="text-4xl font-bold text-primary mb-2">
+              {totalAccounts.toLocaleString()}
             </div>
             <div className="text-sm text-muted-foreground">Total Accounts</div>
             <div className="text-xs text-muted-foreground mt-1">
@@ -217,15 +210,8 @@ export function ICPCoverageCard({
             className="cursor-pointer hover:bg-muted/50 p-3 rounded-lg transition-colors"
             onClick={() => navigate('/leads')}
           >
-            <div className="flex items-baseline gap-3 mb-2">
-              <div className="text-4xl font-bold text-primary">
-                {totalLeads.toLocaleString()}
-              </div>
-              <Badge 
-                className={cn("text-sm font-semibold px-3 py-1 border", getFitBadgeStyles(leadsHighFitPct))}
-              >
-                {leadsHighFitPct}% High-Fit
-              </Badge>
+            <div className="text-4xl font-bold text-primary mb-2">
+              {totalLeads.toLocaleString()}
             </div>
             <div className="text-sm text-muted-foreground">Total Leads</div>
             <div className="text-xs text-muted-foreground mt-1">
