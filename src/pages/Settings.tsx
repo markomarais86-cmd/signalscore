@@ -97,6 +97,10 @@ export default function Settings() {
   const [loading, setLoading] = useState(false);
   const [showEnrichmentModal, setShowEnrichmentModal] = useState(false);
   const [showCandidateSelector, setShowCandidateSelector] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(() => {
+    const saved = localStorage.getItem('showAdvancedSettings');
+    return saved === 'true';
+  });
   
   // Account settings
   const [profile, setProfile] = useState({
@@ -471,7 +475,42 @@ export default function Settings() {
 
         {/* Data & Enrichment: All data sources, enrichment, integrations, API */}
         <TabsContent value="integrations" className="space-y-6">
-          <Accordion type="multiple" defaultValue={["quick-actions", "monitoring"]} className="space-y-4">
+          {/* Advanced Settings Toggle */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="advanced-toggle" className="text-base font-semibold">
+                    Advanced Settings
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Show advanced options for CRM sync, API management, analytics, and external integrations
+                  </p>
+                </div>
+                <Switch
+                  id="advanced-toggle"
+                  checked={showAdvanced}
+                  onCheckedChange={(checked) => {
+                    setShowAdvanced(checked);
+                    localStorage.setItem('showAdvancedSettings', checked.toString());
+                  }}
+                />
+              </div>
+              {showAdvanced && (
+                <div className="mt-4 pt-4 border-t">
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                    🔓 Advanced Settings Enabled
+                  </Badge>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Accordion 
+            type="multiple" 
+            defaultValue={showAdvanced ? ["quick-actions", "monitoring", "setup"] : ["quick-actions", "monitoring"]} 
+            className="space-y-4"
+          >
             
             {/* Quick Actions Section */}
             <AccordionItem value="quick-actions" className="border rounded-lg px-4">
@@ -510,8 +549,11 @@ export default function Settings() {
               </AccordionContent>
             </AccordionItem>
 
-            {/* Analytics & Quality */}
-            <AccordionItem value="analytics" className="border rounded-lg px-4">
+            {/* Advanced sections - conditionally rendered */}
+            {showAdvanced && (
+              <>
+                {/* Analytics & Quality */}
+                <AccordionItem value="analytics" className="border rounded-lg px-4">
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-2">
                   <Target className="h-5 w-5 text-primary" />
@@ -630,6 +672,8 @@ export default function Settings() {
                 <ClayIncomingWebhooks />
               </AccordionContent>
             </AccordionItem>
+              </>
+            )}
 
           </Accordion>
 
