@@ -148,13 +148,13 @@ export function ICPCoverageCard({
       tooltip: "Accounts from your connected CRM (Salesforce, HubSpot, etc.)"
     },
     ...(tamAccounts > 0 ? [{
-      source: `Database (${tamProvider || 'Apollo'})`,
+      source: "Database",
       icon: Users,
       total: tamAccounts,
-      highFit: 0,
+      highFit: tamAccounts,
       route: "#",
       isTAM: true,
-      tooltip: `Total accounts matching your ICP in the ${tamProvider || 'Apollo'} database. These are database-only (not yet in your CRM).`
+      tooltip: "Accounts matching your ICP in external databases (Apollo, ZoomInfo). These are not yet in your CRM."
     }] : [])
   ];
 
@@ -169,13 +169,13 @@ export function ICPCoverageCard({
       tooltip: "Contacts from your connected CRM (Salesforce, HubSpot, etc.)"
     },
     ...(tamLeads > 0 ? [{
-      source: `Database (${tamProvider || 'Apollo'})`,
+      source: "Database",
       icon: Users,
       total: tamLeads,
-      highFit: 0,
+      highFit: tamLeads,
       route: "#",
       isTAM: true,
-      tooltip: `Total contacts matching your ICP in the ${tamProvider || 'Apollo'} database. These are database-only (not yet in your CRM).`
+      tooltip: "Contacts matching your ICP in external databases (Apollo, ZoomInfo). These are not yet in your CRM."
     }] : [])
   ];
 
