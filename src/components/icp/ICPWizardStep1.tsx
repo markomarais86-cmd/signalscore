@@ -5,10 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Target, Info, Lightbulb } from 'lucide-react';
+import { Target, Info, Lightbulb, Database } from 'lucide-react';
 import { ICPFormData } from '@/types/icp';
 import { ICP_USE_CASES } from '@/constants/icp';
 import { AIInsightsPanel } from './AIInsightsPanel';
+import { useAccountInsights } from '@/hooks/use-account-insights';
+import { formatNumber } from '@/utils/format-numbers';
 
 interface ICPWizardStep1Props {
   formData: ICPFormData;
@@ -17,6 +19,8 @@ interface ICPWizardStep1Props {
 }
 
 export function ICPWizardStep1({ formData, onUpdateFormData, errors }: ICPWizardStep1Props) {
+  const { data: insights } = useAccountInsights();
+  
   const addTag = (tag: string) => {
     if (tag && !formData.tags.includes(tag)) {
       onUpdateFormData({
@@ -55,6 +59,23 @@ export function ICPWizardStep1({ formData, onUpdateFormData, errors }: ICPWizard
           </p>
         </div>
       </div>
+
+      {/* Data Snapshot Card - Show if user has uploaded data */}
+      {insights?.hasData && (
+        <Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 dark:border-blue-800">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <Database className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+              <div>
+                <div className="font-semibold text-blue-900 dark:text-blue-100">Your Data Snapshot</div>
+                <div className="text-sm text-blue-700 dark:text-blue-300">
+                  {formatNumber(insights.totalAccounts)} accounts • {insights.topIndustries.length} industries • {insights.topCountries.length} countries
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* AI Insights Panel */}
       <AIInsightsPanel 

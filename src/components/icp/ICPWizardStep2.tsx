@@ -3,9 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Building, Users, DollarSign, MapPin, Lightbulb } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Building, Users, DollarSign, MapPin, Lightbulb, Target as TargetIcon, Sparkles } from 'lucide-react';
 import { ICPFormData } from '@/types/icp';
 import { INDUSTRIES, SUB_INDUSTRIES, COMPANY_SIZES, REVENUE_RANGES, COUNTRIES, REGIONS } from '@/constants/icp';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
+import { formatNumber } from '@/utils/format-numbers';
 
 interface ICPWizardStep2Props {
   formData: ICPFormData;
@@ -13,6 +18,38 @@ interface ICPWizardStep2Props {
 }
 
 export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Props) {
+  const { userProfile } = useAuth();
+  
+  // Real-time match count query
+  const { data: matchCount } = useQuery<{ total: number; percentage: number; total_accounts: number } | null>({
+    queryKey: ['icp-match-count', userProfile?.org_id, formData.industries, formData.company_sizes, formData.revenue_ranges, formData.geographies],
+    queryFn: async () => {
+      if (!userProfile?.org_id) return null;
+      
+      const { data, error } = await supabase.rpc('estimate_icp_matches', {
+        p_org_id: userProfile.org_id,
+        p_industries: formData.industries.length > 0 ? formData.industries : null,
+        p_sizes: formData.company_sizes.length > 0 ? formData.company_sizes : null,
+        p_revenues: formData.revenue_ranges.length > 0 ? formData.revenue_ranges : null,
+        p_countries: formData.geographies.length > 0 ? formData.geographies : null
+      });
+      
+      if (error) {
+        console.error('Error fetching match count:', error);
+        return null;
+      }
+      
+      return data as { total: number; percentage: number; total_accounts: number };
+    },
+    enabled: !!userProfile?.org_id && (
+      formData.industries.length > 0 ||
+      formData.company_sizes.length > 0 ||
+      formData.revenue_ranges.length > 0 ||
+      formData.geographies.length > 0
+    ),
+    staleTime: 1000 // Refresh every second for real-time feel
+  });
+  
   const addToArray = (field: keyof ICPFormData, value: string | number) => {
     const currentArray = formData[field] as any[];
     if (!currentArray.includes(value)) {
@@ -62,6 +99,26 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
           </p>
         </div>
       </div>
+
+      {/* Real-Time Match Count Preview */}
+      {matchCount && matchCount.total > 0 && (
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <TargetIcon className="h-5 w-5 text-primary" />
+                <span className="text-sm font-medium text-primary">Estimated Match Size</span>
+              </div>
+              <div className="text-4xl font-bold text-primary">
+                {formatNumber(matchCount.total)}
+              </div>
+              <div className="text-sm text-muted-foreground mt-1">
+                accounts match your criteria ({matchCount.percentage}% of {formatNumber(matchCount.total_accounts)} total)
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>

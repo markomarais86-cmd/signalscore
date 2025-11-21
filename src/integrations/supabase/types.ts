@@ -3275,6 +3275,16 @@ export type Database = {
         Args: { org_id_param: string }
         Returns: undefined
       }
+      estimate_icp_matches: {
+        Args: {
+          p_countries?: string[]
+          p_industries?: string[]
+          p_org_id: string
+          p_revenues?: string[]
+          p_sizes?: number[]
+        }
+        Returns: Json
+      }
       expire_old_invitations: { Args: never; Returns: number }
       generate_invitation_token: { Args: never; Returns: string }
       generate_sample_data: { Args: never; Returns: Json }

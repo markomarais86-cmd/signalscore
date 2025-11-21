@@ -13,9 +13,18 @@ interface ICPTemplateSelectorProps {
   onSelectTemplate: (template: ICPTemplate, formData: ICPFormData) => void;
   onSkip: () => void;
   onSelectClosedWon?: () => void;
+  onUseSmartDefaults?: () => void;
+  hasAccountData?: boolean;
+  accountInsights?: {
+    topIndustries: Array<{ name: string; count: number }>;
+    topSizes: Array<{ size: number; count: number }>;
+    topCountries: Array<{ name: string; count: number }>;
+    totalAccounts: number;
+    hasData: boolean;
+  };
 }
 
-export function ICPTemplateSelector({ onSelectTemplate, onSkip, onSelectClosedWon }: ICPTemplateSelectorProps) {
+export function ICPTemplateSelector({ onSelectTemplate, onSkip, onSelectClosedWon, onUseSmartDefaults, hasAccountData, accountInsights }: ICPTemplateSelectorProps) {
   const [templates, setTemplates] = useState<ICPTemplate[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -161,6 +170,28 @@ export function ICPTemplateSelector({ onSelectTemplate, onSkip, onSelectClosedWo
               <div className="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
                 <TrendingUp className="h-3 w-3" />
                 Data-driven insights
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Smart Defaults from Account Data */}
+        {hasAccountData && onUseSmartDefaults && accountInsights && (
+          <Card 
+            className="border-2 border-blue-500 cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-blue-500/10 to-transparent" 
+            onClick={onUseSmartDefaults}
+          >
+            <CardContent className="flex flex-col items-center justify-center py-8 relative">
+              <Badge className="absolute top-3 right-3 bg-blue-600">Smart</Badge>
+              <Sparkles className="h-8 w-8 text-blue-600 mb-2" />
+              <CardTitle className="text-lg text-center">Auto-Generate from Data</CardTitle>
+              <CardDescription className="text-center mt-1 px-2">
+                Pre-fill based on your {accountInsights.totalAccounts.toLocaleString()} accounts
+              </CardDescription>
+              <div className="mt-3 flex flex-wrap gap-1 justify-center text-xs text-muted-foreground">
+                <span>{accountInsights.topIndustries.length} industries</span>
+                <span>•</span>
+                <span>{accountInsights.topCountries.length} countries</span>
               </div>
             </CardContent>
           </Card>
