@@ -147,23 +147,14 @@ export function ICPCoverageCard({
       isTAM: false,
       tooltip: "Accounts from your connected CRM (Salesforce, HubSpot, etc.)"
     },
-    {
-      source: "Imported Accounts",
-      icon: Database,
-      total: databaseAccounts,
-      highFit: highFitDatabaseAccounts,
-      route: "/accounts?source=database",
-      isTAM: false,
-      tooltip: "Previously redeemed contacts from Apollo or other imports"
-    },
     ...(tamAccounts > 0 ? [{
-      source: `Available Market (${tamProvider || 'Apollo'})`,
+      source: `Database (${tamProvider || 'Apollo'})`,
       icon: Users,
       total: tamAccounts,
       highFit: 0,
       route: "#",
       isTAM: true,
-      tooltip: "Total accounts matching your ICP in Apollo's database - not yet imported. Use Campaign Builder to import specific contacts."
+      tooltip: `Total accounts matching your ICP in the ${tamProvider || 'Apollo'} database. These are database-only (not yet in your CRM).`
     }] : [])
   ];
 
@@ -177,23 +168,14 @@ export function ICPCoverageCard({
       isTAM: false,
       tooltip: "Contacts from your connected CRM (Salesforce, HubSpot, etc.)"
     },
-    {
-      source: "Imported Accounts",
-      icon: Database,
-      total: databaseLeads,
-      highFit: highFitDatabaseLeads,
-      route: "/leads?source=database",
-      isTAM: false,
-      tooltip: "Previously redeemed contacts from Apollo or other imports"
-    },
     ...(tamLeads > 0 ? [{
-      source: `Available Market (${tamProvider || 'Apollo'})`,
+      source: `Database (${tamProvider || 'Apollo'})`,
       icon: Users,
       total: tamLeads,
       highFit: 0,
       route: "#",
       isTAM: true,
-      tooltip: "Total contacts matching your ICP in Apollo's database - not yet imported. Use Campaign Builder to import specific contacts."
+      tooltip: `Total contacts matching your ICP in the ${tamProvider || 'Apollo'} database. These are database-only (not yet in your CRM).`
     }] : [])
   ];
 
@@ -205,7 +187,7 @@ export function ICPCoverageCard({
           ICP Coverage Overview
         </CardTitle>
         <CardDescription>
-          Your CRM data, imported accounts, and available market from external databases
+          Your CRM coverage vs. external databases like Apollo or ZoomInfo
         </CardDescription>
       </CardHeader>
       <CardContent>
