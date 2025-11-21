@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Minus, LucideIcon } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import { formatNumber } from "@/utils/format-numbers";
+import { MetricTooltip } from "@/components/help/MetricTooltip";
 
 interface HeroMetricProps {
   label: string;
@@ -19,6 +20,11 @@ interface HeroMetricProps {
   };
   status?: 'success' | 'warning' | 'danger' | 'default';
   onClick?: () => void;
+  tooltip?: {
+    title: string;
+    description: string;
+    example?: string;
+  };
 }
 
 export function HeroMetric({ 
@@ -29,7 +35,8 @@ export function HeroMetric({
   icon: Icon,
   chart,
   status = 'default',
-  onClick
+  onClick,
+  tooltip
 }: HeroMetricProps) {
   const getTrendIcon = () => {
     if (!trend) return null;
@@ -68,7 +75,10 @@ export function HeroMetric({
               </div>
             )}
             <div>
-              <p className="text-xs lg:text-sm font-medium text-muted-foreground leading-tight">{label}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs lg:text-sm font-medium text-muted-foreground leading-tight">{label}</p>
+                {tooltip && <MetricTooltip {...tooltip} />}
+              </div>
               {subtitle && <p className="text-xs text-muted-foreground/70">{subtitle}</p>}
             </div>
           </div>

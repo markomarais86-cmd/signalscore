@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Target, TrendingUp, TrendingDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { MetricTooltip } from "@/components/help/MetricTooltip";
 
 interface FitDistributionHeroProps {
   highFitAccounts: number;
@@ -50,6 +51,11 @@ export function FitDistributionHero({
         <CardTitle className="flex items-center gap-2">
           <Target className="h-6 w-6 text-primary" />
           ICP Fit Distribution
+          <MetricTooltip
+            title="ICP Fit Distribution"
+            description="Shows how your accounts are distributed across fit score bands. High-fit (70+) are your best targets, medium-fit (40-69) require evaluation, low-fit (<40) should be deprioritized."
+            example="Click on any segment to filter accounts by fit score"
+          />
         </CardTitle>
         <CardDescription>
           Account quality breakdown across your scored database
