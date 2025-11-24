@@ -76,6 +76,8 @@ import { EnrichmentHistoryViewer } from "@/components/settings/EnrichmentHistory
 import { DeepResearchSettings } from "@/components/settings/DeepResearchSettings";
 import { EnrichmentAnalyticsDashboard } from "@/components/settings/EnrichmentAnalyticsDashboard";
 import { CandidateSelector } from "@/components/enrichment/CandidateSelector";
+import { BulkLeadEnrichment } from "@/components/settings/BulkLeadEnrichment";
+import { BulkAccountEnrichment } from "@/components/settings/BulkAccountEnrichment";
 import { ExportHistory } from "@/components/settings/ExportHistory";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -524,7 +526,22 @@ export default function Settings() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4 pt-4">
-                <SmartEnrichmentPanel />
+                <Tabs defaultValue="smart" className="w-full">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="smart">Smart Enrichment</TabsTrigger>
+                    <TabsTrigger value="accounts">Accounts</TabsTrigger>
+                    <TabsTrigger value="contacts">Contacts</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="smart" className="mt-4">
+                    <SmartEnrichmentPanel />
+                  </TabsContent>
+                  <TabsContent value="accounts" className="mt-4">
+                    <BulkAccountEnrichment />
+                  </TabsContent>
+                  <TabsContent value="contacts" className="mt-4">
+                    <BulkLeadEnrichment />
+                  </TabsContent>
+                </Tabs>
               </AccordionContent>
             </AccordionItem>
 

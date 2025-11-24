@@ -16,8 +16,12 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const pdlApiKey = Deno.env.get('PDL_API_KEY');
     
+    console.log('[enrich-pdl] Function invoked');
+    console.log('[enrich-pdl] PDL API Key configured:', !!pdlApiKey);
+    
     if (!pdlApiKey) {
-      throw new Error('PDL_API_KEY not configured');
+      console.error('[enrich-pdl] PDL_API_KEY not configured in secrets');
+      throw new Error('PDL_API_KEY not configured. Please add it in Supabase Edge Functions secrets.');
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey, {
@@ -92,7 +96,8 @@ serve(async (req) => {
         // PDL Company Enrichment API
         const pdlUrl = `https://api.peopledatalabs.com/v5/company/enrich?website=${encodeURIComponent(account.domain)}`;
         
-        console.log(`Enriching ${account.name} (${account.domain}) with PDL`);
+        console.log(`[enrich-pdl] Enriching ${account.name} (${account.domain})`);
+        console.log(`[enrich-pdl] Request URL: ${pdlUrl}`);
         
         const response = await fetch(pdlUrl, {
           headers: {
@@ -100,6 +105,8 @@ serve(async (req) => {
             'Accept': 'application/json',
           },
         });
+
+        console.log(`[enrich-pdl] PDL API Response Status: ${response.status}`);
 
         if (response.ok) {
           const data = await response.json();
@@ -159,14 +166,24 @@ serve(async (req) => {
             console.log(`No new data found for ${account.name}`);
           }
         } else if (response.status === 404) {
-          console.log(`Company not found in PDL: ${account.name}`);
+          console.log(`[enrich-pdl] Company not found in PDL: ${account.name}`);
           failed++;
         } else if (response.status === 429) {
-          console.error(`Rate limit hit for PDL`);
+          const responseText = await response.text();
+          console.error(`[enrich-pdl] Rate limit hit for PDL`);
+          console.error(`[enrich-pdl] Rate limit response:`, responseText);
           failed++;
           break; // Stop processing if rate limited
+        } else if (response.status === 401 || response.status === 403) {
+          const responseText = await response.text();
+          console.error(`[enrich-pdl] Authentication error (${response.status}):`, responseText);
+          console.error(`[enrich-pdl] Please verify PDL_API_KEY is correct`);
+          failed++;
+          break; // Stop if auth fails
         } else {
-          console.log(`PDL returned ${response.status} for ${account.name}`);
+          const responseText = await response.text();
+          console.error(`[enrich-pdl] PDL returned ${response.status} for ${account.name}`);
+          console.error(`[enrich-pdl] Response body:`, responseText);
           failed++;
         }
 
@@ -184,7 +201,8 @@ serve(async (req) => {
         await new Promise(resolve => setTimeout(resolve, 100));
 
       } catch (error) {
-        console.error(`Failed to enrich ${account.name}:`, error);
+        console.error(`[enrich-pdl] Failed to enrich ${account.name}:`, error);
+        console.error(`[enrich-pdl] Error details:`, error instanceof Error ? error.message : String(error));
         failed++;
       }
     }
