@@ -165,7 +165,7 @@ serve(async (req) => {
             ],
             tool_choice: { type: 'function', function: { name: 'enrich_firmographics' } }
           })
-        });
+        }));
 
         if (!aiResponse.ok) {
           const errorText = await aiResponse.text();
