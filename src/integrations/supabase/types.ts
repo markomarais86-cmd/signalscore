@@ -3227,6 +3227,14 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: number
       }
+      calculate_intent_score: {
+        Args: { p_account_external_id: string; p_org_id: string }
+        Returns: number
+      }
+      calculate_reachability_score: {
+        Args: { p_account_external_id: string; p_org_id: string }
+        Returns: number
+      }
       calculate_weighted_account_score: {
         Args: {
           p_account_external_id: string
