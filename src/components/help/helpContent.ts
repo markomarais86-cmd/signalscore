@@ -25,8 +25,7 @@ export const helpDatabase: HelpItem[] = [
 - Track performance and optimize your ICP over time`,
     keywords: ['overview', 'getting started', 'introduction', 'quick start', 'basics'],
     category: 'quickstart',
-    relatedPages: ['/'],
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ'
+    relatedPages: ['/']
   },
   {
     id: 'upload-csv',
@@ -51,8 +50,7 @@ export const helpDatabase: HelpItem[] = [
 - Remove duplicates before uploading`,
     keywords: ['upload', 'csv', 'import', 'data', 'file', 'accounts', 'leads'],
     category: 'quickstart',
-    relatedPages: ['/data-upload'],
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ'
+    relatedPages: ['/data-upload']
   },
   {
     id: 'create-icp',
@@ -78,8 +76,7 @@ export const helpDatabase: HelpItem[] = [
 - Refine based on conversion data`,
     keywords: ['icp', 'create', 'profile', 'segment', 'define', 'criteria'],
     category: 'quickstart',
-    relatedPages: ['/icp-manager'],
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ'
+    relatedPages: ['/icp-manager']
   },
 
   // Key Concepts
@@ -107,8 +104,7 @@ export const helpDatabase: HelpItem[] = [
 - Growth signals`,
     keywords: ['icp', 'score', 'fit', 'scoring', 'algorithm', 'high fit', 'medium fit', 'low fit'],
     category: 'concepts',
-    relatedPages: ['/', '/icp-manager', '/accounts'],
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ'
+    relatedPages: ['/', '/icp-manager', '/accounts']
   },
   {
     id: 'tam-sam-som',
@@ -208,8 +204,7 @@ Each account shows which provider contributed data. This helps you:
 - Test messaging with a small batch first`,
     keywords: ['campaign', 'build', 'export', 'target', 'list', 'accounts', 'filter'],
     category: 'workflows',
-    relatedPages: ['/accounts', '/leads'],
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ'
+    relatedPages: ['/accounts', '/leads']
   },
   {
     id: 'crm-integration',
@@ -278,8 +273,7 @@ Upload your closed-won deals to discover patterns and optimize your ICP.
 - Identify expansion opportunities`,
     keywords: ['closed won', 'deals', 'analysis', 'winners', 'optimize', 'insights'],
     category: 'workflows',
-    relatedPages: ['/data-upload', '/icp-manager'],
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ'
+    relatedPages: ['/data-upload', '/icp-manager']
   },
 
   // Troubleshooting
@@ -503,86 +497,5 @@ Use Segments feature to save commonly-used filter combinations.`,
   },
 ];
 
-export const videoTutorials = [
-  {
-    id: 'quick-tour',
-    title: 'LaunchPulse Quick Tour',
-    description: '5-minute overview of the platform',
-    duration: '5:32',
-    category: 'Getting Started',
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg'
-  },
-  {
-    id: 'upload-data',
-    title: 'Uploading Your First Data',
-    description: 'Step-by-step CSV upload tutorial',
-    duration: '8:15',
-    category: 'Getting Started',
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg'
-  },
-  {
-    id: 'create-icp',
-    title: 'Creating Your First ICP',
-    description: 'Define your ideal customer profile',
-    duration: '12:45',
-    category: 'Getting Started',
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg'
-  },
-  {
-    id: 'scoring-explained',
-    title: 'Understanding ICP Fit Scores',
-    description: 'Deep dive into the scoring algorithm',
-    duration: '15:20',
-    category: 'Key Concepts',
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg'
-  },
-  {
-    id: 'campaign-builder',
-    title: 'Campaign Builder Walkthrough',
-    description: 'Build and export target account lists',
-    duration: '10:30',
-    category: 'Key Features',
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg'
-  },
-  {
-    id: 'enrichment-setup',
-    title: 'Setting Up Data Enrichment',
-    description: 'Configure enrichment providers and API keys',
-    duration: '7:40',
-    category: 'Key Features',
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg'
-  },
-  {
-    id: 'crm-integration',
-    title: 'CRM Integration Guide',
-    description: 'Connect Salesforce or HubSpot',
-    duration: '14:10',
-    category: 'Advanced',
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg'
-  },
-  {
-    id: 'multi-icp',
-    title: 'Multi-ICP Strategy',
-    description: 'Managing multiple customer segments',
-    duration: '18:25',
-    category: 'Advanced',
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg'
-  },
-  {
-    id: 'closed-won-analysis',
-    title: 'Closed-Won Deal Analysis',
-    description: 'Optimize ICP using historical wins',
-    duration: '11:55',
-    category: 'Advanced',
-    videoUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    thumbnail: 'https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg'
-  },
-];
+// Video tutorials temporarily disabled - real content coming soon
+export const videoTutorials: any[] = [];
