@@ -3286,6 +3286,10 @@ export type Database = {
         Returns: Json
       }
       expire_old_invitations: { Args: never; Returns: number }
+      format_phone_to_e164: {
+        Args: { country_code?: string; phone_input: string }
+        Returns: string
+      }
       generate_invitation_token: { Args: never; Returns: string }
       generate_sample_data: { Args: never; Returns: Json }
       get_active_icp_id: { Args: { p_org_id: string }; Returns: string }

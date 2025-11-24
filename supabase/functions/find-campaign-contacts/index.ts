@@ -176,7 +176,7 @@ async function findContactsForAccount(
     // Build query to fetch contacts from Leads table
     let query = supabase
       .from('Leads')
-      .select('id, first_name, last_name, email, title, phone, linkedin_url, persona, level')
+      .select('id, first_name, last_name, email, title, phone, mobile, linkedin_url, persona, level')
       .eq('account_external_id', account.external_id);
 
     // Apply persona filters if provided
@@ -207,20 +207,36 @@ async function findContactsForAccount(
 
     console.log(`[find-campaign-contacts] Found ${leads?.length || 0} contacts for ${account.name}`);
 
-    // Transform leads into contact format
-    const contacts = (leads || []).map(lead => ({
-      first_name: lead.first_name || '',
-      last_name: lead.last_name || '',
-      email: lead.email || '',
-      title: lead.title || '',
-      phone: lead.phone || '',
-      linkedin_url: lead.linkedin_url || '',
-      account_name: account.name,
-      account_id: account.external_id,
-      provider: provider,
-      persona: lead.persona,
-      level: lead.level
-    }));
+    // Transform leads into contact format with E.164 phone formatting
+    const contacts = (leads || []).map(lead => {
+      // Format phone to E.164 if available
+      let phoneE164 = lead.phone;
+      if (phoneE164 && !phoneE164.startsWith('+')) {
+        // Basic E.164 formatting: remove non-digits, add +1 for US if no country code
+        const digits = phoneE164.replace(/\D/g, '');
+        if (digits.length === 10) {
+          phoneE164 = '+1' + digits;
+        } else if (digits.length === 11 && digits.startsWith('1')) {
+          phoneE164 = '+' + digits;
+        }
+      }
+
+      return {
+        first_name: lead.first_name || '',
+        last_name: lead.last_name || '',
+        email: lead.email || '',
+        title: lead.title || '',
+        phone: lead.phone || '',
+        phone_e164: phoneE164 || '',
+        mobile: lead.mobile || '',
+        linkedin_url: lead.linkedin_url || '',
+        account_name: account.name,
+        account_id: account.external_id,
+        provider: provider,
+        persona: lead.persona,
+        level: lead.level
+      };
+    });
 
     return contacts;
   } catch (error) {
