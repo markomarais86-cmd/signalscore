@@ -313,8 +313,11 @@ export default function ExecutiveDashboard() {
     );
   }
 
-  // Empty state for new users
-  const showEmptyState = totalAccounts === 0 && !isLoading;
+  // Empty state for new users - check TAM data when in database mode
+  const effectiveAccountCount = sourceFilter === 'database' 
+    ? (tamData?.totalAccounts || 0) 
+    : totalAccounts;
+  const showEmptyState = effectiveAccountCount === 0 && !isLoading;
 
   return (
     <div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-3 lg:space-y-4">
