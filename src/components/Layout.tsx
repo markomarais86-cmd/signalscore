@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -9,6 +10,7 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
+  const location = useLocation();
 
   return (
     <SidebarProvider>
@@ -21,7 +23,7 @@ export function Layout({ children }: LayoutProps) {
                 <SidebarTrigger />
               </div>
               <div className="flex items-center gap-2">
-                <HelpPanel />
+                <HelpPanel currentPath={location.pathname} />
                 <ThemeToggle />
               </div>
             </div>
