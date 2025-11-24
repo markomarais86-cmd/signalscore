@@ -38,6 +38,7 @@ import { ExternalMarketBreakdownCard } from "@/components/executive/ExternalMark
 import { EnhancedTAMCard } from "@/components/executive/EnhancedTAMCard";
 import { FitDistributionHero } from "@/components/executive/FitDistributionHero";
 import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
+import { EmptyState } from "@/components/EmptyState";
 
 
 export default function ExecutiveDashboard() {
@@ -296,6 +297,9 @@ export default function ExecutiveDashboard() {
     );
   }
 
+  // Empty state for new users
+  const showEmptyState = totalAccounts === 0 && !isLoading;
+
   return (
     <div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-3 lg:space-y-4">
       {/* Header Section */}
@@ -424,6 +428,31 @@ export default function ExecutiveDashboard() {
 
         {isLoading ? (
           <DashboardSkeleton />
+        ) : showEmptyState ? (
+          <div className="flex flex-col items-center justify-center py-12 space-y-6">
+            <EmptyState
+              icon={Database}
+              title="Welcome to LaunchPulse!"
+              description="Get started by uploading your account data or connecting your CRM to begin analyzing your ideal customer profile."
+              actionLabel="Upload CSV Data"
+              onAction={() => navigate('/data-upload')}
+            />
+            <div className="flex gap-4">
+              <Button variant="outline" onClick={() => navigate('/settings?tab=integrations')}>
+                <Settings className="mr-2 h-4 w-4" />
+                Connect CRM
+              </Button>
+              <Button variant="outline" onClick={() => {
+                const helpPanel = document.querySelector('[data-help-panel]');
+                if (helpPanel) {
+                  (helpPanel as HTMLElement).click();
+                }
+              }}>
+                <Lightbulb className="mr-2 h-4 w-4" />
+                View Quick Start Guide
+              </Button>
+            </div>
+          </div>
         ) : (
           <>
             {/* Your Database Metrics */}
@@ -446,20 +475,17 @@ export default function ExecutiveDashboard() {
                   }}
                 />
                 <HeroMetric
-                  label="High-Fit Accounts"
-                  value={sourceFilter === 'database' 
-                    ? (tamData ? calculateExternalTAMMetrics(tamData, icpProfiles[0] || null, 0.15, 12).sam : 0)
-                    : highFitAccounts
-                  }
-                  subtitle={`High-fit accounts in ${sourceFilter === 'crm' ? 'CRM' : 'available market'}`}
-                  trend={sourceFilter === 'crm' && trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
-                  icon={Sparkles}
-                  status={(sourceFilter === 'database' ? (tamData ? calculateExternalTAMMetrics(tamData, icpProfiles[0] || null, 0.15, 12).sam : 0) : highFitAccounts) > 0 ? 'success' : 'warning'}
-                  onClick={() => navigate('/accounts?campaign_ready=true')}
+                  label="Campaign Ready"
+                  value={campaignReadyAccounts}
+                  subtitle="Leads with email, title & persona"
+                  trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
+                  icon={Users}
+                  status={campaignReadyAccounts > 0 ? 'success' : 'warning'}
+                  onClick={() => navigate('/leads?campaign_ready=true')}
                   tooltip={{
-                    title: "High-Fit Accounts",
-                    description: "Accounts with an ICP fit score of 70 or higher, indicating strong alignment with your Ideal Customer Profile. These are your best targets.",
-                    example: "Click to view all high-fit accounts"
+                    title: "Campaign Ready Contacts",
+                    description: "Leads that have email, job title, and persona identified. These contacts can be immediately used in campaigns without additional enrichment cost.",
+                    example: "Click to view all campaign-ready contacts"
                   }}
                 />
               </div>

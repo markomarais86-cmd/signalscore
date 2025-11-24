@@ -393,17 +393,36 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                 className="mt-2"
               />
             </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="use-icp"
-                checked={useICP}
-                onCheckedChange={(checked) => setUseICP(checked === true)}
-                disabled={!activeICP}
-              />
-              <Label htmlFor="use-icp">
-                Use Ideal Customer Profile (ICP)
-                {!activeICP && <span className="text-muted-foreground ml-2">(No ICP configured)</span>}
-              </Label>
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="use-icp"
+                  checked={useICP}
+                  onCheckedChange={(checked) => setUseICP(checked === true)}
+                  disabled={!activeICP}
+                />
+                <Label htmlFor="use-icp" className="flex items-center gap-2">
+                  Use Ideal Customer Profile (ICP)
+                  {!activeICP && <span className="text-muted-foreground ml-2">(No ICP configured)</span>}
+                  <span className="text-xs text-muted-foreground">
+                    (Pre-filters accounts by your ICP scoring criteria)
+                  </span>
+                </Label>
+              </div>
+              
+              {/* Cost Preview */}
+              <Alert className="bg-primary/5 border-primary/20">
+                <DollarSign className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="font-medium mb-1">Estimated Cost Preview</div>
+                  <div className="text-sm">
+                    • CRM Source: <strong>$0</strong> (use existing contacts, no enrichment needed)
+                  </div>
+                  <div className="text-sm">
+                    • Database Source: <strong>$0.50-$1.00/contact</strong> (requires enrichment credits)
+                  </div>
+                </AlertDescription>
+              </Alert>
             </div>
             
             {/* Show alert if ICP checked but no ICP exists */}
@@ -455,6 +474,19 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
               <h3 className="font-semibold mb-2">Targeting Filters</h3>
               <p className="text-sm text-muted-foreground">Define who you want to target by company size, revenue, market segment, and management level</p>
             </div>
+            
+            {/* Cost Estimate at top of Step 2 */}
+            <Card className="bg-muted/50 border-primary/20">
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium">Estimated Cost</div>
+                  <div className="text-lg font-bold">${estimatedCost.toFixed(2)}</div>
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {dataSource === 'crm' ? 'Using CRM data (free)' : `Using ${provider} enrichment`}
+                </div>
+              </CardContent>
+            </Card>
             {!useICP && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -705,13 +737,28 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
               <h3 className="font-semibold mb-2">Select Data Provider</h3>
               <p className="text-sm text-muted-foreground">Choose your contact data enrichment provider</p>
             </div>
+            <Alert className="bg-muted/50">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="font-medium mb-2">Data Source Explained</div>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <strong>CRM:</strong> Use your existing contacts (free, no enrichment cost). Campaign-ready contacts have email, title, and persona already identified.
+                  </div>
+                  <div>
+                    <strong>Database:</strong> Enrich from external providers like Apollo (requires credits, typically $0.50-$1.00 per contact).
+                  </div>
+                </div>
+              </AlertDescription>
+            </Alert>
+            
             <div className="flex items-center space-x-4">
               <Label>Data Source:</Label>
               <Select value={dataSource} onValueChange={(value) => setDataSource(value as 'crm' | 'database')}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="crm">CRM</SelectItem>
-                  <SelectItem value="database">Database</SelectItem>
+                  <SelectItem value="crm">CRM (Free - Campaign Ready)</SelectItem>
+                  <SelectItem value="database">Database (Paid - Requires Credits)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

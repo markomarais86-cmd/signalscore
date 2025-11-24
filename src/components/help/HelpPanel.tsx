@@ -20,7 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { HelpSearch } from './HelpSearch';
 import { HelpVideoLibrary } from './HelpVideoLibrary';
 import { ContextualHelp } from './ContextualHelp';
-import { helpDatabase } from './helpContent';
+import { helpDatabase, videoTutorials } from './helpContent';
 import { getContextualHelp, getPageTitle } from './helpUtils';
 
 interface HelpPanelProps {
@@ -81,10 +81,12 @@ export function HelpPanel({ currentPath = '/' }: HelpPanelProps) {
                 <SearchIcon className="h-4 w-4" />
                 Search
               </TabsTrigger>
-              <TabsTrigger value="videos" className="flex items-center gap-2">
-                <Video className="h-4 w-4" />
-                Videos
-              </TabsTrigger>
+              {videoTutorials.length > 0 && (
+                <TabsTrigger value="videos" className="flex items-center gap-2">
+                  <Video className="h-4 w-4" />
+                  Videos
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="browse" className="flex-1 overflow-hidden mt-4">
@@ -157,9 +159,11 @@ export function HelpPanel({ currentPath = '/' }: HelpPanelProps) {
               <HelpSearch helpItems={helpDatabase} />
             </TabsContent>
 
-            <TabsContent value="videos" className="flex-1 overflow-hidden mt-4">
-              <HelpVideoLibrary />
-            </TabsContent>
+            {videoTutorials.length > 0 && (
+              <TabsContent value="videos" className="flex-1 overflow-hidden mt-4">
+                <HelpVideoLibrary />
+              </TabsContent>
+            )}
           </Tabs>
         </div>
       </SheetContent>

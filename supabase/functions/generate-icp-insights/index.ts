@@ -51,6 +51,19 @@ serve(async (req) => {
 
     console.log('Generating ICP insights for org:', org_id);
 
+    // Get dismissed recommendations to filter them out
+    const { data: dismissed, error: dismissedError } = await supabase
+      .from('dismissed_recommendations')
+      .select('recommendation_id, recommendation_type')
+      .eq('org_id', org_id);
+
+    if (dismissedError) {
+      console.warn('Failed to fetch dismissed recommendations:', dismissedError);
+    }
+
+    const dismissedIds = new Set(dismissed?.map(d => d.recommendation_id) || []);
+    console.log(`Found ${dismissedIds.size} dismissed recommendations to filter out`);
+
     // Get accounts with scores
     const { data: accounts, error: accountsError } = await supabase
       .from('accounts')
@@ -242,12 +255,19 @@ Return ONLY the JSON array, no other text.`
       });
     }
 
-    console.log(`Returning ${insights.length} total insights`);
+    // Filter out dismissed insights
+    const filteredInsights = insights.filter(insight => {
+      // Create a stable ID from the insight content
+      const insightId = `${insight.type}_${insight.title.toLowerCase().replace(/\s+/g, '_')}`;
+      return !dismissedIds.has(insightId);
+    });
+
+    console.log(`Returning ${filteredInsights.length} insights after filtering ${insights.length - filteredInsights.length} dismissed`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        insights: insights.slice(0, 7),
+        insights: filteredInsights.slice(0, 7),
         statistics: {
           total_accounts: accounts?.length || 0,
           high_score_accounts: highScoreAccounts.length,
