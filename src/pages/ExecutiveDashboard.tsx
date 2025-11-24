@@ -477,8 +477,8 @@ export default function ExecutiveDashboard() {
             {/* Your Database Metrics */}
             <div>
               <h2 className="text-lg lg:text-xl font-semibold mb-3 flex items-center gap-2">
-                <Database className="h-5 w-5" />
-                Your Database
+                {sourceFilter === 'database' ? <Database className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}
+                {sourceFilter === 'database' ? 'Available Market' : 'Your Pipeline'}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 xl:gap-5">
                 <HeroMetric
