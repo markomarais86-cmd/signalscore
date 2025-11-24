@@ -20,13 +20,13 @@ import { Lightbulb } from "lucide-react";
 import { DataSourceBreakdownCard } from "@/components/executive/DataSourceBreakdownCard";
 import { TrendIndicator } from "@/components/executive/TrendIndicator";
 import { calculateTrends, TrendData } from "@/utils/trend-calculator";
-import { detectRisks } from "@/utils/risk-detector";
-import type { RiskItem } from "@/utils/risk-detector";
+import { detectRisks, RiskItem } from "@/utils/risk-detector";
 import { CombinedScoringICPCard } from "@/components/executive/CombinedScoringICPCard";
 import { GeographyChartCard } from "@/components/executive/GeographyChartCard";
 import { EnhancedGeographyCard } from "@/components/executive/EnhancedGeographyCard";
-import { AIRecommendationsTiles } from "@/components/executive/AIRecommendationsTiles";
-import { RisksAndActionsCard } from "@/components/executive/RisksAndActionsCard";
+import { UnifiedInsightsPanel, Insight } from "@/components/executive/UnifiedInsightsPanel";
+import { SyncStatusBadge } from "@/components/executive/SyncStatusBadge";
+import { SyncProgressModal } from "@/components/settings/SyncProgressModal";
 import { ICPCoverageCard } from "@/components/executive/ICPCoverageCard";
 import { EnhancedRisksCard } from "@/components/executive/EnhancedRisksCard";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
@@ -35,7 +35,7 @@ import { TAMSAMSOMCalculator } from "@/components/executive/TAMSAMSOMCalculator"
 import { SourceFilterToggle, type SourceFilter } from "@/components/executive/SourceFilterToggle";
 import { ExternalGeographyBreakdownCard } from "@/components/executive/ExternalGeographyBreakdownCard";
 import { ExternalMarketBreakdownCard } from "@/components/executive/ExternalMarketBreakdownCard";
-import { EnhancedTAMCard } from "@/components/executive/EnhancedTAMCard";
+import { UnifiedTAMCard } from "@/components/executive/UnifiedTAMCard";
 import { FitDistributionHero } from "@/components/executive/FitDistributionHero";
 import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
 import { EmptyState } from "@/components/EmptyState";
@@ -50,6 +50,9 @@ export default function ExecutiveDashboard() {
   
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('crm');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncProgressOpen, setSyncProgressOpen] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<'syncing' | 'complete' | 'error'>('syncing');
+  const [syncBreakdown, setSyncBreakdown] = useState<any>(null);
   
   // Use optimized React Query hooks with source filtering
   const { data: dashboardData, isLoading, error: queryError, refetch } = useDashboardData(userProfile?.org_id, sourceFilter);
@@ -246,6 +249,10 @@ export default function ExecutiveDashboard() {
     }
 
     setIsSyncing(true);
+    setSyncProgressOpen(true);
+    setSyncStatus('syncing');
+    setSyncBreakdown(null);
+    
     try {
       const { data, error } = await supabase.functions.invoke('sync-external-provider', {
         body: {
@@ -256,6 +263,14 @@ export default function ExecutiveDashboard() {
 
       if (error) throw error;
 
+      setSyncStatus('complete');
+      setSyncBreakdown({
+        accounts: data?.totalAccounts || 0,
+        contacts: data?.totalContacts || 0,
+        geography: tamData?.geography_breakdown,
+        industry: tamData?.industry_breakdown
+      });
+
       toast.success('Apollo sync completed! Refreshing dashboard...');
       
       // Refresh the dashboard data to show the new breakdowns
@@ -264,6 +279,7 @@ export default function ExecutiveDashboard() {
       }, 1000);
     } catch (error: any) {
       console.error('Error syncing Apollo:', error);
+      setSyncStatus('error');
       toast.error(error.message || 'Failed to sync Apollo data');
     } finally {
       setIsSyncing(false);
@@ -616,22 +632,30 @@ export default function ExecutiveDashboard() {
 
             {/* Bottom Cards */}
             <div className="grid grid-cols-1 gap-6">
-              {/* Risks and Actions Card */}
-              {risks.length > 0 && <EnhancedRisksCard risks={risks} />}
-
-              {/* AI Recommendations Card */}
-              {insights && insights.length > 0 && (
-                <AIRecommendationsTiles 
-                  insights={insights} 
-                  onRefresh={handleRefreshInsights}
-                />
-              )}
+              {/* Unified Insights Panel - merges Risks and AI Recommendations */}
+              <UnifiedInsightsPanel
+                risks={risks}
+                insights={insights || []}
+                onRefresh={handleRefreshInsights}
+                campaignReadyCount={campaignReadyAccounts}
+                completenessScore={dataCompleteness}
+                totalScored={totalScores}
+              />
             </div>
           </>
         )}
 
         {/* Enrichment Modal */}
         <EnrichmentModal open={isEnrichmentModalOpen} onOpenChange={setIsEnrichmentModalOpen} />
+        
+        {/* Sync Progress Modal */}
+        <SyncProgressModal
+          open={syncProgressOpen}
+          onOpenChange={setSyncProgressOpen}
+          provider="Apollo"
+          status={syncStatus}
+          breakdown={syncBreakdown}
+        />
         
       </div>
   );
