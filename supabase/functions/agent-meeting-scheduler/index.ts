@@ -53,7 +53,7 @@ serve(async (req) => {
 
     // Find high-score leads without meetings scheduled
     const { data: leads, error: leadsError } = await supabase
-      .from('leads')
+      .from('Leads')
       .select('id, external_id, name, email, account_external_id')
       .eq('org_id', org_id)
       .eq('status', 'qualified')
@@ -82,7 +82,7 @@ serve(async (req) => {
             if (score && score.overall >= minLeadScore) {
               // Mark lead as meeting_requested
               await supabase
-                .from('leads')
+                .from('Leads')
                 .update({ 
                   status: 'meeting_requested',
                   updated_at: new Date().toISOString()

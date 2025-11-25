@@ -55,7 +55,7 @@ serve(async (req) => {
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     
     const { data: leads, error: leadsError } = await supabase
-      .from('leads')
+      .from('Leads')
       .select('id, external_id, name, email')
       .eq('org_id', org_id)
       .gte('created_at', oneDayAgo)
@@ -103,7 +103,7 @@ serve(async (req) => {
               // If score meets threshold, mark as qualified
               if (score && score.overall >= minScoreThreshold) {
                 await supabase
-                  .from('leads')
+                  .from('Leads')
                   .update({ status: 'qualified' })
                   .eq('id', lead.id);
                 
