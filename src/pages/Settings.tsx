@@ -80,6 +80,7 @@ import { BulkLeadEnrichment } from "@/components/settings/BulkLeadEnrichment";
 import { BulkAccountEnrichment } from "@/components/settings/BulkAccountEnrichment";
 import { CRMSyncHistory } from "@/components/settings/CRMSyncHistory";
 import { ExportHistory } from "@/components/settings/ExportHistory";
+import { CampaignExportHistory } from "@/components/campaigns/CampaignExportHistory";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
@@ -686,6 +687,7 @@ export default function Settings() {
                 <IntegrationCredentialManager />
                 <IntegrationManager />
                 {userProfile?.org_id && <CRMSyncHistory orgId={userProfile.org_id} />}
+                <CampaignExportHistory />
                 <WebhookLogViewer />
                 <ZapierIntegration />
                 <ClayIncomingWebhooks />

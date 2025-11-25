@@ -12,10 +12,11 @@ import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, Users, DollarSign, CheckCircle2, Target, AlertCircle, Loader2, ArrowRight, ArrowLeft, ChevronRight } from "lucide-react";
+import { Sparkles, Users, DollarSign, CheckCircle2, Target, AlertCircle, Loader2, ArrowRight, ArrowLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import { formatNumber } from "@/utils/format-numbers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCampaignDeduplication } from "@/hooks/use-campaign-deduplication";
 
 interface CampaignBuilderV2Props {
   isOpen: boolean;
@@ -137,6 +138,11 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   const [isPushing, setIsPushing] = useState(false);
   const [pushComplete, setPushComplete] = useState(false);
   const [destination, setDestination] = useState<'salesforce' | 'csv'>('salesforce');
+  const [excludeDuplicates, setExcludeDuplicates] = useState(true);
+
+  // Get preview contact emails for deduplication check
+  const previewEmails = previewData?.map((contact: any) => contact.email).filter(Boolean) || [];
+  const { duplicateEmails, recentExports, isLoading: isCheckingDuplicates } = useCampaignDeduplication(previewEmails);
 
   // Update cost calculation when data source or provider changes
   useEffect(() => {
@@ -313,6 +319,14 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
     if (!userProfile?.org_id) return;
     setIsPushing(true);
     try {
+      // Filter out duplicates if enabled
+      let finalContacts = previewData || [];
+      if (excludeDuplicates && duplicateEmails.size > 0) {
+        finalContacts = finalContacts.filter((contact: any) => 
+          !duplicateEmails.has(contact.email)
+        );
+      }
+
       const campaignData = {
         org_id: userProfile.org_id,
         icp_id: activeICP?.id,
@@ -326,7 +340,19 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
         },
         provider,
         destination,
-        data_source: dataSource
+        data_source: dataSource,
+        contacts: finalContacts,
+        batch_metadata: {
+          source_accounts: previewData?.length || 0,
+          icp_id: activeICP?.id,
+          icp_name: activeICP?.name || 'Custom Campaign',
+          icp_criteria: filterCriteria,
+          persona_criteria: {
+            titles: selectedTitles,
+            seniority: selectedSeniority,
+            departments: selectedDepartments
+          }
+        }
       };
 
       if (destination === 'salesforce') {
@@ -823,6 +849,39 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* Deduplication Warning */}
+                {duplicateEmails.size > 0 && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      <div className="font-medium mb-1">
+                        {duplicateEmails.size} contacts were exported in the last 90 days
+                      </div>
+                      <div className="text-sm mb-2">
+                        These contacts have been exported in {recentExports.length} recent campaign(s).
+                      </div>
+                      <div className="flex items-center space-x-2 mt-2">
+                        <Checkbox
+                          id="exclude-duplicates"
+                          checked={excludeDuplicates}
+                          onCheckedChange={(checked) => setExcludeDuplicates(checked === true)}
+                        />
+                        <Label htmlFor="exclude-duplicates" className="text-sm cursor-pointer">
+                          Exclude duplicate contacts from this export
+                        </Label>
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {isCheckingDuplicates && (
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Checking for duplicate emails...
+                  </div>
+                )}
+
                 <div className="max-h-64 overflow-y-auto border rounded-lg">
                   <table className="w-full">
                     <thead className="bg-muted sticky top-0">
