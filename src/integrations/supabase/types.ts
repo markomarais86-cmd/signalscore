@@ -130,6 +130,106 @@ export type Database = {
           },
         ]
       }
+      ai_agent_runs: {
+        Row: {
+          agent_id: string
+          completed_at: string | null
+          error_message: string | null
+          id: string
+          records_affected: number | null
+          records_processed: number | null
+          results: Json | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          agent_id: string
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          records_affected?: number | null
+          records_processed?: number | null
+          results?: Json | null
+          started_at?: string
+          status: string
+        }
+        Update: {
+          agent_id?: string
+          completed_at?: string | null
+          error_message?: string | null
+          id?: string
+          records_affected?: number | null
+          records_processed?: number | null
+          results?: Json | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_runs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_agents: {
+        Row: {
+          agent_type: string
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          last_run_at: string | null
+          name: string
+          next_run_at: string | null
+          org_id: string
+          parameters: Json | null
+          schedule: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          agent_type: string
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          last_run_at?: string | null
+          name: string
+          next_run_at?: string | null
+          org_id: string
+          parameters?: Json | null
+          schedule?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          agent_type?: string
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          last_run_at?: string | null
+          name?: string
+          next_run_at?: string | null
+          org_id?: string
+          parameters?: Json | null
+          schedule?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_keys: {
         Row: {
           created_at: string
