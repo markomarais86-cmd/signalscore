@@ -1851,47 +1851,56 @@ export type Database = {
         Row: {
           completed_at: string | null
           duration_ms: number | null
+          error_details: Json | null
           error_message: string | null
           id: string
           integration_config_id: string | null
           metadata: Json | null
           org_id: string
+          provider_name: string | null
           records_created: number | null
           records_failed: number | null
           records_processed: number | null
           records_updated: number | null
           started_at: string | null
           status: string
+          sync_type: string | null
         }
         Insert: {
           completed_at?: string | null
           duration_ms?: number | null
+          error_details?: Json | null
           error_message?: string | null
           id?: string
           integration_config_id?: string | null
           metadata?: Json | null
           org_id: string
+          provider_name?: string | null
           records_created?: number | null
           records_failed?: number | null
           records_processed?: number | null
           records_updated?: number | null
           started_at?: string | null
           status: string
+          sync_type?: string | null
         }
         Update: {
           completed_at?: string | null
           duration_ms?: number | null
+          error_details?: Json | null
           error_message?: string | null
           id?: string
           integration_config_id?: string | null
           metadata?: Json | null
           org_id?: string
+          provider_name?: string | null
           records_created?: number | null
           records_failed?: number | null
           records_processed?: number | null
           records_updated?: number | null
           started_at?: string | null
           status?: string
+          sync_type?: string | null
         }
         Relationships: [
           {
