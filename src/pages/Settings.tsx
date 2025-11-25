@@ -81,6 +81,7 @@ import { BulkAccountEnrichment } from "@/components/settings/BulkAccountEnrichme
 import { CRMSyncHistory } from "@/components/settings/CRMSyncHistory";
 import { ExportHistory } from "@/components/settings/ExportHistory";
 import { CampaignExportHistory } from "@/components/campaigns/CampaignExportHistory";
+import { ScoreRefreshPanel } from "@/components/settings/ScoreRefreshPanel";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
@@ -403,6 +404,7 @@ export default function Settings() {
           </Card>
           <ScoringConfiguration />
           <BenchmarkSettings />
+          <ScoreRefreshPanel />
           <Card>
             <CardHeader>
               <CardTitle>Data Management</CardTitle>
