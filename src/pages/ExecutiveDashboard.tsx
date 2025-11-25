@@ -39,6 +39,7 @@ import { UnifiedTAMCard } from "@/components/executive/UnifiedTAMCard";
 import { FitDistributionHero } from "@/components/executive/FitDistributionHero";
 import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
 import { EmptyState } from "@/components/EmptyState";
+import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
 
 
 export default function ExecutiveDashboard() {
@@ -402,6 +403,10 @@ export default function ExecutiveDashboard() {
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </Button>
+            <QuickCampaignButton 
+              highFitAccounts={highFitAccounts}
+              disabled={isLoading || highFitAccounts === 0}
+            />
           </div>
         </div>
 
