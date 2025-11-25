@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
-import { TrendingUp, Target, Database, Download, MapPin, Sparkles, Building2, Settings, AlertCircle, Users, RefreshCw } from "lucide-react";
+import { TrendingUp, Target, Database, Download, MapPin, Sparkles, Building2, Settings, AlertCircle, Users, RefreshCw, Activity } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useDashboardData, useGeographyData, useSourceFilterStats } from "@/hooks/use-dashboard-data";
 import { useOnboarding } from "@/hooks/use-onboarding";
@@ -40,6 +40,7 @@ import { FitDistributionHero } from "@/components/executive/FitDistributionHero"
 import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
 import { EmptyState } from "@/components/EmptyState";
 import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
+import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
 
 
 export default function ExecutiveDashboard() {
@@ -70,6 +71,7 @@ export default function ExecutiveDashboard() {
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [isDataStale, setIsDataStale] = useState(false);
   const [activeScoringJob, setActiveScoringJob] = useState<any>(null);
+  const [showHealthDashboard, setShowHealthDashboard] = useState(false);
   
 
   const totalAccounts = dashboardData?.metrics?.total_accounts || 0;
@@ -399,6 +401,14 @@ export default function ExecutiveDashboard() {
               <Sparkles className="mr-2 h-4 w-4" />
               Enrich
             </Button>
+            <Button 
+              variant={showHealthDashboard ? "default" : "outline"} 
+              size="sm" 
+              onClick={() => setShowHealthDashboard(!showHealthDashboard)}
+            >
+              <Activity className="mr-2 h-4 w-4" />
+              {showHealthDashboard ? 'Hide' : 'Show'} Health
+            </Button>
             <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
               <Settings className="mr-2 h-4 w-4" />
               Settings
@@ -426,6 +436,24 @@ export default function ExecutiveDashboard() {
               </Button>
             </AlertDescription>
           </Alert>
+        )}
+
+        {/* Phase 5: System Health Dashboard */}
+        {showHealthDashboard && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                System Health Monitor
+              </CardTitle>
+              <CardDescription>
+                Real-time monitoring of CRM sync, enrichment, scoring, and automations
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SystemHealthDashboard />
+            </CardContent>
+          </Card>
         )}
 
         {/* Active Scoring Job Progress */}

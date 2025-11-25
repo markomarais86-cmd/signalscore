@@ -175,13 +175,24 @@ export default function IntegrationManager() {
     ));
 
     try {
-      // Call integration service to trigger sync
-      const { data, error } = await supabase.functions.invoke('integration-service', {
-        body: {
-          action: 'sync',
-          org_id: userProfile.org_id,
-          provider: integration.id,
-        },
+      // Phase 1 Fix: Call appropriate sync function based on provider
+      let syncFunctionName = 'integration-service';
+      let syncBody: any = {
+        action: 'sync',
+        org_id: userProfile.org_id,
+        provider: integration.id,
+      };
+
+      if (integration.id === 'salesforce') {
+        syncFunctionName = 'salesforce-sync';
+        syncBody = { org_id: userProfile.org_id };
+      } else if (integration.id === 'hubspot') {
+        syncFunctionName = 'hubspot-sync';
+        syncBody = { org_id: userProfile.org_id };
+      }
+
+      const { data, error } = await supabase.functions.invoke(syncFunctionName, {
+        body: syncBody,
       });
 
       if (error) throw error;
@@ -193,14 +204,14 @@ export default function IntegrationManager() {
               status: 'connected', 
               sync_status: 'success',
               last_sync: new Date().toISOString(),
-              records_synced: data?.stats?.total_processed || 0
+              records_synced: data?.stats?.accounts || data?.stats?.total_processed || 0
             }
           : i
       ));
       
       toast({ 
         title: "Sync Complete", 
-        description: `${integration.name}: ${data?.stats?.total_processed || 0} records synced`
+        description: `${integration.name}: ${data?.stats?.accounts || data?.stats?.total_processed || 0} records synced`
       });
     } catch (error: any) {
       console.error('Sync error:', error);

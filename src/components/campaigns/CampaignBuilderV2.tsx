@@ -308,6 +308,19 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       setPreviewData(data);
       setEstimatedLeads(data?.length || 0);
       
+      // Phase 2 Fix: Load campaign-ready leads for these accounts
+      if (data && data.length > 0) {
+        const accountIds = data.map((a: any) => a.external_id);
+        const { data: leads } = await supabase
+          .from('Leads')
+          .select('id, email, title, persona')
+          .eq('org_id', userProfile.org_id)
+          .in('account_external_id', accountIds)
+          .not('email', 'is', null);
+        
+        console.log(`Phase 2: Loaded ${leads?.length || 0} contacts for ${data.length} accounts`);
+      }
+      
       if (dataSource === 'database') {
         const costPerContact = provider === 'apollo' ? 0.50 : provider === 'zoominfo' ? 0.75 : 1.00;
         setEstimatedCost((data?.length || 0) * costPerContact);
