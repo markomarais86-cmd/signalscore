@@ -3304,7 +3304,7 @@ export type Database = {
       }
       expire_old_invitations: { Args: never; Returns: number }
       format_phone_to_e164: {
-        Args: { country_code?: string; phone_input: string }
+        Args: { country_input?: string; phone_input: string }
         Returns: string
       }
       generate_invitation_token: { Args: never; Returns: string }
