@@ -1072,6 +1072,44 @@ export type Database = {
         }
         Relationships: []
       }
+      domain_aliases: {
+        Row: {
+          alias_domain: string
+          canonical_domain: string
+          confidence: number | null
+          created_at: string | null
+          id: string
+          org_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          alias_domain: string
+          canonical_domain: string
+          confidence?: number | null
+          created_at?: string | null
+          id?: string
+          org_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          alias_domain?: string
+          canonical_domain?: string
+          confidence?: number | null
+          created_at?: string | null
+          id?: string
+          org_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "domain_aliases_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enrichment_field_coverage: {
         Row: {
           coverage_percentage: number | null
@@ -2460,6 +2498,41 @@ export type Database = {
           },
         ]
       }
+      processing_locks: {
+        Row: {
+          expires_at: string
+          id: string
+          locked_at: string
+          locked_by: string | null
+          org_id: string
+          process_name: string
+        }
+        Insert: {
+          expires_at: string
+          id?: string
+          locked_at?: string
+          locked_by?: string | null
+          org_id: string
+          process_name: string
+        }
+        Update: {
+          expires_at?: string
+          id?: string
+          locked_at?: string
+          locked_by?: string | null
+          org_id?: string
+          process_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processing_locks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       provider_health: {
         Row: {
           avg_response_time_ms: number | null
@@ -3213,6 +3286,27 @@ export type Database = {
       }
     }
     Views: {
+      account_processing_stats: {
+        Row: {
+          accounts_with_leads: number | null
+          both_sources: number | null
+          crm_accounts: number | null
+          database_accounts: number | null
+          enriched_accounts: number | null
+          org_id: string | null
+          scored_accounts: number | null
+          total_accounts: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mv_dashboard_metrics_by_org: {
         Row: {
           both_accounts: number | null
@@ -3304,6 +3398,14 @@ export type Database = {
         Args: { p_token: string; p_user_id: string }
         Returns: Json
       }
+      acquire_processing_lock: {
+        Args: {
+          p_duration_minutes?: number
+          p_org_id: string
+          p_process_name: string
+        }
+        Returns: boolean
+      }
       activate_organization: {
         Args: { org_id_param: string }
         Returns: undefined
@@ -3311,6 +3413,22 @@ export type Database = {
       auto_score_account: {
         Args: { p_account_external_id: string; p_org_id: string }
         Returns: undefined
+      }
+      bulk_create_accounts: {
+        Args: { p_accounts: Json; p_org_id: string }
+        Returns: {
+          account_ids: string[]
+          created_count: number
+          skipped_count: number
+        }[]
+      }
+      bulk_score_accounts_batch: {
+        Args: { p_account_ids: string[]; p_icp_id: string; p_org_id: string }
+        Returns: {
+          failed_count: number
+          processed_count: number
+          success_count: number
+        }[]
       }
       bulk_score_all_accounts: {
         Args: { p_icp_id?: string; p_org_id: string }
@@ -3618,6 +3736,10 @@ export type Database = {
       }
       refresh_all_materialized_views: { Args: never; Returns: undefined }
       refresh_reporting_views: { Args: never; Returns: undefined }
+      release_processing_lock: {
+        Args: { p_org_id: string; p_process_name: string }
+        Returns: boolean
+      }
       resume_enrichment_job: { Args: { p_job_id: string }; Returns: Json }
       seed_default_ai_agents: {
         Args: { target_org_id: string }
@@ -3641,6 +3763,15 @@ export type Database = {
           is_valid: boolean
           org_id: string
           scopes: string[]
+        }[]
+      }
+      validate_data_quality: {
+        Args: { p_org_id: string }
+        Returns: {
+          details: Json
+          issue_count: number
+          issue_type: string
+          severity: string
         }[]
       }
     }
