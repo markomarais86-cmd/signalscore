@@ -128,3 +128,15 @@ verify_jwt = false
 
 [functions.clay-webhook-receiver]
 verify_jwt = false
+
+[functions.refresh-all-scores]
+verify_jwt = true
+
+[functions.generate-campaign-name]
+verify_jwt = true
+
+[functions.optimize-sequence]
+verify_jwt = true
+
+[functions.estimate-campaign-roi]
+verify_jwt = true

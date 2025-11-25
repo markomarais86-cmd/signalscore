@@ -12,11 +12,12 @@ import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, Users, DollarSign, CheckCircle2, Target, AlertCircle, Loader2, ArrowRight, ArrowLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { Sparkles, Users, DollarSign, CheckCircle2, Target, AlertCircle, Loader2, ArrowRight, ArrowLeft, ChevronRight, AlertTriangle, TrendingUp } from "lucide-react";
 import { formatNumber } from "@/utils/format-numbers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCampaignDeduplication } from "@/hooks/use-campaign-deduplication";
+import { AICampaignAssistant } from "./AICampaignAssistant";
 
 interface CampaignBuilderV2Props {
   isOpen: boolean;
@@ -139,6 +140,14 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   const [pushComplete, setPushComplete] = useState(false);
   const [destination, setDestination] = useState<'salesforce' | 'csv'>('salesforce');
   const [excludeDuplicates, setExcludeDuplicates] = useState(true);
+  
+  // AI features state
+  const [aiGeneratedNames, setAiGeneratedNames] = useState<string[]>([]);
+  const [isGeneratingNames, setIsGeneratingNames] = useState(false);
+  const [sequenceRecommendations, setSequenceRecommendations] = useState<any>(null);
+  const [isOptimizingSequence, setIsOptimizingSequence] = useState(false);
+  const [roiEstimate, setRoiEstimate] = useState<any>(null);
+  const [isEstimatingROI, setIsEstimatingROI] = useState(false);
 
   // Get preview contact emails for deduplication check
   const previewEmails = previewData?.map((contact: any) => contact.email).filter(Boolean) || [];
@@ -404,13 +413,103 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
     setSequenceSteps(SEQUENCE_TEMPLATES[template].steps);
   };
 
+  // AI Functions
+  const generateCampaignNames = async () => {
+    if (!userProfile?.org_id) return;
+    setIsGeneratingNames(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-campaign-name', {
+        body: {
+          icpName: activeICP?.name || 'General',
+          targetSegment: filterCriteria.marketSegments.join(', '),
+          campaignGoals: 'Lead generation',
+          industries: activeICP?.industries,
+          geographies: activeICP?.geographies
+        }
+      });
+      if (error) throw error;
+      setAiGeneratedNames(data.suggestions);
+      toast({ title: "AI Names Generated", description: "Choose from AI-suggested campaign names" });
+    } catch (error: any) {
+      console.error('Error generating names:', error);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsGeneratingNames(false);
+    }
+  };
+
+  const optimizeSequence = async () => {
+    if (!userProfile?.org_id) return;
+    setIsOptimizingSequence(true);
+    try {
+      const avgDealSize = 50000; // Could pull from historical data
+      const { data, error } = await supabase.functions.invoke('optimize-sequence', {
+        body: {
+          targetPersona: selectedSeniority.join(', '),
+          marketSegment: filterCriteria.marketSegments[0] || 'General',
+          avgDealSize,
+          accountCount: previewData?.length || 0
+        }
+      });
+      if (error) throw error;
+      setSequenceRecommendations(data);
+      toast({ title: "Sequence Optimized", description: "AI recommendations available" });
+    } catch (error: any) {
+      console.error('Error optimizing sequence:', error);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsOptimizingSequence(false);
+    }
+  };
+
+  const estimateROI = async () => {
+    if (!userProfile?.org_id || !previewData) return;
+    setIsEstimatingROI(true);
+    try {
+      // Calculate average fit score
+      const scores = previewData.map((acc: any) => acc.overall_score || 0);
+      const avgFitScore = scores.reduce((a: number, b: number) => a + b, 0) / scores.length;
+
+      const { data, error } = await supabase.functions.invoke('estimate-campaign-roi', {
+        body: {
+          accountCount: previewData.length,
+          avgFitScore,
+          dataSource,
+          provider,
+          orgId: userProfile.org_id
+        }
+      });
+      if (error) throw error;
+      setRoiEstimate(data);
+      toast({ title: "ROI Calculated", description: "Budget projection ready" });
+    } catch (error: any) {
+      console.error('Error estimating ROI:', error);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsEstimatingROI(false);
+    }
+  };
+
   const renderStepContent = () => {
     switch (step) {
       case 1:
         return (
           <div className="space-y-6">
             <div>
-              <Label htmlFor="campaign-name">Campaign Name</Label>
+              <div className="flex items-center justify-between mb-2">
+                <Label htmlFor="campaign-name">Campaign Name</Label>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={generateCampaignNames}
+                  disabled={isGeneratingNames}
+                  className="gap-2"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {isGeneratingNames ? "Generating..." : "AI Generate"}
+                </Button>
+              </div>
               <Input
                 id="campaign-name"
                 value={campaignName}
@@ -418,6 +517,23 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                 placeholder="Q1 Enterprise Outreach"
                 className="mt-2"
               />
+              {aiGeneratedNames.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs text-muted-foreground">AI Suggestions:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {aiGeneratedNames.map((name, idx) => (
+                      <Badge 
+                        key={idx} 
+                        variant="secondary" 
+                        className="cursor-pointer hover:bg-primary hover:text-primary-foreground"
+                        onClick={() => setCampaignName(name)}
+                      >
+                        {name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="space-y-3">
               <div className="flex items-center space-x-2">
@@ -652,10 +768,39 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       case 3:
         return (
           <div className="space-y-6">
-            <div>
-              <h3 className="font-semibold mb-2">Define Go-to-Market Sequence</h3>
-              <p className="text-sm text-muted-foreground">Choose a template or customize your outreach cadence</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold mb-2">Define Go-to-Market Sequence</h3>
+                <p className="text-sm text-muted-foreground">Choose a template or customize your outreach cadence</p>
+              </div>
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm"
+                onClick={optimizeSequence}
+                disabled={isOptimizingSequence}
+                className="gap-2"
+              >
+                <Sparkles className="h-3 w-3" />
+                {isOptimizingSequence ? "Optimizing..." : "AI Optimize"}
+              </Button>
             </div>
+            {sequenceRecommendations && (
+              <Alert className="bg-primary/5 border-primary/20">
+                <Sparkles className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="font-medium mb-2">AI Recommendation: {sequenceRecommendations.recommendedTemplate.toUpperCase()}</div>
+                  <p className="text-xs">{sequenceRecommendations.reasoning}</p>
+                  {sequenceRecommendations.personalizationTips && (
+                    <ul className="mt-2 text-xs space-y-1">
+                      {sequenceRecommendations.personalizationTips.map((tip: string, idx: number) => (
+                        <li key={idx}>• {tip}</li>
+                      ))}
+                    </ul>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
             <Tabs value={selectedTemplate} onValueChange={(v) => handleTemplateChange(v as keyof typeof SEQUENCE_TEMPLATES)}>
               <TabsList className="grid w-full grid-cols-3">
                 {Object.keys(SEQUENCE_TEMPLATES).map(templateKey => (
@@ -819,10 +964,50 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       case 6:
         return (
           <div className="space-y-6">
-            <div>
-              <h3 className="font-semibold mb-2">Campaign Preview</h3>
-              <p className="text-sm text-muted-foreground">Review the accounts and leads that will be included</p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold mb-2">Campaign Preview</h3>
+                <p className="text-sm text-muted-foreground">Review the accounts and leads that will be included</p>
+              </div>
+              {previewData && (
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={estimateROI}
+                  disabled={isEstimatingROI}
+                  className="gap-2"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  {isEstimatingROI ? "Calculating..." : "Calculate ROI"}
+                </Button>
+              )}
             </div>
+            {roiEstimate && (
+              <Card className="bg-gradient-to-br from-primary/5 to-success/5 border-primary/20">
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4" />
+                    ROI Projection
+                    <Badge variant="outline">{roiEstimate.confidence} confidence</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-3 gap-4">
+                  <div>
+                    <div className="text-2xl font-bold text-success">{roiEstimate.roi.toFixed(0)}%</div>
+                    <div className="text-xs text-muted-foreground">Expected ROI</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold">{roiEstimate.estimatedMeetings}</div>
+                    <div className="text-xs text-muted-foreground">Est. Meetings</div>
+                  </div>
+                  <div>
+                    <div className="text-2xl font-bold">${formatNumber(roiEstimate.estimatedRevenue)}</div>
+                    <div className="text-xs text-muted-foreground">Projected Revenue</div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
             {isLoadingPreview ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -982,7 +1167,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Campaign Builder</DialogTitle>
           <DialogDescription>Create a targeted campaign in 7 steps</DialogDescription>
@@ -992,50 +1177,72 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <>
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                {[1, 2, 3, 4, 5, 6, 7].map((s) => (
-                  <div key={s} className="flex items-center">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
-                      s < step ? 'bg-primary text-primary-foreground' :
-                      s === step ? 'bg-primary text-primary-foreground' :
-                      'bg-muted text-muted-foreground'
-                    }`}>
-                      {s}
+          <div className="grid grid-cols-[1fr_320px] gap-6">
+            {/* Main Content */}
+            <div className="overflow-y-auto max-h-[calc(90vh-200px)]">
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  {[1, 2, 3, 4, 5, 6, 7].map((s) => (
+                    <div key={s} className="flex items-center">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold ${
+                        s < step ? 'bg-primary text-primary-foreground' :
+                        s === step ? 'bg-primary text-primary-foreground' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        {s}
+                      </div>
+                      {s < 7 && (
+                        <div className={`w-12 h-1 ${s < step ? 'bg-primary' : 'bg-muted'}`} />
+                      )}
                     </div>
-                    {s < 7 && (
-                      <div className={`w-12 h-1 ${s < step ? 'bg-primary' : 'bg-muted'}`} />
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <div className="text-sm text-muted-foreground text-center">
+                  Step {step} of 7
+                </div>
               </div>
-              <div className="text-sm text-muted-foreground text-center">
-                Step {step} of 7
+              <div className="min-h-[400px]">
+                {renderStepContent()}
               </div>
-            </div>
-            <div className="min-h-[400px]">
-              {renderStepContent()}
-            </div>
-            {!pushComplete && (
-              <div className="flex justify-between pt-6 border-t">
-                <Button
-                  variant="outline"
-                  onClick={handleBack}
-                  disabled={step === 1}
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button>
-                {step < 7 ? (
-                  <Button onClick={handleNext}>
-                    Next
-                    <ArrowRight className="ml-2 h-4 w-4" />
+              {!pushComplete && (
+                <div className="flex justify-between pt-6 border-t mt-6">
+                  <Button
+                    variant="outline"
+                    onClick={handleBack}
+                    disabled={step === 1}
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back
                   </Button>
-                ) : null}
-              </div>
-            )}
-          </>
+                  {step < 7 ? (
+                    <Button onClick={handleNext}>
+                      Next
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
+              )}
+            </div>
+            
+            {/* AI Assistant Sidebar */}
+            <div className="border-l pl-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+              <AICampaignAssistant 
+                step={step}
+                icpName={activeICP?.name}
+                targetSegment={filterCriteria.marketSegments[0]}
+                accountCount={previewData?.length}
+                avgFitScore={previewData ? 
+                  previewData.reduce((sum: number, acc: any) => sum + (acc.overall_score || 0), 0) / previewData.length 
+                  : undefined
+                }
+                dataQuality={previewData ? {
+                  hasEmails: previewData.filter((acc: any) => acc.email).length,
+                  hasPhones: previewData.filter((acc: any) => acc.phone).length,
+                  hasVerifiedEmails: previewData.filter((acc: any) => acc.email_verified).length
+                } : undefined}
+              />
+            </div>
+          </div>
         )}
       </DialogContent>
     </Dialog>
