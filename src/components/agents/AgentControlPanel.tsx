@@ -88,19 +88,44 @@ export function AgentControlPanel() {
 
   const runAgent = useMutation({
     mutationFn: async (agentId: string) => {
-      const { data, error } = await supabase.functions.invoke("run-agent", {
+      console.log('[AgentControlPanel] Running agent:', agentId);
+      
+      const { data, error } = await supabase.functions.invoke('run-agent', {
         body: { agent_id: agentId, manual: true },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('[AgentControlPanel] Agent run error:', error);
+        throw new Error(error.message || 'Failed to run agent');
+      }
+
+      if (!data?.success) {
+        console.error('[AgentControlPanel] Agent run failed:', data);
+        throw new Error(data?.error || 'Agent execution failed');
+      }
+
+      console.log('[AgentControlPanel] Agent run successful:', data);
       return data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["ai-agent-runs"] });
-      toast.success(`${data.agent_name} started successfully`);
+      queryClient.invalidateQueries({ queryKey: ['ai-agents'] });
+      queryClient.invalidateQueries({ queryKey: ['ai-agent-runs'] });
+      
+      const message = data?.result?.message || 'Agent run started successfully';
+      const processed = data?.result?.records_processed;
+      const affected = data?.result?.records_affected;
+      
+      if (processed !== undefined && affected !== undefined) {
+        toast.success(`${message} - Processed: ${processed}, Affected: ${affected}`);
+      } else {
+        toast.success(message);
+      }
     },
-    onError: (error) => {
-      toast.error(`Failed to run agent: ${error.message}`);
+    onError: (error: Error) => {
+      console.error('[AgentControlPanel] Agent run mutation error:', error);
+      toast.error(`Failed to run agent: ${error.message}`, {
+        description: 'Check the console and edge function logs for details',
+      });
     },
   });
 
@@ -165,9 +190,19 @@ export function AgentControlPanel() {
                     variant="outline"
                     size="sm"
                     onClick={() => runAgent.mutate(agent.id)}
-                    disabled={runAgent.isPending}
+                    disabled={agent.status !== 'active' || runAgent.isPending}
                   >
-                    <Play className="h-3 w-3" />
+                    {runAgent.isPending ? (
+                      <>
+                        <div className="animate-spin h-4 w-4 mr-2 border-2 border-current border-t-transparent rounded-full" />
+                        Running...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="h-4 w-4 mr-2" />
+                        Run Now
+                      </>
+                    )}
                   </Button>
                   <Switch
                     checked={agent.status === "active"}

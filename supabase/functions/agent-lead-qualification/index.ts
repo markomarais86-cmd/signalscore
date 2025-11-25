@@ -17,9 +17,9 @@ serve(async (req) => {
   );
 
   try {
-    const { agent_id, org_id } = await req.json();
+    const { agent_id, org_id, run_id } = await req.json();
 
-    console.log(`[Lead Qualification] Starting for agent ${agent_id}, org ${org_id}`);
+    console.log(`[agent-lead-qualification] Starting for agent ${agent_id}, org ${org_id}, run_id ${run_id}`);
 
     // Fetch agent configuration
     const { data: agent, error: agentError } = await supabase
@@ -29,25 +29,49 @@ serve(async (req) => {
       .single();
 
     if (agentError || !agent) {
+      console.error('[agent-lead-qualification] Failed to fetch agent:', agentError);
       throw new Error(`Agent not found: ${agentError?.message}`);
     }
 
-    // Create run record
-    const { data: run, error: runError } = await supabase
-      .from('ai_agent_runs')
-      .insert({
-        agent_id,
-        status: 'running',
-        started_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+    console.log(`[agent-lead-qualification] Agent loaded: ${agent.name}`);
 
-    if (runError || !run) {
-      throw new Error(`Failed to create run record: ${runError?.message}`);
+    // Use existing run record if provided, otherwise create new one
+    let run;
+    if (run_id) {
+      const { data, error } = await supabase
+        .from('ai_agent_runs')
+        .select()
+        .eq('id', run_id)
+        .single();
+      
+      if (error) {
+        console.error('[agent-lead-qualification] Failed to fetch run record:', error);
+        throw error;
+      }
+      run = data;
+      console.log(`[agent-lead-qualification] Using existing run record: ${run_id}`);
+    } else {
+      const { data, error: runError } = await supabase
+        .from('ai_agent_runs')
+        .insert({
+          agent_id,
+          status: 'running',
+          started_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (runError || !data) {
+        console.error('[agent-lead-qualification] Failed to create run record:', runError);
+        throw new Error(`Failed to create run record: ${runError?.message}`);
+      }
+      run = data;
+      console.log(`[agent-lead-qualification] Created new run record: ${run.id}`);
     }
 
     const minScoreThreshold = agent.parameters?.min_score_threshold || 70;
+    console.log(`[agent-lead-qualification] Score threshold: ${minScoreThreshold}`);
+    
     let recordsProcessed = 0;
     let recordsAffected = 0;
 
@@ -62,8 +86,11 @@ serve(async (req) => {
       .limit(100);
 
     if (leadsError) {
-      console.error('Error fetching leads:', leadsError);
+      console.error('[agent-lead-qualification] Error fetching leads:', leadsError);
+      throw leadsError;
     }
+    
+    console.log(`[agent-lead-qualification] Found ${leads?.length || 0} leads to process`);
 
     if (leads && leads.length > 0) {
       console.log(`[Lead Qualification] Processing ${leads.length} leads`);
@@ -102,13 +129,17 @@ serve(async (req) => {
 
               // If score meets threshold, mark as qualified
               if (score && score.overall >= minScoreThreshold) {
-                await supabase
+                const { error: updateError } = await supabase
                   .from('Leads')
                   .update({ status: 'qualified' })
                   .eq('id', lead.id);
                 
-                recordsAffected++;
-                console.log(`[Lead Qualification] Qualified lead: ${lead.name} (score: ${score.overall})`);
+                if (updateError) {
+                  console.error(`[agent-lead-qualification] Failed to update lead ${lead.id}:`, updateError);
+                } else {
+                  recordsAffected++;
+                  console.log(`[agent-lead-qualification] Qualified lead: ${lead.name} (score: ${score.overall})`);
+                }
               }
             } else {
               recordsProcessed++;
@@ -151,7 +182,7 @@ serve(async (req) => {
       })
       .eq('id', agent_id);
 
-    console.log(`[Lead Qualification] Completed: ${recordsAffected}/${recordsProcessed} leads qualified`);
+    console.log(`[agent-lead-qualification] Completed: ${recordsAffected}/${recordsProcessed} leads qualified`);
 
     return new Response(
       JSON.stringify({
@@ -164,10 +195,14 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('[Lead Qualification] Error:', error);
+    console.error('[agent-lead-qualification] Fatal error:', error);
     
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: error instanceof Error ? error.stack : undefined,
+      }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500
