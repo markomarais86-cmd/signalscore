@@ -24,7 +24,8 @@ const mainNavigation = [
   { title: "ICP Manager", url: "/icp-manager", icon: Target },
   { title: "Accounts", url: "/accounts", icon: Database },
   { title: "Data Upload", url: "/data-upload", icon: Upload },
-  { title: "AI Agents", url: "/ai-agents", icon: Bot },
+  // AI Agents hidden for MVP rollout
+  // { title: "AI Agents", url: "/ai-agents", icon: Bot },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
