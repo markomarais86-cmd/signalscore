@@ -191,46 +191,46 @@ serve(async (req) => {
 
     console.log(`🌐 Processing ${domainMap.size} unique domains`);
 
-    // Step 3: Create accounts one at a time
-    let created = 0;
-    let skipped = 0;
-    const newAccountIds: string[] = [];
+    // Step 3: Create accounts using BULK operation (enterprise-scale)
     const data_source = is_external_db ? 'database' : 'crm';
-
+    
+    // Prepare accounts array for bulk creation
+    const accountsToCreate = [];
     for (const [domain, lead] of domainMap.entries()) {
-      const external_id = crypto.randomUUID();
-      
-      const { data: accountId, error: insertError } = await supabase
-        .rpc('insert_single_account', {
-          p_org_id: org_id,
-          p_external_id: external_id,
-          p_name: lead.company,
-          p_domain: domain,
-          p_industry_norm: lead.industry,
-          p_employee_count: lead.employee_count,
-          p_revenue_range: lead.revenue_range,
-          p_country: lead.country,
-          p_state_province: lead.state_province,
-          p_phone: lead.phone,
-          p_mobile: lead.mobile,
-          p_data_source: data_source
-        });
-
-      if (insertError) {
-        console.error(`⚠️ Insert error for ${domain}:`, insertError.message);
-        skipped++;
-      } else if (accountId) {
-        newAccountIds.push(accountId);
-        created++;
-        if (created % 10 === 0) {
-          console.log(`✨ Created ${created}/${domainMap.size} accounts...`);
-        }
-      } else {
-        skipped++;
-      }
+      accountsToCreate.push({
+        external_id: crypto.randomUUID(),
+        name: lead.company,
+        domain: domain,
+        industry_norm: lead.industry,
+        employee_count: lead.employee_count,
+        revenue_range: lead.revenue_range,
+        country: lead.country,
+        state_province: lead.state_province,
+        phone: lead.phone,
+        mobile: lead.mobile,
+        data_source: data_source
+      });
     }
 
-    console.log(`✅ Step 2: Created ${created} accounts, skipped ${skipped} duplicates`);
+    console.log(`📦 Bulk creating ${accountsToCreate.length} accounts...`);
+
+    // Use bulk creation function
+    const { data: bulkResult, error: bulkError } = await supabase
+      .rpc('bulk_create_accounts', {
+        p_org_id: org_id,
+        p_accounts: accountsToCreate
+      });
+
+    if (bulkError) {
+      console.error(`⚠️ Bulk creation error:`, bulkError.message);
+      throw bulkError;
+    }
+
+    const created = bulkResult?.[0]?.created_count || 0;
+    const skipped = bulkResult?.[0]?.skipped_count || 0;
+    const newAccountIds = bulkResult?.[0]?.account_ids || [];
+
+    console.log(`✅ Step 2: Bulk created ${created} accounts, skipped ${skipped} duplicates in single transaction`);
 
     // Step 3: Link remaining leads (exact match DB function)
     const { data: linkResult, error: linkError } = await supabase
@@ -381,8 +381,7 @@ serve(async (req) => {
       console.log(`✅ Step 4: Fuzzy matched ${fuzzyMatched} leads in ${elapsed}s (${(fuzzyMatched / parseFloat(elapsed)).toFixed(0)} leads/sec)`);
     }
 
-    // Step 5: Auto-score new accounts
-    let scored = 0;
+    // Step 5: Auto-score new accounts using BULK operation (enterprise-scale)
     const { data: icpData } = await supabase
       .from('icp_profiles')
       .select('id')
@@ -391,18 +390,24 @@ serve(async (req) => {
       .limit(1)
       .single();
 
+    let scored = 0;
     if (icpData?.id && newAccountIds.length > 0) {
-      console.log(`🎯 Scoring ${newAccountIds.length} new accounts...`);
-      for (const accountId of newAccountIds) {
-        const { error: scoreError } = await supabase
-          .rpc('auto_score_account', {
-            p_account_external_id: accountId,
-            p_org_id: org_id
-          });
-        
-        if (!scoreError) scored++;
+      console.log(`🎯 Bulk scoring ${newAccountIds.length} new accounts...`);
+      
+      const { data: scoreResult, error: scoreError } = await supabase
+        .rpc('bulk_score_accounts_batch', {
+          p_org_id: org_id,
+          p_account_ids: newAccountIds,
+          p_icp_id: icpData.id
+        });
+
+      if (scoreError) {
+        console.error(`⚠️ Bulk scoring error:`, scoreError.message);
+      } else {
+        scored = scoreResult?.[0]?.success_count || 0;
+        const failed = scoreResult?.[0]?.failed_count || 0;
+        console.log(`✅ Bulk scored ${scored} accounts, ${failed} failed`);
       }
-      console.log(`✅ Scored ${scored} accounts`);
     }
 
     const totalLinked = (matchResult?.matched_to_existing || 0) + (linkResult?.linked_after_creation || 0) + fuzzyMatched;
