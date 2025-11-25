@@ -65,16 +65,6 @@ export function SystemHealthDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    if (userProfile?.org_id) {
-      loadHealthData();
-      const interval = setInterval(() => {
-        loadHealthData();
-      }, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [userProfile?.org_id, loadHealthData]);
-
   const loadHealthData = useCallback(async () => {
     if (!userProfile?.org_id) return;
     
@@ -85,10 +75,8 @@ export function SystemHealthDashboard() {
         .from('integration_configs')
         .select('*')
         .eq('org_id', userProfile.org_id)
-        .in('provider_type', ['crm'])
-        .eq('is_active', true)
-        .order('last_sync_at', { ascending: false })
-        .limit(1);
+        .order('last_sync_at', { ascending: false, nullsFirst: false })
+        .limit(1) as any;
 
       const lastIntegration = integrations?.[0];
       
@@ -184,7 +172,18 @@ export function SystemHealthDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [userProfile?.org_id]);
+
+  useEffect(() => {
+    if (userProfile?.org_id) {
+      loadHealthData();
+      const interval = setInterval(() => {
+        loadHealthData();
+      }, 30000);
+      return () => clearInterval(interval);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userProfile?.org_id]);
 
   const getStatusIcon = (status: 'healthy' | 'warning' | 'error') => {
     switch (status) {
