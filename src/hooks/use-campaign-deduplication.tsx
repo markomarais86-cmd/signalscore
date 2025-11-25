@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -18,6 +18,9 @@ export function useCampaignDeduplication(emails: string[]): DeduplicationResult 
   const [recentExports, setRecentExports] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Memoize the emails array to prevent unnecessary re-renders
+  const emailsKey = useMemo(() => JSON.stringify(emails.sort()), [emails]);
+
   useEffect(() => {
     if (!userProfile?.org_id || emails.length === 0) {
       setDuplicateEmails(new Set());
@@ -26,7 +29,7 @@ export function useCampaignDeduplication(emails: string[]): DeduplicationResult 
     }
 
     checkDuplicates();
-  }, [userProfile?.org_id, emails]);
+  }, [userProfile?.org_id, emailsKey]);
 
   const checkDuplicates = async () => {
     if (!userProfile?.org_id) return;

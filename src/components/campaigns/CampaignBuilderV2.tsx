@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -149,8 +149,10 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   const [roiEstimate, setRoiEstimate] = useState<any>(null);
   const [isEstimatingROI, setIsEstimatingROI] = useState(false);
 
-  // Get preview contact emails for deduplication check
-  const previewEmails = previewData?.map((contact: any) => contact.email).filter(Boolean) || [];
+  // Get preview contact emails for deduplication check (memoized to prevent infinite loops)
+  const previewEmails = useMemo(() => 
+    previewData?.map((contact: any) => contact.email).filter(Boolean) || []
+  , [previewData]);
   const { duplicateEmails, recentExports, isLoading: isCheckingDuplicates } = useCampaignDeduplication(previewEmails);
 
   // Update cost calculation when data source or provider changes
