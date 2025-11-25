@@ -3606,6 +3606,10 @@ export type Database = {
       }
       merge_duplicate_accounts: { Args: { p_org_id: string }; Returns: Json }
       normalize_country: { Args: { country_input: string }; Returns: string }
+      normalize_country_value: {
+        Args: { country_input: string }
+        Returns: string
+      }
       normalize_domain_text: { Args: { domain_input: string }; Returns: string }
       pause_enrichment_job: { Args: { p_job_id: string }; Returns: Json }
       record_data_quality_snapshot: {
