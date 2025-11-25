@@ -78,6 +78,7 @@ import { EnrichmentAnalyticsDashboard } from "@/components/settings/EnrichmentAn
 import { CandidateSelector } from "@/components/enrichment/CandidateSelector";
 import { BulkLeadEnrichment } from "@/components/settings/BulkLeadEnrichment";
 import { BulkAccountEnrichment } from "@/components/settings/BulkAccountEnrichment";
+import { CRMSyncHistory } from "@/components/settings/CRMSyncHistory";
 import { ExportHistory } from "@/components/settings/ExportHistory";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -684,6 +685,7 @@ export default function Settings() {
                 <IntegrationHealthDashboard />
                 <IntegrationCredentialManager />
                 <IntegrationManager />
+                {userProfile?.org_id && <CRMSyncHistory orgId={userProfile.org_id} />}
                 <WebhookLogViewer />
                 <ZapierIntegration />
                 <ClayIncomingWebhooks />

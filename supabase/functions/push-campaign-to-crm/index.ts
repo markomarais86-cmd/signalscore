@@ -6,10 +6,22 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface SalesforceCredentials {
+  access_token: string;
+  refresh_token: string;
+  instance_url: string;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  let syncLogId: string | null = null;
 
   try {
     const {
@@ -31,44 +43,187 @@ serve(async (req) => {
       throw new Error('Missing required fields: org_id, campaign_name, and contacts');
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Create sync log entry
+    const { data: syncLog, error: syncLogError } = await supabase
+      .from('integration_sync_logs')
+      .insert({
+        org_id,
+        provider_name: 'salesforce',
+        sync_type: 'campaign_push',
+        status: 'in_progress',
+        started_at: new Date().toISOString(),
+        metadata: { campaign_name, contact_count: contacts.length }
+      })
+      .select('id')
+      .single();
 
-    // Check if Salesforce is integrated
-    const { data: integration } = await supabase
-      .from('integrations')
-      .select('*')
+    if (syncLogError) {
+      console.error('[push-campaign-to-crm] Failed to create sync log:', syncLogError);
+    } else {
+      syncLogId = syncLog.id;
+    }
+
+    // Get Salesforce integration config
+    const { data: integrationConfig, error: configError } = await supabase
+      .from('integration_configs')
+      .select('id, config')
       .eq('org_id', org_id)
       .eq('provider_name', 'salesforce')
-      .eq('status', 'active')
+      .eq('status', 'connected')
       .maybeSingle();
 
-    if (!integration) {
+    if (configError || !integrationConfig) {
       throw new Error('Salesforce integration not found or inactive. Please connect Salesforce in Settings.');
     }
 
-    // Generate batch ID
-    const batchId = `CAMP_${Date.now()}`;
+    // Get Salesforce credentials
+    const { data: credentialRecords, error: credError } = await supabase
+      .from('integration_credentials')
+      .select('encrypted_value')
+      .eq('integration_config_id', integrationConfig.id)
+      .eq('credential_type', 'oauth_token');
 
-    // Mock Salesforce API interaction
-    // TODO: Replace with actual Salesforce API calls using integration.credentials
-    console.log('[push-campaign-to-crm] Pushing to Salesforce (mock)...');
+    if (credError || !credentialRecords || credentialRecords.length === 0) {
+      throw new Error('Salesforce credentials not found. Please reconnect Salesforce.');
+    }
 
-    const sfCampaignId = campaign_id || `701${Math.random().toString(36).substr(2, 9)}`;
-    const sfCampaignUrl = `https://example.salesforce.com/lightning/r/Campaign/${sfCampaignId}/view`;
+    const credentials: SalesforceCredentials = JSON.parse(credentialRecords[0].encrypted_value);
+    
+    if (!credentials.access_token || !credentials.instance_url) {
+      throw new Error('Invalid Salesforce credentials. Please reconnect Salesforce.');
+    }
+
+    console.log('[push-campaign-to-crm] Using Salesforce instance:', credentials.instance_url);
+
+    // Create or get Salesforce Campaign
+    let sfCampaignId = campaign_id;
+    let sfCampaignUrl = '';
+
+    if (!sfCampaignId) {
+      // Create new campaign in Salesforce
+      console.log('[push-campaign-to-crm] Creating new Salesforce campaign:', campaign_name);
+      
+      const campaignResponse = await fetch(`${credentials.instance_url}/services/data/v59.0/sobjects/Campaign`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${credentials.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          Name: campaign_name,
+          IsActive: true,
+          Status: 'In Progress',
+          Type: 'ICP Signal Campaign',
+          Description: `Campaign created from ICP Signal Platform. ICP: ${batch_metadata?.icp_name || 'Custom'}. ${contacts.length} contacts.`
+        })
+      });
+
+      if (!campaignResponse.ok) {
+        const errorText = await campaignResponse.text();
+        console.error('[push-campaign-to-crm] Campaign creation failed:', errorText);
+        throw new Error(`Failed to create Salesforce campaign: ${errorText}`);
+      }
+
+      const campaignData = await campaignResponse.json();
+      sfCampaignId = campaignData.id;
+      console.log('[push-campaign-to-crm] Created campaign with ID:', sfCampaignId);
+    }
+
+    sfCampaignUrl = `${credentials.instance_url}/lightning/r/Campaign/${sfCampaignId}/view`;
 
     let membersAdded = 0;
     let membersUpdated = 0;
     const errors: any[] = [];
 
-    // In production, this would iterate and call Salesforce API
+    // Process contacts in batches
+    console.log('[push-campaign-to-crm] Processing contacts...');
+    
     for (const contact of contacts) {
       try {
-        // Mock: Create/update Lead in Salesforce
-        // Mock: Add as Campaign Member
-        membersAdded++;
+        // First, check if Lead exists in Salesforce
+        const leadQuery = `SELECT Id FROM Lead WHERE Email = '${contact.email.replace(/'/g, "\\'")}' LIMIT 1`;
+        const queryResponse = await fetch(
+          `${credentials.instance_url}/services/data/v59.0/query?q=${encodeURIComponent(leadQuery)}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${credentials.access_token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        if (!queryResponse.ok) {
+          throw new Error(`Lead query failed: ${await queryResponse.text()}`);
+        }
+
+        const queryData = await queryResponse.json();
+        let leadId: string;
+
+        if (queryData.totalSize > 0) {
+          // Lead exists
+          leadId = queryData.records[0].Id;
+          console.log(`[push-campaign-to-crm] Found existing lead: ${leadId}`);
+        } else {
+          // Create new Lead
+          const leadResponse = await fetch(`${credentials.instance_url}/services/data/v59.0/sobjects/Lead`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${credentials.access_token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              FirstName: contact.first_name || '',
+              LastName: contact.last_name || 'Unknown',
+              Email: contact.email,
+              Title: contact.title || '',
+              Company: contact.company || 'Unknown',
+              Phone: contact.phone || '',
+              MobilePhone: contact.mobile || '',
+              LeadSource: 'ICP Signal Platform',
+              Status: 'Open - Not Contacted'
+            })
+          });
+
+          if (!leadResponse.ok) {
+            const errorText = await leadResponse.text();
+            throw new Error(`Lead creation failed: ${errorText}`);
+          }
+
+          const leadData = await leadResponse.json();
+          leadId = leadData.id;
+          console.log(`[push-campaign-to-crm] Created new lead: ${leadId}`);
+        }
+
+        // Add Lead to Campaign as CampaignMember
+        const memberResponse = await fetch(`${credentials.instance_url}/services/data/v59.0/sobjects/CampaignMember`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${credentials.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            CampaignId: sfCampaignId,
+            LeadId: leadId,
+            Status: 'Sent'
+          })
+        });
+
+        if (!memberResponse.ok) {
+          const errorText = await memberResponse.text();
+          // If error is because member already exists, count as updated
+          if (errorText.includes('DUPLICATE_VALUE') || errorText.includes('already exists')) {
+            membersUpdated++;
+            console.log(`[push-campaign-to-crm] Campaign member already exists: ${leadId}`);
+          } else {
+            throw new Error(`Campaign member creation failed: ${errorText}`);
+          }
+        } else {
+          membersAdded++;
+          console.log(`[push-campaign-to-crm] Added campaign member: ${leadId}`);
+        }
+
       } catch (error: any) {
+        console.error(`[push-campaign-to-crm] Error processing contact ${contact.email}:`, error);
         errors.push({
           contact_email: contact.email,
           error: error.message
@@ -84,21 +239,37 @@ serve(async (req) => {
       .insert({
         org_id,
         campaign_name,
-        total_accounts: batch_metadata.source_accounts || 0,
+        total_accounts: batch_metadata?.source_accounts || 0,
         total_contacts: contacts.length,
         exported_at: new Date().toISOString(),
         sync_destination: 'salesforce',
         sync_status: 'completed',
         exported_emails: exportedEmails,
-        icp_id: batch_metadata.icp_id || null,
-        icp_name: batch_metadata.icp_name || 'Custom Campaign',
-        persona_filters_applied: batch_metadata.persona_criteria || {},
-        firmographic_filters: batch_metadata.icp_criteria || {},
+        icp_id: batch_metadata?.icp_id || null,
+        icp_name: batch_metadata?.icp_name || 'Custom Campaign',
+        persona_filters_applied: batch_metadata?.persona_criteria || {},
+        firmographic_filters: batch_metadata?.icp_criteria || {},
         export_type: 'campaign_builder'
       });
 
     if (snapshotError) {
       console.error('[push-campaign-to-crm] Error logging snapshot:', snapshotError);
+    }
+
+    // Update sync log with success
+    if (syncLogId) {
+      await supabase
+        .from('integration_sync_logs')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          records_processed: contacts.length,
+          records_created: membersAdded,
+          records_updated: membersUpdated,
+          records_failed: errors.length,
+          error_details: errors.length > 0 ? { errors } : null
+        })
+        .eq('id', syncLogId);
     }
 
     console.log(`[push-campaign-to-crm] Successfully pushed ${membersAdded} contacts to Salesforce`);
@@ -117,6 +288,20 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('[push-campaign-to-crm] Error:', error);
+    
+    // Update sync log with failure
+    if (syncLogId) {
+      await supabase
+        .from('integration_sync_logs')
+        .update({
+          status: 'failed',
+          completed_at: new Date().toISOString(),
+          error_message: error.message,
+          error_details: { error: error.message, stack: error.stack }
+        })
+        .eq('id', syncLogId);
+    }
+    
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
