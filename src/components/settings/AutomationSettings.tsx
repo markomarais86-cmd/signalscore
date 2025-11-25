@@ -104,20 +104,34 @@ export function AutomationSettings() {
         });
         if (error) throw error;
         result = data;
+        toast({
+          title: "✓ Task Complete",
+          description: `Matched ${result.total_linked} leads to accounts`,
+        });
+      } else if (type === 'score') {
+        // Phase 3 Fix: Call bulk scoring edge function
+        const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
+          body: { 
+            org_id: userProfile.org_id, 
+            chunk_size: 5000 
+          }
+        });
+        if (error) throw error;
+        toast({
+          title: "✓ Scoring Started",
+          description: "Account scoring job has been queued. This may take a few minutes.",
+        });
       } else if (type === 'merge') {
         const { data, error } = await supabase.rpc('merge_duplicate_accounts', {
           p_org_id: userProfile.org_id
         });
         if (error) throw error;
         result = data;
+        toast({
+          title: "✓ Task Complete",
+          description: `Merged ${result.duplicate_accounts_merged} duplicates`,
+        });
       }
-
-      toast({
-        title: "✓ Task Complete",
-        description: type === 'match' 
-          ? `Matched ${result.total_linked} leads to accounts`
-          : `Merged ${result.duplicate_accounts_merged} duplicates`,
-      });
 
       await loadSettings();
     } catch (error: any) {
@@ -249,6 +263,15 @@ export function AutomationSettings() {
                 Automatically score accounts when they're created or updated
               </CardDescription>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => triggerManual('score')}
+              disabled={triggering === 'score'}
+            >
+              <PlayCircle className="h-4 w-4 mr-2" />
+              {triggering === 'score' ? 'Starting...' : 'Score Now'}
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -3741,6 +3741,8 @@ export type Database = {
         Returns: boolean
       }
       resume_enrichment_job: { Args: { p_job_id: string }; Returns: Json }
+      scheduled_auto_match_all_orgs: { Args: never; Returns: undefined }
+      scheduled_quality_snapshot_all_orgs: { Args: never; Returns: undefined }
       seed_default_ai_agents: {
         Args: { target_org_id: string }
         Returns: undefined
