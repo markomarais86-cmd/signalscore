@@ -282,13 +282,13 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       } catch (rpcError) {
         console.error('[Campaign Builder] RPC failed, falling back to direct query:', rpcError);
         
-        // Fallback: Direct table query
+        // Fallback: Direct table query with pagination instead of arbitrary limit
         let query = supabase
           .from('accounts')
-          .select('*')
+          .select('*', { count: 'exact' })
           .eq('org_id', userProfile.org_id)
           .eq('data_source', dataSource)
-          .limit(1000);
+          .range(0, 4999); // First 5000 for initial load, implement pagination if needed
         
         if (!useICP && filterCriteria.employeeMin) {
           query = query.gte('employee_count', filterCriteria.employeeMin);

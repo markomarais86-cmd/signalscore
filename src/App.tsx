@@ -29,6 +29,7 @@ import Segmentation from "./pages/Segmentation";
 import Trends from "./pages/Trends";
 import NotFound from "./pages/NotFound";
 import AIAgents from "./pages/AIAgents";
+import AgentTester from "./pages/AgentTester";
 
 const queryClient = new QueryClient();
 
@@ -185,6 +186,16 @@ function AppContent() {
                     <ProtectedRoute>
                       <Layout>
                         <AIAgents />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/agent-tester"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <AgentTester />
                       </Layout>
                     </ProtectedRoute>
                   }

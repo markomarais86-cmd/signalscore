@@ -3,6 +3,14 @@ import { TrendingUp, Building2, Users, Target, DollarSign, Database } from "luci
 import { formatCurrency, formatAbbreviated } from "@/utils/format-numbers";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
+
+interface ICPProfile {
+  industries?: string[];
+  geographies?: string[];
+  company_sizes?: number[];
+  revenue_ranges?: string[];
+}
 
 interface UnifiedTAMCardProps {
   // Internal CRM data
@@ -18,6 +26,11 @@ interface UnifiedTAMCardProps {
   externalProvider?: string;
   externalGeography?: Record<string, { percentage: number; accounts: number }>;
   externalIndustry?: Record<string, { percentage: number; accounts: number }>;
+  externalCompanySize?: Record<string, { percentage: number; accounts: number }>;
+  externalRevenue?: Record<string, { percentage: number; accounts: number }>;
+  
+  // ICP Profile for SAM calculation
+  icpProfile?: ICPProfile | null;
 }
 
 export function UnifiedTAMCard({
@@ -30,7 +43,10 @@ export function UnifiedTAMCard({
   externalContacts = 0,
   externalProvider = 'Apollo',
   externalGeography = {},
-  externalIndustry = {}
+  externalIndustry = {},
+  externalCompanySize = {},
+  externalRevenue = {},
+  icpProfile = null
 }: UnifiedTAMCardProps) {
   // Calculate Internal TAM (from CRM scored accounts)
   const internalTAM = scoredAccounts * averageDealSize;
@@ -38,14 +54,46 @@ export function UnifiedTAMCard({
   // Calculate External TAM (from external database)
   const externalTAM = externalAccounts * averageDealSize;
   
-  // Calculate SAM (Serviceable Addressable Market) - ICP-matching accounts from external data
-  // Estimate: 30% of external accounts match our ICP criteria
-  const samAccounts = Math.round(externalAccounts * 0.30);
-  const samValue = samAccounts * averageDealSize;
+  // Calculate SAM and SOM using ICP-based filtering
+  let samAccounts = 0;
+  let somAccounts = 0;
   
-  // Calculate SOM (Serviceable Obtainable Market) - 12-month realistic target
-  // Estimate: We can capture 5% of SAM in the next 12 months
-  const somAccounts = Math.round(samAccounts * 0.05);
+  if (icpProfile && externalAccounts > 0) {
+    // Transform the data to match the calculator's expected format
+    const transformBreakdown = (
+      breakdown: Record<string, { percentage: number; accounts: number }>
+    ): Record<string, { accounts: number; contacts: number }> => {
+      const transformed: Record<string, { accounts: number; contacts: number }> = {};
+      Object.entries(breakdown).forEach(([key, value]) => {
+        // Estimate contacts based on average of 5 contacts per account
+        transformed[key] = {
+          accounts: value.accounts,
+          contacts: Math.round(value.accounts * 5)
+        };
+      });
+      return transformed;
+    };
+    
+    const tamData = {
+      totalAccounts: externalAccounts,
+      totalLeads: externalContacts,
+      provider: externalProvider,
+      industry_breakdown: transformBreakdown(externalIndustry),
+      geography_breakdown: transformBreakdown(externalGeography),
+      company_size_breakdown: transformBreakdown(externalCompanySize || {}),
+      revenue_breakdown: transformBreakdown(externalRevenue || {})
+    };
+    
+    const { sam, som } = calculateExternalTAMMetrics(tamData, icpProfile, 0.15, 12);
+    samAccounts = sam;
+    somAccounts = som;
+  } else {
+    // Fallback to conservative estimates if no ICP or external data
+    samAccounts = Math.round(externalAccounts * 0.30);
+    somAccounts = Math.round(samAccounts * 0.05);
+  }
+  
+  const samValue = samAccounts * averageDealSize;
   const somValue = somAccounts * averageDealSize;
   
   // Market penetration %
@@ -187,11 +235,14 @@ export function UnifiedTAMCard({
           <h4 className="text-sm font-semibold">Market Intelligence</h4>
           <ul className="space-y-1 text-xs text-muted-foreground">
             <li>• TAM: {formatCurrency(externalTAM)} at {formatCurrency(averageDealSize)} ACV</li>
-            <li>• SAM: {formatAbbreviated(samAccounts)} ICP-matching accounts (~30% of TAM)</li>
-            <li>• SOM: Target {formatAbbreviated(somAccounts)} accounts in next 12 months (~5% of SAM)</li>
+            <li>• SAM: {formatAbbreviated(samAccounts)} ICP-matching accounts {icpProfile ? '(based on ICP criteria)' : '(~30% estimate)'}</li>
+            <li>• SOM: Target {formatAbbreviated(somAccounts)} accounts in next 12 months (15% conversion rate)</li>
             <li>• Current penetration: {penetration.toFixed(1)}% of total market</li>
             {highFitAccounts > 0 && (
               <li>• {formatAbbreviated(highFitAccounts)} high-fit accounts identified in your CRM</li>
+            )}
+            {!icpProfile && externalAccounts > 0 && (
+              <li className="text-amber-600">⚠ Create an ICP profile for accurate SAM/SOM calculations</li>
             )}
           </ul>
         </div>

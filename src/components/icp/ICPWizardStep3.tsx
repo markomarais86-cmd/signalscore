@@ -26,24 +26,27 @@ export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Pro
   const [jobTitleInput, setJobTitleInput] = useState('');
   const { userProfile } = useAuth();
 
-  // Fetch top job titles from user's leads
+  // Fetch top job titles from user's leads using client-side aggregation
   const { data: topTitles } = useQuery({
     queryKey: ['top-lead-titles', userProfile?.org_id],
     queryFn: async () => {
       if (!userProfile?.org_id) return [];
       
-      const { data, error } = await supabase
+      // Fetch all titles and aggregate client-side (more reliable than RPC)
+      const { data: allTitles, error } = await supabase
         .from('Leads')
         .select('title')
         .eq('org_id', userProfile.org_id)
-        .not('title', 'is', null)
-        .limit(1000);
+        .not('title', 'is', null);
       
-      if (error || !data) return [];
+      if (error || !allTitles) {
+        console.error('Error fetching titles:', error);
+        return [];
+      }
       
       // Aggregate and count titles
       const titleCounts: Record<string, number> = {};
-      data.forEach(row => {
+      allTitles.forEach(row => {
         if (row.title) {
           titleCounts[row.title] = (titleCounts[row.title] || 0) + 1;
         }
