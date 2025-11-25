@@ -4,7 +4,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Bot, Clock, CheckCircle, XCircle, Activity } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Bot, Clock, CheckCircle, XCircle, Activity, Play } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 
@@ -85,6 +86,24 @@ export function AgentControlPanel() {
     },
   });
 
+  const runAgent = useMutation({
+    mutationFn: async (agentId: string) => {
+      const { data, error } = await supabase.functions.invoke("run-agent", {
+        body: { agent_id: agentId, manual: true },
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["ai-agent-runs"] });
+      toast.success(`${data.agent_name} started successfully`);
+    },
+    onError: (error) => {
+      toast.error(`Failed to run agent: ${error.message}`);
+    },
+  });
+
   const getAgentIcon = (type: string) => {
     const iconProps = { className: "h-5 w-5" };
     switch (type) {
@@ -141,12 +160,22 @@ export function AgentControlPanel() {
                   {getAgentIcon(agent.agent_type)}
                   <CardTitle className="text-sm font-medium">{agent.name}</CardTitle>
                 </div>
-                <Switch
-                  checked={agent.status === "active"}
-                  onCheckedChange={(enabled) =>
-                    toggleAgent.mutate({ agentId: agent.id, enabled })
-                  }
-                />
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => runAgent.mutate(agent.id)}
+                    disabled={runAgent.isPending}
+                  >
+                    <Play className="h-3 w-3" />
+                  </Button>
+                  <Switch
+                    checked={agent.status === "active"}
+                    onCheckedChange={(enabled) =>
+                      toggleAgent.mutate({ agentId: agent.id, enabled })
+                    }
+                  />
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">

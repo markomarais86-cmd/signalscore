@@ -1,372 +1,339 @@
 import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { useAuth } from "@/hooks/use-auth";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { Sparkles, Zap, Database, Users, AlertCircle, CheckCircle2, TrendingUp, DollarSign } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Sparkles, TrendingUp, DollarSign, Zap } from "lucide-react";
+import { toast } from "sonner";
 import { calculateHybridCost, formatCost } from "@/utils/enrichment-cost-calculator";
-import { useEnrichmentProgress } from "@/hooks/use-enrichment-progress";
 
 interface DataQuality {
   totalAccounts: number;
-  accountsWithEmployeeCount: number;
-  accountsWithRevenue: number;
-  accountsWithIndustry: number;
-  totalContacts: number;
-  contactsWithEmail: number;
-  contactsWithTitle: number;
+  techStackCoverage: number;
+  fundingCoverage: number;
+  industryCoverage: number;
+  employeeCoverage: number;
   overallCompleteness: number;
-  accountCompleteness: number;
-  contactCompleteness: number;
+}
+
+interface PriorityAccount {
+  id: string;
+  name: string;
+  domain: string;
+  propensity_score: number;
+  missing_fields: string[];
 }
 
 export function SmartEnrichmentPanel() {
   const { userProfile } = useAuth();
-  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [enriching, setEnriching] = useState(false);
-  const [quality, setQuality] = useState<DataQuality | null>(null);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
-  const { data: jobProgress } = useEnrichmentProgress(activeJobId, enriching);
+  const [dataQuality, setDataQuality] = useState<DataQuality | null>(null);
+  const [priorityAccounts, setPriorityAccounts] = useState<PriorityAccount[]>([]);
 
   useEffect(() => {
-    loadDataQuality();
-    checkActiveJob();
-  }, [userProfile]);
+    if (userProfile?.org_id) {
+      loadDataQuality();
+      loadPriorityAccounts();
+    }
+  }, [userProfile?.org_id]);
 
   const loadDataQuality = async () => {
     if (!userProfile?.org_id) return;
-    
-    setLoading(true);
+
     try {
-      // Get account data quality
-      const { data: accounts, error: accountsError } = await supabase
-        .from('accounts')
-        .select('employee_count, revenue_range, industry_raw')
-        .eq('org_id', userProfile.org_id);
+      setLoading(true);
 
-      if (accountsError) throw accountsError;
+      // Get total accounts
+      const { count: totalAccounts } = await supabase
+        .from("accounts")
+        .select("*", { count: "exact", head: true })
+        .eq("org_id", userProfile.org_id);
 
-      // Get contact data quality
-      const { data: contacts, error: contactsError } = await supabase
-        .from('Leads')
-        .select('email, title')
-        .eq('org_id', userProfile.org_id);
+      // Calculate coverage for each field
+      const { count: withTechStack } = await supabase
+        .from("accounts")
+        .select("*", { count: "exact", head: true })
+        .eq("org_id", userProfile.org_id)
+        .not("tech_stack", "is", null);
 
-      if (contactsError) throw contactsError;
+      const { count: withFunding } = await supabase
+        .from("accounts")
+        .select("*", { count: "exact", head: true })
+        .eq("org_id", userProfile.org_id)
+        .not("total_raised_usd", "is", null);
 
-      const totalAccounts = accounts?.length || 0;
-      const accountsWithEmployeeCount = accounts?.filter(a => a.employee_count).length || 0;
-      const accountsWithRevenue = accounts?.filter(a => a.revenue_range).length || 0;
-      const accountsWithIndustry = accounts?.filter(a => a.industry_raw).length || 0;
+      const { count: withIndustry } = await supabase
+        .from("accounts")
+        .select("*", { count: "exact", head: true })
+        .eq("org_id", userProfile.org_id)
+        .not("industry_raw", "is", null);
 
-      const totalContacts = contacts?.length || 0;
-      const contactsWithEmail = contacts?.filter(c => c.email).length || 0;
-      const contactsWithTitle = contacts?.filter(c => c.title).length || 0;
+      const { count: withEmployees } = await supabase
+        .from("accounts")
+        .select("*", { count: "exact", head: true })
+        .eq("org_id", userProfile.org_id)
+        .not("employee_count", "is", null);
 
-      const accountCompleteness = totalAccounts > 0
-        ? ((accountsWithEmployeeCount + accountsWithRevenue + accountsWithIndustry) / (totalAccounts * 3)) * 100
-        : 0;
+      const total = totalAccounts || 1;
+      const techStackCoverage = ((withTechStack || 0) / total) * 100;
+      const fundingCoverage = ((withFunding || 0) / total) * 100;
+      const industryCoverage = ((withIndustry || 0) / total) * 100;
+      const employeeCoverage = ((withEmployees || 0) / total) * 100;
+      const overallCompleteness = (techStackCoverage + fundingCoverage + industryCoverage + employeeCoverage) / 4;
 
-      const contactCompleteness = totalContacts > 0
-        ? ((contactsWithEmail + contactsWithTitle) / (totalContacts * 2)) * 100
-        : 0;
-
-      const overallCompleteness = (accountCompleteness + contactCompleteness) / 2;
-
-      setQuality({
-        totalAccounts,
-        accountsWithEmployeeCount,
-        accountsWithRevenue,
-        accountsWithIndustry,
-        totalContacts,
-        contactsWithEmail,
-        contactsWithTitle,
+      setDataQuality({
+        totalAccounts: total,
+        techStackCoverage,
+        fundingCoverage,
+        industryCoverage,
+        employeeCoverage,
         overallCompleteness,
-        accountCompleteness,
-        contactCompleteness
       });
     } catch (error) {
-      console.error('Error loading data quality:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load data quality metrics",
-        variant: "destructive"
-      });
+      console.error("Error loading data quality:", error);
+      toast.error("Failed to load data quality metrics");
     } finally {
       setLoading(false);
     }
   };
 
-  const checkActiveJob = async () => {
+  const loadPriorityAccounts = async () => {
     if (!userProfile?.org_id) return;
-    
+
     try {
-      const { data, error } = await supabase
-        .from('enrichment_jobs')
-        .select('id, status')
-        .eq('org_id', userProfile.org_id)
-        .in('status', ['pending', 'processing'])
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Get high-fit accounts with missing data
+      const { data: accounts, error } = await supabase
+        .from("accounts")
+        .select("id, name, domain, propensity_score, tech_stack, total_raised_usd, industry_raw, employee_count")
+        .eq("org_id", userProfile.org_id)
+        .gte("propensity_score", 70)
+        .not("domain", "is", null)
+        .order("propensity_score", { ascending: false })
+        .limit(50);
 
       if (error) throw error;
-      
-      if (data) {
-        setActiveJobId(data.id);
-        setEnriching(true);
-      }
+
+      // Calculate missing fields for each account
+      const priority = accounts?.map(account => {
+        const missing: string[] = [];
+        if (!account.tech_stack || account.tech_stack.length === 0) missing.push("tech_stack");
+        if (!account.total_raised_usd) missing.push("funding");
+        if (!account.industry_raw) missing.push("industry");
+        if (!account.employee_count) missing.push("employees");
+
+        return {
+          id: account.id,
+          name: account.name || "Unknown",
+          domain: account.domain || "",
+          propensity_score: account.propensity_score || 0,
+          missing_fields: missing,
+        };
+      }).filter(a => a.missing_fields.length > 0) || [];
+
+      setPriorityAccounts(priority.slice(0, 100));
     } catch (error) {
-      console.error('Error checking active job:', error);
+      console.error("Error loading priority accounts:", error);
     }
   };
 
-  const startSmartEnrich = async () => {
-    if (!userProfile?.org_id || !quality) return;
+  const startBatchEnrichment = async () => {
+    if (!userProfile?.org_id || priorityAccounts.length === 0) return;
 
-    setEnriching(true);
     try {
-      // Create enrichment job
-      const { data: job, error: jobError } = await supabase
-        .from('enrichment_jobs')
-        .insert({
-          org_id: userProfile.org_id,
-          created_by: userProfile.user_id,
-          job_type: 'smart_enrich',
-          provider: 'smart',
-          status: 'pending',
-          total_records: quality.totalAccounts + quality.totalContacts,
-          batch_size: 50
-        })
-        .select()
-        .single();
+      setEnriching(true);
+      toast.info(`Starting enrichment for ${priorityAccounts.length} high-priority accounts...`);
 
-      if (jobError) throw jobError;
-      
-      setActiveJobId(job.id);
+      let enriched = 0;
+      const batchSize = 10;
 
-      toast({
-        title: "Enrichment Started",
-        description: "Smart enrichment is now running. This may take a few minutes.",
-      });
+      for (let i = 0; i < priorityAccounts.length; i += batchSize) {
+        const batch = priorityAccounts.slice(i, i + batchSize);
 
-      // Call smart-enrich function
-      const { error: functionError } = await supabase.functions.invoke('smart-enrich', {
-        body: { 
-          jobId: job.id,
-          batchSize: 50
-        }
-      });
+        await Promise.all(
+          batch.map(async (account) => {
+            try {
+              // Enrich tech stack if missing
+              if (account.missing_fields.includes("tech_stack")) {
+                await supabase.functions.invoke("enrich-tech-stack", {
+                  body: {
+                    account_id: account.id,
+                    domain: account.domain,
+                    org_id: userProfile.org_id,
+                  },
+                });
+              }
 
-      if (functionError) {
-        throw functionError;
+              // Enrich funding data if missing
+              if (account.missing_fields.includes("funding")) {
+                await supabase.functions.invoke("enrich-funding-data", {
+                  body: {
+                    account_id: account.id,
+                    company_name: account.name,
+                    domain: account.domain,
+                    org_id: userProfile.org_id,
+                  },
+                });
+              }
+
+              enriched++;
+            } catch (error) {
+              console.error(`Failed to enrich account ${account.name}:`, error);
+            }
+          })
+        );
+
+        // Small delay between batches
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
 
-      // Reload data after completion
-      setTimeout(() => {
-        loadDataQuality();
-        setEnriching(false);
-        setActiveJobId(null);
-      }, 5000);
-
-    } catch (error: any) {
-      console.error('Error starting enrichment:', error);
+      toast.success(`Enriched ${enriched} accounts successfully!`);
+      loadDataQuality();
+      loadPriorityAccounts();
+    } catch (error) {
+      console.error("Error during batch enrichment:", error);
+      toast.error("Batch enrichment failed");
+    } finally {
       setEnriching(false);
-      toast({
-        title: "Enrichment Failed",
-        description: error.message || "Failed to start enrichment",
-        variant: "destructive"
-      });
     }
   };
 
   if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5" />
-            Smart Enrichment
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-muted rounded w-3/4" />
-            <div className="h-4 bg-muted rounded w-1/2" />
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return <div>Loading enrichment data...</div>;
   }
 
-  if (!quality) return null;
+  if (!dataQuality) {
+    return null;
+  }
 
-  const missingAccounts = quality.totalAccounts - Math.max(
-    quality.accountsWithEmployeeCount,
-    quality.accountsWithRevenue,
-    quality.accountsWithIndustry
-  );
-
-  const missingContacts = quality.totalContacts - Math.min(
-    quality.contactsWithEmail,
-    quality.contactsWithTitle
-  );
-
-  const costEstimate = calculateHybridCost(missingAccounts);
+  const costEstimate = calculateHybridCost(priorityAccounts.length);
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Smart Enrichment
-            </CardTitle>
-            <CardDescription>
-              AI-powered data enrichment with automatic provider selection
-            </CardDescription>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5" />
+                Smart Enrichment Priority Queue
+              </CardTitle>
+              <CardDescription>
+                AI-powered enrichment for high-value accounts with missing data
+              </CardDescription>
+            </div>
+            <Badge variant="secondary" className="text-lg">
+              {priorityAccounts.length} Accounts
+            </Badge>
           </div>
-          {quality.overallCompleteness >= 90 ? (
-            <Badge variant="default" className="gap-1">
-              <CheckCircle2 className="h-3 w-3" />
-              Excellent
-            </Badge>
-          ) : quality.overallCompleteness >= 70 ? (
-            <Badge variant="secondary" className="gap-1">
-              <TrendingUp className="h-3 w-3" />
-              Good
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="gap-1">
-              <AlertCircle className="h-3 w-3" />
-              Needs Attention
-            </Badge>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Data Quality Overview */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Tech Stack</span>
+                <span className="text-sm text-muted-foreground">
+                  {dataQuality.techStackCoverage.toFixed(0)}%
+                </span>
+              </div>
+              <Progress value={dataQuality.techStackCoverage} />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Funding</span>
+                <span className="text-sm text-muted-foreground">
+                  {dataQuality.fundingCoverage.toFixed(0)}%
+                </span>
+              </div>
+              <Progress value={dataQuality.fundingCoverage} />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Industry</span>
+                <span className="text-sm text-muted-foreground">
+                  {dataQuality.industryCoverage.toFixed(0)}%
+                </span>
+              </div>
+              <Progress value={dataQuality.industryCoverage} />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Employees</span>
+                <span className="text-sm text-muted-foreground">
+                  {dataQuality.employeeCoverage.toFixed(0)}%
+                </span>
+              </div>
+              <Progress value={dataQuality.employeeCoverage} />
+            </div>
+          </div>
+
+          {/* Cost Estimate */}
+          <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+            <div className="flex items-center gap-4">
+              <DollarSign className="h-8 w-8 text-primary" />
+              <div>
+                <p className="text-sm font-medium">Estimated Cost</p>
+                <p className="text-xs text-muted-foreground">
+                  For {priorityAccounts.length} high-priority accounts
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold">{formatCost(costEstimate.totalCost)}</p>
+              <p className="text-xs text-muted-foreground">
+                ~{costEstimate.estimatedCredits} credits
+              </p>
+            </div>
+          </div>
+
+          {/* Action Button */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5 text-green-600" />
+              <span className="text-sm text-muted-foreground">
+                Priority: High ICP Fit (70+) + Missing Data
+              </span>
+            </div>
+            <Button
+              onClick={startBatchEnrichment}
+              disabled={enriching || priorityAccounts.length === 0}
+              size="lg"
+            >
+              <Zap className="h-4 w-4 mr-2" />
+              {enriching ? "Enriching..." : `Enrich Top ${Math.min(priorityAccounts.length, 100)}`}
+            </Button>
+          </div>
+
+          {/* Top Priority Accounts Preview */}
+          {priorityAccounts.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Top Priority Accounts:</p>
+              <div className="space-y-1">
+                {priorityAccounts.slice(0, 5).map((account) => (
+                  <div
+                    key={account.id}
+                    className="flex items-center justify-between p-2 border rounded text-sm"
+                  >
+                    <div>
+                      <p className="font-medium">{account.name}</p>
+                      <p className="text-xs text-muted-foreground">{account.domain}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{account.propensity_score}</Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {account.missing_fields.length} fields
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Overall Progress */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="font-medium">Overall Data Completeness</span>
-            <span className="text-muted-foreground">{quality.overallCompleteness.toFixed(1)}%</span>
-          </div>
-          <Progress value={quality.overallCompleteness} className="h-2" />
-        </div>
-
-        {/* Account vs Contact Breakdown */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Database className="h-4 w-4 text-primary" />
-              Account Data
-            </div>
-            <Progress value={quality.accountCompleteness} className="h-1.5" />
-            <div className="text-xs text-muted-foreground space-y-1">
-              <div className="flex justify-between">
-                <span>Employee Count</span>
-                <span>{quality.accountsWithEmployeeCount}/{quality.totalAccounts}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Revenue</span>
-                <span>{quality.accountsWithRevenue}/{quality.totalAccounts}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Industry</span>
-                <span>{quality.accountsWithIndustry}/{quality.totalAccounts}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Users className="h-4 w-4 text-primary" />
-              Contact Data
-            </div>
-            <Progress value={quality.contactCompleteness} className="h-1.5" />
-            <div className="text-xs text-muted-foreground space-y-1">
-              <div className="flex justify-between">
-                <span>Email</span>
-                <span>{quality.contactsWithEmail}/{quality.totalContacts}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Title</span>
-                <span>{quality.contactsWithTitle}/{quality.totalContacts}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Cost Estimate */}
-        {missingAccounts > 0 && (
-          <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <DollarSign className="h-4 w-4" />
-                Estimated Cost
-              </div>
-              <span className="text-lg font-bold">{formatCost(costEstimate.totalCost)}</span>
-            </div>
-            <div className="text-xs text-muted-foreground space-y-1">
-              {costEstimate.breakdown.map((item, idx) => (
-                <div key={idx} className="flex justify-between">
-                  <span>{item.phase}</span>
-                  <span>{formatCost(item.cost)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Active Job Progress */}
-        {enriching && jobProgress && (
-          <div className="space-y-2 p-4 bg-primary/5 rounded-lg border border-primary/20">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Enrichment in progress...</span>
-              <Badge variant="secondary">
-                {jobProgress.processed_records || 0}/{jobProgress.total_records || 0}
-              </Badge>
-            </div>
-            <Progress value={jobProgress.progress_percentage || 0} className="h-2" />
-            <div className="text-xs text-muted-foreground">
-              Enriched: {jobProgress.enriched_records || 0} • Failed: {jobProgress.failed_records || 0}
-            </div>
-          </div>
-        )}
-
-        {/* Action Button */}
-        <Button
-          onClick={startSmartEnrich}
-          disabled={enriching || missingAccounts === 0}
-          className="w-full"
-          size="lg"
-        >
-          <Zap className="h-4 w-4 mr-2" />
-          {enriching ? "Enriching..." : "Start Smart Enrichment"}
-        </Button>
-
-        {missingAccounts === 0 && (
-          <p className="text-sm text-center text-muted-foreground">
-            All data is complete! No enrichment needed.
-          </p>
-        )}
-
-        {/* How it works */}
-        <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t">
-          <p className="font-medium">How Smart Enrichment Works:</p>
-          <ul className="space-y-1 list-disc list-inside">
-            <li>Automatically tries PDL first (most cost-effective)</li>
-            <li>Falls back to Clearbit for remaining gaps</li>
-            <li>Uses AI estimation for remaining accounts</li>
-            <li>Flags high-value accounts for deep research</li>
-          </ul>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
