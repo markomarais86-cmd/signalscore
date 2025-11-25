@@ -56,7 +56,7 @@ serve(async (req) => {
     const followUpDate = new Date(Date.now() - delayDays * 24 * 60 * 60 * 1000).toISOString();
     
     const { data: leads, error: leadsError } = await supabase
-      .from('leads')
+      .from('Leads')
       .select('id, external_id, name, email, status')
       .eq('org_id', org_id)
       .eq('status', 'contacted')
@@ -74,7 +74,7 @@ serve(async (req) => {
         try {
           // Mark for follow-up by updating status
           await supabase
-            .from('leads')
+            .from('Leads')
             .update({ 
               status: 'follow_up_needed',
               updated_at: new Date().toISOString()

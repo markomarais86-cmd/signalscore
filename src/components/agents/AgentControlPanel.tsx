@@ -105,6 +105,25 @@ export function AgentControlPanel() {
     return <div>Loading agents...</div>;
   }
 
+  if (!agents || agents.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>No AI Agents Found</CardTitle>
+          <CardDescription>
+            AI agents should be automatically created for your organization. If you're seeing this message,
+            there may have been an issue during setup.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Please contact support or check your database migrations to ensure agents are properly seeded.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

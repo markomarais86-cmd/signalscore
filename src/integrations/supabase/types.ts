@@ -3340,6 +3340,10 @@ export type Database = {
         Args: { p_account_external_id: string; p_org_id: string }
         Returns: number
       }
+      calculate_next_run: {
+        Args: { last_run: string; schedule: string }
+        Returns: string
+      }
       calculate_reachability_score: {
         Args: { p_account_external_id: string; p_org_id: string }
         Returns: number
@@ -3611,6 +3615,10 @@ export type Database = {
       refresh_all_materialized_views: { Args: never; Returns: undefined }
       refresh_reporting_views: { Args: never; Returns: undefined }
       resume_enrichment_job: { Args: { p_job_id: string }; Returns: Json }
+      seed_default_ai_agents: {
+        Args: { target_org_id: string }
+        Returns: undefined
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       update_enrichment_job_progress: {

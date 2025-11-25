@@ -1,10 +1,11 @@
-import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AgentControlPanel } from "@/components/agents/AgentControlPanel";
+import { AgentPerformanceMetrics } from "@/components/agents/AgentPerformanceMetrics";
 import { LeadQualificationQueue } from "@/components/agents/LeadQualificationQueue";
 import { FollowUpAutomation } from "@/components/agents/FollowUpAutomation";
 import { MeetingSchedulerPanel } from "@/components/agents/MeetingSchedulerPanel";
-import { Bot, Users, Mail, Calendar } from "lucide-react";
+import { DataQualityOverview } from "@/components/settings/DataQualityOverview";
+import { Bot, Users, Mail, Calendar, BarChart3, Database } from "lucide-react";
 
 export default function AIAgents() {
   return (
@@ -16,13 +17,19 @@ export default function AIAgents() {
         </p>
       </div>
 
-      <AgentControlPanel />
-
-      <Tabs defaultValue="qualification" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+      <Tabs defaultValue="overview" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="performance" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Performance
+          </TabsTrigger>
           <TabsTrigger value="qualification" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
-            Lead Qualification
+            Qualification
           </TabsTrigger>
           <TabsTrigger value="followup" className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
@@ -30,13 +37,21 @@ export default function AIAgents() {
           </TabsTrigger>
           <TabsTrigger value="meetings" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
-            Meeting Scheduler
+            Meetings
           </TabsTrigger>
-          <TabsTrigger value="enrichment" className="flex items-center gap-2">
-            <Bot className="h-4 w-4" />
-            Data Enrichment
+          <TabsTrigger value="quality" className="flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            Data Quality
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="overview">
+          <AgentControlPanel />
+        </TabsContent>
+
+        <TabsContent value="performance">
+          <AgentPerformanceMetrics />
+        </TabsContent>
 
         <TabsContent value="qualification">
           <LeadQualificationQueue />
@@ -50,10 +65,8 @@ export default function AIAgents() {
           <MeetingSchedulerPanel />
         </TabsContent>
 
-        <TabsContent value="enrichment">
-          <div className="text-center py-12 text-muted-foreground">
-            Data enrichment agent runs automatically in the background
-          </div>
+        <TabsContent value="quality">
+          <DataQualityOverview />
         </TabsContent>
       </Tabs>
     </div>
