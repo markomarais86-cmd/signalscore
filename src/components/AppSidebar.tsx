@@ -1,4 +1,4 @@
-import { Upload, Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign, FileText, Users, BarChart3 } from "lucide-react";
+import { Upload, Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign, FileText, Users, BarChart3, Bot } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
@@ -24,6 +24,7 @@ const mainNavigation = [
   { title: "ICP Manager", url: "/icp-manager", icon: Target },
   { title: "Accounts", url: "/accounts", icon: Database },
   { title: "Data Upload", url: "/data-upload", icon: Upload },
+  { title: "AI Agents", url: "/ai-agents", icon: Bot },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 

@@ -1,0 +1,203 @@
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Bot, Clock, CheckCircle, XCircle, Activity } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { toast } from "sonner";
+
+interface Agent {
+  id: string;
+  name: string;
+  agent_type: string;
+  status: string;
+  schedule: string;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  description: string | null;
+}
+
+interface AgentRun {
+  id: string;
+  agent_id: string;
+  status: string;
+  records_processed: number;
+  records_affected: number;
+  started_at: string;
+  completed_at: string | null;
+}
+
+export function AgentControlPanel() {
+  const { userProfile } = useAuth();
+  const queryClient = useQueryClient();
+
+  const { data: agents, isLoading } = useQuery({
+    queryKey: ["ai-agents", userProfile?.org_id],
+    queryFn: async () => {
+      if (!userProfile?.org_id) throw new Error("No organization found");
+
+      const { data, error } = await supabase
+        .from("ai_agents")
+        .select("*")
+        .eq("org_id", userProfile.org_id)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+      return data as Agent[];
+    },
+    enabled: !!userProfile?.org_id,
+  });
+
+  const { data: recentRuns } = useQuery({
+    queryKey: ["ai-agent-runs", userProfile?.org_id],
+    queryFn: async () => {
+      if (!userProfile?.org_id) throw new Error("No organization found");
+
+      const { data, error } = await supabase
+        .from("ai_agent_runs")
+        .select("*")
+        .order("started_at", { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      return data as AgentRun[];
+    },
+    enabled: !!userProfile?.org_id,
+  });
+
+  const toggleAgent = useMutation({
+    mutationFn: async ({ agentId, enabled }: { agentId: string; enabled: boolean }) => {
+      const { error } = await supabase
+        .from("ai_agents")
+        .update({ status: enabled ? "active" : "paused" })
+        .eq("id", agentId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai-agents"] });
+      toast.success("Agent status updated");
+    },
+    onError: (error) => {
+      toast.error(`Failed to update agent: ${error.message}`);
+    },
+  });
+
+  const getAgentIcon = (type: string) => {
+    const iconProps = { className: "h-5 w-5" };
+    switch (type) {
+      case "lead_qualification":
+        return <Bot {...iconProps} />;
+      case "follow_up":
+        return <Activity {...iconProps} />;
+      case "meeting_scheduler":
+        return <Clock {...iconProps} />;
+      case "data_enrichment":
+        return <CheckCircle {...iconProps} />;
+      default:
+        return <Bot {...iconProps} />;
+    }
+  };
+
+  if (isLoading) {
+    return <div>Loading agents...</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {agents?.map((agent) => {
+          const agentRuns = recentRuns?.filter((run) => run.agent_id === agent.id) || [];
+          const successRate =
+            agentRuns.length > 0
+              ? (agentRuns.filter((r) => r.status === "completed").length / agentRuns.length) * 100
+              : 0;
+
+          return (
+            <Card key={agent.id}>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="flex items-center gap-2">
+                  {getAgentIcon(agent.agent_type)}
+                  <CardTitle className="text-sm font-medium">{agent.name}</CardTitle>
+                </div>
+                <Switch
+                  checked={agent.status === "active"}
+                  onCheckedChange={(enabled) =>
+                    toggleAgent.mutate({ agentId: agent.id, enabled })
+                  }
+                />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">{agent.description}</p>
+                  <div className="flex items-center justify-between">
+                    <Badge variant={agent.status === "active" ? "default" : "secondary"}>
+                      {agent.status}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {successRate.toFixed(0)}% success
+                    </span>
+                  </div>
+                  {agent.last_run_at && (
+                    <p className="text-xs text-muted-foreground">
+                      Last run: {formatDistanceToNow(new Date(agent.last_run_at), { addSuffix: true })}
+                    </p>
+                  )}
+                  {agent.next_run_at && agent.status === "active" && (
+                    <p className="text-xs text-muted-foreground">
+                      Next run: {formatDistanceToNow(new Date(agent.next_run_at), { addSuffix: true })}
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Agent Activity</CardTitle>
+          <CardDescription>Last 10 agent runs across all agents</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {recentRuns?.map((run) => {
+              const agent = agents?.find((a) => a.id === run.agent_id);
+              return (
+                <div
+                  key={run.id}
+                  className="flex items-center justify-between border-b pb-2 last:border-0"
+                >
+                  <div className="flex items-center gap-3">
+                    {run.status === "completed" ? (
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    ) : run.status === "failed" ? (
+                      <XCircle className="h-4 w-4 text-red-500" />
+                    ) : (
+                      <Clock className="h-4 w-4 text-yellow-500" />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">{agent?.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(run.started_at), { addSuffix: true })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium">
+                      {run.records_affected}/{run.records_processed}
+                    </p>
+                    <p className="text-xs text-muted-foreground">records affected</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
