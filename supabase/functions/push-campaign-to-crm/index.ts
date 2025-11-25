@@ -12,6 +12,18 @@ interface SalesforceCredentials {
   instance_url: string;
 }
 
+interface Contact {
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  title?: string;
+  company?: string;
+  phone?: string;
+  mobile?: string;
+}
+
+const BATCH_SIZE = 25; // Salesforce Composite API limit
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -100,7 +112,6 @@ serve(async (req) => {
     let sfCampaignUrl = '';
 
     if (!sfCampaignId) {
-      // Create new campaign in Salesforce
       console.log('[push-campaign-to-crm] Creating new Salesforce campaign:', campaign_name);
       
       const campaignResponse = await fetch(`${credentials.instance_url}/services/data/v59.0/sobjects/Campaign`, {
@@ -135,43 +146,67 @@ serve(async (req) => {
     let membersUpdated = 0;
     const errors: any[] = [];
 
-    // Process contacts in batches
-    console.log('[push-campaign-to-crm] Processing contacts...');
+    // Process contacts in batches using Composite API
+    console.log('[push-campaign-to-crm] Processing contacts in batches...');
     
-    for (const contact of contacts) {
-      try {
-        // First, check if Lead exists in Salesforce
-        const leadQuery = `SELECT Id FROM Lead WHERE Email = '${contact.email.replace(/'/g, "\\'")}' LIMIT 1`;
-        const queryResponse = await fetch(
-          `${credentials.instance_url}/services/data/v59.0/query?q=${encodeURIComponent(leadQuery)}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${credentials.access_token}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
+    for (let i = 0; i < contacts.length; i += BATCH_SIZE) {
+      const batch = contacts.slice(i, i + BATCH_SIZE);
+      console.log(`[push-campaign-to-crm] Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(contacts.length / BATCH_SIZE)}`);
 
-        if (!queryResponse.ok) {
-          throw new Error(`Lead query failed: ${await queryResponse.text()}`);
-        }
+      // Build composite request for lead queries
+      const compositeRequest = {
+        allOrNone: false,
+        compositeRequest: batch.map((contact: Contact, idx: number) => ({
+          method: "GET",
+          url: `/services/data/v59.0/query?q=${encodeURIComponent(`SELECT Id FROM Lead WHERE Email = '${contact.email.replace(/'/g, "\\'")}' LIMIT 1`)}`,
+          referenceId: `lead_${idx}`
+        }))
+      };
 
-        const queryData = await queryResponse.json();
-        let leadId: string;
+      // Query for existing leads
+      const queryResponse = await fetch(`${credentials.instance_url}/services/data/v59.0/composite`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${credentials.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(compositeRequest)
+      });
 
-        if (queryData.totalSize > 0) {
+      if (!queryResponse.ok) {
+        throw new Error(`Batch query failed: ${await queryResponse.text()}`);
+      }
+
+      const queryResults = await queryResponse.json();
+      
+      // Prepare leads to create and campaign members to add
+      const leadsToCreate: any[] = [];
+      const leadIdsForCampaign: string[] = [];
+
+      batch.forEach((contact: Contact, idx: number) => {
+        const queryResult = queryResults.compositeResponse[idx];
+        
+        if (queryResult.httpStatusCode === 200 && queryResult.body.totalSize > 0) {
           // Lead exists
-          leadId = queryData.records[0].Id;
-          console.log(`[push-campaign-to-crm] Found existing lead: ${leadId}`);
+          leadIdsForCampaign.push(queryResult.body.records[0].Id);
         } else {
-          // Create new Lead
-          const leadResponse = await fetch(`${credentials.instance_url}/services/data/v59.0/sobjects/Lead`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${credentials.access_token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
+          // Need to create lead
+          leadsToCreate.push({
+            contact,
+            index: idx
+          });
+        }
+      });
+
+      // Batch create new leads
+      if (leadsToCreate.length > 0) {
+        const createLeadsRequest = {
+          allOrNone: false,
+          compositeRequest: leadsToCreate.map(({ contact, index }) => ({
+            method: "POST",
+            url: "/services/data/v59.0/sobjects/Lead",
+            referenceId: `create_lead_${index}`,
+            body: {
               FirstName: contact.first_name || '',
               LastName: contact.last_name || 'Unknown',
               Email: contact.email,
@@ -181,52 +216,82 @@ serve(async (req) => {
               MobilePhone: contact.mobile || '',
               LeadSource: 'ICP Signal Platform',
               Status: 'Open - Not Contacted'
-            })
-          });
+            }
+          }))
+        };
 
-          if (!leadResponse.ok) {
-            const errorText = await leadResponse.text();
-            throw new Error(`Lead creation failed: ${errorText}`);
-          }
-
-          const leadData = await leadResponse.json();
-          leadId = leadData.id;
-          console.log(`[push-campaign-to-crm] Created new lead: ${leadId}`);
-        }
-
-        // Add Lead to Campaign as CampaignMember
-        const memberResponse = await fetch(`${credentials.instance_url}/services/data/v59.0/sobjects/CampaignMember`, {
+        const createResponse = await fetch(`${credentials.instance_url}/services/data/v59.0/composite`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${credentials.access_token}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            CampaignId: sfCampaignId,
-            LeadId: leadId,
-            Status: 'Sent'
-          })
+          body: JSON.stringify(createLeadsRequest)
+        });
+
+        if (!createResponse.ok) {
+          throw new Error(`Batch lead creation failed: ${await createResponse.text()}`);
+        }
+
+        const createResults = await createResponse.json();
+        
+        createResults.compositeResponse.forEach((result: any, idx: number) => {
+          if (result.httpStatusCode === 201 && result.body.success) {
+            leadIdsForCampaign.push(result.body.id);
+            console.log(`[push-campaign-to-crm] Created new lead: ${result.body.id}`);
+          } else {
+            errors.push({
+              contact_email: leadsToCreate[idx].contact.email,
+              error: `Lead creation failed: ${JSON.stringify(result.body)}`
+            });
+          }
+        });
+      }
+
+      // Batch add campaign members
+      if (leadIdsForCampaign.length > 0) {
+        const addMembersRequest = {
+          allOrNone: false,
+          compositeRequest: leadIdsForCampaign.map((leadId, idx) => ({
+            method: "POST",
+            url: "/services/data/v59.0/sobjects/CampaignMember",
+            referenceId: `member_${idx}`,
+            body: {
+              CampaignId: sfCampaignId,
+              LeadId: leadId,
+              Status: 'Sent'
+            }
+          }))
+        };
+
+        const memberResponse = await fetch(`${credentials.instance_url}/services/data/v59.0/composite`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${credentials.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(addMembersRequest)
         });
 
         if (!memberResponse.ok) {
-          const errorText = await memberResponse.text();
-          // If error is because member already exists, count as updated
-          if (errorText.includes('DUPLICATE_VALUE') || errorText.includes('already exists')) {
-            membersUpdated++;
-            console.log(`[push-campaign-to-crm] Campaign member already exists: ${leadId}`);
-          } else {
-            throw new Error(`Campaign member creation failed: ${errorText}`);
-          }
-        } else {
-          membersAdded++;
-          console.log(`[push-campaign-to-crm] Added campaign member: ${leadId}`);
+          throw new Error(`Batch member addition failed: ${await memberResponse.text()}`);
         }
 
-      } catch (error: any) {
-        console.error(`[push-campaign-to-crm] Error processing contact ${contact.email}:`, error);
-        errors.push({
-          contact_email: contact.email,
-          error: error.message
+        const memberResults = await memberResponse.json();
+        
+        memberResults.compositeResponse.forEach((result: any, idx: number) => {
+          if (result.httpStatusCode === 201 && result.body.success) {
+            membersAdded++;
+            console.log(`[push-campaign-to-crm] Added campaign member: ${leadIdsForCampaign[idx]}`);
+          } else if (result.body.errorCode === 'DUPLICATE_VALUE') {
+            membersUpdated++;
+            console.log(`[push-campaign-to-crm] Campaign member already exists: ${leadIdsForCampaign[idx]}`);
+          } else {
+            errors.push({
+              lead_id: leadIdsForCampaign[idx],
+              error: `Member addition failed: ${JSON.stringify(result.body)}`
+            });
+          }
         });
       }
     }
@@ -272,7 +337,7 @@ serve(async (req) => {
         .eq('id', syncLogId);
     }
 
-    console.log(`[push-campaign-to-crm] Successfully pushed ${membersAdded} contacts to Salesforce`);
+    console.log(`[push-campaign-to-crm] Successfully pushed ${membersAdded} contacts to Salesforce (batch processing)`);
 
     return new Response(
       JSON.stringify({
@@ -291,6 +356,10 @@ serve(async (req) => {
     
     // Update sync log with failure
     if (syncLogId) {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      
       await supabase
         .from('integration_sync_logs')
         .update({
