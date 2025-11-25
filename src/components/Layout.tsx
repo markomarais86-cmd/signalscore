@@ -4,6 +4,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { HelpPanel } from "@/components/help/HelpPanel";
+import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 
 interface LayoutProps {
   children: ReactNode;
@@ -23,6 +24,7 @@ export function Layout({ children }: LayoutProps) {
                 <SidebarTrigger />
               </div>
               <div className="flex items-center gap-2">
+                <NotificationCenter />
                 <HelpPanel currentPath={location.pathname} />
                 <ThemeToggle />
               </div>

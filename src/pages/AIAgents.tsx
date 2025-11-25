@@ -1,11 +1,13 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AgentControlPanel } from "@/components/agents/AgentControlPanel";
 import { AgentPerformanceMetrics } from "@/components/agents/AgentPerformanceMetrics";
+import { AgentRunHistory } from "@/components/agents/AgentRunHistory";
 import { LeadQualificationQueue } from "@/components/agents/LeadQualificationQueue";
 import { FollowUpAutomation } from "@/components/agents/FollowUpAutomation";
 import { MeetingSchedulerPanel } from "@/components/agents/MeetingSchedulerPanel";
 import { DataQualityOverview } from "@/components/settings/DataQualityOverview";
-import { Bot, Users, Mail, Calendar, BarChart3, Database } from "lucide-react";
+import { SmartEnrichmentPanel } from "@/components/settings/SmartEnrichmentPanel";
+import { Bot, Users, Mail, Calendar, BarChart3, Database, History, Sparkles } from "lucide-react";
 
 export default function AIAgents() {
   return (
@@ -18,7 +20,7 @@ export default function AIAgents() {
       </div>
 
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Bot className="h-4 w-4" />
             Overview
@@ -26,6 +28,10 @@ export default function AIAgents() {
           <TabsTrigger value="performance" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
             Performance
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex items-center gap-2">
+            <History className="h-4 w-4" />
+            Run History
           </TabsTrigger>
           <TabsTrigger value="qualification" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
@@ -38,6 +44,10 @@ export default function AIAgents() {
           <TabsTrigger value="meetings" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             Meetings
+          </TabsTrigger>
+          <TabsTrigger value="enrichment" className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4" />
+            Enrichment
           </TabsTrigger>
           <TabsTrigger value="quality" className="flex items-center gap-2">
             <Database className="h-4 w-4" />
@@ -53,6 +63,10 @@ export default function AIAgents() {
           <AgentPerformanceMetrics />
         </TabsContent>
 
+        <TabsContent value="history">
+          <AgentRunHistory />
+        </TabsContent>
+
         <TabsContent value="qualification">
           <LeadQualificationQueue />
         </TabsContent>
@@ -63,6 +77,10 @@ export default function AIAgents() {
 
         <TabsContent value="meetings">
           <MeetingSchedulerPanel />
+        </TabsContent>
+
+        <TabsContent value="enrichment">
+          <SmartEnrichmentPanel />
         </TabsContent>
 
         <TabsContent value="quality">

@@ -140,3 +140,12 @@ verify_jwt = true
 
 [functions.estimate-campaign-roi]
 verify_jwt = true
+
+[functions.run-agent]
+verify_jwt = true
+
+[functions.enrich-tech-stack]
+verify_jwt = true
+
+[functions.enrich-funding-data]
+verify_jwt = true
