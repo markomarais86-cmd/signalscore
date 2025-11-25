@@ -149,3 +149,6 @@ verify_jwt = true
 
 [functions.enrich-funding-data]
 verify_jwt = true
+
+[functions.scheduled-agent-runner]
+verify_jwt = false
