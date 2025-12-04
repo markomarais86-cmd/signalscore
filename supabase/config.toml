@@ -172,7 +172,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.upload-master-data]
-verify_jwt = true
+verify_jwt = false
 
 [functions.enrich-from-master]
 verify_jwt = true
