@@ -6,25 +6,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface EnrichmentRequest {
-  org_id: string;
-  source_type: 'crm' | 'csv' | 'google_sheet' | 'database' | 'manual';
-  source_reference?: string;
-  record_type: 'account' | 'lead';
-  record_ids: string[];
-  config_icp_id?: string;
-  concurrency?: number;
-  agent_config?: {
-    search: boolean;
-    validation: boolean;
-    icp: boolean;
-  };
-}
-
 const CONCURRENCY_LIMIT = 4;
 const MAX_RETRIES = 3;
-const CHUNK_SIZE = 25; // Process 25 records per chunk to avoid timeout
-const MAX_PROCESSING_TIME_MS = 300000; // 5 minutes safety margin (before 400s timeout)
+const CHUNK_SIZE = 25;
+const MAX_PROCESSING_TIME_MS = 300000; // 5 minutes
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -39,134 +24,73 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const request: EnrichmentRequest = await req.json();
+    const { job_id } = await req.json();
     
-    // Validate required fields
-    if (!request.org_id) {
-      throw new Error('Missing required field: org_id');
-    }
-    if (!request.record_type) {
-      throw new Error('Missing required field: record_type');
-    }
-    if (!request.record_ids || !Array.isArray(request.record_ids) || request.record_ids.length === 0) {
-      throw new Error('Missing or empty required field: record_ids');
-    }
-    if (!request.source_type) {
-      throw new Error('Missing required field: source_type');
+    if (!job_id) {
+      throw new Error('Missing required field: job_id');
     }
 
-    const { 
-      org_id, 
-      source_type, 
-      source_reference,
-      record_type, 
-      record_ids, 
-      config_icp_id,
-      concurrency = 2,
-      agent_config = { search: true, validation: true, icp: true }
-    } = request;
+    console.log(`[Resume] Resuming enrichment job ${job_id}`);
 
-    console.log(`[Orchestrator] Starting enrichment job for ${record_ids.length} ${record_type}s with chunked processing`);
-
-    // Create enrichment job
+    // Fetch job details
     const { data: job, error: jobError } = await supabase
       .from('enrichment_jobs')
-      .insert({
-        org_id,
-        job_type: record_type === 'account' ? 'accounts' : 'contacts',
-        provider: 'unified',
-        source_type,
-        source_reference,
-        config_icp_id,
-        concurrency: Math.min(concurrency, CONCURRENCY_LIMIT),
-        agent_config,
-        total_records: record_ids.length,
-        rows_pending: record_ids.length,
-        rows_completed: 0,
-        rows_failed: 0,
-        status: 'pending',
-        can_pause: true
-      })
-      .select()
+      .select('*')
+      .eq('id', job_id)
       .single();
 
-    if (jobError) {
-      console.error('[Orchestrator] Failed to create job:', jobError);
-      throw new Error(`Failed to create enrichment job: ${jobError.message}`);
+    if (jobError || !job) {
+      throw new Error(`Job not found: ${job_id}`);
     }
 
-    console.log(`[Orchestrator] Created job ${job.id}`);
-
-    // Fetch records based on type
-    let records: any[] = [];
-    if (record_type === 'account') {
-      const { data, error } = await supabase
-        .from('accounts')
-        .select('*')
-        .eq('org_id', org_id)
-        .in('external_id', record_ids);
-      
-      if (error) throw error;
-      records = data || [];
-    } else {
-      const { data, error } = await supabase
-        .from('Leads')
-        .select('*')
-        .eq('org_id', org_id)
-        .in('id', record_ids.map(id => parseInt(id)));
-      
-      if (error) throw error;
-      records = data || [];
-    }
-
-    console.log(`[Orchestrator] Found ${records.length} records to enrich`);
-
-    // Create enrichment_rows for each record
-    const enrichmentRows = records.map(record => ({
-      job_id: job.id,
-      org_id,
-      record_type,
-      record_id: record_type === 'account' ? record.external_id : record.id.toString(),
-      external_id: record_type === 'account' ? record.external_id : record.external_id,
-      source_type,
-      status: 'pending',
-      raw_input: record,
-      search_payload: buildSearchPayload(record, record_type)
-    }));
-
-    const { error: rowsError } = await supabase
-      .from('enrichment_rows')
-      .insert(enrichmentRows);
-
-    if (rowsError) {
-      console.error('[Orchestrator] Failed to create enrichment rows:', rowsError);
-      throw new Error(`Failed to create enrichment rows: ${rowsError.message}`);
+    if (job.status === 'completed') {
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Job already completed',
+        job_id,
+        status: 'completed'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     // Update job status to processing
     await supabase
       .from('enrichment_jobs')
-      .update({ status: 'processing', started_at: new Date().toISOString() })
-      .eq('id', job.id);
+      .update({ 
+        status: 'processing', 
+        paused_at: null,
+        last_progress_update: new Date().toISOString()
+      })
+      .eq('id', job_id);
 
-    // Process rows with chunked approach and time limit
-    const effectiveConcurrency = Math.min(concurrency, CONCURRENCY_LIMIT);
+    // Reset any "processing" rows back to pending (they were interrupted)
+    await supabase
+      .from('enrichment_rows')
+      .update({ status: 'pending', current_agent: null })
+      .eq('job_id', job_id)
+      .eq('status', 'processing');
+
+    const agentConfig = job.agent_config || { search: true, validation: true, icp: true };
+    const concurrency = Math.min(job.concurrency || 2, CONCURRENCY_LIMIT);
+
+    // Process remaining rows
     const { processed, completed, failed, timedOut } = await processRowsWithTimeLimit(
-      supabase, 
-      job.id, 
-      org_id, 
-      effectiveConcurrency,
-      agent_config,
-      config_icp_id,
+      supabase,
+      job_id,
+      job.org_id,
+      concurrency,
+      agentConfig,
+      job.config_icp_id,
       startTime,
       MAX_PROCESSING_TIME_MS
     );
 
-    // Update job status based on whether we completed or timed out
+    // Update final job status
     const { data: finalCounts } = await supabase
       .from('enrichment_rows')
       .select('status')
-      .eq('job_id', job.id);
+      .eq('job_id', job_id);
 
     const completedCount = finalCounts?.filter(r => r.status === 'completed').length || 0;
     const failedCount = finalCounts?.filter(r => r.status === 'failed').length || 0;
@@ -185,14 +109,14 @@ serve(async (req) => {
         rows_pending: pendingCount,
         enriched_records: completedCount
       })
-      .eq('id', job.id);
+      .eq('id', job_id);
 
-    console.log(`[Orchestrator] Job ${job.id} ${finalStatus}: ${completedCount} success, ${failedCount} failed, ${pendingCount} pending`);
+    console.log(`[Resume] Job ${job_id} ${finalStatus}: ${completedCount} success, ${failedCount} failed, ${pendingCount} pending`);
 
     return new Response(JSON.stringify({
       success: true,
-      job_id: job.id,
-      total_records: record_ids.length,
+      job_id,
+      processed_this_run: processed,
       completed: completedCount,
       failed: failedCount,
       pending: pendingCount,
@@ -203,7 +127,7 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[Orchestrator] Error:', error);
+    console.error('[Resume] Error:', error);
     return new Response(JSON.stringify({ 
       error: error instanceof Error ? error.message : 'Unknown error' 
     }), {
@@ -212,30 +136,6 @@ serve(async (req) => {
     });
   }
 });
-
-function buildSearchPayload(record: any, recordType: string): any {
-  if (recordType === 'account') {
-    return {
-      company: record.name,
-      domain: record.domain,
-      industry: record.industry_norm || record.industry_raw,
-      country: record.country,
-      employee_count: record.employee_count,
-      revenue_range: record.revenue_range
-    };
-  } else {
-    return {
-      first_name: record.first_name,
-      last_name: record.last_name,
-      name: record.name,
-      email: record.email,
-      title: record.title,
-      company: record.company,
-      domain: record.domain,
-      phone: record.phone
-    };
-  }
-}
 
 async function processRowsWithTimeLimit(
   supabase: any,
@@ -252,16 +152,13 @@ async function processRowsWithTimeLimit(
   let failed = 0;
   let timedOut = false;
   
-  // Get pending rows in chunks
   while (true) {
-    // Check time limit
     if (Date.now() - startTime > maxTimeMs) {
-      console.log(`[Orchestrator] Time limit reached (${maxTimeMs}ms), pausing job`);
+      console.log(`[Resume] Time limit reached (${maxTimeMs}ms), pausing job`);
       timedOut = true;
       break;
     }
 
-    // Fetch next chunk of pending rows
     const { data: pendingRows, error } = await supabase
       .from('enrichment_rows')
       .select('*')
@@ -271,17 +168,14 @@ async function processRowsWithTimeLimit(
       .limit(CHUNK_SIZE);
 
     if (error || !pendingRows || pendingRows.length === 0) {
-      if (error) console.error('[Orchestrator] Failed to fetch pending rows:', error);
+      if (error) console.error('[Resume] Failed to fetch pending rows:', error);
       break;
     }
 
-    console.log(`[Orchestrator] Processing chunk of ${pendingRows.length} rows`);
+    console.log(`[Resume] Processing chunk of ${pendingRows.length} rows`);
 
-    // Process chunk with concurrency
     for (let i = 0; i < pendingRows.length; i += concurrency) {
-      // Check time limit before each batch
       if (Date.now() - startTime > maxTimeMs) {
-        console.log(`[Orchestrator] Time limit reached during batch processing`);
         timedOut = true;
         break;
       }
@@ -303,11 +197,9 @@ async function processRowsWithTimeLimit(
         }
       }
 
-      // Update job progress
       await supabase
         .from('enrichment_jobs')
         .update({
-          processed_records: processed,
           rows_completed: completed,
           rows_failed: failed,
           last_progress_update: new Date().toISOString()
@@ -328,7 +220,6 @@ async function processRow(
   icpConfigId?: string
 ): Promise<boolean> {
   try {
-    // Mark as processing
     await supabase
       .from('enrichment_rows')
       .update({ status: 'processing', current_agent: 'search' })
@@ -342,9 +233,9 @@ async function processRow(
     let icpPass = null;
     let icpFailReasons: string[] = [];
 
-    // Step 1: Search & Enrichment Agent
-    if (agentConfig.search) {
-      const searchResult = await callAgent(supabase, 'agent-search-enrichment', {
+    // Step 1: Search Agent
+    if (agentConfig.search && !row.search_agent_completed_at) {
+      const searchResult = await callAgent('agent-search-enrichment', {
         search_payload: row.search_payload,
         record_type: row.record_type,
         org_id: row.org_id
@@ -362,11 +253,13 @@ async function processRow(
           })
           .eq('id', row.id);
       }
+    } else if (row.enriched_raw) {
+      enrichedData = { ...enrichedData, ...row.enriched_raw };
     }
 
-    // Step 2: Validation & Scoring Agent
-    if (agentConfig.validation) {
-      const validationResult = await callAgent(supabase, 'agent-validation-scoring', {
+    // Step 2: Validation Agent
+    if (agentConfig.validation && !row.validation_agent_completed_at) {
+      const validationResult = await callAgent('agent-validation-scoring', {
         raw_input: row.raw_input,
         enriched_data: enrichedData,
         record_type: row.record_type
@@ -396,11 +289,16 @@ async function processRow(
           })
           .eq('id', row.id);
       }
+    } else if (row.validated_data) {
+      enrichedData = row.validated_data;
+      fieldScores = row.field_scores || {};
+      overallScore = row.overall_score || 0;
+      confidence = row.confidence || 'low';
     }
 
-    // Step 3: ICP & Persona Agent
-    if (agentConfig.icp && icpConfigId) {
-      const icpResult = await callAgent(supabase, 'agent-icp-persona', {
+    // Step 3: ICP Agent
+    if (agentConfig.icp && icpConfigId && !row.icp_agent_completed_at) {
+      const icpResult = await callAgent('agent-icp-persona', {
         validated_data: enrichedData,
         icp_config_id: icpConfigId,
         org_id: row.org_id
@@ -419,12 +317,14 @@ async function processRow(
           })
           .eq('id', row.id);
       }
+    } else {
+      icpPass = row.icp_pass;
+      icpFailReasons = row.icp_fail_reasons || [];
     }
 
-    // Update source record with enriched data
+    // Update source record
     await updateSourceRecord(supabase, row, enrichedData, fieldScores, overallScore, icpPass, icpFailReasons);
 
-    // Mark row as completed
     await supabase
       .from('enrichment_rows')
       .update({ 
@@ -437,7 +337,7 @@ async function processRow(
     return true;
 
   } catch (error) {
-    console.error(`[Orchestrator] Row ${row.id} failed:`, error);
+    console.error(`[Resume] Row ${row.id} failed:`, error);
     
     const retryCount = (row.retry_count || 0) + 1;
     const status = retryCount >= MAX_RETRIES ? 'failed' : 'pending';
@@ -456,7 +356,7 @@ async function processRow(
   }
 }
 
-async function callAgent(supabase: any, agentName: string, payload: any): Promise<any> {
+async function callAgent(agentName: string, payload: any): Promise<any> {
   try {
     const response = await fetch(
       `${Deno.env.get('SUPABASE_URL')}/functions/v1/${agentName}`,
@@ -477,7 +377,7 @@ async function callAgent(supabase: any, agentName: string, payload: any): Promis
 
     return await response.json();
   } catch (error) {
-    console.error(`[Orchestrator] Agent ${agentName} call failed:`, error);
+    console.error(`[Resume] Agent ${agentName} call failed:`, error);
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 }

@@ -7,8 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { 
-  Loader2, Users, PlayCircle, CheckCircle, AlertCircle, 
-  RefreshCw, Bot, Target, Sparkles, Search, ShieldCheck
+  Loader2, PlayCircle, CheckCircle, AlertCircle, 
+  RefreshCw, Bot, Target, Sparkles, Search, ShieldCheck, Play, Pause
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -43,6 +43,7 @@ interface EnrichmentJob {
   rows_completed: number;
   rows_failed: number;
   rows_pending: number;
+  paused_at: string | null;
 }
 
 export function LeadEnrichmentPanel() {
@@ -50,7 +51,9 @@ export function LeadEnrichmentPanel() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [enriching, setEnriching] = useState(false);
+  const [resuming, setResuming] = useState(false);
   const [activeJob, setActiveJob] = useState<EnrichmentJob | null>(null);
+  const [pausedJob, setPausedJob] = useState<EnrichmentJob | null>(null);
   const [enrichmentRows, setEnrichmentRows] = useState<EnrichmentRow[]>([]);
   const [batchSize, setBatchSize] = useState<string>("5");
   const [orgId, setOrgId] = useState<string | null>(null);
@@ -62,7 +65,6 @@ export function LeadEnrichmentPanel() {
   useEffect(() => {
     if (!orgId) return;
 
-    // Subscribe to enrichment_rows updates
     const channel = supabase
       .channel('enrichment-rows-updates')
       .on('postgres_changes', {
@@ -79,7 +81,7 @@ export function LeadEnrichmentPanel() {
         table: 'enrichment_jobs',
         filter: `org_id=eq.${orgId}`
       }, () => {
-        loadActiveJob();
+        loadJobs();
       })
       .subscribe();
 
@@ -102,7 +104,6 @@ export function LeadEnrichmentPanel() {
       if (!profile?.org_id) return;
       setOrgId(profile.org_id);
 
-      // Get sample leads that haven't been enriched
       const { data: leadData } = await supabase
         .from('Leads')
         .select('id, name, email, title, company, account_external_id, enrichment_overall_score')
@@ -115,7 +116,7 @@ export function LeadEnrichmentPanel() {
         setLeads(leadData as unknown as Lead[]);
       }
 
-      await loadActiveJob();
+      await loadJobs();
       await loadEnrichmentRows();
     } catch (error: any) {
       console.error('Error loading leads:', error);
@@ -124,22 +125,36 @@ export function LeadEnrichmentPanel() {
     }
   };
 
-  const loadActiveJob = async () => {
+  const loadJobs = async () => {
     if (!orgId) return;
     try {
-      const { data: job } = await supabase
+      // Load active job
+      const { data: activeJobData } = await supabase
         .from('enrichment_jobs')
-        .select('id, status, total_records, rows_completed, rows_failed, rows_pending')
+        .select('id, status, total_records, rows_completed, rows_failed, rows_pending, paused_at')
         .eq('org_id', orgId)
-        .eq('source_type', 'lead')
-        .in('status', ['pending', 'processing'])
+        .eq('job_type', 'contacts')
+        .eq('status', 'processing')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
-      setActiveJob(job);
+      setActiveJob(activeJobData);
+
+      // Load paused job
+      const { data: pausedJobData } = await supabase
+        .from('enrichment_jobs')
+        .select('id, status, total_records, rows_completed, rows_failed, rows_pending, paused_at')
+        .eq('org_id', orgId)
+        .eq('job_type', 'contacts')
+        .eq('status', 'paused')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setPausedJob(pausedJobData);
     } catch (error) {
-      console.error('Error loading active job:', error);
+      console.error('Error loading jobs:', error);
     }
   };
 
@@ -162,14 +177,12 @@ export function LeadEnrichmentPanel() {
     }
   };
 
-  // Calculate concurrency based on batch size
   const getConcurrency = (size: number) => {
     if (size >= 100) return 4;
     if (size >= 50) return 3;
     return 2;
   };
 
-  // Estimate processing time
   const getEstimatedTime = (size: number) => {
     const concurrency = getConcurrency(size);
     const secondsPerLead = 3.5 / (concurrency / 2);
@@ -193,7 +206,6 @@ export function LeadEnrichmentPanel() {
 
       if (!profile?.org_id) throw new Error('No organization found');
 
-      // Fetch lead IDs to enrich based on batch size
       const { data: leadsToEnrich, error: leadsError } = await supabase
         .from('Leads')
         .select('id')
@@ -209,7 +221,6 @@ export function LeadEnrichmentPanel() {
 
       const recordIds = leadsToEnrich.map(lead => lead.id.toString());
 
-      // Get ICP profile to use for evaluation
       const { data: icpProfile } = await supabase
         .from('icp_profiles')
         .select('id')
@@ -218,10 +229,8 @@ export function LeadEnrichmentPanel() {
         .limit(1)
         .maybeSingle();
 
-      // Calculate concurrency based on batch size
       const concurrency = getConcurrency(parseInt(batchSize));
 
-      // Call the enrichment orchestrator with correct payload
       const { data, error } = await supabase.functions.invoke('enrichment-orchestrator', {
         body: { 
           org_id: profile.org_id,
@@ -242,11 +251,10 @@ export function LeadEnrichmentPanel() {
 
       toast({
         title: "Multi-Agent Enrichment Started",
-        description: `Processing ${recordIds.length} leads through Search → Validation → ICP pipeline`,
+        description: `Processing ${recordIds.length} leads with chunked processing`,
       });
 
-      // Refresh data
-      await loadActiveJob();
+      await loadJobs();
       await loadEnrichmentRows();
     } catch (error: any) {
       console.error('Error starting enrichment:', error);
@@ -260,12 +268,43 @@ export function LeadEnrichmentPanel() {
     }
   };
 
+  const resumeJob = async () => {
+    if (!pausedJob) return;
+    
+    setResuming(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('resume-enrichment-job', {
+        body: { job_id: pausedJob.id }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Job Resumed",
+        description: `Continuing enrichment of ${pausedJob.rows_pending} pending leads`,
+      });
+
+      await loadJobs();
+      await loadEnrichmentRows();
+    } catch (error: any) {
+      console.error('Error resuming job:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to resume job",
+        variant: "destructive"
+      });
+    } finally {
+      setResuming(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode }> = {
       pending: { variant: "secondary", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
       processing: { variant: "default", icon: <Loader2 className="h-3 w-3 animate-spin" /> },
       completed: { variant: "outline", icon: <CheckCircle className="h-3 w-3 text-green-500" /> },
-      failed: { variant: "destructive", icon: <AlertCircle className="h-3 w-3" /> }
+      failed: { variant: "destructive", icon: <AlertCircle className="h-3 w-3" /> },
+      paused: { variant: "secondary", icon: <Pause className="h-3 w-3" /> }
     };
     const config = variants[status] || variants.pending;
     return (
@@ -299,9 +338,9 @@ export function LeadEnrichmentPanel() {
     );
   };
 
-  const getProgress = () => {
-    if (!activeJob || !activeJob.total_records) return 0;
-    return Math.round(((activeJob.rows_completed + activeJob.rows_failed) / activeJob.total_records) * 100);
+  const getProgress = (job: EnrichmentJob) => {
+    if (!job || !job.total_records) return 0;
+    return Math.round(((job.rows_completed + job.rows_failed) / job.total_records) * 100);
   };
 
   if (loading) {
@@ -316,6 +355,51 @@ export function LeadEnrichmentPanel() {
 
   return (
     <div className="space-y-6">
+      {/* Paused Job Recovery Card */}
+      {pausedJob && (
+        <Card className="border-amber-500/50 bg-amber-500/5">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Pause className="h-5 w-5 text-amber-500" />
+                <CardTitle className="text-base">Paused Job - Resume Required</CardTitle>
+              </div>
+              <Badge variant="secondary" className="gap-1">
+                <Pause className="h-3 w-3" />
+                Paused
+              </Badge>
+            </div>
+            <CardDescription>
+              Job timed out with {pausedJob.rows_pending} leads remaining. Click resume to continue.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm">
+                  <span className="text-green-600 font-medium">✓ {pausedJob.rows_completed}</span> completed • 
+                  <span className="text-red-600 font-medium ml-1">✗ {pausedJob.rows_failed}</span> failed • 
+                  <span className="text-amber-600 font-medium ml-1">⏳ {pausedJob.rows_pending}</span> pending
+                </p>
+                <Progress value={getProgress(pausedJob)} className="h-2 w-64" />
+              </div>
+              <Button
+                onClick={resumeJob}
+                disabled={resuming}
+                className="gap-2"
+              >
+                {resuming ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+                Resume Job
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header Card */}
       <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-transparent">
         <CardHeader>
@@ -324,11 +408,11 @@ export function LeadEnrichmentPanel() {
             <CardTitle>Multi-Agent Lead Enrichment</CardTitle>
           </div>
           <CardDescription>
-            AI-powered pipeline: Search → Validation → ICP Qualification
+            AI-powered pipeline with chunked processing: Search → Validation → ICP Qualification
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {activeJob && activeJob.status !== 'completed' ? (
+          {activeJob ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -336,13 +420,13 @@ export function LeadEnrichmentPanel() {
                   <span className="font-medium">Processing...</span>
                 </div>
                 <div className="text-right">
-                  <p className="text-2xl font-bold">{getProgress()}%</p>
+                  <p className="text-2xl font-bold">{getProgress(activeJob)}%</p>
                   <p className="text-sm text-muted-foreground">
                     {activeJob.rows_completed}/{activeJob.total_records} complete
                   </p>
                 </div>
               </div>
-              <Progress value={getProgress()} className="h-2" />
+              <Progress value={getProgress(activeJob)} className="h-2" />
               <div className="flex gap-4 text-sm">
                 <span className="text-green-600">✓ {activeJob.rows_completed} success</span>
                 <span className="text-red-600">✗ {activeJob.rows_failed} failed</span>
@@ -370,7 +454,7 @@ export function LeadEnrichmentPanel() {
                 </div>
                 <Button
                   onClick={startEnrichment}
-                  disabled={enriching || leads.length === 0}
+                  disabled={enriching || leads.length === 0 || !!pausedJob}
                   className="gap-2"
                 >
                   {enriching ? (
@@ -388,6 +472,11 @@ export function LeadEnrichmentPanel() {
                 <span>•</span>
                 <span>💰 ~${(parseInt(batchSize) * 0.03).toFixed(2)} estimated cost</span>
               </div>
+              {pausedJob && (
+                <p className="text-sm text-amber-600">
+                  ⚠️ Resume the paused job above before starting a new one
+                </p>
+              )}
             </div>
           )}
         </CardContent>
