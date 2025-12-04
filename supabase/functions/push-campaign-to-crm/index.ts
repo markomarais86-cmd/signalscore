@@ -62,7 +62,7 @@ serve(async (req) => {
         org_id,
         provider_name: 'salesforce',
         sync_type: 'campaign_push',
-        status: 'in_progress',
+        status: 'started',
         started_at: new Date().toISOString(),
         metadata: { campaign_name, contact_count: contacts.length }
       })

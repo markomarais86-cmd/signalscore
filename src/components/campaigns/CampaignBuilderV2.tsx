@@ -258,67 +258,52 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       
       let data, error;
       
-      // Try RPC first
-      try {
-        const rpcParams: any = { 
-          p_org_id: userProfile.org_id, 
-          p_fit_min: filterCriteria.fitScoreMin,
-          p_fit_max: filterCriteria.fitScoreMax,
-          p_limit: 1000,
-          p_data_source: dataSource,
-          p_icp_id: useICP ? icpId : null
-        };
-        
-        if (!useICP) {
-          if (filterCriteria.employeeMin) rpcParams.p_employee_min = filterCriteria.employeeMin;
-          if (filterCriteria.employeeMax) rpcParams.p_employee_max = filterCriteria.employeeMax;
-          if (filterCriteria.revenueMin) rpcParams.p_revenue_min = filterCriteria.revenueMin;
-          if (filterCriteria.revenueMax) rpcParams.p_revenue_max = filterCriteria.revenueMax;
-        }
-        
-        const result = await supabase.rpc('get_filtered_accounts', rpcParams);
-        data = result.data;
-        error = result.error;
-      } catch (rpcError) {
-        console.error('[Campaign Builder] RPC failed, falling back to direct query:', rpcError);
-        
-        // Fallback: Direct table query with pagination instead of arbitrary limit
-        let query = supabase
-          .from('accounts')
-          .select('*', { count: 'exact' })
-          .eq('org_id', userProfile.org_id)
-          .eq('data_source', dataSource)
-          .range(0, 4999); // First 5000 for initial load, implement pagination if needed
-        
-        if (!useICP && filterCriteria.employeeMin) {
-          query = query.gte('employee_count', filterCriteria.employeeMin);
-        }
-        if (!useICP && filterCriteria.employeeMax) {
-          query = query.lte('employee_count', filterCriteria.employeeMax);
-        }
-        
-        const result = await query;
-        data = result.data;
-        error = result.error;
+      // Fallback: Direct table query - simpler and more reliable
+      let query = supabase
+        .from('accounts')
+        .select('*', { count: 'exact' })
+        .eq('org_id', userProfile.org_id)
+        .limit(1000);
+      
+      // Apply data source filter if not 'all'
+      if (dataSource !== 'crm' && dataSource !== 'database') {
+        // No filter
+      } else if (dataSource === 'crm') {
+        query = query.eq('data_source', 'crm');
+      } else if (dataSource === 'database') {
+        query = query.eq('data_source', 'database');
       }
+      
+      if (!useICP && filterCriteria.employeeMin) {
+        query = query.gte('employee_count', filterCriteria.employeeMin);
+      }
+      if (!useICP && filterCriteria.employeeMax) {
+        query = query.lte('employee_count', filterCriteria.employeeMax);
+      }
+      
+      const result = await query;
+      data = result.data;
+      error = result.error;
       
       if (error) throw error;
       
       console.log('[Campaign Builder] Loaded accounts:', data?.length);
       setPreviewData(data);
-      setEstimatedLeads(data?.length || 0);
       
-      // Phase 2 Fix: Load campaign-ready leads for these accounts
+      // Load campaign-ready leads for these accounts to get accurate count
       if (data && data.length > 0) {
         const accountIds = data.map((a: any) => a.external_id);
-        const { data: leads } = await supabase
+        const { data: leads, count } = await supabase
           .from('Leads')
-          .select('id, email, title, persona')
+          .select('id, email, first_name, last_name, title, persona, account_external_id', { count: 'exact' })
           .eq('org_id', userProfile.org_id)
           .in('account_external_id', accountIds)
           .not('email', 'is', null);
         
-        console.log(`Phase 2: Loaded ${leads?.length || 0} contacts for ${data.length} accounts`);
+        console.log(`[Campaign Builder] Loaded ${count || leads?.length || 0} contacts for ${data.length} accounts`);
+        setEstimatedLeads(count || leads?.length || 0);
+      } else {
+        setEstimatedLeads(0);
       }
       
       if (dataSource === 'database') {
@@ -386,7 +371,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
         if (error) throw error;
         toast({ title: "Campaign Created", description: `Successfully pushed ${estimatedLeads} leads to Salesforce` });
       } else {
-        const csvContent = generateCSV(previewData);
+        const csvContent = await generateCSV(previewData);
         downloadCSV(csvContent, `${campaignName}.csv`);
         toast({ title: "Campaign Exported", description: `Downloaded ${estimatedLeads} leads as CSV` });
       }
@@ -399,18 +384,39 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
     }
   };
 
-  const generateCSV = (data: any[] | null) => {
-    if (!data || data.length === 0) {
+  const generateCSV = async (accountData: any[] | null) => {
+    if (!accountData || accountData.length === 0 || !userProfile?.org_id) {
       throw new Error('No preview data available. Please load the preview first.');
     }
-    const headers = ['Account Name', 'Domain', 'Industry', 'Country', 'Fit Score'];
-    const rows = data.map(d => [
-      d.name || '', 
-      d.domain || '', 
-      d.industry_norm || '', 
-      d.country || '', 
-      d.overall_score || ''
-    ].join(','));
+    
+    // Fetch actual leads with emails for the accounts
+    const accountIds = accountData.map((a: any) => a.external_id);
+    const { data: leads, error } = await supabase
+      .from('Leads')
+      .select('email, first_name, last_name, title, persona, account_external_id')
+      .eq('org_id', userProfile.org_id)
+      .in('account_external_id', accountIds)
+      .not('email', 'is', null);
+    
+    if (error) throw error;
+    
+    if (!leads || leads.length === 0) {
+      throw new Error('No contacts with email found for selected accounts.');
+    }
+    
+    // Create a map of account_external_id to account name
+    const accountMap = new Map(accountData.map((a: any) => [a.external_id, a.name]));
+    
+    const headers = ['Email', 'First Name', 'Last Name', 'Title', 'Company', 'Persona'];
+    const rows = leads.map(lead => [
+      lead.email || '',
+      lead.first_name || '',
+      lead.last_name || '',
+      lead.title || '',
+      accountMap.get(lead.account_external_id) || '',
+      lead.persona || ''
+    ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(','));
+    
     return [headers.join(','), ...rows].join('\n');
   };
 
