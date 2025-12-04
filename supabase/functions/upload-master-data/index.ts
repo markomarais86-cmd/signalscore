@@ -163,12 +163,26 @@ Deno.serve(async (req) => {
       csvContent = await file.text();
     } else {
       const body = await req.json();
-      csvContent = body.csv_content;
+      
+      // Support fetching from URL
+      if (body.csv_url) {
+        console.log('Fetching CSV from URL:', body.csv_url);
+        const response = await fetch(body.csv_url);
+        if (!response.ok) {
+          return new Response(
+            JSON.stringify({ error: `Failed to fetch CSV: ${response.status}` }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        csvContent = await response.text();
+      } else {
+        csvContent = body.csv_content;
+      }
     }
 
     if (!csvContent) {
       return new Response(
-        JSON.stringify({ error: 'No CSV content provided' }),
+        JSON.stringify({ error: 'No CSV content provided. Pass csv_content or csv_url' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
