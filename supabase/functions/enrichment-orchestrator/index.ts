@@ -326,7 +326,18 @@ async function processRow(
         overallScore = validationResult.overall_score || 0;
         confidence = validationResult.confidence || 'low';
         validationSummary = validationResult.validation_summary || '';
-        enrichedData = validationResult.validated_data || enrichedData;
+        
+        // Properly merge validated_data - check if it has content
+        const validatedData = validationResult.validated_data;
+        if (validatedData && Object.keys(validatedData).length > 0) {
+          enrichedData = { ...enrichedData, ...validatedData };
+        }
+        
+        console.log(`[Orchestrator] Validated data for ICP:`, JSON.stringify({
+          title: enrichedData.title,
+          company: enrichedData.company,
+          email: enrichedData.email
+        }));
 
         await supabase
           .from('enrichment_rows')

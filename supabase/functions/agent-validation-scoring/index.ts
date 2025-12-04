@@ -138,25 +138,37 @@ serve(async (req) => {
 
     const result = await response.json();
     
+    // Default to merged data
+    const mergedData = { ...raw_input, ...enriched_data };
+    
     let validationResult = {
       field_scores: {},
       overall_score: 0,
       confidence: 'low',
       validation_summary: 'Validation failed',
       anomalies: [],
-      validated_data: enriched_data
+      validated_data: mergedData
     };
 
     try {
       const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
       if (toolCall?.function?.arguments) {
-        validationResult = JSON.parse(toolCall.function.arguments);
+        const parsed = JSON.parse(toolCall.function.arguments);
+        validationResult = {
+          ...parsed,
+          // Always ensure validated_data contains merged data
+          validated_data: parsed.validated_data && Object.keys(parsed.validated_data).length > 0 
+            ? { ...mergedData, ...parsed.validated_data }
+            : mergedData
+        };
       }
     } catch (parseError) {
       console.error('[ValidationAgent] Failed to parse AI response:', parseError);
       // Fall back to basic scoring
       validationResult = performBasicScoring(raw_input, enriched_data, record_type);
     }
+    
+    console.log(`[ValidationAgent] Returning validated_data with title: ${validationResult.validated_data?.title}`);
 
     console.log(`[ValidationAgent] Scores:`, JSON.stringify(validationResult.field_scores));
     console.log(`[ValidationAgent] Overall: ${validationResult.overall_score}, Confidence: ${validationResult.confidence}`);
