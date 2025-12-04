@@ -77,6 +77,7 @@ import { DeepResearchSettings } from "@/components/settings/DeepResearchSettings
 import { EnrichmentAnalyticsDashboard } from "@/components/settings/EnrichmentAnalyticsDashboard";
 import { CandidateSelector } from "@/components/enrichment/CandidateSelector";
 import { BulkLeadEnrichment } from "@/components/settings/BulkLeadEnrichment";
+import { LeadEnrichmentPanel } from "@/components/settings/LeadEnrichmentPanel";
 import { BulkAccountEnrichment } from "@/components/settings/BulkAccountEnrichment";
 import { CRMSyncHistory } from "@/components/settings/CRMSyncHistory";
 import { ExportHistory } from "@/components/settings/ExportHistory";
@@ -531,11 +532,15 @@ export default function Settings() {
               </AccordionTrigger>
               <AccordionContent className="space-y-4 pt-4">
                 <Tabs defaultValue="smart" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-4">
+                    <TabsTrigger value="multi-agent">Multi-Agent AI</TabsTrigger>
                     <TabsTrigger value="smart">Smart Enrichment</TabsTrigger>
                     <TabsTrigger value="accounts">Accounts</TabsTrigger>
                     <TabsTrigger value="contacts">Contacts</TabsTrigger>
                   </TabsList>
+                  <TabsContent value="multi-agent" className="mt-4">
+                    <LeadEnrichmentPanel />
+                  </TabsContent>
                   <TabsContent value="smart" className="mt-4">
                     <SmartEnrichmentPanel />
                   </TabsContent>
