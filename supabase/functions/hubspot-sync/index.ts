@@ -90,20 +90,33 @@ Deno.serve(async (req) => {
     console.log(`Starting HubSpot sync for org ${org_id}`);
 
     // Get integration credentials
-    const { data: credential } = await supabase
+    const { data: credential, error: credError } = await supabase
       .from('integration_credentials')
-      .select('encrypted_credentials')
+      .select('encrypted_value')
       .eq('integration_config_id', integration_config_id)
+      .eq('credential_type', 'oauth_token')
       .single();
 
-    if (!credential?.encrypted_credentials) {
-      throw new Error('No HubSpot credentials found');
+    if (credError || !credential?.encrypted_value) {
+      console.error('Credential fetch error:', credError);
+      throw new Error('No HubSpot credentials found. Please reconnect your HubSpot account.');
     }
 
-    const { access_token } = credential.encrypted_credentials as { access_token: string };
+    // Parse the encrypted_value JSON to get access_token
+    let credentials: { access_token: string; refresh_token?: string };
+    try {
+      credentials = typeof credential.encrypted_value === 'string' 
+        ? JSON.parse(credential.encrypted_value) 
+        : credential.encrypted_value;
+    } catch (parseError) {
+      console.error('Failed to parse credentials:', parseError);
+      throw new Error('Invalid credential format. Please reconnect your HubSpot account.');
+    }
+
+    const { access_token } = credentials;
 
     if (!access_token) {
-      throw new Error('No access token found');
+      throw new Error('No access token found. Please reconnect your HubSpot account.');
     }
 
     const headers = {
