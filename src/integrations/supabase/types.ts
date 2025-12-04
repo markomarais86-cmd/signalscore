@@ -3761,14 +3761,20 @@ export type Database = {
         }
         Returns: Json
       }
+      calculate_adaptive_overall_score: {
+        Args: { p_fit: number; p_intent: number; p_reachability: number }
+        Returns: number
+      }
       calculate_data_completeness: {
         Args: { p_org_id: string }
         Returns: number
       }
-      calculate_intent_score: {
-        Args: { p_account_external_id: string; p_org_id: string }
-        Returns: number
-      }
+      calculate_intent_score:
+        | {
+            Args: { p_account_external_id: string; p_org_id: string }
+            Returns: number
+          }
+        | { Args: { p_account_id: string; p_org_id: string }; Returns: number }
       calculate_next_run: {
         Args: { last_run?: string; schedule: string }
         Returns: string
