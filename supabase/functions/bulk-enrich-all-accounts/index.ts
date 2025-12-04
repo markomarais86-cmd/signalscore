@@ -56,7 +56,7 @@ serve(async (req) => {
       .from('enrichment_jobs')
       .insert({
         org_id,
-        job_type: 'bulk_accounts',
+        job_type: 'accounts',
         provider: 'smart_waterfall',
         status: 'processing',
         total_records: accounts.length,
