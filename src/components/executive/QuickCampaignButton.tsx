@@ -38,20 +38,32 @@ export function QuickCampaignButton({ highFitAccounts, disabled }: QuickCampaign
         return;
       }
 
-      // Get high-fit accounts with contacts
+      // Get high-fit accounts with contacts and full firmographic data
       const { data: accounts, error: accountsError } = await supabase
         .from('accounts')
         .select(`
           external_id,
           name,
           domain,
+          industry_norm,
+          employee_count,
+          revenue_range,
+          country,
+          state_province,
+          city,
           Leads!inner (
             id,
             email,
             first_name,
             last_name,
             title,
-            persona
+            persona,
+            phone,
+            direct_phone,
+            cell_phone,
+            mobile,
+            linkedin_url,
+            level
           )
         `)
         .eq('org_id', userProfile.org_id)
@@ -61,18 +73,21 @@ export function QuickCampaignButton({ highFitAccounts, disabled }: QuickCampaign
 
       if (accountsError) throw accountsError;
 
-      // Filter accounts with scores >= 70
-      const { data: highFitAccountsData, error: scoresError } = await supabase
+      // Get scores for all accounts
+      const { data: scoresData, error: scoresError } = await supabase
         .from('scores')
-        .select('account_external_id')
+        .select('account_external_id, overall, fit, intent')
         .eq('org_id', userProfile.org_id)
-        .gte('overall', 70)
         .in('account_external_id', accounts?.map(a => a.external_id) || []);
 
       if (scoresError) throw scoresError;
 
-      const highFitExternalIds = new Set(highFitAccountsData?.map(s => s.account_external_id));
-      const filteredAccounts = accounts?.filter(a => highFitExternalIds.has(a.external_id));
+      // Create score map and filter high-fit accounts (score >= 70)
+      const scoreMap = new Map(scoresData?.map(s => [s.account_external_id, s]) || []);
+      const filteredAccounts = accounts?.filter(a => {
+        const score = scoreMap.get(a.external_id);
+        return score && score.overall >= 70;
+      });
 
       if (!filteredAccounts || filteredAccounts.length === 0) {
         toast.error("No high-fit accounts with contacts found");
@@ -80,33 +95,80 @@ export function QuickCampaignButton({ highFitAccounts, disabled }: QuickCampaign
         return;
       }
 
-      // Prepare contacts for campaign
-      const contacts = filteredAccounts.flatMap(account => 
-        account.Leads.map((lead: any) => ({
+      // Helper to get best phone number
+      const getBestPhone = (lead: any) => 
+        lead.direct_phone || lead.cell_phone || lead.mobile || lead.phone || '';
+
+      // Helper to calculate score band
+      const getScoreBand = (overall: number | null) => {
+        if (!overall) return 'C';
+        if (overall >= 70) return 'A';
+        if (overall >= 40) return 'B';
+        return 'C';
+      };
+
+      // Prepare contacts with full intelligence
+      const contacts = filteredAccounts.flatMap(account => {
+        const score = scoreMap.get(account.external_id);
+        return account.Leads.map((lead: any) => ({
           email: lead.email,
-          first_name: lead.first_name,
-          last_name: lead.last_name,
-          title: lead.title,
-          company: account.name,
-          persona: lead.persona
-        }))
-      ).slice(0, 500); // Limit to 500 contacts
+          first_name: lead.first_name || '',
+          last_name: lead.last_name || '',
+          title: lead.title || '',
+          phone: getBestPhone(lead),
+          linkedin_url: lead.linkedin_url || '',
+          company: account.name || '',
+          domain: account.domain || '',
+          industry: account.industry_norm || '',
+          employee_count: account.employee_count || '',
+          revenue_range: account.revenue_range || '',
+          country: account.country || '',
+          state: account.state_province || '',
+          city: account.city || '',
+          persona: lead.persona || '',
+          seniority: lead.level || '',
+          overall_score: score?.overall || '',
+          fit_score: score?.fit || '',
+          score_band: getScoreBand(score?.overall),
+          account_id: account.external_id
+        }));
+      }).slice(0, 500);
 
       // Generate campaign name
       const campaignName = `High-Fit Campaign - ${icp.name} - ${new Date().toLocaleDateString()}`;
 
-      // Helper function to export as CSV
+      // Helper function to export as CSV with full intelligence
       const exportAsCSV = () => {
+        const headers = [
+          'Email', 'First Name', 'Last Name', 'Title', 'Phone', 'LinkedIn URL',
+          'Company', 'Domain', 'Industry', 'Employee Count', 'Revenue Range',
+          'Country', 'State', 'City', 'Persona', 'Seniority',
+          'Overall Score', 'Fit Score', 'Score Band', 'Account ID'
+        ];
         const csv = [
-          ['Email', 'First Name', 'Last Name', 'Title', 'Company', 'Persona'].join(','),
+          headers.join(','),
           ...contacts.map(c => [
             c.email,
-            c.first_name || '',
-            c.last_name || '',
-            c.title || '',
-            c.company || '',
-            c.persona || ''
-          ].join(','))
+            c.first_name,
+            c.last_name,
+            c.title,
+            c.phone,
+            c.linkedin_url,
+            c.company,
+            c.domain,
+            c.industry,
+            c.employee_count,
+            c.revenue_range,
+            c.country,
+            c.state,
+            c.city,
+            c.persona,
+            c.seniority,
+            c.overall_score,
+            c.fit_score,
+            c.score_band,
+            c.account_id
+          ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
         ].join('\n');
 
         const blob = new Blob([csv], { type: 'text/csv' });
