@@ -152,3 +152,15 @@ verify_jwt = true
 
 [functions.scheduled-agent-runner]
 verify_jwt = false
+
+[functions.enrichment-orchestrator]
+verify_jwt = true
+
+[functions.agent-search-enrichment]
+verify_jwt = true
+
+[functions.agent-validation-scoring]
+verify_jwt = true
+
+[functions.agent-icp-persona]
+verify_jwt = true
