@@ -1,7 +1,8 @@
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Bell, CheckCircle, XCircle, Info } from "lucide-react";
+import { Bell, CheckCircle, XCircle, Info, X, CheckCheck } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,22 +10,29 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-interface Notification {
-  id: string;
-  agent_id: string;
-  status: string;
-  records_processed: number;
-  records_affected: number;
-  started_at: string;
-  completed_at: string | null;
+const DISMISSED_KEY = "launchpulse_dismissed_notifications";
+
+function getDismissedIds(): Set<string> {
+  try {
+    const saved = localStorage.getItem(DISMISSED_KEY);
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveDismissedIds(ids: Set<string>) {
+  localStorage.setItem(DISMISSED_KEY, JSON.stringify([...ids]));
 }
 
 export function NotificationCenter() {
   const { userProfile } = useAuth();
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(getDismissedIds);
 
   const { data: recentRuns } = useQuery({
     queryKey: ["notifications", userProfile?.org_id],
@@ -35,18 +43,49 @@ export function NotificationCenter() {
         .from("ai_agent_runs")
         .select("*, ai_agents(name)")
         .order("started_at", { ascending: false })
-        .limit(10);
+        .limit(20);
 
       if (error) throw error;
       return data as any[];
     },
     enabled: !!userProfile?.org_id,
-    refetchInterval: 30000, // Poll every 30 seconds
+    refetchInterval: 30000,
   });
 
-  const unreadCount = recentRuns?.filter(
-    (run) => run.status === "completed" || run.status === "failed"
-  ).length || 0;
+  // Clean up old dismissed IDs that are no longer in the notifications
+  useEffect(() => {
+    if (recentRuns) {
+      const currentIds = new Set(recentRuns.map(r => r.id));
+      const validDismissed = new Set([...dismissedIds].filter(id => currentIds.has(id)));
+      if (validDismissed.size !== dismissedIds.size) {
+        setDismissedIds(validDismissed);
+        saveDismissedIds(validDismissed);
+      }
+    }
+  }, [recentRuns]);
+
+  const visibleNotifications = recentRuns?.filter(
+    run => !dismissedIds.has(run.id)
+  ) || [];
+
+  const unreadCount = visibleNotifications.filter(
+    run => run.status === "completed" || run.status === "failed"
+  ).length;
+
+  const dismissNotification = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newDismissed = new Set(dismissedIds);
+    newDismissed.add(id);
+    setDismissedIds(newDismissed);
+    saveDismissedIds(newDismissed);
+  };
+
+  const dismissAll = () => {
+    if (!recentRuns) return;
+    const allIds = new Set(recentRuns.map(r => r.id));
+    setDismissedIds(allIds);
+    saveDismissedIds(allIds);
+  };
 
   const getNotificationIcon = (status: string) => {
     switch (status) {
@@ -77,14 +116,31 @@ export function NotificationCenter() {
       <DropdownMenuContent align="end" className="w-80">
         <div className="flex items-center justify-between px-4 py-2 border-b">
           <h3 className="font-semibold">Notifications</h3>
-          {unreadCount > 0 && (
-            <Badge variant="secondary">{unreadCount} new</Badge>
-          )}
+          <div className="flex items-center gap-2">
+            {unreadCount > 0 && (
+              <Badge variant="secondary">{unreadCount} new</Badge>
+            )}
+            {visibleNotifications.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                onClick={dismissAll}
+              >
+                <CheckCheck className="h-3 w-3 mr-1" />
+                Clear all
+              </Button>
+            )}
+          </div>
         </div>
         <ScrollArea className="h-[400px]">
-          {recentRuns && recentRuns.length > 0 ? (
-            recentRuns.map((run) => (
-              <DropdownMenuItem key={run.id} className="flex items-start gap-3 p-4 cursor-default">
+          {visibleNotifications.length > 0 ? (
+            visibleNotifications.map((run) => (
+              <DropdownMenuItem 
+                key={run.id} 
+                className="flex items-start gap-3 p-4 cursor-default group"
+                onSelect={(e) => e.preventDefault()}
+              >
                 <div className="mt-0.5">{getNotificationIcon(run.status)}</div>
                 <div className="flex-1 space-y-1">
                   <p className="text-sm font-medium">
@@ -97,14 +153,40 @@ export function NotificationCenter() {
                     {formatDistanceToNow(new Date(run.started_at), { addSuffix: true })}
                   </p>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => dismissNotification(run.id, e)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
               </DropdownMenuItem>
             ))
           ) : (
             <div className="p-4 text-center text-sm text-muted-foreground">
-              No notifications yet
+              No notifications
             </div>
           )}
         </ScrollArea>
+        {recentRuns && recentRuns.length > 0 && dismissedIds.size > 0 && (
+          <>
+            <DropdownMenuSeparator />
+            <div className="p-2 text-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground"
+                onClick={() => {
+                  setDismissedIds(new Set());
+                  saveDismissedIds(new Set());
+                }}
+              >
+                Show {dismissedIds.size} dismissed
+              </Button>
+            </div>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
