@@ -25,6 +25,15 @@ interface Lead {
   account_external_id: string | null;
   contact_external_id: string | null;
   created_at?: string;
+  // Enrichment fields
+  icp_qualified: boolean | null;
+  icp_fail_reasons: string[] | null;
+  enrichment_overall_score: number | null;
+  enrichment_field_scores: Record<string, number> | null;
+  linkedin_url: string | null;
+  still_at_company: string | null;
+  direct_phone: string | null;
+  enriched_at: string | null;
   account?: {
     name: string | null;
     domain: string | null;
@@ -50,6 +59,7 @@ interface UseInfiniteLeadsOptions {
   linkFilter?: string;
   personaFilter?: string;
   campaignReadyFilter?: string;
+  icpFilter?: string;
   enabled?: boolean;
 }
 
@@ -65,6 +75,7 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
     linkFilter = 'all',
     personaFilter = 'all',
     campaignReadyFilter = 'all',
+    icpFilter = 'all',
     enabled = true,
   } = options;
 
@@ -131,6 +142,15 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
           query = query.or(
             'email.is.null,title.is.null,persona.is.null,persona.eq.Unknown'
           );
+        }
+
+        // ICP qualification filter
+        if (icpFilter === 'qualified') {
+          query = query.eq('icp_qualified', true);
+        } else if (icpFilter === 'failed') {
+          query = query.eq('icp_qualified', false);
+        } else if (icpFilter === 'not_enriched') {
+          query = query.is('enriched_at', null);
         }
 
         const { data, error, count } = await query;
@@ -244,6 +264,7 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
       linkFilter,
       personaFilter,
       campaignReadyFilter,
+      icpFilter,
       pagination,
       toast,
     ]
@@ -278,7 +299,7 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
   useEffect(() => {
     pagination.reset();
     loadLeads(false);
-  }, [orgId, searchTerm, statusFilter, linkFilter, personaFilter, campaignReadyFilter]);
+  }, [orgId, searchTerm, statusFilter, linkFilter, personaFilter, campaignReadyFilter, icpFilter]);
 
   return {
     leads: pagination.state.items,

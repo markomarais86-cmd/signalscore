@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download, Info } from "lucide-react";
+import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download, Info, Linkedin, Sparkles, AlertCircle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { formatNumber } from "@/utils/format-numbers";
 import { useAuth } from "@/hooks/use-auth";
@@ -38,6 +39,15 @@ interface Lead {
   status: string | null;
   account_external_id: string | null;
   contact_external_id: string | null;
+  // Enrichment fields
+  icp_qualified: boolean | null;
+  icp_fail_reasons: string[] | null;
+  enrichment_overall_score: number | null;
+  enrichment_field_scores: Record<string, number> | null;
+  linkedin_url: string | null;
+  still_at_company: string | null;
+  direct_phone: string | null;
+  enriched_at: string | null;
   account?: {
     name: string | null;
     domain: string | null;
@@ -70,6 +80,7 @@ export default function Leads() {
   const [linkFilter, setLinkFilter] = useState("all");
   const [personaFilter, setPersonaFilter] = useState("all");
   const [campaignReadyFilter, setCampaignReadyFilter] = useState("all");
+  const [icpFilter, setIcpFilter] = useState("all");
   const [showMatcher, setShowMatcher] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
   const [hasAttemptedMatch, setHasAttemptedMatch] = useState(false);
@@ -95,7 +106,8 @@ export default function Leads() {
     statusFilter: statusFilter !== 'all' ? statusFilter : undefined,
     linkFilter: linkFilter !== 'all' ? linkFilter : undefined,
     personaFilter: personaFilter !== 'all' ? personaFilter : undefined,
-    campaignReadyFilter: campaignReadyFilter !== 'all' ? campaignReadyFilter : undefined
+    campaignReadyFilter: campaignReadyFilter !== 'all' ? campaignReadyFilter : undefined,
+    icpFilter: icpFilter !== 'all' ? icpFilter : undefined
   });
 
   // Set up infinite scroll observer
@@ -237,6 +249,8 @@ export default function Leads() {
   const campaignReadyLeads = leads.filter(lead => 
     lead.email && lead.title && lead.persona && lead.persona !== 'Unknown'
   );
+  const icpQualifiedLeads = leads.filter(lead => lead.icp_qualified === true);
+  const enrichedLeads = leads.filter(lead => lead.enriched_at);
   const unlinkedPercentage = leads.length > 0 ? Math.round((unlinkedLeads.length / leads.length) * 100) : 0;
 
   const exportToCSV = () => {
@@ -395,6 +409,17 @@ export default function Leads() {
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="pb-3">
+              <CardDescription>ICP Qualified</CardDescription>
+              <CardTitle className="text-4xl text-[hsl(var(--signal-high))]">{icpQualifiedLeads.length}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xs text-muted-foreground">
+                {leads.length > 0 ? Math.round((icpQualifiedLeads.length / leads.length) * 100) : 0}% of visible leads
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-3">
               <CardDescription>Campaign Ready</CardDescription>
               <CardTitle className="text-4xl">{campaignReadyLeads.length}</CardTitle>
             </CardHeader>
@@ -406,12 +431,12 @@ export default function Leads() {
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardDescription>High-Fit Accounts</CardDescription>
-              <CardTitle className="text-4xl">{highSignalLeads.length}</CardTitle>
+              <CardDescription>Enriched</CardDescription>
+              <CardTitle className="text-4xl">{formatNumber(enrichedLeads.length)}</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                {leads.length > 0 ? Math.round((highSignalLeads.length / leads.length) * 100) : 0}% of total pipeline
+                {leads.length > 0 ? Math.round((enrichedLeads.length / leads.length) * 100) : 0}% processed
               </div>
             </CardContent>
           </Card>
@@ -423,17 +448,6 @@ export default function Leads() {
             <CardContent>
               <div className="text-xs text-muted-foreground">
                 {leads.length > 0 ? Math.round((linkedLeads.length / leads.length) * 100) : 0}% of all contacts
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Unlinked</CardDescription>
-              <CardTitle className="text-4xl">{formatNumber(unlinkedLeads.length)}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xs text-muted-foreground">
-                Need account matching
               </div>
             </CardContent>
           </Card>
@@ -505,6 +519,17 @@ export default function Leads() {
                 <SelectItem value="not_ready">Not Ready</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={icpFilter} onValueChange={setIcpFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="ICP Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All ICP Status</SelectItem>
+                <SelectItem value="qualified">ICP Qualified</SelectItem>
+                <SelectItem value="failed">ICP Failed</SelectItem>
+                <SelectItem value="not_enriched">Not Enriched</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -525,9 +550,9 @@ export default function Leads() {
                 <TableHead>Company</TableHead>
                 <TableHead>Title</TableHead>
                 <TableHead>Persona</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead>ICP Status</TableHead>
+                <TableHead>Enrichment</TableHead>
                 <TableHead>Location</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead>Campaign Ready</TableHead>
               </TableRow>
             </TableHeader>
@@ -573,7 +598,67 @@ export default function Leads() {
                             <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
-                        <TableCell>{lead.email || '-'}</TableCell>
+                        <TableCell>
+                          <TooltipProvider>
+                            {lead.enriched_at ? (
+                              lead.icp_qualified === true ? (
+                                <Badge className="bg-[hsl(var(--signal-high))]">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  ICP Qualified
+                                </Badge>
+                              ) : lead.icp_qualified === false ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="destructive" className="cursor-help">
+                                      <XCircle className="h-3 w-3 mr-1" />
+                                      ICP Failed
+                                    </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-xs">
+                                    <p className="font-medium mb-1">Fail Reasons:</p>
+                                    <ul className="text-xs space-y-1">
+                                      {(lead.icp_fail_reasons || []).map((reason, i) => (
+                                        <li key={i}>• {reason}</li>
+                                      ))}
+                                    </ul>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                <Badge variant="secondary">Pending</Badge>
+                              )
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground">
+                                Not Enriched
+                              </Badge>
+                            )}
+                          </TooltipProvider>
+                        </TableCell>
+                        <TableCell>
+                          {lead.enrichment_overall_score !== null ? (
+                            <div className="flex items-center gap-2">
+                              <span className={`font-medium ${
+                                lead.enrichment_overall_score >= 15 ? 'text-[hsl(var(--signal-high))]' :
+                                lead.enrichment_overall_score >= 10 ? 'text-[hsl(var(--signal-medium))]' :
+                                'text-[hsl(var(--signal-low))]'
+                              }`}>
+                                {lead.enrichment_overall_score}/20
+                              </span>
+                              {lead.linkedin_url && (
+                                <a
+                                  href={lead.linkedin_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[#0077b5] hover:text-[#005885]"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Linkedin className="h-4 w-4" />
+                                </a>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <div>
                             <div>{lead.country || '-'}</div>
@@ -581,11 +666,6 @@ export default function Leads() {
                               <div className="text-sm text-muted-foreground">{lead.state_province}</div>
                             )}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={statusVariant}>
-                            {lead.status || 'open'}
-                          </Badge>
                         </TableCell>
                         <TableCell>
                           {lead.email && lead.title && lead.persona && lead.persona !== 'Unknown' ? (
@@ -598,11 +678,6 @@ export default function Leads() {
                               <XCircle className="h-3 w-3 mr-1" />
                               Incomplete
                             </Badge>
-                          )}
-                          {lead.account_external_id && lead.score && (
-                            <div className="text-xs text-muted-foreground mt-1">
-                              Score: {lead.score.overall}
-                            </div>
                           )}
                         </TableCell>
                       </TableRow>
@@ -698,14 +773,135 @@ export default function Leads() {
                         </div>
                       </div>
 
-                      {/* ICP Fit Reasons */}
-                      {lead.score && lead.account_external_id ? (
+                      {/* Enrichment Data */}
+                      {lead.enriched_at && (
+                        <div>
+                          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                            <Sparkles className="h-5 w-5 text-primary" />
+                            Enrichment Data
+                          </h3>
+                          <div className="space-y-4">
+                            {/* ICP Status */}
+                            <div className={`p-3 rounded-lg border ${
+                              lead.icp_qualified === true ? 'bg-[hsl(var(--signal-high))]/10 border-[hsl(var(--signal-high))]/30' :
+                              lead.icp_qualified === false ? 'bg-destructive/10 border-destructive/30' :
+                              'bg-muted'
+                            }`}>
+                              <div className="flex justify-between items-center">
+                                <span className="font-medium">ICP Qualification:</span>
+                                {lead.icp_qualified === true ? (
+                                  <Badge className="bg-[hsl(var(--signal-high))]">
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    Qualified
+                                  </Badge>
+                                ) : lead.icp_qualified === false ? (
+                                  <Badge variant="destructive">
+                                    <XCircle className="h-3 w-3 mr-1" />
+                                    Not Qualified
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary">Pending</Badge>
+                                )}
+                              </div>
+                              {lead.icp_fail_reasons && lead.icp_fail_reasons.length > 0 && (
+                                <div className="mt-2 pt-2 border-t border-destructive/20">
+                                  <p className="text-sm text-muted-foreground mb-1">Fail Reasons:</p>
+                                  <ul className="text-sm space-y-1">
+                                    {lead.icp_fail_reasons.map((reason, i) => (
+                                      <li key={i} className="flex items-start gap-2">
+                                        <AlertCircle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+                                        <span>{reason}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Enrichment Quality Score */}
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <Label className="text-sm font-medium">Quality Score</Label>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className={`text-2xl font-bold ${
+                                    (lead.enrichment_overall_score || 0) >= 15 ? 'text-[hsl(var(--signal-high))]' :
+                                    (lead.enrichment_overall_score || 0) >= 10 ? 'text-[hsl(var(--signal-medium))]' :
+                                    'text-[hsl(var(--signal-low))]'
+                                  }`}>
+                                    {lead.enrichment_overall_score || 0}/20
+                                  </span>
+                                </div>
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium">Still at Company</Label>
+                                <p className="text-sm mt-1">
+                                  {lead.still_at_company === 'yes' ? (
+                                    <Badge className="bg-[hsl(var(--signal-high))]">Confirmed</Badge>
+                                  ) : lead.still_at_company === 'no' ? (
+                                    <Badge variant="destructive">Left Company</Badge>
+                                  ) : (
+                                    <span className="text-muted-foreground">Unknown</span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* LinkedIn & Direct Phone */}
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <Label className="text-sm font-medium">LinkedIn</Label>
+                                {lead.linkedin_url ? (
+                                  <a
+                                    href={lead.linkedin_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 text-sm text-[#0077b5] hover:underline mt-1"
+                                  >
+                                    <Linkedin className="h-4 w-4" />
+                                    View Profile
+                                  </a>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground mt-1">-</p>
+                                )}
+                              </div>
+                              <div>
+                                <Label className="text-sm font-medium">Direct Phone</Label>
+                                <p className="text-sm mt-1">{lead.direct_phone || '-'}</p>
+                              </div>
+                            </div>
+
+                            {/* Field Scores */}
+                            {lead.enrichment_field_scores && Object.keys(lead.enrichment_field_scores).length > 0 && (
+                              <div>
+                                <Label className="text-sm font-medium mb-2 block">Field Quality Scores</Label>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {Object.entries(lead.enrichment_field_scores).map(([field, score]) => (
+                                    <div key={field} className="flex justify-between items-center p-2 bg-muted rounded text-sm">
+                                      <span className="capitalize">{field.replace(/_/g, ' ')}</span>
+                                      <span className={`font-medium ${
+                                        (score as number) >= 3 ? 'text-[hsl(var(--signal-high))]' :
+                                        (score as number) >= 2 ? 'text-[hsl(var(--signal-medium))]' :
+                                        'text-[hsl(var(--signal-low))]'
+                                      }`}>
+                                        {score as number}/5
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Legacy ICP Fit Reasons for account-linked leads without enrichment */}
+                      {!lead.enriched_at && lead.score && lead.account_external_id && (
                         <div>
                           <h3 className="text-lg font-semibold mb-3">ICP Qualification Score</h3>
                           <div className="space-y-3">
-                            <div className="flex justify-between items-center p-3 bg-success/10 rounded-lg">
+                            <div className="flex justify-between items-center p-3 bg-[hsl(var(--signal-high))]/10 rounded-lg">
                               <span className="font-medium">Overall ICP Score:</span>
-                              <Badge className="bg-success text-lg">{lead.score.overall}/100</Badge>
+                              <Badge className="bg-[hsl(var(--signal-high))] text-lg">{lead.score.overall}/100</Badge>
                             </div>
                             <div className="grid grid-cols-3 gap-2">
                               <div className="text-center p-2 border rounded">
@@ -721,43 +917,20 @@ export default function Leads() {
                                 <div className="text-xl font-bold">{lead.score.reachability}</div>
                               </div>
                             </div>
-                            {lead.score.reasons && (
-                              <div className="space-y-2">
-                                <p className="text-sm font-medium">Match Factors:</p>
-                                <div className="space-y-1">
-                                  {lead.score.reasons.industry_match && (
-                                    <div className="flex items-center gap-2 text-sm">
-                                      <CheckCircle className="h-4 w-4 text-success" />
-                                      <span>Industry matches ICP</span>
-                                    </div>
-                                  )}
-                                  {lead.score.reasons.size_match && (
-                                    <div className="flex items-center gap-2 text-sm">
-                                      <CheckCircle className="h-4 w-4 text-success" />
-                                      <span>Company size matches ICP</span>
-                                    </div>
-                                  )}
-                                  {lead.score.reasons.revenue_match && (
-                                    <div className="flex items-center gap-2 text-sm">
-                                      <CheckCircle className="h-4 w-4 text-success" />
-                                      <span>Revenue range matches ICP</span>
-                                    </div>
-                                  )}
-                                  {lead.score.reasons.geography_match && (
-                                    <div className="flex items-center gap-2 text-sm">
-                                      <CheckCircle className="h-4 w-4 text-success" />
-                                      <span>Geography matches ICP</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            )}
                           </div>
                         </div>
-                      ) : (
+                      )}
+
+                      {/* Not enriched message */}
+                      {!lead.enriched_at && !lead.score && (
                         <div>
                           <h3 className="text-lg font-semibold mb-3">ICP Status</h3>
-                          <Badge variant="outline">Not linked to account - No ICP score available</Badge>
+                          <div className="p-4 bg-muted rounded-lg text-center">
+                            <Sparkles className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                            <p className="text-sm text-muted-foreground">
+                              This lead has not been enriched yet. Run lead enrichment to get ICP qualification and quality scores.
+                            </p>
+                          </div>
                         </div>
                       )}
 
