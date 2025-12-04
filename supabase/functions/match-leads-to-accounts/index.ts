@@ -24,35 +24,72 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`🔗 Starting high-performance bulk match for org: ${org_id}`);
+    console.log(`🔗 Starting batched bulk match for org: ${org_id}`);
     const startTime = Date.now();
 
-    // Single call to the database function - processes ALL leads at once
-    const { data, error } = await supabase.rpc('bulk_match_all_leads', {
-      p_org_id: org_id
-    });
+    let totalMatched = 0;
+    let totalCreated = 0;
+    let totalLinked = 0;
+    let totalProcessed = 0;
+    let batchCount = 0;
+    let hasMore = true;
 
-    if (error) {
-      console.error(`❌ Bulk match error:`, error);
-      return new Response(
-        JSON.stringify({ error: error.message, success: false }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Process in batches until done
+    while (hasMore && batchCount < 50) { // Max 50 batches (100k leads) safety limit
+      batchCount++;
+      console.log(`📦 Processing batch ${batchCount}...`);
+
+      const { data, error } = await supabase.rpc('bulk_match_all_leads', {
+        p_org_id: org_id,
+        p_batch_size: 2000
+      });
+
+      if (error) {
+        console.error(`❌ Batch ${batchCount} error:`, error);
+        // Return partial results if we made progress
+        if (totalProcessed > 0) {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              partial: true,
+              processed: totalProcessed,
+              matched: totalMatched,
+              created: totalCreated,
+              linked: totalLinked,
+              batches: batchCount - 1,
+              error: error.message
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        return new Response(
+          JSON.stringify({ error: error.message, success: false }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      totalMatched += data?.matched_to_existing || 0;
+      totalCreated += data?.accounts_created || 0;
+      totalLinked += data?.linked_to_new || 0;
+      totalProcessed += data?.total_processed || 0;
+      hasMore = data?.has_more || false;
+
+      console.log(`✅ Batch ${batchCount} complete: processed ${data?.total_processed}, has_more: ${hasMore}`);
     }
 
     const duration = Date.now() - startTime;
-    console.log(`✅ Bulk match completed in ${duration}ms:`, data);
+    console.log(`🎉 All batches complete in ${duration}ms: ${totalProcessed} leads processed in ${batchCount} batches`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        processed: (data?.matched_to_existing || 0) + (data?.linked_to_new || 0),
-        matched: data?.matched_to_existing || 0,
-        created: data?.accounts_created || 0,
-        linked: data?.linked_to_new || 0,
-        total_processed: data?.total_processed || 0,
+        processed: totalProcessed,
+        matched: totalMatched,
+        created: totalCreated,
+        linked: totalLinked,
+        batches: batchCount,
         duration_ms: duration,
-        has_more: false // All done in one call
+        has_more: hasMore
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
