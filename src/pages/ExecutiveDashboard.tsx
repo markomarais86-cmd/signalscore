@@ -485,24 +485,40 @@ export default function ExecutiveDashboard() {
             <EmptyState
               icon={Database}
               title="Welcome to LaunchPulse!"
-              description="Get started by uploading your account data or connecting your CRM to begin analyzing your ideal customer profile."
-              actionLabel="Upload CSV Data"
-              onAction={() => navigate('/data-upload')}
+              description="Get started by generating sample data to explore the platform, uploading your account data, or connecting your CRM."
             />
-            <div className="flex gap-4">
-              <Button variant="outline" onClick={() => navigate('/settings?tab=integrations')}>
-                <Settings className="mr-2 h-4 w-4" />
-                Connect CRM
-              </Button>
-              <Button variant="outline" onClick={() => {
-                const helpPanel = document.querySelector('[data-help-panel]');
-                if (helpPanel) {
-                  (helpPanel as HTMLElement).click();
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl">
+              <Card className="border-primary/50 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer" onClick={async () => {
+                try {
+                  toast.info('Generating sample data...');
+                  const { data, error } = await supabase.rpc('generate_sample_data');
+                  if (error) throw error;
+                  toast.success('Sample data generated! Refreshing...');
+                  setTimeout(() => window.location.reload(), 1500);
+                } catch (err: any) {
+                  toast.error(err.message || 'Failed to generate sample data');
                 }
               }}>
-                <Lightbulb className="mr-2 h-4 w-4" />
-                View Quick Start Guide
-              </Button>
+                <CardContent className="pt-6 text-center">
+                  <Sparkles className="h-8 w-8 text-primary mx-auto mb-3" />
+                  <h3 className="font-semibold mb-1">Generate Sample Data</h3>
+                  <p className="text-sm text-muted-foreground">Quick demo with realistic accounts</p>
+                </CardContent>
+              </Card>
+              <Card className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => navigate('/data-upload')}>
+                <CardContent className="pt-6 text-center">
+                  <Database className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                  <h3 className="font-semibold mb-1">Upload CSV Data</h3>
+                  <p className="text-sm text-muted-foreground">Import your own account data</p>
+                </CardContent>
+              </Card>
+              <Card className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => navigate('/settings?tab=integrations')}>
+                <CardContent className="pt-6 text-center">
+                  <Settings className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                  <h3 className="font-semibold mb-1">Connect CRM</h3>
+                  <p className="text-sm text-muted-foreground">Sync from Salesforce or HubSpot</p>
+                </CardContent>
+              </Card>
             </div>
           </div>
         ) : (

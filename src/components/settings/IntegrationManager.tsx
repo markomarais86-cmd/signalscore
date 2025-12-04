@@ -49,9 +49,11 @@ const AVAILABLE_INTEGRATIONS: Integration[] = [
   { id: 'salesforce', name: 'Salesforce', category: 'crm', status: 'disconnected', description: 'Sync accounts, contacts, and opportunities', oauth_required: false },
   { id: 'hubspot', name: 'HubSpot', category: 'crm', status: 'disconnected', description: 'Complete CRM and marketing automation', oauth_required: true },
   
-  // Data Enrichment
-  { id: 'zoominfo', name: 'ZoomInfo', category: 'data_enrichment', status: 'connected', description: 'Contact and company data enrichment', oauth_required: false, last_sync: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), sync_status: 'success', records_synced: 342 },
-  { id: 'apollo', name: 'Apollo', category: 'data_enrichment', status: 'error', description: 'B2B database and sales intelligence', oauth_required: false, last_sync: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), sync_status: 'error' },
+  // Data Enrichment - all start as disconnected, real status loaded from DB
+  { id: 'zoominfo', name: 'ZoomInfo', category: 'data_enrichment', status: 'disconnected', description: 'Contact and company data enrichment', oauth_required: false },
+  { id: 'apollo', name: 'Apollo', category: 'data_enrichment', status: 'disconnected', description: 'B2B database and sales intelligence', oauth_required: false },
+  { id: 'clearbit', name: 'Clearbit', category: 'data_enrichment', status: 'disconnected', description: 'Company and contact enrichment', oauth_required: false },
+  { id: 'pdl', name: 'People Data Labs', category: 'data_enrichment', status: 'disconnected', description: 'Person and company data API', oauth_required: false },
   
   // Sales Engagement
   { id: 'outreach', name: 'Outreach', category: 'sales_engagement', status: 'disconnected', description: 'Sales engagement and sequence automation', oauth_required: true },

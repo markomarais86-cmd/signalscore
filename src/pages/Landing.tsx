@@ -250,7 +250,7 @@ export default function Landing() {
           <CardContent className="pt-12 pb-12">
             <h2 className="text-4xl font-bold mb-4">Ready to Unlock Your TAM?</h2>
             <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-              Join revenue teams at fast-growing B2B companies who use SignalScore to optimize their market coverage
+              Join revenue teams at fast-growing B2B companies who use LaunchPulse to optimize their market coverage
             </p>
             <Link to="/auth">
               <Button size="lg" className="text-lg px-8">
