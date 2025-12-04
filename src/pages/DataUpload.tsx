@@ -318,59 +318,15 @@ export default function DataUpload() {
       await loadTotalRecords();
       completeStep('upload_data');
 
-      // Check auto-match setting
-      const { data: autoMatchSetting } = await supabase
-        .from('automation_settings')
-        .select('enabled')
-        .eq('org_id', orgId)
-        .eq('setting_key', 'auto_match_on_upload')
-        .single();
-
-      const shouldAutoMatch = autoMatchSetting?.enabled ?? true;
-
-      if (shouldAutoMatch) {
-        console.log('🔄 Auto-matching leads to accounts...');
-        toast({
-          title: "Matching Leads to Accounts",
-          description: "Creating account records and linking leads (disable in Settings > Automation)...",
-        });
-
-        try {
-          const { data: matchData, error: matchError } = await supabase.rpc('match_leads_to_accounts_fast' as any, {
-            p_org_id: orgId,
-            p_is_external_db: pendingFile.isExternalDatabase || false
-          });
-
-          if (matchError) throw matchError;
-
-          const result = matchData as any;
-          console.log(`✅ Lead matching complete:`, result);
-
-          setUploadProgress(100);
-
-          const sourceType = pendingFile.isExternalDatabase ? 'external database' : 'CRM';
-          toast({
-            title: "✓ Auto-Matching & Scoring Complete!",
-            description: `${formatNumber(result.total_linked)} ${sourceType} leads linked to ${formatNumber(result.new_accounts_created)} new + ${formatNumber(result.matched_to_existing)} existing accounts${result.accounts_updated_to_both ? ` • ${result.accounts_updated_to_both} updated to BOTH` : ''} • ${result.accounts_scored || 0} scored`,
-            duration: 8000,
-          });
-
-        } catch (matchError: any) {
-          console.error('Auto-matching error:', matchError);
-          toast({
-            title: "Matching Failed",
-            description: matchError.message || "Please try re-running the matching process",
-            variant: "destructive"
-          });
-        }
-      } else {
-        setUploadProgress(100);
-        toast({
-          title: "Upload Complete",
-          description: "Auto-matching is disabled. Enable it in Settings > Automation to link leads automatically.",
-          duration: 6000,
-        });
-      }
+      // Matching is now handled by bulk-upload edge function automatically
+      // Just show completion message
+      setUploadProgress(100);
+      
+      toast({
+        title: "✓ Upload & Matching Complete!",
+        description: `${insertedLeads} leads uploaded and automatically linked to accounts.`,
+        duration: 6000,
+      });
 
     } catch (error: any) {
       console.error('❌ Upload error:', error);
@@ -395,61 +351,11 @@ export default function DataUpload() {
     }
   };
 
+  // Re-run matching is now handled by BulkLeadMatcher component
+  // This function is no longer needed but kept for backwards compatibility
   const handleRerunMatching = async () => {
-    console.log('🔄 Re-run button clicked!');
-    console.log('User profile:', userProfile);
-    
-    if (!userProfile?.org_id) {
-      console.error('❌ No org_id found');
-      toast({
-        title: "Error",
-        description: "Authentication required",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      console.log('Starting re-match for org:', userProfile.org_id);
-      
-      toast({
-        title: "Re-running Matching & Scoring",
-        description: "This may take a few minutes for large datasets...",
-      });
-
-      console.log('Calling match_leads_to_accounts_fast RPC...');
-      const { data: matchData, error: matchError } = await supabase.rpc('match_leads_to_accounts_fast' as any, {
-        p_org_id: userProfile.org_id,
-        p_is_external_db: false // Re-match is always for CRM data
-      });
-
-      console.log('RPC response:', { matchData, matchError });
-
-      if (matchError) {
-        console.error('❌ RPC error:', matchError);
-        throw matchError;
-      }
-
-      const result = matchData as any;
-      console.log(`✅ Re-match complete:`, result);
-
-      toast({
-        title: "✓ Matching Complete!",
-        description: `${formatNumber(result.total_linked)} leads linked • ${formatNumber(result.new_accounts_created)} new accounts • ${result.accounts_scored || 0} scored`,
-        duration: 8000,
-      });
-
-      await loadTotalRecords();
-
-    } catch (error: any) {
-      console.error('❌ Re-match error:', error);
-      toast({
-        title: "Matching Failed",
-        description: error.message || "An error occurred during matching",
-        variant: "destructive",
-        duration: 10000,
-      });
-    }
+    // Matching is now done via BulkLeadMatcher component which processes in batches
+    await loadTotalRecords();
   };
 
   const downloadTemplate = (type: 'leads') => {
