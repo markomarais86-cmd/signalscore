@@ -256,24 +256,20 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
         provider
       });
       
-      let data, error;
-      
-      // Fallback: Direct table query - simpler and more reliable
+      // Step 1: Load accounts (no limit for full campaign)
       let query = supabase
         .from('accounts')
-        .select('*', { count: 'exact' })
-        .eq('org_id', userProfile.org_id)
-        .limit(1000);
+        .select('external_id, name, domain, industry_norm, employee_count, revenue_range, country, state_province, city', { count: 'exact' })
+        .eq('org_id', userProfile.org_id);
       
-      // Apply data source filter if not 'all'
-      if (dataSource !== 'crm' && dataSource !== 'database') {
-        // No filter
-      } else if (dataSource === 'crm') {
-        query = query.eq('data_source', 'crm');
+      // Apply data source filter
+      if (dataSource === 'crm') {
+        query = query.in('data_source', ['crm', 'both']);
       } else if (dataSource === 'database') {
         query = query.eq('data_source', 'database');
       }
       
+      // Apply employee filters if not using ICP
       if (!useICP && filterCriteria.employeeMin) {
         query = query.gte('employee_count', filterCriteria.employeeMin);
       }
@@ -281,34 +277,89 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
         query = query.lte('employee_count', filterCriteria.employeeMax);
       }
       
-      const result = await query;
-      data = result.data;
-      error = result.error;
+      const { data: accountsData, error: accountsError, count: totalAccounts } = await query;
       
-      if (error) throw error;
+      if (accountsError) throw accountsError;
       
-      console.log('[Campaign Builder] Loaded accounts:', data?.length);
-      setPreviewData(data);
+      if (!accountsData || accountsData.length === 0) {
+        console.log('[Campaign Builder] No accounts found');
+        setPreviewData([]);
+        setEstimatedLeads(0);
+        toast({ title: "No Accounts", description: "No accounts match your criteria", variant: "destructive" });
+        return;
+      }
       
-      // Load campaign-ready leads for these accounts to get accurate count
-      if (data && data.length > 0) {
-        const accountIds = data.map((a: any) => a.external_id);
-        const { data: leads, count } = await supabase
-          .from('Leads')
-          .select('id, email, first_name, last_name, title, persona, account_external_id', { count: 'exact' })
-          .eq('org_id', userProfile.org_id)
-          .in('account_external_id', accountIds)
-          .not('email', 'is', null);
+      console.log('[Campaign Builder] Loaded accounts:', accountsData.length, 'total:', totalAccounts);
+      
+      // Step 2: Fetch scores for these accounts
+      const accountIds = accountsData.map((a: any) => a.external_id);
+      const { data: scoresData, error: scoresError } = await supabase
+        .from('scores')
+        .select('account_external_id, overall, fit, intent')
+        .eq('org_id', userProfile.org_id)
+        .in('account_external_id', accountIds);
+      
+      if (scoresError) {
+        console.error('[Campaign Builder] Error loading scores:', scoresError);
+      }
+      
+      // Create score map for quick lookup
+      const scoreMap = new Map(
+        (scoresData || []).map((s: any) => [s.account_external_id, s])
+      );
+      
+      // Merge accounts with scores
+      const accountsWithScores = accountsData.map((acc: any) => {
+        const score = scoreMap.get(acc.external_id);
+        return {
+          ...acc,
+          overall_score: score?.overall || 0,
+          fit_score: score?.fit || 0,
+          intent_score: score?.intent || 0
+        };
+      });
+      
+      // Filter by fit score range if specified
+      const filteredAccounts = accountsWithScores.filter((acc: any) => 
+        acc.overall_score >= filterCriteria.fitScoreMin && 
+        acc.overall_score <= filterCriteria.fitScoreMax
+      );
+      
+      console.log('[Campaign Builder] Accounts after score filter:', filteredAccounts.length);
+      setPreviewData(filteredAccounts);
+      
+      // Step 3: Count leads using batched queries to avoid large IN clause issues
+      if (filteredAccounts.length > 0) {
+        const filteredAccountIds = filteredAccounts.map((a: any) => a.external_id);
+        let totalLeads = 0;
+        const batchSize = 100;
         
-        console.log(`[Campaign Builder] Loaded ${count || leads?.length || 0} contacts for ${data.length} accounts`);
-        setEstimatedLeads(count || leads?.length || 0);
+        for (let i = 0; i < filteredAccountIds.length; i += batchSize) {
+          const batch = filteredAccountIds.slice(i, i + batchSize);
+          const { count, error: leadsError } = await supabase
+            .from('Leads')
+            .select('id', { count: 'exact', head: true })
+            .eq('org_id', userProfile.org_id)
+            .in('account_external_id', batch)
+            .not('email', 'is', null);
+          
+          if (leadsError) {
+            console.error('[Campaign Builder] Error counting leads batch:', leadsError);
+          } else {
+            totalLeads += count || 0;
+          }
+        }
+        
+        console.log(`[Campaign Builder] Total leads across ${filteredAccounts.length} accounts: ${totalLeads}`);
+        setEstimatedLeads(totalLeads);
       } else {
         setEstimatedLeads(0);
       }
       
+      // Calculate cost
       if (dataSource === 'database') {
         const costPerContact = provider === 'apollo' ? 0.50 : provider === 'zoominfo' ? 0.75 : 1.00;
-        setEstimatedCost((data?.length || 0) * costPerContact);
+        setEstimatedCost((filteredAccounts.length || 0) * costPerContact);
       } else {
         setEstimatedCost(0);
       }
@@ -319,6 +370,8 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
         description: error.message || "Failed to load campaign preview", 
         variant: "destructive" 
       });
+      setPreviewData([]);
+      setEstimatedLeads(0);
     } finally {
       setIsLoadingPreview(false);
     }
@@ -326,13 +379,19 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
 
   const handleCreateCampaign = async () => {
     if (!userProfile?.org_id) return;
+    
+    if (!previewData || previewData.length === 0) {
+      toast({ title: "No Data", description: "Please load preview data first", variant: "destructive" });
+      return;
+    }
+    
     setIsPushing(true);
     try {
       // Filter out duplicates if enabled
-      let finalContacts = previewData || [];
+      let finalAccounts = previewData || [];
       if (excludeDuplicates && duplicateEmails.size > 0) {
-        finalContacts = finalContacts.filter((contact: any) => 
-          !duplicateEmails.has(contact.email)
+        finalAccounts = finalAccounts.filter((account: any) => 
+          !duplicateEmails.has(account.email)
         );
       }
 
@@ -350,7 +409,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
         provider,
         destination,
         data_source: dataSource,
-        contacts: finalContacts,
+        contacts: finalAccounts,
         batch_metadata: {
           source_accounts: previewData?.length || 0,
           icp_id: activeICP?.id,
@@ -370,14 +429,30 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
         });
         if (error) throw error;
         toast({ title: "Campaign Created", description: `Successfully pushed ${estimatedLeads} leads to Salesforce` });
+        setPushComplete(true);
       } else {
-        const csvContent = await generateCSV(previewData);
-        downloadCSV(csvContent, `${campaignName}.csv`);
-        toast({ title: "Campaign Exported", description: `Downloaded ${estimatedLeads} leads as CSV` });
+        // CSV Export with better error handling
+        console.log('[Campaign Builder] Starting CSV export...');
+        try {
+          const csvContent = await generateCSV(previewData);
+          if (!csvContent || csvContent.split('\n').length <= 1) {
+            throw new Error('No leads found to export. Make sure accounts have contacts with emails.');
+          }
+          downloadCSV(csvContent, `${campaignName || 'campaign'}.csv`);
+          const rowCount = csvContent.split('\n').length - 1;
+          toast({ title: "Campaign Exported", description: `Downloaded ${rowCount} leads as CSV` });
+          setPushComplete(true);
+        } catch (csvError: any) {
+          console.error('[Campaign Builder] CSV generation error:', csvError);
+          toast({ 
+            title: "Export Failed", 
+            description: csvError.message || "Failed to generate CSV file",
+            variant: "destructive" 
+          });
+        }
       }
-      setPushComplete(true);
     } catch (error: any) {
-      console.error('Error creating campaign:', error);
+      console.error('[Campaign Builder] Error creating campaign:', error);
       toast({ title: "Error", description: error.message || "Failed to create campaign", variant: "destructive" });
     } finally {
       setIsPushing(false);
@@ -389,33 +464,78 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       throw new Error('No preview data available. Please load the preview first.');
     }
     
-    // Fetch actual leads with emails for the accounts
+    // Fetch actual leads with emails for the accounts using batched queries
     const accountIds = accountData.map((a: any) => a.external_id);
-    const { data: leads, error } = await supabase
-      .from('Leads')
-      .select('email, first_name, last_name, title, persona, account_external_id')
-      .eq('org_id', userProfile.org_id)
-      .in('account_external_id', accountIds)
-      .not('email', 'is', null);
+    const allLeads: any[] = [];
+    const batchSize = 100;
     
-    if (error) throw error;
+    console.log(`[Campaign Builder] Fetching leads for ${accountIds.length} accounts in batches...`);
     
-    if (!leads || leads.length === 0) {
+    for (let i = 0; i < accountIds.length; i += batchSize) {
+      const batch = accountIds.slice(i, i + batchSize);
+      const { data: leads, error } = await supabase
+        .from('Leads')
+        .select('email, first_name, last_name, title, persona, level, phone, direct_phone, cell_phone, mobile, linkedin_url, account_external_id')
+        .eq('org_id', userProfile.org_id)
+        .in('account_external_id', batch)
+        .not('email', 'is', null);
+      
+      if (error) {
+        console.error(`[Campaign Builder] Error fetching leads batch ${i}:`, error);
+        continue;
+      }
+      
+      if (leads) {
+        allLeads.push(...leads);
+      }
+    }
+    
+    console.log(`[Campaign Builder] Total leads fetched: ${allLeads.length}`);
+    
+    if (allLeads.length === 0) {
       throw new Error('No contacts with email found for selected accounts.');
     }
     
-    // Create a map of account_external_id to account name
-    const accountMap = new Map(accountData.map((a: any) => [a.external_id, a.name]));
+    // Create maps for account data lookup
+    const accountMap = new Map(accountData.map((a: any) => [a.external_id, a]));
     
-    const headers = ['Email', 'First Name', 'Last Name', 'Title', 'Company', 'Persona'];
-    const rows = leads.map(lead => [
-      lead.email || '',
-      lead.first_name || '',
-      lead.last_name || '',
-      lead.title || '',
-      accountMap.get(lead.account_external_id) || '',
-      lead.persona || ''
-    ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(','));
+    // Enhanced CSV with full contact intelligence
+    const headers = [
+      'Email', 'First Name', 'Last Name', 'Title', 'Phone', 'LinkedIn URL',
+      'Company', 'Domain', 'Industry', 'Employee Count', 'Revenue Range',
+      'Country', 'State', 'City', 'Persona', 'Seniority',
+      'Overall Score', 'Fit Score', 'Score Band', 'Account ID'
+    ];
+    
+    const rows = allLeads.map(lead => {
+      const account = accountMap.get(lead.account_external_id) || {};
+      const phone = lead.direct_phone || lead.cell_phone || lead.mobile || lead.phone || '';
+      const overallScore = account.overall_score || 0;
+      const scoreBand = overallScore >= 70 ? 'A' : overallScore >= 40 ? 'B' : 'C';
+      
+      return [
+        lead.email || '',
+        lead.first_name || '',
+        lead.last_name || '',
+        lead.title || '',
+        phone,
+        lead.linkedin_url || '',
+        account.name || '',
+        account.domain || '',
+        account.industry_norm || '',
+        account.employee_count || '',
+        account.revenue_range || '',
+        account.country || '',
+        account.state_province || '',
+        account.city || '',
+        lead.persona || '',
+        lead.level || '',
+        overallScore,
+        account.fit_score || 0,
+        scoreBand,
+        lead.account_external_id || ''
+      ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(',');
+    });
     
     return [headers.join(','), ...rows].join('\n');
   };
