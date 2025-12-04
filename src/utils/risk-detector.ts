@@ -62,7 +62,8 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
         .from('Leads')
         .select('account_external_id')
         .eq('org_id', orgId)
-        .in('account_external_id', highFitIds);
+        .in('account_external_id', highFitIds)
+        .limit(10000);
 
       const accountsWithLeadsSet = new Set(accountsWithLeads?.map(c => c.account_external_id) || []);
       const missingLeads = highFitIds.filter(id => !accountsWithLeadsSet.has(id)).length;
