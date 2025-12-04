@@ -61,7 +61,8 @@ interface Account {
       icp_range?: { min: number; max: number };
     }>;
   } | null;
-  contacts?: number;
+  leads?: number;
+  campaignReadyLeads?: number;
 }
 
 export default function Accounts() {
@@ -1359,18 +1360,18 @@ export default function Accounts() {
                     </TableCell>
                     <TableCell>
                       <span className="text-sm">
-                        {account.contacts || 0}
+                        {account.leads || 0}
                       </span>
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">
-                        {account.campaignReadyContacts !== undefined && account.campaignReadyContacts > 0 ? (
+                        {account.campaignReadyLeads !== undefined && account.campaignReadyLeads > 0 ? (
                           <>
                             <Badge variant="default" className="w-fit">
-                              {account.campaignReadyContacts}
+                              {account.campaignReadyLeads}
                             </Badge>
                             <span className="text-xs text-muted-foreground">
-                              of {account.contacts || 0}
+                              of {account.leads || 0}
                             </span>
                           </>
                         ) : (
@@ -1495,9 +1496,9 @@ export default function Accounts() {
               fit_positives,
               fit_negatives,
               intent_signals: [],
-              reachability_factors: selectedAccountForScore.contacts && selectedAccountForScore.contacts > 0 
-                ? [`${selectedAccountForScore.contacts} contacts available`] 
-                : ['No contacts available']
+              reachability_factors: selectedAccountForScore.leads && selectedAccountForScore.leads > 0 
+                ? [`${selectedAccountForScore.leads} leads available`] 
+                : ['No leads available']
             };
           })()
         } : null}

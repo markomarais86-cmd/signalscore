@@ -65,21 +65,21 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
         .in('account_external_id', highFitIds);
 
       const accountsWithLeadsSet = new Set(accountsWithLeads?.map(c => c.account_external_id) || []);
-      const missingContacts = highFitIds.filter(id => !accountsWithLeadsSet.has(id)).length;
+      const missingLeads = highFitIds.filter(id => !accountsWithLeadsSet.has(id)).length;
 
-      if (missingContacts > 50) {
+      if (missingLeads > 50) {
         risks.push({
-          id: 'high-fit-no-contacts',
+          id: 'high-fit-no-leads',
           severity: 'critical',
-          title: 'High-Fit Accounts Missing Contacts',
-          description: `${missingContacts.toLocaleString()} high-fit accounts have no reachable contacts`,
-          count: missingContacts,
+          title: 'High-Fit Accounts Missing Leads',
+          description: `${missingLeads.toLocaleString()} high-fit accounts have no reachable leads`,
+          count: missingLeads,
           impact: 'Campaigns underpowered, cannot execute outreach',
-          filter: { highFit: true, noContacts: true },
+          filter: { highFit: true, noLeads: true },
           fix: {
-            label: 'Enrich Contacts',
+            label: 'Enrich Leads',
             action: 'enrich',
-            fields: ['contacts']
+            fields: ['leads']
           }
         });
       }
