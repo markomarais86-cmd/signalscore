@@ -3928,6 +3928,7 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      sync_accounts_from_leads: { Args: { p_org_id: string }; Returns: Json }
       update_enrichment_job_progress: {
         Args: {
           p_current_batch?: number
