@@ -170,3 +170,9 @@ verify_jwt = true
 
 [functions.bulk-enrich-all-accounts]
 verify_jwt = true
+
+[functions.upload-master-data]
+verify_jwt = true
+
+[functions.enrich-from-master]
+verify_jwt = true

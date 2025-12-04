@@ -16,6 +16,8 @@ export type Database = {
     Tables: {
       accounts: {
         Row: {
+          business_model: string | null
+          city: string | null
           country: string | null
           data_source: string | null
           deep_research_completed_at: string | null
@@ -31,6 +33,7 @@ export type Database = {
           enrichment_phase: string | null
           external_database_match: boolean | null
           external_id: string
+          founded_year: number | null
           icp_fail_reasons: string[] | null
           icp_qualified: boolean | null
           id: string
@@ -49,12 +52,15 @@ export type Database = {
           propensity_score: number | null
           revenue_range: string | null
           state_province: string | null
+          sub_industry: string | null
           tech_stack: string[] | null
           total_raised_usd: number | null
           trust_signals: Json | null
           updated_at: string | null
         }
         Insert: {
+          business_model?: string | null
+          city?: string | null
           country?: string | null
           data_source?: string | null
           deep_research_completed_at?: string | null
@@ -70,6 +76,7 @@ export type Database = {
           enrichment_phase?: string | null
           external_database_match?: boolean | null
           external_id: string
+          founded_year?: number | null
           icp_fail_reasons?: string[] | null
           icp_qualified?: boolean | null
           id?: string
@@ -88,12 +95,15 @@ export type Database = {
           propensity_score?: number | null
           revenue_range?: string | null
           state_province?: string | null
+          sub_industry?: string | null
           tech_stack?: string[] | null
           total_raised_usd?: number | null
           trust_signals?: Json | null
           updated_at?: string | null
         }
         Update: {
+          business_model?: string | null
+          city?: string | null
           country?: string | null
           data_source?: string | null
           deep_research_completed_at?: string | null
@@ -109,6 +119,7 @@ export type Database = {
           enrichment_phase?: string | null
           external_database_match?: boolean | null
           external_id?: string
+          founded_year?: number | null
           icp_fail_reasons?: string[] | null
           icp_qualified?: boolean | null
           id?: string
@@ -127,6 +138,7 @@ export type Database = {
           propensity_score?: number | null
           revenue_range?: string | null
           state_province?: string | null
+          sub_industry?: string | null
           tech_stack?: string[] | null
           total_raised_usd?: number | null
           trust_signals?: Json | null
@@ -2503,6 +2515,72 @@ export type Database = {
         }
         Relationships: []
       }
+      master_account_data: {
+        Row: {
+          address: string | null
+          annual_revenue: number | null
+          business_model: string | null
+          city: string | null
+          company_name: string | null
+          country: string | null
+          created_at: string | null
+          domain: string
+          employee_count: number | null
+          founded_year: number | null
+          id: string
+          industry_primary: string | null
+          industry_secondary: string | null
+          naics_code: string | null
+          phone: string | null
+          postal_code: string | null
+          revenue_range: string | null
+          state_province: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: string | null
+          annual_revenue?: number | null
+          business_model?: string | null
+          city?: string | null
+          company_name?: string | null
+          country?: string | null
+          created_at?: string | null
+          domain: string
+          employee_count?: number | null
+          founded_year?: number | null
+          id?: string
+          industry_primary?: string | null
+          industry_secondary?: string | null
+          naics_code?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          revenue_range?: string | null
+          state_province?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: string | null
+          annual_revenue?: number | null
+          business_model?: string | null
+          city?: string | null
+          company_name?: string | null
+          country?: string | null
+          created_at?: string | null
+          domain?: string
+          employee_count?: number | null
+          founded_year?: number | null
+          id?: string
+          industry_primary?: string | null
+          industry_secondary?: string | null
+          naics_code?: string | null
+          phone?: string | null
+          postal_code?: string | null
+          revenue_range?: string | null
+          state_province?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ml_models: {
         Row: {
           accuracy: number | null
@@ -3693,6 +3771,7 @@ export type Database = {
         Args: { org_id_param: string }
         Returns: undefined
       }
+      enrich_accounts_from_master: { Args: { p_org_id: string }; Returns: Json }
       estimate_icp_matches: {
         Args: {
           p_countries?: string[]
@@ -3875,6 +3954,10 @@ export type Database = {
         Returns: string
       }
       normalize_domain_text: { Args: { domain_input: string }; Returns: string }
+      normalize_revenue_to_range: {
+        Args: { revenue_raw: number }
+        Returns: string
+      }
       pause_enrichment_job: { Args: { p_job_id: string }; Returns: Json }
       record_data_quality_snapshot: {
         Args: { org_id_param: string }
