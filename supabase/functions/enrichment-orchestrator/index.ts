@@ -69,7 +69,7 @@ serve(async (req) => {
       .from('enrichment_jobs')
       .insert({
         org_id,
-        job_type: 'multi_agent_enrichment',
+        job_type: record_type === 'account' ? 'accounts' : 'contacts',
         provider: 'unified',
         source_type,
         source_reference,
