@@ -1237,7 +1237,6 @@ export default function Accounts() {
                 </TableHead>
                 <TableHead>Company</TableHead>
                 <TableHead>Industry</TableHead>
-                <TableHead>Size</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead>Source</TableHead>
                 <TableHead>Enriched</TableHead>
@@ -1245,13 +1244,12 @@ export default function Accounts() {
                 <TableHead>Leads</TableHead>
                 <TableHead>Campaign Ready</TableHead>
                 <TableHead>Score</TableHead>
-                <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {accounts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="h-32">
+                  <TableCell colSpan={8} className="h-32">
                     <div className="flex flex-col items-center justify-center text-center space-y-3">
                       <AlertCircle className="h-12 w-12 text-muted-foreground/50" />
                       <div>
@@ -1316,12 +1314,6 @@ export default function Accounts() {
                       </div>
                     </TableCell>
                     <TableCell>{account.industry_norm || account.industry_raw || '-'}</TableCell>
-                    <TableCell>
-                      <div>
-                        <div>{account.employee_count ? `${account.employee_count} employees` : '-'}</div>
-                        <div className="text-sm text-muted-foreground">{account.revenue_range || '-'}</div>
-                      </div>
-                    </TableCell>
                     <TableCell>{account.country || '-'}</TableCell>
                     <TableCell>
                       <Badge variant={getSourceBadgeVariant(account.data_source || 'crm')}>
@@ -1423,23 +1415,6 @@ export default function Accounts() {
                         </div>
                       ) : (
                         <span className="text-muted-foreground text-sm">No score</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {account.external_database_match && account.data_source === 'database' ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEnrichingSingleAccount(account.external_id);
-                          }}
-                        >
-                          <Sparkles className="h-4 w-4 mr-2" />
-                          Enrich
-                        </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
                       )}
                     </TableCell>
                   </TableRow>
