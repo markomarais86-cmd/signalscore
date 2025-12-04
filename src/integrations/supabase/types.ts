@@ -2047,6 +2047,33 @@ export type Database = {
           },
         ]
       }
+      industry_mapping: {
+        Row: {
+          confidence: number | null
+          id: number
+          mapped_at: string | null
+          raw_industry: string
+          zoominfo_primary: string
+          zoominfo_sub: string | null
+        }
+        Insert: {
+          confidence?: number | null
+          id?: number
+          mapped_at?: string | null
+          raw_industry: string
+          zoominfo_primary: string
+          zoominfo_sub?: string | null
+        }
+        Update: {
+          confidence?: number | null
+          id?: number
+          mapped_at?: string | null
+          raw_industry?: string
+          zoominfo_primary?: string
+          zoominfo_sub?: string | null
+        }
+        Relationships: []
+      }
       integration_configs: {
         Row: {
           cache_settings: Json | null
@@ -2311,6 +2338,7 @@ export type Database = {
           state_province: string | null
           status: string | null
           still_at_company: string | null
+          sub_industry: string | null
           suppression_reason: string | null
           timezone: string | null
           title: string | null
@@ -2377,6 +2405,7 @@ export type Database = {
           state_province?: string | null
           status?: string | null
           still_at_company?: string | null
+          sub_industry?: string | null
           suppression_reason?: string | null
           timezone?: string | null
           title?: string | null
@@ -2443,6 +2472,7 @@ export type Database = {
           state_province?: string | null
           status?: string | null
           still_at_company?: string | null
+          sub_industry?: string | null
           suppression_reason?: string | null
           timezone?: string | null
           title?: string | null
