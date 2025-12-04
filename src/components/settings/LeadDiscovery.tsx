@@ -8,17 +8,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Users, Loader2, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
 
-interface ContactDiscoveryStats {
+interface LeadDiscoveryStats {
   highFitAccounts: number;
-  accountsWithoutContacts: number;
-  totalContactsFound: number;
+  accountsWithoutLeads: number;
+  totalLeadsFound: number;
 }
 
-export function ContactDiscovery() {
-  const [stats, setStats] = useState<ContactDiscoveryStats>({
+export function LeadDiscovery() {
+  const [stats, setStats] = useState<LeadDiscoveryStats>({
     highFitAccounts: 0,
-    accountsWithoutContacts: 0,
-    totalContactsFound: 0,
+    accountsWithoutLeads: 0,
+    totalLeadsFound: 0,
   });
   const [loading, setLoading] = useState(true);
   const [enriching, setEnriching] = useState(false);
@@ -53,14 +53,14 @@ export function ContactDiscovery() {
         (accountsWithLeads || []).map(c => c.account_external_id)
       );
 
-      // Get high-fit accounts without contacts
+      // Get high-fit accounts without leads
       const { data: highFitAccounts } = await supabase
         .from('scores')
         .select('account_external_id')
         .eq('org_id', userProfile.org_id)
         .gte('overall', 70);
 
-      const accountsWithoutContacts = (highFitAccounts || [])
+      const accountsWithoutLeads = (highFitAccounts || [])
         .filter(a => !accountIdsWithLeads.has(a.account_external_id))
         .length;
 
@@ -73,14 +73,14 @@ export function ContactDiscovery() {
 
       setStats({
         highFitAccounts: highFitCount || 0,
-        accountsWithoutContacts,
-        totalContactsFound: enrichedLeadCount || 0,
+        accountsWithoutLeads,
+        totalLeadsFound: enrichedLeadCount || 0,
       });
     } catch (error) {
-      console.error('Error loading contact discovery stats:', error);
+      console.error('Error loading lead discovery stats:', error);
       toast({
         title: "Error",
-        description: "Failed to load contact discovery statistics",
+        description: "Failed to load lead discovery statistics",
         variant: "destructive",
       });
     } finally {
@@ -88,7 +88,7 @@ export function ContactDiscovery() {
     }
   };
 
-  const startContactDiscovery = async () => {
+  const startLeadDiscovery = async () => {
     if (!userProfile.org_id) return;
     setEnriching(true);
     setProgress(0);
@@ -96,8 +96,8 @@ export function ContactDiscovery() {
 
     try {
       toast({
-        title: "Contact Discovery Started",
-        description: "Finding contacts for high-fit accounts...",
+        title: "Lead Discovery Started",
+        description: "Finding leads for high-fit accounts...",
       });
 
       // Start enrichment
@@ -114,14 +114,14 @@ export function ContactDiscovery() {
       await loadStats();
 
       toast({
-        title: "✓ Contact Discovery Complete!",
-        description: `Found contacts for ${data.enriched} accounts`,
+        title: "✓ Lead Discovery Complete!",
+        description: `Found leads for ${data.enriched} accounts`,
       });
     } catch (error: any) {
-      console.error('Contact discovery error:', error);
+      console.error('Lead discovery error:', error);
       toast({
-        title: "Contact Discovery Failed",
-        description: error.message || "Failed to discover contacts",
+        title: "Lead Discovery Failed",
+        description: error.message || "Failed to discover leads",
         variant: "destructive",
       });
     } finally {
@@ -147,7 +147,7 @@ export function ContactDiscovery() {
           <div className="flex items-center gap-3">
             <Users className="h-5 w-5 text-primary" />
             <div>
-              <CardTitle className="text-base">Contact Discovery</CardTitle>
+              <CardTitle className="text-base">Lead Discovery</CardTitle>
               <CardDescription>
                 Find decision-makers at high-fit accounts using enrichment APIs
               </CardDescription>
@@ -166,15 +166,15 @@ export function ContactDiscovery() {
             <p className="text-2xl font-bold">{stats.highFitAccounts.toLocaleString()}</p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Without Contacts</p>
+            <p className="text-sm text-muted-foreground">Without Leads</p>
             <p className="text-2xl font-bold text-[hsl(var(--signal-medium))]">
-              {stats.accountsWithoutContacts.toLocaleString()}
+              {stats.accountsWithoutLeads.toLocaleString()}
             </p>
           </div>
           <div>
-            <p className="text-sm text-muted-foreground">Contacts Found</p>
+            <p className="text-sm text-muted-foreground">Leads Found</p>
             <p className="text-2xl font-bold text-[hsl(var(--signal-high))]">
-              {stats.totalContactsFound.toLocaleString()}
+              {stats.totalLeadsFound.toLocaleString()}
             </p>
           </div>
         </div>
@@ -182,7 +182,7 @@ export function ContactDiscovery() {
         {enriching && (
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Discovering contacts...</span>
+              <span className="text-muted-foreground">Discovering leads...</span>
               <span className="font-medium">{Math.round(progress)}%</span>
             </div>
             <Progress value={progress} className="h-2" />
@@ -201,7 +201,7 @@ export function ContactDiscovery() {
                     <span className="ml-2 font-medium">{lastResult.total || 0}</span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Contacts Found:</span>
+                    <span className="text-muted-foreground">Leads Found:</span>
                     <span className="ml-2 font-medium">{lastResult.enriched || 0}</span>
                   </div>
                 </div>
@@ -215,23 +215,23 @@ export function ContactDiscovery() {
 
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            Uses PDL, Clearbit, and AI to find key decision-makers at accounts without contact data.
+            Uses PDL, Clearbit, and AI to find key decision-makers at accounts without lead data.
           </p>
           <Button
-            onClick={startContactDiscovery}
-            disabled={enriching || stats.accountsWithoutContacts === 0}
+            onClick={startLeadDiscovery}
+            disabled={enriching || stats.accountsWithoutLeads === 0}
             className="w-full"
             size="lg"
           >
             {enriching ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Discovering Contacts...
+                Discovering Leads...
               </>
             ) : (
               <>
                 <Sparkles className="h-4 w-4 mr-2" />
-                Discover Contacts for {stats.accountsWithoutContacts} Accounts
+                Discover Leads for {stats.accountsWithoutLeads} Accounts
               </>
             )}
           </Button>

@@ -65,8 +65,8 @@ import { InvitationsManager } from "@/components/settings/InvitationsManager";
 import { EnrichmentAPIKeys } from "@/components/settings/EnrichmentAPIKeys";
 import { EnrichmentProviderSetup } from "@/components/settings/EnrichmentProviderSetup";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
-import { ContactsBackfill } from "@/components/settings/ContactsBackfill";
-import { ContactDiscovery } from "@/components/settings/ContactDiscovery";
+import { LeadsBackfill } from "@/components/settings/LeadsBackfill";
+import { LeadDiscovery } from "@/components/settings/LeadDiscovery";
 import { IntegrationCredentialManager } from "@/components/settings/IntegrationCredentialManager";
 import { IntegrationHealthDashboard } from "@/components/settings/IntegrationHealthDashboard";
 import { SmartEnrichmentPanel } from "@/components/settings/SmartEnrichmentPanel";
@@ -526,7 +526,7 @@ export default function Settings() {
                   <Zap className="h-5 w-5 text-primary" />
                   <div className="text-left">
                     <p className="font-semibold">Quick Actions</p>
-                    <p className="text-sm text-muted-foreground">Start enrichment and discover contacts</p>
+                    <p className="text-sm text-muted-foreground">Start enrichment and discover leads</p>
                   </div>
                 </div>
               </AccordionTrigger>
@@ -536,7 +536,7 @@ export default function Settings() {
                     <TabsTrigger value="multi-agent">Multi-Agent AI</TabsTrigger>
                     <TabsTrigger value="smart">Smart Enrichment</TabsTrigger>
                     <TabsTrigger value="accounts">Accounts</TabsTrigger>
-                    <TabsTrigger value="contacts">Contacts</TabsTrigger>
+                    <TabsTrigger value="leads">Leads</TabsTrigger>
                   </TabsList>
                   <TabsContent value="multi-agent" className="mt-4">
                     <LeadEnrichmentPanel />
@@ -547,7 +547,7 @@ export default function Settings() {
                   <TabsContent value="accounts" className="mt-4">
                     <BulkAccountEnrichment />
                   </TabsContent>
-                  <TabsContent value="contacts" className="mt-4">
+                  <TabsContent value="leads" className="mt-4">
                     <BulkLeadEnrichment />
                   </TabsContent>
                 </Tabs>
@@ -603,7 +603,7 @@ export default function Settings() {
                     <EnrichmentAttributionReport />
                   </TabsContent>
                   <TabsContent value="backfill" className="mt-4">
-                    <ContactsBackfill />
+                    <LeadsBackfill />
                   </TabsContent>
                 </Tabs>
               </AccordionContent>

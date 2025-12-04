@@ -21,7 +21,7 @@ export const helpDatabase: HelpItem[] = [
 - Upload account and lead data from CSV or sync with your CRM
 - Define multiple ICP (Ideal Customer Profile) segments
 - Get AI-powered fit scores (0-100) for every account
-- Build targeted campaigns with qualified contacts
+- Build targeted campaigns with qualified leads
 - Track performance and optimize your ICP over time`,
     keywords: ['overview', 'getting started', 'introduction', 'quick start', 'basics'],
     category: 'quickstart',
@@ -145,15 +145,15 @@ LaunchPulse enhances your uploaded data with information from multiple sources:
 
 **Enrichment Providers:**
 - Clearbit: Firmographic data, logos, tech stack
-- ZoomInfo: Employee counts, revenue, contacts
-- Apollo: B2B contact data, buying signals
+- ZoomInfo: Employee counts, revenue, lead data
+- Apollo: B2B lead data, buying signals
 - PDL (People Data Labs): Person-level enrichment
 
 **What Gets Enriched:**
 - Missing company details (size, industry, revenue)
 - Employee count and growth trends
 - Technology stack and integrations
-- Contact information and job titles
+- Lead information and job titles
 - Funding and financial data
 
 **Data Source Attribution:**
@@ -184,7 +184,7 @@ Each account shows which provider contributed data. This helps you:
    - Select target job titles
    - Choose seniority levels
    - Filter by departments
-   - Set max contacts per account
+   - Set max leads per account
 
 3. **Review and Refine:**
    - Check total account count
@@ -289,12 +289,12 @@ Upload your closed-won deals to discover patterns and optimize your ICP.
 
 **"Missing required fields":**
 - Check that domain, name are present for accounts
-- Ensure email, first_name, last_name for contacts
+- Ensure email, first_name, last_name for leads
 
 **"Duplicate entries":**
 - Remove duplicate rows before upload
 - Use domain as unique identifier for accounts
-- Use email as unique identifier for contacts
+- Use email as unique identifier for leads
 
 **"Country not recognized":**
 - Use ISO 2-letter country codes (US, GB, CA)
@@ -477,7 +477,7 @@ Tracks completeness of account data. Higher = better scoring accuracy.
 - Last updated date
 
 **Engagement:**
-- Has contacts (yes/no)
+- Has leads (yes/no)
 - Campaign-ready
 - Last export date
 

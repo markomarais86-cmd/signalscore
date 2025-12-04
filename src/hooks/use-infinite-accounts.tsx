@@ -18,8 +18,8 @@ interface Account {
   external_database_match?: boolean;
   enriched_from?: string | null;
   enriched_at?: string | null;
-  contacts?: number;
-  campaignReadyContacts?: number;
+  leads?: number;
+  campaignReadyLeads?: number;
   score?: {
     overall: number;
     fit: number;
@@ -302,20 +302,20 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
             .in('account_external_id', accountIds);
 
           // Group lead counts by account
-          const contactCountMap: Record<string, number> = {};
-          const campaignReadyCountMap: Record<string, number> = {};
+          const leadCountMap: Record<string, number> = {};
+          const campaignReadyLeadMap: Record<string, number> = {};
           
           leadCounts?.forEach(lead => {
-            contactCountMap[lead.account_external_id] = (contactCountMap[lead.account_external_id] || 0) + 1;
+            leadCountMap[lead.account_external_id] = (leadCountMap[lead.account_external_id] || 0) + 1;
             
             // Check if campaign ready
             if (lead.email && lead.title && lead.persona && lead.persona !== 'Unknown') {
-              campaignReadyCountMap[lead.account_external_id] = (campaignReadyCountMap[lead.account_external_id] || 0) + 1;
+              campaignReadyLeadMap[lead.account_external_id] = (campaignReadyLeadMap[lead.account_external_id] || 0) + 1;
             }
           });
 
-          // Merge scores and contact counts with accounts
-          const accountsWithScoresAndContacts = accounts.map((account) => {
+          // Merge scores and lead counts with accounts
+          const accountsWithScoresAndLeads = accounts.map((account) => {
             const score = scores?.find(
               (s) => s.account_external_id === account.external_id
             );
@@ -330,18 +330,18 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
                     reasons: score.reasons as Account['score']['reasons'],
                   }
                 : null,
-              contacts: contactCountMap[account.external_id] || 0,
-              campaignReadyContacts: campaignReadyCountMap[account.external_id] || 0,
+              leads: leadCountMap[account.external_id] || 0,
+              campaignReadyLeads: campaignReadyLeadMap[account.external_id] || 0,
             };
           }) as Account[];
 
           if (isLoadingMore) {
             pagination.setItems([
               ...pagination.state.items.slice(0, -accounts.length),
-              ...accountsWithScoresAndContacts,
+              ...accountsWithScoresAndLeads,
             ] as Account[]);
           } else {
-            pagination.setItems(accountsWithScoresAndContacts);
+            pagination.setItems(accountsWithScoresAndLeads);
           }
         }
       } catch (error: any) {

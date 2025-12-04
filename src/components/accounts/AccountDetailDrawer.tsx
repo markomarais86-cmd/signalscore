@@ -57,7 +57,7 @@ interface Account {
     intent: number;
     reachability: number;
   } | null;
-  contacts?: number;
+  leads?: number;
 }
 
 interface AccountDetailDrawerProps {
@@ -184,8 +184,8 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="leads">
               Leads
-              {account.contacts && account.contacts > 0 && (
-                <Badge variant="secondary" className="ml-2">{account.contacts}</Badge>
+              {account.leads && account.leads > 0 && (
+                <Badge variant="secondary" className="ml-2">{account.leads}</Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="insights">AI Insights</TabsTrigger>
@@ -319,12 +319,12 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
                     <Users className="h-5 w-5" />
                     Associated Leads
                   </span>
-                  {account.contacts && account.contacts > 0 && (
-                    <Badge variant="secondary">{account.contacts} total</Badge>
+                  {account.leads && account.leads > 0 && (
+                    <Badge variant="secondary">{account.leads} total</Badge>
                   )}
                 </CardTitle>
                 <CardDescription>
-                  Showing {leads.length} of {account.contacts || 0} total contacts
+                  Showing {leads.length} of {account.leads || 0} total leads
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -373,10 +373,10 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
                       </TableBody>
                     </Table>
                     
-                    {account.contacts && account.contacts > 50 && (
+                    {account.leads && account.leads > 50 && (
                       <div className="mt-4">
                         <Button variant="outline" className="w-full" onClick={handleViewAllLeads}>
-                          View All {account.contacts} Leads on Leads Page
+                          View All {account.leads} Leads on Leads Page
                         </Button>
                       </div>
                     )}
@@ -435,7 +435,7 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
                   <div className="flex-1">
                     <h4 className="font-medium text-sm">Recommended Approach</h4>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Multi-threaded outreach with emphasis on {account.contacts && account.contacts > 0 ? 'existing contacts' : 'decision-makers'}
+                      Multi-threaded outreach with emphasis on {account.leads && account.leads > 0 ? 'existing leads' : 'decision-makers'}
                     </p>
                   </div>
                 </div>

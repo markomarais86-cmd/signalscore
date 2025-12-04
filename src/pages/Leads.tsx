@@ -239,7 +239,7 @@ export default function Leads() {
       <div className="space-y-6">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Leads</h1>
-          <p className="text-muted-foreground mt-2">All people (contacts) linked to accounts in your pipeline</p>
+          <p className="text-muted-foreground mt-2">All people linked to accounts in your pipeline</p>
         </div>
         <Card>
           <CardContent className="flex items-center justify-center py-12">
@@ -247,7 +247,7 @@ export default function Leads() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
               {isMatching && (
                 <p className="text-sm text-muted-foreground">
-                  Linking contacts to accounts... This may take a moment.
+                  Linking leads to accounts... This may take a moment.
                 </p>
               )}
             </div>
@@ -344,7 +344,7 @@ export default function Leads() {
 
     toast({
       title: "Export successful",
-      description: `Exported ${leads.length} contacts to CSV`
+      description: `Exported ${leads.length} leads to CSV`
     });
   };
 
@@ -354,7 +354,7 @@ export default function Leads() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Leads</h1>
-          <p className="text-muted-foreground mt-2">All people (contacts) linked to accounts in your pipeline</p>
+          <p className="text-muted-foreground mt-2">All people linked to accounts in your pipeline</p>
         </div>
         <Button onClick={exportToCSV} variant="outline">
           <Download className="h-4 w-4 mr-2" />
@@ -368,10 +368,10 @@ export default function Leads() {
           <Info className="h-4 w-4" />
           <AlertDescription className="space-y-3">
             <div>
-              <strong>Note:</strong> You have {formatNumber(unlinkedLeads.length)} contacts without account links.
+              <strong>Note:</strong> You have {formatNumber(unlinkedLeads.length)} leads without account links.
             </div>
             <div className="text-sm">
-              <p>Contacts are automatically matched to accounts when uploaded via CSV. These unlinked contacts may be from older uploads.</p>
+              <p>Leads are automatically matched to accounts when uploaded via CSV. These unlinked leads may be from older uploads.</p>
             </div>
             <Button
               onClick={handleAutoMatch}
@@ -397,8 +397,8 @@ export default function Leads() {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="flex items-center justify-between">
             <div>
-              <strong>{formatNumber(unlinkedLeads.length)} contacts still unlinked after auto-matching.</strong>
-              <p className="text-sm mt-1">These contacts may be missing email/website data needed for account matching.</p>
+              <strong>{formatNumber(unlinkedLeads.length)} leads still unlinked after auto-matching.</strong>
+              <p className="text-sm mt-1">These leads may be missing email/website data needed for account matching.</p>
             </div>
             <Button onClick={handleAutoMatch} size="sm" className="ml-4" disabled={isMatching}>
               <Link2 className="h-4 w-4 mr-2" />
@@ -461,7 +461,7 @@ export default function Leads() {
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                {leads.length > 0 ? Math.round((linkedLeads.length / leads.length) * 100) : 0}% of all contacts
+                {leads.length > 0 ? Math.round((linkedLeads.length / leads.length) * 100) : 0}% of all leads
               </div>
             </CardContent>
           </Card>

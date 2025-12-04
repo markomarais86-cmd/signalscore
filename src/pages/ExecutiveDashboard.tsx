@@ -269,7 +269,7 @@ export default function ExecutiveDashboard() {
       setSyncStatus('complete');
       setSyncBreakdown({
         accounts: data?.totalAccounts || 0,
-        contacts: data?.totalContacts || 0,
+        leads: data?.totalContacts || 0,
         geography: tamData?.geography_breakdown,
         industry: tamData?.industry_breakdown
       });
