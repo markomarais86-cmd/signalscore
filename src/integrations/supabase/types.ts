@@ -2517,67 +2517,91 @@ export type Database = {
       }
       master_account_data: {
         Row: {
-          address: string | null
-          annual_revenue: number | null
-          business_model: string | null
-          city: string | null
-          company_name: string | null
-          country: string | null
+          "Annual Revenue": string | null
+          "Business Model": string | null
+          Company: string | null
           created_at: string | null
-          domain: string
-          employee_count: number | null
-          founded_year: number | null
+          domain_normalized: string | null
+          employee_count_int: number | null
+          "Founded Year": string | null
+          founded_year_int: number | null
+          "HQ Address": string | null
+          "HQ City": string | null
+          "HQ Country": string | null
+          "HQ Phone": string | null
+          "HQ Postal Code": string | null
+          "HQ State": string | null
           id: string
-          industry_primary: string | null
-          industry_secondary: string | null
-          naics_code: string | null
-          phone: string | null
-          postal_code: string | null
+          Industry: string | null
+          "Lead Source": string | null
+          "Lead Source Details": string | null
+          "NAICS 1": string | null
+          "NAICS 2": string | null
+          "NAICS 3": string | null
+          "NAICS 4": string | null
+          "No. of Employees": string | null
           revenue_range: string | null
-          state_province: string | null
+          "Secondary Industry": string | null
           updated_at: string | null
+          Website: string | null
         }
         Insert: {
-          address?: string | null
-          annual_revenue?: number | null
-          business_model?: string | null
-          city?: string | null
-          company_name?: string | null
-          country?: string | null
+          "Annual Revenue"?: string | null
+          "Business Model"?: string | null
+          Company?: string | null
           created_at?: string | null
-          domain: string
-          employee_count?: number | null
-          founded_year?: number | null
+          domain_normalized?: string | null
+          employee_count_int?: number | null
+          "Founded Year"?: string | null
+          founded_year_int?: number | null
+          "HQ Address"?: string | null
+          "HQ City"?: string | null
+          "HQ Country"?: string | null
+          "HQ Phone"?: string | null
+          "HQ Postal Code"?: string | null
+          "HQ State"?: string | null
           id?: string
-          industry_primary?: string | null
-          industry_secondary?: string | null
-          naics_code?: string | null
-          phone?: string | null
-          postal_code?: string | null
+          Industry?: string | null
+          "Lead Source"?: string | null
+          "Lead Source Details"?: string | null
+          "NAICS 1"?: string | null
+          "NAICS 2"?: string | null
+          "NAICS 3"?: string | null
+          "NAICS 4"?: string | null
+          "No. of Employees"?: string | null
           revenue_range?: string | null
-          state_province?: string | null
+          "Secondary Industry"?: string | null
           updated_at?: string | null
+          Website?: string | null
         }
         Update: {
-          address?: string | null
-          annual_revenue?: number | null
-          business_model?: string | null
-          city?: string | null
-          company_name?: string | null
-          country?: string | null
+          "Annual Revenue"?: string | null
+          "Business Model"?: string | null
+          Company?: string | null
           created_at?: string | null
-          domain?: string
-          employee_count?: number | null
-          founded_year?: number | null
+          domain_normalized?: string | null
+          employee_count_int?: number | null
+          "Founded Year"?: string | null
+          founded_year_int?: number | null
+          "HQ Address"?: string | null
+          "HQ City"?: string | null
+          "HQ Country"?: string | null
+          "HQ Phone"?: string | null
+          "HQ Postal Code"?: string | null
+          "HQ State"?: string | null
           id?: string
-          industry_primary?: string | null
-          industry_secondary?: string | null
-          naics_code?: string | null
-          phone?: string | null
-          postal_code?: string | null
+          Industry?: string | null
+          "Lead Source"?: string | null
+          "Lead Source Details"?: string | null
+          "NAICS 1"?: string | null
+          "NAICS 2"?: string | null
+          "NAICS 3"?: string | null
+          "NAICS 4"?: string | null
+          "No. of Employees"?: string | null
           revenue_range?: string | null
-          state_province?: string | null
+          "Secondary Industry"?: string | null
           updated_at?: string | null
+          Website?: string | null
         }
         Relationships: []
       }
