@@ -40,7 +40,7 @@ export function HelpVideoLibrary() {
                   duration={video.duration}
                   category={video.category}
                   videoUrl={video.videoUrl}
-                  thumbnail={video.thumbnail}
+                  thumbnail={video.thumbnailUrl}
                 />
               ))}
             </div>
