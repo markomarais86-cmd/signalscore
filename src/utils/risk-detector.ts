@@ -58,14 +58,25 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
     if (highFitWithoutLeads) {
       const highFitIds = highFitWithoutLeads.map(s => s.account_external_id);
       
-      const { data: accountsWithLeads } = await supabase
-        .from('Leads')
-        .select('account_external_id')
-        .eq('org_id', orgId)
-        .in('account_external_id', highFitIds)
-        .limit(10000);
+      // Process in chunks of 500 to stay within .in() clause limits
+      const CHUNK_SIZE = 500;
+      const accountsWithLeadsSet = new Set<string>();
+      
+      for (let i = 0; i < highFitIds.length; i += CHUNK_SIZE) {
+        const chunk = highFitIds.slice(i, i + CHUNK_SIZE);
+        const { data: chunkResults } = await supabase
+          .from('Leads')
+          .select('account_external_id')
+          .eq('org_id', orgId)
+          .in('account_external_id', chunk);
+        
+        chunkResults?.forEach(c => {
+          if (c.account_external_id) {
+            accountsWithLeadsSet.add(c.account_external_id);
+          }
+        });
+      }
 
-      const accountsWithLeadsSet = new Set(accountsWithLeads?.map(c => c.account_external_id) || []);
       const missingLeads = highFitIds.filter(id => !accountsWithLeadsSet.has(id)).length;
 
       if (missingLeads > 50) {
