@@ -152,7 +152,7 @@ export function LeadEnrichmentPanel() {
         .eq('org_id', orgId)
         .eq('record_type', 'lead')
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(200);
 
       if (rows) {
         setEnrichmentRows(rows as EnrichmentRow[]);
@@ -160,6 +160,23 @@ export function LeadEnrichmentPanel() {
     } catch (error) {
       console.error('Error loading enrichment rows:', error);
     }
+  };
+
+  // Calculate concurrency based on batch size
+  const getConcurrency = (size: number) => {
+    if (size >= 100) return 4;
+    if (size >= 50) return 3;
+    return 2;
+  };
+
+  // Estimate processing time
+  const getEstimatedTime = (size: number) => {
+    const concurrency = getConcurrency(size);
+    const secondsPerLead = 3.5 / (concurrency / 2);
+    const totalSeconds = Math.ceil((size * secondsPerLead));
+    if (totalSeconds < 60) return `~${totalSeconds} seconds`;
+    const minutes = Math.ceil(totalSeconds / 60);
+    return `~${minutes} minute${minutes > 1 ? 's' : ''}`;
   };
 
   const startEnrichment = async () => {
@@ -201,6 +218,9 @@ export function LeadEnrichmentPanel() {
         .limit(1)
         .maybeSingle();
 
+      // Calculate concurrency based on batch size
+      const concurrency = getConcurrency(parseInt(batchSize));
+
       // Call the enrichment orchestrator with correct payload
       const { data, error } = await supabase.functions.invoke('enrichment-orchestrator', {
         body: { 
@@ -209,7 +229,7 @@ export function LeadEnrichmentPanel() {
           record_type: 'lead',
           record_ids: recordIds,
           config_icp_id: icpProfile?.id || null,
-          concurrency: 2,
+          concurrency,
           agent_config: {
             search: true,
             validation: true,
@@ -330,33 +350,44 @@ export function LeadEnrichmentPanel() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-4">
-              <div className="flex-1 space-y-2">
-                <label className="text-sm font-medium">Test Batch Size</label>
-                <Select value={batchSize} onValueChange={setBatchSize}>
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5 leads (test)</SelectItem>
-                    <SelectItem value="10">10 leads</SelectItem>
-                    <SelectItem value="25">25 leads</SelectItem>
-                    <SelectItem value="50">50 leads</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-1 space-y-2">
+                  <label className="text-sm font-medium">Batch Size</label>
+                  <Select value={batchSize} onValueChange={setBatchSize}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="5">5 leads (quick test)</SelectItem>
+                      <SelectItem value="10">10 leads</SelectItem>
+                      <SelectItem value="25">25 leads</SelectItem>
+                      <SelectItem value="50">50 leads</SelectItem>
+                      <SelectItem value="100">100 leads (scale test)</SelectItem>
+                      <SelectItem value="200">200 leads</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  onClick={startEnrichment}
+                  disabled={enriching || leads.length === 0}
+                  className="gap-2"
+                >
+                  {enriching ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  Start Multi-Agent Enrichment
+                </Button>
               </div>
-              <Button
-                onClick={startEnrichment}
-                disabled={enriching || leads.length === 0}
-                className="gap-2"
-              >
-                {enriching ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                Start Multi-Agent Enrichment
-              </Button>
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <span>⏱️ Estimated: {getEstimatedTime(parseInt(batchSize))}</span>
+                <span>•</span>
+                <span>🔄 Concurrency: {getConcurrency(parseInt(batchSize))}</span>
+                <span>•</span>
+                <span>💰 ~${(parseInt(batchSize) * 0.03).toFixed(2)} estimated cost</span>
+              </div>
             </div>
           )}
         </CardContent>
