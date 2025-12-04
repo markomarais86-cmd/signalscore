@@ -88,6 +88,20 @@ export default function Leads() {
   const { toast } = useToast();
   const { flags } = useFeatureFlags();
 
+  // Sync URL params to sidebar filters on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const campaignReady = params.get('campaign_ready');
+    const source = params.get('source');
+    const status = params.get('status');
+    const icp = params.get('icp');
+    
+    if (campaignReady === 'true') setCampaignReadyFilter('ready');
+    if (source) setLinkFilter(source === 'crm' ? 'linked' : source);
+    if (status) setStatusFilter(status);
+    if (icp === 'qualified') setIcpFilter('qualified');
+  }, []);
+
   // Use infinite scroll hook
   const {
     leads,
