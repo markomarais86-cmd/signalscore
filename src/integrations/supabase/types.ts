@@ -4002,6 +4002,10 @@ export type Database = {
         Returns: Json
       }
       merge_duplicate_accounts: { Args: { p_org_id: string }; Returns: Json }
+      normalize_account_industries: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
       normalize_country: { Args: { country_input: string }; Returns: string }
       normalize_country_value: {
         Args: { country_input: string }
@@ -4033,6 +4037,7 @@ export type Database = {
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       sync_accounts_from_leads: { Args: { p_org_id: string }; Returns: Json }
+      sync_industry_to_leads: { Args: { p_org_id: string }; Returns: Json }
       update_enrichment_job_progress: {
         Args: {
           p_current_batch?: number
