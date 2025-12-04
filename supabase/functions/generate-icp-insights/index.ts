@@ -29,6 +29,14 @@ interface Insight {
   revenue_opportunity?: number;
 }
 
+interface LeadCoverageStats {
+  totalLeads: number;
+  accountsWithLeads: number;
+  highFitAccountsWithLeads: number;
+  highFitMissingLeads: number;
+  leadCoveragePercent: string;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -95,7 +103,43 @@ serve(async (req) => {
       throw new Error(`Failed to fetch deals: ${dealsError.message}`);
     }
 
-    // Analyze data
+    // Calculate high-fit accounts first
+    const highScoreAccounts = accounts?.filter(a => a.scores?.[0]?.overall >= 70) || [];
+    const avgDealValue = deals?.reduce((sum, d) => sum + Number(d.deal_value), 0) / (deals?.length || 1);
+
+    // Calculate REAL lead coverage stats
+    const accountIds = new Set(accounts?.map(a => a.external_id) || []);
+    const highFitAccountIds = new Set(highScoreAccounts.map(a => a.external_id));
+    const leadsWithAccounts = leads?.filter(l => l.account_external_id && accountIds.has(l.account_external_id)) || [];
+    const highFitWithLeads = new Set(
+      leadsWithAccounts
+        .filter(l => highFitAccountIds.has(l.account_external_id))
+        .map(l => l.account_external_id)
+    );
+
+    const leadCoverageStats: LeadCoverageStats = {
+      totalLeads: leads?.length || 0,
+      accountsWithLeads: new Set(leadsWithAccounts.map(l => l.account_external_id)).size,
+      highFitAccountsWithLeads: highFitWithLeads.size,
+      highFitMissingLeads: highScoreAccounts.length - highFitWithLeads.size,
+      leadCoveragePercent: highScoreAccounts.length > 0 
+        ? ((highFitWithLeads.size / highScoreAccounts.length) * 100).toFixed(1)
+        : '0'
+    };
+
+    console.log('Lead coverage stats:', leadCoverageStats);
+
+    // Calculate data completeness
+    const accountsWithIndustry = accounts?.filter(a => a.industry_norm)?.length || 0;
+    const accountsWithRevenue = accounts?.filter(a => a.revenue_range)?.length || 0;
+    const accountsWithSize = accounts?.filter(a => a.employee_count)?.length || 0;
+    const accountsWithGeo = accounts?.filter(a => a.country)?.length || 0;
+    const totalAccounts = accounts?.length || 1;
+    const dataCompleteness = ((accountsWithIndustry + accountsWithRevenue + accountsWithSize + accountsWithGeo) / (totalAccounts * 4)) * 100;
+
+    console.log('Data completeness:', dataCompleteness.toFixed(1) + '%');
+
+    // Analyze data distributions
     const revenueDistribution: Record<string, number> = {};
     const industryDistribution: Record<string, number> = {};
     const sizeDistribution: Record<string, number> = {};
@@ -132,15 +176,14 @@ serve(async (req) => {
       }
     });
 
-    const highScoreAccounts = accounts?.filter(a => a.scores?.[0]?.overall >= 70) || [];
-    const avgDealValue = deals?.reduce((sum, d) => sum + Number(d.deal_value), 0) / (deals?.length || 1);
-
-    // Generate insights using Lovable AI (simplified - no tool calling)
+    // Generate insights using Lovable AI with EXPLICIT validation rules
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
     let aiInsights: Insight[] = [];
     
     try {
+      const leadCoverageNum = parseFloat(leadCoverageStats.leadCoveragePercent);
+      
       const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -152,7 +195,16 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: 'You are an expert B2B sales analyst. Analyze firmographic data and provide actionable ICP insights. Return ONLY valid JSON array of insights, no markdown or explanations.'
+              content: `You are an expert B2B sales analyst. Analyze firmographic data and provide actionable ICP insights. Return ONLY valid JSON array of insights, no markdown or explanations.
+
+CRITICAL RULES - DO NOT VIOLATE:
+- ONLY mention "missing leads" or "lead coverage issues" if High-Fit Missing Leads > 100
+- ONLY mention "data quality issues" if data completeness is below 60%
+- ONLY mention problems that are EXPLICITLY supported by the data provided
+- If lead coverage is above 85%, DO NOT suggest lead enrichment - focus on campaign execution instead
+- If data completeness is above 80%, DO NOT suggest data enrichment
+- Focus on OPPORTUNITIES based on what the data shows, not problems that don't exist
+- Be specific with numbers from the data provided`
             },
             {
               role: 'user',
@@ -167,15 +219,24 @@ serve(async (req) => {
   "confidence": 75
 }
 
-Data:
+REAL DATA (use these exact numbers):
+- Total Accounts: ${accounts?.length || 0}
+- High-Fit Accounts (score >= 70): ${highScoreAccounts.length}
+- Total Leads: ${leadCoverageStats.totalLeads}
+- Lead Coverage: ${leadCoverageStats.highFitAccountsWithLeads} of ${highScoreAccounts.length} high-fit accounts have leads (${leadCoverageStats.leadCoveragePercent}%)
+- High-Fit Accounts Missing Leads: ${leadCoverageStats.highFitMissingLeads}
+- Data Completeness: ${dataCompleteness.toFixed(1)}%
 - Revenue Distribution: ${JSON.stringify(revenueDistribution)}
 - Industry Distribution: ${JSON.stringify(industryDistribution)}
 - Company Size: ${JSON.stringify(sizeDistribution)}
 - Geography: ${JSON.stringify(geoDistribution)}
 - Personas: ${JSON.stringify(personaDistribution)}
 - Top Titles: ${JSON.stringify(Object.entries(titleDistribution).sort((a, b) => b[1] - a[1]).slice(0, 10))}
-- High-Score Accounts: ${highScoreAccounts.length} of ${accounts?.length || 0}
 - Avg Deal: $${avgDealValue.toFixed(0)}
+
+REMEMBER: 
+- Lead coverage is ${leadCoverageStats.leadCoveragePercent}% - ${leadCoverageNum >= 85 ? 'this is GOOD, do NOT suggest enrichment' : leadCoverageNum >= 60 ? 'this is MODERATE' : 'this needs improvement'}
+- Data completeness is ${dataCompleteness.toFixed(1)}% - ${dataCompleteness >= 80 ? 'this is GOOD' : dataCompleteness >= 60 ? 'this is MODERATE' : 'this needs improvement'}
 
 Return ONLY the JSON array, no other text.`
             }
@@ -197,7 +258,7 @@ Return ONLY the JSON array, no other text.`
         try {
           const parsed = JSON.parse(jsonText);
           aiInsights = Array.isArray(parsed) ? parsed : [];
-          console.log(`Generated ${aiInsights.length} AI insights`);
+          console.log(`Generated ${aiInsights.length} AI insights before validation`);
         } catch (parseError) {
           console.warn('Failed to parse AI response:', parseError);
         }
@@ -208,9 +269,69 @@ Return ONLY the JSON array, no other text.`
       console.warn('AI generation error:', aiError);
     }
 
-    // Add data-driven fallback insights
-    const insights: Insight[] = [...aiInsights];
+    // POST-AI VALIDATION: Filter out hallucinated insights
+    const leadCoverageNum = parseFloat(leadCoverageStats.leadCoveragePercent);
+    const validatedAiInsights = aiInsights.filter(insight => {
+      const titleLower = insight.title.toLowerCase();
+      const descLower = insight.description.toLowerCase();
+      
+      // Filter out "missing leads" insights if coverage is good
+      if ((titleLower.includes('missing lead') || titleLower.includes('no lead') || 
+           titleLower.includes('lead gap') || titleLower.includes('lead coverage') ||
+           descLower.includes('missing lead') || descLower.includes('without lead')) && 
+          leadCoverageStats.highFitMissingLeads < 100) {
+        console.log('Filtering out inaccurate AI insight about missing leads:', insight.title);
+        return false;
+      }
+      
+      // Filter out enrichment suggestions if data completeness is high
+      if ((titleLower.includes('enrich') || titleLower.includes('data quality') ||
+           titleLower.includes('incomplete')) && dataCompleteness > 80) {
+        console.log('Filtering out unnecessary enrichment suggestion:', insight.title);
+        return false;
+      }
+      
+      // Filter out lead enrichment if coverage is excellent
+      if ((titleLower.includes('enrich lead') || titleLower.includes('add lead') ||
+           titleLower.includes('find lead') || titleLower.includes('discover lead')) && 
+          leadCoverageNum >= 85) {
+        console.log('Filtering out lead enrichment suggestion - coverage already good:', insight.title);
+        return false;
+      }
+      
+      return true;
+    });
+
+    console.log(`After validation: ${validatedAiInsights.length} AI insights (filtered ${aiInsights.length - validatedAiInsights.length})`);
+
+    // Add DATA-DRIVEN insights based on REAL metrics
+    const insights: Insight[] = [...validatedAiInsights];
     
+    // Lead coverage insight - ONLY if there's actually a problem
+    if (leadCoverageStats.highFitMissingLeads > 100) {
+      insights.push({
+        type: 'signal',
+        priority: 'high',
+        title: `${leadCoverageStats.highFitMissingLeads.toLocaleString()} high-fit accounts need leads`,
+        description: `${leadCoverageStats.leadCoveragePercent}% lead coverage. ${leadCoverageStats.highFitAccountsWithLeads} of ${highScoreAccounts.length} high-fit accounts have reachable leads.`,
+        impact: `Potential to reach ${leadCoverageStats.highFitMissingLeads} additional high-fit accounts`,
+        confidence: 95,
+        nextAction: 'enrich_data'
+      });
+    } else if (leadCoverageNum >= 85 && highScoreAccounts.length > 10) {
+      // POSITIVE insight when coverage is excellent
+      insights.push({
+        type: 'signal',
+        priority: 'low',
+        title: `Excellent lead coverage: ${leadCoverageStats.leadCoveragePercent}%`,
+        description: `${leadCoverageStats.highFitAccountsWithLeads} of ${highScoreAccounts.length} high-fit accounts have reachable leads. Your data is campaign-ready.`,
+        impact: 'Strong outreach readiness - focus on campaign execution',
+        confidence: 100,
+        nextAction: 'build_campaign'
+      });
+    }
+
+    // Data-driven fallback insights for distributions
     const topRevenue = Object.entries(revenueDistribution).sort((a, b) => b[1] - a[1])[0];
     const topIndustry = Object.entries(industryDistribution).sort((a, b) => b[1] - a[1])[0];
     const topGeo = Object.entries(geoDistribution).sort((a, b) => b[1] - a[1])[0];
@@ -271,7 +392,11 @@ Return ONLY the JSON array, no other text.`
         statistics: {
           total_accounts: accounts?.length || 0,
           high_score_accounts: highScoreAccounts.length,
-          total_contacts: leads?.length || 0,
+          total_leads: leads?.length || 0,
+          lead_coverage_percent: parseFloat(leadCoverageStats.leadCoveragePercent),
+          high_fit_with_leads: leadCoverageStats.highFitAccountsWithLeads,
+          high_fit_missing_leads: leadCoverageStats.highFitMissingLeads,
+          data_completeness: parseFloat(dataCompleteness.toFixed(1)),
           total_deals: deals?.length || 0,
           avg_deal_value: avgDealValue
         }
