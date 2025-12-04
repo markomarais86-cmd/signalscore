@@ -176,6 +176,22 @@ export function LeadEnrichmentPanel() {
 
       if (!profile?.org_id) throw new Error('No organization found');
 
+      // Fetch lead IDs to enrich based on batch size
+      const { data: leadsToEnrich, error: leadsError } = await supabase
+        .from('Leads')
+        .select('id')
+        .eq('org_id', profile.org_id)
+        .is('enrichment_overall_score', null)
+        .not('email', 'is', null)
+        .limit(parseInt(batchSize));
+
+      if (leadsError) throw leadsError;
+      if (!leadsToEnrich || leadsToEnrich.length === 0) {
+        throw new Error('No leads found to enrich');
+      }
+
+      const recordIds = leadsToEnrich.map(lead => lead.id.toString());
+
       // Get ICP profile to use for evaluation
       const { data: icpProfile } = await supabase
         .from('icp_profiles')
@@ -185,17 +201,19 @@ export function LeadEnrichmentPanel() {
         .limit(1)
         .maybeSingle();
 
-      // Call the enrichment orchestrator
+      // Call the enrichment orchestrator with correct payload
       const { data, error } = await supabase.functions.invoke('enrichment-orchestrator', {
         body: { 
           org_id: profile.org_id,
+          source_type: 'database',
           record_type: 'lead',
-          batch_size: parseInt(batchSize),
-          icp_config_id: icpProfile?.id || null,
+          record_ids: recordIds,
+          config_icp_id: icpProfile?.id || null,
+          concurrency: 2,
           agent_config: {
-            enable_search: true,
-            enable_validation: true,
-            enable_icp: !!icpProfile
+            search: true,
+            validation: true,
+            icp: !!icpProfile
           }
         }
       });
@@ -204,7 +222,7 @@ export function LeadEnrichmentPanel() {
 
       toast({
         title: "Multi-Agent Enrichment Started",
-        description: `Processing ${batchSize} leads through Search → Validation → ICP pipeline`,
+        description: `Processing ${recordIds.length} leads through Search → Validation → ICP pipeline`,
       });
 
       // Refresh data

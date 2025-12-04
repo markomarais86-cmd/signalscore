@@ -36,6 +36,21 @@ serve(async (req) => {
     );
 
     const request: EnrichmentRequest = await req.json();
+    
+    // Validate required fields
+    if (!request.org_id) {
+      throw new Error('Missing required field: org_id');
+    }
+    if (!request.record_type) {
+      throw new Error('Missing required field: record_type');
+    }
+    if (!request.record_ids || !Array.isArray(request.record_ids) || request.record_ids.length === 0) {
+      throw new Error('Missing or empty required field: record_ids');
+    }
+    if (!request.source_type) {
+      throw new Error('Missing required field: source_type');
+    }
+
     const { 
       org_id, 
       source_type, 
