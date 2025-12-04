@@ -167,7 +167,9 @@ Deno.serve(async (req) => {
       // Support fetching from URL
       if (body.csv_url) {
         console.log('Fetching CSV from URL:', body.csv_url);
-        const response = await fetch(body.csv_url);
+        const response = await fetch(body.csv_url, {
+          headers: { 'Accept': 'text/csv,text/plain,*/*' }
+        });
         if (!response.ok) {
           return new Response(
             JSON.stringify({ error: `Failed to fetch CSV: ${response.status}` }),
@@ -175,6 +177,14 @@ Deno.serve(async (req) => {
           );
         }
         csvContent = await response.text();
+        
+        // Check if we got HTML instead of CSV (common with SPAs)
+        if (csvContent.trim().startsWith('<!DOCTYPE') || csvContent.trim().startsWith('<html')) {
+          return new Response(
+            JSON.stringify({ error: 'URL returned HTML instead of CSV. Make sure the URL points directly to a raw CSV file.' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       } else {
         csvContent = body.csv_content;
       }
