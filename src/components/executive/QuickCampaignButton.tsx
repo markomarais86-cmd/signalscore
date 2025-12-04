@@ -95,35 +95,8 @@ export function QuickCampaignButton({ highFitAccounts, disabled }: QuickCampaign
       // Generate campaign name
       const campaignName = `High-Fit Campaign - ${icp.name} - ${new Date().toLocaleDateString()}`;
 
-      // Check for Salesforce integration
-      const { data: sfConfig } = await supabase
-        .from('integration_configs')
-        .select('id')
-        .eq('org_id', userProfile.org_id)
-        .eq('provider_name', 'salesforce')
-        .eq('status', 'connected')
-        .maybeSingle();
-
-      if (sfConfig) {
-        // Push to Salesforce
-        const { error: pushError } = await supabase.functions.invoke('push-campaign-to-crm', {
-          body: {
-            org_id: userProfile.org_id,
-            campaign_name: campaignName,
-            contacts,
-            batch_metadata: {
-              icp_id: icp.id,
-              icp_name: icp.name,
-              source_accounts: filteredAccounts.length
-            }
-          }
-        });
-
-        if (pushError) throw pushError;
-
-        toast.success(`Campaign "${campaignName}" created in Salesforce with ${contacts.length} contacts!`);
-      } else {
-        // Export as CSV
+      // Helper function to export as CSV
+      const exportAsCSV = () => {
         const csv = [
           ['Email', 'First Name', 'Last Name', 'Title', 'Company', 'Persona'].join(','),
           ...contacts.map(c => [
@@ -142,7 +115,44 @@ export function QuickCampaignButton({ highFitAccounts, disabled }: QuickCampaign
         a.href = url;
         a.download = `${campaignName}.csv`;
         a.click();
+      };
 
+      // Check for Salesforce integration
+      const { data: sfConfig } = await supabase
+        .from('integration_configs')
+        .select('id')
+        .eq('org_id', userProfile.org_id)
+        .eq('provider_name', 'salesforce')
+        .eq('status', 'connected')
+        .maybeSingle();
+
+      if (sfConfig) {
+        // Try to push to Salesforce, fall back to CSV on error
+        try {
+          const { error: pushError } = await supabase.functions.invoke('push-campaign-to-crm', {
+            body: {
+              org_id: userProfile.org_id,
+              campaign_name: campaignName,
+              contacts,
+              batch_metadata: {
+                icp_id: icp.id,
+                icp_name: icp.name,
+                source_accounts: filteredAccounts.length
+              }
+            }
+          });
+
+          if (pushError) throw pushError;
+
+          toast.success(`Campaign "${campaignName}" created in Salesforce with ${contacts.length} contacts!`);
+        } catch (sfError: any) {
+          console.warn('Salesforce push failed, falling back to CSV:', sfError);
+          exportAsCSV();
+          toast.success(`Salesforce unavailable. Campaign exported as CSV with ${contacts.length} contacts!`);
+        }
+      } else {
+        // Export as CSV
+        exportAsCSV();
         toast.success(`Campaign exported with ${contacts.length} contacts!`);
       }
 
