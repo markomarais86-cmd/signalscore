@@ -1,20 +1,20 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Building2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 
 interface MatchResult {
   success: boolean;
+  matched: number;
+  created: number;
+  linked: number;
   total_processed: number;
-  total_matched: number;
-  total_created: number;
-  total_scored: number;
+  duration_ms: number;
   error?: string;
 }
 
@@ -26,10 +26,7 @@ interface BulkLeadMatcherProps {
 export function BulkLeadMatcher({ unlinkedLeads, onComplete }: BulkLeadMatcherProps) {
   const { userProfile } = useAuth();
   const [isMatching, setIsMatching] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<MatchResult | null>(null);
-  const [statusMessage, setStatusMessage] = useState("");
-  const abortRef = useRef(false);
 
   const handleMatch = async () => {
     if (!userProfile?.org_id) {
@@ -38,80 +35,43 @@ export function BulkLeadMatcher({ unlinkedLeads, onComplete }: BulkLeadMatcherPr
     }
 
     setIsMatching(true);
-    setProgress(0);
     setResult(null);
-    abortRef.current = false;
-
-    let totalProcessed = 0;
-    let totalMatched = 0;
-    let totalCreated = 0;
-    let totalScored = 0;
-    let hasMore = true;
-    let batchCount = 0;
-    const maxBatches = 200; // Safety limit
 
     try {
-      console.log("🔗 Starting chunked lead matching for org:", userProfile.org_id);
+      console.log("🔗 Starting high-performance bulk matching for org:", userProfile.org_id);
+      const startTime = Date.now();
 
-      while (hasMore && !abortRef.current && batchCount < maxBatches) {
-        batchCount++;
-        setStatusMessage(`Processing batch ${batchCount}...`);
-
-        const { data, error } = await supabase.functions.invoke('match-leads-to-accounts', {
-          body: { 
-            org_id: userProfile.org_id,
-            batch_size: 100 
-          }
-        });
-
-        if (error) {
-          console.error("❌ Batch error:", error);
-          throw new Error(error.message || "Failed to match leads");
-        }
-
-        if (!data.success) {
-          throw new Error(data.error || "Matching failed");
-        }
-
-        totalProcessed += data.processed || 0;
-        totalMatched += data.matched || 0;
-        totalCreated += data.created || 0;
-        totalScored += data.scored || 0;
-        hasMore = data.has_more;
-
-        // Update progress based on remaining leads
-        const remaining = data.remaining || 0;
-        const total = totalProcessed + remaining;
-        const progressPercent = total > 0 ? Math.round((totalProcessed / total) * 100) : 100;
-        setProgress(progressPercent);
-
-        setStatusMessage(
-          `Processed ${totalProcessed.toLocaleString()} leads • ${totalMatched.toLocaleString()} matched • ${totalCreated.toLocaleString()} new accounts`
-        );
-
-        console.log(`✅ Batch ${batchCount}: processed=${data.processed}, remaining=${remaining}, hasMore=${hasMore}`);
-
-        // Small delay between batches to prevent overwhelming the server
-        if (hasMore) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      }
-
-      setProgress(100);
-      setResult({
-        success: true,
-        total_processed: totalProcessed,
-        total_matched: totalMatched,
-        total_created: totalCreated,
-        total_scored: totalScored
+      // Single call - processes ALL leads at once using database function
+      const { data, error } = await supabase.functions.invoke('match-leads-to-accounts', {
+        body: { org_id: userProfile.org_id }
       });
 
-      toast.success(`Successfully processed ${totalProcessed.toLocaleString()} leads!`, {
-        description: `${totalMatched.toLocaleString()} matched, ${totalCreated.toLocaleString()} new accounts, ${totalScored.toLocaleString()} scored`
+      if (error) {
+        throw new Error(error.message || "Failed to match leads");
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || "Matching failed");
+      }
+
+      const duration = Date.now() - startTime;
+      const matchResult: MatchResult = {
+        success: true,
+        matched: data.matched || 0,
+        created: data.created || 0,
+        linked: data.linked || 0,
+        total_processed: data.total_processed || data.processed || 0,
+        duration_ms: duration
+      };
+
+      setResult(matchResult);
+
+      toast.success(`Matching complete in ${(duration / 1000).toFixed(1)}s`, {
+        description: `${matchResult.total_processed.toLocaleString()} leads processed, ${matchResult.created.toLocaleString()} new accounts`
       });
 
       if (onComplete) {
-        setTimeout(onComplete, 1500);
+        setTimeout(onComplete, 1000);
       }
 
     } catch (error: any) {
@@ -121,24 +81,19 @@ export function BulkLeadMatcher({ unlinkedLeads, onComplete }: BulkLeadMatcherPr
       });
       setResult({
         success: false,
-        total_processed: totalProcessed,
-        total_matched: totalMatched,
-        total_created: totalCreated,
-        total_scored: totalScored,
+        matched: 0,
+        created: 0,
+        linked: 0,
+        total_processed: 0,
+        duration_ms: 0,
         error: error.message
       });
     } finally {
       setIsMatching(false);
-      setStatusMessage("");
     }
   };
 
-  const handleCancel = () => {
-    abortRef.current = true;
-    setStatusMessage("Cancelling...");
-  };
-
-  if (unlinkedLeads === 0) {
+  if (unlinkedLeads === 0 && !result) {
     return null;
   }
 
@@ -155,15 +110,9 @@ export function BulkLeadMatcher({ unlinkedLeads, onComplete }: BulkLeadMatcherPr
           </p>
           
           {isMatching && (
-            <div className="space-y-2 mb-3">
-              <div className="flex items-center gap-2 text-sm">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>{statusMessage || `Processing leads...`}</span>
-              </div>
-              <Progress value={progress} className="h-2" />
-              <p className="text-xs text-muted-foreground">
-                Processing in batches of 100 to avoid timeouts
-              </p>
+            <div className="flex items-center gap-2 text-sm mb-3">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span>Processing all leads in a single operation...</span>
             </div>
           )}
 
@@ -172,38 +121,47 @@ export function BulkLeadMatcher({ unlinkedLeads, onComplete }: BulkLeadMatcherPr
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm flex items-center gap-2">
                   {result.success ? (
-                    <CheckCircle2 className="h-4 w-4 text-success" />
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
                   ) : (
                     <AlertCircle className="h-4 w-4 text-destructive" />
                   )}
                   Matching Results
+                  {result.success && (
+                    <Badge variant="secondary" className="ml-auto text-xs">
+                      {(result.duration_ms / 1000).toFixed(1)}s
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Total Processed:</span>
-                    <Badge variant="secondary">{result.total_processed.toLocaleString()}</Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Matched Existing:</span>
-                    <Badge variant="outline">{result.total_matched.toLocaleString()}</Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">New Accounts:</span>
-                    <Badge variant="outline">{result.total_created.toLocaleString()}</Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Auto-Scored:</span>
-                    <Badge variant="outline">{result.total_scored.toLocaleString()}</Badge>
-                  </div>
-                </div>
-                {result.error && (
-                  <Alert variant="destructive" className="mt-2">
+                {result.error ? (
+                  <Alert variant="destructive">
                     <AlertDescription className="text-xs">
                       {result.error}
                     </AlertDescription>
                   </Alert>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Matched to Existing:</span>
+                      <Badge variant="outline">{result.matched.toLocaleString()}</Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground flex items-center gap-1">
+                        <Building2 className="h-3 w-3" />
+                        New Accounts:
+                      </span>
+                      <Badge variant="outline" className="text-green-600">{result.created.toLocaleString()}</Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Linked to New:</span>
+                      <Badge variant="outline">{result.linked.toLocaleString()}</Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total Processed:</span>
+                      <Badge variant="secondary">{result.total_processed.toLocaleString()}</Badge>
+                    </div>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -229,15 +187,6 @@ export function BulkLeadMatcher({ unlinkedLeads, onComplete }: BulkLeadMatcherPr
               </>
             )}
           </Button>
-          {isMatching && (
-            <Button
-              onClick={handleCancel}
-              variant="outline"
-              size="sm"
-            >
-              Cancel
-            </Button>
-          )}
         </div>
       </AlertDescription>
     </Alert>

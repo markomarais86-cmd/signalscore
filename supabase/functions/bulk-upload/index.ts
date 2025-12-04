@@ -60,23 +60,6 @@ interface UploadRequest {
   isExternalDatabase?: boolean
 }
 
-// Domain normalization
-function normalizeDomain(domain: string | null | undefined): string {
-  if (!domain) return '';
-  let normalized = domain.trim().toLowerCase();
-  normalized = normalized.replace(/^(https?:\/\/|\/\/)/i, '');
-  normalized = normalized.replace(/^www\./i, '');
-  normalized = normalized.replace(/\/.*$/, '');
-  normalized = normalized.replace(/\.$/, '');
-  return normalized;
-}
-
-function extractDomainFromEmail(email: string | null): string {
-  if (!email || !email.includes('@')) return '';
-  const parts = email.split('@');
-  return normalizeDomain(parts[1]);
-}
-
 // Helper function to normalize revenue to standard ranges
 const normalizeRevenue = (revenue: string | null): string | null => {
   if (!revenue) return null;
@@ -151,7 +134,7 @@ Deno.serve(async (req) => {
     )
 
     const { data, mapping, orgId, isExternalDatabase = false }: UploadRequest = await req.json()
-    console.log(`🚀 Starting bulk upload: ${data.length} leads`)
+    console.log(`🚀 Starting bulk upload: ${data.length} leads for org ${orgId}`)
 
     let insertedLeads = 0
     const errors: string[] = []
@@ -223,214 +206,111 @@ Deno.serve(async (req) => {
 
     console.log(`✅ Upload complete: ${insertedLeads} leads`)
 
-    // ALWAYS auto-link leads to accounts after upload (removed isExternalDatabase check)
+    // ALWAYS auto-match leads using the high-performance database function
+    let matchResult = null;
     if (insertedLeads > 0) {
-      console.log('🔗 Auto-linking ALL leads to accounts...')
+      console.log('🔗 Running high-performance bulk matching...')
+      const matchStart = Date.now();
       
-      // Build domain map from existing accounts
-      const { data: existingAccounts } = await supabaseClient
-        .from('accounts')
-        .select('external_id, domain')
-        .eq('org_id', orgId)
-        .not('domain', 'is', null)
+      const { data: matchData, error: matchError } = await supabaseClient.rpc('bulk_match_all_leads', {
+        p_org_id: orgId
+      });
 
-      const domainToAccountId = new Map<string, string>()
-      for (const account of existingAccounts || []) {
-        if (account.domain) {
-          const normalized = normalizeDomain(account.domain)
-          if (normalized) {
-            domainToAccountId.set(normalized, account.external_id)
+      if (matchError) {
+        console.error('⚠️ Bulk match error:', matchError.message)
+        errors.push(`Matching: ${matchError.message}`)
+      } else {
+        matchResult = matchData;
+        const matchDuration = Date.now() - matchStart;
+        console.log(`✅ Bulk matching completed in ${matchDuration}ms:`, matchResult)
+      }
+    }
+
+    // Score new accounts if ICP exists and accounts were created
+    if (matchResult?.accounts_created > 0) {
+      const { data: icpData } = await supabaseClient
+        .from('icp_profiles')
+        .select('id')
+        .eq('org_id', orgId)
+        .eq('status', 'active')
+        .limit(1)
+        .single()
+
+      if (icpData?.id) {
+        console.log(`🎯 Triggering scoring for ${matchResult.accounts_created} new accounts...`)
+        
+        // Get the newly created account IDs (those with AUTO_ prefix from recent)
+        const { data: newAccounts } = await supabaseClient
+          .from('accounts')
+          .select('external_id')
+          .eq('org_id', orgId)
+          .like('external_id', 'AUTO_%')
+          .order('updated_at', { ascending: false })
+          .limit(matchResult.accounts_created)
+
+        if (newAccounts && newAccounts.length > 0) {
+          const accountIds = newAccounts.map(a => a.external_id)
+          const { error: scoreError } = await supabaseClient
+            .rpc('bulk_score_accounts_batch', {
+              p_org_id: orgId,
+              p_account_ids: accountIds,
+              p_icp_id: icpData.id
+            })
+
+          if (scoreError) {
+            console.error('⚠️ Scoring error:', scoreError.message)
+          } else {
+            console.log(`✅ Scored ${accountIds.length} accounts`)
           }
         }
       }
+    }
 
-      console.log(`📚 Loaded ${domainToAccountId.size} existing domain mappings`)
-
-      // Get unlinked leads from this upload
-      const { data: unlinkedLeads } = await supabaseClient
+    // Create contacts from linked leads if external database
+    if (isExternalDatabase && insertedLeads > 0) {
+      console.log('👤 Creating contacts from linked leads...')
+      const { data: linkedLeads } = await supabaseClient
         .from('Leads')
-        .select('id, company, website, email, industry, employee_count, revenue_range, country, state_province, phone, mobile')
+        .select('account_external_id, first_name, last_name, email, title, phone, mobile, country, state_province')
         .eq('org_id', orgId)
-        .is('account_external_id', null)
-        .limit(10000) // Process up to 10k leads
-
-      if (unlinkedLeads && unlinkedLeads.length > 0) {
-        console.log(`🔍 Processing ${unlinkedLeads.length} unlinked leads`)
-
-        const leadsToUpdate: Array<{ id: number; account_external_id: string }> = []
-        const accountsToCreate: Array<any> = []
-        const seenDomains = new Set<string>()
-        let matchedCount = 0
-        let createdCount = 0
-
-        for (const lead of unlinkedLeads) {
-          const domain = normalizeDomain(lead.website) || extractDomainFromEmail(lead.email)
+        .not('account_external_id', 'is', null)
+        .not('email', 'is', null)
+      
+      if (linkedLeads && linkedLeads.length > 0) {
+        const contactsMap = new Map<string, any>()
+        linkedLeads.forEach(lead => {
+          if (!lead.email || !lead.account_external_id) return
           
-          if (!domain) continue
-
-          // Check if domain maps to existing account
-          if (domainToAccountId.has(domain)) {
-            leadsToUpdate.push({
-              id: lead.id,
-              account_external_id: domainToAccountId.get(domain)!
+          const contactKey = `${lead.account_external_id}_${lead.email.toLowerCase()}`
+          if (!contactsMap.has(contactKey)) {
+            contactsMap.set(contactKey, {
+              org_id: orgId,
+              external_id: `contact_${lead.email}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              account_external_id: lead.account_external_id,
+              first_name: lead.first_name || null,
+              last_name: lead.last_name || null,
+              email: lead.email,
+              title_raw: lead.title || null,
+              persona: mapTitleToPersona(lead.title),
+              phone: lead.phone || null,
+              mobile: lead.mobile || null,
+              country: lead.country || null,
+              state_province: lead.state_province || null,
+              data_source: 'database',
+              enriched_from: 'lead_upload'
             })
-            matchedCount++
-            continue
           }
-
-          // Check if we're already creating an account for this domain
-          if (seenDomains.has(domain)) {
-            const pendingAccount = accountsToCreate.find(a => a.domain === domain)
-            if (pendingAccount) {
-              leadsToUpdate.push({
-                id: lead.id,
-                account_external_id: pendingAccount.external_id
-              })
-            }
-            continue
-          }
-
-          // Create new account for this domain
-          seenDomains.add(domain)
-          const newExternalId = crypto.randomUUID()
-          
-          const industryMatch = fuzzyMatchIndustry(lead.industry)
-          
-          accountsToCreate.push({
-            external_id: newExternalId,
-            org_id: orgId,
-            name: lead.company || domain,
-            domain: domain,
-            industry_raw: lead.industry,
-            industry_norm: industryMatch?.primary || lead.industry,
-            employee_count: lead.employee_count,
-            revenue_range: lead.revenue_range,
-            country: lead.country,
-            state_province: lead.state_province,
-            phone: lead.phone,
-            mobile: lead.mobile,
-            data_source: isExternalDatabase ? 'database' : 'upload',
-            external_database_match: isExternalDatabase
-          })
-
-          domainToAccountId.set(domain, newExternalId)
-
-          leadsToUpdate.push({
-            id: lead.id,
-            account_external_id: newExternalId
-          })
-          createdCount++
-        }
-
-        // Insert new accounts
-        if (accountsToCreate.length > 0) {
-          console.log(`➕ Creating ${accountsToCreate.length} new accounts...`)
-          const { error: insertError } = await supabaseClient
-            .from('accounts')
-            .insert(accountsToCreate)
-
-          if (insertError) {
-            console.error('⚠️ Account creation error:', insertError.message)
-            errors.push(`Account creation: ${insertError.message}`)
-          }
-        }
-
-        // Update leads with account links
-        if (leadsToUpdate.length > 0) {
-          console.log(`🔗 Linking ${leadsToUpdate.length} leads...`)
-          
-          // Update in chunks of 500
-          for (let i = 0; i < leadsToUpdate.length; i += 500) {
-            const chunk = leadsToUpdate.slice(i, i + 500)
-            const { error: updateError } = await supabaseClient
-              .from('Leads')
-              .upsert(chunk, { onConflict: 'id' })
-
-            if (updateError) {
-              console.error('⚠️ Lead update error:', updateError.message)
-            }
-          }
-        }
-
-        console.log(`✅ Linking complete: ${matchedCount} matched to existing, ${createdCount} new accounts created`)
-
-        // Score new accounts if ICP exists
-        if (accountsToCreate.length > 0) {
-          const { data: icpData } = await supabaseClient
-            .from('icp_profiles')
-            .select('id')
-            .eq('org_id', orgId)
-            .eq('status', 'active')
-            .limit(1)
-            .single()
-
-          if (icpData?.id) {
-            console.log(`🎯 Scoring ${accountsToCreate.length} new accounts...`)
-            
-            const accountIds = accountsToCreate.map(a => a.external_id)
-            const { error: scoreError } = await supabaseClient
-              .rpc('bulk_score_accounts_batch', {
-                p_org_id: orgId,
-                p_account_ids: accountIds,
-                p_icp_id: icpData.id
-              })
-
-            if (scoreError) {
-              console.error('⚠️ Scoring error:', scoreError.message)
-            } else {
-              console.log(`✅ Scored ${accountIds.length} accounts`)
-            }
-          }
-        }
-
-        // Create contacts from linked leads if external database
-        if (isExternalDatabase && leadsToUpdate.length > 0) {
-          console.log('👤 Creating contacts from linked leads...')
-          const { data: linkedLeads } = await supabaseClient
-            .from('Leads')
-            .select('account_external_id, first_name, last_name, email, title, phone, mobile, country, state_province')
-            .eq('org_id', orgId)
-            .not('account_external_id', 'is', null)
-            .not('email', 'is', null)
-          
-          if (linkedLeads && linkedLeads.length > 0) {
-            const contactsMap = new Map<string, any>()
-            linkedLeads.forEach(lead => {
-              if (!lead.email || !lead.account_external_id) return
-              
-              const contactKey = `${lead.account_external_id}_${lead.email.toLowerCase()}`
-              if (!contactsMap.has(contactKey)) {
-                contactsMap.set(contactKey, {
-                  org_id: orgId,
-                  external_id: `contact_${lead.email}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                  account_external_id: lead.account_external_id,
-                  first_name: lead.first_name || null,
-                  last_name: lead.last_name || null,
-                  email: lead.email,
-                  title_raw: lead.title || null,
-                  persona: mapTitleToPersona(lead.title),
-                  phone: lead.phone || null,
-                  mobile: lead.mobile || null,
-                  country: lead.country || null,
-                  state_province: lead.state_province || null,
-                  data_source: 'database',
-                  enriched_from: 'lead_upload'
-                })
-              }
-            })
-            
-            const contactsData = Array.from(contactsMap.values())
-            console.log(`Creating ${contactsData.length} unique contacts`)
-            
-            const { error: contactsError } = await supabaseClient
-              .from('contacts')
-              .upsert(contactsData, { onConflict: 'org_id,external_id', ignoreDuplicates: true })
-            
-            if (contactsError) {
-              console.error('⚠️ Contact creation failed:', contactsError.message)
-              errors.push(`Contact creation: ${contactsError.message}`)
-            }
-          }
+        })
+        
+        const contactsData = Array.from(contactsMap.values())
+        console.log(`Creating ${contactsData.length} unique contacts`)
+        
+        const { error: contactsError } = await supabaseClient
+          .from('contacts')
+          .upsert(contactsData, { onConflict: 'org_id,external_id', ignoreDuplicates: true })
+        
+        if (contactsError) {
+          console.error('⚠️ Contact creation failed:', contactsError.message)
         }
       }
     }
@@ -438,16 +318,23 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        insertedLeads,
-        errors
+        inserted: insertedLeads,
+        matching: matchResult ? {
+          matched_to_existing: matchResult.matched_to_existing || 0,
+          accounts_created: matchResult.accounts_created || 0,
+          linked_to_new: matchResult.linked_to_new || 0,
+          total_processed: matchResult.total_processed || 0,
+          duration_ms: matchResult.duration_ms || 0
+        } : null,
+        errors: errors.length > 0 ? errors : undefined
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
-  } catch (error) {
-    console.error('❌ Bulk upload error:', error)
+  } catch (error: any) {
+    console.error('❌ Upload error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error.message, success: false }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
