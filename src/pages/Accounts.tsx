@@ -53,6 +53,13 @@ interface Account {
     fit: number;
     intent: number;
     reachability: number;
+    reasons?: Array<{
+      factor: string;
+      match: boolean;
+      score: number;
+      value: string | number;
+      icp_range?: { min: number; max: number };
+    }>;
   } | null;
   contacts?: number;
 }
@@ -1447,12 +1454,52 @@ export default function Accounts() {
           fit: selectedAccountForScore.score?.fit || 0,
           intent: selectedAccountForScore.score?.intent || 0,
           reachability: selectedAccountForScore.score?.reachability || 0,
-          reasons: {
-            fit_positives: selectedAccountForScore.industry_norm ? [`Industry: ${selectedAccountForScore.industry_norm}`] : [],
-            fit_negatives: !selectedAccountForScore.employee_count ? ['Missing employee count data'] : [],
-            intent_signals: [],
-            reachability_factors: selectedAccountForScore.contacts && selectedAccountForScore.contacts > 0 ? [`${selectedAccountForScore.contacts} contacts available`] : ['No contacts available']
-          }
+          reasons: (() => {
+            const dbReasons = selectedAccountForScore.score?.reasons || [];
+            const fit_positives: string[] = [];
+            const fit_negatives: string[] = [];
+            
+            // Transform database reasons to dialog format
+            dbReasons.forEach((r: any) => {
+              const factorLabel = r.factor.charAt(0).toUpperCase() + r.factor.slice(1);
+              if (r.match) {
+                if (r.factor === 'size' && r.icp_range) {
+                  fit_positives.push(`${factorLabel}: ${r.value?.toLocaleString()} employees (ICP range: ${r.icp_range.min?.toLocaleString()}-${r.icp_range.max?.toLocaleString()})`);
+                } else {
+                  fit_positives.push(`${factorLabel}: ${r.value} (${r.score}% match)`);
+                }
+              } else {
+                fit_negatives.push(`${factorLabel}: ${r.value || 'No data'} (no match)`);
+              }
+            });
+            
+            // Add fallbacks for missing data if no reasons from DB
+            if (dbReasons.length === 0) {
+              if (selectedAccountForScore.industry_norm) {
+                fit_positives.push(`Industry: ${selectedAccountForScore.industry_norm}`);
+              } else {
+                fit_negatives.push('Missing industry data');
+              }
+              if (!selectedAccountForScore.employee_count) {
+                fit_negatives.push('Missing employee count data');
+              }
+              if (!selectedAccountForScore.revenue_range) {
+                fit_negatives.push('Missing revenue data');
+              }
+              if (!selectedAccountForScore.country) {
+                fit_negatives.push('Missing geography data');
+              }
+            }
+            
+            return {
+              fit_positives,
+              fit_negatives,
+              intent_signals: [],
+              reachability_factors: selectedAccountForScore.contacts && selectedAccountForScore.contacts > 0 
+                ? [`${selectedAccountForScore.contacts} contacts available`] 
+                : ['No contacts available']
+            };
+          })()
         } : null}
       />
 
