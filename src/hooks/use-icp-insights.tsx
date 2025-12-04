@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './use-auth';
 import { useToast } from './use-toast';
 
+const CACHE_VERSION = 'v2'; // Bump this when edge function changes
 const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 const MIN_REFRESH_INTERVAL = 5 * 60 * 1000; // 5 minutes between refreshes
 const DEBOUNCE_DELAY = 30000; // 30 seconds to batch changes
@@ -15,12 +16,17 @@ export interface ICPInsight {
   impact: string;
   confidence: number;
   relatedSegments?: string[];
+  nextAction?: string;
 }
 
 export interface InsightsStatistics {
   total_accounts: number;
   high_score_accounts: number;
-  total_contacts: number;
+  total_leads: number;
+  lead_coverage_percent: number;
+  high_fit_with_leads: number;
+  high_fit_missing_leads: number;
+  data_completeness: number;
   total_deals: number;
   avg_deal_value: number;
 }
@@ -64,9 +70,9 @@ export function useICPInsights() {
       return;
     }
 
-    // Check cache first
-    const cacheKey = `icp_insights_${userProfile.org_id}`;
-    const timestampKey = `icp_insights_timestamp_${userProfile.org_id}`;
+    // Check cache first (versioned to invalidate when edge function changes)
+    const cacheKey = `icp_insights_${CACHE_VERSION}_${userProfile.org_id}`;
+    const timestampKey = `icp_insights_timestamp_${CACHE_VERSION}_${userProfile.org_id}`;
     
     if (!forceRefresh) {
       try {
