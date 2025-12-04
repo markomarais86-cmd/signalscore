@@ -25,6 +25,13 @@ interface Account {
     fit: number;
     intent: number;
     reachability: number;
+    reasons?: Array<{
+      factor: string;
+      match: boolean;
+      score: number;
+      value: string | number;
+      icp_range?: { min: number; max: number };
+    }>;
   } | null;
 }
 
@@ -320,6 +327,7 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
                     fit: score.fit,
                     intent: score.intent,
                     reachability: score.reachability,
+                    reasons: score.reasons as Account['score']['reasons'],
                   }
                 : null,
               contacts: contactCountMap[account.external_id] || 0,
