@@ -3466,11 +3466,8 @@ export type Database = {
     Views: {
       account_processing_stats: {
         Row: {
-          accounts_with_leads: number | null
-          both_sources: number | null
-          crm_accounts: number | null
-          database_accounts: number | null
           enriched_accounts: number | null
+          icp_qualified_accounts: number | null
           org_id: string | null
           scored_accounts: number | null
           total_accounts: number | null
@@ -3637,7 +3634,7 @@ export type Database = {
         Returns: number
       }
       calculate_next_run: {
-        Args: { last_run: string; schedule: string }
+        Args: { last_run?: string; schedule: string }
         Returns: string
       }
       calculate_reachability_score: {
