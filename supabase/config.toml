@@ -167,3 +167,6 @@ verify_jwt = true
 
 [functions.resume-enrichment-job]
 verify_jwt = true
+
+[functions.bulk-enrich-all-accounts]
+verify_jwt = true
