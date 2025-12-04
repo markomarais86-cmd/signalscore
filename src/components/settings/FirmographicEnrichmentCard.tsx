@@ -3,9 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Sparkles, TrendingUp, DollarSign, Users, Clock, CheckCircle2, XCircle, Loader2, Zap } from "lucide-react";
+import { Sparkles, Users, Clock, CheckCircle2, XCircle, Loader2, Zap, AlertCircle, Database } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 interface DataCompleteness {
@@ -15,6 +16,7 @@ interface DataCompleteness {
   revenueRangeComplete: number;
   revenueRangeTotal: number;
   revenueRangePercent: number;
+  accountsWithDomain: number;
 }
 
 interface EnrichmentJob {
@@ -27,6 +29,7 @@ interface EnrichmentJob {
   started_at: string;
   completed_at: string | null;
   batch_size?: number;
+  provider?: string;
 }
 
 export function FirmographicEnrichmentCard() {
@@ -35,6 +38,7 @@ export function FirmographicEnrichmentCard() {
   const [enriching, setEnriching] = useState(false);
   const [currentJob, setCurrentJob] = useState<EnrichmentJob | null>(null);
   const [recentJobs, setRecentJobs] = useState<EnrichmentJob[]>([]);
+  const [batchSize, setBatchSize] = useState<string>("500");
   const { toast } = useToast();
   const { userProfile } = useAuth();
 
@@ -66,7 +70,7 @@ export function FirmographicEnrichmentCard() {
           if (data.status === 'completed') {
             toast({
               title: "Enrichment Complete",
-              description: `Enriched ${data.enriched_records} accounts successfully!`,
+              description: `Enriched ${data.enriched_records} of ${data.total_records} accounts`,
             });
           } else {
             toast({
@@ -77,7 +81,7 @@ export function FirmographicEnrichmentCard() {
           }
         }
       }
-    }, 5000); // Increased to 5 seconds
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [enriching, currentJob]);
@@ -88,7 +92,7 @@ export function FirmographicEnrichmentCard() {
     try {
       const { data: accounts, error } = await supabase
         .from('accounts')
-        .select('employee_count, revenue_range')
+        .select('employee_count, revenue_range, domain')
         .eq('org_id', userProfile.org_id);
 
       if (error) throw error;
@@ -97,6 +101,7 @@ export function FirmographicEnrichmentCard() {
         const total = accounts.length;
         const employeeCountComplete = accounts.filter(a => a.employee_count !== null).length;
         const revenueRangeComplete = accounts.filter(a => a.revenue_range !== null).length;
+        const accountsWithDomain = accounts.filter(a => a.domain !== null).length;
 
         setCompleteness({
           employeeCountComplete,
@@ -105,6 +110,7 @@ export function FirmographicEnrichmentCard() {
           revenueRangeComplete,
           revenueRangeTotal: total,
           revenueRangePercent: total > 0 ? Math.round((revenueRangeComplete / total) * 100) : 0,
+          accountsWithDomain,
         });
       }
     } catch (error) {
@@ -122,7 +128,7 @@ export function FirmographicEnrichmentCard() {
         .eq('org_id', userProfile.org_id)
         .eq('job_type', 'accounts')
         .order('started_at', { ascending: false })
-        .limit(3);
+        .limit(5);
 
       if (error) throw error;
       setRecentJobs(data || []);
@@ -131,7 +137,7 @@ export function FirmographicEnrichmentCard() {
     }
   };
 
-  const startEnrichment = async (provider: 'lovable_ai' | 'clearbit_free' | 'pdl' | 'smart_sequential') => {
+  const startEnrichment = async (provider: 'smart' | 'apollo' | 'pdl' | 'ai') => {
     if (!userProfile?.org_id) {
       toast({
         title: "Error",
@@ -140,6 +146,10 @@ export function FirmographicEnrichmentCard() {
       });
       return;
     }
+
+    const selectedBatchSize = batchSize === 'all' 
+      ? (completeness?.employeeCountTotal || 1000) - (completeness?.employeeCountComplete || 0)
+      : parseInt(batchSize);
 
     setLoading(true);
 
@@ -150,9 +160,10 @@ export function FirmographicEnrichmentCard() {
         .insert({
           org_id: userProfile.org_id,
           job_type: 'accounts',
-          provider: provider,
+          provider: provider === 'smart' ? 'smart_waterfall' : provider,
           status: 'pending',
-          total_records: 100,
+          total_records: selectedBatchSize,
+          batch_size: selectedBatchSize,
           processed_records: 0,
           enriched_records: 0,
           failed_records: 0
@@ -165,28 +176,11 @@ export function FirmographicEnrichmentCard() {
       setCurrentJob(job);
       setEnriching(true);
 
-      // Call appropriate enrichment function
-      let functionName = '';
-      switch (provider) {
-        case 'lovable_ai':
-          functionName = 'enrich-ai-firmographics';
-          break;
-        case 'clearbit_free':
-          functionName = 'enrich-clearbit-free';
-          break;
-        case 'pdl':
-          functionName = 'enrich-pdl';
-          break;
-        case 'smart_sequential':
-          functionName = 'smart-enrich';
-          break;
-      }
-
-      const { data, error: funcError } = await supabase.functions.invoke(functionName, {
+      // All providers now use smart-enrich with waterfall
+      const { error: funcError } = await supabase.functions.invoke('smart-enrich', {
         body: { 
-          org_id: userProfile.org_id, 
           jobId: job.id,
-          limit: 100 
+          batchSize: selectedBatchSize
         }
       });
 
@@ -194,7 +188,7 @@ export function FirmographicEnrichmentCard() {
         console.error('Function error:', funcError);
         toast({
           title: "Error",
-          description: "Failed to start enrichment",
+          description: "Failed to start enrichment. Check edge function logs.",
           variant: "destructive"
         });
         setEnriching(false);
@@ -212,22 +206,26 @@ export function FirmographicEnrichmentCard() {
     }
   };
 
-  const getProgressColor = (percent: number) => {
-    if (percent >= 80) return "bg-executive-green";
-    if (percent >= 50) return "bg-yellow-500";
-    return "bg-destructive";
-  };
-
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
-        return <Badge className="bg-executive-green text-white"><CheckCircle2 className="h-3 w-3 mr-1" />Completed</Badge>;
+        return <Badge className="bg-executive-green text-white"><CheckCircle2 className="h-3 w-3 mr-1" />Done</Badge>;
       case 'failed':
         return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Failed</Badge>;
       case 'processing':
-        return <Badge className="bg-blue-500 text-white"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Processing</Badge>;
+        return <Badge className="bg-blue-500 text-white"><Loader2 className="h-3 w-3 mr-1 animate-spin" />Running</Badge>;
       default:
         return <Badge variant="outline">Pending</Badge>;
+    }
+  };
+
+  const getProviderLabel = (provider: string) => {
+    switch (provider) {
+      case 'smart_waterfall': return 'Smart';
+      case 'apollo': return 'Apollo';
+      case 'pdl': return 'PDL';
+      case 'ai': return 'AI';
+      default: return provider;
     }
   };
 
@@ -245,7 +243,11 @@ export function FirmographicEnrichmentCard() {
 
   const missingEmployeeCount = completeness.employeeCountTotal - completeness.employeeCountComplete;
   const missingRevenueRange = completeness.revenueRangeTotal - completeness.revenueRangeComplete;
-  const canEnrich = missingEmployeeCount > 0 || missingRevenueRange > 0;
+  const enrichableAccounts = Math.min(missingEmployeeCount, completeness.accountsWithDomain);
+  const canEnrich = enrichableAccounts > 0;
+
+  // Estimate time based on batch size (roughly 2 accounts/second with API calls)
+  const estimatedMinutes = Math.ceil((parseInt(batchSize) || enrichableAccounts) / 120);
 
   return (
     <Card>
@@ -253,52 +255,95 @@ export function FirmographicEnrichmentCard() {
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
             <CardTitle className="flex items-center gap-2 text-xl">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Data Enrichment
+              <Database className="h-5 w-5 text-primary" />
+              Employee Count Enrichment
             </CardTitle>
             <CardDescription>
-              Automatically fill missing firmographic data
+              Fill missing firmographic data using Apollo, PDL, and AI
             </CardDescription>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Data Completeness Progress - Compact Grid */}
+        {/* Missing Data Alert */}
+        {canEnrich && (
+          <div className="flex items-start gap-3 p-4 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30">
+            <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-800 dark:text-amber-200">
+                {missingEmployeeCount.toLocaleString()} accounts missing employee count
+              </p>
+              <p className="text-sm text-amber-700 dark:text-amber-300">
+                {enrichableAccounts.toLocaleString()} have domains and can be enriched
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Data Completeness Progress */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="font-medium">Employee Count</span>
-              <span className="text-xs text-muted-foreground">{completeness.employeeCountPercent}%</span>
+              <span className="font-medium flex items-center gap-1">
+                <Users className="h-3 w-3" />
+                Employee Count
+              </span>
+              <span className={`text-xs font-medium ${completeness.employeeCountPercent < 50 ? 'text-destructive' : completeness.employeeCountPercent < 80 ? 'text-amber-600' : 'text-executive-green'}`}>
+                {completeness.employeeCountPercent}%
+              </span>
             </div>
             <Progress 
               value={completeness.employeeCountPercent} 
               className="h-2"
             />
             <p className="text-xs text-muted-foreground">
-              {completeness.employeeCountComplete} / {completeness.employeeCountTotal}
+              {completeness.employeeCountComplete.toLocaleString()} / {completeness.employeeCountTotal.toLocaleString()}
             </p>
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="font-medium">Revenue Range</span>
-              <span className="text-xs text-muted-foreground">{completeness.revenueRangePercent}%</span>
+              <span className="font-medium flex items-center gap-1">
+                <Sparkles className="h-3 w-3" />
+                Revenue Range
+              </span>
+              <span className={`text-xs font-medium ${completeness.revenueRangePercent < 50 ? 'text-destructive' : completeness.revenueRangePercent < 80 ? 'text-amber-600' : 'text-executive-green'}`}>
+                {completeness.revenueRangePercent}%
+              </span>
             </div>
             <Progress 
               value={completeness.revenueRangePercent} 
               className="h-2"
             />
             <p className="text-xs text-muted-foreground">
-              {completeness.revenueRangeComplete} / {completeness.revenueRangeTotal}
+              {completeness.revenueRangeComplete.toLocaleString()} / {completeness.revenueRangeTotal.toLocaleString()}
             </p>
           </div>
         </div>
 
-        {/* Primary Action Buttons */}
+        {/* Batch Size Selector & Actions */}
         {!enriching && canEnrich && (
-          <div className="space-y-3">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-1">
+                <label className="text-sm font-medium mb-1.5 block">Batch Size</label>
+                <Select value={batchSize} onValueChange={setBatchSize}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="100">100 accounts (~1 min)</SelectItem>
+                    <SelectItem value="500">500 accounts (~5 min)</SelectItem>
+                    <SelectItem value="1000">1,000 accounts (~10 min)</SelectItem>
+                    <SelectItem value="2500">2,500 accounts (~25 min)</SelectItem>
+                    <SelectItem value="all">All {enrichableAccounts.toLocaleString()} accounts</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <Button 
-              onClick={() => startEnrichment('smart_sequential')} 
+              onClick={() => startEnrichment('smart')} 
               disabled={loading}
               className="w-full gap-2"
               size="lg"
@@ -306,48 +351,18 @@ export function FirmographicEnrichmentCard() {
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Starting Enrichment...
+                  Starting...
                 </>
               ) : (
                 <>
                   <Zap className="h-4 w-4" />
-                  Smart Enrich (Recommended)
+                  Start Smart Enrichment
                 </>
               )}
             </Button>
             
-            <div className="grid grid-cols-3 gap-2">
-              <Button 
-                onClick={() => startEnrichment('clearbit_free')} 
-                disabled={loading}
-                variant="outline"
-                className="gap-2"
-              >
-                <TrendingUp className="h-3 w-3" />
-                Clearbit
-              </Button>
-              <Button 
-                onClick={() => startEnrichment('lovable_ai')} 
-                disabled={loading}
-                variant="outline"
-                className="gap-2"
-              >
-                <Sparkles className="h-3 w-3" />
-                AI
-              </Button>
-              <Button 
-                onClick={() => startEnrichment('pdl')} 
-                disabled={loading}
-                variant="outline"
-                className="gap-2"
-              >
-                <Users className="h-3 w-3" />
-                PDL
-              </Button>
-            </div>
-
             <p className="text-xs text-center text-muted-foreground">
-              Smart Enrich uses free sources first, then AI for best results
+              Uses Apollo → PDL → AI waterfall for best coverage
             </p>
           </div>
         )}
@@ -358,13 +373,16 @@ export function FirmographicEnrichmentCard() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                <span className="font-medium">Enriching...</span>
+                <span className="font-medium">Enriching accounts...</span>
               </div>
               {getStatusBadge(currentJob.status)}
             </div>
             
             <Progress 
-              value={(currentJob.processed_records / currentJob.total_records) * 100} 
+              value={currentJob.total_records > 0 
+                ? (currentJob.processed_records / currentJob.total_records) * 100 
+                : 0
+              } 
               className="h-2"
             />
 
@@ -391,7 +409,7 @@ export function FirmographicEnrichmentCard() {
         {!canEnrich && (
           <div className="flex items-center justify-center gap-2 p-6 border-2 border-dashed rounded-lg bg-muted/30">
             <CheckCircle2 className="h-5 w-5 text-executive-green" />
-            <p className="font-medium">All firmographic data complete!</p>
+            <p className="font-medium">All enrichable accounts have employee data!</p>
           </div>
         )}
 
@@ -402,14 +420,16 @@ export function FirmographicEnrichmentCard() {
             <div className="space-y-2">
               {recentJobs.map((job) => (
                 <div key={job.id} className="flex items-center justify-between p-2 border rounded-lg text-sm">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-3 w-3 text-muted-foreground" />
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline" className="text-xs">
+                      {getProviderLabel(job.provider || 'smart')}
+                    </Badge>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(job.started_at).toLocaleString()}
+                      {new Date(job.started_at).toLocaleDateString()}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs">
+                    <span className="text-xs font-medium">
                       {job.enriched_records}/{job.total_records}
                     </span>
                     {getStatusBadge(job.status)}
