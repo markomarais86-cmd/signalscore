@@ -15,6 +15,8 @@ import { useOnboarding } from "./hooks/use-onboarding";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
+import TermsOfService from "./pages/TermsOfService";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import ResetPassword from "./pages/ResetPassword";
 import ICPManager from "./pages/ICPManager";
 import Leads from "./pages/Leads";
@@ -60,6 +62,8 @@ function AppContent() {
                 <Route path="/landing" element={<Landing />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/terms" element={<TermsOfService />} />
+                <Route path="/privacy" element={<PrivacyPolicy />} />
                 <Route
                   path="/"
                   element={
