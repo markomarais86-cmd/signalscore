@@ -52,7 +52,7 @@ export function BulkAccountEnrichment() {
         event: '*',
         schema: 'public',
         table: 'enrichment_jobs',
-        filter: `job_type=eq.firmographic_enrichment`
+        filter: `job_type=eq.accounts`
       }, () => {
         loadActiveJob();
       })
@@ -131,7 +131,7 @@ export function BulkAccountEnrichment() {
         .from('enrichment_jobs')
         .select('*')
         .eq('org_id', profile.org_id)
-        .eq('job_type', 'firmographic_enrichment')
+        .eq('job_type', 'accounts')
         .in('status', ['pending', 'processing'])
         .order('created_at', { ascending: false })
         .limit(1)
@@ -163,7 +163,7 @@ export function BulkAccountEnrichment() {
         .insert({
           org_id: profile.org_id,
           provider: provider,
-          job_type: 'firmographic_enrichment',
+          job_type: 'accounts',
           status: 'pending',
           batch_size: parseInt(batchSize),
           total_records: stats?.needsEnrichment || 0,
