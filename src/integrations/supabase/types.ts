@@ -3597,6 +3597,7 @@ export type Database = {
           skipped_count: number
         }[]
       }
+      bulk_match_all_leads: { Args: { p_org_id: string }; Returns: Json }
       bulk_score_accounts_batch: {
         Args: { p_account_ids: string[]; p_icp_id: string; p_org_id: string }
         Returns: {
