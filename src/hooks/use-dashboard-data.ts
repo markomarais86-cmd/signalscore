@@ -107,8 +107,10 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
         console.warn('[useDashboardData] ⚠️ TAM fetch error:', tamResult.error);
       }
       
-      // Map the function response to expected structure (function returns an array of rows)
-      const rawMetrics = (metricsResult.data as any)?.[0];
+      // Map the function response to expected structure (handles both array and direct object returns)
+      const rawMetrics = Array.isArray(metricsResult.data) 
+        ? (metricsResult.data as any)?.[0] 
+        : (metricsResult.data as any);
       
       const mappedMetrics: DashboardMetrics = {
         total_accounts: rawMetrics?.total_accounts || 0,
