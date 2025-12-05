@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, Sparkles, Zap, CheckCircle, XCircle, Loader2, Eye, CheckCircle2 } from "lucide-react";
+import { AlertCircle, Sparkles, Zap, CheckCircle, XCircle, Loader2, Eye, CheckCircle2, Shield, Database } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,10 +13,18 @@ import { useAuth } from "@/hooks/use-auth";
 import { useApolloCredits } from "@/hooks/use-apollo-credits";
 import { toast } from "sonner";
 
+export interface ICPCriteria {
+  industries?: string[];
+  geographies?: string[];
+  company_sizes?: number[];
+  revenue_ranges?: string[];
+}
+
 interface ApolloRedemptionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   accountDomains: string[];
+  icpCriteria?: ICPCriteria;
   campaignName?: string;
   onRedemptionComplete?: (result: { contactsRedeemed: number; creditsUsed: number }) => void;
 }
@@ -33,12 +41,14 @@ interface ApolloPreview {
   domains_searched: number;
   sample_titles: string[];
   message: string;
+  is_tam_mode?: boolean;
 }
 
 export function ApolloRedemptionDialog({
   open,
   onOpenChange,
   accountDomains,
+  icpCriteria,
   campaignName,
   onRedemptionComplete
 }: ApolloRedemptionDialogProps) {
@@ -46,8 +56,11 @@ export function ApolloRedemptionDialog({
   const { creditsRemaining, dailyLimit, configured, apiAccessible } = useApolloCredits();
   
   // Credit protection limits
-  const MAX_SINGLE_REDEMPTION = 1000; // Hard cap per redemption
-  const CREDIT_WARNING_THRESHOLD = 0.8; // Warn when using 80%+ of remaining credits
+  const MAX_SINGLE_REDEMPTION = 1000;
+  const CREDIT_WARNING_THRESHOLD = 0.8;
+  
+  // Detect TAM mode - when domains contain marker or icpCriteria is provided
+  const isTamMode = accountDomains.length === 1 && accountDomains[0] === '__apollo_tam__' && !!icpCriteria;
   
   const [importLimit, setImportLimit] = useState("500");
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>([
@@ -71,7 +84,7 @@ export function ApolloRedemptionDialog({
     "Business Influencer"
   ];
 
-  // Calculate effective limit (capped at MAX_SINGLE_REDEMPTION and available credits)
+  // Calculate effective limit
   const requestedLimit = parseInt(importLimit || "0");
   const effectiveLimit = Math.min(
     requestedLimit,
@@ -79,30 +92,74 @@ export function ApolloRedemptionDialog({
     apiAccessible && creditsRemaining !== null ? creditsRemaining : MAX_SINGLE_REDEMPTION
   );
   
-  // Calculate credit usage percentage
   const creditUsagePercent = apiAccessible && creditsRemaining !== null && creditsRemaining > 0
     ? (effectiveLimit / creditsRemaining) * 100
     : 0;
   
   const isHighCreditUsage = creditUsagePercent >= (CREDIT_WARNING_THRESHOLD * 100);
 
-  // Analyze duplicates and preview when dialog opens
+  // Analyze and preview when dialog opens
   useEffect(() => {
-    if (open && userProfile?.org_id && accountDomains.length > 0) {
-      analyzeDuplicates();
-      previewApolloContacts();
+    if (open && userProfile?.org_id) {
+      if (isTamMode) {
+        previewApolloByICP();
+        analyzeDuplicatesForOrg();
+      } else if (accountDomains.length > 0) {
+        previewApolloContacts();
+        analyzeDuplicates();
+      }
     }
-  }, [open, userProfile?.org_id, accountDomains]);
+  }, [open, userProfile?.org_id, accountDomains, isTamMode]);
 
   // Re-preview when personas change
   useEffect(() => {
-    if (open && accountDomains.length > 0 && !isPreviewing) {
-      previewApolloContacts();
+    if (open && !isPreviewing) {
+      if (isTamMode) {
+        previewApolloByICP();
+      } else if (accountDomains.length > 0) {
+        previewApolloContacts();
+      }
     }
   }, [selectedPersonas]);
 
+  // ICP-based Apollo search (TAM mode)
+  const previewApolloByICP = async () => {
+    if (!icpCriteria) return;
+    
+    setIsPreviewing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('search-apollo-by-icp', {
+        body: {
+          industries: icpCriteria.industries,
+          geographies: icpCriteria.geographies,
+          company_sizes: icpCriteria.company_sizes,
+          revenue_ranges: icpCriteria.revenue_ranges,
+          persona_filters: selectedPersonas
+        }
+      });
+
+      if (error) throw error;
+      
+      if (data.success) {
+        setApolloPreview({
+          total_available: data.total_available,
+          domains_searched: 0,
+          sample_titles: data.sample_titles || [],
+          message: data.message,
+          is_tam_mode: true
+        });
+      }
+    } catch (err: any) {
+      console.error('Error previewing Apollo by ICP:', err);
+      toast.error('Failed to preview Apollo contacts');
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
+  // Domain-based Apollo search (normal mode)
   const previewApolloContacts = async () => {
-    if (accountDomains.length === 0) return;
+    if (accountDomains.length === 0 || accountDomains[0] === '__apollo_tam__') return;
     
     setIsPreviewing(true);
     try {
@@ -120,7 +177,8 @@ export function ApolloRedemptionDialog({
           total_available: data.total_available,
           domains_searched: data.domains_searched,
           sample_titles: data.sample_titles || [],
-          message: data.message
+          message: data.message,
+          is_tam_mode: false
         });
       }
     } catch (err: any) {
@@ -130,8 +188,31 @@ export function ApolloRedemptionDialog({
     }
   };
 
-  const analyzeDuplicates = async () => {
+  // Full org duplicate analysis for TAM mode
+  const analyzeDuplicatesForOrg = async () => {
     if (!userProfile?.org_id) return;
+    
+    setIsAnalyzing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('check-apollo-duplicates', {
+        body: {
+          org_id: userProfile.org_id,
+          check_type: 'full_analysis'
+        }
+      });
+
+      if (error) throw error;
+      setDuplicateAnalysis(data.analysis);
+    } catch (err: any) {
+      console.error('Error analyzing duplicates:', err);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Domain-specific duplicate analysis
+  const analyzeDuplicates = async () => {
+    if (!userProfile?.org_id || accountDomains.length === 0) return;
     
     setIsAnalyzing(true);
     try {
@@ -161,13 +242,12 @@ export function ApolloRedemptionDialog({
     );
   };
 
-  // Calculate estimated new contacts
   const estimatedNewContacts = apolloPreview 
     ? Math.max(0, apolloPreview.total_available - (duplicateAnalysis?.total_duplicates || 0))
     : 0;
 
   const handleRedeem = async () => {
-    if (!userProfile?.org_id || accountDomains.length === 0) return;
+    if (!userProfile?.org_id) return;
 
     setIsRedeeming(true);
     setRedemptionProgress(10);
@@ -175,14 +255,26 @@ export function ApolloRedemptionDialog({
     try {
       setRedemptionProgress(30);
       
-      const { data, error } = await supabase.functions.invoke('redeem-apollo-contacts', {
-        body: {
-          org_id: userProfile.org_id,
-          account_domains: accountDomains,
-          persona_filters: selectedPersonas,
-          max_contacts: effectiveLimit, // Use the enforced effective limit
-          campaign_name: campaignName
-        }
+      // Use different function for TAM mode vs domain mode
+      const functionName = isTamMode ? 'redeem-apollo-by-icp' : 'redeem-apollo-contacts';
+      const requestBody = isTamMode 
+        ? {
+            org_id: userProfile.org_id,
+            icp_criteria: icpCriteria,
+            persona_filters: selectedPersonas,
+            max_contacts: effectiveLimit,
+            campaign_name: campaignName
+          }
+        : {
+            org_id: userProfile.org_id,
+            account_domains: accountDomains,
+            persona_filters: selectedPersonas,
+            max_contacts: effectiveLimit,
+            campaign_name: campaignName
+          };
+      
+      const { data, error } = await supabase.functions.invoke(functionName, {
+        body: requestBody
       });
 
       setRedemptionProgress(90);
@@ -213,19 +305,12 @@ export function ApolloRedemptionDialog({
     }
   };
 
-  // Allow redemption when:
-  // - Apollo is configured
-  // - Either: credits are known and > 0, OR credits are unknown but user acknowledged
-  // - Import limit is set and within max limit
-  // - If high credit usage, must acknowledge
-  // - At least one persona selected
-  // - At least one account selected
   const canRedeem = configured && 
     ((apiAccessible && creditsRemaining !== null && creditsRemaining > 0) || (!apiAccessible && acknowledgeUnknownCredits)) &&
     effectiveLimit > 0 && 
     (!isHighCreditUsage || acknowledgeHighUsage) &&
     selectedPersonas.length > 0 &&
-    accountDomains.length > 0;
+    (isTamMode ? !!icpCriteria : accountDomains.length > 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -234,13 +319,37 @@ export function ApolloRedemptionDialog({
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
             Redeem Apollo Contacts
+            {isTamMode && (
+              <Badge variant="secondary" className="ml-2">
+                <Database className="h-3 w-3 mr-1" />
+                TAM Mode
+              </Badge>
+            )}
           </DialogTitle>
           <DialogDescription>
-            Import contacts from Apollo for {accountDomains.length.toLocaleString()} selected accounts.
+            {isTamMode 
+              ? `Import contacts matching your ICP criteria from Apollo's database.`
+              : `Import contacts from Apollo for ${accountDomains.length.toLocaleString()} selected accounts.`
+            }
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          {/* Preview Mode Indicator */}
+          <Alert className="bg-blue-500/10 border-blue-500/50">
+            <Eye className="h-4 w-4 text-blue-500" />
+            <AlertDescription>
+              <div className="font-medium text-blue-600 mb-1 flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                Preview Mode - No Contact Details Shown
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Only aggregate counts and job titles are displayed. Personal contact information (names, emails, phones) 
+                will only be retrieved when you confirm the redemption.
+              </p>
+            </AlertDescription>
+          </Alert>
+
           {/* Apollo Status & Preview */}
           <div className="p-4 rounded-lg bg-muted/50 border space-y-3">
             <div className="flex items-center justify-between">
@@ -264,7 +373,7 @@ export function ApolloRedemptionDialog({
             {isPreviewing ? (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Previewing available contacts...
+                {isTamMode ? 'Searching Apollo by ICP criteria...' : 'Previewing available contacts...'}
               </div>
             ) : apolloPreview && (
               <div className="space-y-2">
@@ -273,13 +382,19 @@ export function ApolloRedemptionDialog({
                   <span className="text-sm font-medium">
                     {apolloPreview.total_available.toLocaleString()} contacts available
                   </span>
-                  <span className="text-xs text-muted-foreground">
-                    (at {apolloPreview.domains_searched} accounts)
-                  </span>
+                  {!isTamMode && apolloPreview.domains_searched > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      (at {apolloPreview.domains_searched} accounts)
+                    </span>
+                  )}
+                  {isTamMode && (
+                    <Badge variant="outline" className="text-xs">ICP-based search</Badge>
+                  )}
                 </div>
                 
                 {apolloPreview.sample_titles.length > 0 && (
                   <div className="flex flex-wrap gap-1">
+                    <span className="text-xs text-muted-foreground mr-1">Sample titles:</span>
                     {apolloPreview.sample_titles.map((title, i) => (
                       <Badge key={i} variant="secondary" className="text-xs">
                         {title}
@@ -325,7 +440,10 @@ export function ApolloRedemptionDialog({
             </div>
           ) : duplicateAnalysis && (
             <div className="space-y-2 p-3 rounded-lg border bg-muted/30">
-              <h4 className="font-medium text-sm">Duplicate Analysis</h4>
+              <h4 className="font-medium text-sm flex items-center gap-2">
+                <Shield className="h-4 w-4 text-green-500" />
+                Deduplication Protection
+              </h4>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className="flex items-center gap-2">
                   {duplicateAnalysis.existing_leads_count > 0 ? (
@@ -367,7 +485,6 @@ export function ApolloRedemptionDialog({
               value={importLimit}
               onChange={(e) => {
                 const val = parseInt(e.target.value || "0");
-                // Enforce max limit in UI
                 if (val > MAX_SINGLE_REDEMPTION) {
                   setImportLimit(String(MAX_SINGLE_REDEMPTION));
                 } else {
@@ -448,10 +565,10 @@ export function ApolloRedemptionDialog({
 
           {/* Credit Warning */}
           {apiAccessible && creditsRemaining !== null && creditsRemaining < parseInt(importLimit || "0") && !isHighCreditUsage && (
-            <Alert variant="default" className="bg-amber-500/10 border-amber-500/50">
-              <AlertCircle className="h-4 w-4 text-amber-500" />
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                You only have {creditsRemaining.toLocaleString()} credits remaining. 
+                You have {creditsRemaining.toLocaleString()} credits remaining. 
                 Import will be limited to available credits.
               </AlertDescription>
             </Alert>
@@ -462,43 +579,32 @@ export function ApolloRedemptionDialog({
             <div className="space-y-2">
               <Progress value={redemptionProgress} />
               <p className="text-sm text-center text-muted-foreground">
-                Redeeming contacts...
+                {redemptionProgress < 30 && "Preparing redemption..."}
+                {redemptionProgress >= 30 && redemptionProgress < 90 && "Fetching contacts from Apollo..."}
+                {redemptionProgress >= 90 && "Saving contacts..."}
               </p>
             </div>
           )}
 
-          {/* Info */}
-          <Alert variant="default" className="bg-muted/50">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription className="text-sm">
-              Contacts will be added to your leads database with <strong>data_source='apollo'</strong>.
-              Duplicates (existing leads, CRM contacts, previous exports) are automatically skipped.
-            </AlertDescription>
-          </Alert>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            {accountDomains.length.toLocaleString()} accounts selected
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isRedeeming}>
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button
-              disabled={!canRedeem || isRedeeming}
               onClick={handleRedeem}
+              disabled={!canRedeem || isRedeeming}
+              className="gap-2"
             >
               {isRedeeming ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Redeeming...
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Redeem Contacts
+                  <Zap className="h-4 w-4" />
+                  Redeem {effectiveLimit.toLocaleString()} Contacts
                 </>
               )}
             </Button>
