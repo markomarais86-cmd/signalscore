@@ -4,8 +4,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { User, Crown, Building2, Target, Lightbulb, Sparkles } from 'lucide-react';
+import { User, Crown, Building2, Target, Lightbulb, Sparkles, X } from 'lucide-react';
 import { ICPFormData } from '@/types/icp';
 import { 
   PERSONA_JOB_TITLES, 
@@ -89,6 +90,25 @@ export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Pro
     }
   };
 
+  const clearArray = (field: keyof ICPFormData) => {
+    onUpdateFormData({ [field]: [] });
+  };
+
+  const ClearButton = ({ field, count }: { field: keyof ICPFormData; count: number }) => {
+    if (count === 0) return null;
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+        onClick={() => clearArray(field)}
+      >
+        <X className="h-3 w-3 mr-1" />
+        Clear ({count})
+      </Button>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -138,7 +158,10 @@ export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Pro
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Job Titles</Label>
+              <div className="flex items-center justify-between">
+                <Label>Job Titles</Label>
+                <ClearButton field="persona_job_titles" count={formData.persona_job_titles.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2 mb-2">
                 {formData.persona_job_titles.map((title, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('persona_job_titles', index)}>
@@ -159,7 +182,10 @@ export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Pro
             </div>
 
             <div>
-              <Label>Departments</Label>
+              <div className="flex items-center justify-between">
+                <Label>Departments</Label>
+                <ClearButton field="persona_departments" count={formData.persona_departments.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.persona_departments.map((dept, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('persona_departments', index)}>
@@ -193,7 +219,10 @@ export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Pro
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Seniority Levels</Label>
+              <div className="flex items-center justify-between">
+                <Label>Seniority Levels</Label>
+                <ClearButton field="persona_seniority_levels" count={formData.persona_seniority_levels.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.persona_seniority_levels.map((level, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('persona_seniority_levels', index)}>
@@ -214,7 +243,10 @@ export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Pro
             </div>
 
             <div>
-              <Label>Decision-Making Roles</Label>
+              <div className="flex items-center justify-between">
+                <Label>Decision-Making Roles</Label>
+                <ClearButton field="persona_decision_roles" count={formData.persona_decision_roles.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.persona_decision_roles.map((role, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('persona_decision_roles', index)}>

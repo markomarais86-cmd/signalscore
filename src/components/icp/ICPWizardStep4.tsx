@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { 
@@ -68,6 +69,25 @@ export function ICPWizardStep4({ formData, onUpdateFormData }: ICPWizardStep4Pro
     }
   };
 
+  const clearArray = (field: keyof ICPFormData) => {
+    onUpdateFormData({ [field]: [] });
+  };
+
+  const ClearButton = ({ field, count }: { field: keyof ICPFormData; count: number }) => {
+    if (count === 0) return null;
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+        onClick={() => clearArray(field)}
+      >
+        <X className="h-3 w-3 mr-1" />
+        Clear ({count})
+      </Button>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -96,7 +116,10 @@ export function ICPWizardStep4({ formData, onUpdateFormData }: ICPWizardStep4Pro
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Company Stages</Label>
+              <div className="flex items-center justify-between">
+                <Label>Company Stages</Label>
+                <ClearButton field="company_stages" count={formData.company_stages.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.company_stages.map((stage, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('company_stages', index)}>
@@ -117,7 +140,10 @@ export function ICPWizardStep4({ formData, onUpdateFormData }: ICPWizardStep4Pro
             </div>
 
             <div>
-              <Label>Growth Stages</Label>
+              <div className="flex items-center justify-between">
+                <Label>Growth Stages</Label>
+                <ClearButton field="growth_stage" count={formData.growth_stage.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.growth_stage.map((stage, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('growth_stage', index)}>
@@ -138,7 +164,10 @@ export function ICPWizardStep4({ formData, onUpdateFormData }: ICPWizardStep4Pro
             </div>
 
             <div>
-              <Label>Funding Status</Label>
+              <div className="flex items-center justify-between">
+                <Label>Funding Status</Label>
+                <ClearButton field="funding_status" count={formData.funding_status.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.funding_status.map((status, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('funding_status', index)}>
@@ -173,7 +202,10 @@ export function ICPWizardStep4({ formData, onUpdateFormData }: ICPWizardStep4Pro
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Tech Stack</Label>
+              <div className="flex items-center justify-between">
+                <Label>Tech Stack</Label>
+                <ClearButton field="tech_stack" count={formData.tech_stack.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.tech_stack.map((tech, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('tech_stack', index)}>
@@ -213,7 +245,10 @@ export function ICPWizardStep4({ formData, onUpdateFormData }: ICPWizardStep4Pro
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Intent Signals</Label>
+              <div className="flex items-center justify-between">
+                <Label>Intent Signals</Label>
+                <ClearButton field="intent_signals" count={formData.intent_signals.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.intent_signals.map((signal, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('intent_signals', index)}>
@@ -234,7 +269,10 @@ export function ICPWizardStep4({ formData, onUpdateFormData }: ICPWizardStep4Pro
             </div>
 
             <div>
-              <Label>Buying Triggers</Label>
+              <div className="flex items-center justify-between">
+                <Label>Buying Triggers</Label>
+                <ClearButton field="buying_triggers" count={formData.buying_triggers.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.buying_triggers.map((trigger, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('buying_triggers', index)}>
@@ -269,7 +307,10 @@ export function ICPWizardStep4({ formData, onUpdateFormData }: ICPWizardStep4Pro
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Seasonal Patterns</Label>
+              <div className="flex items-center justify-between">
+                <Label>Seasonal Patterns</Label>
+                <ClearButton field="seasonal_patterns" count={formData.seasonal_patterns.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.seasonal_patterns.map((pattern, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('seasonal_patterns', index)}>
@@ -290,7 +331,10 @@ export function ICPWizardStep4({ formData, onUpdateFormData }: ICPWizardStep4Pro
             </div>
 
             <div>
-              <Label>Budget Indicators</Label>
+              <div className="flex items-center justify-between">
+                <Label>Budget Indicators</Label>
+                <ClearButton field="budget_indicators" count={formData.budget_indicators.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.budget_indicators.map((indicator, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('budget_indicators', index)}>
@@ -329,7 +373,10 @@ export function ICPWizardStep4({ formData, onUpdateFormData }: ICPWizardStep4Pro
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <Label>Excluded Industries</Label>
+              <div className="flex items-center justify-between">
+                <Label>Excluded Industries</Label>
+                <ClearButton field="excluded_industries" count={formData.excluded_industries.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.excluded_industries.map((industry, index) => (
                   <Badge key={index} variant="destructive" className="cursor-pointer" onClick={() => removeFromArray('excluded_industries', index)}>
@@ -345,7 +392,10 @@ export function ICPWizardStep4({ formData, onUpdateFormData }: ICPWizardStep4Pro
             </div>
 
             <div>
-              <Label>Excluded Companies</Label>
+              <div className="flex items-center justify-between">
+                <Label>Excluded Companies</Label>
+                <ClearButton field="excluded_companies" count={formData.excluded_companies.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.excluded_companies.map((company, index) => (
                   <Badge key={index} variant="destructive" className="cursor-pointer" onClick={() => removeFromArray('excluded_companies', index)}>

@@ -3,8 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Building, Users, DollarSign, MapPin, Lightbulb, Target as TargetIcon, Sparkles } from 'lucide-react';
+import { Building, Users, DollarSign, MapPin, Lightbulb, Target as TargetIcon, Sparkles, X } from 'lucide-react';
 import { ICPFormData } from '@/types/icp';
 import { INDUSTRIES, SUB_INDUSTRIES, COMPANY_SIZES, REVENUE_RANGES, COUNTRIES, REGIONS } from '@/constants/icp';
 import { useQuery } from '@tanstack/react-query';
@@ -64,6 +65,25 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
     onUpdateFormData({
       [field]: currentArray.filter((_, i) => i !== index)
     });
+  };
+
+  const clearArray = (field: keyof ICPFormData) => {
+    onUpdateFormData({ [field]: [] });
+  };
+
+  const ClearButton = ({ field, count }: { field: keyof ICPFormData; count: number }) => {
+    if (count === 0) return null;
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-6 px-2 text-xs text-muted-foreground hover:text-destructive"
+        onClick={() => clearArray(field)}
+      >
+        <X className="h-3 w-3 mr-1" />
+        Clear ({count})
+      </Button>
+    );
   };
 
   const getAvailableSubIndustries = () => {
@@ -133,7 +153,10 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Industries</Label>
+              <div className="flex items-center justify-between">
+                <Label>Industries</Label>
+                <ClearButton field="industries" count={formData.industries.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.industries.map((industry, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('industries', index)}>
@@ -154,7 +177,10 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
             </div>
 
             <div>
-              <Label>Sub-Industries</Label>
+              <div className="flex items-center justify-between">
+                <Label>Sub-Industries</Label>
+                <ClearButton field="sub_industries" count={formData.sub_industries.length} />
+              </div>
               {formData.industries.length === 0 && (
                 <p className="text-xs text-muted-foreground mt-1 mb-2">
                   Select industries above first to see relevant sub-industries
@@ -201,7 +227,10 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Company Sizes (employees)</Label>
+              <div className="flex items-center justify-between">
+                <Label>Company Sizes (employees)</Label>
+                <ClearButton field="company_sizes" count={formData.company_sizes.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.company_sizes.map((size, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('company_sizes', index)}>
@@ -235,7 +264,10 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Revenue Ranges</Label>
+              <div className="flex items-center justify-between">
+                <Label>Revenue Ranges</Label>
+                <ClearButton field="revenue_ranges" count={formData.revenue_ranges.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.revenue_ranges.map((range, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('revenue_ranges', index)}>
@@ -269,7 +301,10 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <Label>Regions</Label>
+              <div className="flex items-center justify-between">
+                <Label>Regions</Label>
+                <ClearButton field="regions" count={formData.regions.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.regions.map((region, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('regions', index)}>
@@ -290,7 +325,10 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
             </div>
 
             <div>
-              <Label>Countries</Label>
+              <div className="flex items-center justify-between">
+                <Label>Countries</Label>
+                <ClearButton field="geographies" count={formData.geographies.length} />
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {formData.geographies.map((country, index) => (
                   <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('geographies', index)}>
