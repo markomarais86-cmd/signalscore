@@ -126,9 +126,13 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   const [filterCriteria, setFilterCriteria] = useState<FilterCriteria>({
     marketSegments: [],
     managementLevels: ["VP", "C-Level"],
-    fitScoreMin: 0,
+    fitScoreMin: 70, // Default to high-fit accounts
     fitScoreMax: 100
   });
+  
+  // Apollo TAM data state for 'database' source
+  const [apolloTamData, setApolloTamData] = useState<any>(null);
+  const [apolloTamDomains, setApolloTamDomains] = useState<string[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<keyof typeof SEQUENCE_TEMPLATES>('enterprise');
   const [sequenceSteps, setSequenceSteps] = useState<SequenceStep[]>(SEQUENCE_TEMPLATES.enterprise.steps);
   const [selectedTitles, setSelectedTitles] = useState<string[]>([]);
@@ -198,16 +202,61 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
 
   // Update cost calculation when data source or provider changes
   useEffect(() => {
-    if (previewData) {
+    if (previewData || apolloTamData) {
       if (dataSource === 'database') {
         const costPerLead = provider === 'apollo' ? 0.50 : provider === 'zoominfo' ? 0.75 : 1.00;
-        const leadsEstimate = (previewData.length || 0) * 3;
+        const accountCount = apolloTamData?.total_accounts || previewData?.length || 0;
+        const leadsEstimate = accountCount * 3;
         setEstimatedCost(leadsEstimate * costPerLead);
       } else {
         setEstimatedCost(0);
       }
     }
-  }, [dataSource, provider, previewData]);
+  }, [dataSource, provider, previewData, apolloTamData]);
+
+  // Load Apollo TAM data when 'database' source is selected
+  useEffect(() => {
+    const loadApolloTamData = async () => {
+      if (!userProfile?.org_id || dataSource !== 'database') {
+        setApolloTamData(null);
+        setApolloTamDomains([]);
+        return;
+      }
+      
+      console.log('[Campaign Builder] Loading Apollo TAM data...');
+      try {
+        // Fetch from external_data_sources
+        const { data: externalSource, error } = await supabase
+          .from('external_data_sources')
+          .select('*')
+          .eq('org_id', userProfile.org_id)
+          .eq('provider', 'apollo')
+          .single();
+        
+        if (error) {
+          console.error('[Campaign Builder] Error loading Apollo TAM:', error);
+          return;
+        }
+        
+        if (externalSource) {
+          console.log('[Campaign Builder] Apollo TAM data loaded:', {
+            total_accounts: externalSource.total_accounts,
+            total_contacts: externalSource.total_contacts
+          });
+          setApolloTamData(externalSource);
+          
+          // For Apollo redemption, we'll generate placeholder domains based on industry/geo
+          // The redemption function will search Apollo directly using filters
+          // Generate a marker to indicate Apollo TAM is available
+          setApolloTamDomains(['__apollo_tam__']); // Marker indicating TAM data is available
+        }
+      } catch (err) {
+        console.error('[Campaign Builder] Error loading Apollo TAM:', err);
+      }
+    };
+    
+    loadApolloTamData();
+  }, [userProfile?.org_id, dataSource]);
 
   useEffect(() => {
     console.log('[Campaign Builder] Opening with:', { icpId, source, useICP, org_id: userProfile?.org_id });
@@ -1200,9 +1249,9 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
               <Select value={dataSource} onValueChange={(value) => setDataSource(value as 'all' | 'crm' | 'database')}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Sources (CRM + Database)</SelectItem>
-                  <SelectItem value="crm">CRM Only (Free - Campaign Ready)</SelectItem>
-                  <SelectItem value="database">Database Only (Paid - Requires Credits)</SelectItem>
+                  <SelectItem value="all">All Sources (CRM + Apollo TAM)</SelectItem>
+                  <SelectItem value="crm">CRM Accounts Only (Free)</SelectItem>
+                  <SelectItem value="database">Apollo Available Market (Requires Credits)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1357,41 +1406,78 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                   </div>
                 )}
 
-                {/* Account Preview Table (no PII) */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Sample Accounts ({formatNumber(previewData?.length || 0)} total)</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="max-h-48 overflow-y-auto border rounded-lg">
-                      <table className="w-full">
-                        <thead className="bg-muted sticky top-0">
-                          <tr>
-                            <th className="text-left p-2 text-sm font-medium">Account</th>
-                            <th className="text-left p-2 text-sm font-medium">Industry</th>
-                            <th className="text-left p-2 text-sm font-medium">Country</th>
-                            <th className="text-right p-2 text-sm font-medium">Fit Score</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {previewData?.slice(0, 10).map((account: any, idx: number) => (
-                            <tr key={idx} className="border-t">
-                              <td className="p-2 text-sm">{account.name}</td>
-                              <td className="p-2 text-sm">{account.industry_norm}</td>
-                              <td className="p-2 text-sm">{account.country}</td>
-                              <td className="p-2 text-sm text-right">
-                                <Badge variant={account.overall_score >= 70 ? "default" : account.overall_score >= 40 ? "secondary" : "outline"} 
-                                       className={account.overall_score >= 70 ? "bg-green-500" : ""}>
-                                  {account.overall_score}
-                                </Badge>
-                              </td>
+                {/* Apollo TAM Summary - shown for 'database' source */}
+                {dataSource === 'database' && apolloTamData && (
+                  <Card className="bg-amber-500/5 border-amber-500/30">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-amber-500" />
+                        Apollo Available Market
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-4 gap-4 mb-4">
+                        <div>
+                          <div className="text-2xl font-bold">{formatNumber(apolloTamData.total_accounts || 0)}</div>
+                          <div className="text-xs text-muted-foreground">Total Accounts</div>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold">{formatNumber(apolloTamData.total_contacts || 0)}</div>
+                          <div className="text-xs text-muted-foreground">Total Contacts</div>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-amber-500">{formatNumber(apolloTamData.credits_remaining || 0)}</div>
+                          <div className="text-xs text-muted-foreground">Credits Available</div>
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-green-500">{Object.keys(apolloTamData.industry_breakdown || {}).length}</div>
+                          <div className="text-xs text-muted-foreground">Industries</div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        This data represents your Apollo available market. Select "Apollo" as destination in the next step to redeem contacts.
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Account Preview Table (no PII) - shown for CRM sources */}
+                {dataSource !== 'database' && (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Sample Accounts ({formatNumber(previewData?.length || 0)} total)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="max-h-48 overflow-y-auto border rounded-lg">
+                        <table className="w-full">
+                          <thead className="bg-muted sticky top-0">
+                            <tr>
+                              <th className="text-left p-2 text-sm font-medium">Account</th>
+                              <th className="text-left p-2 text-sm font-medium">Industry</th>
+                              <th className="text-left p-2 text-sm font-medium">Country</th>
+                              <th className="text-right p-2 text-sm font-medium">Fit Score</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </CardContent>
-                </Card>
+                          </thead>
+                          <tbody>
+                            {previewData?.slice(0, 10).map((account: any, idx: number) => (
+                              <tr key={idx} className="border-t">
+                                <td className="p-2 text-sm">{account.name}</td>
+                                <td className="p-2 text-sm">{account.industry_norm}</td>
+                                <td className="p-2 text-sm">{account.country}</td>
+                                <td className="p-2 text-sm text-right">
+                                  <Badge variant={account.overall_score >= 70 ? "default" : account.overall_score >= 40 ? "secondary" : "outline"} 
+                                         className={account.overall_score >= 70 ? "bg-green-500" : ""}>
+                                    {account.overall_score}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </>
             )}
           </div>
@@ -1516,8 +1602,17 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                     <AlertDescription>
                       <div className="font-medium mb-1">Redeem contacts from Apollo</div>
                       <p className="text-sm text-muted-foreground">
-                        Contacts will be imported from Apollo for the {previewData?.length || 0} selected accounts. 
-                        Duplicates (existing leads, CRM contacts, previous exports) will be automatically skipped.
+                        {dataSource === 'database' ? (
+                          <>
+                            Contacts will be imported from Apollo Available Market ({formatNumber(apolloTamData?.total_accounts || 0)} accounts available). 
+                            Use persona filters in the next step to narrow down contacts.
+                          </>
+                        ) : (
+                          <>
+                            Contacts will be imported from Apollo for the {formatNumber(previewData?.length || 0)} selected accounts. 
+                            Duplicates (existing leads, CRM contacts, previous exports) will be automatically skipped.
+                          </>
+                        )}
                       </p>
                     </AlertDescription>
                   </Alert>
@@ -1526,12 +1621,16 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                 {destination === 'apollo' ? (
                   <Button
                     onClick={() => setShowApolloRedemption(true)}
-                    disabled={!previewData || previewData.length === 0}
+                    disabled={
+                      dataSource === 'database' 
+                        ? apolloTamDomains.length === 0 
+                        : (!previewData || previewData.length === 0)
+                    }
                     className="w-full"
                     size="lg"
                   >
                     <Zap className="mr-2 h-4 w-4" />
-                    Redeem Apollo Contacts
+                    Redeem Apollo Contacts ({dataSource === 'database' ? formatNumber(apolloTamData?.total_accounts || 0) : formatNumber(previewData?.length || 0)} accounts)
                   </Button>
                 ) : (
                   <Button
@@ -1652,7 +1751,11 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       <ApolloRedemptionDialog
         open={showApolloRedemption}
         onOpenChange={setShowApolloRedemption}
-        accountDomains={previewData?.map((a: any) => a.domain).filter(Boolean) || []}
+        accountDomains={
+          dataSource === 'database' 
+            ? apolloTamDomains 
+            : (previewData?.map((a: any) => a.domain).filter(Boolean) || [])
+        }
         campaignName={campaignName}
         onRedemptionComplete={(result) => {
           setPushComplete(true);
