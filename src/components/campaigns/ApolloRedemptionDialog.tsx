@@ -1,16 +1,17 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, Sparkles, Zap, CheckCircle, XCircle, Loader2, Eye, CheckCircle2, Shield, Database } from "lucide-react";
+import { AlertCircle, Sparkles, Zap, CheckCircle, XCircle, Loader2, Eye, CheckCircle2, Shield, Database, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useApolloCredits } from "@/hooks/use-apollo-credits";
+import { useContactProvider, ContactProvider } from "@/hooks/use-contact-provider";
 import { toast } from "sonner";
 
 export interface ICPCriteria {
@@ -54,6 +55,7 @@ export function ApolloRedemptionDialog({
 }: ApolloRedemptionDialogProps) {
   const { userProfile } = useAuth();
   const { creditsRemaining, dailyLimit, configured, apiAccessible } = useApolloCredits();
+  const { providerStatus, activeProvider, checkProviders, previewContacts, redeemContacts } = useContactProvider();
   
   // Credit protection limits
   const MAX_SINGLE_REDEMPTION = 1000;
@@ -75,6 +77,8 @@ export function ApolloRedemptionDialog({
   const [redemptionProgress, setRedemptionProgress] = useState(0);
   const [acknowledgeUnknownCredits, setAcknowledgeUnknownCredits] = useState(false);
   const [acknowledgeHighUsage, setAcknowledgeHighUsage] = useState(false);
+  const [usePdlFallback, setUsePdlFallback] = useState(false);
+  const [currentProvider, setCurrentProvider] = useState<ContactProvider>('apollo');
 
   const personas = [
     "Technical Decision Maker",
@@ -255,46 +259,89 @@ export function ApolloRedemptionDialog({
     try {
       setRedemptionProgress(30);
       
-      // Use different function for TAM mode vs domain mode
-      const functionName = isTamMode ? 'redeem-apollo-by-icp' : 'redeem-apollo-contacts';
-      const requestBody = isTamMode 
-        ? {
+      // Try Apollo first, fallback to PDL if needed
+      const useProvider = usePdlFallback ? 'pdl' : 'apollo';
+      let success = false;
+      let data: any = null;
+
+      if (useProvider === 'apollo') {
+        // Use Apollo
+        const functionName = isTamMode ? 'redeem-apollo-by-icp' : 'redeem-apollo-contacts';
+        const requestBody = isTamMode 
+          ? {
+              org_id: userProfile.org_id,
+              icp_criteria: icpCriteria,
+              persona_filters: selectedPersonas,
+              max_contacts: effectiveLimit,
+              campaign_name: campaignName
+            }
+          : {
+              org_id: userProfile.org_id,
+              account_domains: accountDomains,
+              persona_filters: selectedPersonas,
+              max_contacts: effectiveLimit,
+              campaign_name: campaignName
+            };
+        
+        const result = await supabase.functions.invoke(functionName, {
+          body: requestBody
+        });
+
+        if (result.error) {
+          console.log('Apollo failed, trying PDL fallback:', result.error);
+          // Try PDL fallback
+          const pdlResult = await supabase.functions.invoke('redeem-pdl-contacts', {
+            body: {
+              org_id: userProfile.org_id,
+              domains: isTamMode ? undefined : accountDomains,
+              icp_criteria: isTamMode ? icpCriteria : undefined,
+              persona_filters: selectedPersonas,
+              max_contacts: effectiveLimit,
+              campaign_name: campaignName
+            }
+          });
+          data = pdlResult.data;
+          success = !pdlResult.error && pdlResult.data?.success;
+          setCurrentProvider('pdl');
+        } else {
+          data = result.data;
+          success = result.data?.success;
+          setCurrentProvider('apollo');
+        }
+      } else {
+        // Use PDL directly
+        const result = await supabase.functions.invoke('redeem-pdl-contacts', {
+          body: {
             org_id: userProfile.org_id,
-            icp_criteria: icpCriteria,
+            domains: isTamMode ? undefined : accountDomains,
+            icp_criteria: isTamMode ? icpCriteria : undefined,
             persona_filters: selectedPersonas,
             max_contacts: effectiveLimit,
             campaign_name: campaignName
           }
-        : {
-            org_id: userProfile.org_id,
-            account_domains: accountDomains,
-            persona_filters: selectedPersonas,
-            max_contacts: effectiveLimit,
-            campaign_name: campaignName
-          };
-      
-      const { data, error } = await supabase.functions.invoke(functionName, {
-        body: requestBody
-      });
+        });
+        data = result.data;
+        success = !result.error && result.data?.success;
+        setCurrentProvider('pdl');
+      }
 
       setRedemptionProgress(90);
 
-      if (error) throw error;
-
-      if (data.success) {
+      if (success && data) {
+        const providerName = data.provider === 'pdl' ? 'PDL' : 'Apollo';
         toast.success(
-          `Redeemed ${data.contacts_redeemed} contacts! (${data.contacts_skipped_duplicate} duplicates skipped)`
+          `Redeemed ${data.contacts_redeemed} contacts via ${providerName}! (${data.contacts_skipped_duplicate} duplicates skipped)`
         );
         
         onRedemptionComplete?.({
           contactsRedeemed: data.contacts_redeemed,
-          creditsUsed: data.credits_used
+          creditsUsed: data.credits_used || 0
         });
         
         setRedemptionProgress(100);
         setTimeout(() => onOpenChange(false), 1000);
       } else {
-        throw new Error(data.error || 'Redemption failed');
+        throw new Error(data?.error || 'Redemption failed');
       }
     } catch (err: any) {
       console.error('Redemption error:', err);
@@ -305,10 +352,10 @@ export function ApolloRedemptionDialog({
     }
   };
 
-  const canRedeem = configured && 
-    ((apiAccessible && creditsRemaining !== null && creditsRemaining > 0) || (!apiAccessible && acknowledgeUnknownCredits)) &&
+  const canRedeem = (configured || usePdlFallback) && 
+    ((apiAccessible && creditsRemaining !== null && creditsRemaining > 0) || (!apiAccessible && (acknowledgeUnknownCredits || usePdlFallback))) &&
     effectiveLimit > 0 && 
-    (!isHighCreditUsage || acknowledgeHighUsage) &&
+    (!isHighCreditUsage || acknowledgeHighUsage || usePdlFallback) &&
     selectedPersonas.length > 0 &&
     (isTamMode ? !!icpCriteria : accountDomains.length > 0);
 
@@ -318,18 +365,23 @@ export function ApolloRedemptionDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            Redeem Apollo Contacts
+            {usePdlFallback ? 'Import Contacts via PDL' : 'Redeem Apollo Contacts'}
             {isTamMode && (
               <Badge variant="secondary" className="ml-2">
                 <Database className="h-3 w-3 mr-1" />
                 TAM Mode
               </Badge>
             )}
+            {usePdlFallback && (
+              <Badge variant="outline" className="ml-2 bg-purple-500/10 text-purple-600 border-purple-500/50">
+                PDL
+              </Badge>
+            )}
           </DialogTitle>
           <DialogDescription>
             {isTamMode 
-              ? `Import contacts matching your ICP criteria from Apollo's database.`
-              : `Import contacts from Apollo for ${accountDomains.length.toLocaleString()} selected accounts.`
+              ? `Import contacts matching your ICP criteria from ${usePdlFallback ? 'People Data Labs' : 'Apollo'}'s database.`
+              : `Import contacts for ${accountDomains.length.toLocaleString()} selected accounts via ${usePdlFallback ? 'PDL' : 'Apollo'}.`
             }
           </DialogDescription>
         </DialogHeader>
@@ -350,14 +402,20 @@ export function ApolloRedemptionDialog({
             </AlertDescription>
           </Alert>
 
-          {/* Apollo Status & Preview */}
+          {/* Provider Status & PDL Fallback Option */}
           <div className="p-4 rounded-lg bg-muted/50 border space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-green-500" />
-                <span className="font-medium">Apollo Connected</span>
+                {!apiAccessible && !usePdlFallback ? (
+                  <AlertCircle className="h-5 w-5 text-amber-500" />
+                ) : (
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                )}
+                <span className="font-medium">
+                  {usePdlFallback ? 'PDL (People Data Labs)' : 'Apollo'} {apiAccessible || usePdlFallback ? 'Connected' : 'Limited Access'}
+                </span>
               </div>
-              {apiAccessible && creditsRemaining !== null && (
+              {apiAccessible && creditsRemaining !== null && !usePdlFallback && (
                 <div className="text-right">
                   <span className="text-lg font-bold text-primary">
                     {creditsRemaining.toLocaleString()}
@@ -368,6 +426,24 @@ export function ApolloRedemptionDialog({
                 </div>
               )}
             </div>
+
+            {/* PDL Fallback Toggle - show when Apollo has issues */}
+            {!apiAccessible && (
+              <div className="flex items-center justify-between p-3 rounded-md bg-purple-500/10 border border-purple-500/30">
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 text-purple-500" />
+                  <div>
+                    <p className="text-sm font-medium text-purple-700">Use PDL as alternative</p>
+                    <p className="text-xs text-muted-foreground">Apollo API limited - PDL can provide similar contacts</p>
+                  </div>
+                </div>
+                <Checkbox
+                  id="use-pdl"
+                  checked={usePdlFallback}
+                  onCheckedChange={(checked) => setUsePdlFallback(checked === true)}
+                />
+              </div>
+            )}
 
             {/* Preview Results */}
             {isPreviewing ? (
