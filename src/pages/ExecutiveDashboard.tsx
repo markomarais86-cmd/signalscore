@@ -705,9 +705,9 @@ export default function ExecutiveDashboard() {
               {/* Geography Distribution - Shown for all filters */}
               {sourceFilter === 'database' && tamData?.geography_breakdown ? (
                 <EnhancedGeographyCard 
-                  geoData={Object.entries(tamData.geography_breakdown).map(([country, count]) => ({
+                  geoData={Object.entries(tamData.geography_breakdown).map(([country, data]) => ({
                     country,
-                    count: Number(count) || 0
+                    count: typeof data === 'object' && data !== null ? (data as any).accounts || 0 : Number(data) || 0
                   })).sort((a, b) => b.count - a.count)}
                   invalidCount={0}
                   title="TAM Geographic Distribution"
