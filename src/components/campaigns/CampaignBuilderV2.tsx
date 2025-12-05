@@ -326,21 +326,33 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       
       console.log('[Campaign Builder] Loaded accounts:', accountsData.length, 'total:', totalAccounts);
       
-      // Step 2: Fetch scores for these accounts
+      // Step 2: Fetch scores in batches to avoid large IN clause issues
       const accountIds = accountsData.map((a: any) => a.external_id);
-      const { data: scoresData, error: scoresError } = await supabase
-        .from('scores')
-        .select('account_external_id, overall, fit, intent')
-        .eq('org_id', userProfile.org_id)
-        .in('account_external_id', accountIds);
+      const scoreBatchSize = 100;
+      let allScores: any[] = [];
       
-      if (scoresError) {
-        console.error('[Campaign Builder] Error loading scores:', scoresError);
+      console.log(`[Campaign Builder] Loading scores for ${accountIds.length} accounts in batches of ${scoreBatchSize}`);
+      
+      for (let i = 0; i < accountIds.length; i += scoreBatchSize) {
+        const batch = accountIds.slice(i, i + scoreBatchSize);
+        const { data: scoresData, error: scoresError } = await supabase
+          .from('scores')
+          .select('account_external_id, overall, fit, intent')
+          .eq('org_id', userProfile.org_id)
+          .in('account_external_id', batch);
+        
+        if (scoresError) {
+          console.error('[Campaign Builder] Error loading scores batch:', scoresError);
+        } else if (scoresData) {
+          allScores = [...allScores, ...scoresData];
+        }
       }
+      
+      console.log(`[Campaign Builder] Loaded ${allScores.length} scores for ${accountIds.length} accounts`);
       
       // Create score map for quick lookup
       const scoreMap = new Map(
-        (scoresData || []).map((s: any) => [s.account_external_id, s])
+        allScores.map((s: any) => [s.account_external_id, s])
       );
       
       // Merge accounts with scores
