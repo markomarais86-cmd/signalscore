@@ -1630,7 +1630,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                     size="lg"
                   >
                     <Zap className="mr-2 h-4 w-4" />
-                    Redeem Apollo Contacts ({dataSource === 'database' ? formatNumber(apolloTamData?.total_accounts || 0) : formatNumber(previewData?.length || 0)} accounts)
+                    Configure Apollo Redemption (max 1,000 per batch)
                   </Button>
                 ) : (
                   <Button
