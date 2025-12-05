@@ -1,8 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Database, Building2, Users, TrendingUp, Zap, Globe, DollarSign } from "lucide-react";
+import { Database, Building2, Users, Zap, Globe } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -27,51 +26,28 @@ export function MarketIntelligenceCard({
 }: MarketIntelligenceCardProps) {
   const navigate = useNavigate();
 
-  // Process breakdowns into sorted arrays
-  const topIndustries = industryBreakdown 
-    ? Object.entries(industryBreakdown)
-        .map(([name, count]) => ({ name, count: Number(count) || 0 }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 5)
-    : [];
-
+  // Process breakdowns into sorted arrays - handle nested objects with { accounts, percentage }
   const topSizes = companySizeBreakdown
     ? Object.entries(companySizeBreakdown)
-        .map(([name, count]) => ({ name, count: Number(count) || 0 }))
+        .map(([name, data]) => ({ 
+          name, 
+          count: typeof data === 'object' && data !== null ? (data as any).accounts || 0 : Number(data) || 0 
+        }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 4)
     : [];
 
   const topCountries = geographyBreakdown
     ? Object.entries(geographyBreakdown)
-        .map(([name, count]) => ({ name, count: Number(count) || 0 }))
+        .map(([name, data]) => ({ 
+          name, 
+          count: typeof data === 'object' && data !== null ? (data as any).accounts || 0 : Number(data) || 0 
+        }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 4)
     : [];
 
-  const industryTotal = topIndustries.reduce((sum, i) => sum + i.count, 0);
   const sizeTotal = topSizes.reduce((sum, s) => sum + s.count, 0);
-
-  const getIndustryColor = (index: number) => {
-    const colors = [
-      "bg-primary",
-      "bg-primary/80",
-      "bg-primary/60",
-      "bg-primary/40",
-      "bg-primary/20",
-    ];
-    return colors[index] || "bg-muted";
-  };
-
-  const getSizeColor = (index: number) => {
-    const colors = [
-      "bg-chart-1",
-      "bg-chart-2",
-      "bg-chart-3",
-      "bg-chart-4",
-    ];
-    return colors[index] || "bg-muted";
-  };
 
   return (
     <Card>
@@ -109,37 +85,6 @@ export function MarketIntelligenceCard({
             </div>
           </div>
         </div>
-
-        {/* Industry Breakdown */}
-        {topIndustries.length > 0 && (
-          <div className="space-y-3">
-            <h4 className="font-semibold text-sm flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              Top Industries
-            </h4>
-            <div className="space-y-2">
-              {topIndustries.map((industry, index) => {
-                const percentage = industryTotal > 0 
-                  ? Math.round((industry.count / industryTotal) * 100) 
-                  : 0;
-                return (
-                  <div key={industry.name} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="truncate max-w-[180px]">{industry.name}</span>
-                      <span className="text-muted-foreground font-mono">
-                        {industry.count.toLocaleString()} ({percentage}%)
-                      </span>
-                    </div>
-                    <Progress 
-                      value={percentage} 
-                      className={cn("h-2", getIndustryColor(index))}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {/* Company Size Breakdown */}
         {topSizes.length > 0 && (
