@@ -12,12 +12,15 @@ import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, Users, DollarSign, CheckCircle2, Target, AlertCircle, Loader2, ArrowRight, ArrowLeft, ChevronRight, AlertTriangle, TrendingUp } from "lucide-react";
+import { Sparkles, Users, DollarSign, CheckCircle2, Target, AlertCircle, Loader2, ArrowRight, ArrowLeft, ChevronRight, AlertTriangle, TrendingUp, Zap } from "lucide-react";
 import { formatNumber } from "@/utils/format-numbers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCampaignDeduplication } from "@/hooks/use-campaign-deduplication";
 import { AICampaignAssistant } from "./AICampaignAssistant";
+import { ApolloCreditsDisplay } from "./ApolloCreditsDisplay";
+import { ApolloRedemptionDialog } from "./ApolloRedemptionDialog";
+import { useApolloCredits } from "@/hooks/use-apollo-credits";
 
 interface CampaignBuilderV2Props {
   isOpen: boolean;
@@ -139,8 +142,9 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   const [previewData, setPreviewData] = useState<any>(null);
   const [isPushing, setIsPushing] = useState(false);
   const [pushComplete, setPushComplete] = useState(false);
-  const [destination, setDestination] = useState<'salesforce' | 'hubspot' | 'csv'>('salesforce');
+  const [destination, setDestination] = useState<'salesforce' | 'hubspot' | 'csv' | 'apollo'>('salesforce');
   const [excludeDuplicates, setExcludeDuplicates] = useState(true);
+  const [showApolloRedemption, setShowApolloRedemption] = useState(false);
   
   // Real-time lead count preview state
   const [realtimeLeadCount, setRealtimeLeadCount] = useState<number | null>(null);
@@ -1403,6 +1407,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                   {destination === 'salesforce' && `${formatNumber(estimatedLeads)} leads pushed to Salesforce`}
                   {destination === 'hubspot' && `${formatNumber(estimatedLeads)} contacts pushed to HubSpot`}
                   {destination === 'csv' && `${formatNumber(estimatedLeads)} leads exported as CSV`}
+                  {destination === 'apollo' && `Contacts redeemed from Apollo`}
                 </p>
                 <Button onClick={onClose} className="mt-6">Close</Button>
               </div>
@@ -1412,12 +1417,12 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                   <h3 className="font-semibold mb-2">Select Destination</h3>
                   <p className="text-sm text-muted-foreground">Where would you like to send your campaign contacts?</p>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <Card
                     className={`cursor-pointer transition-all ${destination === 'salesforce' ? 'border-primary ring-2 ring-primary' : ''}`}
                     onClick={() => setDestination('salesforce')}
                   >
-                    <CardHeader>
+                    <CardHeader className="pb-2">
                       <CardTitle className="text-base">Salesforce</CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -1435,7 +1440,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                     className={`cursor-pointer transition-all ${destination === 'hubspot' ? 'border-primary ring-2 ring-primary' : ''}`}
                     onClick={() => setDestination('hubspot')}
                   >
-                    <CardHeader>
+                    <CardHeader className="pb-2">
                       <CardTitle className="text-base">HubSpot</CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -1453,7 +1458,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                     className={`cursor-pointer transition-all ${destination === 'csv' ? 'border-primary ring-2 ring-primary' : ''}`}
                     onClick={() => setDestination('csv')}
                   >
-                    <CardHeader>
+                    <CardHeader className="pb-2">
                       <CardTitle className="text-base">Export CSV</CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -1461,6 +1466,25 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                       {destination === 'csv' && (
                         <div className="mt-3 pt-3 border-t text-xs">
                           <span className="text-muted-foreground">20 fields including scores, firmographics, and contact intel</span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <Card
+                    className={`cursor-pointer transition-all ${destination === 'apollo' ? 'border-primary ring-2 ring-primary' : 'border-amber-500/50'}`}
+                    onClick={() => setDestination('apollo')}
+                  >
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-amber-500" />
+                        Apollo
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">Redeem contacts from Apollo (uses credits)</p>
+                      {destination === 'apollo' && (
+                        <div className="mt-3 pt-3 border-t text-xs">
+                          <ApolloCreditsDisplay compact />
                         </div>
                       )}
                     </CardContent>
@@ -1484,24 +1508,51 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                     </AlertDescription>
                   </Alert>
                 )}
-                <Button
-                  onClick={handleCreateCampaign}
-                  disabled={isPushing || !previewData || previewData.length === 0}
-                  className="w-full"
-                  size="lg"
-                >
-                  {isPushing ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating Campaign...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                      Create Campaign
-                    </>
-                  )}
-                </Button>
+
+                {/* Apollo Info */}
+                {destination === 'apollo' && (
+                  <Alert className="bg-amber-500/10 border-amber-500/50">
+                    <Zap className="h-4 w-4 text-amber-500" />
+                    <AlertDescription>
+                      <div className="font-medium mb-1">Redeem contacts from Apollo</div>
+                      <p className="text-sm text-muted-foreground">
+                        Contacts will be imported from Apollo for the {previewData?.length || 0} selected accounts. 
+                        Duplicates (existing leads, CRM contacts, previous exports) will be automatically skipped.
+                      </p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {destination === 'apollo' ? (
+                  <Button
+                    onClick={() => setShowApolloRedemption(true)}
+                    disabled={!previewData || previewData.length === 0}
+                    className="w-full"
+                    size="lg"
+                  >
+                    <Zap className="mr-2 h-4 w-4" />
+                    Redeem Apollo Contacts
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleCreateCampaign}
+                    disabled={isPushing || !previewData || previewData.length === 0}
+                    className="w-full"
+                    size="lg"
+                  >
+                    {isPushing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating Campaign...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Create Campaign
+                      </>
+                    )}
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -1591,6 +1642,18 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
           </div>
         )}
       </DialogContent>
+      
+      {/* Apollo Redemption Dialog */}
+      <ApolloRedemptionDialog
+        open={showApolloRedemption}
+        onOpenChange={setShowApolloRedemption}
+        accountDomains={previewData?.map((a: any) => a.domain).filter(Boolean) || []}
+        campaignName={campaignName}
+        onRedemptionComplete={(result) => {
+          setPushComplete(true);
+          setEstimatedLeads(result.contactsRedeemed);
+        }}
+      />
     </Dialog>
   );
 }

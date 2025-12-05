@@ -173,3 +173,12 @@ verify_jwt = false
 
 [functions.enrich-from-master]
 verify_jwt = true
+
+[functions.get-apollo-credits]
+verify_jwt = true
+
+[functions.check-apollo-duplicates]
+verify_jwt = true
+
+[functions.redeem-apollo-contacts]
+verify_jwt = true

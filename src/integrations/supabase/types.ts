@@ -304,6 +304,56 @@ export type Database = {
           },
         ]
       }
+      apollo_redemption_log: {
+        Row: {
+          account_filters: Json | null
+          campaign_name: string | null
+          contacts_redeemed: number
+          contacts_skipped_duplicate: number
+          credits_used: number
+          id: string
+          org_id: string
+          persona_filters: Json | null
+          redeemed_at: string
+          redeemed_emails: string[] | null
+          source_accounts: string[] | null
+        }
+        Insert: {
+          account_filters?: Json | null
+          campaign_name?: string | null
+          contacts_redeemed?: number
+          contacts_skipped_duplicate?: number
+          credits_used?: number
+          id?: string
+          org_id: string
+          persona_filters?: Json | null
+          redeemed_at?: string
+          redeemed_emails?: string[] | null
+          source_accounts?: string[] | null
+        }
+        Update: {
+          account_filters?: Json | null
+          campaign_name?: string | null
+          contacts_redeemed?: number
+          contacts_skipped_duplicate?: number
+          credits_used?: number
+          id?: string
+          org_id?: string
+          persona_filters?: Json | null
+          redeemed_at?: string
+          redeemed_emails?: string[] | null
+          source_accounts?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apollo_redemption_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string | null
@@ -1505,12 +1555,16 @@ export type Database = {
           api_key_configured: boolean | null
           company_size_breakdown: Json | null
           created_at: string | null
+          credits_last_checked: string | null
+          credits_remaining: number | null
+          credits_used_total: number | null
           funding_breakdown: Json | null
           geography_breakdown: Json | null
           id: string
           industry_breakdown: Json | null
           is_active: boolean | null
           last_synced_at: string | null
+          monthly_credit_limit: number | null
           org_id: string
           provider: string
           revenue_breakdown: Json | null
@@ -1523,12 +1577,16 @@ export type Database = {
           api_key_configured?: boolean | null
           company_size_breakdown?: Json | null
           created_at?: string | null
+          credits_last_checked?: string | null
+          credits_remaining?: number | null
+          credits_used_total?: number | null
           funding_breakdown?: Json | null
           geography_breakdown?: Json | null
           id?: string
           industry_breakdown?: Json | null
           is_active?: boolean | null
           last_synced_at?: string | null
+          monthly_credit_limit?: number | null
           org_id: string
           provider: string
           revenue_breakdown?: Json | null
@@ -1541,12 +1599,16 @@ export type Database = {
           api_key_configured?: boolean | null
           company_size_breakdown?: Json | null
           created_at?: string | null
+          credits_last_checked?: string | null
+          credits_remaining?: number | null
+          credits_used_total?: number | null
           funding_breakdown?: Json | null
           geography_breakdown?: Json | null
           id?: string
           industry_breakdown?: Json | null
           is_active?: boolean | null
           last_synced_at?: string | null
+          monthly_credit_limit?: number | null
           org_id?: string
           provider?: string
           revenue_breakdown?: Json | null
