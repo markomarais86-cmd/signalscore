@@ -34,7 +34,6 @@ import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { TAMSAMSOMCalculator } from "@/components/executive/TAMSAMSOMCalculator";
 import { SourceFilterToggle, type SourceFilter } from "@/components/executive/SourceFilterToggle";
 import { ExternalGeographyBreakdownCard } from "@/components/executive/ExternalGeographyBreakdownCard";
-import { ExternalMarketBreakdownCard } from "@/components/executive/ExternalMarketBreakdownCard";
 import { UnifiedTAMCard } from "@/components/executive/UnifiedTAMCard";
 import { FitDistributionHero } from "@/components/executive/FitDistributionHero";
 import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
@@ -688,43 +687,6 @@ export default function ExecutiveDashboard() {
                   invalidCount={0}
                   title="Your Geographic Distribution"
                   sourceFilter={sourceFilter}
-                />
-              )}
-
-              {/* Market Breakdown - Industry/Size/Revenue - shown for database filter */}
-              {sourceFilter === 'database' && tamData && (tamData.industry_breakdown || tamData.company_size_breakdown || tamData.revenue_breakdown) && (
-                <ExternalMarketBreakdownCard
-                  industryData={tamData.industry_breakdown ? (() => {
-                    const breakdown = tamData.industry_breakdown as Record<string, number>;
-                    const total = Object.values(breakdown).reduce((sum, val) => sum + (Number(val) || 0), 0);
-                    return Object.fromEntries(
-                      Object.entries(breakdown).map(([key, val]) => [
-                        key,
-                        { accounts: Number(val) || 0, percentage: total > 0 ? Math.round(((Number(val) || 0) / total) * 100) : 0 }
-                      ])
-                    );
-                  })() : undefined}
-                  companySizeData={tamData.company_size_breakdown ? (() => {
-                    const breakdown = tamData.company_size_breakdown as Record<string, number>;
-                    const total = Object.values(breakdown).reduce((sum, val) => sum + (Number(val) || 0), 0);
-                    return Object.fromEntries(
-                      Object.entries(breakdown).map(([key, val]) => [
-                        key,
-                        { accounts: Number(val) || 0, percentage: total > 0 ? Math.round(((Number(val) || 0) / total) * 100) : 0 }
-                      ])
-                    );
-                  })() : undefined}
-                  revenueData={tamData.revenue_breakdown ? (() => {
-                    const breakdown = tamData.revenue_breakdown as Record<string, number>;
-                    const total = Object.values(breakdown).reduce((sum, val) => sum + (Number(val) || 0), 0);
-                    return Object.fromEntries(
-                      Object.entries(breakdown).map(([key, val]) => [
-                        key,
-                        { accounts: Number(val) || 0, percentage: total > 0 ? Math.round(((Number(val) || 0) / total) * 100) : 0 }
-                      ])
-                    );
-                  })() : undefined}
-                  provider={tamData.provider || 'Apollo'}
                 />
               )}
             </div>
