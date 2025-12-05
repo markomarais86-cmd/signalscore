@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, Sparkles, Zap, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Sparkles, Zap, CheckCircle, XCircle, Loader2, Eye, CheckCircle2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +28,13 @@ interface DuplicateAnalysis {
   total_duplicates: number;
 }
 
+interface ApolloPreview {
+  total_available: number;
+  domains_searched: number;
+  sample_titles: string[];
+  message: string;
+}
+
 export function ApolloRedemptionDialog({
   open,
   onOpenChange,
@@ -36,7 +43,7 @@ export function ApolloRedemptionDialog({
   onRedemptionComplete
 }: ApolloRedemptionDialogProps) {
   const { userProfile } = useAuth();
-  const { creditsRemaining, dailyLimit, configured, apiAccessible, message } = useApolloCredits();
+  const { creditsRemaining, dailyLimit, configured, apiAccessible } = useApolloCredits();
   
   const [importLimit, setImportLimit] = useState("500");
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>([
@@ -44,8 +51,10 @@ export function ApolloRedemptionDialog({
     "Business Decision Maker"
   ]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [duplicateAnalysis, setDuplicateAnalysis] = useState<DuplicateAnalysis | null>(null);
+  const [apolloPreview, setApolloPreview] = useState<ApolloPreview | null>(null);
   const [redemptionProgress, setRedemptionProgress] = useState(0);
   const [acknowledgeUnknownCredits, setAcknowledgeUnknownCredits] = useState(false);
 
@@ -57,12 +66,49 @@ export function ApolloRedemptionDialog({
     "Business Influencer"
   ];
 
-  // Analyze duplicates when dialog opens
+  // Analyze duplicates and preview when dialog opens
   useEffect(() => {
     if (open && userProfile?.org_id && accountDomains.length > 0) {
       analyzeDuplicates();
+      previewApolloContacts();
     }
   }, [open, userProfile?.org_id, accountDomains]);
+
+  // Re-preview when personas change
+  useEffect(() => {
+    if (open && accountDomains.length > 0 && !isPreviewing) {
+      previewApolloContacts();
+    }
+  }, [selectedPersonas]);
+
+  const previewApolloContacts = async () => {
+    if (accountDomains.length === 0) return;
+    
+    setIsPreviewing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('preview-apollo-contacts', {
+        body: {
+          domains: accountDomains,
+          persona_filters: selectedPersonas
+        }
+      });
+
+      if (error) throw error;
+      
+      if (data.success) {
+        setApolloPreview({
+          total_available: data.total_available,
+          domains_searched: data.domains_searched,
+          sample_titles: data.sample_titles || [],
+          message: data.message
+        });
+      }
+    } catch (err: any) {
+      console.error('Error previewing Apollo contacts:', err);
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
 
   const analyzeDuplicates = async () => {
     if (!userProfile?.org_id) return;
@@ -95,10 +141,10 @@ export function ApolloRedemptionDialog({
     );
   };
 
-  // When credits are unknown, we can't estimate - just use the import limit
-  const estimatedNewContacts = apiAccessible 
-    ? Math.min(parseInt(importLimit || "0"), creditsRemaining || 0)
-    : parseInt(importLimit || "0");
+  // Calculate estimated new contacts
+  const estimatedNewContacts = apolloPreview 
+    ? Math.max(0, apolloPreview.total_available - (duplicateAnalysis?.total_duplicates || 0))
+    : 0;
 
   const handleRedeem = async () => {
     if (!userProfile?.org_id || accountDomains.length === 0) return;
@@ -173,29 +219,60 @@ export function ApolloRedemptionDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Credit Balance */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
-            <div className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-primary" />
-              <span className="font-medium">Apollo Credits</span>
-            </div>
-            <div className="text-right">
-              {apiAccessible ? (
-                <>
+          {/* Apollo Status & Preview */}
+          <div className="p-4 rounded-lg bg-muted/50 border space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-green-500" />
+                <span className="font-medium">Apollo Connected</span>
+              </div>
+              {apiAccessible && creditsRemaining !== null && (
+                <div className="text-right">
                   <span className="text-lg font-bold text-primary">
-                    {creditsRemaining?.toLocaleString() ?? '—'}
+                    {creditsRemaining.toLocaleString()}
                   </span>
                   <span className="text-muted-foreground ml-1">
-                    / {dailyLimit?.toLocaleString() ?? '—'} daily
+                    / {dailyLimit?.toLocaleString() ?? '—'} daily credits
                   </span>
-                </>
-              ) : (
-                <Badge variant="outline" className="text-primary border-primary/50">
-                  <Zap className="h-3 w-3 mr-1" />
-                  Ready (balance unknown)
-                </Badge>
+                </div>
               )}
             </div>
+
+            {/* Preview Results */}
+            {isPreviewing ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Previewing available contacts...
+              </div>
+            ) : apolloPreview && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Eye className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">
+                    {apolloPreview.total_available.toLocaleString()} contacts available
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    (at {apolloPreview.domains_searched} accounts)
+                  </span>
+                </div>
+                
+                {apolloPreview.sample_titles.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {apolloPreview.sample_titles.map((title, i) => (
+                      <Badge key={i} variant="secondary" className="text-xs">
+                        {title}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {duplicateAnalysis && estimatedNewContacts > 0 && (
+                  <div className="text-sm text-green-600 font-medium">
+                    After removing {duplicateAnalysis.total_duplicates.toLocaleString()} duplicates: ~{estimatedNewContacts.toLocaleString()} new contacts
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           
           {/* Unknown credits warning */}
@@ -203,7 +280,7 @@ export function ApolloRedemptionDialog({
             <Alert variant="default" className="bg-amber-500/10 border-amber-500/50">
               <AlertCircle className="h-4 w-4 text-amber-500" />
               <AlertDescription className="space-y-2">
-                <p>{message || 'Credit tracking unavailable on your Apollo plan.'}</p>
+                <p>Credit balance unavailable on your Apollo plan. Preview shows available contacts.</p>
                 <div className="flex items-center space-x-2 pt-1">
                   <Checkbox
                     id="acknowledge-credits"
@@ -272,8 +349,8 @@ export function ApolloRedemptionDialog({
               max={apiAccessible ? (creditsRemaining || 10000) : 10000}
             />
             <p className="text-sm text-muted-foreground">
-              {apiAccessible 
-                ? `Will use up to ${estimatedNewContacts.toLocaleString()} credits (only new contacts count)`
+              {apolloPreview 
+                ? `Will import up to ${Math.min(parseInt(importLimit || "0"), estimatedNewContacts).toLocaleString()} new contacts`
                 : `Will import up to ${parseInt(importLimit || "0").toLocaleString()} contacts (duplicates skipped automatically)`
               }
             </p>

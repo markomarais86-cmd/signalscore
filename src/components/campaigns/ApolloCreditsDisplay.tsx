@@ -1,7 +1,8 @@
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { RefreshCw, Zap, AlertCircle } from "lucide-react";
+import { RefreshCw, Zap, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useApolloCredits } from "@/hooks/use-apollo-credits";
 
 interface ApolloCreditsDisplayProps {
@@ -58,13 +59,13 @@ export function ApolloCreditsDisplay({ compact = false }: ApolloCreditsDisplayPr
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="outline" className="gap-1 text-primary border-primary/50">
-              <Zap className="h-3 w-3" />
-              Apollo Ready
+            <Badge variant="outline" className="gap-1 text-green-600 border-green-500/50 bg-green-500/10">
+              <CheckCircle2 className="h-3 w-3" />
+              Apollo Connected
             </Badge>
           </TooltipTrigger>
           <TooltipContent>
-            <p className="max-w-xs">{message || 'Credit tracking unavailable on your Apollo plan. You can still redeem contacts.'}</p>
+            <p className="max-w-xs">{message || 'Apollo API connected. Use Preview to see available contacts.'}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

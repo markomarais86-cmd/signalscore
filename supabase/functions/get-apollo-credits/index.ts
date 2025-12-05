@@ -62,16 +62,17 @@ serve(async (req) => {
       
       // Handle 403 - API_INACCESSIBLE (common for plans without usage stats access)
       if (response.status === 403) {
-        console.log('[get-apollo-credits] Usage stats API not accessible - returning configured status');
+        console.log('[get-apollo-credits] Usage stats API not accessible - API key is valid but credits not trackable');
         return new Response(
           JSON.stringify({ 
             success: true,
             configured: true,
             api_accessible: false,
+            api_key_valid: true,
             credits_remaining: null,
             credits_used_today: null,
             daily_limit: null,
-            message: 'Credit tracking unavailable on your Apollo plan. You can still redeem contacts.',
+            message: 'Credit balance unavailable. Use Preview to see available contacts.',
             last_checked: new Date().toISOString(),
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
