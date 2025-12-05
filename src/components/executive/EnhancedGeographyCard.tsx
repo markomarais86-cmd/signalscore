@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, X, Building2, ChevronRight, Database, BarChart3 } from "lucide-react";
+import { MapPin, Building2, ChevronRight, Database } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useNavigate } from "react-router-dom";
@@ -10,8 +10,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { ComposableMap, Geographies, Geography, ZoomableGroup } from "react-simple-maps";
 import { scaleLinear } from "d3-scale";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
@@ -41,8 +39,6 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
   const [loadingStates, setLoadingStates] = useState(false);
   const [hoveredCountry, setHoveredCountry] = useState<string>("");
   const [tooltipContent, setTooltipContent] = useState({ country: "", count: 0 });
-  const [showComparison, setShowComparison] = useState(false);
-  const [comparisonData, setComparisonData] = useState<Array<{ country: string; crm: number; database: number }>>([]);
   
   const totalAccounts = geoData.reduce((sum, g) => sum + g.count, 0);
   const maxCount = geoData[0]?.count || 1;
@@ -67,12 +63,6 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
       loadStateData(selectedCountry);
     }
   }, [selectedCountry, userProfile?.org_id]);
-
-  useEffect(() => {
-    if (showComparison && userProfile?.org_id) {
-      loadComparisonData();
-    }
-  }, [showComparison, userProfile?.org_id, sourceFilter]);
 
   const loadStateData = async (country: string) => {
     setLoadingStates(true);
@@ -134,123 +124,6 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
     return mappings[lower] || lower;
   };
 
-  const loadComparisonData = async () => {
-    console.log('[Geography] Loading comparison data for sourceFilter:', sourceFilter);
-    
-    try {
-      const comparison: Record<string, { country: string; crm: number; database: number }> = {};
-
-      // When showing 'all', fetch both sources separately for side-by-side comparison
-      if (sourceFilter === 'all') {
-        // Use RPC to get CRM data (no row limits)
-        console.log('[Geography] Fetching CRM data via RPC...');
-        const { data: crmData, error: crmError } = await supabase
-          .rpc('get_geography_distribution', {
-            p_org_id: userProfile!.org_id,
-            p_source_filter: 'crm'
-          });
-
-        if (crmError) {
-          console.error('[Geography] RPC error for CRM:', crmError);
-        } else {
-          console.log('[Geography] CRM data from RPC:', crmData?.length, 'countries');
-          crmData?.forEach((row: any) => {
-            comparison[row.country] = { 
-              country: row.country, 
-              crm: Number(row.count),
-              database: 0 
-            };
-          });
-          console.log('[Geography] Sample CRM data for United States:', comparison['United States']);
-        }
-
-        // Use RPC to get Database data (no row limits)
-        console.log('[Geography] Fetching Database data via RPC...');
-        const { data: dbData, error: dbError } = await supabase
-          .rpc('get_geography_distribution', {
-            p_org_id: userProfile!.org_id,
-            p_source_filter: 'database'
-          });
-
-        if (dbError) {
-          console.error('[Geography] RPC error for database:', dbError);
-        } else {
-          console.log('[Geography] Database data from RPC:', dbData?.length, 'countries');
-          dbData?.forEach((row: any) => {
-            if (!comparison[row.country]) {
-              comparison[row.country] = { country: row.country, crm: 0, database: 0 };
-            }
-            comparison[row.country].database = Number(row.count);
-          });
-          console.log('[Geography] Sample Database data for United States:', comparison['United States']);
-        }
-      } else {
-        // For CRM or Database only, still show comparison with one bar populated
-        console.log('[Geography] Fetching accounts for single source filter...');
-        const { data: accounts, error: accountsError } = await supabase
-          .from('accounts')
-          .select('country, data_source')
-          .eq('org_id', userProfile!.org_id)
-          .not('country', 'is', null);
-
-        if (accountsError) {
-          console.error('[Geography] Accounts error:', accountsError);
-        } else {
-          console.log('[Geography] Accounts fetched:', accounts?.length);
-        }
-
-        accounts?.forEach((a) => {
-          if (!comparison[a.country]) {
-            comparison[a.country] = { country: a.country, crm: 0, database: 0 };
-          }
-          if (a.data_source === 'crm' || a.data_source === 'both') {
-            comparison[a.country].crm++;
-          }
-          if (a.data_source === 'database' || a.data_source === 'both') {
-            comparison[a.country].database++;
-          }
-        });
-
-        console.log('[Geography] Fetching external source for single filter...');
-        const { data: externalSource, error: extError } = await supabase
-          .from('external_data_sources')
-          .select('geography_breakdown')
-          .eq('org_id', userProfile!.org_id)
-          .eq('is_active', true)
-          .maybeSingle();
-
-        if (extError) {
-          console.error('[Geography] External source error:', extError);
-        } else {
-          console.log('[Geography] External source fetched:', !!externalSource);
-        }
-
-        if (externalSource?.geography_breakdown) {
-          const geoBreakdown = externalSource.geography_breakdown as Record<string, { accounts: number }>;
-          Object.entries(geoBreakdown).forEach(([country, data]) => {
-            if (!comparison[country]) {
-              comparison[country] = { country, crm: 0, database: 0 };
-            }
-            comparison[country].database = data.accounts;
-          });
-        }
-      }
-      
-      // Sort and limit to top 10
-      const sorted = Object.values(comparison)
-        .sort((a, b) => (b.crm + b.database) - (a.crm + a.database))
-        .slice(0, 10);
-      
-      console.log('[Geography] Final comparison data:', sorted);
-      console.log('[Geography] Sample data for United States:', sorted.find(c => c.country === 'United States'));
-      
-      setComparisonData(sorted);
-    } catch (error) {
-      console.error('[Geography] Error loading comparison data:', error);
-      setComparisonData([]);
-    }
-  };
-
   return (
     <Card>
       <CardHeader>
@@ -277,21 +150,9 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
               {totalAccounts.toLocaleString()} accounts across {geoData.length} countries - Click to drill down
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="text-xs">
-              Top: {geoData[0]?.country} ({geoData[0]?.count.toLocaleString()})
-            </Badge>
-            {!sourceFilter && (
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setShowComparison(!showComparison)}
-              >
-                <BarChart3 className="h-4 w-4 mr-2" />
-                {showComparison ? 'Hide' : 'Show'} Source Comparison
-              </Button>
-            )}
-          </div>
+          <Badge variant="secondary" className="text-xs">
+            Top: {geoData[0]?.country} ({geoData[0]?.count.toLocaleString()})
+          </Badge>
         </div>
       </CardHeader>
       <CardContent>
@@ -431,33 +292,6 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
           })}
         </div>
 
-        {/* Source Comparison Chart */}
-        {showComparison && comparisonData.length > 0 && (
-          <div className="mt-6 pt-6 border-t">
-            <h3 className="text-sm font-semibold mb-4">CRM vs Database Distribution</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={comparisonData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis 
-                  dataKey="country" 
-                  stroke="hsl(var(--muted-foreground))"
-                  fontSize={12}
-                />
-                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                <RechartsTooltip 
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--popover))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px'
-                  }}
-                />
-                <Legend />
-                <Bar dataKey="crm" fill="#3b82f6" name="CRM" />
-                <Bar dataKey="database" fill="#10b981" name="Database" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
       </CardContent>
 
       {/* State/Region Drill-down Sheet */}
