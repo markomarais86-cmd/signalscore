@@ -73,6 +73,8 @@ export default function ExecutiveDashboard() {
   const [isDataStale, setIsDataStale] = useState(false);
   const [activeScoringJob, setActiveScoringJob] = useState<any>(null);
   const [showHealthDashboard, setShowHealthDashboard] = useState(false);
+  const [apolloStale, setApolloStale] = useState(false);
+  const [syncingApolloFromAlert, setSyncingApolloFromAlert] = useState(false);
   
 
   const totalAccounts = dashboardData?.metrics?.total_accounts || 0;
@@ -194,6 +196,32 @@ export default function ExecutiveDashboard() {
         const icpDate = new Date(latestICP.created_at);
         const scoreDate = new Date(latestScore.computed_at);
         setIsDataStale(icpDate > scoreDate);
+      }
+
+      // Check if Apollo data is stale compared to ICP
+      const { data: primaryICP } = await supabase
+        .from('icp_profiles')
+        .select('created_at')
+        .eq('org_id', userProfile.org_id)
+        .eq('is_primary', true)
+        .maybeSingle();
+
+      const { data: apolloData } = await supabase
+        .from('external_data_sources')
+        .select('last_synced_at')
+        .eq('org_id', userProfile.org_id)
+        .eq('provider', 'apollo')
+        .maybeSingle();
+
+      if (primaryICP?.created_at && apolloData?.last_synced_at) {
+        const icpTime = new Date(primaryICP.created_at).getTime();
+        const apolloTime = new Date(apolloData.last_synced_at).getTime();
+        setApolloStale(icpTime > apolloTime);
+      } else if (primaryICP?.created_at && !apolloData?.last_synced_at) {
+        // ICP exists but Apollo never synced
+        setApolloStale(true);
+      } else {
+        setApolloStale(false);
       }
     } catch (error) {
       console.error('Error checking data freshness:', error);
@@ -421,6 +449,29 @@ export default function ExecutiveDashboard() {
             />
           </div>
         </div>
+
+        {/* Apollo Stale Data Warning */}
+        {apolloStale && sourceFilter === 'database' && !isSyncing && (
+          <Alert className="bg-blue-500/10 border-blue-500/50">
+            <AlertCircle className="h-4 w-4 text-blue-500" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>Your ICP was updated. Apollo TAM data may be outdated.</span>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={async () => {
+                  setSyncingApolloFromAlert(true);
+                  await handleSyncApollo();
+                  setSyncingApolloFromAlert(false);
+                  setApolloStale(false);
+                }}
+                disabled={syncingApolloFromAlert}
+              >
+                {syncingApolloFromAlert ? 'Syncing...' : 'Refresh Apollo Data'}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Stale Data Warning */}
         {isDataStale && !activeScoringJob && (
