@@ -41,6 +41,7 @@ import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
 import { EmptyState } from "@/components/EmptyState";
 import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
+import { DataQualityWarning } from "@/components/executive/DataQualityWarning";
 
 
 export default function ExecutiveDashboard() {
@@ -437,6 +438,13 @@ export default function ExecutiveDashboard() {
             </AlertDescription>
           </Alert>
         )}
+
+        {/* Data Quality Warning */}
+        <DataQualityWarning 
+          dataCompleteness={dataCompleteness}
+          totalAccounts={totalAccounts}
+          onEnrich={() => setIsEnrichmentModalOpen(true)}
+        />
 
         {/* Phase 5: System Health Dashboard */}
         {showHealthDashboard && (

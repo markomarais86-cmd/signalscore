@@ -486,9 +486,8 @@ export default function DataUpload() {
         <HeroMetric
           label="Leads Uploaded"
           value={totalRecords}
-          subtitle="Total leads in your database"
+          subtitle={uploadResult ? `+${uploadResult.inserted} added this session` : "Total leads in your database"}
           icon={Database}
-          trend={uploadResult ? { value: 15, period: 'this session' } : undefined}
           status={uploadResult?.errors?.length === 0 ? 'success' : 'default'}
         />
       )}

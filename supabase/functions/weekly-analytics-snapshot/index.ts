@@ -64,10 +64,10 @@ Deno.serve(async (req) => {
 
       const totalAccounts = accounts?.length || 0;
 
-      // Get score distribution
+      // Get score distribution using actual numeric 'overall' column
       const { data: scores, error: scoresError } = await supabase
         .from('scores')
-        .select('overall_fit')
+        .select('overall')
         .eq('org_id', org.id);
 
       if (scoresError) {
@@ -75,9 +75,10 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const highFit = scores?.filter(s => s.overall_fit === 'High Fit').length || 0;
-      const mediumFit = scores?.filter(s => s.overall_fit === 'Medium Fit').length || 0;
-      const lowFit = scores?.filter(s => s.overall_fit === 'Low Fit').length || 0;
+      // Score bands: High Fit >= 70, Medium Fit 40-69, Low Fit < 40
+      const highFit = scores?.filter(s => s.overall >= 70).length || 0;
+      const mediumFit = scores?.filter(s => s.overall >= 40 && s.overall < 70).length || 0;
+      const lowFit = scores?.filter(s => s.overall < 40).length || 0;
 
       const highFitPct = totalAccounts > 0 ? (highFit / totalAccounts) * 100 : 0;
       const mediumFitPct = totalAccounts > 0 ? (mediumFit / totalAccounts) * 100 : 0;

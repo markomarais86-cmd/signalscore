@@ -312,12 +312,11 @@ export default function ICPManager() {
 
         {/* Hero Metric - Consolidated */}
         {icps.length > 0 && (
-          <HeroMetric
+            <HeroMetric
             label="ICP Overview"
             value={icps.length}
             subtitle={`${activeCount} active • ${icps.filter(icp => icp.status === 'draft').length} draft • ${Math.round(icps.reduce((sum, icp) => sum + (icp.confidence_score || 0), 0) / icps.length)}% avg confidence`}
             icon={Target}
-            trend={{ value: 12, period: 'last month' }}
             status={activeCount > 0 ? 'success' : 'warning'}
           />
         )}
