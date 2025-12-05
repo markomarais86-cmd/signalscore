@@ -260,8 +260,17 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
               <MapPin className="h-5 w-5 text-primary" />
               {title}
               <Badge variant="outline" className="text-xs">
-                <Database className="h-3 w-3 mr-1" />
-                Your Database
+                {sourceFilter === 'database' ? (
+                  <>
+                    <Database className="h-3 w-3 mr-1" />
+                    Apollo TAM
+                  </>
+                ) : (
+                  <>
+                    <Building2 className="h-3 w-3 mr-1" />
+                    Your CRM
+                  </>
+                )}
               </Badge>
             </CardTitle>
             <CardDescription>
@@ -272,14 +281,16 @@ export function EnhancedGeographyCard({ geoData, invalidCount = 0, geoTrends = {
             <Badge variant="secondary" className="text-xs">
               Top: {geoData[0]?.country} ({geoData[0]?.count.toLocaleString()})
             </Badge>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setShowComparison(!showComparison)}
-            >
-              <BarChart3 className="h-4 w-4 mr-2" />
-              {showComparison ? 'Hide' : 'Show'} Source Comparison
-            </Button>
+            {!sourceFilter && (
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowComparison(!showComparison)}
+              >
+                <BarChart3 className="h-4 w-4 mr-2" />
+                {showComparison ? 'Hide' : 'Show'} Source Comparison
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
