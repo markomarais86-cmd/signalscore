@@ -45,6 +45,10 @@ export function ApolloRedemptionDialog({
   const { userProfile } = useAuth();
   const { creditsRemaining, dailyLimit, configured, apiAccessible } = useApolloCredits();
   
+  // Credit protection limits
+  const MAX_SINGLE_REDEMPTION = 1000; // Hard cap per redemption
+  const CREDIT_WARNING_THRESHOLD = 0.8; // Warn when using 80%+ of remaining credits
+  
   const [importLimit, setImportLimit] = useState("500");
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>([
     "Technical Decision Maker",
@@ -57,6 +61,7 @@ export function ApolloRedemptionDialog({
   const [apolloPreview, setApolloPreview] = useState<ApolloPreview | null>(null);
   const [redemptionProgress, setRedemptionProgress] = useState(0);
   const [acknowledgeUnknownCredits, setAcknowledgeUnknownCredits] = useState(false);
+  const [acknowledgeHighUsage, setAcknowledgeHighUsage] = useState(false);
 
   const personas = [
     "Technical Decision Maker",
@@ -65,6 +70,21 @@ export function ApolloRedemptionDialog({
     "Technical Influencer",
     "Business Influencer"
   ];
+
+  // Calculate effective limit (capped at MAX_SINGLE_REDEMPTION and available credits)
+  const requestedLimit = parseInt(importLimit || "0");
+  const effectiveLimit = Math.min(
+    requestedLimit,
+    MAX_SINGLE_REDEMPTION,
+    apiAccessible && creditsRemaining !== null ? creditsRemaining : MAX_SINGLE_REDEMPTION
+  );
+  
+  // Calculate credit usage percentage
+  const creditUsagePercent = apiAccessible && creditsRemaining !== null && creditsRemaining > 0
+    ? (effectiveLimit / creditsRemaining) * 100
+    : 0;
+  
+  const isHighCreditUsage = creditUsagePercent >= (CREDIT_WARNING_THRESHOLD * 100);
 
   // Analyze duplicates and preview when dialog opens
   useEffect(() => {
@@ -160,7 +180,7 @@ export function ApolloRedemptionDialog({
           org_id: userProfile.org_id,
           account_domains: accountDomains,
           persona_filters: selectedPersonas,
-          max_contacts: parseInt(importLimit || "500"),
+          max_contacts: effectiveLimit, // Use the enforced effective limit
           campaign_name: campaignName
         }
       });
@@ -196,12 +216,14 @@ export function ApolloRedemptionDialog({
   // Allow redemption when:
   // - Apollo is configured
   // - Either: credits are known and > 0, OR credits are unknown but user acknowledged
-  // - Import limit is set
+  // - Import limit is set and within max limit
+  // - If high credit usage, must acknowledge
   // - At least one persona selected
   // - At least one account selected
   const canRedeem = configured && 
     ((apiAccessible && creditsRemaining !== null && creditsRemaining > 0) || (!apiAccessible && acknowledgeUnknownCredits)) &&
-    parseInt(importLimit || "0") > 0 && 
+    effectiveLimit > 0 && 
+    (!isHighCreditUsage || acknowledgeHighUsage) &&
     selectedPersonas.length > 0 &&
     accountDomains.length > 0;
 
@@ -343,17 +365,37 @@ export function ApolloRedemptionDialog({
               id="import-limit"
               type="number"
               value={importLimit}
-              onChange={(e) => setImportLimit(e.target.value)}
+              onChange={(e) => {
+                const val = parseInt(e.target.value || "0");
+                // Enforce max limit in UI
+                if (val > MAX_SINGLE_REDEMPTION) {
+                  setImportLimit(String(MAX_SINGLE_REDEMPTION));
+                } else {
+                  setImportLimit(e.target.value);
+                }
+              }}
               placeholder="500"
               min="1"
-              max={apiAccessible ? (creditsRemaining || 10000) : 10000}
+              max={MAX_SINGLE_REDEMPTION}
             />
-            <p className="text-sm text-muted-foreground">
-              {apolloPreview 
-                ? `Will import up to ${Math.min(parseInt(importLimit || "0"), estimatedNewContacts).toLocaleString()} new contacts`
-                : `Will import up to ${parseInt(importLimit || "0").toLocaleString()} contacts (duplicates skipped automatically)`
-              }
-            </p>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">
+                {apolloPreview 
+                  ? `Will import up to ${Math.min(effectiveLimit, estimatedNewContacts).toLocaleString()} new contacts`
+                  : `Will import up to ${effectiveLimit.toLocaleString()} contacts (duplicates skipped automatically)`
+                }
+              </p>
+              {requestedLimit > MAX_SINGLE_REDEMPTION && (
+                <p className="text-xs text-amber-600">
+                  ⚠️ Limited to {MAX_SINGLE_REDEMPTION.toLocaleString()} contacts per redemption to protect credits
+                </p>
+              )}
+              {apiAccessible && creditsRemaining !== null && requestedLimit > creditsRemaining && (
+                <p className="text-xs text-amber-600">
+                  ⚠️ Adjusted to {creditsRemaining.toLocaleString()} (your remaining credits)
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Persona Filter */}
@@ -378,8 +420,34 @@ export function ApolloRedemptionDialog({
             </div>
           </div>
 
+          {/* High Credit Usage Warning */}
+          {isHighCreditUsage && apiAccessible && creditsRemaining !== null && (
+            <Alert variant="default" className="bg-red-500/10 border-red-500/50">
+              <AlertCircle className="h-4 w-4 text-red-500" />
+              <AlertDescription className="space-y-2">
+                <p className="font-medium text-red-600">
+                  ⚠️ High Credit Usage Warning
+                </p>
+                <p className="text-sm">
+                  This redemption will use {creditUsagePercent.toFixed(0)}% of your remaining credits 
+                  ({effectiveLimit.toLocaleString()} of {creditsRemaining.toLocaleString()}).
+                </p>
+                <div className="flex items-center space-x-2 pt-1">
+                  <Checkbox
+                    id="acknowledge-high-usage"
+                    checked={acknowledgeHighUsage}
+                    onCheckedChange={(checked) => setAcknowledgeHighUsage(checked === true)}
+                  />
+                  <Label htmlFor="acknowledge-high-usage" className="text-sm cursor-pointer">
+                    I understand and want to proceed with this redemption
+                  </Label>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Credit Warning */}
-          {apiAccessible && creditsRemaining !== null && creditsRemaining < parseInt(importLimit || "0") && (
+          {apiAccessible && creditsRemaining !== null && creditsRemaining < parseInt(importLimit || "0") && !isHighCreditUsage && (
             <Alert variant="default" className="bg-amber-500/10 border-amber-500/50">
               <AlertCircle className="h-4 w-4 text-amber-500" />
               <AlertDescription>
