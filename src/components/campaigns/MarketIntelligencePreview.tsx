@@ -95,34 +95,58 @@ export function MarketIntelligencePreview({
     );
   }
 
-  if (compact) {
-    return <CompactView data={data} />;
+  // Show message if no accounts found but not in database mode
+  if (data.totalAccounts === 0 && dataSource !== 'database') {
+    return (
+      <Card className="border-yellow-500/50 bg-yellow-500/5">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-2 text-yellow-600">
+            <AlertCircle className="h-5 w-5" />
+            <span>No accounts match the current filters. Try adjusting your fit score range or data source.</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
-  return <FullView data={data} />;
+  if (compact) {
+    return <CompactView data={data} dataSource={dataSource} />;
+  }
+
+  return <FullView data={data} dataSource={dataSource} />;
 }
 
-function CompactView({ data }: { data: MarketIntelligence }) {
+function CompactView({ data, dataSource }: { data: MarketIntelligence; dataSource?: string }) {
+  const isApolloTam = dataSource === 'database';
+  
   return (
     <div className="space-y-4">
+      {/* Source indicator */}
+      {isApolloTam && (
+        <div className="flex items-center gap-2 text-amber-600 text-sm">
+          <Building2 className="h-4 w-4" />
+          <span>Showing Apollo Available Market data</span>
+        </div>
+      )}
+      
       {/* Summary Row */}
       <div className="grid grid-cols-4 gap-3">
         <Card>
           <CardContent className="pt-4 pb-3">
             <div className="text-2xl font-bold">{formatNumber(data.totalAccounts)}</div>
-            <div className="text-xs text-muted-foreground">Accounts</div>
+            <div className="text-xs text-muted-foreground">{isApolloTam ? 'TAM Accounts' : 'Accounts'}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
             <div className="text-2xl font-bold">{formatNumber(data.totalLeads)}</div>
-            <div className="text-xs text-muted-foreground">Leads</div>
+            <div className="text-xs text-muted-foreground">{isApolloTam ? 'Est. Contacts' : 'Leads'}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-3">
             <div className="text-2xl font-bold text-green-500">{data.icpFitCoverage.toFixed(0)}%</div>
-            <div className="text-xs text-muted-foreground">High Fit</div>
+            <div className="text-xs text-muted-foreground">{isApolloTam ? 'Est. High Fit' : 'High Fit'}</div>
           </CardContent>
         </Card>
         <Card>
@@ -163,16 +187,26 @@ function CompactView({ data }: { data: MarketIntelligence }) {
   );
 }
 
-function FullView({ data }: { data: MarketIntelligence }) {
+function FullView({ data, dataSource }: { data: MarketIntelligence; dataSource?: string }) {
+  const isApolloTam = dataSource === 'database';
+  
   return (
     <div className="space-y-6">
+      {/* Source indicator */}
+      {isApolloTam && (
+        <div className="flex items-center gap-2 text-amber-600 bg-amber-500/10 px-3 py-2 rounded-lg text-sm">
+          <Building2 className="h-4 w-4" />
+          <span>Showing Apollo Available Market data (estimates based on TAM analysis)</span>
+        </div>
+      )}
+      
       {/* Summary Metrics */}
       <div className="grid grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-primary/5 to-primary/10 border-primary/20">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-2">
               <Building2 className="h-4 w-4 text-primary" />
-              <span className="text-sm text-muted-foreground">Total Accounts</span>
+              <span className="text-sm text-muted-foreground">{isApolloTam ? 'TAM Accounts' : 'Total Accounts'}</span>
             </div>
             <div className="text-3xl font-bold">{formatNumber(data.totalAccounts)}</div>
           </CardContent>
@@ -181,7 +215,7 @@ function FullView({ data }: { data: MarketIntelligence }) {
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-2">
               <Users className="h-4 w-4 text-blue-500" />
-              <span className="text-sm text-muted-foreground">Campaign-Ready Leads</span>
+              <span className="text-sm text-muted-foreground">{isApolloTam ? 'Est. Contacts' : 'Campaign-Ready Leads'}</span>
             </div>
             <div className="text-3xl font-bold">{formatNumber(data.totalLeads)}</div>
           </CardContent>
@@ -190,7 +224,7 @@ function FullView({ data }: { data: MarketIntelligence }) {
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 mb-2">
               <Target className="h-4 w-4 text-green-500" />
-              <span className="text-sm text-muted-foreground">ICP Fit Coverage</span>
+              <span className="text-sm text-muted-foreground">{isApolloTam ? 'Est. ICP Coverage' : 'ICP Fit Coverage'}</span>
             </div>
             <div className="text-3xl font-bold text-green-500">{data.icpFitCoverage.toFixed(0)}%</div>
             <div className="text-xs text-muted-foreground">High-fit accounts</div>

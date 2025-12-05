@@ -61,6 +61,17 @@ export interface MarketIntelligence {
     som: number;
     avgDealSize: number;
   };
+  
+  // Source info
+  sourceType?: 'crm' | 'database' | 'all';
+  apolloTamData?: {
+    total_accounts: number;
+    total_contacts: number;
+    geography_breakdown: Record<string, number>;
+    industry_breakdown: Record<string, number>;
+    company_size_breakdown: Record<string, number>;
+    revenue_breakdown: Record<string, number>;
+  };
 }
 
 interface UseMarketIntelligenceOptions {
@@ -81,21 +92,115 @@ export function useMarketIntelligence(options: UseMarketIntelligenceOptions = {}
     queryFn: async (): Promise<MarketIntelligence> => {
       if (!orgId) throw new Error('No org_id');
 
-      // Fetch all data in parallel for efficiency
+      // For 'database' source, fetch from external_data_sources (Apollo TAM)
+      if (dataSource === 'database') {
+        const { data: externalSource } = await supabase
+          .from('external_data_sources')
+          .select('*')
+          .eq('org_id', orgId)
+          .eq('provider', 'apollo')
+          .single();
+
+        if (externalSource) {
+          const totalAccounts = externalSource.total_accounts || 0;
+          const totalContacts = externalSource.total_contacts || 0;
+          
+          // Parse breakdowns
+          const geoBreakdown = (externalSource.geography_breakdown || {}) as Record<string, number>;
+          const industryBreakdown = (externalSource.industry_breakdown || {}) as Record<string, number>;
+          const companySizeBreakdown = (externalSource.company_size_breakdown || {}) as Record<string, number>;
+          const revenueBreakdown = (externalSource.revenue_breakdown || {}) as Record<string, number>;
+
+          // Build geo distribution
+          const geoDistribution = Object.entries(geoBreakdown)
+            .map(([country, count]) => ({
+              country,
+              accounts: Number(count) || 0,
+              leads: 0,
+              percentage: totalAccounts > 0 ? ((Number(count) || 0) / totalAccounts) * 100 : 0
+            }))
+            .sort((a, b) => b.accounts - a.accounts)
+            .slice(0, 10);
+
+          // Build industry distribution
+          const industryDistribution = Object.entries(industryBreakdown)
+            .map(([industry, count]) => ({
+              industry,
+              accounts: Number(count) || 0,
+              percentage: totalAccounts > 0 ? ((Number(count) || 0) / totalAccounts) * 100 : 0
+            }))
+            .sort((a, b) => b.accounts - a.accounts)
+            .slice(0, 10);
+
+          // Calculate estimated TAM/SAM/SOM
+          const avgDealSize = 75000; // Default $75k ACV
+          const tam = totalAccounts * avgDealSize;
+          const sam = Math.round(totalAccounts * 0.3) * avgDealSize; // Assume 30% high-fit in TAM
+          const som = sam * 0.15;
+
+          return {
+            totalAccounts,
+            totalLeads: totalContacts,
+            icpFitCoverage: 30, // Estimated for TAM
+            dataCompleteness: 85, // Apollo data is typically well enriched
+            icpDistribution: {
+              highFit: { count: Math.round(totalAccounts * 0.3), percentage: 30 },
+              mediumFit: { count: Math.round(totalAccounts * 0.4), percentage: 40 },
+              lowFit: { count: Math.round(totalAccounts * 0.3), percentage: 30 }
+            },
+            geoDistribution,
+            industryDistribution,
+            personaDistribution: [],
+            topTitles: [],
+            dataQuality: {
+              emails: 90,
+              titles: 85,
+              phones: 70,
+              personas: 60,
+              industries: 95,
+              geography: 95
+            },
+            marketSizing: {
+              tam,
+              sam,
+              som,
+              avgDealSize
+            },
+            sourceType: 'database',
+            apolloTamData: {
+              total_accounts: totalAccounts,
+              total_contacts: totalContacts,
+              geography_breakdown: geoBreakdown,
+              industry_breakdown: industryBreakdown,
+              company_size_breakdown: companySizeBreakdown,
+              revenue_breakdown: revenueBreakdown
+            }
+          };
+        }
+      }
+
+      // For 'crm' or 'all' sources, fetch from accounts table
       const [
         accountsResult,
         leadsResult,
         scoresResult,
         closedWonResult
       ] = await Promise.all([
-        // Get accounts with aggregation
+        // Get accounts with optional data_source filter
         supabase
           .from('accounts')
-          .select('external_id, industry_norm, country, employee_count, revenue_range')
+          .select('external_id, industry_norm, country, employee_count, revenue_range, data_source')
           .eq('org_id', orgId)
-          .then(res => res.data || []),
+          .then(res => {
+            let data = res.data || [];
+            // Apply data source filter
+            if (dataSource === 'crm') {
+              data = data.filter(acc => acc.data_source === 'crm' || acc.data_source === 'both' || !acc.data_source);
+            }
+            return data;
+          }),
         
-        // Get leads with aggregation (no PII - just counts and categories)
+        // Get leads (no PII - just counts and categories)
         supabase
           .from('Leads')
           .select('account_external_id, persona, title, country, email, phone, mobile')
@@ -120,7 +225,7 @@ export function useMarketIntelligence(options: UseMarketIntelligenceOptions = {}
       // Create score lookup
       const scoreMap = new Map(scoresResult.map(s => [s.account_external_id, s]));
       
-      // Filter accounts by data source and score range
+      // Filter accounts by score range
       let filteredAccounts = accountsResult.filter(acc => {
         const score = scoreMap.get(acc.external_id);
         const overallScore = score?.overall || 0;
@@ -202,7 +307,7 @@ export function useMarketIntelligence(options: UseMarketIntelligenceOptions = {}
         .sort((a, b) => b.leads - a.leads)
         .slice(0, 8);
 
-      // Top Titles (anonymized - just categories)
+      // Top Titles
       const titleMap = new Map<string, number>();
       leadsResult.forEach(lead => {
         const title = lead.title || 'Unknown';
@@ -214,7 +319,7 @@ export function useMarketIntelligence(options: UseMarketIntelligenceOptions = {}
         .sort((a, b) => b.count - a.count)
         .slice(0, 10);
 
-      // Data Completeness (percentages only, no PII)
+      // Data Completeness
       const leadsWithEmail = leadsResult.filter(l => l.email).length;
       const leadsWithTitle = leadsResult.filter(l => l.title).length;
       const leadsWithPhone = leadsResult.filter(l => l.phone || l.mobile).length;
@@ -236,11 +341,11 @@ export function useMarketIntelligence(options: UseMarketIntelligenceOptions = {}
       // TAM/SAM/SOM Calculation
       const avgDealSize = closedWonResult.length > 0
         ? closedWonResult.reduce((sum, d) => sum + Number(d.deal_value || 0), 0) / closedWonResult.length
-        : 75000; // Default $75k ACV
+        : 75000;
 
       const tam = totalAccounts * avgDealSize;
-      const sam = highFit * avgDealSize; // SAM = High-fit accounts
-      const som = sam * 0.15; // SOM = 15% of SAM (12-month target)
+      const sam = highFit * avgDealSize;
+      const som = sam * 0.15;
 
       return {
         totalAccounts,
@@ -258,10 +363,11 @@ export function useMarketIntelligence(options: UseMarketIntelligenceOptions = {}
           sam,
           som,
           avgDealSize
-        }
+        },
+        sourceType: dataSource
       };
     },
     enabled: !!orgId,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 5 * 60 * 1000,
   });
 }
