@@ -12,7 +12,8 @@ import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, Users, DollarSign, CheckCircle2, Target, AlertCircle, Loader2, ArrowRight, ArrowLeft, ChevronRight, AlertTriangle, TrendingUp, Zap } from "lucide-react";
+import { Sparkles, Users, DollarSign, CheckCircle2, Target, AlertCircle, Loader2, ArrowRight, ArrowLeft, ChevronRight, AlertTriangle, TrendingUp, Zap, BarChart3 } from "lucide-react";
+import { MarketIntelligencePreview } from "./MarketIntelligencePreview";
 import { formatNumber } from "@/utils/format-numbers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1238,8 +1239,13 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold mb-2">Campaign Preview</h3>
-                <p className="text-sm text-muted-foreground">Review the accounts and leads that will be included</p>
+                <h3 className="font-semibold mb-2 flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                  Market Intelligence Preview
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Comprehensive view of your available market data (no contact PII shown)
+                </p>
               </div>
               {previewData && (
                 <Button 
@@ -1255,9 +1261,11 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                 </Button>
               )}
             </div>
+
+            {/* ROI Estimate Card */}
             {roiEstimate && (
-              <Card className="bg-gradient-to-br from-primary/5 to-success/5 border-primary/20">
-                <CardHeader>
+              <Card className="bg-gradient-to-br from-primary/5 to-green-500/5 border-primary/20">
+                <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center gap-2">
                     <TrendingUp className="h-4 w-4" />
                     ROI Projection
@@ -1270,7 +1278,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                 <CardContent>
                   <div className="grid grid-cols-4 gap-4 mb-4">
                     <div>
-                      <div className="text-2xl font-bold text-success">{roiEstimate.roi.toFixed(0)}%</div>
+                      <div className="text-2xl font-bold text-green-500">{roiEstimate.roi.toFixed(0)}%</div>
                       <div className="text-xs text-muted-foreground">Expected ROI</div>
                     </div>
                     <div>
@@ -1300,6 +1308,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                 </CardContent>
               </Card>
             )}
+
             {isLoadingPreview ? (
               <div className="flex flex-col items-center justify-center py-12 gap-3">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -1309,36 +1318,12 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-4 gap-4">
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="text-2xl font-bold">{formatNumber(estimatedLeads)}</div>
-                      <div className="text-sm text-muted-foreground">Total Leads</div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="text-2xl font-bold">{formatNumber(previewData?.length || 0)}</div>
-                      <div className="text-sm text-muted-foreground">Accounts</div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="text-2xl font-bold">${estimatedCost.toFixed(2)}</div>
-                      <div className="text-sm text-muted-foreground">Est. Cost</div>
-                    </CardContent>
-                  </Card>
-                  <Card className="bg-muted/50">
-                    <CardContent className="pt-4">
-                      <div className="text-xs font-medium mb-2">Score Bands</div>
-                      <div className="flex gap-2 text-xs">
-                        <Badge variant="default" className="bg-green-500">A: {scoreBandBreakdown.A}</Badge>
-                        <Badge variant="secondary">B: {scoreBandBreakdown.B}</Badge>
-                        <Badge variant="outline">C: {scoreBandBreakdown.C}</Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+                {/* Market Intelligence Preview Component */}
+                <MarketIntelligencePreview 
+                  dataSource={dataSource}
+                  fitScoreMin={filterCriteria.fitScoreMin}
+                  fitScoreMax={filterCriteria.fitScoreMax}
+                />
 
                 {/* Deduplication Warning */}
                 {duplicateEmails.size > 0 && (
@@ -1372,28 +1357,41 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                   </div>
                 )}
 
-                <div className="max-h-64 overflow-y-auto border rounded-lg">
-                  <table className="w-full">
-                    <thead className="bg-muted sticky top-0">
-                      <tr>
-                        <th className="text-left p-2 text-sm font-medium">Account</th>
-                        <th className="text-left p-2 text-sm font-medium">Industry</th>
-                        <th className="text-left p-2 text-sm font-medium">Country</th>
-                        <th className="text-right p-2 text-sm font-medium">Fit Score</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {previewData?.slice(0, 10).map((account: any, idx: number) => (
-                        <tr key={idx} className="border-t">
-                          <td className="p-2 text-sm">{account.name}</td>
-                          <td className="p-2 text-sm">{account.industry_norm}</td>
-                          <td className="p-2 text-sm">{account.country}</td>
-                          <td className="p-2 text-sm text-right">{account.overall_score}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                {/* Account Preview Table (no PII) */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Sample Accounts ({formatNumber(previewData?.length || 0)} total)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="max-h-48 overflow-y-auto border rounded-lg">
+                      <table className="w-full">
+                        <thead className="bg-muted sticky top-0">
+                          <tr>
+                            <th className="text-left p-2 text-sm font-medium">Account</th>
+                            <th className="text-left p-2 text-sm font-medium">Industry</th>
+                            <th className="text-left p-2 text-sm font-medium">Country</th>
+                            <th className="text-right p-2 text-sm font-medium">Fit Score</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {previewData?.slice(0, 10).map((account: any, idx: number) => (
+                            <tr key={idx} className="border-t">
+                              <td className="p-2 text-sm">{account.name}</td>
+                              <td className="p-2 text-sm">{account.industry_norm}</td>
+                              <td className="p-2 text-sm">{account.country}</td>
+                              <td className="p-2 text-sm text-right">
+                                <Badge variant={account.overall_score >= 70 ? "default" : account.overall_score >= 40 ? "secondary" : "outline"} 
+                                       className={account.overall_score >= 70 ? "bg-green-500" : ""}>
+                                  {account.overall_score}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
               </>
             )}
           </div>
