@@ -31,6 +31,37 @@ const WEBHOOK_TYPES = [
   { value: 'clay_enrichment_data', label: 'Enrichment Data', description: 'Update existing accounts with enrichment data' },
 ];
 
+// Default field mappings to save when enabling webhooks
+const DEFAULT_FIELD_MAPPINGS: Record<string, Record<string, string>> = {
+  clay_company_data: {
+    domain: 'domain',
+    company_name: 'name',
+    industry: 'industry_raw',
+    employee_count: 'employee_count',
+    revenue: 'revenue_range',
+    location: 'country',
+    technologies: 'tech_stack'
+  },
+  clay_contact_data: {
+    email: 'email',
+    first_name: 'first_name',
+    last_name: 'last_name',
+    title: 'title',
+    company_domain: 'company',
+    linkedin_url: 'linkedin_url',
+    phone: 'phone',
+    location: 'country'
+  },
+  clay_enrichment_data: {
+    employee_count: 'employee_count',
+    revenue: 'revenue_range',
+    industry: 'industry_raw',
+    technologies: 'tech_stack',
+    funding_round: 'last_funding_round',
+    total_funding: 'total_raised_usd'
+  }
+};
+
 export function ClayIncomingWebhooks() {
   const [logs, setLogs] = useState<WebhookLog[]>([]);
   const [configs, setConfigs] = useState<WebhookConfig[]>([]);
@@ -87,13 +118,16 @@ export function ClayIncomingWebhooks() {
     if (!userProfile?.org_id) return;
 
     try {
+      // Use default mappings for this webhook type instead of empty object
+      const defaultMappings = DEFAULT_FIELD_MAPPINGS[webhookType] || {};
+      
       const { error } = await supabase
         .from('clay_webhook_config')
         .upsert({
           org_id: userProfile.org_id,
           webhook_type: webhookType,
           is_enabled: enabled,
-          field_mappings: {}
+          field_mappings: defaultMappings
         }, {
           onConflict: 'org_id,webhook_type'
         });
