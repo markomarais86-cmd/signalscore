@@ -78,6 +78,7 @@ export default function ExecutiveDashboard() {
   const totalAccounts = dashboardData?.metrics?.total_accounts || 0;
   const totalScores = dashboardData?.metrics?.total_scores || 0;
   const campaignReadyAccounts = dashboardData?.metrics?.campaign_ready_accounts || 0;
+  const campaignReadyLeads = dashboardData?.metrics?.campaign_ready_leads || 0;
   const dataCompleteness = Math.round(dashboardData?.metrics?.data_completeness || 0);
 
   const highFitAccounts = dashboardData?.metrics?.high_fit_scores || 0;
@@ -565,11 +566,11 @@ export default function ExecutiveDashboard() {
                 ) : (
                   <HeroMetric
                     label="Campaign Ready"
-                    value={campaignReadyAccounts}
-                    subtitle="Leads with email, title & persona"
+                    value={campaignReadyLeads}
+                    subtitle={`Across ${campaignReadyAccounts.toLocaleString()} accounts`}
                     trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
                     icon={Users}
-                    status={campaignReadyAccounts > 0 ? 'success' : 'warning'}
+                    status={campaignReadyLeads > 0 ? 'success' : 'warning'}
                     onClick={() => navigate('/leads?campaign_ready=true')}
                     tooltip={{
                       title: "Campaign Ready Contacts",
