@@ -46,12 +46,14 @@ serve(async (req) => {
     console.log('[get-apollo-credits] Fetching Apollo usage stats...');
 
     // Call Apollo's usage stats endpoint - this does NOT consume credits
+    // Apollo requires POST method with empty body for this endpoint
     const response = await fetch('https://api.apollo.io/api/v1/usage_stats/api_usage_stats', {
-      method: 'GET',
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Api-Key': apolloApiKey,
       },
+      body: '{}',
     });
 
     if (!response.ok) {
