@@ -133,7 +133,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   const [selectedTitles, setSelectedTitles] = useState<string[]>([]);
   const [selectedSeniority, setSelectedSeniority] = useState<string[]>([]);
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
-  const [dataSource, setDataSource] = useState<'crm' | 'database'>('crm');
+  const [dataSource, setDataSource] = useState<'all' | 'crm' | 'database'>('all');
   const [provider, setProvider] = useState<'apollo' | 'zoominfo' | 'clearbit'>('apollo');
   const [estimatedCost, setEstimatedCost] = useState(0);
   const [estimatedLeads, setEstimatedLeads] = useState(0);
@@ -312,12 +312,13 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
           .eq('org_id', userProfile.org_id)
           .range(page * pageSize, (page + 1) * pageSize - 1);
         
-        // Apply data source filter
+        // Apply data source filter (skip filter if 'all' selected)
         if (dataSource === 'crm') {
           query = query.in('data_source', ['crm', 'both']);
         } else if (dataSource === 'database') {
-          query = query.eq('data_source', 'database');
+          query = query.in('data_source', ['database', 'both']);
         }
+        // When dataSource === 'all', no filter is applied
         
         // Apply employee filters if not using ICP
         if (!useICP && filterCriteria.employeeMin) {
@@ -893,7 +894,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                   <div>
                     <div className="text-sm font-medium text-muted-foreground">Data Source</div>
                     <div className="text-lg font-semibold">
-                      {dataSource === 'crm' ? 'CRM (Free)' : provider}
+                      {dataSource === 'all' ? 'All Sources' : dataSource === 'crm' ? 'CRM (Free)' : provider}
                     </div>
                   </div>
                 </div>
@@ -1195,11 +1196,12 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
             
             <div className="flex items-center space-x-4">
               <Label>Data Source:</Label>
-              <Select value={dataSource} onValueChange={(value) => setDataSource(value as 'crm' | 'database')}>
+              <Select value={dataSource} onValueChange={(value) => setDataSource(value as 'all' | 'crm' | 'database')}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="crm">CRM (Free - Campaign Ready)</SelectItem>
-                  <SelectItem value="database">Database (Paid - Requires Credits)</SelectItem>
+                  <SelectItem value="all">All Sources (CRM + Database)</SelectItem>
+                  <SelectItem value="crm">CRM Only (Free - Campaign Ready)</SelectItem>
+                  <SelectItem value="database">Database Only (Paid - Requires Credits)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1566,8 +1568,13 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-7xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
-          <DialogTitle>Campaign Builder</DialogTitle>
-          <DialogDescription>Create a targeted campaign in 7 steps</DialogDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <DialogTitle>Campaign Builder</DialogTitle>
+              <DialogDescription>Create a targeted campaign in 7 steps</DialogDescription>
+            </div>
+            <ApolloCreditsDisplay compact />
+          </div>
         </DialogHeader>
         {loadingICP ? (
           <div className="flex items-center justify-center py-12">
