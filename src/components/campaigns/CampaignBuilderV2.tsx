@@ -20,7 +20,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useCampaignDeduplication } from "@/hooks/use-campaign-deduplication";
 import { AICampaignAssistant } from "./AICampaignAssistant";
 import { ApolloCreditsDisplay } from "./ApolloCreditsDisplay";
-import { ApolloRedemptionDialog } from "./ApolloRedemptionDialog";
+import { ApolloRedemptionDialog, ICPCriteria } from "./ApolloRedemptionDialog";
 import { useApolloCredits } from "@/hooks/use-apollo-credits";
 
 interface CampaignBuilderV2Props {
@@ -1756,6 +1756,12 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
             ? apolloTamDomains 
             : (previewData?.map((a: any) => a.domain).filter(Boolean) || [])
         }
+        icpCriteria={dataSource === 'database' && activeICP ? {
+          industries: activeICP.industries,
+          geographies: activeICP.geographies,
+          company_sizes: activeICP.company_sizes,
+          revenue_ranges: activeICP.revenue_ranges
+        } : undefined}
         campaignName={campaignName}
         onRedemptionComplete={(result) => {
           setPushComplete(true);

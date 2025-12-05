@@ -182,3 +182,12 @@ verify_jwt = true
 
 [functions.redeem-apollo-contacts]
 verify_jwt = true
+
+[functions.preview-apollo-contacts]
+verify_jwt = true
+
+[functions.search-apollo-by-icp]
+verify_jwt = true
+
+[functions.redeem-apollo-by-icp]
+verify_jwt = true
