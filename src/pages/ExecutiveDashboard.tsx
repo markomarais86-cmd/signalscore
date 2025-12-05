@@ -691,13 +691,13 @@ export default function ExecutiveDashboard() {
                   );
                 })()
               ) : (
-                <TAMSAMSOMCalculator
+              <TAMSAMSOMCalculator
                   totalAccounts={totalAccounts}
                   highFitAccounts={highFitAccounts}
                   campaignReadyAccounts={campaignReadyAccounts}
                   averageDealSize={75000}
                   conversionRate={0.15}
-                  externalTAMAccounts={tamData?.totalAccounts}
+                  externalTAMAccounts={sourceFilter === 'crm' ? undefined : tamData?.totalAccounts}
                   isExternalView={false}
                 />
               )}
