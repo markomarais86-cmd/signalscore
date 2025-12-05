@@ -72,12 +72,12 @@ serve(async (req) => {
         analysis.existing_leads_count = analysis.existing_lead_emails.length;
       }
 
-      // Check CRM contacts (leads with data_source = 'crm' or linked to CRM accounts)
+      // Check CRM contacts (leads with data_source = 'crm')
       const { data: crmLeads } = await supabase
         .from('Leads')
-        .select('email, accounts!inner(data_source)')
+        .select('email')
         .eq('org_id', org_id)
-        .in('accounts.data_source', ['crm', 'both'])
+        .eq('data_source', 'crm')
         .not('email', 'is', null);
 
       if (crmLeads) {
@@ -119,9 +119,9 @@ serve(async (req) => {
       // Count CRM contacts
       const { count: crmCount } = await supabase
         .from('Leads')
-        .select('*, accounts!inner(data_source)', { count: 'exact', head: true })
+        .select('*', { count: 'exact', head: true })
         .eq('org_id', org_id)
-        .in('accounts.data_source', ['crm', 'both'])
+        .eq('data_source', 'crm')
         .not('email', 'is', null);
 
       analysis.crm_contacts_count = crmCount || 0;
