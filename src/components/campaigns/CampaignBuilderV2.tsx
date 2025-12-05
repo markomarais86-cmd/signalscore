@@ -135,6 +135,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   const [estimatedCost, setEstimatedCost] = useState(0);
   const [estimatedLeads, setEstimatedLeads] = useState(0);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState<string>('');
   const [previewData, setPreviewData] = useState<any>(null);
   const [isPushing, setIsPushing] = useState(false);
   const [pushComplete, setPushComplete] = useState(false);
@@ -291,46 +292,72 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
         provider
       });
       
-      // Step 1: Load accounts (no limit for full campaign)
-      let query = supabase
-        .from('accounts')
-        .select('external_id, name, domain, industry_norm, employee_count, revenue_range, country, state_province, city', { count: 'exact' })
-        .eq('org_id', userProfile.org_id);
+      // Step 1: Load ALL accounts using pagination (Supabase default limit is 1000)
+      const pageSize = 1000;
+      let allAccounts: any[] = [];
+      let page = 0;
+      let hasMore = true;
       
-      // Apply data source filter
-      if (dataSource === 'crm') {
-        query = query.in('data_source', ['crm', 'both']);
-      } else if (dataSource === 'database') {
-        query = query.eq('data_source', 'database');
+      setLoadingProgress('Loading accounts...');
+      console.log('[Campaign Builder] Loading all accounts in batches...');
+      
+      while (hasMore) {
+        let query = supabase
+          .from('accounts')
+          .select('external_id, name, domain, industry_norm, employee_count, revenue_range, country, state_province, city')
+          .eq('org_id', userProfile.org_id)
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        
+        // Apply data source filter
+        if (dataSource === 'crm') {
+          query = query.in('data_source', ['crm', 'both']);
+        } else if (dataSource === 'database') {
+          query = query.eq('data_source', 'database');
+        }
+        
+        // Apply employee filters if not using ICP
+        if (!useICP && filterCriteria.employeeMin) {
+          query = query.gte('employee_count', filterCriteria.employeeMin);
+        }
+        if (!useICP && filterCriteria.employeeMax) {
+          query = query.lte('employee_count', filterCriteria.employeeMax);
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allAccounts = [...allAccounts, ...data];
+          setLoadingProgress(`Loading accounts... ${allAccounts.length.toLocaleString()} loaded`);
+          console.log(`[Campaign Builder] Loaded batch ${page + 1}: ${data.length} accounts (total: ${allAccounts.length})`);
+          hasMore = data.length === pageSize;
+          page++;
+        } else {
+          hasMore = false;
+        }
       }
       
-      // Apply employee filters if not using ICP
-      if (!useICP && filterCriteria.employeeMin) {
-        query = query.gte('employee_count', filterCriteria.employeeMin);
-      }
-      if (!useICP && filterCriteria.employeeMax) {
-        query = query.lte('employee_count', filterCriteria.employeeMax);
-      }
-      
-      const { data: accountsData, error: accountsError, count: totalAccounts } = await query;
-      
-      if (accountsError) throw accountsError;
+      const accountsData = allAccounts;
+      const totalAccounts = allAccounts.length;
       
       if (!accountsData || accountsData.length === 0) {
         console.log('[Campaign Builder] No accounts found');
         setPreviewData([]);
         setEstimatedLeads(0);
+        setLoadingProgress('');
         toast({ title: "No Accounts", description: "No accounts match your criteria", variant: "destructive" });
         return;
       }
       
-      console.log('[Campaign Builder] Loaded accounts:', accountsData.length, 'total:', totalAccounts);
+      console.log('[Campaign Builder] Total accounts loaded:', totalAccounts);
       
       // Step 2: Fetch scores in batches to avoid large IN clause issues
       const accountIds = accountsData.map((a: any) => a.external_id);
       const scoreBatchSize = 100;
       let allScores: any[] = [];
       
+      setLoadingProgress(`Loading scores for ${accountIds.length.toLocaleString()} accounts...`);
       console.log(`[Campaign Builder] Loading scores for ${accountIds.length} accounts in batches of ${scoreBatchSize}`);
       
       for (let i = 0; i < accountIds.length; i += scoreBatchSize) {
@@ -346,6 +373,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
         } else if (scoresData) {
           allScores = [...allScores, ...scoresData];
         }
+        setLoadingProgress(`Loading scores... ${allScores.length.toLocaleString()} of ${accountIds.length.toLocaleString()}`);
       }
       
       console.log(`[Campaign Builder] Loaded ${allScores.length} scores for ${accountIds.length} accounts`);
@@ -376,6 +404,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       setPreviewData(filteredAccounts);
       
       // Step 3: Count leads using batched queries to avoid large IN clause issues
+      setLoadingProgress(`Counting leads for ${filteredAccounts.length.toLocaleString()} accounts...`);
       if (filteredAccounts.length > 0) {
         const filteredAccountIds = filteredAccounts.map((a: any) => a.external_id);
         let totalLeads = 0;
@@ -395,6 +424,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
           } else {
             totalLeads += count || 0;
           }
+          setLoadingProgress(`Counting leads... ${totalLeads.toLocaleString()} found`);
         }
         
         console.log(`[Campaign Builder] Total leads across ${filteredAccounts.length} accounts: ${totalLeads}`);
@@ -402,6 +432,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       } else {
         setEstimatedLeads(0);
       }
+      setLoadingProgress('');
       
       // Calculate cost
       if (dataSource === 'database') {
@@ -421,6 +452,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       setEstimatedLeads(0);
     } finally {
       setIsLoadingPreview(false);
+      setLoadingProgress('');
     }
   };
 
@@ -1263,8 +1295,11 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
               </Card>
             )}
             {isLoadingPreview ? (
-              <div className="flex items-center justify-center py-12">
+              <div className="flex flex-col items-center justify-center py-12 gap-3">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                {loadingProgress && (
+                  <p className="text-sm text-muted-foreground">{loadingProgress}</p>
+                )}
               </div>
             ) : (
               <>
