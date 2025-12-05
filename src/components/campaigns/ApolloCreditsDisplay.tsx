@@ -11,11 +11,13 @@ interface ApolloCreditsDisplayProps {
 export function ApolloCreditsDisplay({ compact = false }: ApolloCreditsDisplayProps) {
   const { 
     configured, 
+    apiAccessible,
     creditsRemaining, 
     creditsUsedToday, 
     dailyLimit,
     isLoading, 
     error,
+    message,
     refreshCredits 
   } = useApolloCredits();
 
@@ -47,6 +49,25 @@ export function ApolloCreditsDisplay({ compact = false }: ApolloCreditsDisplayPr
         <Zap className="h-3 w-3" />
         Loading...
       </Badge>
+    );
+  }
+
+  // Handle case where API is configured but credits aren't trackable
+  if (configured && !apiAccessible) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline" className="gap-1 text-primary border-primary/50">
+              <Zap className="h-3 w-3" />
+              Apollo Ready
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p className="max-w-xs">{message || 'Credit tracking unavailable on your Apollo plan. You can still redeem contacts.'}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
 

@@ -4,6 +4,7 @@ import { useAuth } from './use-auth';
 
 interface ApolloCredits {
   configured: boolean;
+  apiAccessible: boolean;
   creditsRemaining: number | null;
   creditsUsedToday: number | null;
   dailyLimit: number | null;
@@ -12,12 +13,14 @@ interface ApolloCredits {
   lastChecked: string | null;
   isLoading: boolean;
   error: string | null;
+  message: string | null;
 }
 
 export function useApolloCredits() {
   const { userProfile } = useAuth();
   const [credits, setCredits] = useState<ApolloCredits>({
     configured: false,
+    apiAccessible: true,
     creditsRemaining: null,
     creditsUsedToday: null,
     dailyLimit: null,
@@ -26,6 +29,7 @@ export function useApolloCredits() {
     lastChecked: null,
     isLoading: true,
     error: null,
+    message: null,
   });
 
   const fetchCredits = useCallback(async () => {
@@ -50,6 +54,7 @@ export function useApolloCredits() {
         if (lastChecked > fiveMinutesAgo && cached.credits_remaining !== null) {
           setCredits({
             configured: cached.api_key_configured || false,
+            apiAccessible: true,
             creditsRemaining: cached.credits_remaining,
             creditsUsedToday: cached.credits_used_total,
             dailyLimit: cached.monthly_credit_limit,
@@ -58,6 +63,7 @@ export function useApolloCredits() {
             lastChecked: cached.credits_last_checked,
             isLoading: false,
             error: null,
+            message: null,
           });
           return;
         }
@@ -73,6 +79,7 @@ export function useApolloCredits() {
       if (data.error && !data.configured) {
         setCredits({
           configured: false,
+          apiAccessible: false,
           creditsRemaining: null,
           creditsUsedToday: null,
           dailyLimit: null,
@@ -81,6 +88,7 @@ export function useApolloCredits() {
           lastChecked: null,
           isLoading: false,
           error: null,
+          message: null,
         });
         return;
       }
@@ -89,8 +97,12 @@ export function useApolloCredits() {
         throw new Error(data.error);
       }
 
+      // Handle case where API is configured but credit stats aren't accessible
+      const apiAccessible = data.api_accessible !== false;
+
       setCredits({
         configured: data.configured,
+        apiAccessible,
         creditsRemaining: data.credits_remaining,
         creditsUsedToday: data.credits_used_today,
         dailyLimit: data.daily_limit,
@@ -99,6 +111,7 @@ export function useApolloCredits() {
         lastChecked: data.last_checked,
         isLoading: false,
         error: null,
+        message: data.message || null,
       });
     } catch (err: any) {
       console.error('[useApolloCredits] Error:', err);
