@@ -672,12 +672,59 @@ export default function ExecutiveDashboard() {
               )}
 
               {/* Geography Distribution - Shown for all filters */}
-              {geographyData && geographyData.length > 0 && (
+              {sourceFilter === 'database' && tamData?.geography_breakdown ? (
+                <EnhancedGeographyCard 
+                  geoData={Object.entries(tamData.geography_breakdown).map(([country, count]) => ({
+                    country,
+                    count: Number(count) || 0
+                  })).sort((a, b) => b.count - a.count)}
+                  invalidCount={0}
+                  title="TAM Geographic Distribution"
+                  sourceFilter={sourceFilter}
+                />
+              ) : geographyData && geographyData.length > 0 && (
                 <EnhancedGeographyCard 
                   geoData={geographyDistribution} 
                   invalidCount={0}
-                  title={sourceFilter === 'database' ? 'TAM Geographic Distribution' : 'Your Geographic Distribution'}
+                  title="Your Geographic Distribution"
                   sourceFilter={sourceFilter}
+                />
+              )}
+
+              {/* Market Breakdown - Industry/Size/Revenue - shown for database filter */}
+              {sourceFilter === 'database' && tamData && (tamData.industry_breakdown || tamData.company_size_breakdown || tamData.revenue_breakdown) && (
+                <ExternalMarketBreakdownCard
+                  industryData={tamData.industry_breakdown ? (() => {
+                    const breakdown = tamData.industry_breakdown as Record<string, number>;
+                    const total = Object.values(breakdown).reduce((sum, val) => sum + (Number(val) || 0), 0);
+                    return Object.fromEntries(
+                      Object.entries(breakdown).map(([key, val]) => [
+                        key,
+                        { accounts: Number(val) || 0, percentage: total > 0 ? Math.round(((Number(val) || 0) / total) * 100) : 0 }
+                      ])
+                    );
+                  })() : undefined}
+                  companySizeData={tamData.company_size_breakdown ? (() => {
+                    const breakdown = tamData.company_size_breakdown as Record<string, number>;
+                    const total = Object.values(breakdown).reduce((sum, val) => sum + (Number(val) || 0), 0);
+                    return Object.fromEntries(
+                      Object.entries(breakdown).map(([key, val]) => [
+                        key,
+                        { accounts: Number(val) || 0, percentage: total > 0 ? Math.round(((Number(val) || 0) / total) * 100) : 0 }
+                      ])
+                    );
+                  })() : undefined}
+                  revenueData={tamData.revenue_breakdown ? (() => {
+                    const breakdown = tamData.revenue_breakdown as Record<string, number>;
+                    const total = Object.values(breakdown).reduce((sum, val) => sum + (Number(val) || 0), 0);
+                    return Object.fromEntries(
+                      Object.entries(breakdown).map(([key, val]) => [
+                        key,
+                        { accounts: Number(val) || 0, percentage: total > 0 ? Math.round(((Number(val) || 0) / total) * 100) : 0 }
+                      ])
+                    );
+                  })() : undefined}
+                  provider={tamData.provider || 'Apollo'}
                 />
               )}
             </div>
