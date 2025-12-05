@@ -36,6 +36,7 @@ import { SourceFilterToggle, type SourceFilter } from "@/components/executive/So
 import { ExternalGeographyBreakdownCard } from "@/components/executive/ExternalGeographyBreakdownCard";
 import { UnifiedTAMCard } from "@/components/executive/UnifiedTAMCard";
 import { FitDistributionHero } from "@/components/executive/FitDistributionHero";
+import { MarketIntelligenceCard } from "@/components/executive/MarketIntelligenceCard";
 import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
 import { EmptyState } from "@/components/EmptyState";
 import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
@@ -532,7 +533,7 @@ export default function ExecutiveDashboard() {
                 <HeroMetric
                   label="Total Accounts"
                   value={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-                  subtitle={sourceFilter === 'database' ? 'Available in addressable market' : 'In your CRM'}
+                  subtitle={sourceFilter === 'database' ? `Available via ${tamData?.provider || 'Database'}` : 'In your CRM'}
                   trend={sourceFilter === 'crm' && trendData?.totalAccountsGrowth ? { value: trendData.totalAccountsGrowth, period: "last week" } : undefined}
                   icon={Building2}
                   tooltip={{
@@ -541,25 +542,39 @@ export default function ExecutiveDashboard() {
                     example: "Filter by data source to see different views"
                   }}
                 />
-                <HeroMetric
-                  label="Campaign Ready"
-                  value={campaignReadyAccounts}
-                  subtitle="Leads with email, title & persona"
-                  trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
-                  icon={Users}
-                  status={campaignReadyAccounts > 0 ? 'success' : 'warning'}
-                  onClick={() => navigate('/leads?campaign_ready=true')}
-                  tooltip={{
-                    title: "Campaign Ready Contacts",
-                    description: "Leads that have email, job title, and persona identified. These contacts can be immediately used in campaigns without additional enrichment cost.",
-                    example: "Click to view all campaign-ready contacts"
-                  }}
-                />
+                {sourceFilter === 'database' ? (
+                  <HeroMetric
+                    label="Total Contacts"
+                    value={tamData?.totalLeads || 0}
+                    subtitle="Available in market database"
+                    icon={Users}
+                    tooltip={{
+                      title: "Available Contacts",
+                      description: "Total contacts available in your TAM database. Redeem contacts to import them into your CRM for campaigns.",
+                      example: "Use Campaign Builder to redeem contacts"
+                    }}
+                  />
+                ) : (
+                  <HeroMetric
+                    label="Campaign Ready"
+                    value={campaignReadyAccounts}
+                    subtitle="Leads with email, title & persona"
+                    trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
+                    icon={Users}
+                    status={campaignReadyAccounts > 0 ? 'success' : 'warning'}
+                    onClick={() => navigate('/leads?campaign_ready=true')}
+                    tooltip={{
+                      title: "Campaign Ready Contacts",
+                      description: "Leads that have email, job title, and persona identified. These contacts can be immediately used in campaigns without additional enrichment cost.",
+                      example: "Click to view all campaign-ready contacts"
+                    }}
+                  />
+                )}
               </div>
             </div>
 
-            {/* Fit Distribution Hero Section */}
-            {totalScores > 0 && (
+            {/* Fit Distribution Hero Section - Only for CRM mode where scores exist */}
+            {sourceFilter === 'crm' && totalScores > 0 && (
               <FitDistributionHero
                 highFitAccounts={highFitAccounts}
                 mediumFitAccounts={medFitAccounts}
@@ -574,68 +589,85 @@ export default function ExecutiveDashboard() {
               />
             )}
 
+            {/* Market Intelligence Card - Only for Database mode */}
+            {sourceFilter === 'database' && tamData && (
+              <MarketIntelligenceCard
+                totalAccounts={tamData.totalAccounts}
+                totalContacts={tamData.totalLeads}
+                provider={tamData.provider}
+                industryBreakdown={tamData.industry_breakdown}
+                companySizeBreakdown={tamData.company_size_breakdown}
+                revenueBreakdown={tamData.revenue_breakdown}
+                geographyBreakdown={tamData.geography_breakdown}
+              />
+            )}
+
             {/* Available Market Card - NOT shown for database filter (redundant with TAM calculator) */}
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
 
-              {/* ICP Coverage Card */}
-              <ICPCoverageCard
-                totalAccounts={totalAccounts}
-                crmAccounts={crmAccounts}
-                databaseAccounts={databaseAccounts}
-                highFitAccounts={highFitAccounts}
-                highFitCrmAccounts={dashboardData.metrics.high_fit_crm_accounts}
-                highFitDatabaseAccounts={dashboardData.metrics.high_fit_database_accounts}
-                mediumFitAccounts={medFitAccounts}
-                mediumFitCrmAccounts={dashboardData.metrics.medium_fit_crm_accounts}
-                mediumFitDatabaseAccounts={dashboardData.metrics.medium_fit_database_accounts}
-                lowFitAccounts={lowFitAccounts}
-                lowFitCrmAccounts={dashboardData.metrics.low_fit_crm_accounts}
-                lowFitDatabaseAccounts={dashboardData.metrics.low_fit_database_accounts}
-                totalLeads={totalLeads}
-                crmLeads={crmLeads}
-                databaseLeads={databaseLeads}
-                highFitLeads={highFitLeads}
-                highFitCrmLeads={highFitCrmLeads}
-                highFitDatabaseLeads={highFitDatabaseLeads}
-                mediumFitCrmLeads={dashboardData.metrics.medium_fit_crm_leads}
-                mediumFitDatabaseLeads={dashboardData.metrics.medium_fit_database_leads}
-                lowFitCrmLeads={dashboardData.metrics.low_fit_crm_leads}
-                lowFitDatabaseLeads={dashboardData.metrics.low_fit_database_leads}
-                tamAccounts={tamData?.totalAccounts}
-                tamLeads={tamData?.totalLeads}
-                tamProvider={tamData?.provider}
-              />
+              {/* ICP Coverage Card - Only for CRM mode */}
+              {sourceFilter === 'crm' && (
+                <ICPCoverageCard
+                  totalAccounts={totalAccounts}
+                  crmAccounts={crmAccounts}
+                  databaseAccounts={databaseAccounts}
+                  highFitAccounts={highFitAccounts}
+                  highFitCrmAccounts={dashboardData.metrics.high_fit_crm_accounts}
+                  highFitDatabaseAccounts={dashboardData.metrics.high_fit_database_accounts}
+                  mediumFitAccounts={medFitAccounts}
+                  mediumFitCrmAccounts={dashboardData.metrics.medium_fit_crm_accounts}
+                  mediumFitDatabaseAccounts={dashboardData.metrics.medium_fit_database_accounts}
+                  lowFitAccounts={lowFitAccounts}
+                  lowFitCrmAccounts={dashboardData.metrics.low_fit_crm_accounts}
+                  lowFitDatabaseAccounts={dashboardData.metrics.low_fit_database_accounts}
+                  totalLeads={totalLeads}
+                  crmLeads={crmLeads}
+                  databaseLeads={databaseLeads}
+                  highFitLeads={highFitLeads}
+                  highFitCrmLeads={highFitCrmLeads}
+                  highFitDatabaseLeads={highFitDatabaseLeads}
+                  mediumFitCrmLeads={dashboardData.metrics.medium_fit_crm_leads}
+                  mediumFitDatabaseLeads={dashboardData.metrics.medium_fit_database_leads}
+                  lowFitCrmLeads={dashboardData.metrics.low_fit_crm_leads}
+                  lowFitDatabaseLeads={dashboardData.metrics.low_fit_database_leads}
+                  tamAccounts={tamData?.totalAccounts}
+                  tamLeads={tamData?.totalLeads}
+                  tamProvider={tamData?.provider}
+                />
+              )}
 
-              {/* Combined Scoring ICP Card */}
-              <CombinedScoringICPCard
-                scoringProgress={totalAccounts > 0 ? Math.round((totalScores / totalAccounts) * 100) : 0}
-                totalScored={totalScores}
-                totalAccounts={totalAccounts}
-                crmScored={crmScoredAccounts}
-                databaseScored={databaseScoredAccounts}
-                fitDistribution={[
-                  { name: 'High Fit', value: highFitAccounts, percentage: totalScores > 0 ? Math.round((highFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-green))' },
-                  { name: 'Medium Fit', value: medFitAccounts, percentage: totalScores > 0 ? Math.round((medFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-amber))' },
-                  { name: 'Low Fit', value: lowFitAccounts, percentage: totalScores > 0 ? Math.round((lowFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-red))' }
-                ]}
-                completeness={dataCompleteness}
-                industryCompleteness={75}
-                sizeCompleteness={65}
-                revenueCompleteness={55}
-                geoCompleteness={80}
-                scoringTrend={trendData?.scoringProgress}
-                completenessTrend={trendData?.completeness}
-                fitTrends={weeklyTrendData ? {
-                  highFitAccounts: weeklyTrendData.highFitAccounts,
-                  mediumFitAccounts: weeklyTrendData.mediumFitAccounts,
-                  lowFitAccounts: weeklyTrendData.lowFitAccounts,
-                  highFitPercentage: weeklyTrendData.highFitPercentage,
-                  mediumFitPercentage: weeklyTrendData.mediumFitPercentage,
-                  lowFitPercentage: weeklyTrendData.lowFitPercentage,
-                } : undefined}
-              />
+              {/* Combined Scoring ICP Card - Only for CRM mode */}
+              {sourceFilter === 'crm' && (
+                <CombinedScoringICPCard
+                  scoringProgress={totalAccounts > 0 ? Math.round((totalScores / totalAccounts) * 100) : 0}
+                  totalScored={totalScores}
+                  totalAccounts={totalAccounts}
+                  crmScored={crmScoredAccounts}
+                  databaseScored={databaseScoredAccounts}
+                  fitDistribution={[
+                    { name: 'High Fit', value: highFitAccounts, percentage: totalScores > 0 ? Math.round((highFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-green))' },
+                    { name: 'Medium Fit', value: medFitAccounts, percentage: totalScores > 0 ? Math.round((medFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-amber))' },
+                    { name: 'Low Fit', value: lowFitAccounts, percentage: totalScores > 0 ? Math.round((lowFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-red))' }
+                  ]}
+                  completeness={dataCompleteness}
+                  industryCompleteness={75}
+                  sizeCompleteness={65}
+                  revenueCompleteness={55}
+                  geoCompleteness={80}
+                  scoringTrend={trendData?.scoringProgress}
+                  completenessTrend={trendData?.completeness}
+                  fitTrends={weeklyTrendData ? {
+                    highFitAccounts: weeklyTrendData.highFitAccounts,
+                    mediumFitAccounts: weeklyTrendData.mediumFitAccounts,
+                    lowFitAccounts: weeklyTrendData.lowFitAccounts,
+                    highFitPercentage: weeklyTrendData.highFitPercentage,
+                    mediumFitPercentage: weeklyTrendData.mediumFitPercentage,
+                    lowFitPercentage: weeklyTrendData.lowFitPercentage,
+                  } : undefined}
+                />
+              )}
 
               {/* TAM/SAM/SOM Calculator */}
               {sourceFilter === 'database' && tamData ? (
