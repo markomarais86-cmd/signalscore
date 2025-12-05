@@ -138,8 +138,16 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
   const [previewData, setPreviewData] = useState<any>(null);
   const [isPushing, setIsPushing] = useState(false);
   const [pushComplete, setPushComplete] = useState(false);
-  const [destination, setDestination] = useState<'salesforce' | 'csv'>('salesforce');
+  const [destination, setDestination] = useState<'salesforce' | 'hubspot' | 'csv'>('salesforce');
   const [excludeDuplicates, setExcludeDuplicates] = useState(true);
+  
+  // Real-time lead count preview state
+  const [realtimeLeadCount, setRealtimeLeadCount] = useState<number | null>(null);
+  const [isCountingLeads, setIsCountingLeads] = useState(false);
+  
+  // CRM sync status
+  const [crmSyncStatus, setCrmSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
+  const [crmFieldMapping, setCrmFieldMapping] = useState<Record<string, string>>({});
   
   // AI features state
   const [aiGeneratedNames, setAiGeneratedNames] = useState<string[]>([]);
@@ -154,6 +162,33 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
     previewData?.map((contact: any) => contact.email).filter(Boolean) || []
   , [previewData]);
   const { duplicateEmails, recentExports, isLoading: isCheckingDuplicates } = useCampaignDeduplication(previewEmails);
+
+  // Real-time lead count as filters change
+  useEffect(() => {
+    const countLeadsRealtime = async () => {
+      if (!userProfile?.org_id || step < 2) return;
+      
+      setIsCountingLeads(true);
+      try {
+        // Quick count query for leads matching current filters
+        let query = supabase
+          .from('Leads')
+          .select('id', { count: 'exact', head: true })
+          .eq('org_id', userProfile.org_id)
+          .not('email', 'is', null);
+        
+        const { count } = await query;
+        setRealtimeLeadCount(count || 0);
+      } catch (error) {
+        console.error('[Campaign Builder] Error counting leads:', error);
+      } finally {
+        setIsCountingLeads(false);
+      }
+    };
+    
+    const debounce = setTimeout(countLeadsRealtime, 500);
+    return () => clearTimeout(debounce);
+  }, [userProfile?.org_id, filterCriteria, step]);
 
   // Update cost calculation when data source or provider changes
   useEffect(() => {
@@ -424,11 +459,28 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       };
 
       if (destination === 'salesforce') {
+        setCrmSyncStatus('syncing');
         const { data, error } = await supabase.functions.invoke('push-campaign-to-crm', {
           body: campaignData
         });
-        if (error) throw error;
-        toast({ title: "Campaign Created", description: `Successfully pushed ${estimatedLeads} leads to Salesforce` });
+        if (error) {
+          setCrmSyncStatus('error');
+          throw error;
+        }
+        setCrmSyncStatus('success');
+        toast({ title: "Campaign Created", description: `Successfully pushed ${formatNumber(estimatedLeads)} leads to Salesforce` });
+        setPushComplete(true);
+      } else if (destination === 'hubspot') {
+        setCrmSyncStatus('syncing');
+        const { data, error } = await supabase.functions.invoke('hubspot-sync', {
+          body: { ...campaignData, action: 'push_campaign' }
+        });
+        if (error) {
+          setCrmSyncStatus('error');
+          throw error;
+        }
+        setCrmSyncStatus('success');
+        toast({ title: "Campaign Created", description: `Successfully pushed ${formatNumber(estimatedLeads)} contacts to HubSpot` });
         setPushComplete(true);
       } else {
         // CSV Export with better error handling
@@ -617,7 +669,8 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
           avgFitScore,
           dataSource,
           provider,
-          orgId: userProfile.org_id
+          orgId: userProfile.org_id,
+          leadCount: estimatedLeads // Pass actual lead count for smarter projections
         }
       });
       if (error) throw error;
@@ -630,6 +683,19 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
       setIsEstimatingROI(false);
     }
   };
+
+  // Calculate score band breakdown for real-time preview
+  const scoreBandBreakdown = useMemo(() => {
+    if (!previewData) return { A: 0, B: 0, C: 0 };
+    const breakdown = { A: 0, B: 0, C: 0 };
+    previewData.forEach((acc: any) => {
+      const score = acc.overall_score || 0;
+      if (score >= 70) breakdown.A++;
+      else if (score >= 40) breakdown.B++;
+      else breakdown.C++;
+    });
+    return breakdown;
+  }, [previewData]);
 
   const renderStepContent = () => {
     switch (step) {
@@ -758,15 +824,30 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
               <p className="text-sm text-muted-foreground">Define who you want to target by company size, revenue, market segment, and management level</p>
             </div>
             
-            {/* Cost Estimate at top of Step 2 */}
-            <Card className="bg-muted/50 border-primary/20">
+            {/* Real-time preview at top of Step 2 */}
+            <Card className="bg-gradient-to-r from-primary/5 to-muted border-primary/20">
               <CardContent className="pt-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-medium">Estimated Cost</div>
-                  <div className="text-lg font-bold">${estimatedCost.toFixed(2)}</div>
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {dataSource === 'crm' ? 'Using CRM data (free)' : `Using ${provider} enrichment`}
+                <div className="grid grid-cols-3 gap-4">
+                  <div>
+                    <div className="text-sm font-medium text-muted-foreground">Available Leads</div>
+                    <div className="text-2xl font-bold flex items-center gap-2">
+                      {isCountingLeads ? (
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                        formatNumber(realtimeLeadCount || 0)
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-muted-foreground">Estimated Cost</div>
+                    <div className="text-2xl font-bold">${estimatedCost.toFixed(2)}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-muted-foreground">Data Source</div>
+                    <div className="text-lg font-semibold">
+                      {dataSource === 'crm' ? 'CRM (Free)' : provider}
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1131,21 +1212,41 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                     <TrendingUp className="h-4 w-4" />
                     ROI Projection
                     <Badge variant="outline">{roiEstimate.confidence} confidence</Badge>
+                    {roiEstimate.dataQuality?.hasEnoughData && (
+                      <Badge variant="secondary" className="text-xs">Based on your data</Badge>
+                    )}
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-3 gap-4">
-                  <div>
-                    <div className="text-2xl font-bold text-success">{roiEstimate.roi.toFixed(0)}%</div>
-                    <div className="text-xs text-muted-foreground">Expected ROI</div>
+                <CardContent>
+                  <div className="grid grid-cols-4 gap-4 mb-4">
+                    <div>
+                      <div className="text-2xl font-bold text-success">{roiEstimate.roi.toFixed(0)}%</div>
+                      <div className="text-xs text-muted-foreground">Expected ROI</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold">{roiEstimate.estimatedMeetings}</div>
+                      <div className="text-xs text-muted-foreground">Est. Meetings</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold">{roiEstimate.estimatedDeals}</div>
+                      <div className="text-xs text-muted-foreground">Est. Deals</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold">${formatNumber(roiEstimate.estimatedRevenue)}</div>
+                      <div className="text-xs text-muted-foreground">Projected Revenue</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-2xl font-bold">{roiEstimate.estimatedMeetings}</div>
-                    <div className="text-xs text-muted-foreground">Est. Meetings</div>
-                  </div>
-                  <div>
-                    <div className="text-2xl font-bold">${formatNumber(roiEstimate.estimatedRevenue)}</div>
-                    <div className="text-xs text-muted-foreground">Projected Revenue</div>
-                  </div>
+                  {roiEstimate.dataQuality && (
+                    <div className="text-xs text-muted-foreground border-t pt-3 mt-2">
+                      <span className="font-medium">Data Quality:</span> {roiEstimate.dataQuality.closedWonDeals} closed-won deals analyzed
+                      {roiEstimate.dataQuality.conversionByBand && (
+                        <span className="ml-3">
+                          Conversion rates: A-Band {roiEstimate.dataQuality.conversionByBand.A}, 
+                          B-Band {roiEstimate.dataQuality.conversionByBand.B}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )}
@@ -1155,16 +1256,16 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <Card>
                     <CardContent className="pt-6">
-                      <div className="text-2xl font-bold">{estimatedLeads}</div>
-                      <div className="text-sm text-muted-foreground">Leads</div>
+                      <div className="text-2xl font-bold">{formatNumber(estimatedLeads)}</div>
+                      <div className="text-sm text-muted-foreground">Total Leads</div>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="pt-6">
-                      <div className="text-2xl font-bold">{previewData?.length || 0}</div>
+                      <div className="text-2xl font-bold">{formatNumber(previewData?.length || 0)}</div>
                       <div className="text-sm text-muted-foreground">Accounts</div>
                     </CardContent>
                   </Card>
@@ -1172,6 +1273,16 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                     <CardContent className="pt-6">
                       <div className="text-2xl font-bold">${estimatedCost.toFixed(2)}</div>
                       <div className="text-sm text-muted-foreground">Est. Cost</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-muted/50">
+                    <CardContent className="pt-4">
+                      <div className="text-xs font-medium mb-2">Score Bands</div>
+                      <div className="flex gap-2 text-xs">
+                        <Badge variant="default" className="bg-green-500">A: {scoreBandBreakdown.A}</Badge>
+                        <Badge variant="secondary">B: {scoreBandBreakdown.B}</Badge>
+                        <Badge variant="outline">C: {scoreBandBreakdown.C}</Badge>
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
@@ -1242,10 +1353,9 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                 <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold mb-2">Campaign Created Successfully!</h3>
                 <p className="text-muted-foreground">
-                  {destination === 'salesforce'
-                    ? `${estimatedLeads} leads pushed to Salesforce`
-                    : `${estimatedLeads} leads exported as CSV`
-                  }
+                  {destination === 'salesforce' && `${formatNumber(estimatedLeads)} leads pushed to Salesforce`}
+                  {destination === 'hubspot' && `${formatNumber(estimatedLeads)} contacts pushed to HubSpot`}
+                  {destination === 'csv' && `${formatNumber(estimatedLeads)} leads exported as CSV`}
                 </p>
                 <Button onClick={onClose} className="mt-6">Close</Button>
               </div>
@@ -1255,16 +1365,41 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                   <h3 className="font-semibold mb-2">Select Destination</h3>
                   <p className="text-sm text-muted-foreground">Where would you like to send your campaign contacts?</p>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <Card
                     className={`cursor-pointer transition-all ${destination === 'salesforce' ? 'border-primary ring-2 ring-primary' : ''}`}
                     onClick={() => setDestination('salesforce')}
                   >
                     <CardHeader>
-                      <CardTitle className="text-base">Push to Salesforce</CardTitle>
+                      <CardTitle className="text-base">Salesforce</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm text-muted-foreground">Automatically create leads/contacts in your CRM</p>
+                      <p className="text-sm text-muted-foreground">Create leads in Salesforce CRM</p>
+                      {destination === 'salesforce' && (
+                        <div className="mt-3 pt-3 border-t text-xs space-y-1">
+                          <div className="flex justify-between"><span>Email →</span><span className="text-muted-foreground">Lead.Email</span></div>
+                          <div className="flex justify-between"><span>Company →</span><span className="text-muted-foreground">Lead.Company</span></div>
+                          <div className="flex justify-between"><span>Title →</span><span className="text-muted-foreground">Lead.Title</span></div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <Card
+                    className={`cursor-pointer transition-all ${destination === 'hubspot' ? 'border-primary ring-2 ring-primary' : ''}`}
+                    onClick={() => setDestination('hubspot')}
+                  >
+                    <CardHeader>
+                      <CardTitle className="text-base">HubSpot</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">Create contacts in HubSpot CRM</p>
+                      {destination === 'hubspot' && (
+                        <div className="mt-3 pt-3 border-t text-xs space-y-1">
+                          <div className="flex justify-between"><span>Email →</span><span className="text-muted-foreground">email</span></div>
+                          <div className="flex justify-between"><span>Company →</span><span className="text-muted-foreground">company</span></div>
+                          <div className="flex justify-between"><span>Title →</span><span className="text-muted-foreground">jobtitle</span></div>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                   <Card
@@ -1272,13 +1407,36 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
                     onClick={() => setDestination('csv')}
                   >
                     <CardHeader>
-                      <CardTitle className="text-base">Export as CSV</CardTitle>
+                      <CardTitle className="text-base">Export CSV</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm text-muted-foreground">Download a CSV file for manual import</p>
+                      <p className="text-sm text-muted-foreground">Download file for manual import</p>
+                      {destination === 'csv' && (
+                        <div className="mt-3 pt-3 border-t text-xs">
+                          <span className="text-muted-foreground">20 fields including scores, firmographics, and contact intel</span>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
+                
+                {/* CRM Sync Status */}
+                {(destination === 'salesforce' || destination === 'hubspot') && (
+                  <Alert className="bg-muted/50">
+                    <Target className="h-4 w-4" />
+                    <AlertDescription className="flex items-center justify-between">
+                      <span>
+                        {estimatedLeads} contacts will be created in {destination === 'salesforce' ? 'Salesforce' : 'HubSpot'}
+                      </span>
+                      <Badge variant="outline" className="ml-2">
+                        {crmSyncStatus === 'idle' && 'Ready to sync'}
+                        {crmSyncStatus === 'syncing' && 'Syncing...'}
+                        {crmSyncStatus === 'success' && 'Synced'}
+                        {crmSyncStatus === 'error' && 'Sync failed'}
+                      </Badge>
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <Button
                   onClick={handleCreateCampaign}
                   disabled={isPushing || !previewData || previewData.length === 0}
