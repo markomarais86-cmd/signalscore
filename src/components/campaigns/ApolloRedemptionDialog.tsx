@@ -36,7 +36,7 @@ export function ApolloRedemptionDialog({
   onRedemptionComplete
 }: ApolloRedemptionDialogProps) {
   const { userProfile } = useAuth();
-  const { creditsRemaining, dailyLimit, configured } = useApolloCredits();
+  const { creditsRemaining, dailyLimit, configured, apiAccessible, message } = useApolloCredits();
   
   const [importLimit, setImportLimit] = useState("500");
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>([
@@ -47,6 +47,7 @@ export function ApolloRedemptionDialog({
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [duplicateAnalysis, setDuplicateAnalysis] = useState<DuplicateAnalysis | null>(null);
   const [redemptionProgress, setRedemptionProgress] = useState(0);
+  const [acknowledgeUnknownCredits, setAcknowledgeUnknownCredits] = useState(false);
 
   const personas = [
     "Technical Decision Maker",
@@ -94,10 +95,10 @@ export function ApolloRedemptionDialog({
     );
   };
 
-  const estimatedNewContacts = Math.min(
-    parseInt(importLimit || "0"),
-    creditsRemaining || 0
-  );
+  // When credits are unknown, we can't estimate - just use the import limit
+  const estimatedNewContacts = apiAccessible 
+    ? Math.min(parseInt(importLimit || "0"), creditsRemaining || 0)
+    : parseInt(importLimit || "0");
 
   const handleRedeem = async () => {
     if (!userProfile?.org_id || accountDomains.length === 0) return;
@@ -146,9 +147,14 @@ export function ApolloRedemptionDialog({
     }
   };
 
+  // Allow redemption when:
+  // - Apollo is configured
+  // - Either: credits are known and > 0, OR credits are unknown but user acknowledged
+  // - Import limit is set
+  // - At least one persona selected
+  // - At least one account selected
   const canRedeem = configured && 
-    creditsRemaining !== null && 
-    creditsRemaining > 0 && 
+    ((apiAccessible && creditsRemaining !== null && creditsRemaining > 0) || (!apiAccessible && acknowledgeUnknownCredits)) &&
     parseInt(importLimit || "0") > 0 && 
     selectedPersonas.length > 0 &&
     accountDomains.length > 0;
@@ -174,14 +180,43 @@ export function ApolloRedemptionDialog({
               <span className="font-medium">Apollo Credits</span>
             </div>
             <div className="text-right">
-              <span className="text-lg font-bold text-primary">
-                {creditsRemaining?.toLocaleString() ?? '—'}
-              </span>
-              <span className="text-muted-foreground ml-1">
-                / {dailyLimit?.toLocaleString() ?? '—'} daily
-              </span>
+              {apiAccessible ? (
+                <>
+                  <span className="text-lg font-bold text-primary">
+                    {creditsRemaining?.toLocaleString() ?? '—'}
+                  </span>
+                  <span className="text-muted-foreground ml-1">
+                    / {dailyLimit?.toLocaleString() ?? '—'} daily
+                  </span>
+                </>
+              ) : (
+                <Badge variant="outline" className="text-primary border-primary/50">
+                  <Zap className="h-3 w-3 mr-1" />
+                  Ready (balance unknown)
+                </Badge>
+              )}
             </div>
           </div>
+          
+          {/* Unknown credits warning */}
+          {!apiAccessible && (
+            <Alert variant="default" className="bg-amber-500/10 border-amber-500/50">
+              <AlertCircle className="h-4 w-4 text-amber-500" />
+              <AlertDescription className="space-y-2">
+                <p>{message || 'Credit tracking unavailable on your Apollo plan.'}</p>
+                <div className="flex items-center space-x-2 pt-1">
+                  <Checkbox
+                    id="acknowledge-credits"
+                    checked={acknowledgeUnknownCredits}
+                    onCheckedChange={(checked) => setAcknowledgeUnknownCredits(checked === true)}
+                  />
+                  <Label htmlFor="acknowledge-credits" className="text-sm cursor-pointer">
+                    I understand credits will be consumed and want to proceed
+                  </Label>
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Duplicate Analysis */}
           {isAnalyzing ? (
@@ -234,10 +269,13 @@ export function ApolloRedemptionDialog({
               onChange={(e) => setImportLimit(e.target.value)}
               placeholder="500"
               min="1"
-              max={creditsRemaining || 10000}
+              max={apiAccessible ? (creditsRemaining || 10000) : 10000}
             />
             <p className="text-sm text-muted-foreground">
-              Will use up to {estimatedNewContacts.toLocaleString()} credits (only new contacts count)
+              {apiAccessible 
+                ? `Will use up to ${estimatedNewContacts.toLocaleString()} credits (only new contacts count)`
+                : `Will import up to ${parseInt(importLimit || "0").toLocaleString()} contacts (duplicates skipped automatically)`
+              }
             </p>
           </div>
 
@@ -264,7 +302,7 @@ export function ApolloRedemptionDialog({
           </div>
 
           {/* Credit Warning */}
-          {creditsRemaining !== null && creditsRemaining < parseInt(importLimit || "0") && (
+          {apiAccessible && creditsRemaining !== null && creditsRemaining < parseInt(importLimit || "0") && (
             <Alert variant="default" className="bg-amber-500/10 border-amber-500/50">
               <AlertCircle className="h-4 w-4 text-amber-500" />
               <AlertDescription>
