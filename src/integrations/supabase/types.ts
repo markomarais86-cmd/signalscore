@@ -4096,6 +4096,7 @@ export type Database = {
         Returns: boolean
       }
       resume_enrichment_job: { Args: { p_job_id: string }; Returns: Json }
+      revenue_to_numeric: { Args: { revenue_range: string }; Returns: number }
       scheduled_auto_match_all_orgs: { Args: never; Returns: undefined }
       scheduled_quality_snapshot_all_orgs: { Args: never; Returns: undefined }
       seed_default_ai_agents: {
