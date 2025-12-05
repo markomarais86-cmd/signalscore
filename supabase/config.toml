@@ -194,3 +194,9 @@ verify_jwt = true
 
 [functions.cleanup-placeholder-leads]
 verify_jwt = false
+
+[functions.search-pdl-contacts]
+verify_jwt = true
+
+[functions.redeem-pdl-contacts]
+verify_jwt = true
