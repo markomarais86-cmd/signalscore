@@ -127,10 +127,45 @@ export default function ICPManager() {
     setEditingIcp(null);
     completeStep('create_icp');
     
-    // Automatically trigger fast SQL-based re-scoring
-    console.log("ICP saved successfully, triggering automatic re-scoring...");
+    // Automatically trigger fast SQL-based re-scoring and Apollo sync
+    console.log("ICP saved successfully, triggering automatic re-scoring and Apollo sync...");
     if (userProfile?.org_id) {
       await triggerRescoring();
+      await triggerApolloSync();
+    }
+  };
+
+  const triggerApolloSync = async () => {
+    if (!userProfile?.org_id) return;
+    
+    try {
+      console.log('🔄 Syncing Apollo data with updated ICP...');
+      
+      const { data, error } = await supabase.functions.invoke('sync-external-provider', {
+        body: {
+          org_id: userProfile.org_id,
+          provider: 'apollo'
+        }
+      });
+
+      if (error) {
+        console.error('Apollo sync error:', error);
+        // Don't show error toast - Apollo is optional
+        return;
+      }
+
+      // Invalidate dashboard queries to refresh TAM data
+      queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+      queryClient.invalidateQueries({ queryKey: ['external-tam-data'] });
+
+      toast({
+        title: "Apollo Data Updated",
+        description: `TAM updated: ${data?.totalAccounts?.toLocaleString() || 0} accounts available`,
+      });
+      
+    } catch (error) {
+      console.error('Apollo sync failed:', error);
+      // Silent fail - Apollo is optional feature
     }
   };
 
