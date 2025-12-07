@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { getModelConfig, buildHeaders, getAvailableProviders } from '../_shared/ai-config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,6 +46,48 @@ OUTPUT JSON SCHEMA:
 
 Return ONLY JSON.`;
 
+// Multi-provider AI call with fallback
+async function callAIWithFallback(messages: Array<{ role: string; content: string }>): Promise<any> {
+  const providers = getAvailableProviders();
+  console.log(`[Deep Enrich] Available AI providers: ${providers.join(', ')}`);
+  
+  for (const provider of providers) {
+    try {
+      const config = getModelConfig('enrichment', provider);
+      const headers = buildHeaders(provider);
+      
+      const body: any = {
+        model: config.model,
+        messages,
+      };
+      body[config.maxTokensParam] = 2000;
+      if (config.supportsTemperature) {
+        body.temperature = 0.3;
+      }
+      
+      console.log(`[Deep Enrich] Trying ${provider} with model ${config.model}`);
+      
+      const response = await fetch(config.endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+      
+      if (response.ok) {
+        console.log(`[Deep Enrich] Success with ${provider}`);
+        return await response.json();
+      }
+      
+      const errorText = await response.text();
+      console.error(`[Deep Enrich] ${provider} error (${response.status}): ${errorText}`);
+    } catch (error) {
+      console.error(`[Deep Enrich] ${provider} failed:`, error);
+    }
+  }
+  
+  throw new Error('All AI providers failed');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -53,7 +96,6 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const { accounts, orgId } = await req.json();
@@ -68,28 +110,11 @@ serve(async (req) => {
           domain: account.domain
         };
 
-        const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${lovableApiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
-            messages: [
-              { role: 'system', content: RESEARCH_PROMPT },
-              { role: 'user', content: `Research: ${JSON.stringify(query)}` }
-            ],
-            temperature: 0.3
-          })
-        });
+        const aiData = await callAIWithFallback([
+          { role: 'system', content: RESEARCH_PROMPT },
+          { role: 'user', content: `Research: ${JSON.stringify(query)}` }
+        ]);
 
-        if (!aiResponse.ok) {
-          console.error(`AI error for ${account.name}:`, await aiResponse.text());
-          continue;
-        }
-
-        const aiData = await aiResponse.json();
         const content = aiData.choices[0].message.content;
         
         const jsonMatch = content.match(/\{[\s\S]*\}/);
