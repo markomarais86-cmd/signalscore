@@ -1,5 +1,8 @@
+// Generate Campaign Name - AI-powered B2B campaign naming
+// Migrated to use centralized AI config with OpenAI as primary
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { callAI, getAvailableProviders } from '../_shared/ai-config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,9 +18,9 @@ serve(async (req) => {
     const { icpName, targetSegment, campaignGoals, industries, geographies } = await req.json();
     console.log('[generate-campaign-name] Request:', { icpName, targetSegment, campaignGoals });
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY not configured");
+    const providers = getAvailableProviders();
+    if (providers.length === 0) {
+      throw new Error('No AI provider configured. Please set OPENAI_API_KEY, ABACUS_API_KEY, or LOVABLE_API_KEY.');
     }
 
     // Build context for AI
@@ -37,40 +40,31 @@ Geographies: ${geographies?.join(', ') || 'All'}
 
 Return exactly 5 campaign name suggestions as a JSON array of strings.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Generate 5 campaign names for:\n${context}` }
-        ],
-        tools: [{
-          type: "function",
-          function: {
-            name: "suggest_campaign_names",
-            description: "Return 5 campaign name suggestions",
-            parameters: {
-              type: "object",
-              properties: {
-                suggestions: {
-                  type: "array",
-                  items: { type: "string" },
-                  minItems: 5,
-                  maxItems: 5
-                }
-              },
-              required: ["suggestions"],
-              additionalProperties: false
-            }
+    const response = await callAI('chat', [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `Generate 5 campaign names for:\n${context}` }
+    ], {
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'suggest_campaign_names',
+          description: 'Return 5 campaign name suggestions',
+          parameters: {
+            type: 'object',
+            properties: {
+              suggestions: {
+                type: 'array',
+                items: { type: 'string' },
+                minItems: 5,
+                maxItems: 5
+              }
+            },
+            required: ['suggestions'],
+            additionalProperties: false
           }
-        }],
-        tool_choice: { type: "function", function: { name: "suggest_campaign_names" } }
-      }),
+        }
+      }],
+      tool_choice: { type: 'function', function: { name: 'suggest_campaign_names' } }
     });
 
     if (!response.ok) {
@@ -80,11 +74,11 @@ Return exactly 5 campaign name suggestions as a JSON array of strings.`;
     }
 
     const data = await response.json();
-    console.log('[generate-campaign-name] AI response:', JSON.stringify(data));
+    console.log('[generate-campaign-name] AI response received');
 
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall) {
-      throw new Error("No tool call in AI response");
+      throw new Error('No tool call in AI response');
     }
 
     const suggestions = JSON.parse(toolCall.function.arguments).suggestions;

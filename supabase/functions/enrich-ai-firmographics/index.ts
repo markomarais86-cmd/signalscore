@@ -1,6 +1,10 @@
+// AI Firmographic Enrichment - Batch estimates for missing employee/revenue data
+// Migrated to use centralized AI config with OpenAI as primary
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.55.0";
+import { callAI, getAvailableProviders } from '../_shared/ai-config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,10 +19,10 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
 
-    if (!lovableApiKey) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    const providers = getAvailableProviders();
+    if (providers.length === 0) {
+      throw new Error('No AI provider configured. Please set OPENAI_API_KEY, ABACUS_API_KEY, or LOVABLE_API_KEY.');
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey, {
@@ -32,7 +36,7 @@ serve(async (req) => {
       throw new Error('job_id is required');
     }
 
-    console.log('Starting AI firmographic enrichment for job:', job_id);
+    console.log('[AI Firmographics] Starting enrichment for job:', job_id);
 
     // Get job details
     const { data: job, error: jobError } = await supabase
@@ -49,7 +53,7 @@ serve(async (req) => {
       .update({ status: 'processing' })
       .eq('id', job_id);
 
-    // Get accounts needing enrichment (missing employee_count or revenue_range)
+    // Get accounts needing enrichment
     const { data: accounts, error: accountsError } = await supabase
       .from('accounts')
       .select('external_id, name, domain, employee_count, revenue_range, industry_norm, country')
@@ -75,9 +79,8 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Found ${accounts.length} accounts to enrich with AI`);
+    console.log(`[AI Firmographics] Found ${accounts.length} accounts to enrich`);
 
-    // Update job with total
     await supabase
       .from('enrichment_jobs')
       .update({ total_records: accounts.length })
@@ -91,7 +94,6 @@ serve(async (req) => {
     for (let i = 0; i < accounts.length; i += batchSize) {
       const batch = accounts.slice(i, i + batchSize);
       
-      // Prepare batch prompt
       const accountsInfo = batch.map(a => ({
         name: a.name,
         domain: a.domain,
@@ -110,53 +112,44 @@ ${accountsInfo.map((a, idx) => `${idx + 1}. ${a.name} (${a.domain}) - ${a.indust
 Provide your best estimates with confidence scores (0-100). Be realistic based on industry norms and company indicators.`;
 
       try {
-        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${lovableApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
-            messages: [
-              { role: 'system', content: 'You are a B2B data analyst expert at estimating company firmographics. Respond with structured JSON.' },
-              { role: 'user', content: prompt }
-            ],
-            tools: [{
-              type: 'function',
-              function: {
-                name: 'estimate_firmographics',
-                description: 'Estimate missing firmographic data for companies',
-                parameters: {
-                  type: 'object',
-                  properties: {
-                    estimates: {
-                      type: 'array',
-                      items: {
-                        type: 'object',
-                        properties: {
-                          company_index: { type: 'number' },
-                          employee_count: { type: 'number' },
-                          revenue_range: { 
-                            type: 'string',
-                            enum: ['$0-$1M', '$1M-$5M', '$5M-$10M', '$10M-$25M', '$25M-$50M', '$50M-$100M', '$100M-$500M', '$500M+']
-                          },
-                          confidence: { type: 'number' }
+        const response = await callAI('bulk', [
+          { role: 'system', content: 'You are a B2B data analyst expert at estimating company firmographics. Respond with structured JSON.' },
+          { role: 'user', content: prompt }
+        ], {
+          tools: [{
+            type: 'function',
+            function: {
+              name: 'estimate_firmographics',
+              description: 'Estimate missing firmographic data for companies',
+              parameters: {
+                type: 'object',
+                properties: {
+                  estimates: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        company_index: { type: 'number' },
+                        employee_count: { type: 'number' },
+                        revenue_range: { 
+                          type: 'string',
+                          enum: ['$0-$1M', '$1M-$5M', '$5M-$10M', '$10M-$25M', '$25M-$50M', '$50M-$100M', '$100M-$500M', '$500M+']
                         },
-                        required: ['company_index', 'confidence']
-                      }
+                        confidence: { type: 'number' }
+                      },
+                      required: ['company_index', 'confidence']
                     }
-                  },
-                  required: ['estimates']
-                }
+                  }
+                },
+                required: ['estimates']
               }
-            }],
-            tool_choice: { type: 'function', function: { name: 'estimate_firmographics' } }
-          }),
+            }
+          }],
+          tool_choice: { type: 'function', function: { name: 'estimate_firmographics' } }
         });
 
         if (!response.ok) {
-          console.error(`AI API error: ${response.status}`);
+          console.error(`[AI Firmographics] AI API error: ${response.status}`);
           failed += batch.length;
           continue;
         }
@@ -165,7 +158,7 @@ Provide your best estimates with confidence scores (0-100). Be realistic based o
         const toolCall = aiData.choices[0].message.tool_calls?.[0];
         
         if (!toolCall) {
-          console.error('No tool call in AI response');
+          console.error('[AI Firmographics] No tool call in AI response');
           failed += batch.length;
           continue;
         }
@@ -180,7 +173,7 @@ Provide your best estimates with confidence scores (0-100). Be realistic based o
           if (estimate.confidence >= 70) {
             const updates: any = {
               enriched_at: new Date().toISOString(),
-              enriched_from: 'lovable_ai',
+              enriched_from: 'ai_firmographics',
             };
 
             if (!account.employee_count && estimate.employee_count) {
@@ -206,18 +199,18 @@ Provide your best estimates with confidence scores (0-100). Be realistic based o
                 });
 
                 enriched++;
-                console.log(`AI enriched ${account.name} (confidence: ${estimate.confidence}%)`);
+                console.log(`[AI Firmographics] Enriched ${account.name} (confidence: ${estimate.confidence}%)`);
               } else {
                 failed++;
               }
             }
           } else {
-            console.log(`Skipped ${account.name} (low confidence: ${estimate.confidence}%)`);
+            console.log(`[AI Firmographics] Skipped ${account.name} (low confidence: ${estimate.confidence}%)`);
             failed++;
           }
         }
       } catch (error) {
-        console.error('AI enrichment batch error:', error);
+        console.error('[AI Firmographics] Batch error:', error);
         failed += batch.length;
       }
 
@@ -248,7 +241,7 @@ Provide your best estimates with confidence scores (0-100). Be realistic based o
       })
       .eq('id', job_id);
 
-    console.log(`AI enrichment complete: ${enriched} enriched, ${failed} failed`);
+    console.log(`[AI Firmographics] Complete: ${enriched} enriched, ${failed} failed`);
 
     return new Response(
       JSON.stringify({
@@ -260,7 +253,7 @@ Provide your best estimates with confidence scores (0-100). Be realistic based o
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
-    console.error('Error in enrich-ai-firmographics:', error);
+    console.error('[AI Firmographics] Error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -1,7 +1,9 @@
 // Enhanced AI Search Enrichment Agent - Eugene's 48-column approach
 // Uses comprehensive web search prompts for ZoomInfo-quality data
+// Migrated to use centralized AI config with OpenAI as primary
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { callAI, getAvailableProviders } from '../_shared/ai-config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -56,37 +58,28 @@ serve(async (req) => {
     console.log(`[SearchAgent] Search payload:`, JSON.stringify(search_payload));
     console.log(`[SearchAgent] Target titles:`, titles);
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    const providers = getAvailableProviders();
+    if (providers.length === 0) {
+      throw new Error('No AI provider configured. Please set OPENAI_API_KEY, ABACUS_API_KEY, or LOVABLE_API_KEY.');
     }
 
     const prompt = buildEnrichmentPrompt(search_payload, record_type, titles);
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: prompt }
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'return_enriched_data',
-              description: 'Return the enriched company or contact data in 48-column format',
-              parameters: getEnrichmentSchema(record_type)
-            }
+    const response = await callAI('enrichment', [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: prompt }
+    ], {
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'return_enriched_data',
+            description: 'Return the enriched company or contact data in 48-column format',
+            parameters: getEnrichmentSchema(record_type)
           }
-        ],
-        tool_choice: { type: 'function', function: { name: 'return_enriched_data' } }
-      })
+        }
+      ],
+      tool_choice: { type: 'function', function: { name: 'return_enriched_data' } }
     });
 
     if (!response.ok) {
@@ -217,21 +210,16 @@ function getEnrichmentSchema(recordType: string): any {
     return {
       type: 'object',
       properties: {
-        // Core company identity
         company_name: { type: 'string', description: 'Legal/official company name' },
         known_as: { type: 'string', description: 'Company also known as / DBA name' },
         domain: { type: 'string', description: 'Company website domain' },
         company_website: { type: 'string', description: 'Full company website URL' },
         company_main_phone: { type: 'string', description: 'Main company phone number' },
-        
-        // Location
         hq_address: { type: 'string', description: 'Headquarters street address' },
         hq_city: { type: 'string', description: 'Headquarters city' },
         hq_state_province: { type: 'string', description: 'Headquarters state/province (full name)' },
         hq_country: { type: 'string', description: 'Headquarters country (full name)' },
         hq_postal_code: { type: 'string', description: 'Headquarters postal/zip code' },
-        
-        // Firmographics
         employee_count: { type: 'number', description: 'Number of employees' },
         revenue_range: { type: 'string', description: 'Revenue range (e.g., $10M-$50M)' },
         industry: { type: 'string', description: 'Primary industry' },
@@ -240,18 +228,12 @@ function getEnrichmentSchema(recordType: string): any {
         sic_code: { type: 'string', description: 'SIC industry code' },
         business_model: { type: 'string', description: 'B2B, B2C, B2G, etc.' },
         founded_year: { type: 'number', description: 'Year company was founded' },
-        
-        // Social & online presence
         linkedin_url: { type: 'string', description: 'Company LinkedIn URL' },
         facebook_url: { type: 'string', description: 'Company Facebook URL' },
         twitter_url: { type: 'string', description: 'Company Twitter/X URL' },
-        
-        // Funding & financials
         last_funding_round: { type: 'string', description: 'Last funding round type (Series A, B, etc.)' },
         last_funding_date: { type: 'string', description: 'Date of last funding (YYYY-MM-DD)' },
         total_raised_usd: { type: 'number', description: 'Total funding raised in USD' },
-        
-        // Trust & compliance
         trust_signals: {
           type: 'object',
           properties: {
@@ -261,22 +243,11 @@ function getEnrichmentSchema(recordType: string): any {
             security_page_url: { type: 'string', description: 'URL to security/trust page' }
           }
         },
-        
-        // Tech stack
         tech_stack: {
           type: 'array',
           items: { type: 'string' },
           description: 'Technologies used by the company'
         },
-        
-        // Growth signals
-        growth_signals: {
-          type: 'array',
-          items: { type: 'string' },
-          description: 'Recent growth signals, news, or indicators'
-        },
-        
-        // Discovered contacts at target titles
         extra_contacts: {
           type: 'array',
           items: {
@@ -295,8 +266,6 @@ function getEnrichmentSchema(recordType: string): any {
           },
           description: 'Decision-makers found at the company'
         },
-        
-        // Metadata
         sources: {
           type: 'array',
           items: { type: 'string' },
@@ -312,11 +281,9 @@ function getEnrichmentSchema(recordType: string): any {
       required: ['company_name', 'confidence']
     };
   } else {
-    // Lead/Contact schema - Eugene's 48-column format
     return {
       type: 'object',
       properties: {
-        // Contact identity
         first_name: { type: 'string', description: 'First name (proper case)' },
         last_name: { type: 'string', description: 'Last name (proper case)' },
         email: { type: 'string', description: 'Email address (lowercase)' },
@@ -325,58 +292,32 @@ function getEnrichmentSchema(recordType: string): any {
           enum: ['verified', 'unverified', 'not_found'],
           description: 'Email verification status' 
         },
-        
-        // Phone numbers - formatted as +[country] ([area]) [exchange]-[number]
         phone_number: { type: 'string', description: 'Primary phone number' },
         cell_phone: { type: 'string', description: 'Mobile/cell phone number' },
         direct_phone: { type: 'string', description: 'Direct dial number' },
         extension: { type: 'string', description: 'Phone extension' },
-        phone_type: {
-          type: 'string',
-          enum: ['company_main', 'direct', 'mobile', 'unknown'],
-          description: 'Type of primary phone'
-        },
-        
-        // Social URLs
         linkedin_url: { type: 'string', description: 'LinkedIn profile URL' },
         facebook_url: { type: 'string', description: 'Facebook profile URL' },
         twitter_url: { type: 'string', description: 'Twitter/X profile URL' },
-        
-        // Employment status
         still_at_company: { 
           type: 'string', 
           enum: ['yes', 'no', 'unknown'],
           description: 'Whether person is still at this company' 
         },
-        
-        // Current position
         current_company: { type: 'string', description: 'Current employer name' },
         current_title: { type: 'string', description: 'Current job title (Title Case)' },
         current_city: { type: 'string', description: 'Current city' },
         current_state_province: { type: 'string', description: 'Current state/province (full name)' },
         current_country: { type: 'string', description: 'Current country (full name)' },
-        
-        // Previous position
         previous_company: { type: 'string', description: 'Previous employer name' },
         previous_title: { type: 'string', description: 'Previous job title' },
-        
-        // Current company details
         company_website: { type: 'string', description: 'Company website URL' },
         company_main_phone: { type: 'string', description: 'Company main phone' },
-        company_hq_address: { type: 'string', description: 'Company HQ street address' },
         company_hq_city: { type: 'string', description: 'Company HQ city' },
-        company_hq_state_province: { type: 'string', description: 'Company HQ state/province' },
         company_hq_country: { type: 'string', description: 'Company HQ country' },
-        company_hq_postal_code: { type: 'string', description: 'Company HQ postal code' },
         company_industry: { type: 'string', description: 'Company industry' },
         company_employee_count: { type: 'number', description: 'Company employee count' },
-        company_annual_revenue: { type: 'string', description: 'Company annual revenue' },
-        company_sic_code: { type: 'string', description: 'Company SIC code' },
-        company_naics_code: { type: 'string', description: 'Company NAICS code' },
         company_linkedin_url: { type: 'string', description: 'Company LinkedIn URL' },
-        company_facebook_url: { type: 'string', description: 'Company Facebook URL' },
-        
-        // Discovered additional contacts at target titles
         extra_contacts: {
           type: 'array',
           items: {
@@ -386,40 +327,25 @@ function getEnrichmentSchema(recordType: string): any {
               last_name: { type: 'string' },
               email: { type: 'string' },
               phone_number: { type: 'string' },
-              cell_phone: { type: 'string' },
-              direct_phone: { type: 'string' },
-              extension: { type: 'string' },
               linkedin_url: { type: 'string' },
-              facebook_url: { type: 'string' },
-              twitter_url: { type: 'string' },
-              still_at_company: { type: 'string', enum: ['yes', 'no', 'unknown'] },
-              current_company: { type: 'string' },
               current_title: { type: 'string' },
-              current_city: { type: 'string' },
-              current_state_province: { type: 'string' },
-              current_country: { type: 'string' },
-              previous_company: { type: 'string' },
-              previous_title: { type: 'string' },
               confidence: { type: 'string', enum: ['high', 'medium', 'low'] }
             }
           },
-          description: 'Other decision-makers found at the same company'
+          description: 'Additional contacts found at the company'
         },
-        
-        // Metadata
         sources: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Source URLs (should have 3+ for high confidence)'
+          description: 'Source URLs for the data'
         },
-        match_reasoning: { type: 'string', description: 'Why this is the correct person match' },
         confidence: { 
           type: 'string', 
           enum: ['high', 'medium', 'low'],
           description: 'Overall confidence in the enriched data' 
         }
       },
-      required: ['confidence']
+      required: ['first_name', 'last_name', 'confidence']
     };
   }
 }

@@ -1,5 +1,9 @@
+// Bulk Enrich All Accounts - Waterfall enrichment with Apollo, PDL, and AI fallback
+// Migrated to use centralized AI config with OpenAI as primary
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callAI, getAvailableProviders } from '../_shared/ai-config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -186,7 +190,7 @@ async function enrichAccount(account: any, apolloKey: string | undefined, pdlKey
       }
     }
 
-    // Phase 3: AI estimation
+    // Phase 3: AI estimation using centralized config
     const aiResult = await tryAIEstimation(domain, account.name);
     if (aiResult) {
       await updateAccount(supabase, account.id, aiResult, 'ai');
@@ -247,24 +251,17 @@ async function tryPDL(domain: string, apiKey: string): Promise<any | null> {
 }
 
 async function tryAIEstimation(domain: string, companyName: string | null): Promise<any | null> {
-  const lovableKey = Deno.env.get('LOVABLE_API_KEY');
-  if (!lovableKey) return null;
+  const providers = getAvailableProviders();
+  if (providers.length === 0) return null;
 
   try {
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [{
-          role: 'user',
-          content: `Estimate the employee count for ${companyName || domain} (domain: ${domain}). Return ONLY a JSON object: {"employee_count": number, "confidence": "low"|"medium"|"high"}`
-        }],
-        max_tokens: 100
-      })
+    const response = await callAI('bulk', [
+      {
+        role: 'user',
+        content: `Estimate the employee count for ${companyName || domain} (domain: ${domain}). Return ONLY a JSON object: {"employee_count": number, "confidence": "low"|"medium"|"high"}`
+      }
+    ], {
+      maxTokens: 100
     });
 
     if (!response.ok) return null;
