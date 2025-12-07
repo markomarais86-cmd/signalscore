@@ -40,6 +40,7 @@ interface OrgCredits {
 export function EnrichmentJobMonitor() {
   const [jobs, setJobs] = useState<EnrichmentJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cleaningUp, setCleaningUp] = useState(false);
   const [orgCredits, setOrgCredits] = useState<OrgCredits | null>(null);
   const [pausingJobs, setPausingJobs] = useState<Set<string>>(new Set());
   const [resumingJobs, setResumingJobs] = useState<Set<string>>(new Set());
@@ -111,6 +112,28 @@ export function EnrichmentJobMonitor() {
       }
     } catch (error) {
       console.error("Error loading credits:", error);
+    }
+  };
+
+  const cleanupStuckJobs = async () => {
+    setCleaningUp(true);
+    try {
+      const { data, error } = await supabase.rpc('cleanup_stuck_enrichment_jobs');
+      
+      if (error) throw error;
+      
+      const result = data as { cleaned_up: number; jobs: any[] };
+      if (result.cleaned_up > 0) {
+        toast.success(`Cleaned up ${result.cleaned_up} stuck job(s)`);
+        loadJobs();
+      } else {
+        toast.info('No stuck jobs found to clean up');
+      }
+    } catch (error: any) {
+      console.error('Error cleaning up stuck jobs:', error);
+      toast.error('Failed to clean up stuck jobs');
+    } finally {
+      setCleaningUp(false);
     }
   };
 
@@ -276,16 +299,31 @@ export function EnrichmentJobMonitor() {
               Real-time monitoring of enrichment progress
             </CardDescription>
           </div>
-          {orgCredits && (
-            <div className="text-right">
-              <div className="text-sm font-medium">
-                {orgCredits.remaining.toLocaleString()} credits
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={cleanupStuckJobs}
+              disabled={cleaningUp}
+            >
+              {cleaningUp ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Clock className="h-4 w-4 mr-2" />
+              )}
+              Clean Stuck Jobs
+            </Button>
+            {orgCredits && (
+              <div className="text-right">
+                <div className="text-sm font-medium">
+                  {orgCredits.remaining.toLocaleString()} credits
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {Math.round((orgCredits.remaining / orgCredits.total) * 100)}% remaining
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground">
-                {Math.round((orgCredits.remaining / orgCredits.total) * 100)}% remaining
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
