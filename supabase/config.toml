@@ -212,3 +212,6 @@ verify_jwt = true
 
 [functions.ai-chat]
 verify_jwt = true
+
+[functions.ai-actions]
+verify_jwt = true
