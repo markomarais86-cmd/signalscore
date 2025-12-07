@@ -1,7 +1,9 @@
 // Agent Discover Contacts - Find additional decision-makers at a company
 // Searches for executives with target titles and returns full contact details
+// Uses centralized AI config with OpenAI as primary provider
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { callAI, getAvailableProviders } from '../_shared/ai-config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -77,9 +79,9 @@ serve(async (req) => {
       });
     }
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    const providers = getAvailableProviders();
+    if (providers.length === 0) {
+      throw new Error('No AI provider configured. Please set OPENAI_API_KEY, ABACUS_API_KEY, or LOVABLE_API_KEY.');
     }
 
     const prompt = buildDiscoveryPrompt(
@@ -91,30 +93,21 @@ serve(async (req) => {
       exclude_emails
     );
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: prompt }
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'return_discovered_contacts',
-              description: 'Return the list of discovered executive contacts',
-              parameters: getDiscoverySchema()
-            }
+    const response = await callAI('analysis', [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: prompt }
+    ], {
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'return_discovered_contacts',
+            description: 'Return the list of discovered executive contacts',
+            parameters: getDiscoverySchema()
           }
-        ],
-        tool_choice: { type: 'function', function: { name: 'return_discovered_contacts' } }
-      })
+        }
+      ],
+      tool_choice: { type: 'function', function: { name: 'return_discovered_contacts' } }
     });
 
     if (!response.ok) {

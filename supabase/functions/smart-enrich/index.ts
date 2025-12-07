@@ -1,6 +1,10 @@
+// Smart Enrich - Waterfall enrichment with Apollo, PDL, and AI fallback
+// Migrated to use centralized AI config with OpenAI as primary
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { withHttpRetry, DEFAULT_RETRY_CONFIG } from '../_shared/retry-helper.ts';
+import { callAI, getAvailableProviders } from '../_shared/ai-config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -19,7 +23,7 @@ serve(async (req) => {
 
     const { jobId, batchSize } = await req.json();
     const requestedBatchSize = batchSize || 100;
-    console.log('🔄 Starting smart enrichment for job:', jobId, 'batch size:', requestedBatchSize);
+    console.log('[smart-enrich] Starting for job:', jobId, 'batch size:', requestedBatchSize);
 
     const { data: job, error: jobError } = await supabase
       .from('enrichment_jobs')
@@ -39,7 +43,7 @@ serve(async (req) => {
       .eq('id', jobId);
 
     const batchLimit = requestedBatchSize;
-    console.log(`📊 Fetching up to ${batchLimit} accounts for enrichment`);
+    console.log(`[smart-enrich] Fetching up to ${batchLimit} accounts`);
     
     const { data: accounts, error: accountsError } = await supabase
       .from('accounts')
@@ -63,15 +67,14 @@ serve(async (req) => {
       });
     }
 
-    console.log(`📊 Found ${accounts.length} accounts needing enrichment`);
+    console.log(`[smart-enrich] Found ${accounts.length} accounts`);
     await supabase.from('enrichment_jobs').update({ total_records: accounts.length }).eq('id', jobId);
 
     let enrichedCount = 0;
     const enrichedAccounts = new Set<string>();
     const sourceBreakdown = { apollo: 0, pdl: 0, ai: 0 };
-    const CONCURRENCY_LIMIT = 10; // Reduced for API rate limits
+    const CONCURRENCY_LIMIT = 10;
 
-    // Helper: Process in parallel with concurrency limit
     const processInParallel = async <T, R>(
       items: T[],
       processor: (item: T) => Promise<R>,
@@ -83,7 +86,6 @@ serve(async (req) => {
         const batchResults = await Promise.all(batch.map(processor));
         results.push(...batchResults);
         
-        // Update progress every batch
         await supabase.from('enrichment_jobs').update({
           processed_records: Math.min(i + concurrency, items.length),
           enriched_records: enrichedCount,
@@ -93,7 +95,6 @@ serve(async (req) => {
       return results;
     };
 
-    // Helper: Batch database updates
     const pendingUpdates: Array<{external_id: string, data: any}> = [];
     const flushUpdates = async () => {
       if (pendingUpdates.length === 0) return;
@@ -104,11 +105,10 @@ serve(async (req) => {
       );
       
       await Promise.all(updatePromises);
-      console.log(`💾 Flushed ${pendingUpdates.length} updates to database`);
+      console.log(`[smart-enrich] Flushed ${pendingUpdates.length} updates`);
       pendingUpdates.length = 0;
     };
 
-    // Helper: Map revenue to range
     const mapRevenueToRange = (revenue: number): string => {
       if (revenue < 1000000) return '$0-$1M';
       if (revenue < 5000000) return '$1M-$5M';
@@ -122,12 +122,10 @@ serve(async (req) => {
       return '$10B+';
     };
 
-    // ============================================
-    // PHASE 1: APOLLO (Primary - Best Data Quality)
-    // ============================================
+    // Phase 1: Apollo
     const APOLLO_API_KEY = Deno.env.get('APOLLO_API_KEY');
     if (APOLLO_API_KEY) {
-      console.log('🚀 Phase 1: Apollo Enrichment (primary source)');
+      console.log('[smart-enrich] Phase 1: Apollo');
       
       const processApollo = async (account: any) => {
         if (!account.domain) return null;
@@ -136,14 +134,8 @@ serve(async (req) => {
           const response = await withHttpRetry(
             () => fetch('https://api.apollo.io/v1/organizations/enrich', {
               method: 'POST',
-              headers: { 
-                'Content-Type': 'application/json',
-                'Cache-Control': 'no-cache'
-              },
-              body: JSON.stringify({
-                api_key: APOLLO_API_KEY,
-                domain: account.domain
-              })
+              headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+              body: JSON.stringify({ api_key: APOLLO_API_KEY, domain: account.domain })
             }),
             { ...DEFAULT_RETRY_CONFIG, maxRetries: 2 }
           );
@@ -154,69 +146,47 @@ serve(async (req) => {
             
             if (org) {
               const updateData: any = {};
-              
-              // Employee count from Apollo
               if (!account.employee_count && org.estimated_num_employees) {
                 updateData.employee_count = org.estimated_num_employees;
               }
-              
-              // Revenue from Apollo
               if (!account.revenue_range && org.estimated_annual_revenue) {
                 updateData.revenue_range = mapRevenueToRange(org.estimated_annual_revenue);
               }
-
-              // Additional enrichment fields
-              if (org.industry) {
-                updateData.industry_raw = org.industry;
-              }
-              if (org.country) {
-                updateData.country = org.country;
-              }
-              if (org.linkedin_url) {
-                updateData.linkedin_url = org.linkedin_url;
-              }
+              if (org.industry) updateData.industry_raw = org.industry;
+              if (org.country) updateData.country = org.country;
+              if (org.linkedin_url) updateData.linkedin_url = org.linkedin_url;
 
               if (updateData.employee_count || updateData.revenue_range) {
                 updateData.enriched_at = new Date().toISOString();
                 updateData.enriched_from = 'apollo';
-                updateData.enrichment_confidence = 0.95; // Apollo has high accuracy
+                updateData.enrichment_confidence = 0.95;
                 pendingUpdates.push({ external_id: account.external_id, data: updateData });
                 enrichedAccounts.add(account.external_id);
                 enrichedCount++;
                 sourceBreakdown.apollo++;
                 
-                if (pendingUpdates.length >= 10) {
-                  await flushUpdates();
-                }
-                
+                if (pendingUpdates.length >= 10) await flushUpdates();
                 return account.external_id;
               }
             }
-          } else {
-            const errorText = await response.text();
-            console.error(`Apollo error for ${account.domain}: ${response.status} - ${errorText}`);
           }
         } catch (e) {
-          console.error(`Apollo exception for ${account.name}:`, e);
+          console.error(`[smart-enrich] Apollo error for ${account.name}:`, e);
         }
         return null;
       };
 
       await processInParallel(accounts, processApollo, CONCURRENCY_LIMIT);
       await flushUpdates();
-      console.log(`✅ Apollo enriched ${sourceBreakdown.apollo} accounts`);
-    } else {
-      console.log('⚠️ APOLLO_API_KEY not configured, skipping Phase 1');
+      console.log(`[smart-enrich] Apollo enriched ${sourceBreakdown.apollo}`);
     }
 
-    // ============================================
-    // PHASE 2: PDL (Fallback - Good Coverage)
-    // ============================================
+    // Phase 2: PDL
     const remaining = accounts.filter(a => !enrichedAccounts.has(a.external_id));
     const PDL_API_KEY = Deno.env.get('PDL_API_KEY');
     
     if (remaining.length > 0 && PDL_API_KEY) {
-      console.log(`🔍 Phase 2: PDL Enrichment (${remaining.length} remaining accounts)`);
+      console.log(`[smart-enrich] Phase 2: PDL (${remaining.length} remaining)`);
       
       const processPDL = async (account: any) => {
         if (!account.domain) return null;
@@ -234,9 +204,7 @@ serve(async (req) => {
             const data = await response.json();
             const updateData: any = {};
             
-            if (!account.employee_count && data.size) {
-              updateData.employee_count = data.size;
-            }
+            if (!account.employee_count && data.size) updateData.employee_count = data.size;
             if (!account.revenue_range && data.estimated_annual_revenue) {
               updateData.revenue_range = mapRevenueToRange(data.estimated_annual_revenue);
             }
@@ -250,50 +218,33 @@ serve(async (req) => {
               enrichedCount++;
               sourceBreakdown.pdl++;
               
-              if (pendingUpdates.length >= 10) {
-                await flushUpdates();
-              }
-              
+              if (pendingUpdates.length >= 10) await flushUpdates();
               return account.external_id;
-            }
-          } else {
-            const status = response.status;
-            if (status === 404) {
-              // Company not found in PDL - expected for some domains
-            } else if (status === 402) {
-              console.error(`PDL credit exhausted for ${account.domain}`);
-            } else {
-              console.error(`PDL error for ${account.domain}: ${status}`);
             }
           }
         } catch (e) {
-          console.error(`PDL exception for ${account.name}:`, e);
+          console.error(`[smart-enrich] PDL error for ${account.name}:`, e);
         }
         return null;
       };
 
       await processInParallel(remaining, processPDL, CONCURRENCY_LIMIT);
       await flushUpdates();
-      console.log(`✅ PDL enriched ${sourceBreakdown.pdl} accounts`);
-    } else if (remaining.length > 0) {
-      console.log('⚠️ PDL_API_KEY not configured, skipping Phase 2');
+      console.log(`[smart-enrich] PDL enriched ${sourceBreakdown.pdl}`);
     }
 
-    // ============================================
-    // PHASE 3: AI (Last Resort - Estimates)
-    // ============================================
+    // Phase 3: AI Estimation
     const stillRemaining = accounts.filter(a => !enrichedAccounts.has(a.external_id));
-    if (stillRemaining.length > 0) {
-      console.log(`🤖 Phase 3: AI Estimation (${stillRemaining.length} remaining accounts)`);
-      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const providers = getAvailableProviders();
+    
+    if (stillRemaining.length > 0 && providers.length > 0) {
+      console.log(`[smart-enrich] Phase 3: AI (${stillRemaining.length} remaining)`);
+      const AI_BATCH_SIZE = 25;
       
-      if (LOVABLE_API_KEY) {
-        const AI_BATCH_SIZE = 25; // Process in smaller batches for better accuracy
+      for (let i = 0; i < stillRemaining.length; i += AI_BATCH_SIZE) {
+        const batch = stillRemaining.slice(i, i + AI_BATCH_SIZE);
         
-        for (let i = 0; i < stillRemaining.length; i += AI_BATCH_SIZE) {
-          const batch = stillRemaining.slice(i, i + AI_BATCH_SIZE);
-          
-          const prompt = `You are a B2B data analyst. Estimate firmographic data for these companies based on their domain names.
+        const prompt = `You are a B2B data analyst. Estimate firmographic data for these companies based on their domain names.
 Return ONLY a JSON array with this exact format:
 [{"external_id": "id", "employee_count": number, "revenue_range": "range", "confidence": 0-100}]
 
@@ -302,88 +253,68 @@ Valid revenue ranges: "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M",
 Companies to estimate:
 ${batch.map(a => `- ${a.external_id}: ${a.name} (${a.domain})`).join('\n')}`;
 
-          try {
-            const aiResponse = await withHttpRetry(
-              () => fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-                method: 'POST',
-                headers: { 
-                  'Authorization': `Bearer ${LOVABLE_API_KEY}`, 
-                  'Content-Type': 'application/json' 
-                },
-                body: JSON.stringify({
-                  model: 'google/gemini-2.5-flash',
-                  messages: [
-                    { role: 'system', content: 'You are a B2B data analyst specializing in company firmographics. Provide realistic estimates based on company names and domains. Only output valid JSON.' },
-                    { role: 'user', content: prompt }
-                  ],
-                }),
-              }),
-              { ...DEFAULT_RETRY_CONFIG, maxRetries: 2 }
-            );
+        try {
+          const aiResponse = await callAI('bulk', [
+            { role: 'system', content: 'You are a B2B data analyst specializing in company firmographics. Provide realistic estimates. Only output valid JSON.' },
+            { role: 'user', content: prompt }
+          ]);
 
-            if (aiResponse.ok) {
-              const aiData = await aiResponse.json();
-              const content = aiData.choices?.[0]?.message?.content || '';
-              const jsonMatch = content.match(/\[[\s\S]*\]/);
-              
-              if (jsonMatch) {
-                try {
-                  const estimates = JSON.parse(jsonMatch[0]);
-                  
-                  for (const est of estimates) {
-                    if (est.confidence >= 50) {
-                      const acc = batch.find(a => a.external_id === est.external_id);
-                      if (!acc) continue;
+          if (aiResponse.ok) {
+            const aiData = await aiResponse.json();
+            const content = aiData.choices?.[0]?.message?.content || '';
+            const jsonMatch = content.match(/\[[\s\S]*\]/);
+            
+            if (jsonMatch) {
+              try {
+                const estimates = JSON.parse(jsonMatch[0]);
+                
+                for (const est of estimates) {
+                  if (est.confidence >= 50) {
+                    const acc = batch.find(a => a.external_id === est.external_id);
+                    if (!acc) continue;
 
-                      const updateData: any = { 
-                        enriched_at: new Date().toISOString(), 
-                        enriched_from: 'ai',
-                        enrichment_confidence: est.confidence / 100
-                      };
-                      
-                      if (!acc.employee_count && est.employee_count) {
-                        updateData.employee_count = est.employee_count;
-                      }
-                      if (!acc.revenue_range && est.revenue_range) {
-                        updateData.revenue_range = est.revenue_range;
-                      }
+                    const updateData: any = { 
+                      enriched_at: new Date().toISOString(), 
+                      enriched_from: 'ai',
+                      enrichment_confidence: est.confidence / 100
+                    };
+                    
+                    if (!acc.employee_count && est.employee_count) updateData.employee_count = est.employee_count;
+                    if (!acc.revenue_range && est.revenue_range) updateData.revenue_range = est.revenue_range;
 
-                      if (updateData.employee_count || updateData.revenue_range) {
-                        pendingUpdates.push({ external_id: est.external_id, data: updateData });
-                        enrichedAccounts.add(est.external_id);
-                        enrichedCount++;
-                        sourceBreakdown.ai++;
-                      }
+                    if (updateData.employee_count || updateData.revenue_range) {
+                      pendingUpdates.push({ external_id: est.external_id, data: updateData });
+                      enrichedAccounts.add(est.external_id);
+                      enrichedCount++;
+                      sourceBreakdown.ai++;
                     }
                   }
-                } catch (parseError) {
-                  console.error('AI JSON parse error:', parseError);
                 }
+              } catch (parseError) {
+                console.error('[smart-enrich] AI JSON parse error:', parseError);
               }
             }
-            
-            await flushUpdates();
-            
-            // Update progress after each AI batch
-            await supabase.from('enrichment_jobs').update({
-              processed_records: accounts.length,
-              enriched_records: enrichedCount
-            }).eq('id', jobId);
-            
-          } catch (e) {
-            console.error('AI batch error:', e);
           }
+          
+          await flushUpdates();
+          
+          await supabase.from('enrichment_jobs').update({
+            processed_records: accounts.length,
+            enriched_records: enrichedCount
+          }).eq('id', jobId);
+          
+        } catch (e) {
+          console.error('[smart-enrich] AI batch error:', e);
         }
-        console.log(`✅ AI enriched ${sourceBreakdown.ai} accounts`);
       }
+      console.log(`[smart-enrich] AI enriched ${sourceBreakdown.ai}`);
     }
 
-    // Score all enriched accounts
+    // Score enriched accounts
     if (enrichedCount > 0) {
-      console.log(`📊 Scoring ${enrichedCount} enriched accounts...`);
+      console.log(`[smart-enrich] Scoring ${enrichedCount} accounts...`);
       const enrichedList = Array.from(enrichedAccounts);
       
-      // Score in batches to avoid timeout
       for (let i = 0; i < enrichedList.length; i += 20) {
         const scoreBatch = enrichedList.slice(i, i + 20);
         await Promise.all(
@@ -397,7 +328,7 @@ ${batch.map(a => `- ${a.external_id}: ${a.name} (${a.domain})`).join('\n')}`;
       }
     }
 
-    // Mark job complete
+    // Mark complete
     await supabase.from('enrichment_jobs').update({
       status: 'completed',
       completed_at: new Date().toISOString(),
@@ -414,14 +345,14 @@ ${batch.map(a => `- ${a.external_id}: ${a.name} (${a.domain})`).join('\n')}`;
       sources: sourceBreakdown
     };
 
-    console.log(`✨ Enrichment complete:`, summary);
+    console.log(`[smart-enrich] Complete:`, summary);
 
     return new Response(JSON.stringify(summary), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error: any) {
-    console.error('Enrichment error:', error);
+    console.error('[smart-enrich] Error:', error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

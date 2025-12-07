@@ -1,4 +1,8 @@
+// Optimize Sequence - AI-powered sales engagement optimization
+// Migrated to use centralized AI config with OpenAI as primary
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { callAI, getAvailableProviders } from '../_shared/ai-config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,9 +18,9 @@ serve(async (req) => {
     const { targetPersona, marketSegment, avgDealSize, accountCount } = await req.json();
     console.log('[optimize-sequence] Request:', { targetPersona, marketSegment, avgDealSize, accountCount });
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY not configured");
+    const providers = getAvailableProviders();
+    if (providers.length === 0) {
+      throw new Error('No AI provider configured. Please set OPENAI_API_KEY, ABACUS_API_KEY, or LOVABLE_API_KEY.');
     }
 
     const context = `
@@ -34,61 +38,52 @@ Account Count: ${accountCount || 'Unknown'}
 
 Provide actionable, data-driven recommendations.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: `Optimize sequence for:\n${context}` }
-        ],
-        tools: [{
-          type: "function",
-          function: {
-            name: "recommend_sequence",
-            description: "Return sequence optimization recommendations",
-            parameters: {
-              type: "object",
-              properties: {
-                recommendedTemplate: {
-                  type: "string",
-                  enum: ["enterprise", "smb", "partner"]
-                },
-                reasoning: { type: "string" },
-                timingAdjustments: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      step: { type: "number" },
-                      adjustment: { type: "string" }
-                    }
-                  }
-                },
-                channelMix: {
-                  type: "object",
+    const response = await callAI('analysis', [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: `Optimize sequence for:\n${context}` }
+    ], {
+      tools: [{
+        type: 'function',
+        function: {
+          name: 'recommend_sequence',
+          description: 'Return sequence optimization recommendations',
+          parameters: {
+            type: 'object',
+            properties: {
+              recommendedTemplate: {
+                type: 'string',
+                enum: ['enterprise', 'smb', 'partner']
+              },
+              reasoning: { type: 'string' },
+              timingAdjustments: {
+                type: 'array',
+                items: {
+                  type: 'object',
                   properties: {
-                    email: { type: "number" },
-                    phone: { type: "number" },
-                    linkedin: { type: "number" }
+                    step: { type: 'number' },
+                    adjustment: { type: 'string' }
                   }
-                },
-                personalizationTips: {
-                  type: "array",
-                  items: { type: "string" }
                 }
               },
-              required: ["recommendedTemplate", "reasoning", "channelMix", "personalizationTips"],
-              additionalProperties: false
-            }
+              channelMix: {
+                type: 'object',
+                properties: {
+                  email: { type: 'number' },
+                  phone: { type: 'number' },
+                  linkedin: { type: 'number' }
+                }
+              },
+              personalizationTips: {
+                type: 'array',
+                items: { type: 'string' }
+              }
+            },
+            required: ['recommendedTemplate', 'reasoning', 'channelMix', 'personalizationTips'],
+            additionalProperties: false
           }
-        }],
-        tool_choice: { type: "function", function: { name: "recommend_sequence" } }
-      }),
+        }
+      }],
+      tool_choice: { type: 'function', function: { name: 'recommend_sequence' } }
     });
 
     if (!response.ok) {
@@ -100,7 +95,7 @@ Provide actionable, data-driven recommendations.`;
     const data = await response.json();
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall) {
-      throw new Error("No tool call in AI response");
+      throw new Error('No tool call in AI response');
     }
 
     const recommendations = JSON.parse(toolCall.function.arguments);

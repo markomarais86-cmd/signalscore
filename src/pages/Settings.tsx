@@ -38,6 +38,7 @@ import {
   Target
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useRoles } from "@/hooks/use-roles";
 import { useToast } from "@/hooks/use-toast";
 import IntegrationManager from "@/components/settings/IntegrationManager";
 import WebhookLogViewer from "@/components/settings/WebhookLogViewer";
@@ -45,7 +46,6 @@ import DataMapping from "@/components/settings/DataMapping";
 import ScoringConfiguration from "@/components/settings/ScoringConfiguration";
 import BenchmarkSettings from "@/components/settings/BenchmarkSettings";
 import AIAgentSettings from "@/components/settings/AIAgentSettings";
-import { FeatureToggles } from "@/components/settings/FeatureToggles";
 import { AccountExclusions } from "@/components/settings/AccountExclusions";
 import { ZapierIntegration } from "@/components/settings/ZapierIntegration";
 import { APIKeyManager } from "@/components/settings/APIKeyManager";
@@ -129,6 +129,8 @@ export default function Settings() {
   });
   
   const { userProfile, user } = useAuth();
+  const { isSuperAdmin, isOrgAdmin } = useRoles();
+  const isAdmin = isSuperAdmin || isOrgAdmin;
   const { toast } = useToast();
 
   useEffect(() => {
@@ -293,10 +295,12 @@ export default function Settings() {
             <Database className="h-4 w-4" />
             Data & Enrichment
           </TabsTrigger>
-          <TabsTrigger value="automation" className="flex items-center gap-2">
-            <Bot className="h-4 w-4" />
-            Automation & AI
-          </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="automation" className="flex items-center gap-2">
+              <Bot className="h-4 w-4" />
+              Automation & AI
+            </TabsTrigger>
+          )}
           <TabsTrigger value="export-history" className="flex items-center gap-2">
             <Download className="h-4 w-4" />
             Exports
@@ -419,18 +423,19 @@ export default function Settings() {
           <AccountExclusions />
         </TabsContent>
 
-        {/* Automation & AI: Automation, AI Agents, Feature Flags */}
-        <TabsContent value="automation" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Feature Labs</CardTitle>
-              <CardDescription>Enable experimental features and AI capabilities</CardDescription>
-            </CardHeader>
-          </Card>
-          <FeatureToggles />
-          <AutomationSettings />
-          <AIAgentSettings />
-        </TabsContent>
+        {/* Automation & AI: Automation, AI Agents - Admin Only */}
+        {isAdmin && (
+          <TabsContent value="automation" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Automation & AI Settings</CardTitle>
+                <CardDescription>Configure automated workflows and AI agent behavior</CardDescription>
+              </CardHeader>
+            </Card>
+            <AutomationSettings />
+            <AIAgentSettings />
+          </TabsContent>
+        )}
 
         {/* Team Management */}
         <TabsContent value="team" className="space-y-6">
@@ -484,36 +489,38 @@ export default function Settings() {
 
         {/* Data & Enrichment: All data sources, enrichment, integrations, API */}
         <TabsContent value="integrations" className="space-y-6">
-          {/* Advanced Settings Toggle */}
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="advanced-toggle" className="text-base font-semibold">
-                    Advanced Settings
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    Show advanced options for CRM sync, API management, analytics, and external integrations
-                  </p>
+          {/* Advanced Settings Toggle - Admin Only */}
+          {isAdmin && (
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="advanced-toggle" className="text-base font-semibold">
+                      Advanced Settings
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      Show advanced options for CRM sync, API management, analytics, and external integrations
+                    </p>
+                  </div>
+                  <Switch
+                    id="advanced-toggle"
+                    checked={showAdvanced}
+                    onCheckedChange={(checked) => {
+                      setShowAdvanced(checked);
+                      localStorage.setItem('showAdvancedSettings', checked.toString());
+                    }}
+                  />
                 </div>
-                <Switch
-                  id="advanced-toggle"
-                  checked={showAdvanced}
-                  onCheckedChange={(checked) => {
-                    setShowAdvanced(checked);
-                    localStorage.setItem('showAdvancedSettings', checked.toString());
-                  }}
-                />
-              </div>
-              {showAdvanced && (
-                <div className="mt-4 pt-4 border-t">
-                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-                    🔓 Advanced Settings Enabled
-                  </Badge>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                {showAdvanced && (
+                  <div className="mt-4 pt-4 border-t">
+                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                      🔓 Advanced Settings Enabled
+                    </Badge>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <Accordion 
             type="multiple" 
@@ -581,8 +588,8 @@ export default function Settings() {
               </AccordionContent>
             </AccordionItem>
 
-            {/* Advanced sections - conditionally rendered */}
-            {showAdvanced && (
+            {/* Advanced sections - Admin only and conditionally rendered */}
+            {isAdmin && showAdvanced && (
               <>
                 {/* Analytics & Quality */}
                 <AccordionItem value="analytics" className="border rounded-lg px-4">

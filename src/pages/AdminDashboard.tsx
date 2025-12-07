@@ -16,6 +16,7 @@ import { PlatformMetrics } from '@/components/platform-admin/PlatformMetrics';
 import { OrganizationCard } from '@/components/platform-admin/OrganizationCard';
 import { OrganizationManagementDialog } from '@/components/platform-admin/OrganizationManagementDialog';
 import { usePlatformAdmin } from '@/hooks/use-platform-admin';
+import { FeatureToggles } from '@/components/settings/FeatureToggles';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
@@ -320,6 +321,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="organizations-table">Organizations Table</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="invitations">Invitations</TabsTrigger>
+          <TabsTrigger value="feature-flags">Feature Flags</TabsTrigger>
           <TabsTrigger value="audit">Audit Logs</TabsTrigger>
         </TabsList>
 
@@ -527,6 +529,18 @@ export default function AdminDashboard() {
 
         <TabsContent value="invitations">
           <InvitationsManager />
+        </TabsContent>
+
+        <TabsContent value="feature-flags">
+          <Card>
+            <CardHeader>
+              <CardTitle>Feature Flags Management</CardTitle>
+              <CardDescription>Enable or disable features for all organizations</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FeatureToggles />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="audit">
