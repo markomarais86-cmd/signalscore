@@ -38,43 +38,99 @@ interface LeadCoverageStats {
   leadCoveragePercent: string;
 }
 
-// Multi-provider AI call with fallback
-async function callAIWithFallback(messages: Array<{ role: string; content: string }>, maxTokens: number = 2000): Promise<any> {
-  const providers = getAvailableProviders();
-  console.log(`[ICP Insights] Available AI providers: ${providers.join(', ')}`);
+// Attempt to repair truncated JSON
+function repairJSON(jsonStr: string): string {
+  let repaired = jsonStr.trim();
   
-  for (const provider of providers) {
-    try {
-      const config = getModelConfig('analysis', provider);
-      const headers = buildHeaders(provider);
-      
-      const body: any = {
-        model: config.model,
-        messages,
-      };
-      body[config.maxTokensParam] = maxTokens;
-      
-      console.log(`[ICP Insights] Trying ${provider} with model ${config.model}`);
-      
-      const response = await fetch(config.endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      });
-      
-      if (response.ok) {
-        console.log(`[ICP Insights] Success with ${provider}`);
-        return await response.json();
+  // Remove markdown code blocks
+  if (repaired.startsWith('```')) {
+    repaired = repaired.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  }
+  
+  // Count brackets
+  const openBrackets = (repaired.match(/\[/g) || []).length;
+  const closeBrackets = (repaired.match(/\]/g) || []).length;
+  const openBraces = (repaired.match(/\{/g) || []).length;
+  const closeBraces = (repaired.match(/\}/g) || []).length;
+  
+  // Fix unclosed braces first
+  if (openBraces > closeBraces) {
+    // Find if we're in an incomplete object
+    const lastBrace = repaired.lastIndexOf('{');
+    const lastCloseBrace = repaired.lastIndexOf('}');
+    if (lastBrace > lastCloseBrace) {
+      // Truncated in middle of object - remove incomplete object
+      repaired = repaired.substring(0, lastBrace).trim();
+      if (repaired.endsWith(',')) {
+        repaired = repaired.slice(0, -1);
       }
-      
-      const errorText = await response.text();
-      console.error(`[ICP Insights] ${provider} error (${response.status}): ${errorText}`);
-    } catch (error) {
-      console.error(`[ICP Insights] ${provider} failed:`, error);
     }
   }
   
-  throw new Error('All AI providers failed');
+  // Add missing closing brackets
+  for (let i = 0; i < openBraces - closeBraces; i++) {
+    repaired += '}';
+  }
+  for (let i = 0; i < openBrackets - closeBrackets; i++) {
+    repaired += ']';
+  }
+  
+  return repaired;
+}
+
+// Multi-provider AI call with fallback and retry
+async function callAIWithFallback(
+  messages: Array<{ role: string; content: string }>, 
+  maxTokens: number = 1500,
+  retries: number = 2
+): Promise<any> {
+  const providers = getAvailableProviders();
+  console.log(`[ICP Insights] Available AI providers: ${providers.join(', ')}`);
+  
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    for (const provider of providers) {
+      try {
+        const config = getModelConfig('analysis', provider);
+        const headers = buildHeaders(provider);
+        
+        const body: any = {
+          model: config.model,
+          messages,
+        };
+        body[config.maxTokensParam] = maxTokens;
+        
+        console.log(`[ICP Insights] Attempt ${attempt + 1}/${retries + 1} - Trying ${provider} with model ${config.model}`);
+        
+        const response = await fetch(config.endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        });
+        
+        if (response.ok) {
+          console.log(`[ICP Insights] Success with ${provider}`);
+          return await response.json();
+        }
+        
+        const errorText = await response.text();
+        console.error(`[ICP Insights] ${provider} error (${response.status}): ${errorText}`);
+        lastError = new Error(`${provider}: ${response.status}`);
+      } catch (error) {
+        console.error(`[ICP Insights] ${provider} failed:`, error);
+        lastError = error as Error;
+      }
+    }
+    
+    // Wait before retry
+    if (attempt < retries) {
+      console.log(`[ICP Insights] Retrying in ${(attempt + 1) * 500}ms...`);
+      await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 500));
+    }
+  }
+  
+  throw lastError || new Error('All AI providers failed');
 }
 
 serve(async (req) => {
@@ -216,79 +272,82 @@ serve(async (req) => {
       }
     });
 
-    // Generate insights using multi-provider AI
+    // Generate insights using multi-provider AI with retry and JSON repair
     let aiInsights: Insight[] = [];
+    let aiParseError: string | null = null;
     
+    const leadCoverageNum = parseFloat(leadCoverageStats.leadCoveragePercent);
+    
+    // Simplified prompt for more reliable JSON output
+    const systemPrompt = `You are a B2B sales analyst. Return ONLY a valid JSON array with exactly 3 insights. No markdown, no explanations.
+
+RULES:
+- If lead coverage >= 85%, focus on campaign execution, NOT lead enrichment
+- If data completeness >= 80%, do NOT suggest data enrichment
+- Use specific numbers from the data provided
+- Keep titles under 50 characters
+- Keep descriptions under 100 words
+
+JSON SCHEMA (follow exactly):
+[{"type":"revenue"|"persona"|"firmographic"|"signal","priority":"high"|"medium"|"low","title":"string","description":"string","impact":"string","confidence":number}]`;
+
+    const userPrompt = `Return exactly 3 insights as a JSON array.
+
+DATA:
+- Accounts: ${accounts?.length || 0} total, ${highScoreAccounts.length} high-fit
+- Leads: ${leadCoverageStats.totalLeads} total, ${leadCoverageStats.leadCoveragePercent}% coverage
+- Missing leads: ${leadCoverageStats.highFitMissingLeads}
+- Data completeness: ${dataCompleteness.toFixed(0)}%
+- Top industry: ${Object.entries(industryDistribution).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown'} (${Object.entries(industryDistribution).sort((a, b) => b[1] - a[1])[0]?.[1] || 0})
+- Top revenue: ${Object.entries(revenueDistribution).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown'} (${Object.entries(revenueDistribution).sort((a, b) => b[1] - a[1])[0]?.[1] || 0})
+- Top geo: ${Object.entries(geoDistribution).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown'} (${Object.entries(geoDistribution).sort((a, b) => b[1] - a[1])[0]?.[1] || 0})
+- Top persona: ${Object.entries(personaDistribution).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown'} (${Object.entries(personaDistribution).sort((a, b) => b[1] - a[1])[0]?.[1] || 0})
+- Avg deal: $${avgDealValue.toFixed(0)}
+
+Coverage status: ${leadCoverageNum >= 85 ? 'EXCELLENT - suggest campaigns' : leadCoverageNum >= 60 ? 'MODERATE' : 'NEEDS IMPROVEMENT'}
+Data status: ${dataCompleteness >= 80 ? 'COMPLETE - no enrichment needed' : dataCompleteness >= 60 ? 'MODERATE' : 'NEEDS ENRICHMENT'}
+
+IMPORTANT: End your response with ] to close the array.`;
+
     try {
-      const leadCoverageNum = parseFloat(leadCoverageStats.leadCoveragePercent);
-      
       const aiData = await callAIWithFallback([
-        {
-          role: 'system',
-          content: `You are an expert B2B sales analyst. Analyze firmographic data and provide actionable ICP insights. Return ONLY valid JSON array of insights, no markdown or explanations.
-
-CRITICAL RULES - DO NOT VIOLATE:
-- ONLY mention "missing leads" or "lead coverage issues" if High-Fit Missing Leads > 100
-- ONLY mention "data quality issues" if data completeness is below 60%
-- ONLY mention problems that are EXPLICITLY supported by the data provided
-- If lead coverage is above 85%, DO NOT suggest lead enrichment - focus on campaign execution instead
-- If data completeness is above 80%, DO NOT suggest data enrichment
-- Focus on OPPORTUNITIES based on what the data shows, not problems that don't exist
-- Be specific with numbers from the data provided`
-        },
-        {
-          role: 'user',
-          content: `Analyze this B2B sales data and return exactly 3-5 ICP insights as a JSON array. Each insight must follow this exact structure:
-
-{
-  "type": "revenue" | "persona" | "firmographic" | "signal",
-  "priority": "high" | "medium" | "low",
-  "title": "Short actionable title",
-  "description": "Detailed explanation with specific data points",
-  "impact": "Expected business impact",
-  "confidence": 75
-}
-
-REAL DATA (use these exact numbers):
-- Total Accounts: ${accounts?.length || 0}
-- High-Fit Accounts (score >= 70): ${highScoreAccounts.length}
-- Total Leads: ${leadCoverageStats.totalLeads}
-- Lead Coverage: ${leadCoverageStats.highFitAccountsWithLeads} of ${highScoreAccounts.length} high-fit accounts have leads (${leadCoverageStats.leadCoveragePercent}%)
-- High-Fit Accounts Missing Leads: ${leadCoverageStats.highFitMissingLeads}
-- Data Completeness: ${dataCompleteness.toFixed(1)}%
-- Revenue Distribution: ${JSON.stringify(revenueDistribution)}
-- Industry Distribution: ${JSON.stringify(industryDistribution)}
-- Company Size: ${JSON.stringify(sizeDistribution)}
-- Geography: ${JSON.stringify(geoDistribution)}
-- Personas: ${JSON.stringify(personaDistribution)}
-- Top Titles: ${JSON.stringify(Object.entries(titleDistribution).sort((a, b) => b[1] - a[1]).slice(0, 10))}
-- Avg Deal: $${avgDealValue.toFixed(0)}
-
-REMEMBER: 
-- Lead coverage is ${leadCoverageStats.leadCoveragePercent}% - ${leadCoverageNum >= 85 ? 'this is GOOD, do NOT suggest enrichment' : leadCoverageNum >= 60 ? 'this is MODERATE' : 'this needs improvement'}
-- Data completeness is ${dataCompleteness.toFixed(1)}% - ${dataCompleteness >= 80 ? 'this is GOOD' : dataCompleteness >= 60 ? 'this is MODERATE' : 'this needs improvement'}
-
-Return ONLY the JSON array, no other text.`
-        }
-      ], 2000);
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ], 1200, 2);
 
       const aiContent = aiData.choices?.[0]?.message?.content || '';
+      console.log(`[ICP Insights] Raw AI response length: ${aiContent.length} chars`);
       
-      // Parse AI response (handle markdown code blocks)
-      let jsonText = aiContent.trim();
-      if (jsonText.startsWith('```')) {
-        jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      }
+      // Try to parse, with JSON repair fallback
+      let jsonText = repairJSON(aiContent);
       
       try {
         const parsed = JSON.parse(jsonText);
         aiInsights = Array.isArray(parsed) ? parsed : [];
-        console.log(`Generated ${aiInsights.length} AI insights before validation`);
+        console.log(`[ICP Insights] Parsed ${aiInsights.length} AI insights`);
       } catch (parseError) {
-        console.warn('Failed to parse AI response:', parseError);
+        console.error('[ICP Insights] JSON parse failed after repair:', parseError);
+        console.error('[ICP Insights] Content preview:', aiContent.substring(0, 500));
+        aiParseError = `Parse error: ${(parseError as Error).message}`;
+        
+        // Try extracting individual objects as last resort
+        const objectMatches = aiContent.match(/\{[^{}]*"type"[^{}]*\}/g);
+        if (objectMatches && objectMatches.length > 0) {
+          console.log(`[ICP Insights] Attempting to extract ${objectMatches.length} individual objects`);
+          for (const objStr of objectMatches) {
+            try {
+              const obj = JSON.parse(objStr);
+              if (obj.type && obj.title && obj.description) {
+                aiInsights.push(obj);
+              }
+            } catch { /* skip malformed object */ }
+          }
+          console.log(`[ICP Insights] Extracted ${aiInsights.length} valid objects`);
+        }
       }
     } catch (aiError) {
-      console.warn('AI generation error:', aiError);
+      console.error('[ICP Insights] AI generation error:', aiError);
+      aiParseError = `AI error: ${(aiError as Error).message}`;
     }
 
     // POST-AI VALIDATION: Filter out hallucinated insights
@@ -353,48 +412,99 @@ Return ONLY the JSON array, no other text.`
       });
     }
 
-    // Data-driven fallback insights for distributions
+    // Expanded data-driven fallback insights
     const topRevenue = Object.entries(revenueDistribution).sort((a, b) => b[1] - a[1])[0];
     const topIndustry = Object.entries(industryDistribution).sort((a, b) => b[1] - a[1])[0];
     const topGeo = Object.entries(geoDistribution).sort((a, b) => b[1] - a[1])[0];
+    const topPersona = Object.entries(personaDistribution).sort((a, b) => b[1] - a[1])[0];
+    const secondIndustry = Object.entries(industryDistribution).sort((a, b) => b[1] - a[1])[1];
 
+    // Always add revenue insight if we have data
     if (topRevenue && insights.length < 7) {
       insights.push({
         type: 'revenue',
         priority: 'high',
-        title: `Focus on ${topRevenue[0]} revenue range`,
-        description: `${topRevenue[1]} accounts (${((topRevenue[1] / (accounts?.length || 1)) * 100).toFixed(1)}%) fall in this range, representing your largest revenue segment`,
-        impact: 'High conversion probability based on historical data',
-        confidence: 85,
+        title: `Target ${topRevenue[0]} segment`,
+        description: `${topRevenue[1]} accounts (${((topRevenue[1] / (accounts?.length || 1)) * 100).toFixed(1)}%) in this revenue range. Strong concentration for focused campaigns.`,
+        impact: 'High conversion probability based on account concentration',
+        confidence: 88,
         relatedSegments: [topRevenue[0]],
         nextAction: 'build_campaign',
         revenue_opportunity: highScoreAccounts.length * avgDealValue * 0.15
       });
     }
 
+    // Always add industry insight if we have data
     if (topIndustry && insights.length < 7) {
       insights.push({
         type: 'firmographic',
         priority: 'high',
-        title: `Prioritize ${topIndustry[0]} industry`,
-        description: `${topIndustry[1]} accounts in this industry represent your largest market segment`,
-        impact: 'Established market presence and industry expertise',
+        title: `Prioritize ${topIndustry[0]}`,
+        description: `${topIndustry[1]} accounts in this industry. Your strongest vertical for targeted messaging.`,
+        impact: 'Leverage industry expertise for higher win rates',
         confidence: 90,
         relatedSegments: [topIndustry[0]],
         nextAction: 'export_csv'
       });
     }
 
+    // Add persona insight if available
+    if (topPersona && insights.length < 7) {
+      insights.push({
+        type: 'persona',
+        priority: 'high',
+        title: `Focus on ${topPersona[0]} persona`,
+        description: `${topPersona[1]} contacts with this persona. Optimize messaging and sequences for this audience.`,
+        impact: 'Improve response rates with targeted persona messaging',
+        confidence: 85,
+        relatedSegments: [topPersona[0]],
+        nextAction: 'build_campaign'
+      });
+    }
+
+    // Add geographic insight
     if (topGeo && insights.length < 7) {
       insights.push({
         type: 'firmographic',
         priority: 'medium',
         title: `Expand in ${topGeo[0]}`,
-        description: `${topGeo[1]} accounts in this region show strong engagement patterns`,
-        impact: 'Geographic concentration advantage for targeted campaigns',
-        confidence: 80,
+        description: `${topGeo[1]} accounts in this region. Geographic concentration enables localized campaigns.`,
+        impact: 'Regional focus for more relevant outreach',
+        confidence: 82,
         relatedSegments: [topGeo[0]],
         nextAction: 'view_accounts'
+      });
+    }
+
+    // Add secondary industry if we have few insights
+    if (secondIndustry && insights.length < 5) {
+      insights.push({
+        type: 'firmographic',
+        priority: 'medium',
+        title: `Explore ${secondIndustry[0]} vertical`,
+        description: `${secondIndustry[1]} accounts in your second-largest industry. Cross-sell opportunity.`,
+        impact: 'Diversify pipeline with adjacent market',
+        confidence: 75,
+        relatedSegments: [secondIndustry[0]],
+        nextAction: 'view_accounts'
+      });
+    }
+
+    // Campaign readiness insight
+    const campaignReadyAccounts = highScoreAccounts.filter(a => {
+      const hasLead = leads?.some(l => l.account_external_id === a.external_id);
+      return hasLead;
+    }).length;
+    
+    if (campaignReadyAccounts > 0 && insights.length < 7) {
+      insights.push({
+        type: 'signal',
+        priority: 'high',
+        title: `${campaignReadyAccounts} accounts ready for outreach`,
+        description: `High-fit accounts with verified leads. Launch a campaign to engage these opportunities now.`,
+        impact: `Potential pipeline value: $${(campaignReadyAccounts * avgDealValue * 0.1).toLocaleString()}`,
+        confidence: 95,
+        nextAction: 'build_campaign'
       });
     }
 
@@ -406,6 +516,8 @@ Return ONLY the JSON array, no other text.`
     });
 
     console.log(`Returning ${filteredInsights.length} insights after filtering ${insights.length - filteredInsights.length} dismissed`);
+
+    console.log(`[ICP Insights] Returning ${filteredInsights.length} final insights (${aiInsights.length} from AI, rest data-driven)`);
 
     return new Response(
       JSON.stringify({
@@ -421,6 +533,11 @@ Return ONLY the JSON array, no other text.`
           data_completeness: parseFloat(dataCompleteness.toFixed(1)),
           total_deals: deals?.length || 0,
           avg_deal_value: avgDealValue
+        },
+        _debug: {
+          ai_insights_count: aiInsights.length,
+          ai_parse_error: aiParseError,
+          fallback_used: aiInsights.length === 0
         }
       }),
       {
