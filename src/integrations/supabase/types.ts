@@ -4207,6 +4207,10 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      sync_account_scores_from_scores_table: {
+        Args: { p_org_id?: string }
+        Returns: Json
+      }
       sync_accounts_from_leads: { Args: { p_org_id: string }; Returns: Json }
       sync_industry_to_leads: { Args: { p_org_id: string }; Returns: Json }
       update_enrichment_job_progress: {
