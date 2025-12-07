@@ -165,29 +165,40 @@ export function BulkLeadEnrichment() {
 
       if (!profile?.org_id) throw new Error('No organization found');
 
-      // Create enrichment job
-      const { data: job, error: jobError } = await supabase
-        .from('enrichment_jobs')
-        .insert({
-          org_id: profile.org_id,
-          provider: provider,
-          job_type: 'contact_enrichment',
-          status: 'pending',
-          batch_size: parseInt(batchSize),
-          total_records: stats?.needsEnrichment || 0,
-          created_by: user.id
-        })
-        .select()
-        .single();
+      // Get leads needing enrichment
+      const { data: leads } = await supabase
+        .from('Leads')
+        .select('id')
+        .eq('org_id', profile.org_id)
+        .or('email.is.null,title.is.null,persona.is.null,persona.eq.Unknown')
+        .limit(parseInt(batchSize));
 
-      if (jobError) throw jobError;
+      if (!leads || leads.length === 0) {
+        toast({
+          title: "No Leads to Enrich",
+          description: "All leads already have email, title, and persona data",
+        });
+        return;
+      }
 
-      // Trigger enrichment edge function
-      const { error: enrichError } = await supabase.functions.invoke('enrich-contacts-bulk', {
+      // Use the multi-agent orchestrator instead of simple enrichment
+      const { data: result, error: enrichError } = await supabase.functions.invoke('enrichment-orchestrator', {
         body: { 
-          jobId: job.id,
-          batchSize: parseInt(batchSize),
-          provider: provider
+          org_id: profile.org_id,
+          source_type: 'database',
+          record_type: 'lead',
+          record_ids: leads.map(l => l.id.toString()),
+          concurrency: 2,
+          agent_config: {
+            search: true,
+            validation: true,
+            icp: true,
+            discover_contacts: enableContactDiscovery
+          },
+          discovery_config: enableContactDiscovery ? {
+            target_titles: targetTitles,
+            max_contacts_per_account: 5
+          } : undefined
         }
       });
 
@@ -195,10 +206,11 @@ export function BulkLeadEnrichment() {
 
       toast({
         title: "Enrichment Started",
-        description: `Processing ${stats?.needsEnrichment || 0} leads in batches of ${batchSize}`,
+        description: `Processing ${leads.length} leads with multi-agent pipeline${enableContactDiscovery ? ' + contact discovery' : ''}`,
       });
 
-      setActiveJob(job);
+      // Load the active job
+      loadActiveJob();
       loadStats();
     } catch (error: any) {
       console.error('Error starting enrichment:', error);
