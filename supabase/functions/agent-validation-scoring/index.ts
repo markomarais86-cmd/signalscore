@@ -1,3 +1,6 @@
+// Enhanced Validation & Scoring Agent - Eugene's 0/1/2 field scoring
+// Compares original data with enriched data and assigns quality scores
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -9,31 +12,48 @@ interface ValidationRequest {
   raw_input: any;
   enriched_data: any;
   record_type: 'account' | 'lead';
+  icp_criteria?: {
+    min_employee_count?: number;
+    min_revenue?: string;
+    target_titles?: string[];
+    target_industries?: string[];
+    target_countries?: string[];
+  };
 }
 
-const SYSTEM_PROMPT = `You are a data validation and scoring agent.
-Your job is to compare original data with enriched data and assign quality scores.
+// Eugene's scoring system prompt
+const SYSTEM_PROMPT = `You are a data validation and scoring agent using the 0/1/2 scoring system.
 
-SCORING RULES (0-2 per field):
-- 0 = Missing or clearly incorrect
-- 1 = Present but unverified or partially correct
-- 2 = Present and verified/high confidence
+=== SCORING RULES (Per Field) ===
+- Score 2: Value was PROVIDED in original AND MATCHES what was FOUND (verified match)
+- Score 1: Value was NOT provided but was FOUND, OR value was provided but is DIFFERENT than found
+- Score 0: Value was NOT provided AND was NOT found
 
-FIELDS TO SCORE:
-For accounts: company_name, industry, employee_count, revenue, geography, website, linkedin
-For contacts: name, email, phone, title, company, linkedin, location
+=== FIELDS TO SCORE ===
+For accounts: name, industry, employee_count, revenue, geography (city/state/country), website, linkedin, facebook, phone
+For contacts: name, email, phone, title, company, linkedin, facebook, location
 
-VALIDATION CHECKS:
+=== ICP PASS/FAIL DETERMINATION ===
+A record PASSES ICP if it meets ALL criteria provided:
+- Min employee count (if specified)
+- Min revenue (if specified)
+- Target titles (contact must have one of the specified titles)
+- Target industries (company must be in one of the specified industries)
+- Target countries (must be in one of the specified countries)
+
+If ANY criterion fails, the record FAILS ICP. List all fail reasons.
+
+=== VALIDATION CHECKS ===
 1. Name consistency (enriched matches or improves original)
 2. Domain verification (company domain matches email domain for contacts)
 3. Data freshness (recent verification signals)
 4. Cross-reference accuracy (multiple sources agree)
 5. Format correctness (phone, email, URL formats)
 
-FLAG ANOMALIES:
+=== FLAG ANOMALIES ===
 - Domain mismatch (email domain vs company website)
-- Title inconsistency (junior title at C-level company?)
-- Geographic mismatch (contact location vs company HQ)
+- Title inconsistency
+- Geographic mismatch
 - Stale data indicators (company acquired, person moved)`;
 
 serve(async (req) => {
@@ -42,16 +62,22 @@ serve(async (req) => {
   }
 
   try {
-    const { raw_input, enriched_data, record_type }: ValidationRequest = await req.json();
+    const { raw_input, enriched_data, record_type, icp_criteria }: ValidationRequest = await req.json();
     
-    console.log(`[ValidationAgent] Validating ${record_type} data`);
+    console.log(`[ValidationAgent] Validating ${record_type} with 0/1/2 scoring`);
+    console.log(`[ValidationAgent] ICP criteria:`, JSON.stringify(icp_criteria));
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
+      // Fall back to programmatic scoring if no AI
+      console.log('[ValidationAgent] No API key, using programmatic scoring');
+      const result = performEnhancedScoring(raw_input, enriched_data, record_type, icp_criteria);
+      return new Response(JSON.stringify({ success: true, ...result }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    const prompt = buildValidationPrompt(raw_input, enriched_data, record_type);
+    const prompt = buildValidationPrompt(raw_input, enriched_data, record_type, icp_criteria);
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -70,52 +96,8 @@ serve(async (req) => {
             type: 'function',
             function: {
               name: 'return_validation_result',
-              description: 'Return the validation scores and summary',
-              parameters: {
-                type: 'object',
-                properties: {
-                  field_scores: {
-                    type: 'object',
-                    description: 'Score (0-2) for each field',
-                    properties: {
-                      name_score: { type: 'number', minimum: 0, maximum: 2 },
-                      company_score: { type: 'number', minimum: 0, maximum: 2 },
-                      email_score: { type: 'number', minimum: 0, maximum: 2 },
-                      phone_score: { type: 'number', minimum: 0, maximum: 2 },
-                      website_score: { type: 'number', minimum: 0, maximum: 2 },
-                      linkedin_score: { type: 'number', minimum: 0, maximum: 2 },
-                      title_score: { type: 'number', minimum: 0, maximum: 2 },
-                      industry_score: { type: 'number', minimum: 0, maximum: 2 },
-                      geography_score: { type: 'number', minimum: 0, maximum: 2 },
-                      size_score: { type: 'number', minimum: 0, maximum: 2 },
-                      revenue_score: { type: 'number', minimum: 0, maximum: 2 }
-                    }
-                  },
-                  overall_score: { 
-                    type: 'number', 
-                    description: 'Sum of all field scores (0-22 max)' 
-                  },
-                  confidence: { 
-                    type: 'string', 
-                    enum: ['high', 'medium', 'low'],
-                    description: 'Overall confidence based on scores and verification' 
-                  },
-                  validation_summary: { 
-                    type: 'string', 
-                    description: 'Brief summary of data quality and any anomalies' 
-                  },
-                  anomalies: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'List of detected anomalies or concerns'
-                  },
-                  validated_data: {
-                    type: 'object',
-                    description: 'The validated/corrected data object'
-                  }
-                },
-                required: ['field_scores', 'overall_score', 'confidence', 'validation_summary']
-              }
+              description: 'Return the 0/1/2 field scores, ICP pass/fail, and validated data',
+              parameters: getValidationSchema()
             }
           }
         ],
@@ -125,11 +107,16 @@ serve(async (req) => {
 
     if (!response.ok) {
       if (response.status === 429) {
-        return new Response(JSON.stringify({ 
-          success: false, 
-          error: 'Rate limit exceeded' 
-        }), {
-          status: 429,
+        console.warn('[ValidationAgent] Rate limited, using programmatic scoring');
+        const result = performEnhancedScoring(raw_input, enriched_data, record_type, icp_criteria);
+        return new Response(JSON.stringify({ success: true, ...result }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      if (response.status === 402) {
+        console.warn('[ValidationAgent] Out of credits, using programmatic scoring');
+        const result = performEnhancedScoring(raw_input, enriched_data, record_type, icp_criteria);
+        return new Response(JSON.stringify({ success: true, ...result }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
@@ -138,17 +125,9 @@ serve(async (req) => {
 
     const result = await response.json();
     
-    // Default to merged data
     const mergedData = { ...raw_input, ...enriched_data };
     
-    let validationResult = {
-      field_scores: {},
-      overall_score: 0,
-      confidence: 'low',
-      validation_summary: 'Validation failed',
-      anomalies: [],
-      validated_data: mergedData
-    };
+    let validationResult = performEnhancedScoring(raw_input, enriched_data, record_type, icp_criteria);
 
     try {
       const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
@@ -156,22 +135,17 @@ serve(async (req) => {
         const parsed = JSON.parse(toolCall.function.arguments);
         validationResult = {
           ...parsed,
-          // Always ensure validated_data contains merged data
           validated_data: parsed.validated_data && Object.keys(parsed.validated_data).length > 0 
             ? { ...mergedData, ...parsed.validated_data }
             : mergedData
         };
       }
     } catch (parseError) {
-      console.error('[ValidationAgent] Failed to parse AI response:', parseError);
-      // Fall back to basic scoring
-      validationResult = performBasicScoring(raw_input, enriched_data, record_type);
+      console.error('[ValidationAgent] Failed to parse AI response, using programmatic scoring:', parseError);
     }
     
-    console.log(`[ValidationAgent] Returning validated_data with title: ${validationResult.validated_data?.title}`);
-
-    console.log(`[ValidationAgent] Scores:`, JSON.stringify(validationResult.field_scores));
-    console.log(`[ValidationAgent] Overall: ${validationResult.overall_score}, Confidence: ${validationResult.confidence}`);
+    console.log(`[ValidationAgent] Field scores:`, JSON.stringify(validationResult.field_scores));
+    console.log(`[ValidationAgent] Total score: ${validationResult.total_score}, ICP Pass: ${validationResult.icp_pass}`);
 
     return new Response(JSON.stringify({
       success: true,
@@ -192,65 +166,326 @@ serve(async (req) => {
   }
 });
 
-function buildValidationPrompt(rawInput: any, enrichedData: any, recordType: string): string {
-  return `Validate and score this ${recordType} enrichment:
-
-ORIGINAL DATA:
-${JSON.stringify(rawInput, null, 2)}
-
-ENRICHED DATA:
-${JSON.stringify(enrichedData, null, 2)}
-
-Tasks:
-1. Compare each field between original and enriched
-2. Assign a score (0-2) for each relevant field
-3. Calculate overall_score as sum of all field scores
-4. Determine confidence level:
-   - high: overall_score >= 15 AND no major anomalies
-   - medium: overall_score >= 8 OR some verified fields
-   - low: overall_score < 8 OR major anomalies
-5. Write a brief validation_summary
-6. List any anomalies detected
-7. Return the validated_data (enriched data with any corrections)
-
-Use the return_validation_result function with your analysis.`;
+function getValidationSchema(): any {
+  return {
+    type: 'object',
+    properties: {
+      field_scores: {
+        type: 'object',
+        description: 'Score (0/1/2) for each field using Eugene scoring system',
+        properties: {
+          name_score: { type: 'number', minimum: 0, maximum: 2, description: '0=not found, 1=found but different/new, 2=provided and matches' },
+          company_score: { type: 'number', minimum: 0, maximum: 2 },
+          email_score: { type: 'number', minimum: 0, maximum: 2 },
+          phone_score: { type: 'number', minimum: 0, maximum: 2 },
+          website_score: { type: 'number', minimum: 0, maximum: 2 },
+          linkedin_score: { type: 'number', minimum: 0, maximum: 2 },
+          facebook_score: { type: 'number', minimum: 0, maximum: 2 },
+          title_score: { type: 'number', minimum: 0, maximum: 2 },
+          industry_score: { type: 'number', minimum: 0, maximum: 2 },
+          geography_score: { type: 'number', minimum: 0, maximum: 2 },
+          size_score: { type: 'number', minimum: 0, maximum: 2 },
+          revenue_score: { type: 'number', minimum: 0, maximum: 2 }
+        }
+      },
+      total_score: { 
+        type: 'number', 
+        description: 'Sum of all field scores' 
+      },
+      max_possible_score: {
+        type: 'number',
+        description: 'Maximum possible score (num_fields * 2)'
+      },
+      confidence: { 
+        type: 'string', 
+        enum: ['high', 'medium', 'low'],
+        description: 'high if score >= 70%, medium if >= 40%, low otherwise' 
+      },
+      icp_pass: {
+        type: 'boolean',
+        description: 'Whether record meets ICP criteria'
+      },
+      icp_fail_reasons: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'List of ICP criteria that failed'
+      },
+      validation_summary: { 
+        type: 'string', 
+        description: 'Summary of found vs not found fields' 
+      },
+      anomalies: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'List of detected anomalies or concerns'
+      },
+      validated_data: {
+        type: 'object',
+        description: 'The validated/merged data object with corrections'
+      }
+    },
+    required: ['field_scores', 'total_score', 'confidence', 'icp_pass', 'validation_summary']
+  };
 }
 
-function performBasicScoring(rawInput: any, enrichedData: any, recordType: string): any {
+function buildValidationPrompt(rawInput: any, enrichedData: any, recordType: string, icpCriteria?: any): string {
+  return `Validate and score this ${recordType} enrichment using 0/1/2 scoring:
+
+=== ORIGINAL DATA (What we started with) ===
+${JSON.stringify(rawInput, null, 2)}
+
+=== ENRICHED DATA (What we found) ===
+${JSON.stringify(enrichedData, null, 2)}
+
+=== ICP CRITERIA (Must pass ALL to be ICP qualified) ===
+${icpCriteria ? JSON.stringify(icpCriteria, null, 2) : 'No specific ICP criteria provided - default pass'}
+
+=== TASKS ===
+1. Score each field using 0/1/2 system:
+   - 2 = Value provided in original AND matches enriched
+   - 1 = Value NOT provided but found, OR provided but different
+   - 0 = Value NOT provided AND NOT found
+
+2. Calculate total_score = sum of all field scores
+3. Calculate max_possible_score = number of scored fields * 2
+4. Determine confidence:
+   - high: total_score >= 70% of max
+   - medium: total_score >= 40% of max
+   - low: below 40%
+
+5. Determine ICP pass/fail:
+   - Check min_employee_count
+   - Check min_revenue
+   - Check target_titles (title must contain one)
+   - Check target_industries
+   - Check target_countries
+   - List ALL fail reasons
+
+6. Create validation_summary: "Found: [field1, field2, ...]. Missing: [field3, field4, ...]"
+
+7. List any anomalies (domain mismatch, stale data, etc.)
+
+8. Return validated_data with merged and corrected values
+
+Use the return_validation_result function.`;
+}
+
+// Enhanced programmatic scoring with Eugene's 0/1/2 system
+function performEnhancedScoring(rawInput: any, enrichedData: any, recordType: string, icpCriteria?: any): any {
   const fieldScores: any = {};
+  
+  // Define fields to score based on record type
+  const fieldsConfig = recordType === 'account' 
+    ? {
+        name: { raw: ['name', 'company_name'], enriched: ['company_name', 'name'] },
+        industry: { raw: ['industry', 'industry_raw'], enriched: ['industry', 'company_industry'] },
+        size: { raw: ['employee_count'], enriched: ['employee_count', 'company_employee_count'] },
+        revenue: { raw: ['revenue_range'], enriched: ['revenue_range', 'company_annual_revenue'] },
+        geography: { raw: ['country', 'city', 'state'], enriched: ['hq_country', 'country', 'hq_city', 'city'] },
+        website: { raw: ['domain', 'website'], enriched: ['domain', 'company_website', 'website'] },
+        linkedin: { raw: ['linkedin_url'], enriched: ['linkedin_url', 'company_linkedin_url'] },
+        facebook: { raw: ['facebook_url'], enriched: ['facebook_url', 'company_facebook_url'] },
+        phone: { raw: ['phone', 'company_main_phone'], enriched: ['company_main_phone', 'phone'] }
+      }
+    : {
+        name: { raw: ['first_name', 'last_name', 'name'], enriched: ['first_name', 'last_name'] },
+        email: { raw: ['email'], enriched: ['email'] },
+        phone: { raw: ['phone', 'mobile', 'cell_phone'], enriched: ['phone_number', 'cell_phone', 'direct_phone', 'phone'] },
+        title: { raw: ['title', 'title_raw'], enriched: ['current_title', 'title'] },
+        company: { raw: ['company'], enriched: ['current_company', 'company'] },
+        linkedin: { raw: ['linkedin_url'], enriched: ['linkedin_url'] },
+        facebook: { raw: ['facebook_url'], enriched: ['facebook_url'] },
+        geography: { raw: ['country', 'city', 'state'], enriched: ['current_country', 'current_city', 'country', 'city'] },
+        website: { raw: ['domain', 'website'], enriched: ['company_website', 'domain'] }
+      };
+
   let totalScore = 0;
+  const foundFields: string[] = [];
+  const missingFields: string[] = [];
 
-  // Score based on field presence and basic validation
-  const fieldsToCheck = recordType === 'account' 
-    ? ['company_name', 'industry', 'employee_count', 'revenue_range', 'country', 'domain', 'linkedin_url']
-    : ['first_name', 'last_name', 'email', 'phone', 'title', 'company', 'linkedin_url'];
-
-  for (const field of fieldsToCheck) {
-    const value = enrichedData[field];
-    let score = 0;
-    
-    if (value && value !== '' && value !== 'Unknown') {
-      score = 1; // Present
-      
-      // Extra point for certain validations
-      if (field === 'email' && value.includes('@')) score = 2;
-      if (field === 'linkedin_url' && value.includes('linkedin.com')) score = 2;
-      if (field === 'employee_count' && typeof value === 'number') score = 2;
-      if (field === 'phone' && value.replace(/\D/g, '').length >= 10) score = 2;
-    }
-    
-    fieldScores[`${field.replace(/_/g, '_')}_score`] = score;
+  for (const [fieldName, config] of Object.entries(fieldsConfig)) {
+    const score = scoreField(rawInput, enrichedData, config.raw, config.enriched);
+    fieldScores[`${fieldName}_score`] = score;
     totalScore += score;
+    
+    if (score >= 1) {
+      foundFields.push(fieldName);
+    } else {
+      missingFields.push(fieldName);
+    }
   }
 
-  const confidence = totalScore >= 12 ? 'high' : totalScore >= 6 ? 'medium' : 'low';
+  const maxScore = Object.keys(fieldsConfig).length * 2;
+  const scorePercentage = totalScore / maxScore;
+  
+  const confidence = scorePercentage >= 0.7 ? 'high' : scorePercentage >= 0.4 ? 'medium' : 'low';
+
+  // ICP Pass/Fail determination
+  const icpResult = checkIcpCriteria(enrichedData, icpCriteria);
+
+  const validationSummary = `Found: ${foundFields.join(', ') || 'none'}. Missing: ${missingFields.join(', ') || 'none'}. Score: ${totalScore}/${maxScore} (${Math.round(scorePercentage * 100)}%)`;
 
   return {
     field_scores: fieldScores,
-    overall_score: totalScore,
+    total_score: totalScore,
+    max_possible_score: maxScore,
+    overall_score: totalScore, // For backwards compatibility
     confidence,
-    validation_summary: `Basic validation completed. ${Object.keys(fieldScores).filter(k => fieldScores[k] >= 1).length} fields verified.`,
-    anomalies: [],
+    icp_pass: icpResult.pass,
+    icp_fail_reasons: icpResult.failReasons,
+    validation_summary: validationSummary,
+    anomalies: detectAnomalies(rawInput, enrichedData, recordType),
     validated_data: { ...rawInput, ...enrichedData }
   };
+}
+
+function scoreField(rawInput: any, enrichedData: any, rawKeys: string[], enrichedKeys: string[]): number {
+  // Get raw value
+  let rawValue: any = null;
+  for (const key of rawKeys) {
+    if (rawInput[key] && rawInput[key] !== '' && rawInput[key] !== 'Unknown') {
+      rawValue = rawInput[key];
+      break;
+    }
+  }
+
+  // Get enriched value
+  let enrichedValue: any = null;
+  for (const key of enrichedKeys) {
+    if (enrichedData[key] && enrichedData[key] !== '' && enrichedData[key] !== 'Unknown') {
+      enrichedValue = enrichedData[key];
+      break;
+    }
+  }
+
+  // Score using 0/1/2 system
+  if (rawValue && enrichedValue) {
+    // Both provided - check if they match
+    const rawNorm = String(rawValue).toLowerCase().trim();
+    const enrichedNorm = String(enrichedValue).toLowerCase().trim();
+    
+    if (rawNorm === enrichedNorm || enrichedNorm.includes(rawNorm) || rawNorm.includes(enrichedNorm)) {
+      return 2; // Provided AND matches
+    }
+    return 1; // Provided but different
+  } else if (!rawValue && enrichedValue) {
+    return 1; // Not provided but found
+  } else {
+    return 0; // Not provided and not found
+  }
+}
+
+function checkIcpCriteria(enrichedData: any, criteria?: any): { pass: boolean; failReasons: string[] } {
+  if (!criteria) {
+    return { pass: true, failReasons: [] };
+  }
+
+  const failReasons: string[] = [];
+
+  // Check minimum employee count
+  if (criteria.min_employee_count) {
+    const empCount = enrichedData.employee_count || enrichedData.company_employee_count || 0;
+    if (empCount < criteria.min_employee_count) {
+      failReasons.push(`Employee count ${empCount} < minimum ${criteria.min_employee_count}`);
+    }
+  }
+
+  // Check minimum revenue
+  if (criteria.min_revenue) {
+    const revenue = enrichedData.revenue_range || enrichedData.company_annual_revenue || '';
+    const minRevNum = parseRevenueToNumber(criteria.min_revenue);
+    const actualRevNum = parseRevenueToNumber(revenue);
+    
+    if (actualRevNum < minRevNum) {
+      failReasons.push(`Revenue ${revenue || 'unknown'} < minimum ${criteria.min_revenue}`);
+    }
+  }
+
+  // Check target titles
+  if (criteria.target_titles && criteria.target_titles.length > 0) {
+    const title = (enrichedData.current_title || enrichedData.title || '').toLowerCase();
+    const hasTargetTitle = criteria.target_titles.some((t: string) => title.includes(t.toLowerCase()));
+    
+    if (!hasTargetTitle && title) {
+      failReasons.push(`Title "${enrichedData.current_title || enrichedData.title}" not in target titles: ${criteria.target_titles.join(', ')}`);
+    }
+  }
+
+  // Check target industries
+  if (criteria.target_industries && criteria.target_industries.length > 0) {
+    const industry = (enrichedData.industry || enrichedData.company_industry || '').toLowerCase();
+    const hasTargetIndustry = criteria.target_industries.some((i: string) => industry.includes(i.toLowerCase()));
+    
+    if (!hasTargetIndustry && industry) {
+      failReasons.push(`Industry "${enrichedData.industry || enrichedData.company_industry}" not in target industries`);
+    }
+  }
+
+  // Check target countries
+  if (criteria.target_countries && criteria.target_countries.length > 0) {
+    const country = (enrichedData.current_country || enrichedData.country || enrichedData.hq_country || '').toLowerCase();
+    const hasTargetCountry = criteria.target_countries.some((c: string) => country.includes(c.toLowerCase()));
+    
+    if (!hasTargetCountry && country) {
+      failReasons.push(`Country "${country}" not in target countries: ${criteria.target_countries.join(', ')}`);
+    }
+  }
+
+  return {
+    pass: failReasons.length === 0,
+    failReasons
+  };
+}
+
+function parseRevenueToNumber(revenue: string): number {
+  if (!revenue) return 0;
+  
+  const lower = revenue.toLowerCase();
+  const numMatch = lower.match(/[\d.]+/);
+  if (!numMatch) return 0;
+  
+  let num = parseFloat(numMatch[0]);
+  
+  if (lower.includes('b')) num *= 1_000_000_000;
+  else if (lower.includes('m')) num *= 1_000_000;
+  else if (lower.includes('k')) num *= 1_000;
+  
+  return num;
+}
+
+function detectAnomalies(rawInput: any, enrichedData: any, recordType: string): string[] {
+  const anomalies: string[] = [];
+
+  if (recordType === 'lead') {
+    // Check email domain vs company domain
+    const email = enrichedData.email || rawInput.email || '';
+    const companyDomain = enrichedData.company_website || enrichedData.domain || rawInput.domain || '';
+    
+    if (email && companyDomain) {
+      const emailDomain = email.split('@')[1]?.toLowerCase();
+      const normalizedCompanyDomain = companyDomain.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase();
+      
+      if (emailDomain && normalizedCompanyDomain && !emailDomain.includes(normalizedCompanyDomain) && !normalizedCompanyDomain.includes(emailDomain)) {
+        // Check if it's a personal email
+        const personalDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com', 'icloud.com', 'gmx.de', 'gmx.net'];
+        if (personalDomains.includes(emailDomain)) {
+          anomalies.push(`Personal email domain (${emailDomain}) - not company email`);
+        } else {
+          anomalies.push(`Email domain (${emailDomain}) doesn't match company domain (${normalizedCompanyDomain})`);
+        }
+      }
+    }
+
+    // Check if person moved companies
+    if (enrichedData.still_at_company === 'no') {
+      anomalies.push(`Person no longer at ${rawInput.company || 'original company'} - now at ${enrichedData.current_company}`);
+    }
+  }
+
+  // Check for stale data
+  if (enrichedData.founded_year && enrichedData.founded_year < 1900) {
+    anomalies.push('Suspicious founding year - data may be stale or incorrect');
+  }
+
+  return anomalies;
 }

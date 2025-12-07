@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           business_model: string | null
           city: string | null
+          company_main_phone: string | null
           country: string | null
           data_source: string | null
           deep_research_completed_at: string | null
@@ -33,7 +34,12 @@ export type Database = {
           enrichment_phase: string | null
           external_database_match: boolean | null
           external_id: string
+          facebook_url: string | null
           founded_year: number | null
+          hq_address: string | null
+          hq_city: string | null
+          hq_postal_code: string | null
+          hq_state: string | null
           icp_fail_reasons: string[] | null
           icp_qualified: boolean | null
           id: string
@@ -51,16 +57,19 @@ export type Database = {
           propensity_computed_at: string | null
           propensity_score: number | null
           revenue_range: string | null
+          sic_code: string | null
           state_province: string | null
           sub_industry: string | null
           tech_stack: string[] | null
           total_raised_usd: number | null
           trust_signals: Json | null
+          twitter_url: string | null
           updated_at: string | null
         }
         Insert: {
           business_model?: string | null
           city?: string | null
+          company_main_phone?: string | null
           country?: string | null
           data_source?: string | null
           deep_research_completed_at?: string | null
@@ -76,7 +85,12 @@ export type Database = {
           enrichment_phase?: string | null
           external_database_match?: boolean | null
           external_id: string
+          facebook_url?: string | null
           founded_year?: number | null
+          hq_address?: string | null
+          hq_city?: string | null
+          hq_postal_code?: string | null
+          hq_state?: string | null
           icp_fail_reasons?: string[] | null
           icp_qualified?: boolean | null
           id?: string
@@ -94,16 +108,19 @@ export type Database = {
           propensity_computed_at?: string | null
           propensity_score?: number | null
           revenue_range?: string | null
+          sic_code?: string | null
           state_province?: string | null
           sub_industry?: string | null
           tech_stack?: string[] | null
           total_raised_usd?: number | null
           trust_signals?: Json | null
+          twitter_url?: string | null
           updated_at?: string | null
         }
         Update: {
           business_model?: string | null
           city?: string | null
+          company_main_phone?: string | null
           country?: string | null
           data_source?: string | null
           deep_research_completed_at?: string | null
@@ -119,7 +136,12 @@ export type Database = {
           enrichment_phase?: string | null
           external_database_match?: boolean | null
           external_id?: string
+          facebook_url?: string | null
           founded_year?: number | null
+          hq_address?: string | null
+          hq_city?: string | null
+          hq_postal_code?: string | null
+          hq_state?: string | null
           icp_fail_reasons?: string[] | null
           icp_qualified?: boolean | null
           id?: string
@@ -137,11 +159,13 @@ export type Database = {
           propensity_computed_at?: string | null
           propensity_score?: number | null
           revenue_range?: string | null
+          sic_code?: string | null
           state_province?: string | null
           sub_industry?: string | null
           tech_stack?: string[] | null
           total_raised_usd?: number | null
           trust_signals?: Json | null
+          twitter_url?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1300,16 +1324,19 @@ export type Database = {
           completed_at: string | null
           concurrency: number | null
           config_icp_id: string | null
+          contacts_discovered: number | null
           created_at: string | null
           created_by: string | null
           credits_remaining: number | null
           credits_used: number | null
           current_batch: number | null
+          enable_contact_discovery: boolean | null
           enriched_records: number | null
           error_message: string | null
           estimated_completion_at: string | null
           failed_records: number | null
           filter_criteria: Json | null
+          icp_criteria: Json | null
           id: string
           job_type: string
           last_progress_update: string | null
@@ -1325,6 +1352,7 @@ export type Database = {
           source_type: string | null
           started_at: string | null
           status: string | null
+          target_titles: string[] | null
           total_batches: number | null
           total_records: number | null
         }
@@ -1335,16 +1363,19 @@ export type Database = {
           completed_at?: string | null
           concurrency?: number | null
           config_icp_id?: string | null
+          contacts_discovered?: number | null
           created_at?: string | null
           created_by?: string | null
           credits_remaining?: number | null
           credits_used?: number | null
           current_batch?: number | null
+          enable_contact_discovery?: boolean | null
           enriched_records?: number | null
           error_message?: string | null
           estimated_completion_at?: string | null
           failed_records?: number | null
           filter_criteria?: Json | null
+          icp_criteria?: Json | null
           id?: string
           job_type: string
           last_progress_update?: string | null
@@ -1360,6 +1391,7 @@ export type Database = {
           source_type?: string | null
           started_at?: string | null
           status?: string | null
+          target_titles?: string[] | null
           total_batches?: number | null
           total_records?: number | null
         }
@@ -1370,16 +1402,19 @@ export type Database = {
           completed_at?: string | null
           concurrency?: number | null
           config_icp_id?: string | null
+          contacts_discovered?: number | null
           created_at?: string | null
           created_by?: string | null
           credits_remaining?: number | null
           credits_used?: number | null
           current_batch?: number | null
+          enable_contact_discovery?: boolean | null
           enriched_records?: number | null
           error_message?: string | null
           estimated_completion_at?: string | null
           failed_records?: number | null
           filter_criteria?: Json | null
+          icp_criteria?: Json | null
           id?: string
           job_type?: string
           last_progress_update?: string | null
@@ -1395,6 +1430,7 @@ export type Database = {
           source_type?: string | null
           started_at?: string | null
           status?: string | null
+          target_titles?: string[] | null
           total_batches?: number | null
           total_records?: number | null
         }
@@ -1423,12 +1459,15 @@ export type Database = {
           enriched_raw: Json | null
           error_message: string | null
           external_id: string | null
+          extra_contacts_found: number | null
           field_scores: Json | null
           icp_agent_completed_at: string | null
+          icp_criteria_used: Json | null
           icp_fail_reasons: string[] | null
           icp_pass: boolean | null
           id: string
           job_id: string | null
+          max_possible_score: number | null
           org_id: string
           overall_score: number | null
           raw_input: Json | null
@@ -1439,6 +1478,7 @@ export type Database = {
           search_payload: Json | null
           source_type: string | null
           status: string | null
+          total_score: number | null
           updated_at: string | null
           validated_data: Json | null
           validation_agent_completed_at: string | null
@@ -1451,12 +1491,15 @@ export type Database = {
           enriched_raw?: Json | null
           error_message?: string | null
           external_id?: string | null
+          extra_contacts_found?: number | null
           field_scores?: Json | null
           icp_agent_completed_at?: string | null
+          icp_criteria_used?: Json | null
           icp_fail_reasons?: string[] | null
           icp_pass?: boolean | null
           id?: string
           job_id?: string | null
+          max_possible_score?: number | null
           org_id: string
           overall_score?: number | null
           raw_input?: Json | null
@@ -1467,6 +1510,7 @@ export type Database = {
           search_payload?: Json | null
           source_type?: string | null
           status?: string | null
+          total_score?: number | null
           updated_at?: string | null
           validated_data?: Json | null
           validation_agent_completed_at?: string | null
@@ -1479,12 +1523,15 @@ export type Database = {
           enriched_raw?: Json | null
           error_message?: string | null
           external_id?: string | null
+          extra_contacts_found?: number | null
           field_scores?: Json | null
           icp_agent_completed_at?: string | null
+          icp_criteria_used?: Json | null
           icp_fail_reasons?: string[] | null
           icp_pass?: boolean | null
           id?: string
           job_id?: string | null
+          max_possible_score?: number | null
           org_id?: string
           overall_score?: number | null
           raw_input?: Json | null
@@ -1495,6 +1542,7 @@ export type Database = {
           search_payload?: Json | null
           source_type?: string | null
           status?: string | null
+          total_score?: number | null
           updated_at?: string | null
           validated_data?: Json | null
           validation_agent_completed_at?: string | null
@@ -2348,6 +2396,15 @@ export type Database = {
           account_external_id: string | null
           cell_phone: string | null
           company: string | null
+          company_facebook_url: string | null
+          company_hq_address: string | null
+          company_hq_city: string | null
+          company_hq_country: string | null
+          company_hq_postal_code: string | null
+          company_hq_state: string | null
+          company_main_phone: string | null
+          company_naics_code: string | null
+          company_sic_code: string | null
           consent_status: string | null
           contact_external_id: string | null
           country: string | null
@@ -2355,6 +2412,8 @@ export type Database = {
           data_source: string | null
           deep_research_completed_at: string | null
           direct_phone: string | null
+          discovered_at: string | null
+          discovered_from_account: string | null
           email: string | null
           email_status: string | null
           email_verification_status: string | null
@@ -2366,10 +2425,14 @@ export type Database = {
           enrichment_citations: Json | null
           enrichment_confidence: number | null
           enrichment_field_scores: Json | null
+          enrichment_max_score: number | null
           enrichment_overall_score: number | null
+          enrichment_pass: boolean | null
+          enrichment_total_score: number | null
           export_eligible: boolean | null
           external_database_match: boolean | null
           external_id: string | null
+          facebook_url: string | null
           first_name: string | null
           icp_fail_reasons: string[] | null
           icp_qualified: boolean | null
@@ -2390,6 +2453,7 @@ export type Database = {
           persona: string | null
           phone: string | null
           phone_e164: string | null
+          phone_extension: string | null
           phone_type: string | null
           phone_verification_status: string | null
           phone_verified: boolean | null
@@ -2406,6 +2470,7 @@ export type Database = {
           title: string | null
           title_as_of: string | null
           title_raw: string | null
+          twitter_url: string | null
           updated_at: string | null
           verified_email: boolean | null
           verified_phone: boolean | null
@@ -2415,6 +2480,15 @@ export type Database = {
           account_external_id?: string | null
           cell_phone?: string | null
           company?: string | null
+          company_facebook_url?: string | null
+          company_hq_address?: string | null
+          company_hq_city?: string | null
+          company_hq_country?: string | null
+          company_hq_postal_code?: string | null
+          company_hq_state?: string | null
+          company_main_phone?: string | null
+          company_naics_code?: string | null
+          company_sic_code?: string | null
           consent_status?: string | null
           contact_external_id?: string | null
           country?: string | null
@@ -2422,6 +2496,8 @@ export type Database = {
           data_source?: string | null
           deep_research_completed_at?: string | null
           direct_phone?: string | null
+          discovered_at?: string | null
+          discovered_from_account?: string | null
           email?: string | null
           email_status?: string | null
           email_verification_status?: string | null
@@ -2433,10 +2509,14 @@ export type Database = {
           enrichment_citations?: Json | null
           enrichment_confidence?: number | null
           enrichment_field_scores?: Json | null
+          enrichment_max_score?: number | null
           enrichment_overall_score?: number | null
+          enrichment_pass?: boolean | null
+          enrichment_total_score?: number | null
           export_eligible?: boolean | null
           external_database_match?: boolean | null
           external_id?: string | null
+          facebook_url?: string | null
           first_name?: string | null
           icp_fail_reasons?: string[] | null
           icp_qualified?: boolean | null
@@ -2457,6 +2537,7 @@ export type Database = {
           persona?: string | null
           phone?: string | null
           phone_e164?: string | null
+          phone_extension?: string | null
           phone_type?: string | null
           phone_verification_status?: string | null
           phone_verified?: boolean | null
@@ -2473,6 +2554,7 @@ export type Database = {
           title?: string | null
           title_as_of?: string | null
           title_raw?: string | null
+          twitter_url?: string | null
           updated_at?: string | null
           verified_email?: boolean | null
           verified_phone?: boolean | null
@@ -2482,6 +2564,15 @@ export type Database = {
           account_external_id?: string | null
           cell_phone?: string | null
           company?: string | null
+          company_facebook_url?: string | null
+          company_hq_address?: string | null
+          company_hq_city?: string | null
+          company_hq_country?: string | null
+          company_hq_postal_code?: string | null
+          company_hq_state?: string | null
+          company_main_phone?: string | null
+          company_naics_code?: string | null
+          company_sic_code?: string | null
           consent_status?: string | null
           contact_external_id?: string | null
           country?: string | null
@@ -2489,6 +2580,8 @@ export type Database = {
           data_source?: string | null
           deep_research_completed_at?: string | null
           direct_phone?: string | null
+          discovered_at?: string | null
+          discovered_from_account?: string | null
           email?: string | null
           email_status?: string | null
           email_verification_status?: string | null
@@ -2500,10 +2593,14 @@ export type Database = {
           enrichment_citations?: Json | null
           enrichment_confidence?: number | null
           enrichment_field_scores?: Json | null
+          enrichment_max_score?: number | null
           enrichment_overall_score?: number | null
+          enrichment_pass?: boolean | null
+          enrichment_total_score?: number | null
           export_eligible?: boolean | null
           external_database_match?: boolean | null
           external_id?: string | null
+          facebook_url?: string | null
           first_name?: string | null
           icp_fail_reasons?: string[] | null
           icp_qualified?: boolean | null
@@ -2524,6 +2621,7 @@ export type Database = {
           persona?: string | null
           phone?: string | null
           phone_e164?: string | null
+          phone_extension?: string | null
           phone_type?: string | null
           phone_verification_status?: string | null
           phone_verified?: boolean | null
@@ -2540,6 +2638,7 @@ export type Database = {
           title?: string | null
           title_as_of?: string | null
           title_raw?: string | null
+          twitter_url?: string | null
           updated_at?: string | null
           verified_email?: boolean | null
           verified_phone?: boolean | null
