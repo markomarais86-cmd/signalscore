@@ -86,6 +86,7 @@ import { CampaignExportHistory } from "@/components/campaigns/CampaignExportHist
 import { ScoreRefreshPanel } from "@/components/settings/ScoreRefreshPanel";
 import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { AIProviderSettings } from "@/components/settings/AIProviderSettings";
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
 
 interface TeamMember {
@@ -695,6 +696,7 @@ export default function Settings() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pt-4 space-y-4">
+                <AIProviderSettings />
                 <IntegrationHealthDashboard />
                 <IntegrationCredentialManager />
                 <IntegrationManager />
