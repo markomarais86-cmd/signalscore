@@ -2428,6 +2428,7 @@ export type Database = {
           enrichment_max_score: number | null
           enrichment_overall_score: number | null
           enrichment_pass: boolean | null
+          enrichment_source: string | null
           enrichment_total_score: number | null
           export_eligible: boolean | null
           external_database_match: boolean | null
@@ -2512,6 +2513,7 @@ export type Database = {
           enrichment_max_score?: number | null
           enrichment_overall_score?: number | null
           enrichment_pass?: boolean | null
+          enrichment_source?: string | null
           enrichment_total_score?: number | null
           export_eligible?: boolean | null
           external_database_match?: boolean | null
@@ -2596,6 +2598,7 @@ export type Database = {
           enrichment_max_score?: number | null
           enrichment_overall_score?: number | null
           enrichment_pass?: boolean | null
+          enrichment_source?: string | null
           enrichment_total_score?: number | null
           export_eligible?: boolean | null
           external_database_match?: boolean | null

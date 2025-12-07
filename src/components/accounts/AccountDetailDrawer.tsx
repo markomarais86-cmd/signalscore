@@ -22,11 +22,15 @@ import {
   Calendar,
   Target,
   Sparkles,
-  Activity
+  Activity,
+  CheckCircle,
+  XCircle,
+  UserSearch
 } from "lucide-react";
 import { SignalScoreDisplay } from "@/components/SignalScoreDisplay";
 import { AITechnologyInsights } from "@/components/AITechnologyInsights";
 import { EnrichmentSourceViewer } from "@/components/enrichment/EnrichmentSourceViewer";
+import { DiscoveredLeadsSection } from "@/components/leads/DiscoveredLeadsSection";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -51,6 +55,10 @@ interface Account {
   revenue_range: string | null;
   country: string | null;
   updated_at: string;
+  icp_qualified?: boolean | null;
+  icp_fail_reasons?: string[] | null;
+  enrichment_overall_score?: number | null;
+  enrichment_field_scores?: Record<string, number> | null;
   score?: {
     overall: number;
     fit: number;
@@ -195,6 +203,46 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6 mt-4">
+            {/* ICP Qualification Status */}
+            {account.icp_qualified !== undefined && account.icp_qualified !== null && (
+              <div className={`p-4 rounded-lg border ${
+                account.icp_qualified 
+                  ? 'bg-[hsl(var(--signal-high))]/10 border-[hsl(var(--signal-high))]/30' 
+                  : 'bg-destructive/10 border-destructive/30'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {account.icp_qualified ? (
+                      <CheckCircle className="h-5 w-5 text-[hsl(var(--signal-high))]" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-destructive" />
+                    )}
+                    <span className="font-medium">
+                      {account.icp_qualified ? 'ICP Qualified' : 'ICP Not Qualified'}
+                    </span>
+                  </div>
+                  {account.enrichment_overall_score !== null && (
+                    <Badge variant="outline">
+                      Enrichment Score: {account.enrichment_overall_score}/20
+                    </Badge>
+                  )}
+                </div>
+                {!account.icp_qualified && account.icp_fail_reasons && account.icp_fail_reasons.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-destructive/20">
+                    <p className="text-sm text-muted-foreground mb-1">Fail Reasons:</p>
+                    <ul className="text-sm space-y-1">
+                      {account.icp_fail_reasons.map((reason, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="text-destructive">•</span>
+                          <span>{reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+            
             {/* Score Breakdown */}
             {account.score && (
               <Card>
@@ -400,6 +448,12 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
           {/* Data Sources Tab */}
           <TabsContent value="sources" className="space-y-4 mt-4">
             <EnrichmentSourceViewer account={account as any} />
+            
+            {/* Discovered Leads Section */}
+            <DiscoveredLeadsSection 
+              accountExternalId={account.external_id} 
+              accountName={account.name || undefined}
+            />
           </TabsContent>
 
           {/* AI Insights Tab */}

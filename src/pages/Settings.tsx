@@ -67,6 +67,7 @@ import { EnrichmentProviderSetup } from "@/components/settings/EnrichmentProvide
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { LeadsBackfill } from "@/components/settings/LeadsBackfill";
 import { LeadDiscovery } from "@/components/settings/LeadDiscovery";
+import { EnrichmentDiscoverySettings } from "@/components/settings/EnrichmentDiscoverySettings";
 import { IntegrationCredentialManager } from "@/components/settings/IntegrationCredentialManager";
 import { IntegrationHealthDashboard } from "@/components/settings/IntegrationHealthDashboard";
 import { SmartEnrichmentPanel } from "@/components/settings/SmartEnrichmentPanel";
@@ -532,14 +533,18 @@ export default function Settings() {
               </AccordionTrigger>
               <AccordionContent className="space-y-4 pt-4">
                 <Tabs defaultValue="smart" className="w-full">
-                  <TabsList className="grid w-full grid-cols-4">
+                  <TabsList className="grid w-full grid-cols-5">
                     <TabsTrigger value="multi-agent">Multi-Agent AI</TabsTrigger>
+                    <TabsTrigger value="discovery">Contact Discovery</TabsTrigger>
                     <TabsTrigger value="smart">Smart Enrichment</TabsTrigger>
                     <TabsTrigger value="accounts">Accounts</TabsTrigger>
                     <TabsTrigger value="leads">Leads</TabsTrigger>
                   </TabsList>
                   <TabsContent value="multi-agent" className="mt-4">
                     <LeadEnrichmentPanel />
+                  </TabsContent>
+                  <TabsContent value="discovery" className="mt-4">
+                    <EnrichmentDiscoverySettings />
                   </TabsContent>
                   <TabsContent value="smart" className="mt-4">
                     <SmartEnrichmentPanel />

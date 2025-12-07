@@ -4,9 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Users, Mail, Briefcase, UserCheck, PlayCircle, CheckCircle, AlertCircle, ExternalLink } from "lucide-react";
+import { Loader2, Users, Mail, Briefcase, UserCheck, PlayCircle, CheckCircle, AlertCircle, ExternalLink, UserSearch, Sparkles } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface EnrichmentStats {
@@ -24,12 +26,17 @@ interface EnrichmentJob {
   processed_records: number;
   enriched_records: number;
   failed_records: number;
+  contacts_discovered?: number;
   started_at: string;
   completed_at?: string;
   created_at: string;
   provider: string;
   error_message?: string;
 }
+
+const DEFAULT_TARGET_TITLES = [
+  'CEO', 'CTO', 'CFO', 'VP Sales', 'VP Marketing', 'Director of Sales', 'Director of Marketing'
+];
 
 export function BulkLeadEnrichment() {
   const { toast } = useToast();
@@ -39,6 +46,8 @@ export function BulkLeadEnrichment() {
   const [activeJob, setActiveJob] = useState<EnrichmentJob | null>(null);
   const [batchSize, setBatchSize] = useState<string>("100");
   const [provider, setProvider] = useState<string>("pdl");
+  const [enableContactDiscovery, setEnableContactDiscovery] = useState(false);
+  const [targetTitles, setTargetTitles] = useState<string[]>(DEFAULT_TARGET_TITLES);
 
   useEffect(() => {
     loadStats();
@@ -394,6 +403,36 @@ export function BulkLeadEnrichment() {
                 </div>
               </div>
 
+              {/* Contact Discovery Toggle */}
+              <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/20">
+                <div className="flex items-center gap-3">
+                  <UserSearch className="h-5 w-5 text-primary" />
+                  <div>
+                    <Label htmlFor="contact-discovery" className="font-medium">
+                      Enable Contact Discovery
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Find decision-makers at enriched accounts
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  id="contact-discovery"
+                  checked={enableContactDiscovery}
+                  onCheckedChange={setEnableContactDiscovery}
+                />
+              </div>
+
+              {enableContactDiscovery && (
+                <Alert>
+                  <Sparkles className="h-4 w-4" />
+                  <AlertDescription>
+                    Contact discovery will find: {targetTitles.slice(0, 3).join(', ')}
+                    {targetTitles.length > 3 && ` +${targetTitles.length - 3} more`}
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
                 <div>
                   <p className="text-sm font-medium">
@@ -412,6 +451,14 @@ export function BulkLeadEnrichment() {
                   Start Enrichment
                 </Button>
               </div>
+
+              {/* Show discovered contacts count if job has any */}
+              {activeJob?.contacts_discovered && activeJob.contacts_discovered > 0 && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <UserSearch className="h-4 w-4" />
+                  <span>{activeJob.contacts_discovered} contacts discovered</span>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
