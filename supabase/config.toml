@@ -1,5 +1,8 @@
 project_id = "dhyfbaptcprxxixgnpby"
 
+[functions.health-check]
+verify_jwt = false
+
 [functions.weekly-analytics-snapshot]
 verify_jwt = false
 
