@@ -5,6 +5,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { HelpPanel } from "@/components/help/HelpPanel";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
+import { AIChat } from "@/components/AIChat";
 
 interface LayoutProps {
   children: ReactNode;
@@ -42,6 +43,7 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </footer>
         </main>
+        <AIChat />
       </div>
     </SidebarProvider>
   );
