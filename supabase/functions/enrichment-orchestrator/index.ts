@@ -18,13 +18,30 @@ interface EnrichmentRequest {
     search: boolean;
     validation: boolean;
     icp: boolean;
+    discover_contacts: boolean;
+  };
+  discovery_config?: {
+    target_titles: string[];
+    max_contacts_per_account: number;
   };
 }
 
 const CONCURRENCY_LIMIT = 4;
 const MAX_RETRIES = 3;
-const CHUNK_SIZE = 25; // Process 25 records per chunk to avoid timeout
-const MAX_PROCESSING_TIME_MS = 300000; // 5 minutes safety margin (before 400s timeout)
+const CHUNK_SIZE = 25;
+const MAX_PROCESSING_TIME_MS = 300000;
+
+const DEFAULT_TARGET_TITLES = [
+  'CEO', 'Chief Executive Officer',
+  'CTO', 'Chief Technology Officer',
+  'CFO', 'Chief Financial Officer',
+  'COO', 'Chief Operating Officer',
+  'VP', 'Vice President',
+  'Director',
+  'Head of Sales',
+  'Head of Marketing',
+  'Head of Engineering'
+];
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -41,7 +58,6 @@ serve(async (req) => {
 
     const request: EnrichmentRequest = await req.json();
     
-    // Validate required fields
     if (!request.org_id) {
       throw new Error('Missing required field: org_id');
     }
@@ -63,10 +79,15 @@ serve(async (req) => {
       record_ids, 
       config_icp_id,
       concurrency = 2,
-      agent_config = { search: true, validation: true, icp: true }
+      agent_config = { search: true, validation: true, icp: true, discover_contacts: false },
+      discovery_config = { target_titles: DEFAULT_TARGET_TITLES, max_contacts_per_account: 5 }
     } = request;
 
-    console.log(`[Orchestrator] Starting enrichment job for ${record_ids.length} ${record_type}s with chunked processing`);
+    console.log(`[Orchestrator] Starting enrichment job for ${record_ids.length} ${record_type}s`);
+    console.log(`[Orchestrator] Agent config:`, agent_config);
+    if (agent_config.discover_contacts) {
+      console.log(`[Orchestrator] Contact discovery enabled with titles: ${discovery_config.target_titles.join(', ')}`);
+    }
 
     // Create enrichment job
     const { data: job, error: jobError } = await supabase
@@ -80,10 +101,13 @@ serve(async (req) => {
         config_icp_id,
         concurrency: Math.min(concurrency, CONCURRENCY_LIMIT),
         agent_config,
+        target_titles: discovery_config.target_titles,
+        enable_contact_discovery: agent_config.discover_contacts,
         total_records: record_ids.length,
         rows_pending: record_ids.length,
         rows_completed: 0,
         rows_failed: 0,
+        contacts_discovered: 0,
         status: 'pending',
         can_pause: true
       })
@@ -151,13 +175,14 @@ serve(async (req) => {
 
     // Process rows with chunked approach and time limit
     const effectiveConcurrency = Math.min(concurrency, CONCURRENCY_LIMIT);
-    const { processed, completed, failed, timedOut } = await processRowsWithTimeLimit(
+    const { processed, completed, failed, timedOut, contactsDiscovered } = await processRowsWithTimeLimit(
       supabase, 
       job.id, 
       org_id, 
       effectiveConcurrency,
       agent_config,
       config_icp_id,
+      discovery_config,
       startTime,
       MAX_PROCESSING_TIME_MS
     );
@@ -183,11 +208,12 @@ serve(async (req) => {
         rows_completed: completedCount,
         rows_failed: failedCount,
         rows_pending: pendingCount,
-        enriched_records: completedCount
+        enriched_records: completedCount,
+        contacts_discovered: contactsDiscovered
       })
       .eq('id', job.id);
 
-    console.log(`[Orchestrator] Job ${job.id} ${finalStatus}: ${completedCount} success, ${failedCount} failed, ${pendingCount} pending`);
+    console.log(`[Orchestrator] Job ${job.id} ${finalStatus}: ${completedCount} success, ${failedCount} failed, ${pendingCount} pending, ${contactsDiscovered} contacts discovered`);
 
     return new Response(JSON.stringify({
       success: true,
@@ -196,6 +222,7 @@ serve(async (req) => {
       completed: completedCount,
       failed: failedCount,
       pending: pendingCount,
+      contacts_discovered: contactsDiscovered,
       status: finalStatus,
       timed_out: timedOut
     }), {
@@ -242,26 +269,25 @@ async function processRowsWithTimeLimit(
   jobId: string,
   orgId: string,
   concurrency: number,
-  agentConfig: { search: boolean; validation: boolean; icp: boolean },
+  agentConfig: { search: boolean; validation: boolean; icp: boolean; discover_contacts: boolean },
   icpConfigId: string | undefined,
+  discoveryConfig: { target_titles: string[]; max_contacts_per_account: number },
   startTime: number,
   maxTimeMs: number
-): Promise<{ processed: number; completed: number; failed: number; timedOut: boolean }> {
+): Promise<{ processed: number; completed: number; failed: number; timedOut: boolean; contactsDiscovered: number }> {
   let processed = 0;
   let completed = 0;
   let failed = 0;
   let timedOut = false;
+  let contactsDiscovered = 0;
   
-  // Get pending rows in chunks
   while (true) {
-    // Check time limit
     if (Date.now() - startTime > maxTimeMs) {
       console.log(`[Orchestrator] Time limit reached (${maxTimeMs}ms), pausing job`);
       timedOut = true;
       break;
     }
 
-    // Fetch next chunk of pending rows
     const { data: pendingRows, error } = await supabase
       .from('enrichment_rows')
       .select('*')
@@ -277,9 +303,7 @@ async function processRowsWithTimeLimit(
 
     console.log(`[Orchestrator] Processing chunk of ${pendingRows.length} rows`);
 
-    // Process chunk with concurrency
     for (let i = 0; i < pendingRows.length; i += concurrency) {
-      // Check time limit before each batch
       if (Date.now() - startTime > maxTimeMs) {
         console.log(`[Orchestrator] Time limit reached during batch processing`);
         timedOut = true;
@@ -289,7 +313,7 @@ async function processRowsWithTimeLimit(
       const batch = pendingRows.slice(i, i + concurrency);
       
       const batchPromises = batch.map(row => 
-        processRow(supabase, row, agentConfig, icpConfigId)
+        processRow(supabase, row, agentConfig, icpConfigId, discoveryConfig, orgId)
       );
 
       const batchResults = await Promise.allSettled(batchPromises);
@@ -298,18 +322,19 @@ async function processRowsWithTimeLimit(
         processed++;
         if (result.status === 'fulfilled' && result.value) {
           completed++;
+          contactsDiscovered += result.value.contactsDiscovered || 0;
         } else {
           failed++;
         }
       }
 
-      // Update job progress
       await supabase
         .from('enrichment_jobs')
         .update({
           processed_records: processed,
           rows_completed: completed,
           rows_failed: failed,
+          contacts_discovered: contactsDiscovered,
           last_progress_update: new Date().toISOString()
         })
         .eq('id', jobId);
@@ -318,17 +343,20 @@ async function processRowsWithTimeLimit(
     if (timedOut) break;
   }
 
-  return { processed, completed, failed, timedOut };
+  return { processed, completed, failed, timedOut, contactsDiscovered };
 }
 
 async function processRow(
   supabase: any,
   row: any,
-  agentConfig: { search: boolean; validation: boolean; icp: boolean },
-  icpConfigId?: string
-): Promise<boolean> {
+  agentConfig: { search: boolean; validation: boolean; icp: boolean; discover_contacts: boolean },
+  icpConfigId: string | undefined,
+  discoveryConfig: { target_titles: string[]; max_contacts_per_account: number },
+  orgId: string
+): Promise<{ success: boolean; contactsDiscovered: number }> {
+  let contactsDiscovered = 0;
+  
   try {
-    // Mark as processing
     await supabase
       .from('enrichment_rows')
       .update({ status: 'processing', current_agent: 'search' })
@@ -415,9 +443,91 @@ async function processRow(
           .update({ 
             icp_pass: icpPass,
             icp_fail_reasons: icpFailReasons,
-            icp_agent_completed_at: new Date().toISOString()
+            icp_agent_completed_at: new Date().toISOString(),
+            current_agent: agentConfig.discover_contacts ? 'discover' : null
           })
           .eq('id', row.id);
+      }
+    }
+
+    // Step 4: Contact Discovery Agent (for accounts only)
+    if (agentConfig.discover_contacts && row.record_type === 'account') {
+      const companyName = enrichedData.name || row.raw_input?.name;
+      const companyDomain = enrichedData.domain || row.raw_input?.domain;
+      const linkedinUrl = enrichedData.linkedin_url || row.raw_input?.linkedin_url;
+      
+      // Get existing emails to exclude duplicates
+      const { data: existingLeads } = await supabase
+        .from('Leads')
+        .select('email')
+        .eq('org_id', orgId)
+        .eq('account_external_id', row.record_id)
+        .not('email', 'is', null);
+      
+      const excludeEmails = existingLeads?.map(l => l.email).filter(Boolean) || [];
+
+      if (companyName) {
+        console.log(`[Orchestrator] Discovering contacts at ${companyName}`);
+        
+        const discoveryResult = await callAgent(supabase, 'agent-discover-contacts', {
+          company_name: companyName,
+          company_domain: companyDomain,
+          company_linkedin_url: linkedinUrl,
+          target_titles: discoveryConfig.target_titles,
+          org_id: orgId,
+          max_contacts: discoveryConfig.max_contacts_per_account,
+          exclude_emails: excludeEmails
+        });
+
+        if (discoveryResult.success && discoveryResult.contacts?.length > 0) {
+          console.log(`[Orchestrator] Found ${discoveryResult.contacts.length} new contacts`);
+          
+          // Insert discovered contacts as Leads
+          const leadsToInsert = discoveryResult.contacts.map((contact: any) => ({
+            org_id: orgId,
+            external_id: `discovered_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            account_external_id: row.record_id,
+            first_name: contact.first_name,
+            last_name: contact.last_name,
+            name: `${contact.first_name} ${contact.last_name}`.trim(),
+            email: contact.email,
+            phone: contact.phone_number || contact.direct_phone,
+            cell_phone: contact.cell_phone,
+            direct_phone: contact.direct_phone,
+            title: contact.current_title,
+            linkedin_url: contact.linkedin_url,
+            city: contact.city,
+            state_province: contact.state_province,
+            country: contact.country,
+            company: companyName,
+            domain: companyDomain,
+            enrichment_source: 'ai_discovered',
+            discovered_from_account: row.record_id,
+            enrichment_confidence: contact.confidence === 'high' ? 0.9 : contact.confidence === 'medium' ? 0.7 : 0.5,
+            enrichment_citations: contact.sources || [],
+            status: 'new',
+            data_source: 'enrichment'
+          }));
+
+          const { data: insertedLeads, error: insertError } = await supabase
+            .from('Leads')
+            .insert(leadsToInsert)
+            .select('id');
+
+          if (insertError) {
+            console.error('[Orchestrator] Failed to insert discovered contacts:', insertError);
+          } else {
+            contactsDiscovered = insertedLeads?.length || 0;
+            console.log(`[Orchestrator] Inserted ${contactsDiscovered} discovered contacts`);
+          }
+
+          await supabase
+            .from('enrichment_rows')
+            .update({ 
+              extra_contacts_found: contactsDiscovered
+            })
+            .eq('id', row.id);
+        }
       }
     }
 
@@ -430,11 +540,12 @@ async function processRow(
       .update({ 
         status: 'completed',
         current_agent: null,
-        validated_data: enrichedData
+        validated_data: enrichedData,
+        extra_contacts_found: contactsDiscovered
       })
       .eq('id', row.id);
 
-    return true;
+    return { success: true, contactsDiscovered };
 
   } catch (error) {
     console.error(`[Orchestrator] Row ${row.id} failed:`, error);
@@ -452,7 +563,7 @@ async function processRow(
       })
       .eq('id', row.id);
 
-    return false;
+    return { success: false, contactsDiscovered: 0 };
   }
 }
 
