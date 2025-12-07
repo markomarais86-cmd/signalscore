@@ -28,20 +28,28 @@ import { useAuth } from "@/hooks/use-auth";
 interface Agent {
   id: string;
   name: string;
-  type: 'lead_qualification' | 'meeting_scheduling' | 'follow_up' | 'data_enrichment';
+  agent_type: 'lead_qualification' | 'meeting_scheduling' | 'follow_up' | 'data_enrichment';
   description: string;
   parameters: any;
   enabled: boolean;
-  schedule: {
-    frequency: 'continuous' | 'hourly' | 'daily' | 'weekly';
-    time?: string;
-    days?: string[];
-  };
+  schedule: string; // Database stores as string like 'daily', 'hourly'
   last_run_at?: string;
   next_run_at?: string;
-  status: 'active' | 'inactive' | 'error';
+  status: 'active' | 'inactive' | 'paused' | 'error';
   is_default: boolean;
 }
+
+// Helper to get schedule object from string
+const parseSchedule = (schedule: string): { frequency: string; time?: string; days?: string[] } => {
+  // If it's already a JSON string, parse it
+  try {
+    if (schedule.startsWith('{')) {
+      return JSON.parse(schedule);
+    }
+  } catch {}
+  // Otherwise treat as simple frequency
+  return { frequency: schedule || 'daily', time: '09:00', days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'] };
+};
 
 interface AgentRun {
   id: string;
@@ -53,8 +61,10 @@ interface AgentRun {
   results?: any;
 }
 
+type AgentType = 'lead_qualification' | 'meeting_scheduling' | 'follow_up' | 'data_enrichment';
+
 interface AgentTemplate {
-  type: Agent['type'];
+  type: AgentType;
   name: string;
   description: string;
   defaultParameters: any;
@@ -119,11 +129,11 @@ export default function AIAgentSettings() {
   const [isLoading, setIsLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
-    type: '' as Agent['type'] | '',
+    agent_type: '' as AgentType | '',
     description: '',
     parameters: '{}',
     schedule: {
-      frequency: 'daily' as Agent['schedule']['frequency'],
+      frequency: 'daily' as 'continuous' | 'hourly' | 'daily' | 'weekly',
       time: '09:00',
       days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
     }
@@ -229,11 +239,11 @@ export default function AIAgentSettings() {
         .insert({
           org_id: userProfile.org_id,
           name: formData.name,
-          type: formData.type,
+          agent_type: formData.agent_type,
           description: formData.description,
           parameters,
           enabled: true,
-          schedule: formData.schedule,
+          schedule: formData.schedule.frequency, // Store as simple string
           status: 'active',
           is_default: false,
           next_run_at: new Date(Date.now() + 60 * 60 * 1000).toISOString()
@@ -319,15 +329,16 @@ export default function AIAgentSettings() {
 
   const editAgent = (agent: Agent) => {
     setSelectedAgent(agent);
+    const scheduleObj = parseSchedule(agent.schedule);
     setFormData({
       name: agent.name,
-      type: agent.type,
-      description: agent.description,
-      parameters: JSON.stringify(agent.parameters, null, 2),
+      agent_type: agent.agent_type,
+      description: agent.description || '',
+      parameters: JSON.stringify(agent.parameters || {}, null, 2),
       schedule: {
-        frequency: agent.schedule.frequency,
-        time: agent.schedule.time || '09:00',
-        days: agent.schedule.days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
+        frequency: (scheduleObj.frequency || 'daily') as 'continuous' | 'hourly' | 'daily' | 'weekly',
+        time: scheduleObj.time || '09:00',
+        days: scheduleObj.days || ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
       }
     });
     setIsEditDialogOpen(true);
@@ -336,7 +347,7 @@ export default function AIAgentSettings() {
   const resetForm = () => {
     setFormData({
       name: '',
-      type: '',
+      agent_type: '',
       description: '',
       parameters: '{}',
       schedule: {
@@ -353,7 +364,9 @@ export default function AIAgentSettings() {
     toast({ title: "Agent Started", description: `${agent.name} is now running` });
 
     try {
-      const { error } = await supabase.functions.invoke(`agent-${agent.type}`, {
+      // Map agent_type to edge function name
+      const functionName = `agent-${agent.agent_type.replace(/_/g, '-')}`;
+      const { error } = await supabase.functions.invoke(functionName, {
         body: {
           agent_id: agent.id,
           org_id: userProfile.org_id
@@ -377,12 +390,13 @@ export default function AIAgentSettings() {
   };
 
   const getStatusBadge = (status: Agent['status']) => {
-    const configs = {
-      active: { variant: 'default' as const, label: 'Active', icon: CheckCircle },
-      inactive: { variant: 'secondary' as const, label: 'Inactive', icon: Pause },
-      error: { variant: 'destructive' as const, label: 'Error', icon: AlertCircle }
+    const configs: Record<string, { variant: 'default' | 'secondary' | 'destructive'; label: string; icon: any }> = {
+      active: { variant: 'default', label: 'Active', icon: CheckCircle },
+      inactive: { variant: 'secondary', label: 'Inactive', icon: Pause },
+      paused: { variant: 'secondary', label: 'Paused', icon: Pause },
+      error: { variant: 'destructive', label: 'Error', icon: AlertCircle }
     };
-    const config = configs[status];
+    const config = configs[status] || configs.inactive;
     const Icon = config.icon;
     return (
       <Badge variant={config.variant} className="flex items-center gap-1">
@@ -392,8 +406,8 @@ export default function AIAgentSettings() {
     );
   };
 
-  const getTemplate = (type: Agent['type']) => {
-    return AGENT_TEMPLATES.find(t => t.type === type);
+  const getTemplate = (agentType: AgentType) => {
+    return AGENT_TEMPLATES.find(t => t.type === agentType);
   };
 
   if (isLoading) {
@@ -433,12 +447,12 @@ export default function AIAgentSettings() {
                 <div>
                   <Label>Agent Type</Label>
                   <Select 
-                    value={formData.type} 
-                    onValueChange={(value: Agent['type']) => {
+                    value={formData.agent_type} 
+                    onValueChange={(value: AgentType) => {
                       const template = AGENT_TEMPLATES.find(t => t.type === value);
                       setFormData(prev => ({
                         ...prev,
-                        type: value,
+                        agent_type: value,
                         parameters: JSON.stringify(template?.defaultParameters || {}, null, 2)
                       }));
                     }}
@@ -469,9 +483,9 @@ export default function AIAgentSettings() {
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label>Run Frequency</Label>
-                  <Select 
+                <Select 
                     value={formData.schedule.frequency} 
-                    onValueChange={(value: Agent['schedule']['frequency']) => 
+                    onValueChange={(value: 'continuous' | 'hourly' | 'daily' | 'weekly') => 
                       setFormData(prev => ({ ...prev, schedule: { ...prev.schedule, frequency: value } }))
                     }
                   >
@@ -531,7 +545,7 @@ export default function AIAgentSettings() {
         <CardContent>
           <div className="space-y-4">
             {agents.filter(agent => agent.is_default).map(agent => {
-              const template = getTemplate(agent.type);
+              const template = getTemplate(agent.agent_type);
               const Icon = template?.icon || Bot;
               
               return (
@@ -589,7 +603,7 @@ export default function AIAgentSettings() {
           {agents.filter(agent => !agent.is_default).length > 0 ? (
             <div className="space-y-4">
               {agents.filter(agent => !agent.is_default).map(agent => {
-                const template = getTemplate(agent.type);
+                const template = getTemplate(agent.agent_type);
                 const Icon = template?.icon || Bot;
                 
                 return (

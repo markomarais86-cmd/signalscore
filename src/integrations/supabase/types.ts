@@ -3969,7 +3969,7 @@ export type Database = {
         Returns: Json
       }
       cleanup_expired_oauth_states: { Args: never; Returns: number }
-      cleanup_stuck_enrichment_jobs: { Args: never; Returns: number }
+      cleanup_stuck_enrichment_jobs: { Args: never; Returns: Json }
       count_campaign_ready_accounts: {
         Args: { p_org_id: string }
         Returns: number
