@@ -210,19 +210,23 @@ async function processCompanyData(
   accountData.domain = accountData.domain.toLowerCase().replace(/^https?:\/\//i, '').replace(/^www\./i, '');
   console.log('Normalized domain:', accountData.domain);
 
-  // Check if account exists
+  // Check if account exists - use filter to avoid schema cache issues
   console.log('Checking for existing account with domain:', accountData.domain);
-  const { data: existingAccount, error: selectError } = await supabase
+  const { data: existingAccounts, error: selectError } = await supabase
     .from('accounts')
-    .select('id, external_id')
+    .select('*')
     .eq('org_id', orgId)
-    .eq('domain', accountData.domain)
-    .maybeSingle();
+    .limit(50);
 
   if (selectError) {
     console.error('Select error:', selectError);
     throw selectError;
   }
+  
+  // Find matching account by domain manually
+  const existingAccount = existingAccounts?.find(
+    (acc: any) => acc.domain?.toLowerCase() === accountData.domain.toLowerCase()
+  );
   console.log('Existing account result:', existingAccount);
 
   if (existingAccount) {
