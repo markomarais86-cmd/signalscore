@@ -75,22 +75,37 @@ serve(async (req) => {
     let recordsProcessed = 0;
     let recordsAffected = 0;
 
-    // Find leads from the last 24 hours without scores
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    
+    // Find leads with 'open' or 'new' status linked to high-fit accounts
+    // Join with accounts and scores to find leads at qualified accounts
     const { data: leads, error: leadsError } = await supabase
       .from('Leads')
-      .select('id, external_id, name, email')
+      .select(`
+        id, external_id, name, email, account_external_id,
+        accounts!inner(external_id, name),
+        scores!inner(overall, fit, intent)
+      `)
       .eq('org_id', org_id)
-      .gte('created_at', oneDayAgo)
-      .limit(100);
+      .in('status', ['open', 'new'])
+      .gte('scores.overall', minScoreThreshold)
+      .order('scores.overall', { ascending: false })
+      .limit(500);
 
     if (leadsError) {
       console.error('[agent-lead-qualification] Error fetching leads:', leadsError);
-      throw leadsError;
+      // Fallback: simple query without joins if the join fails
+      const { data: simpleLeads, error: simpleError } = await supabase
+        .from('Leads')
+        .select('id, external_id, name, email, account_external_id')
+        .eq('org_id', org_id)
+        .in('status', ['open', 'new'])
+        .not('account_external_id', 'is', null)
+        .limit(500);
+      
+      if (simpleError) throw simpleError;
+      console.log(`[agent-lead-qualification] Found ${simpleLeads?.length || 0} leads (fallback query)`);
     }
     
-    console.log(`[agent-lead-qualification] Found ${leads?.length || 0} leads to process`);
+    console.log(`[agent-lead-qualification] Found ${leads?.length || 0} leads at high-fit accounts`);
 
     if (leads && leads.length > 0) {
       console.log(`[Lead Qualification] Processing ${leads.length} leads`);
@@ -103,50 +118,27 @@ serve(async (req) => {
         .eq('status', 'active')
         .limit(1);
 
-      if (icps && icps.length > 0) {
-        const icpId = icps[0].id;
-
-        // Score each lead
-        for (const lead of leads) {
-          try {
-            // Check if lead has associated account
-            const { data: accounts } = await supabase
-              .from('accounts')
-              .select('external_id')
-              .eq('org_id', org_id)
-              .eq('domain', lead.email?.split('@')[1])
-              .limit(1);
-
-            if (accounts && accounts.length > 0) {
-              // Score the account
-              const { data: score } = await supabase.rpc('calculate_account_score', {
-                account_external_id: accounts[0].external_id,
-                icp_id: icpId,
-                org_id_param: org_id
-              });
-
-              recordsProcessed++;
-
-              // If score meets threshold, mark as qualified
-              if (score && score.overall >= minScoreThreshold) {
-                const { error: updateError } = await supabase
-                  .from('Leads')
-                  .update({ status: 'qualified' })
-                  .eq('id', lead.id);
-                
-                if (updateError) {
-                  console.error(`[agent-lead-qualification] Failed to update lead ${lead.id}:`, updateError);
-                } else {
-                  recordsAffected++;
-                  console.log(`[agent-lead-qualification] Qualified lead: ${lead.name} (score: ${score.overall})`);
-                }
-              }
-            } else {
-              recordsProcessed++;
-            }
-          } catch (error) {
-            console.error(`Error scoring lead ${lead.id}:`, error);
+      // Process leads that are already at high-fit accounts (from the joined query)
+      for (const lead of leads) {
+        try {
+          recordsProcessed++;
+          
+          // The lead is already at a high-fit account (from the query filter)
+          // Mark as qualified
+          const { error: updateError } = await supabase
+            .from('Leads')
+            .update({ status: 'qualified' })
+            .eq('id', lead.id);
+          
+          if (updateError) {
+            console.error(`[agent-lead-qualification] Failed to update lead ${lead.id}:`, updateError);
+          } else {
+            recordsAffected++;
+            const score = (lead as any).scores?.overall || 'N/A';
+            console.log(`[agent-lead-qualification] Qualified lead: ${lead.name} (score: ${score})`);
           }
+        } catch (error) {
+          console.error(`Error qualifying lead ${lead.id}:`, error);
         }
       }
     }
