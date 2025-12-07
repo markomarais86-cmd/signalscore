@@ -1,9 +1,18 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  action?: ActionResult;
+}
+
+export interface ActionResult {
+  action: string;
+  success: boolean;
+  result?: Record<string, any>;
+  error?: string;
 }
 
 interface UseAIChatOptions {
@@ -12,11 +21,113 @@ interface UseAIChatOptions {
     accountCount?: number;
     highFitCount?: number;
   };
+  onActionExecuted?: (action: ActionResult) => void;
+}
+
+// Parse action blocks from AI response
+function parseActionFromResponse(content: string): { action: string; parameters: Record<string, any> } | null {
+  const actionMatch = content.match(/```action\s*([\s\S]*?)```/);
+  if (actionMatch) {
+    try {
+      return JSON.parse(actionMatch[1].trim());
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 export function useAIChat(options: UseAIChatOptions = {}) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ action: string; parameters: Record<string, any> } | null>(null);
+
+  const executeAction = useCallback(async (actionData: { action: string; parameters: Record<string, any> }) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Please log in to execute actions');
+        return null;
+      }
+
+      // Get org_id from user profile
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('org_id')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (!profile?.org_id) {
+        toast.error('Organization not found');
+        return null;
+      }
+
+      const response = await supabase.functions.invoke('ai-actions', {
+        body: {
+          action: actionData.action,
+          parameters: actionData.parameters,
+          org_id: profile.org_id,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      const result: ActionResult = response.data;
+      
+      if (result.success) {
+        toast.success(result.result?.message || `Action "${actionData.action}" completed`);
+        options.onActionExecuted?.(result);
+      } else {
+        toast.error(result.error || 'Action failed');
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Action execution error:', error);
+      toast.error('Failed to execute action');
+      return null;
+    }
+  }, [options]);
+
+  const confirmAction = useCallback(async () => {
+    if (!pendingAction) return;
+
+    setIsLoading(true);
+    const result = await executeAction(pendingAction);
+    
+    if (result) {
+      setMessages(prev => {
+        const newMessages = [...prev];
+        const lastMsg = newMessages[newMessages.length - 1];
+        if (lastMsg?.role === 'assistant') {
+          lastMsg.action = result;
+        }
+        return newMessages;
+      });
+
+      // Add a follow-up message about the result
+      if (result.success) {
+        const followUp: ChatMessage = {
+          role: 'assistant',
+          content: `✅ **Action completed successfully!**\n\n${result.result?.message || 'The action was executed.'}`
+        };
+        setMessages(prev => [...prev, followUp]);
+      }
+    }
+
+    setPendingAction(null);
+    setIsLoading(false);
+  }, [pendingAction, executeAction]);
+
+  const cancelAction = useCallback(() => {
+    setPendingAction(null);
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      content: 'Action cancelled. Let me know if you need anything else!'
+    }]);
+  }, []);
 
   const sendMessage = useCallback(async (input: string) => {
     if (!input.trim() || isLoading) return;
@@ -118,6 +229,13 @@ export function useAIChat(options: UseAIChatOptions = {}) {
           } catch { /* ignore */ }
         }
       }
+
+      // Check if response contains an action
+      const actionData = parseActionFromResponse(assistantContent);
+      if (actionData) {
+        setPendingAction(actionData);
+      }
+
     } catch (error) {
       console.error('AI chat error:', error);
       toast.error('Failed to connect to AI assistant');
@@ -128,6 +246,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
 
   const clearMessages = useCallback(() => {
     setMessages([]);
+    setPendingAction(null);
   }, []);
 
   return {
@@ -135,5 +254,8 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     isLoading,
     sendMessage,
     clearMessages,
+    pendingAction,
+    confirmAction,
+    cancelAction,
   };
 }
