@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getModelConfig, getApiKey, buildHeaders, getAvailableProviders } from '../_shared/ai-config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -35,6 +36,45 @@ interface LeadCoverageStats {
   highFitAccountsWithLeads: number;
   highFitMissingLeads: number;
   leadCoveragePercent: string;
+}
+
+// Multi-provider AI call with fallback
+async function callAIWithFallback(messages: Array<{ role: string; content: string }>, maxTokens: number = 2000): Promise<any> {
+  const providers = getAvailableProviders();
+  console.log(`[ICP Insights] Available AI providers: ${providers.join(', ')}`);
+  
+  for (const provider of providers) {
+    try {
+      const config = getModelConfig('analysis', provider);
+      const headers = buildHeaders(provider);
+      
+      const body: any = {
+        model: config.model,
+        messages,
+      };
+      body[config.maxTokensParam] = maxTokens;
+      
+      console.log(`[ICP Insights] Trying ${provider} with model ${config.model}`);
+      
+      const response = await fetch(config.endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+      
+      if (response.ok) {
+        console.log(`[ICP Insights] Success with ${provider}`);
+        return await response.json();
+      }
+      
+      const errorText = await response.text();
+      console.error(`[ICP Insights] ${provider} error (${response.status}): ${errorText}`);
+    } catch (error) {
+      console.error(`[ICP Insights] ${provider} failed:`, error);
+    }
+  }
+  
+  throw new Error('All AI providers failed');
 }
 
 serve(async (req) => {
@@ -176,26 +216,16 @@ serve(async (req) => {
       }
     });
 
-    // Generate insights using Lovable AI with EXPLICIT validation rules
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    
+    // Generate insights using multi-provider AI
     let aiInsights: Insight[] = [];
     
     try {
       const leadCoverageNum = parseFloat(leadCoverageStats.leadCoveragePercent);
       
-      const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [
-            {
-              role: 'system',
-              content: `You are an expert B2B sales analyst. Analyze firmographic data and provide actionable ICP insights. Return ONLY valid JSON array of insights, no markdown or explanations.
+      const aiData = await callAIWithFallback([
+        {
+          role: 'system',
+          content: `You are an expert B2B sales analyst. Analyze firmographic data and provide actionable ICP insights. Return ONLY valid JSON array of insights, no markdown or explanations.
 
 CRITICAL RULES - DO NOT VIOLATE:
 - ONLY mention "missing leads" or "lead coverage issues" if High-Fit Missing Leads > 100
@@ -205,10 +235,10 @@ CRITICAL RULES - DO NOT VIOLATE:
 - If data completeness is above 80%, DO NOT suggest data enrichment
 - Focus on OPPORTUNITIES based on what the data shows, not problems that don't exist
 - Be specific with numbers from the data provided`
-            },
-            {
-              role: 'user',
-              content: `Analyze this B2B sales data and return exactly 3-5 ICP insights as a JSON array. Each insight must follow this exact structure:
+        },
+        {
+          role: 'user',
+          content: `Analyze this B2B sales data and return exactly 3-5 ICP insights as a JSON array. Each insight must follow this exact structure:
 
 {
   "type": "revenue" | "persona" | "firmographic" | "signal",
@@ -239,31 +269,23 @@ REMEMBER:
 - Data completeness is ${dataCompleteness.toFixed(1)}% - ${dataCompleteness >= 80 ? 'this is GOOD' : dataCompleteness >= 60 ? 'this is MODERATE' : 'this needs improvement'}
 
 Return ONLY the JSON array, no other text.`
-            }
-          ],
-          max_tokens: 2000,
-        }),
-      });
+        }
+      ], 2000);
 
-      if (aiResponse.ok) {
-        const aiData = await aiResponse.json();
-        const aiContent = aiData.choices?.[0]?.message?.content || '';
-        
-        // Parse AI response (handle markdown code blocks)
-        let jsonText = aiContent.trim();
-        if (jsonText.startsWith('```')) {
-          jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        }
-        
-        try {
-          const parsed = JSON.parse(jsonText);
-          aiInsights = Array.isArray(parsed) ? parsed : [];
-          console.log(`Generated ${aiInsights.length} AI insights before validation`);
-        } catch (parseError) {
-          console.warn('Failed to parse AI response:', parseError);
-        }
-      } else {
-        console.warn('AI API error:', aiResponse.status, await aiResponse.text());
+      const aiContent = aiData.choices?.[0]?.message?.content || '';
+      
+      // Parse AI response (handle markdown code blocks)
+      let jsonText = aiContent.trim();
+      if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      }
+      
+      try {
+        const parsed = JSON.parse(jsonText);
+        aiInsights = Array.isArray(parsed) ? parsed : [];
+        console.log(`Generated ${aiInsights.length} AI insights before validation`);
+      } catch (parseError) {
+        console.warn('Failed to parse AI response:', parseError);
       }
     } catch (aiError) {
       console.warn('AI generation error:', aiError);

@@ -1,11 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { getModelConfig, buildHeaders, getAvailableProviders } from '../_shared/ai-config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// ZoomInfo Industry Taxonomy (mirrored from frontend)
+// ZoomInfo Industry Taxonomy
 const ZOOMINFO_INDUSTRIES = [
   { primary: "Agriculture", subIndustries: ["Animals & Livestock", "Crops", "Forestry"] },
   { primary: "Business Services", subIndustries: ["Accounting Services", "Advertising & Marketing", "Call Centers & Business Centers", "Chambers of Commerce", "Commercial Printing", "Custom Software & IT Services", "Debt Collection", "Facilities Management & Commercial Cleaning", "Food Service", "HR & Staffing", "Information & Document Management", "Management Consulting", "Multimedia & Graphic Design", "Research & Development", "Security Products & Services", "Translation & Linguistic Services"] },
@@ -32,6 +33,35 @@ const ZOOMINFO_INDUSTRIES = [
   { primary: "Transportation", subIndustries: ["Airlines, Airports & Air Services", "Freight & Logistics Services", "Marine Shipping & Transportation", "Rail, Bus & Taxi", "Trucking, Moving & Storage"] }
 ];
 
+// Multi-provider AI call with fallback
+async function callAIWithFallback(messages: Array<{ role: string; content: string }>, tools?: any[], toolChoice?: any): Promise<any> {
+  const providers = getAvailableProviders();
+  
+  for (const provider of providers) {
+    try {
+      const config = getModelConfig('analysis', provider);
+      const headers = buildHeaders(provider);
+      
+      const body: any = { model: config.model, messages };
+      body[config.maxTokensParam] = 500;
+      if (tools) body.tools = tools;
+      if (toolChoice) body.tool_choice = toolChoice;
+      
+      const response = await fetch(config.endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+      
+      if (response.ok) return await response.json();
+      console.error(`[Industry Map] ${provider} error: ${response.status}`);
+    } catch (error) {
+      console.error(`[Industry Map] ${provider} failed:`, error);
+    }
+  }
+  throw new Error('All AI providers failed');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -39,224 +69,56 @@ serve(async (req) => {
 
   try {
     const { rawIndustry, useAI = true } = await req.json();
+    if (!rawIndustry) throw new Error('rawIndustry is required');
 
-    if (!rawIndustry) {
-      throw new Error('rawIndustry is required');
-    }
-
-    console.log('Mapping industry:', rawIndustry);
-
-    // Step 1: Try exact matching
+    // Try exact/fuzzy matching first
     const exactMatch = tryExactMatch(rawIndustry);
-    if (exactMatch) {
-      console.log('Exact match found:', exactMatch);
-      return new Response(
-        JSON.stringify({ ...exactMatch, method: 'exact' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    if (exactMatch) return new Response(JSON.stringify({ ...exactMatch, method: 'exact' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-    // Step 2: Try fuzzy matching
     const fuzzyMatch = tryFuzzyMatch(rawIndustry);
-    if (fuzzyMatch && fuzzyMatch.confidence >= 0.7) {
-      console.log('Fuzzy match found:', fuzzyMatch);
-      return new Response(
-        JSON.stringify({ ...fuzzyMatch, method: 'fuzzy' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    if (fuzzyMatch && fuzzyMatch.confidence >= 0.7) return new Response(JSON.stringify({ ...fuzzyMatch, method: 'fuzzy' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-    // Step 3: Use AI for intelligent mapping (if enabled)
-    if (useAI) {
-      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-      if (!LOVABLE_API_KEY) {
-        throw new Error('LOVABLE_API_KEY not configured');
+    if (useAI && getAvailableProviders().length > 0) {
+      const primaryList = ZOOMINFO_INDUSTRIES.map(i => i.primary).join(', ');
+      const aiData = await callAIWithFallback(
+        [{ role: 'user', content: `Map the industry "${rawIndustry}" to the ZoomInfo taxonomy. Return ONLY the primary industry from this list: ${primaryList}. If confident about a sub-industry, also return it. Return confidence 0-1.` }],
+        [{ type: 'function', function: { name: 'map_industry', parameters: { type: 'object', properties: { primary_industry: { type: 'string' }, sub_industry: { type: 'string', nullable: true }, confidence: { type: 'number' } }, required: ['primary_industry', 'confidence'] } } }],
+        { type: 'function', function: { name: 'map_industry' } }
+      );
+      
+      const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+      if (toolCall?.function?.arguments) {
+        const args = JSON.parse(toolCall.function.arguments);
+        return new Response(JSON.stringify({ primary_industry: args.primary_industry, sub_industry: args.sub_industry || null, confidence: Math.max(0.6, args.confidence), method: 'ai' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
       }
-
-      const aiMatch = await mapWithAI(rawIndustry, LOVABLE_API_KEY);
-      console.log('AI match found:', aiMatch);
-      return new Response(
-        JSON.stringify({ ...aiMatch, method: 'ai' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
 
-    // No match found
-    return new Response(
-      JSON.stringify({ 
-        primary_industry: null, 
-        sub_industry: null, 
-        confidence: 0,
-        method: 'none'
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
+    return new Response(JSON.stringify({ primary_industry: null, sub_industry: null, confidence: 0, method: 'none' }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (error: any) {
-    console.error('Error in map-industry-to-zoominfo:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });
 
 function tryExactMatch(input: string) {
   const normalized = input.toLowerCase().trim();
-
-  // Check primary industries
   for (const industry of ZOOMINFO_INDUSTRIES) {
-    if (industry.primary.toLowerCase() === normalized) {
-      return {
-        primary_industry: industry.primary,
-        sub_industry: null,
-        confidence: 1.0
-      };
-    }
-  }
-
-  // Check sub-industries
-  for (const industry of ZOOMINFO_INDUSTRIES) {
+    if (industry.primary.toLowerCase() === normalized) return { primary_industry: industry.primary, sub_industry: null, confidence: 1.0 };
     for (const sub of industry.subIndustries) {
-      if (sub.toLowerCase() === normalized) {
-        return {
-          primary_industry: industry.primary,
-          sub_industry: sub,
-          confidence: 1.0
-        };
-      }
+      if (sub.toLowerCase() === normalized) return { primary_industry: industry.primary, sub_industry: sub, confidence: 1.0 };
     }
   }
-
   return null;
 }
 
 function tryFuzzyMatch(input: string) {
   const normalized = input.toLowerCase().trim();
-  let bestMatch: { primary_industry: string; sub_industry: string | null; confidence: number } | null = null;
-
-  // Partial match on primary
+  let bestMatch: any = null;
   for (const industry of ZOOMINFO_INDUSTRIES) {
     const primaryLower = industry.primary.toLowerCase();
     if (normalized.includes(primaryLower) || primaryLower.includes(normalized)) {
-      const confidence = calculateSimilarity(normalized, primaryLower);
-      if (!bestMatch || confidence > bestMatch.confidence) {
-        bestMatch = {
-          primary_industry: industry.primary,
-          sub_industry: null,
-          confidence
-        };
-      }
-    }
-
-    // Partial match on sub-industry
-    for (const sub of industry.subIndustries) {
-      const subLower = sub.toLowerCase();
-      if (normalized.includes(subLower) || subLower.includes(normalized)) {
-        const confidence = calculateSimilarity(normalized, subLower) * 0.95; // Slight penalty for sub
-        if (!bestMatch || confidence > bestMatch.confidence) {
-          bestMatch = {
-            primary_industry: industry.primary,
-            sub_industry: sub,
-            confidence
-          };
-        }
-      }
+      const confidence = Math.min(normalized.length, primaryLower.length) / Math.max(normalized.length, primaryLower.length) * 0.85;
+      if (!bestMatch || confidence > bestMatch.confidence) bestMatch = { primary_industry: industry.primary, sub_industry: null, confidence };
     }
   }
-
   return bestMatch;
-}
-
-function calculateSimilarity(str1: string, str2: string): number {
-  const longer = str1.length > str2.length ? str1 : str2;
-  const shorter = str1.length > str2.length ? str2 : str1;
-  
-  if (longer.length === 0) return 1.0;
-  
-  const editDistance = levenshteinDistance(longer, shorter);
-  return ((longer.length - editDistance) / longer.length) * 0.85;
-}
-
-function levenshteinDistance(str1: string, str2: string): number {
-  const matrix: number[][] = [];
-
-  for (let i = 0; i <= str2.length; i++) {
-    matrix[i] = [i];
-  }
-
-  for (let j = 0; j <= str1.length; j++) {
-    matrix[0][j] = j;
-  }
-
-  for (let i = 1; i <= str2.length; i++) {
-    for (let j = 1; j <= str1.length; j++) {
-      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
-  }
-
-  return matrix[str2.length][str1.length];
-}
-
-async function mapWithAI(rawIndustry: string, apiKey: string) {
-  const primaryList = ZOOMINFO_INDUSTRIES.map(i => i.primary).join(', ');
-
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
-      messages: [{
-        role: 'user',
-        content: `Map the industry "${rawIndustry}" to the ZoomInfo taxonomy. Return ONLY the primary industry from this list: ${primaryList}. If confident about a sub-industry, also return it. Return confidence 0-1.`
-      }],
-      tools: [{
-        type: 'function',
-        function: {
-          name: 'map_industry',
-          description: 'Map a raw industry string to ZoomInfo taxonomy',
-          parameters: {
-            type: 'object',
-            properties: {
-              primary_industry: { type: 'string', description: 'Primary industry from ZoomInfo taxonomy' },
-              sub_industry: { type: 'string', nullable: true, description: 'Sub-industry if applicable' },
-              confidence: { type: 'number', description: 'Confidence score 0-1' }
-            },
-            required: ['primary_industry', 'confidence'],
-            additionalProperties: false
-          }
-        }
-      }],
-      tool_choice: { type: 'function', function: { name: 'map_industry' } }
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`AI API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  
-  if (toolCall?.function?.arguments) {
-    const args = JSON.parse(toolCall.function.arguments);
-    return {
-      primary_industry: args.primary_industry,
-      sub_industry: args.sub_industry || null,
-      confidence: Math.max(0.6, args.confidence) // AI mapping gets at least 0.6 confidence
-    };
-  }
-
-  throw new Error('AI failed to map industry');
 }

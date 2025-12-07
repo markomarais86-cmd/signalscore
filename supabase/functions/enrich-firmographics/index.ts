@@ -1,11 +1,67 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.55.0";
 import { withHttpRetry, DEFAULT_RETRY_CONFIG } from '../_shared/retry-helper.ts';
+import { getModelConfig, buildHeaders, getAvailableProviders } from '../_shared/ai-config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Multi-provider AI call with fallback
+async function callAIWithFallback(messages: Array<{ role: string; content: string }>, tools?: any[], toolChoice?: any): Promise<any> {
+  const providers = getAvailableProviders();
+  console.log(`[Enrich Firmographics] Available AI providers: ${providers.join(', ')}`);
+  
+  for (const provider of providers) {
+    try {
+      const config = getModelConfig('enrichment', provider);
+      const headers = buildHeaders(provider);
+      
+      const body: any = {
+        model: config.model,
+        messages,
+      };
+      body[config.maxTokensParam] = 1500;
+      
+      if (tools) body.tools = tools;
+      if (toolChoice) body.tool_choice = toolChoice;
+      
+      console.log(`[Enrich Firmographics] Trying ${provider} with model ${config.model}`);
+      
+      const response = await withHttpRetry(
+        () => fetch(config.endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        }),
+        { ...DEFAULT_RETRY_CONFIG, maxRetries: 2 }
+      );
+      
+      if (response.ok) {
+        console.log(`[Enrich Firmographics] Success with ${provider}`);
+        return { response, provider };
+      }
+      
+      const errorText = await response.text();
+      console.error(`[Enrich Firmographics] ${provider} error (${response.status}): ${errorText}`);
+      
+      if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please try again later.');
+      }
+      if (response.status === 402) {
+        throw new Error('Payment required. Please add credits to your AI workspace.');
+      }
+    } catch (error) {
+      console.error(`[Enrich Firmographics] ${provider} failed:`, error);
+      if ((error as Error).message.includes('Rate limit') || (error as Error).message.includes('Payment required')) {
+        throw error;
+      }
+    }
+  }
+  
+  throw new Error('All AI providers failed');
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -15,11 +71,6 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-    
-    if (!lovableApiKey) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
     const { job_id } = await req.json();
@@ -106,80 +157,57 @@ serve(async (req) => {
           needs_revenue_range: !acc.revenue_range
         }));
 
-        // Call Lovable AI with retry logic
-        const aiResponse = await withHttpRetry(
-          () => fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${lovableApiKey}`,
-              'Content-Type': 'application/json',
+        // Call AI with multi-provider fallback
+        const { response: aiResponse } = await callAIWithFallback(
+          [
+            {
+              role: 'system',
+              content: 'You are a B2B firmographic data expert. Estimate employee counts and revenue ranges based on company signals like domain, name, industry, and country. Be conservative and realistic.'
             },
-            body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
-            messages: [
-              {
-                role: 'system',
-                content: 'You are a B2B firmographic data expert. Estimate employee counts and revenue ranges based on company signals like domain, name, industry, and country. Be conservative and realistic.'
-              },
-              {
-                role: 'user',
-                content: `Estimate missing firmographic data for these ${batch.length} companies:\n\n${JSON.stringify(accountsData, null, 2)}`
-              }
-            ],
-            tools: [
-              {
-                type: 'function',
-                function: {
-                  name: 'enrich_firmographics',
-                  description: 'Enrich company firmographic data with employee count and revenue range estimates',
-                  parameters: {
-                    type: 'object',
-                    properties: {
-                      enrichments: {
-                        type: 'array',
-                        items: {
-                          type: 'object',
-                          properties: {
-                            external_id: { type: 'string' },
-                            employee_count: { type: 'integer', description: 'Estimated number of employees' },
-                            revenue_range: {
-                              type: 'string',
-                              enum: ['<$1M', '$1M-$5M', '$5M-$10M', '$10M-$50M', '$50M-$100M', '$100M-$500M', '$500M+'],
-                              description: 'Estimated annual revenue range'
-                            },
-                            confidence: {
-                              type: 'integer',
-                              description: 'Confidence score 0-100',
-                              minimum: 0,
-                              maximum: 100
-                            }
+            {
+              role: 'user',
+              content: `Estimate missing firmographic data for these ${batch.length} companies:\n\n${JSON.stringify(accountsData, null, 2)}`
+            }
+          ],
+          [
+            {
+              type: 'function',
+              function: {
+                name: 'enrich_firmographics',
+                description: 'Enrich company firmographic data with employee count and revenue range estimates',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    enrichments: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          external_id: { type: 'string' },
+                          employee_count: { type: 'integer', description: 'Estimated number of employees' },
+                          revenue_range: {
+                            type: 'string',
+                            enum: ['<$1M', '$1M-$5M', '$5M-$10M', '$10M-$50M', '$50M-$100M', '$100M-$500M', '$500M+'],
+                            description: 'Estimated annual revenue range'
                           },
-                          required: ['external_id', 'employee_count', 'revenue_range', 'confidence']
-                        }
+                          confidence: {
+                            type: 'integer',
+                            description: 'Confidence score 0-100',
+                            minimum: 0,
+                            maximum: 100
+                          }
+                        },
+                        required: ['external_id', 'employee_count', 'revenue_range', 'confidence']
                       }
-                    },
-                    required: ['enrichments']
-                  }
+                    }
+                  },
+                  required: ['enrichments']
                 }
               }
-            ],
-            tool_choice: { type: 'function', function: { name: 'enrich_firmographics' } }
-          })
-        }));
-
-        if (!aiResponse.ok) {
-          const errorText = await aiResponse.text();
-          console.error(`AI API error: ${aiResponse.status} - ${errorText}`);
-          
-          if (aiResponse.status === 429) {
-            throw new Error('Rate limit exceeded. Please try again later.');
-          }
-          if (aiResponse.status === 402) {
-            throw new Error('Payment required. Please add credits to your Lovable AI workspace.');
-          }
-          
-          throw new Error(`AI API error: ${aiResponse.status}`);
-        }
+            }
+          ],
+          { type: 'function', function: { name: 'enrich_firmographics' } }
+        );
 
         const aiResult = await aiResponse.json();
         
@@ -213,12 +241,6 @@ serve(async (req) => {
               
               if (originalAccount?.needs_revenue_range && enrichment.revenue_range) {
                 updateData.revenue_range = enrichment.revenue_range;
-              }
-              
-              // If industry_norm exists but no sub_industries, try to infer sub-industries
-              if (originalAccount?.industry && !updateData.sub_industries) {
-                // This will be handled by future enrichment passes
-                // For now, keep industry_norm as the primary classification
               }
 
               const { error: updateError } = await supabase

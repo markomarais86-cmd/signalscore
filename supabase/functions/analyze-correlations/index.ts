@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getModelConfig, buildHeaders, getAvailableProviders } from '../_shared/ai-config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,6 +10,45 @@ const corsHeaders = {
 interface CorrelationRequest {
   org_id: string;
   icp_id?: string;
+}
+
+// Multi-provider AI call with fallback
+async function callAIWithFallback(messages: Array<{ role: string; content: string }>): Promise<any> {
+  const providers = getAvailableProviders();
+  console.log(`[Correlations] Available AI providers: ${providers.join(', ')}`);
+  
+  for (const provider of providers) {
+    try {
+      const config = getModelConfig('analysis', provider);
+      const headers = buildHeaders(provider);
+      
+      const body: any = {
+        model: config.model,
+        messages,
+      };
+      body[config.maxTokensParam] = 2000;
+      
+      console.log(`[Correlations] Trying ${provider} with model ${config.model}`);
+      
+      const response = await fetch(config.endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+      
+      if (response.ok) {
+        console.log(`[Correlations] Success with ${provider}`);
+        return await response.json();
+      }
+      
+      const errorText = await response.text();
+      console.error(`[Correlations] ${provider} error (${response.status}): ${errorText}`);
+    } catch (error) {
+      console.error(`[Correlations] ${provider} failed:`, error);
+    }
+  }
+  
+  throw new Error('All AI providers failed');
 }
 
 serve(async (req) => {
@@ -185,12 +225,6 @@ serve(async (req) => {
     const contactsCorr = calculateCorrelation('contacts', (a) => a.has_contacts);
     const dataQualityCorr = calculateCorrelation('data_quality', (a) => a.data_completeness >= 0.75);
 
-    // Use Lovable AI to analyze correlations
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
-
     const aiPrompt = `You are a statistician analyzing ICP (Ideal Customer Profile) effectiveness based on ACTUAL CLOSED WON DEALS.
 
 STATISTICAL CORRELATION ANALYSIS:
@@ -254,32 +288,15 @@ Return JSON:
 
 Mark significant=true if p < 0.05. Strength: strong if |r| > 0.5, moderate if > 0.3, else weak.`;
 
-    console.log('Calling Lovable AI for correlation analysis...');
+    console.log('Calling AI for correlation analysis...');
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'user',
-            content: aiPrompt
-          }
-        ],
-      }),
-    });
+    const aiResult = await callAIWithFallback([
+      {
+        role: 'user',
+        content: aiPrompt
+      }
+    ]);
 
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error('AI API error:', errorText);
-      throw new Error(`AI API failed: ${aiResponse.status}`);
-    }
-
-    const aiResult = await aiResponse.json();
     const aiContent = aiResult.choices?.[0]?.message?.content;
 
     if (!aiContent) {

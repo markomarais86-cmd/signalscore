@@ -1,8 +1,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0';
+import { getModelConfig, buildHeaders, getAvailableProviders } from '../_shared/ai-config.ts';
 
-const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -15,6 +15,45 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Multi-provider AI call with fallback
+async function callAIWithFallback(messages: Array<{ role: string; content: string }>): Promise<any> {
+  const providers = getAvailableProviders();
+  console.log(`[ICP Recommendations] Available AI providers: ${providers.join(', ')}`);
+  
+  for (const provider of providers) {
+    try {
+      const config = getModelConfig('analysis', provider);
+      const headers = buildHeaders(provider);
+      
+      const body: any = {
+        model: config.model,
+        messages,
+      };
+      body[config.maxTokensParam] = 2000;
+      
+      console.log(`[ICP Recommendations] Trying ${provider} with model ${config.model}`);
+      
+      const response = await fetch(config.endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+      
+      if (response.ok) {
+        console.log(`[ICP Recommendations] Success with ${provider}`);
+        return await response.json();
+      }
+      
+      const errorText = await response.text();
+      console.error(`[ICP Recommendations] ${provider} error (${response.status}): ${errorText}`);
+    } catch (error) {
+      console.error(`[ICP Recommendations] ${provider} failed:`, error);
+    }
+  }
+  
+  throw new Error('All AI providers failed');
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -96,35 +135,19 @@ Format each recommendation as JSON with:
 
 Return ONLY a JSON array of recommendations, no markdown or explanation.`;
 
-    if (!lovableApiKey) {
-      throw new Error('LOVABLE_API_KEY not configured');
+    const providers = getAvailableProviders();
+    if (providers.length === 0) {
+      throw new Error('No AI provider configured');
     }
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: 'You are a B2B sales strategist. Return ONLY valid JSON arrays, no markdown formatting.' },
-          { role: 'user', content: prompt }
-        ],
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Lovable AI error:', response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
-    }
-
-    const aiData = await response.json();
     let recommendations = [];
     
     try {
+      const aiData = await callAIWithFallback([
+        { role: 'system', content: 'You are a B2B sales strategist. Return ONLY valid JSON arrays, no markdown formatting.' },
+        { role: 'user', content: prompt }
+      ]);
+      
       const content = aiData.choices[0].message.content;
       // Remove markdown code blocks if present
       const jsonContent = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -150,7 +173,6 @@ Return ONLY a JSON array of recommendations, no markdown or explanation.`;
       }
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError);
-      console.log('Raw response:', aiData.choices[0].message.content);
       // Return fallback recommendations
       recommendations = generateFallbackRecommendations(dataAnalysis, accounts);
     }
