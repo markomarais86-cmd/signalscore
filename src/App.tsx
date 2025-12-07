@@ -32,6 +32,7 @@ import Trends from "./pages/Trends";
 import NotFound from "./pages/NotFound";
 import AIAgents from "./pages/AIAgents";
 import AgentTester from "./pages/AgentTester";
+import AITest from "./pages/AITest";
 
 const queryClient = new QueryClient();
 
@@ -200,6 +201,16 @@ function AppContent() {
                     <ProtectedRoute>
                       <Layout>
                         <AgentTester />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/ai-test"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <AITest />
                       </Layout>
                     </ProtectedRoute>
                   }

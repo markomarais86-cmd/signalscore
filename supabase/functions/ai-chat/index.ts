@@ -48,6 +48,14 @@ interface ProviderConfig {
   maxTokensParam: 'max_tokens' | 'max_completion_tokens';
 }
 
+interface ProviderResult {
+  provider: AIProvider;
+  success: boolean;
+  responseTime: number;
+  error?: string;
+  statusCode?: number;
+}
+
 function getProviderConfig(provider: AIProvider): ProviderConfig | null {
   switch (provider) {
     case 'openai':
@@ -55,10 +63,10 @@ function getProviderConfig(provider: AIProvider): ProviderConfig | null {
       if (!openaiKey) return null;
       return {
         endpoint: 'https://api.openai.com/v1/chat/completions',
-        model: 'gpt-5-2025-08-07',
+        model: 'gpt-4o-mini',
         apiKey: openaiKey,
-        supportsTemperature: false, // GPT-5 doesn't support temperature
-        maxTokensParam: 'max_completion_tokens',
+        supportsTemperature: true,
+        maxTokensParam: 'max_tokens',
       };
     case 'abacus':
       const abacusKey = Deno.env.get("ABACUS_API_KEY");
@@ -102,15 +110,11 @@ async function callProvider(
     stream,
   };
 
-  // Add max tokens with correct parameter name
   body[config.maxTokensParam] = 4096;
 
-  // Only add temperature for providers that support it
   if (config.supportsTemperature) {
     body.temperature = 0.7;
   }
-
-  console.log(`[AI Chat] Calling ${config.model} at ${config.endpoint}`);
 
   return fetch(config.endpoint, {
     method: "POST",
@@ -128,7 +132,18 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, context, preferredProvider } = await req.json();
+    const { messages, context, preferredProvider, testMode } = await req.json();
+    
+    // Enhanced logging for debugging
+    const requestId = crypto.randomUUID().slice(0, 8);
+    const startTime = Date.now();
+    
+    console.log(`[${requestId}] ========== AI CHAT REQUEST ==========`);
+    console.log(`[${requestId}] Timestamp: ${new Date().toISOString()}`);
+    console.log(`[${requestId}] Test Mode: ${testMode || false}`);
+    console.log(`[${requestId}] Preferred Provider: ${preferredProvider || 'none'}`);
+    console.log(`[${requestId}] Message Count: ${messages?.length || 0}`);
+    console.log(`[${requestId}] Context: ${JSON.stringify(context || {})}`);
     
     // Build context-aware system prompt
     let contextualPrompt = SYSTEM_PROMPT;
@@ -149,7 +164,10 @@ serve(async (req) => {
 
     // Get ordered list of providers to try
     const available = getAvailableProviders();
+    console.log(`[${requestId}] Available Providers: ${available.join(', ') || 'NONE'}`);
+    
     if (available.length === 0) {
+      console.error(`[${requestId}] ERROR: No AI providers configured!`);
       throw new Error("No AI provider available. Please configure OPENAI_API_KEY, ABACUS_API_KEY, or LOVABLE_API_KEY.");
     }
 
@@ -163,47 +181,128 @@ serve(async (req) => {
         orderedProviders.push(p);
       }
     }
+    
+    console.log(`[${requestId}] Provider Priority: ${orderedProviders.join(' -> ')}`);
 
     let lastError: string = '';
+    const providerResults: ProviderResult[] = [];
 
     // Try each provider in order
     for (const provider of orderedProviders) {
       const config = getProviderConfig(provider);
-      if (!config) continue;
+      if (!config) {
+        console.log(`[${requestId}] Skipping ${provider}: No config available`);
+        continue;
+      }
+
+      const providerStartTime = Date.now();
+      console.log(`[${requestId}] Attempting ${provider}...`);
+      console.log(`[${requestId}]   Endpoint: ${config.endpoint}`);
+      console.log(`[${requestId}]   Model: ${config.model}`);
+      console.log(`[${requestId}]   API Key: ${config.apiKey ? '***' + config.apiKey.slice(-4) : 'MISSING'}`);
 
       try {
-        const response = await callProvider(config, fullMessages, true);
+        const response = await callProvider(config, fullMessages, !testMode);
+        const responseTime = Date.now() - providerStartTime;
 
         if (response.ok) {
-          console.log(`[AI Chat] Success with ${provider}`);
+          console.log(`[${requestId}] ✅ SUCCESS with ${provider}`);
+          console.log(`[${requestId}]   Response Time: ${responseTime}ms`);
+          console.log(`[${requestId}]   Status: ${response.status}`);
+          
+          providerResults.push({
+            provider,
+            success: true,
+            responseTime,
+            statusCode: response.status,
+          });
+
+          // If test mode, return diagnostic info instead of streaming
+          if (testMode) {
+            const totalTime = Date.now() - startTime;
+            const body = await response.json();
+            return new Response(JSON.stringify({
+              success: true,
+              requestId,
+              provider,
+              model: config.model,
+              responseTime,
+              totalTime,
+              availableProviders: available,
+              providerResults,
+              testResponse: body.choices?.[0]?.message?.content || 'No content',
+            }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+
           return new Response(response.body, {
             headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
           });
         }
 
         // Handle specific error codes
+        const errorText = await response.text();
+        console.log(`[${requestId}] ❌ FAILED with ${provider}`);
+        console.log(`[${requestId}]   Status: ${response.status}`);
+        console.log(`[${requestId}]   Response Time: ${responseTime}ms`);
+        console.log(`[${requestId}]   Error: ${errorText.slice(0, 200)}`);
+
+        providerResults.push({
+          provider,
+          success: false,
+          responseTime,
+          statusCode: response.status,
+          error: errorText.slice(0, 200),
+        });
+
         if (response.status === 429) {
           lastError = `Rate limit exceeded on ${provider}`;
-          console.warn(`[AI Chat] ${lastError}, trying next provider...`);
+          console.warn(`[${requestId}] Rate limited, trying next provider...`);
           continue;
         }
         if (response.status === 402) {
           lastError = `Credits exhausted on ${provider}`;
-          console.warn(`[AI Chat] ${lastError}, trying next provider...`);
+          console.warn(`[${requestId}] Credits exhausted, trying next provider...`);
           continue;
         }
 
-        const errorText = await response.text();
-        lastError = `${provider} error (${response.status}): ${errorText}`;
-        console.error(`[AI Chat] ${lastError}`);
+        lastError = `${provider} error (${response.status}): ${errorText.slice(0, 100)}`;
         
       } catch (error) {
+        const responseTime = Date.now() - providerStartTime;
         lastError = `${provider} failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-        console.error(`[AI Chat] ${lastError}`);
+        console.error(`[${requestId}] ❌ EXCEPTION with ${provider}: ${lastError}`);
+        
+        providerResults.push({
+          provider,
+          success: false,
+          responseTime,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
       }
     }
 
     // All providers failed
+    const totalTime = Date.now() - startTime;
+    console.error(`[${requestId}] ========== ALL PROVIDERS FAILED ==========`);
+    console.error(`[${requestId}] Total Time: ${totalTime}ms`);
+    console.error(`[${requestId}] Last Error: ${lastError}`);
+    
+    if (testMode) {
+      return new Response(JSON.stringify({
+        success: false,
+        requestId,
+        error: lastError || "All AI providers failed",
+        totalTime,
+        availableProviders: available,
+        providerResults,
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(
       JSON.stringify({ error: lastError || "All AI providers failed" }), 
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
