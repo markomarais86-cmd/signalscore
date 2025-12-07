@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -8,9 +8,10 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Loader2, PlayCircle, CheckCircle, AlertCircle, 
-  RefreshCw, Bot, Target, Sparkles, Search, ShieldCheck, Play, Pause
+  RefreshCw, Bot, Target, Sparkles, Search, ShieldCheck, Play, Pause, Clock
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatDistanceToNow } from "date-fns";
 
 interface Lead {
   id: number;
@@ -57,13 +58,83 @@ export function LeadEnrichmentPanel() {
   const [enrichmentRows, setEnrichmentRows] = useState<EnrichmentRow[]>([]);
   const [batchSize, setBatchSize] = useState<string>("5");
   const [orgId, setOrgId] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Memoized refresh function
+  const refreshData = useCallback(async () => {
+    if (!orgId) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.all([loadJobsInternal(), loadEnrichmentRowsInternal()]);
+      setLastUpdated(new Date());
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [orgId]);
+
+  // Internal load functions that don't depend on state
+  const loadJobsInternal = async () => {
+    if (!orgId) return;
+    try {
+      const { data: activeJobData } = await supabase
+        .from('enrichment_jobs')
+        .select('id, status, total_records, rows_completed, rows_failed, rows_pending, paused_at')
+        .eq('org_id', orgId)
+        .eq('job_type', 'contacts')
+        .eq('status', 'processing')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setActiveJob(activeJobData);
+
+      const { data: pausedJobData } = await supabase
+        .from('enrichment_jobs')
+        .select('id, status, total_records, rows_completed, rows_failed, rows_pending, paused_at')
+        .eq('org_id', orgId)
+        .eq('job_type', 'contacts')
+        .eq('status', 'paused')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setPausedJob(pausedJobData);
+      return { activeJobData, pausedJobData };
+    } catch (error) {
+      console.error('Error loading jobs:', error);
+    }
+  };
+
+  const loadEnrichmentRowsInternal = async () => {
+    if (!orgId) return;
+    try {
+      const { data: rows } = await supabase
+        .from('enrichment_rows')
+        .select('*')
+        .eq('org_id', orgId)
+        .eq('record_type', 'lead')
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (rows) {
+        setEnrichmentRows(rows as EnrichmentRow[]);
+      }
+    } catch (error) {
+      console.error('Error loading enrichment rows:', error);
+    }
+  };
 
   useEffect(() => {
     loadLeads();
   }, []);
 
+  // Real-time subscription with error handling
   useEffect(() => {
     if (!orgId) return;
+
+    console.log('[Enrichment] Setting up real-time subscription for org:', orgId);
 
     const channel = supabase
       .channel('enrichment-rows-updates')
@@ -72,23 +143,59 @@ export function LeadEnrichmentPanel() {
         schema: 'public',
         table: 'enrichment_rows',
         filter: `org_id=eq.${orgId}`
-      }, () => {
-        loadEnrichmentRows();
+      }, (payload) => {
+        console.log('[Enrichment] Real-time update received for rows:', payload.eventType);
+        loadEnrichmentRowsInternal();
+        setLastUpdated(new Date());
       })
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'enrichment_jobs',
         filter: `org_id=eq.${orgId}`
-      }, () => {
-        loadJobs();
+      }, (payload) => {
+        console.log('[Enrichment] Real-time update received for jobs:', payload.eventType);
+        loadJobsInternal();
+        setLastUpdated(new Date());
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[Enrichment] Subscription status:', status);
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('[Enrichment] Real-time channel error, falling back to polling');
+        }
+      });
 
     return () => {
+      console.log('[Enrichment] Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
   }, [orgId]);
+
+  // Polling fallback when job is active
+  useEffect(() => {
+    const hasActiveWork = activeJob || pausedJob || enrichmentRows.some(r => r.status === 'processing' || r.status === 'pending');
+    
+    if (hasActiveWork && orgId) {
+      console.log('[Enrichment] Starting polling fallback (3s interval)');
+      pollIntervalRef.current = setInterval(() => {
+        console.log('[Enrichment] Polling for updates...');
+        refreshData();
+      }, 3000);
+    } else {
+      if (pollIntervalRef.current) {
+        console.log('[Enrichment] Stopping polling - no active work');
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    }
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [activeJob, pausedJob, enrichmentRows, orgId, refreshData]);
 
   const loadLeads = async () => {
     try {
@@ -125,57 +232,8 @@ export function LeadEnrichmentPanel() {
     }
   };
 
-  const loadJobs = async () => {
-    if (!orgId) return;
-    try {
-      // Load active job
-      const { data: activeJobData } = await supabase
-        .from('enrichment_jobs')
-        .select('id, status, total_records, rows_completed, rows_failed, rows_pending, paused_at')
-        .eq('org_id', orgId)
-        .eq('job_type', 'contacts')
-        .eq('status', 'processing')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      setActiveJob(activeJobData);
-
-      // Load paused job
-      const { data: pausedJobData } = await supabase
-        .from('enrichment_jobs')
-        .select('id, status, total_records, rows_completed, rows_failed, rows_pending, paused_at')
-        .eq('org_id', orgId)
-        .eq('job_type', 'contacts')
-        .eq('status', 'paused')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      setPausedJob(pausedJobData);
-    } catch (error) {
-      console.error('Error loading jobs:', error);
-    }
-  };
-
-  const loadEnrichmentRows = async () => {
-    if (!orgId) return;
-    try {
-      const { data: rows } = await supabase
-        .from('enrichment_rows')
-        .select('*')
-        .eq('org_id', orgId)
-        .eq('record_type', 'lead')
-        .order('created_at', { ascending: false })
-        .limit(200);
-
-      if (rows) {
-        setEnrichmentRows(rows as EnrichmentRow[]);
-      }
-    } catch (error) {
-      console.error('Error loading enrichment rows:', error);
-    }
-  };
+  const loadJobs = loadJobsInternal;
+  const loadEnrichmentRows = loadEnrichmentRowsInternal;
 
   const getConcurrency = (size: number) => {
     if (size >= 100) return 4;
@@ -418,12 +476,22 @@ export function LeadEnrichmentPanel() {
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   <span className="font-medium">Processing...</span>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground ml-2">
+                    <Clock className="h-3 w-3" />
+                    Updated {formatDistanceToNow(lastUpdated, { addSuffix: true })}
+                    {isRefreshing && <Loader2 className="h-3 w-3 animate-spin ml-1" />}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold">{getProgress(activeJob)}%</p>
-                  <p className="text-sm text-muted-foreground">
-                    {activeJob.rows_completed}/{activeJob.total_records} complete
-                  </p>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={refreshData} disabled={isRefreshing}>
+                    <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  </Button>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold">{getProgress(activeJob)}%</p>
+                    <p className="text-sm text-muted-foreground">
+                      {activeJob.rows_completed}/{activeJob.total_records} complete
+                    </p>
+                  </div>
                 </div>
               </div>
               <Progress value={getProgress(activeJob)} className="h-2" />
@@ -532,10 +600,16 @@ export function LeadEnrichmentPanel() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="text-base">Enrichment Results</CardTitle>
-                <CardDescription>Per-row status from multi-agent pipeline</CardDescription>
+                <CardDescription className="flex items-center gap-2">
+                  Per-row status from multi-agent pipeline
+                  <span className="flex items-center gap-1 text-xs">
+                    <Clock className="h-3 w-3" />
+                    Updated {formatDistanceToNow(lastUpdated, { addSuffix: true })}
+                  </span>
+                </CardDescription>
               </div>
-              <Button variant="ghost" size="sm" onClick={loadEnrichmentRows}>
-                <RefreshCw className="h-4 w-4" />
+              <Button variant="ghost" size="sm" onClick={refreshData} disabled={isRefreshing}>
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
             </div>
           </CardHeader>
