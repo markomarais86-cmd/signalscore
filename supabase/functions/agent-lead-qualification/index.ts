@@ -75,37 +75,53 @@ serve(async (req) => {
     let recordsProcessed = 0;
     let recordsAffected = 0;
 
-    // Find leads with 'open' or 'new' status linked to high-fit accounts
-    // Join with accounts and scores to find leads at qualified accounts
-    const { data: leads, error: leadsError } = await supabase
-      .from('Leads')
-      .select(`
-        id, external_id, name, email, account_external_id,
-        accounts!inner(external_id, name),
-        scores!inner(overall, fit, intent)
-      `)
+    // TWO-STEP APPROACH: PostgREST joins don't work without foreign keys
+    // Step 1: Get high-fit account_external_ids from scores table
+    console.log(`[agent-lead-qualification] Step 1: Finding high-fit accounts with score >= ${minScoreThreshold}`);
+    
+    const { data: highFitScores, error: scoresError } = await supabase
+      .from('scores')
+      .select('account_external_id, overall')
       .eq('org_id', org_id)
-      .in('status', ['open', 'new'])
-      .gte('scores.overall', minScoreThreshold)
-      .order('scores.overall', { ascending: false })
-      .limit(500);
+      .gte('overall', minScoreThreshold)
+      .order('overall', { ascending: false })
+      .limit(1000);
 
-    if (leadsError) {
-      console.error('[agent-lead-qualification] Error fetching leads:', leadsError);
-      // Fallback: simple query without joins if the join fails
-      const { data: simpleLeads, error: simpleError } = await supabase
+    if (scoresError) {
+      console.error('[agent-lead-qualification] Error fetching high-fit scores:', scoresError);
+      throw scoresError;
+    }
+
+    const highFitAccountIds = highFitScores?.map(s => s.account_external_id).filter(Boolean) || [];
+    console.log(`[agent-lead-qualification] Found ${highFitAccountIds.length} high-fit accounts`);
+
+    if (highFitAccountIds.length === 0) {
+      console.log('[agent-lead-qualification] No high-fit accounts found, skipping lead qualification');
+    }
+
+    // Step 2: Get leads at those high-fit accounts with 'open' or 'new' status
+    let leads: any[] = [];
+    if (highFitAccountIds.length > 0) {
+      const { data: leadsData, error: leadsError } = await supabase
         .from('Leads')
-        .select('id, external_id, name, email, account_external_id')
+        .select('id, external_id, name, email, account_external_id, status')
         .eq('org_id', org_id)
         .in('status', ['open', 'new'])
-        .not('account_external_id', 'is', null)
+        .in('account_external_id', highFitAccountIds)
         .limit(500);
+
+      if (leadsError) {
+        console.error('[agent-lead-qualification] Error fetching leads:', leadsError);
+        throw leadsError;
+      }
       
-      if (simpleError) throw simpleError;
-      console.log(`[agent-lead-qualification] Found ${simpleLeads?.length || 0} leads (fallback query)`);
+      leads = leadsData || [];
     }
     
-    console.log(`[agent-lead-qualification] Found ${leads?.length || 0} leads at high-fit accounts`);
+    console.log(`[agent-lead-qualification] Found ${leads.length} leads at high-fit accounts`);
+
+    // Create a score lookup map for logging
+    const scoreMap = new Map(highFitScores?.map(s => [s.account_external_id, s.overall]) || []);
 
     if (leads && leads.length > 0) {
       console.log(`[Lead Qualification] Processing ${leads.length} leads`);
@@ -118,13 +134,12 @@ serve(async (req) => {
         .eq('status', 'active')
         .limit(1);
 
-      // Process leads that are already at high-fit accounts (from the joined query)
+      // Process leads that are at high-fit accounts
       for (const lead of leads) {
         try {
           recordsProcessed++;
           
-          // The lead is already at a high-fit account (from the query filter)
-          // Mark as qualified
+          // Mark as qualified since they're at a high-fit account
           const { error: updateError } = await supabase
             .from('Leads')
             .update({ status: 'qualified' })
@@ -134,8 +149,8 @@ serve(async (req) => {
             console.error(`[agent-lead-qualification] Failed to update lead ${lead.id}:`, updateError);
           } else {
             recordsAffected++;
-            const score = (lead as any).scores?.overall || 'N/A';
-            console.log(`[agent-lead-qualification] Qualified lead: ${lead.name} (score: ${score})`);
+            const score = scoreMap.get(lead.account_external_id) || 'N/A';
+            console.log(`[agent-lead-qualification] Qualified lead: ${lead.name} (account score: ${score})`);
           }
         } catch (error) {
           console.error(`Error qualifying lead ${lead.id}:`, error);
