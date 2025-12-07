@@ -30,10 +30,12 @@ const defaultFlags: FeatureFlags = {
   // Phase 1 - MVP (Always enabled)
   icp_manager: true,
   icp_tam_intelligence: true,
-  // Phase 2-4 (Enabled for GTM)
+  // Phase 2 (Enabled)
   personas_segments: true,
-  pipeline_efficiency: true,
-  capital_efficiency: true,
+  // Phase 3 - OFF by default (must be enabled in database)
+  pipeline_efficiency: false,
+  capital_efficiency: false,
+  // Phase 4
   ai_agents: true,
   demo_mode: false,
   // Phase 6 - Advanced Analytics (Disabled by default)
