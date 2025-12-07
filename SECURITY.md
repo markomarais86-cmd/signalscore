@@ -177,13 +177,13 @@ psql -h <your-db-host> -d postgres -f supabase/migrations/verify_security_fixes.
 | Issue | Severity | Status | Action Required |
 |-------|----------|--------|-----------------|
 | Function search paths | HIGH | ✅ FIXED | None (automated) |
-| Leaked password protection | HIGH | ⏳ PENDING | Dashboard config |
-| OTP expiry too long | MEDIUM | ⏳ PENDING | Dashboard config |
+| Leaked password protection | HIGH | ✅ FIXED | None (configured 2025-12-07) |
+| OTP expiry too long | MEDIUM | ✅ FIXED | None (set to 1800s) |
 | Postgres upgrade available | MEDIUM | ⏳ PENDING | Scheduled maintenance |
 | pg_trgm in public | INFO | ✅ ACCEPTABLE | None (by design) |
 | Materialized views in API | INFO | ✅ SAFE | None (RLS protected) |
 
-**Overall Security Rating:** 🟢 PRODUCTION READY (after dashboard configs applied)
+**Overall Security Rating:** 🟢 PRODUCTION READY
 
 ---
 
