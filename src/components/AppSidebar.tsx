@@ -24,8 +24,6 @@ const mainNavigation = [
   { title: "ICP Manager", url: "/icp-manager", icon: Target },
   { title: "Accounts", url: "/accounts", icon: Database },
   { title: "Data Upload", url: "/data-upload", icon: Upload },
-  // AI Agents hidden for MVP rollout
-  // { title: "AI Agents", url: "/ai-agents", icon: Bot },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
@@ -76,6 +74,19 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              {flags.ai_agents && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/ai-agents"
+                      className={getNavCls("/ai-agents")}
+                    >
+                      <Bot className="h-4 w-4" />
+                      <span>AI Agents</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
               {flags.pipeline_efficiency && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>

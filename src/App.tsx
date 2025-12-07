@@ -184,8 +184,7 @@ function AppContent() {
                     </ProtectedRoute>
                   }
                 />
-                {/* AI Agents hidden for MVP rollout */}
-                {/* <Route
+                <Route
                   path="/ai-agents"
                   element={
                     <ProtectedRoute>
@@ -204,7 +203,7 @@ function AppContent() {
                       </Layout>
                     </ProtectedRoute>
                   }
-                /> */}
+                />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
