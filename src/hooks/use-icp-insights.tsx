@@ -36,11 +36,16 @@ export function useICPInsights() {
   const [insights, setInsights] = useState<ICPInsight[]>([]);
   const [statistics, setStatistics] = useState<InsightsStatistics | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [usingFallback, setUsingFallback] = useState(false);
   const { userProfile } = useAuth();
   const { toast } = useToast();
   
   const lastRefreshRef = useRef<number>(0);
   const refreshTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // Clear error on new generation
+  const clearError = useCallback(() => setError(null), []);
 
   const generateInsights = useCallback(async (icpId?: string, forceRefresh = false, isAutoRefresh = false) => {
     if (!userProfile?.org_id) {
@@ -97,6 +102,8 @@ export function useICPInsights() {
     }
 
     setLoading(true);
+    clearError();
+    setUsingFallback(false);
     console.log('🔄 Generating ICP insights', isAutoRefresh ? '(auto-refresh)' : '');
     
     try {
@@ -112,6 +119,15 @@ export function useICPInsights() {
       if (data.success) {
         setInsights(data.insights);
         setStatistics(data.statistics);
+        
+        // Check if fallback was used
+        if (data._debug?.fallback_used) {
+          setUsingFallback(true);
+          console.log('⚠️ AI parsing failed, using fallback insights');
+        }
+        if (data._debug?.ai_parse_error) {
+          console.warn('AI parse error:', data._debug.ai_parse_error);
+        }
         
         const timestamp = Date.now();
         lastRefreshRef.current = timestamp;
@@ -134,7 +150,7 @@ export function useICPInsights() {
         if (isAutoRefresh) {
           toast({
             title: "Insights refreshed",
-            description: `${data.insights.length} insights updated based on latest data`,
+            description: `${data.insights.length} insights updated`,
           });
         } else {
           toast({
@@ -145,6 +161,7 @@ export function useICPInsights() {
       }
     } catch (error: any) {
       console.error('Error generating insights:', error);
+      setError(error.message || "Failed to generate insights");
       if (!isAutoRefresh) {
         toast({
           title: "Error",
@@ -155,7 +172,7 @@ export function useICPInsights() {
     } finally {
       setLoading(false);
     }
-  }, [userProfile, toast]);
+  }, [userProfile, toast, clearError]);
 
   // Auto-refresh: Listen to database changes
   useEffect(() => {
@@ -228,6 +245,9 @@ export function useICPInsights() {
     insights,
     statistics,
     lastUpdated,
+    error,
+    usingFallback,
     generateInsights,
+    clearError,
   };
 }
