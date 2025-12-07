@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Activity, Loader2, CheckCircle2, XCircle, AlertCircle, Pause, Play, Clock } from "lucide-react";
+import { Activity, Loader2, CheckCircle2, XCircle, AlertCircle, Pause, Play, Clock, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { pauseEnrichmentJob, resumeEnrichmentJob } from "@/hooks/use-enrichment-progress";
@@ -43,6 +43,7 @@ export function EnrichmentJobMonitor() {
   const [orgCredits, setOrgCredits] = useState<OrgCredits | null>(null);
   const [pausingJobs, setPausingJobs] = useState<Set<string>>(new Set());
   const [resumingJobs, setResumingJobs] = useState<Set<string>>(new Set());
+  const [retryingJobs, setRetryingJobs] = useState<Set<string>>(new Set());
   const { userProfile } = useAuth();
 
   useEffect(() => {
@@ -85,9 +86,9 @@ export function EnrichmentJobMonitor() {
       const { data, error } = await supabase
         .from("enrichment_jobs")
         .select("*")
-        .in("status", ["pending", "processing", "paused"])
+        .in("status", ["pending", "processing", "paused", "failed"])
         .order("started_at", { ascending: false })
-        .limit(5);
+        .limit(10);
 
       if (error) throw error;
       setJobs(data || []);
@@ -180,6 +181,47 @@ export function EnrichmentJobMonitor() {
       console.error('Resume error:', error);
     } finally {
       setResumingJobs(prev => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+    });
+    }
+  };
+
+  const handleRetryFailed = async (jobId: string) => {
+    setRetryingJobs(prev => new Set(prev).add(jobId));
+    try {
+      // Reset failed rows to pending
+      const { error: resetError } = await supabase
+        .from('enrichment_rows')
+        .update({ status: 'pending', retry_count: 0, error_message: null })
+        .eq('job_id', jobId)
+        .eq('status', 'failed');
+
+      if (resetError) throw resetError;
+
+      // Update job status to processing
+      const { error: updateError } = await supabase
+        .from('enrichment_jobs')
+        .update({ 
+          status: 'processing', 
+          error_message: null,
+          started_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+
+      if (updateError) throw updateError;
+
+      // Trigger resume function
+      await resumeEnrichmentJob(jobId);
+      
+      toast.success('Retrying failed enrichment rows');
+      loadJobs();
+    } catch (error) {
+      toast.error('Failed to retry job');
+      console.error('Retry error:', error);
+    } finally {
+      setRetryingJobs(prev => {
         const next = new Set(prev);
         next.delete(jobId);
         return next;
@@ -324,6 +366,29 @@ export function EnrichmentJobMonitor() {
                   <>
                     <Pause className="mr-2 h-4 w-4" />
                     Pause Job
+                  </>
+                )}
+              </Button>
+            )}
+
+            {/* Retry Failed Button */}
+            {job.status === 'failed' && (
+              <Button
+                onClick={() => handleRetryFailed(job.id)}
+                disabled={retryingJobs.has(job.id)}
+                variant="destructive"
+                size="sm"
+                className="w-full"
+              >
+                {retryingJobs.has(job.id) ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Retrying...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    Retry Failed Rows ({job.failed_records})
                   </>
                 )}
               </Button>

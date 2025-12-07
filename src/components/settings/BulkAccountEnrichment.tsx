@@ -5,8 +5,10 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Building2, Users, DollarSign, Globe, PlayCircle, CheckCircle, AlertCircle, ExternalLink } from "lucide-react";
+import { Loader2, Building2, Users, DollarSign, Globe, PlayCircle, CheckCircle, AlertCircle, ExternalLink, UserSearch, Sparkles } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface EnrichmentStats {
   total: number;
@@ -40,6 +42,8 @@ export function BulkAccountEnrichment() {
   const [activeJob, setActiveJob] = useState<EnrichmentJob | null>(null);
   const [batchSize, setBatchSize] = useState<string>("100");
   const [provider, setProvider] = useState<string>("smart");
+  const [enableContactDiscovery, setEnableContactDiscovery] = useState(true);
+  const [highFitAccountsCount, setHighFitAccountsCount] = useState(0);
 
   useEffect(() => {
     loadStats();
@@ -101,6 +105,15 @@ export function BulkAccountEnrichment() {
           missingCountry,
           needsEnrichment
         });
+
+        // Count high-fit accounts for discovery estimate
+        const { count } = await supabase
+          .from('scores')
+          .select('*', { count: 'exact', head: true })
+          .eq('org_id', profile.org_id)
+          .gte('fit', 70);
+        
+        setHighFitAccountsCount(count || 0);
       }
     } catch (error: any) {
       console.error('Error loading stats:', error);
@@ -405,6 +418,35 @@ export function BulkAccountEnrichment() {
                   </Select>
                 </div>
               </div>
+
+              {/* Contact Discovery Toggle */}
+              <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg border border-primary/20">
+                <div className="flex items-center gap-3">
+                  <UserSearch className="h-5 w-5 text-primary" />
+                  <div>
+                    <Label htmlFor="account-contact-discovery" className="font-medium">
+                      Discover Contacts at High-Fit Accounts
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Auto-find decision-makers at accounts with fit score ≥70
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  id="account-contact-discovery"
+                  checked={enableContactDiscovery}
+                  onCheckedChange={setEnableContactDiscovery}
+                />
+              </div>
+
+              {enableContactDiscovery && highFitAccountsCount > 0 && (
+                <Alert>
+                  <Sparkles className="h-4 w-4" />
+                  <AlertDescription>
+                    Will discover contacts at <strong>{highFitAccountsCount.toLocaleString()}</strong> high-fit accounts after enrichment
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
                 <div>

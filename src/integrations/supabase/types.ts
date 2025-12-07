@@ -3885,6 +3885,10 @@ export type Database = {
         Args: { p_account_external_id: string; p_org_id: string }
         Returns: undefined
       }
+      backfill_enrichment_field_scores: {
+        Args: { p_org_id?: string }
+        Returns: Json
+      }
       bulk_create_accounts: {
         Args: { p_accounts: Json; p_org_id: string }
         Returns: {
