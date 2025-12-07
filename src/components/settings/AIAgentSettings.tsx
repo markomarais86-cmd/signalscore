@@ -183,7 +183,13 @@ export default function AIAgentSettings() {
         variant: "destructive"
       });
     } else {
-      setAgents((data || []) as Agent[]);
+      // Add null safety for is_default and enabled columns
+      const safeAgents = (data || []).map((agent: any) => ({
+        ...agent,
+        is_default: agent.is_default ?? false,
+        enabled: agent.enabled ?? (agent.status === 'active')
+      }));
+      setAgents(safeAgents as Agent[]);
     }
     setIsLoading(false);
   };
@@ -300,7 +306,7 @@ export default function AIAgentSettings() {
     if (!userProfile?.org_id) return;
 
     const agent = agents.find(a => a.id === id);
-    if (agent?.is_default) {
+    if (agent?.is_default === true) {
       toast({
         title: "Cannot Delete",
         description: "Default agents cannot be deleted",

@@ -228,7 +228,9 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           description: string | null
+          enabled: boolean | null
           id: string
+          is_default: boolean | null
           last_run_at: string | null
           name: string
           next_run_at: string | null
@@ -243,7 +245,9 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           description?: string | null
+          enabled?: boolean | null
           id?: string
+          is_default?: boolean | null
           last_run_at?: string | null
           name: string
           next_run_at?: string | null
@@ -258,7 +262,9 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           description?: string | null
+          enabled?: boolean | null
           id?: string
+          is_default?: boolean | null
           last_run_at?: string | null
           name?: string
           next_run_at?: string | null
