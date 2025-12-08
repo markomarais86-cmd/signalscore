@@ -350,8 +350,7 @@ IMPORTANT: End your response with ] to close the array.`;
       aiParseError = `AI error: ${(aiError as Error).message}`;
     }
 
-    // POST-AI VALIDATION: Filter out hallucinated insights
-    const leadCoverageNum = parseFloat(leadCoverageStats.leadCoveragePercent);
+    // POST-AI VALIDATION: Filter out hallucinated insights (leadCoverageNum already declared at line 279)
     const validatedAiInsights = aiInsights.filter(insight => {
       const titleLower = insight.title.toLowerCase();
       const descLower = insight.description.toLowerCase();
