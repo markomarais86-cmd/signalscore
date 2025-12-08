@@ -334,7 +334,10 @@ export default function Help() {
                       Use the AI Chat (⌘K) to ask questions about your data
                     </p>
                   </div>
-                  <Button>
+                  <Button onClick={() => {
+                    // Dispatch custom event to open AI chat
+                    window.dispatchEvent(new CustomEvent('openAIChat'));
+                  }}>
                     Open AI Chat
                   </Button>
                 </div>
