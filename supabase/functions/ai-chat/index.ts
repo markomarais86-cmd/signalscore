@@ -45,8 +45,12 @@ You can TAKE ACTIONS when users ask you to create, build, or execute something:
    {"action": "get_insights", "parameters": {}}
    \`\`\`
 
-4. search_accounts - Search accounts by criteria
-   Parameters: industry, country, min_score, limit
+4. search_accounts - Search accounts by criteria, including by contact job title
+   Parameters: industry, country, min_score, limit, job_title
+   Use job_title to find accounts that have contacts with matching titles (e.g., "CISO", "VP Sales", "CTO")
+   Example: \`\`\`action
+   {"action": "search_accounts", "parameters": {"job_title": "CISO", "min_score": 70, "limit": 10}}
+   \`\`\`
    Example: \`\`\`action
    {"action": "search_accounts", "parameters": {"industry": "Technology", "min_score": 70, "limit": 5}}
    \`\`\`
