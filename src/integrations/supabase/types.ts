@@ -235,6 +235,59 @@ export type Database = {
           },
         ]
       }
+      ai_action_templates: {
+        Row: {
+          action_type: string
+          created_at: string
+          description: string | null
+          id: string
+          last_used_at: string | null
+          name: string
+          org_id: string
+          parameters: Json | null
+          success_rate: number | null
+          updated_at: string
+          usage_count: number | null
+          user_id: string | null
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          last_used_at?: string | null
+          name: string
+          org_id: string
+          parameters?: Json | null
+          success_rate?: number | null
+          updated_at?: string
+          usage_count?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          last_used_at?: string | null
+          name?: string
+          org_id?: string
+          parameters?: Json | null
+          success_rate?: number | null
+          updated_at?: string
+          usage_count?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_action_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_runs: {
         Row: {
           agent_id: string
@@ -343,41 +396,136 @@ export type Database = {
       }
       ai_memory: {
         Row: {
+          confidence: number | null
           created_at: string
           expires_at: string | null
           id: string
+          learned_from: string[] | null
           memory_key: string
           memory_type: string
           memory_value: Json
           org_id: string
+          preference_type: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          confidence?: number | null
           created_at?: string
           expires_at?: string | null
           id?: string
+          learned_from?: string[] | null
           memory_key: string
           memory_type: string
           memory_value?: Json
           org_id: string
+          preference_type?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          confidence?: number | null
           created_at?: string
           expires_at?: string | null
           id?: string
+          learned_from?: string[] | null
           memory_key?: string
           memory_type?: string
           memory_value?: Json
           org_id?: string
+          preference_type?: string | null
           updated_at?: string
           user_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "ai_memory_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_provider_health: {
+        Row: {
+          avg_latency_ms: number | null
+          checked_at: string
+          failure_count: number | null
+          id: string
+          last_failure_at: string | null
+          last_success_at: string | null
+          provider: string
+          status: string
+        }
+        Insert: {
+          avg_latency_ms?: number | null
+          checked_at?: string
+          failure_count?: number | null
+          id?: string
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          provider: string
+          status?: string
+        }
+        Update: {
+          avg_latency_ms?: number | null
+          checked_at?: string
+          failure_count?: number | null
+          id?: string
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          provider?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      ai_usage_tracking: {
+        Row: {
+          cost_estimate: number | null
+          created_at: string
+          error_message: string | null
+          id: string
+          latency_ms: number | null
+          model: string
+          org_id: string
+          provider: string
+          success: boolean | null
+          task_type: string | null
+          tokens_input: number | null
+          tokens_output: number | null
+        }
+        Insert: {
+          cost_estimate?: number | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          latency_ms?: number | null
+          model: string
+          org_id: string
+          provider: string
+          success?: boolean | null
+          task_type?: string | null
+          tokens_input?: number | null
+          tokens_output?: number | null
+        }
+        Update: {
+          cost_estimate?: number | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          latency_ms?: number | null
+          model?: string
+          org_id?: string
+          provider?: string
+          success?: boolean | null
+          task_type?: string | null
+          tokens_input?: number | null
+          tokens_output?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_tracking_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
