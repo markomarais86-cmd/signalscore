@@ -11,3 +11,5 @@ export {
   getContextualActions,
   type SuggestedAction 
 } from './SuggestedActions';
+export { WorkflowProgress, WorkflowProgressMini, type WorkflowData, type WorkflowStep } from './WorkflowProgress';
+export { WorkflowHistory, WorkflowHistoryCompact } from './WorkflowHistory';

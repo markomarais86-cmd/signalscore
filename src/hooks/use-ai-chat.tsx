@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -6,7 +6,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   action?: ActionResult;
-  resultType?: 'accounts' | 'contacts' | 'analytics' | 'recommendations' | 'insights';
+  resultType?: 'accounts' | 'contacts' | 'analytics' | 'recommendations' | 'insights' | 'workflow';
   resultData?: any;
 }
 
@@ -15,6 +15,17 @@ export interface ActionResult {
   success: boolean;
   result?: Record<string, any>;
   error?: string;
+}
+
+export interface WorkflowStatus {
+  id: string;
+  type: string;
+  name: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  currentStep: number;
+  totalSteps: number;
+  progressPercentage: number;
+  message?: string;
 }
 
 interface UseAIChatOptions {
@@ -26,6 +37,7 @@ interface UseAIChatOptions {
     viewingAccount?: string;
   };
   onActionExecuted?: (action: ActionResult) => void;
+  onWorkflowUpdate?: (status: WorkflowStatus) => void;
 }
 
 // Parse action blocks from AI response
@@ -44,6 +56,11 @@ function parseActionFromResponse(content: string): { action: string; parameters:
 // Detect result type from action response
 function detectResultType(action: string, result: any): ChatMessage['resultType'] {
   if (!result) return undefined;
+  
+  // Workflow actions
+  if (result.isWorkflow || result.workflow_id) {
+    return 'workflow';
+  }
   
   // Search actions
   if (action === 'search_accounts' || action === 'find_similar_accounts' || 
@@ -119,6 +136,8 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     lastResultType?: string;
     topResults?: any[];
   }>({});
+  const [activeWorkflow, setActiveWorkflow] = useState<WorkflowStatus | null>(null);
+  const workflowPollRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load recent context on mount
   useEffect(() => {
@@ -139,6 +158,58 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     }
     loadContext();
   }, []);
+
+  // Cleanup workflow polling on unmount
+  useEffect(() => {
+    return () => {
+      if (workflowPollRef.current) {
+        clearInterval(workflowPollRef.current);
+      }
+    };
+  }, []);
+
+  // Poll workflow status
+  const pollWorkflowStatus = useCallback(async (workflowId: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const response = await supabase.functions.invoke('ai-orchestrator', {
+        body: {
+          action: 'get_workflow_status',
+          workflow_id: workflowId,
+        },
+      });
+
+      if (response.data?.success && response.data.workflow) {
+        const wf = response.data.workflow;
+        const status: WorkflowStatus = {
+          id: wf.id,
+          type: wf.type,
+          name: wf.name,
+          status: wf.status,
+          currentStep: wf.current_step,
+          totalSteps: wf.total_steps,
+          progressPercentage: wf.progress_percentage,
+          message: wf.status === 'completed' ? 'Workflow completed' : `Step ${wf.current_step}/${wf.total_steps}`,
+        };
+
+        setActiveWorkflow(status);
+        options.onWorkflowUpdate?.(status);
+
+        // Stop polling when workflow is done
+        if (['completed', 'failed', 'cancelled'].includes(wf.status)) {
+          if (workflowPollRef.current) {
+            clearInterval(workflowPollRef.current);
+            workflowPollRef.current = null;
+          }
+          setActiveWorkflow(null);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to poll workflow status:', error);
+    }
+  }, [options]);
 
   const executeAction = useCallback(async (actionData: { action: string; parameters: Record<string, any> }) => {
     try {
@@ -175,7 +246,29 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       const result: ActionResult = response.data;
       
       if (result.success) {
-        toast.success(result.result?.message?.slice(0, 100) || `Action "${actionData.action}" completed`);
+        // Check if this is a workflow action
+        if (result.result?.isWorkflow && result.result?.workflow_id) {
+          toast.success(`Workflow started: ${result.result.workflow_name || actionData.action}`);
+          
+          // Start polling for workflow status
+          setActiveWorkflow({
+            id: result.result.workflow_id,
+            type: result.result.workflowType,
+            name: result.result.workflow_name || actionData.action,
+            status: 'running',
+            currentStep: 0,
+            totalSteps: result.result.total_steps || 0,
+            progressPercentage: 0,
+          });
+
+          // Poll every 2 seconds
+          workflowPollRef.current = setInterval(() => {
+            pollWorkflowStatus(result.result!.workflow_id);
+          }, 2000);
+        } else {
+          toast.success(result.result?.message?.slice(0, 100) || `Action "${actionData.action}" completed`);
+        }
+        
         options.onActionExecuted?.(result);
 
         // Save recent filters for memory
@@ -201,7 +294,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       toast.error('Failed to execute action');
       return null;
     }
-  }, [options, recentFilters]);
+  }, [options, recentFilters, pollWorkflowStatus]);
 
   const confirmAction = useCallback(async () => {
     if (!pendingAction) return;
@@ -373,7 +466,35 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     setMessages([]);
     setPendingAction(null);
     setSessionContext({});
+    setActiveWorkflow(null);
+    if (workflowPollRef.current) {
+      clearInterval(workflowPollRef.current);
+      workflowPollRef.current = null;
+    }
   }, []);
+
+  const cancelWorkflow = useCallback(async () => {
+    if (!activeWorkflow) return;
+
+    try {
+      await supabase.functions.invoke('ai-orchestrator', {
+        body: {
+          action: 'cancel_workflow',
+          workflow_id: activeWorkflow.id,
+        },
+      });
+
+      toast.success('Workflow cancelled');
+      setActiveWorkflow(null);
+      if (workflowPollRef.current) {
+        clearInterval(workflowPollRef.current);
+        workflowPollRef.current = null;
+      }
+    } catch (error) {
+      console.error('Failed to cancel workflow:', error);
+      toast.error('Failed to cancel workflow');
+    }
+  }, [activeWorkflow]);
 
   return {
     messages,
@@ -385,5 +506,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     cancelAction,
     sessionContext,
     recentFilters,
+    activeWorkflow,
+    cancelWorkflow,
   };
 }

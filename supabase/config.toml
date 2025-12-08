@@ -215,3 +215,6 @@ verify_jwt = true
 
 [functions.ai-actions]
 verify_jwt = true
+
+[functions.ai-orchestrator]
+verify_jwt = true

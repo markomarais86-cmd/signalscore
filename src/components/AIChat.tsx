@@ -12,6 +12,7 @@ import {
   InsightCard,
   FilterBadges, 
   SuggestedActions,
+  WorkflowProgressMini,
   parseFiltersFromParams,
   getSearchFollowUpActions,
   getContextualActions,
@@ -273,7 +274,7 @@ export function AIChat() {
   const currentPage = location.pathname;
   const suggestions = PAGE_SUGGESTIONS[currentPage] || PAGE_SUGGESTIONS['/'];
 
-  const { messages, isLoading, sendMessage, clearMessages, pendingAction, confirmAction, cancelAction } = useAIChat({
+  const { messages, isLoading, sendMessage, clearMessages, pendingAction, confirmAction, cancelAction, activeWorkflow, cancelWorkflow } = useAIChat({
     context: { currentPage },
     onActionExecuted: (action) => {
       if (action.action === 'create_icp' && action.success) {
@@ -414,7 +415,27 @@ export function AIChat() {
                     isLoading={isLoading}
                   />
                 )}
-                {isLoading && !pendingAction && messages[messages.length - 1]?.role === 'user' && (
+                {activeWorkflow && (
+                  <div className="mb-3">
+                    <WorkflowProgressMini
+                      name={activeWorkflow.name}
+                      currentStep={activeWorkflow.currentStep}
+                      totalSteps={activeWorkflow.totalSteps}
+                      status={activeWorkflow.status}
+                    />
+                    {activeWorkflow.status === 'running' && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="mt-1 text-xs w-full"
+                        onClick={cancelWorkflow}
+                      >
+                        Cancel Workflow
+                      </Button>
+                    )}
+                  </div>
+                )}
+                {isLoading && !pendingAction && !activeWorkflow && messages[messages.length - 1]?.role === 'user' && (
                   <div className="flex gap-2 mb-3">
                     <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
                       <Sparkles className="w-4 h-4 text-primary animate-pulse" />
