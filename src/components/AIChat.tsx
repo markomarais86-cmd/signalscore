@@ -78,6 +78,14 @@ const ACTION_LABELS: Record<string, string> = {
   identify_gaps: 'Identify Gaps',
   surface_opportunities: 'Find Opportunities',
   cleanup_jobs: 'Clean Up Jobs',
+  // Tier 6: Execution Actions
+  enrich_accounts: 'Enrich Accounts',
+  enrich_contacts: 'Enrich Contacts',
+  export_list: 'Export List',
+  create_campaign: 'Create Campaign',
+  update_icp: 'Update ICP',
+  sync_to_crm: 'Sync to CRM',
+  schedule_enrichment: 'Schedule Enrichment',
 };
 
 function MessageBubble({ message, onSendMessage }: { message: ChatMessage; onSendMessage: (msg: string) => void }) {
