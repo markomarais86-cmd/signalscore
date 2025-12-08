@@ -367,6 +367,13 @@ export function AIChat() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
+  // Listen for custom event to open chat (from Help page)
+  useEffect(() => {
+    const handleOpenChat = () => setIsOpen(true);
+    window.addEventListener('openAIChat', handleOpenChat);
+    return () => window.removeEventListener('openAIChat', handleOpenChat);
+  }, []);
+
   // Focus input when opened
   useEffect(() => {
     if (isOpen && inputRef.current) {

@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { getModelConfig, getApiKey, buildHeaders, getAvailableProviders } from '../_shared/ai-config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -38,99 +37,133 @@ interface LeadCoverageStats {
   leadCoveragePercent: string;
 }
 
-// Attempt to repair truncated JSON
-function repairJSON(jsonStr: string): string {
-  let repaired = jsonStr.trim();
+// Use Lovable AI with tool calling for reliable structured output
+async function callAIWithToolCalling(
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens: number = 1500
+): Promise<Insight[]> {
+  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
   
-  // Remove markdown code blocks
-  if (repaired.startsWith('```')) {
-    repaired = repaired.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  if (!lovableApiKey) {
+    console.log('[ICP Insights] No LOVABLE_API_KEY, skipping AI generation');
+    return [];
   }
-  
-  // Count brackets
-  const openBrackets = (repaired.match(/\[/g) || []).length;
-  const closeBrackets = (repaired.match(/\]/g) || []).length;
-  const openBraces = (repaired.match(/\{/g) || []).length;
-  const closeBraces = (repaired.match(/\}/g) || []).length;
-  
-  // Fix unclosed braces first
-  if (openBraces > closeBraces) {
-    // Find if we're in an incomplete object
-    const lastBrace = repaired.lastIndexOf('{');
-    const lastCloseBrace = repaired.lastIndexOf('}');
-    if (lastBrace > lastCloseBrace) {
-      // Truncated in middle of object - remove incomplete object
-      repaired = repaired.substring(0, lastBrace).trim();
-      if (repaired.endsWith(',')) {
-        repaired = repaired.slice(0, -1);
-      }
-    }
-  }
-  
-  // Add missing closing brackets
-  for (let i = 0; i < openBraces - closeBraces; i++) {
-    repaired += '}';
-  }
-  for (let i = 0; i < openBrackets - closeBrackets; i++) {
-    repaired += ']';
-  }
-  
-  return repaired;
-}
 
-// Multi-provider AI call with fallback and retry
-async function callAIWithFallback(
-  messages: Array<{ role: string; content: string }>, 
-  maxTokens: number = 1500,
-  retries: number = 2
-): Promise<any> {
-  const providers = getAvailableProviders();
-  console.log(`[ICP Insights] Available AI providers: ${providers.join(', ')}`);
-  
-  let lastError: Error | null = null;
-  
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    for (const provider of providers) {
-      try {
-        const config = getModelConfig('analysis', provider);
-        const headers = buildHeaders(provider);
-        
-        const body: any = {
-          model: config.model,
-          messages,
-        };
-        body[config.maxTokensParam] = maxTokens;
-        
-        console.log(`[ICP Insights] Attempt ${attempt + 1}/${retries + 1} - Trying ${provider} with model ${config.model}`);
-        
-        const response = await fetch(config.endpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(body),
-        });
-        
-        if (response.ok) {
-          console.log(`[ICP Insights] Success with ${provider}`);
-          return await response.json();
-        }
-        
-        const errorText = await response.text();
-        console.error(`[ICP Insights] ${provider} error (${response.status}): ${errorText}`);
-        lastError = new Error(`${provider}: ${response.status}`);
-      } catch (error) {
-        console.error(`[ICP Insights] ${provider} failed:`, error);
-        lastError = error as Error;
+  const insightsTool = {
+    type: "function",
+    function: {
+      name: "generate_insights",
+      description: "Generate 3 actionable B2B sales insights based on the data provided",
+      parameters: {
+        type: "object",
+        properties: {
+          insights: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                type: {
+                  type: "string",
+                  enum: ["revenue", "persona", "firmographic", "signal"],
+                  description: "Category of insight"
+                },
+                priority: {
+                  type: "string",
+                  enum: ["high", "medium", "low"],
+                  description: "Urgency level"
+                },
+                title: {
+                  type: "string",
+                  description: "Short, actionable title under 50 characters"
+                },
+                description: {
+                  type: "string",
+                  description: "Detailed explanation under 100 words"
+                },
+                impact: {
+                  type: "string",
+                  description: "Expected business impact"
+                },
+                confidence: {
+                  type: "number",
+                  description: "Confidence score 0-100"
+                }
+              },
+              required: ["type", "priority", "title", "description", "impact", "confidence"],
+              additionalProperties: false
+            },
+            minItems: 3,
+            maxItems: 3
+          }
+        },
+        required: ["insights"],
+        additionalProperties: false
       }
     }
+  };
+
+  try {
+    console.log('[ICP Insights] Calling Lovable AI with tool calling...');
     
-    // Wait before retry
-    if (attempt < retries) {
-      console.log(`[ICP Insights] Retrying in ${(attempt + 1) * 500}ms...`);
-      await new Promise(resolve => setTimeout(resolve, (attempt + 1) * 500));
+    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${lovableApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        tools: [insightsTool],
+        tool_choice: { type: "function", function: { name: "generate_insights" } },
+        max_tokens: maxTokens,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[ICP Insights] Lovable AI error (${response.status}): ${errorText}`);
+      return [];
     }
+
+    const data = await response.json();
+    console.log('[ICP Insights] AI response received');
+
+    // Extract tool call arguments
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (toolCall?.function?.arguments) {
+      try {
+        const parsed = JSON.parse(toolCall.function.arguments);
+        const insights = parsed.insights || [];
+        console.log(`[ICP Insights] Successfully parsed ${insights.length} insights via tool calling`);
+        return insights;
+      } catch (parseError) {
+        console.error('[ICP Insights] Failed to parse tool arguments:', parseError);
+        return [];
+      }
+    }
+
+    // Fallback: try to parse from content if no tool call
+    const content = data.choices?.[0]?.message?.content;
+    if (content) {
+      console.log('[ICP Insights] No tool call, trying content fallback...');
+      try {
+        const parsed = JSON.parse(content);
+        return Array.isArray(parsed) ? parsed : parsed.insights || [];
+      } catch {
+        console.log('[ICP Insights] Content is not JSON, skipping');
+      }
+    }
+
+    return [];
+  } catch (error) {
+    console.error('[ICP Insights] AI call failed:', error);
+    return [];
   }
-  
-  throw lastError || new Error('All AI providers failed');
 }
 
 serve(async (req) => {
@@ -272,14 +305,10 @@ serve(async (req) => {
       }
     });
 
-    // Generate insights using multi-provider AI with retry and JSON repair
-    let aiInsights: Insight[] = [];
-    let aiParseError: string | null = null;
-    
+    // Generate insights using tool calling
     const leadCoverageNum = parseFloat(leadCoverageStats.leadCoveragePercent);
     
-    // Simplified prompt for more reliable JSON output
-    const systemPrompt = `You are a B2B sales analyst. Return ONLY a valid JSON array with exactly 3 insights. No markdown, no explanations.
+    const systemPrompt = `You are a B2B sales analyst. Generate exactly 3 actionable insights.
 
 RULES:
 - If lead coverage >= 85%, focus on campaign execution, NOT lead enrichment
@@ -287,11 +316,9 @@ RULES:
 - Use specific numbers from the data provided
 - Keep titles under 50 characters
 - Keep descriptions under 100 words
+- Each insight must be unique and actionable`;
 
-JSON SCHEMA (follow exactly):
-[{"type":"revenue"|"persona"|"firmographic"|"signal","priority":"high"|"medium"|"low","title":"string","description":"string","impact":"string","confidence":number}]`;
-
-    const userPrompt = `Return exactly 3 insights as a JSON array.
+    const userPrompt = `Generate 3 insights based on this data:
 
 DATA:
 - Accounts: ${accounts?.length || 0} total, ${highScoreAccounts.length} high-fit
@@ -305,52 +332,11 @@ DATA:
 - Avg deal: $${avgDealValue.toFixed(0)}
 
 Coverage status: ${leadCoverageNum >= 85 ? 'EXCELLENT - suggest campaigns' : leadCoverageNum >= 60 ? 'MODERATE' : 'NEEDS IMPROVEMENT'}
-Data status: ${dataCompleteness >= 80 ? 'COMPLETE - no enrichment needed' : dataCompleteness >= 60 ? 'MODERATE' : 'NEEDS ENRICHMENT'}
+Data status: ${dataCompleteness >= 80 ? 'COMPLETE - no enrichment needed' : dataCompleteness >= 60 ? 'MODERATE' : 'NEEDS ENRICHMENT'}`;
 
-IMPORTANT: End your response with ] to close the array.`;
+    const aiInsights = await callAIWithToolCalling(systemPrompt, userPrompt, 1200);
 
-    try {
-      const aiData = await callAIWithFallback([
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ], 1200, 2);
-
-      const aiContent = aiData.choices?.[0]?.message?.content || '';
-      console.log(`[ICP Insights] Raw AI response length: ${aiContent.length} chars`);
-      
-      // Try to parse, with JSON repair fallback
-      let jsonText = repairJSON(aiContent);
-      
-      try {
-        const parsed = JSON.parse(jsonText);
-        aiInsights = Array.isArray(parsed) ? parsed : [];
-        console.log(`[ICP Insights] Parsed ${aiInsights.length} AI insights`);
-      } catch (parseError) {
-        console.error('[ICP Insights] JSON parse failed after repair:', parseError);
-        console.error('[ICP Insights] Content preview:', aiContent.substring(0, 500));
-        aiParseError = `Parse error: ${(parseError as Error).message}`;
-        
-        // Try extracting individual objects as last resort
-        const objectMatches = aiContent.match(/\{[^{}]*"type"[^{}]*\}/g);
-        if (objectMatches && objectMatches.length > 0) {
-          console.log(`[ICP Insights] Attempting to extract ${objectMatches.length} individual objects`);
-          for (const objStr of objectMatches) {
-            try {
-              const obj = JSON.parse(objStr);
-              if (obj.type && obj.title && obj.description) {
-                aiInsights.push(obj);
-              }
-            } catch { /* skip malformed object */ }
-          }
-          console.log(`[ICP Insights] Extracted ${aiInsights.length} valid objects`);
-        }
-      }
-    } catch (aiError) {
-      console.error('[ICP Insights] AI generation error:', aiError);
-      aiParseError = `AI error: ${(aiError as Error).message}`;
-    }
-
-    // POST-AI VALIDATION: Filter out hallucinated insights (leadCoverageNum already declared at line 279)
+    // POST-AI VALIDATION: Filter out hallucinated insights
     const validatedAiInsights = aiInsights.filter(insight => {
       const titleLower = insight.title.toLowerCase();
       const descLower = insight.description.toLowerCase();
@@ -418,141 +404,107 @@ IMPORTANT: End your response with ] to close the array.`;
     const topPersona = Object.entries(personaDistribution).sort((a, b) => b[1] - a[1])[0];
     const secondIndustry = Object.entries(industryDistribution).sort((a, b) => b[1] - a[1])[1];
 
-    // Always add revenue insight if we have data
-    if (topRevenue && insights.length < 7) {
+    // Always add revenue insight if we have data and need more insights
+    if (topRevenue && insights.length < 5) {
       insights.push({
         type: 'revenue',
         priority: 'high',
         title: `Target ${topRevenue[0]} segment`,
         description: `${topRevenue[1]} accounts (${((topRevenue[1] / (accounts?.length || 1)) * 100).toFixed(1)}%) in this revenue range. Strong concentration for focused campaigns.`,
-        impact: 'High conversion probability based on account concentration',
+        impact: `Estimated ${Math.round(topRevenue[1] * avgDealValue * 0.1).toLocaleString()} pipeline from this segment`,
         confidence: 88,
-        relatedSegments: [topRevenue[0]],
-        nextAction: 'build_campaign',
-        revenue_opportunity: highScoreAccounts.length * avgDealValue * 0.15
-      });
-    }
-
-    // Always add industry insight if we have data
-    if (topIndustry && insights.length < 7) {
-      insights.push({
-        type: 'firmographic',
-        priority: 'high',
-        title: `Prioritize ${topIndustry[0]}`,
-        description: `${topIndustry[1]} accounts in this industry. Your strongest vertical for targeted messaging.`,
-        impact: 'Leverage industry expertise for higher win rates',
-        confidence: 90,
-        relatedSegments: [topIndustry[0]],
-        nextAction: 'export_csv'
-      });
-    }
-
-    // Add persona insight if available
-    if (topPersona && insights.length < 7) {
-      insights.push({
-        type: 'persona',
-        priority: 'high',
-        title: `Focus on ${topPersona[0]} persona`,
-        description: `${topPersona[1]} contacts with this persona. Optimize messaging and sequences for this audience.`,
-        impact: 'Improve response rates with targeted persona messaging',
-        confidence: 85,
-        relatedSegments: [topPersona[0]],
         nextAction: 'build_campaign'
       });
     }
 
-    // Add geographic insight
-    if (topGeo && insights.length < 7) {
+    // Industry insight
+    if (topIndustry && insights.length < 5) {
       insights.push({
         type: 'firmographic',
         priority: 'medium',
-        title: `Expand in ${topGeo[0]}`,
-        description: `${topGeo[1]} accounts in this region. Geographic concentration enables localized campaigns.`,
-        impact: 'Regional focus for more relevant outreach',
-        confidence: 82,
-        relatedSegments: [topGeo[0]],
+        title: `${topIndustry[0]} leads your pipeline`,
+        description: `${topIndustry[1]} accounts (${((topIndustry[1] / (accounts?.length || 1)) * 100).toFixed(1)}%) in ${topIndustry[0]}. ${secondIndustry ? `${secondIndustry[0]} is second with ${secondIndustry[1]} accounts.` : ''}`,
+        impact: 'Focus messaging and case studies on top verticals',
+        confidence: 85,
         nextAction: 'view_accounts'
       });
     }
 
-    // Add secondary industry if we have few insights
-    if (secondIndustry && insights.length < 5) {
+    // Persona insight
+    if (topPersona && insights.length < 5) {
+      insights.push({
+        type: 'persona',
+        priority: 'medium',
+        title: `${topPersona[0]} is your key buyer`,
+        description: `${topPersona[1]} contacts (${((topPersona[1] / (leads?.length || 1)) * 100).toFixed(1)}%) match this persona. Tailor outreach to their pain points.`,
+        impact: 'Higher conversion with persona-specific messaging',
+        confidence: 80,
+        nextAction: 'build_campaign'
+      });
+    }
+
+    // Geographic insight
+    if (topGeo && insights.length < 5) {
       insights.push({
         type: 'firmographic',
-        priority: 'medium',
-        title: `Explore ${secondIndustry[0]} vertical`,
-        description: `${secondIndustry[1]} accounts in your second-largest industry. Cross-sell opportunity.`,
-        impact: 'Diversify pipeline with adjacent market',
+        priority: 'low',
+        title: `${topGeo[0]} dominates geography`,
+        description: `${topGeo[1]} accounts (${((topGeo[1] / (accounts?.length || 1)) * 100).toFixed(1)}%) in ${topGeo[0]}. Consider expanding to adjacent markets.`,
+        impact: 'Potential for geographic expansion campaigns',
         confidence: 75,
-        relatedSegments: [secondIndustry[0]],
         nextAction: 'view_accounts'
       });
     }
 
-    // Campaign readiness insight
-    const campaignReadyAccounts = highScoreAccounts.filter(a => {
-      const hasLead = leads?.some(l => l.account_external_id === a.external_id);
-      return hasLead;
-    }).length;
-    
-    if (campaignReadyAccounts > 0 && insights.length < 7) {
+    // Data completeness insight - only if actually needed
+    if (dataCompleteness < 70 && insights.length < 5) {
       insights.push({
         type: 'signal',
         priority: 'high',
-        title: `${campaignReadyAccounts} accounts ready for outreach`,
-        description: `High-fit accounts with verified leads. Launch a campaign to engage these opportunities now.`,
-        impact: `Potential pipeline value: $${(campaignReadyAccounts * avgDealValue * 0.1).toLocaleString()}`,
-        confidence: 95,
-        nextAction: 'build_campaign'
+        title: `Data completeness at ${dataCompleteness.toFixed(0)}%`,
+        description: `Industry: ${((accountsWithIndustry / totalAccounts) * 100).toFixed(0)}%, Revenue: ${((accountsWithRevenue / totalAccounts) * 100).toFixed(0)}%, Size: ${((accountsWithSize / totalAccounts) * 100).toFixed(0)}%, Geography: ${((accountsWithGeo / totalAccounts) * 100).toFixed(0)}%`,
+        impact: 'Better data enables more accurate scoring and targeting',
+        confidence: 100,
+        nextAction: 'enrich_data'
       });
     }
 
-    // Filter out dismissed insights
+    // Filter out dismissed recommendations
     const filteredInsights = insights.filter(insight => {
-      // Create a stable ID from the insight content
-      const insightId = `${insight.type}_${insight.title.toLowerCase().replace(/\s+/g, '_')}`;
+      const insightId = `${insight.type}-${insight.title.toLowerCase().replace(/\s+/g, '-').slice(0, 30)}`;
       return !dismissedIds.has(insightId);
     });
 
-    console.log(`Returning ${filteredInsights.length} insights after filtering ${insights.length - filteredInsights.length} dismissed`);
-
-    console.log(`[ICP Insights] Returning ${filteredInsights.length} final insights (${aiInsights.length} from AI, rest data-driven)`);
+    console.log(`Final: ${filteredInsights.length} insights after filtering dismissed`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        insights: filteredInsights.slice(0, 7),
-        statistics: {
-          total_accounts: accounts?.length || 0,
-          high_score_accounts: highScoreAccounts.length,
-          total_leads: leads?.length || 0,
-          lead_coverage_percent: parseFloat(leadCoverageStats.leadCoveragePercent),
-          high_fit_with_leads: leadCoverageStats.highFitAccountsWithLeads,
-          high_fit_missing_leads: leadCoverageStats.highFitMissingLeads,
-          data_completeness: parseFloat(dataCompleteness.toFixed(1)),
-          total_deals: deals?.length || 0,
-          avg_deal_value: avgDealValue
+        insights: filteredInsights.slice(0, 6), // Max 6 insights
+        stats: {
+          totalAccounts: accounts?.length || 0,
+          highFitAccounts: highScoreAccounts.length,
+          leadCoverage: leadCoverageStats,
+          dataCompleteness: dataCompleteness.toFixed(1),
         },
-        _debug: {
-          ai_insights_count: aiInsights.length,
-          ai_parse_error: aiParseError,
-          fallback_used: aiInsights.length === 0
+        debug: {
+          aiInsightsGenerated: aiInsights.length,
+          aiInsightsValidated: validatedAiInsights.length,
+          dataInsightsAdded: insights.length - validatedAiInsights.length,
+          dismissedFiltered: insights.length - filteredInsights.length,
         }
       }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
-    console.error('ICP insights error:', error);
+    console.error('Error generating insights:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
+      JSON.stringify({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        insights: []
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });
