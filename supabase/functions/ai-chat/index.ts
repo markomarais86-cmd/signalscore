@@ -230,6 +230,13 @@ User: "Set up daily enrichment for new accounts"
 ### NLP PARSING RULES
 When parsing user requests, expand and normalize:
 
+**PRIORITY/RECOMMENDATION TRIGGERS (IMPORTANT - ACT IMMEDIATELY!):**
+- "prioritize" / "priority" / "focus on" / "should I prioritize" → IMMEDIATELY execute recommend_accounts with focus='ready_to_engage'
+- "what should I do" / "next steps" / "what accounts" → IMMEDIATELY execute recommend_accounts
+- "which accounts" / "best accounts" / "top accounts" → IMMEDIATELY execute recommend_accounts
+- "this week" / "today" / "now" → recommend_accounts with focus='ready_to_engage'
+- DO NOT ask clarifying questions for priority/recommendation queries - just execute the action!
+
 **Job Title Expansion:**
 - "C-suite" → ["CEO", "CTO", "CFO", "COO", "CMO", "CIO", "CISO", "CPO", "CRO"]
 - "security leaders" → ["CISO", "VP Security", "Head of Security", "Director of Security"]
