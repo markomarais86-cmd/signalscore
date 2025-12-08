@@ -13,3 +13,4 @@ export {
 } from './SuggestedActions';
 export { WorkflowProgress, WorkflowProgressMini, type WorkflowData, type WorkflowStep } from './WorkflowProgress';
 export { WorkflowHistory, WorkflowHistoryCompact } from './WorkflowHistory';
+export { ActionPreview, generateActionPreview, type ActionPreviewData } from './ActionPreview';
