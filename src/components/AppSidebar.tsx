@@ -1,4 +1,4 @@
-import { Upload, Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign, FileText, Users, BarChart3, Bot } from "lucide-react";
+import { Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign, FileText, Users, BarChart3, Bot } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
@@ -18,12 +18,12 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 
-// Simplified navigation structure - Real workflow
+// Reordered navigation: Dashboard → Accounts → ICP Manager → AI Agents → Settings
 const mainNavigation = [
-  { title: "Overview", url: "/", icon: LayoutDashboard },
-  { title: "ICP Manager", url: "/icp-manager", icon: Target },
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Accounts", url: "/accounts", icon: Database },
-  { title: "Data Upload", url: "/data-upload", icon: Upload },
+  { title: "ICP Manager", url: "/icp-manager", icon: Target },
+  { title: "AI Agents", url: "/ai-agents", icon: Bot },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
@@ -74,19 +74,6 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-              {flags.ai_agents && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to="/ai-agents"
-                      className={getNavCls("/ai-agents")}
-                    >
-                      <Bot className="h-4 w-4" />
-                      <span>AI Agents</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
               {flags.pipeline_efficiency && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
