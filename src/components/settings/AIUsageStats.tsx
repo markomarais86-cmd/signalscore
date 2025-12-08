@@ -81,7 +81,7 @@ export function AIUsageStats() {
       const totalRequests = usage.length;
       const successfulRequests = usage.filter(u => u.success).length;
       const successRate = totalRequests > 0 ? (successfulRequests / totalRequests) * 100 : 0;
-      const totalCost = usage.reduce((sum, u) => sum + (parseFloat(u.cost_estimate) || 0), 0);
+      const totalCost = usage.reduce((sum, u) => sum + (Number(u.cost_estimate) || 0), 0);
       const avgLatency = totalRequests > 0 
         ? usage.reduce((sum, u) => sum + (u.latency_ms || 0), 0) / totalRequests 
         : 0;
@@ -93,7 +93,7 @@ export function AIUsageStats() {
           byProvider[u.provider] = { requests: 0, cost: 0, totalLatency: 0, successful: 0 };
         }
         byProvider[u.provider].requests++;
-        byProvider[u.provider].cost += parseFloat(u.cost_estimate) || 0;
+        byProvider[u.provider].cost += Number(u.cost_estimate) || 0;
         byProvider[u.provider].totalLatency += u.latency_ms || 0;
         if (u.success) byProvider[u.provider].successful++;
       }
