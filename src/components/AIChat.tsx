@@ -13,9 +13,11 @@ import {
   FilterBadges, 
   SuggestedActions,
   WorkflowProgressMini,
+  RecommendedAccountsList,
   parseFiltersFromParams,
   getSearchFollowUpActions,
   getContextualActions,
+  getRecommendationFollowUpActions,
   type InsightData,
 } from '@/components/ai-chat';
 
@@ -179,6 +181,34 @@ function MessageBubble({ message, onSendMessage }: { message: ChatMessage; onSen
               </div>
             );
           }
+        }
+        break;
+
+      case 'recommendations':
+        if (message.resultData.accounts?.length > 0) {
+          const accountIds = message.resultData.accounts.map((a: any) => a.external_id);
+          return (
+            <div className="mt-3">
+              <RecommendedAccountsList
+                accounts={message.resultData.accounts.map((a: any, i: number) => ({
+                  ...a,
+                  priority_reasoning: a.reasoning || a.priority_reasoning,
+                  recommendation_rank: i + 1,
+                }))}
+                onViewAccount={(id) => navigate(`/accounts?id=${id}`)}
+                onFindContacts={(id) => onSendMessage(`Find decision makers at account ${id}`)}
+                onCreateCampaign={(ids) => onSendMessage(`Create outbound campaign with accounts: ${ids.join(', ')}`)}
+                maxDisplay={5}
+              />
+              <div className="mt-2">
+                <SuggestedActions 
+                  actions={getRecommendationFollowUpActions(accountIds)}
+                  onActionClick={onSendMessage}
+                  compact
+                />
+              </div>
+            </div>
+          );
         }
         break;
     }

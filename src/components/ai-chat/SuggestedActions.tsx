@@ -123,6 +123,17 @@ export function getEmptyStateActions(): SuggestedAction[] {
   ];
 }
 
+// NEW: Recommendation-specific follow-up actions
+export function getRecommendationFollowUpActions(accountIds: string[]): SuggestedAction[] {
+  const idList = accountIds.slice(0, 5).join(', ');
+  return [
+    { id: 'create-campaign', label: 'Create campaign', prompt: `Create outbound campaign with these recommended accounts`, icon: 'zap', variant: 'primary' },
+    { id: 'enrich', label: 'Enrich accounts', prompt: 'Enrich these recommended accounts with more data', icon: 'sparkles' },
+    { id: 'find-all-contacts', label: 'Find all contacts', prompt: 'Find decision makers at all these accounts', icon: 'users' },
+    { id: 'export', label: 'Export list', prompt: 'Export these recommended accounts to CSV', icon: 'file' },
+  ];
+}
+
 export function getContextualActions(context: { 
   currentPage?: string; 
   hasActiveIcp?: boolean;
