@@ -10,6 +10,7 @@ export {
   getEmptyStateActions,
   getContextualActions,
   getRecommendationFollowUpActions,
+  getInsightsFollowUpActions,
   type SuggestedAction 
 } from './SuggestedActions';
 export { WorkflowProgress, WorkflowProgressMini, type WorkflowData, type WorkflowStep } from './WorkflowProgress';
@@ -17,3 +18,4 @@ export { WorkflowHistory, WorkflowHistoryCompact } from './WorkflowHistory';
 export { ActionPreview, generateActionPreview, type ActionPreviewData } from './ActionPreview';
 export { RecommendedAccountCard, RecommendedAccountsList } from './RecommendedAccountCard';
 export { CampaignCreationFlow } from './CampaignCreationFlow';
+export { PlatformInsightsCard, PlatformInsightsList, type PlatformInsightsData } from './PlatformInsightsCard';

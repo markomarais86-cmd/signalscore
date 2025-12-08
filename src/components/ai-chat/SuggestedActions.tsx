@@ -134,6 +134,16 @@ export function getRecommendationFollowUpActions(accountIds: string[]): Suggeste
   ];
 }
 
+// NEW: Insights-specific follow-up actions
+export function getInsightsFollowUpActions(): SuggestedAction[] {
+  return [
+    { id: 'analyze-pipeline', label: 'Analyze pipeline', prompt: 'Analyze my pipeline health in detail', icon: 'chart', variant: 'primary' },
+    { id: 'high-fit', label: 'Show high-fit', prompt: 'Show me all high-fit accounts', icon: 'trending' },
+    { id: 'find-gaps', label: 'Find gaps', prompt: 'Identify gaps in my data', icon: 'search' },
+    { id: 'recommendations', label: 'Get recommendations', prompt: 'What accounts should I prioritize this week?', icon: 'sparkles' },
+  ];
+}
+
 export function getContextualActions(context: { 
   currentPage?: string; 
   hasActiveIcp?: boolean;

@@ -841,26 +841,66 @@ serve(async (req) => {
       }
 
       case "get_insights": {
-        const [accountsResult, scoresResult, icpResult, leadsResult] = await Promise.all([
-          supabase.from("accounts").select("id", { count: "exact", head: true }).eq("org_id", org_id),
+        // Fetch multiple data points in parallel
+        const [accountsResult, scoresResult, icpResult, leadsResult, enrichedResult] = await Promise.all([
+          supabase.from("accounts").select("id, industry_norm, revenue_range, employee_count", { count: "exact" }).eq("org_id", org_id),
           supabase.from("scores").select("overall").eq("org_id", org_id),
           supabase.from("icp_profiles").select("id, name, status").eq("org_id", org_id),
-          supabase.from("Leads").select("id", { count: "exact", head: true }).eq("org_id", org_id),
+          supabase.from("Leads").select("id, account_external_id", { count: "exact" }).eq("org_id", org_id),
+          supabase.from("accounts").select("id").eq("org_id", org_id).not("enriched_at", "is", null),
         ]);
 
+        const accounts = accountsResult.data || [];
         const scores = scoresResult.data || [];
         const highFit = scores.filter(s => s.overall >= 70).length;
         const medFit = scores.filter(s => s.overall >= 40 && s.overall < 70).length;
         const lowFit = scores.filter(s => s.overall < 40).length;
 
+        // Calculate data quality metrics
+        const totalAccounts = accountsResult.count || 0;
+        const accountsWithIndustry = accounts.filter(a => a.industry_norm).length;
+        const accountsWithRevenue = accounts.filter(a => a.revenue_range).length;
+        const accountsWithSize = accounts.filter(a => a.employee_count).length;
+        
+        // Calculate accounts with contacts
+        const accountsWithContacts = new Set((leadsResult.data || []).map(l => l.account_external_id).filter(Boolean)).size;
+        
+        const dataQuality = {
+          completeness: totalAccounts > 0 ? Math.round(((accountsWithIndustry + accountsWithRevenue + accountsWithSize) / (totalAccounts * 3)) * 100) : 0,
+          accounts_with_contacts: totalAccounts > 0 ? Math.round((accountsWithContacts / totalAccounts) * 100) : 0,
+          accounts_with_industry: totalAccounts > 0 ? Math.round((accountsWithIndustry / totalAccounts) * 100) : 0,
+          accounts_with_revenue: totalAccounts > 0 ? Math.round((accountsWithRevenue / totalAccounts) * 100) : 0,
+        };
+
+        // Generate smart recommendations
+        const recommendations: string[] = [];
+        if (dataQuality.completeness < 50) {
+          recommendations.push("Data completeness is low. Consider enriching accounts to improve scoring accuracy.");
+        }
+        if (dataQuality.accounts_with_contacts < 30) {
+          recommendations.push("Only " + dataQuality.accounts_with_contacts + "% of accounts have contacts. Run contact discovery for high-fit accounts.");
+        }
+        if (scores.length === 0 && totalAccounts > 0) {
+          recommendations.push("No accounts are scored yet. Create an ICP and run bulk scoring.");
+        }
+        if (highFit > 0 && highFit < 10) {
+          recommendations.push("You have " + highFit + " high-fit accounts. Consider expanding your ICP criteria for more opportunities.");
+        }
+        if (highFit > 100) {
+          recommendations.push("You have " + highFit + " high-fit accounts ready for outreach. Prioritize by recency or intent signals.");
+        }
+
         const result = {
-          total_accounts: accountsResult.count || 0,
+          total_accounts: totalAccounts,
           total_leads: leadsResult.count || 0,
           scored_accounts: scores.length,
           high_fit: highFit,
           medium_fit: medFit,
           low_fit: lowFit,
           icps: icpResult.data || [],
+          data_quality: dataQuality,
+          recommendations: recommendations,
+          message: `**Platform Overview:**\n\n• **${totalAccounts}** accounts • **${leadsResult.count || 0}** contacts\n• **${scores.length}** scored (${highFit} high-fit, ${medFit} medium, ${lowFit} low)\n• Data completeness: **${dataQuality.completeness}%**\n• Active ICPs: **${(icpResult.data || []).filter((i: any) => i.status === 'active').length}**${recommendations.length > 0 ? '\n\n**Recommendations:**\n' + recommendations.map(r => '• ' + r).join('\n') : ''}`,
         };
 
         await logAction(supabase, org_id, user_id, action, parameters, result, 'success', undefined, Date.now() - startTime);
