@@ -88,6 +88,7 @@ import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AIProviderSettings } from "@/components/settings/AIProviderSettings";
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
+import DataUploadContent from "@/components/settings/DataUploadContent";
 
 interface TeamMember {
   id: string;
@@ -278,7 +279,7 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="account" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Account
@@ -286,6 +287,10 @@ export default function Settings() {
           <TabsTrigger value="team" className="flex items-center gap-2">
             <Users className="h-4 w-4" />
             Team
+          </TabsTrigger>
+          <TabsTrigger value="data-upload" className="flex items-center gap-2">
+            <Upload className="h-4 w-4" />
+            Data Upload
           </TabsTrigger>
           <TabsTrigger value="configuration" className="flex items-center gap-2">
             <Target className="h-4 w-4" />
@@ -399,6 +404,11 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Data Upload Tab */}
+        <TabsContent value="data-upload" className="space-y-6">
+          <DataUploadContent />
         </TabsContent>
 
         {/* Configuration: Scoring, Benchmarks, Data Mapping, Exclusions */}
