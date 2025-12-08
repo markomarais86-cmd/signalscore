@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { HelpCircle, Search as SearchIcon, Video } from 'lucide-react';
+import { HelpCircle, Search as SearchIcon, Video, ExternalLink } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Sheet,
   SheetContent,
@@ -30,9 +31,17 @@ interface HelpPanelProps {
 export function HelpPanel({ currentPath = '/' }: HelpPanelProps) {
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('browse');
+  const [isOpen, setIsOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const contextualHelp = getContextualHelp(helpDatabase, currentPath);
   const pageTitle = getPageTitle(currentPath);
+
+  const handleOpenFullDocs = () => {
+    setIsOpen(false);
+    navigate('/help', { state: { from: location.pathname } });
+  };
 
   const handleContextualItemClick = (itemId: string) => {
     setActiveTab('browse');
@@ -48,7 +57,7 @@ export function HelpPanel({ currentPath = '/' }: HelpPanelProps) {
   }, {} as Record<string, typeof helpDatabase>);
 
   return (
-    <Sheet>
+    <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>
         <Button variant="ghost" size="icon">
           <HelpCircle className="h-5 w-5" />
@@ -56,10 +65,23 @@ export function HelpPanel({ currentPath = '/' }: HelpPanelProps) {
       </SheetTrigger>
       <SheetContent className="w-full sm:max-w-2xl overflow-hidden flex flex-col">
         <SheetHeader>
-          <SheetTitle>Help & Documentation</SheetTitle>
-          <SheetDescription>
-            Find answers, tutorials, and guides for {pageTitle}
-          </SheetDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <SheetTitle>Help & Documentation</SheetTitle>
+              <SheetDescription>
+                Find answers, tutorials, and guides for {pageTitle}
+              </SheetDescription>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleOpenFullDocs}
+              className="shrink-0"
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Full Docs
+            </Button>
+          </div>
         </SheetHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col mt-4">

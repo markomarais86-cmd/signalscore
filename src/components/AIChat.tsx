@@ -14,11 +14,14 @@ import {
   SuggestedActions,
   WorkflowProgressMini,
   RecommendedAccountsList,
+  PlatformInsightsCard,
   parseFiltersFromParams,
   getSearchFollowUpActions,
   getContextualActions,
   getRecommendationFollowUpActions,
+  getInsightsFollowUpActions,
   type InsightData,
+  type PlatformInsightsData,
 } from '@/components/ai-chat';
 
 const PAGE_SUGGESTIONS: Record<string, string[]> = {
@@ -211,6 +214,34 @@ function MessageBubble({ message, onSendMessage }: { message: ChatMessage; onSen
           );
         }
         break;
+
+      case 'insights':
+        const insightsData: PlatformInsightsData = {
+          total_accounts: message.resultData.total_accounts || 0,
+          total_leads: message.resultData.total_leads || 0,
+          scored_accounts: message.resultData.scored_accounts || 0,
+          high_fit: message.resultData.high_fit || 0,
+          medium_fit: message.resultData.medium_fit || 0,
+          low_fit: message.resultData.low_fit || 0,
+          icps: message.resultData.icps || [],
+          data_quality: message.resultData.data_quality,
+          recommendations: message.resultData.recommendations,
+        };
+        return (
+          <div className="mt-3">
+            <PlatformInsightsCard 
+              insights={insightsData}
+              onAction={onSendMessage}
+            />
+            <div className="mt-2">
+              <SuggestedActions 
+                actions={getInsightsFollowUpActions()}
+                onActionClick={onSendMessage}
+                compact
+              />
+            </div>
+          </div>
+        );
     }
 
     return null;
