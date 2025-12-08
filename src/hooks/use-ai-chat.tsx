@@ -109,9 +109,16 @@ export function useAIChat(options: UseAIChatOptions = {}) {
 
       // Add a follow-up message about the result
       if (result.success) {
+        let followUpContent = result.result?.message || 'The action was executed.';
+        
+        // Format search results nicely if available
+        if (result.action === 'search_accounts' && result.result?.accounts?.length > 0) {
+          followUpContent = result.result.message;
+        }
+        
         const followUp: ChatMessage = {
           role: 'assistant',
-          content: `✅ **Action completed successfully!**\n\n${result.result?.message || 'The action was executed.'}`
+          content: `✅ **Action completed successfully!**\n\n${followUpContent}`
         };
         setMessages(prev => [...prev, followUp]);
       }

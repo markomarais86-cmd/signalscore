@@ -192,34 +192,103 @@ serve(async (req) => {
       }
 
       case "search_accounts": {
-        const { industry, country, min_score, limit = 10 } = parameters;
+        const { industry, country, min_score, limit = 10, job_title } = parameters;
+        
+        console.log(`[AI-Actions] search_accounts params:`, { industry, country, min_score, limit, job_title });
 
-        let query = supabase
-          .from("accounts")
-          .select(`
-            external_id,
-            name,
-            industry_norm,
-            country,
-            employee_count,
-            scores!inner(overall, fit)
-          `)
-          .eq("org_id", org_id)
-          .limit(limit);
+        let accounts: any[] = [];
+        let error: any = null;
 
-        if (industry) {
-          query = query.ilike("industry_norm", `%${industry}%`);
-        }
-        if (country) {
-          query = query.ilike("country", `%${country}%`);
-        }
-        if (min_score) {
-          query = query.gte("scores.overall", min_score);
-        }
+        if (job_title) {
+          // Search accounts that have leads with matching job titles
+          const { data, error: queryError } = await supabase
+            .from("Leads")
+            .select(`
+              account_external_id,
+              title,
+              name,
+              accounts!inner(
+                external_id,
+                name,
+                industry_norm,
+                country,
+                employee_count
+              ),
+              scores:accounts(
+                scores(overall, fit)
+              )
+            `)
+            .eq("org_id", org_id)
+            .ilike("title", `%${job_title}%`)
+            .not("account_external_id", "is", null)
+            .limit(limit * 3); // Get more to dedupe
 
-        const { data: accounts, error } = await query;
+          if (queryError) {
+            error = queryError;
+          } else {
+            // Process and dedupe by account
+            const accountMap = new Map();
+            for (const lead of data || []) {
+              const acct = lead.accounts;
+              if (!acct) continue;
+              
+              // Get the score from the nested structure
+              const scoreData = (lead as any).scores?.scores?.[0];
+              const score = scoreData?.overall || 0;
+              
+              // Apply min_score filter if specified
+              if (min_score && score < min_score) continue;
+              
+              if (!accountMap.has(acct.external_id)) {
+                accountMap.set(acct.external_id, {
+                  external_id: acct.external_id,
+                  name: acct.name,
+                  industry_norm: acct.industry_norm,
+                  country: acct.country,
+                  employee_count: acct.employee_count,
+                  scores: [{ overall: score, fit: scoreData?.fit || 0 }],
+                  matching_contacts: []
+                });
+              }
+              accountMap.get(acct.external_id).matching_contacts.push({
+                name: lead.name,
+                title: lead.title
+              });
+            }
+            accounts = Array.from(accountMap.values()).slice(0, limit);
+          }
+        } else {
+          // Standard account search without job title
+          let query = supabase
+            .from("accounts")
+            .select(`
+              external_id,
+              name,
+              industry_norm,
+              country,
+              employee_count,
+              scores!inner(overall, fit)
+            `)
+            .eq("org_id", org_id)
+            .limit(limit);
+
+          if (industry) {
+            query = query.ilike("industry_norm", `%${industry}%`);
+          }
+          if (country) {
+            query = query.ilike("country", `%${country}%`);
+          }
+          if (min_score) {
+            query = query.gte("scores.overall", min_score);
+          }
+
+          const result = await query;
+          accounts = result.data || [];
+          error = result.error;
+        }
 
         if (error) {
+          console.error("[AI-Actions] search_accounts error:", error);
           return new Response(JSON.stringify({ 
             success: false, 
             error: error.message 
@@ -229,12 +298,34 @@ serve(async (req) => {
           });
         }
 
+        // Build a descriptive message
+        const count = accounts.length;
+        let message = "";
+        if (count === 0) {
+          message = job_title 
+            ? `No accounts found with "${job_title}" contacts${min_score ? ` scoring ${min_score}+` : ""}.`
+            : `No accounts found matching your criteria.`;
+        } else {
+          const accountList = accounts.slice(0, 5).map(a => {
+            const score = a.scores?.[0]?.overall || 0;
+            const contacts = a.matching_contacts?.length || 0;
+            return job_title 
+              ? `• **${a.name}** (Score: ${score}, ${contacts} ${job_title} contact${contacts > 1 ? 's' : ''})`
+              : `• **${a.name}** (Score: ${score})`;
+          }).join("\n");
+          
+          message = job_title
+            ? `Found **${count} account${count > 1 ? 's' : ''}** with "${job_title}" contacts${min_score ? ` scoring ${min_score}+` : ""}:\n\n${accountList}${count > 5 ? `\n\n...and ${count - 5} more.` : ""}`
+            : `Found **${count} account${count > 1 ? 's' : ''}**:\n\n${accountList}${count > 5 ? `\n\n...and ${count - 5} more.` : ""}`;
+        }
+
         return new Response(JSON.stringify({ 
           success: true, 
           action: "search_accounts",
           result: {
-            accounts: accounts || [],
-            count: accounts?.length || 0,
+            accounts,
+            count,
+            message,
           }
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
