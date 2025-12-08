@@ -458,7 +458,7 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
 
           {/* AI Insights Tab */}
           <TabsContent value="insights" className="space-y-4 mt-4">
-            <AITechnologyInsights accountIds={[account.id]} />
+            <AITechnologyInsights accountIds={[account.external_id]} />
             
             <Card>
               <CardHeader>
