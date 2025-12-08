@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -6,6 +6,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   action?: ActionResult;
+  resultType?: 'accounts' | 'contacts' | 'analytics' | 'recommendations' | 'insights';
+  resultData?: any;
 }
 
 export interface ActionResult {
@@ -20,6 +22,8 @@ interface UseAIChatOptions {
     currentPage?: string;
     accountCount?: number;
     highFitCount?: number;
+    activeIcp?: string;
+    viewingAccount?: string;
   };
   onActionExecuted?: (action: ActionResult) => void;
 }
@@ -37,10 +41,104 @@ function parseActionFromResponse(content: string): { action: string; parameters:
   return null;
 }
 
+// Detect result type from action response
+function detectResultType(action: string, result: any): ChatMessage['resultType'] {
+  if (!result) return undefined;
+  
+  // Search actions
+  if (action === 'search_accounts' || action === 'find_similar_accounts' || 
+      action === 'search_by_tech_stack' || action === 'search_recently_funded') {
+    return 'accounts';
+  }
+  if (action === 'search_contacts' || action === 'find_decision_makers' || 
+      action === 'recommend_contacts') {
+    return 'contacts';
+  }
+  
+  // Analytics actions
+  if (action === 'analyze_pipeline' || action === 'analyze_territory' || 
+      action === 'analyze_persona_coverage' || action === 'get_scoring_insights' ||
+      action === 'compare_segments') {
+    return 'analytics';
+  }
+  
+  // Recommendation actions
+  if (action === 'recommend_accounts' || action === 'suggest_icp_improvements' ||
+      action === 'identify_gaps' || action === 'surface_opportunities') {
+    return 'recommendations';
+  }
+  
+  // General insights
+  if (action === 'get_insights') {
+    return 'insights';
+  }
+  
+  return undefined;
+}
+
+// Memory persistence helpers
+async function saveToMemory(orgId: string, userId: string, key: string, value: any, type: string = 'context') {
+  try {
+    await supabase.from('ai_memory').upsert({
+      org_id: orgId,
+      user_id: userId,
+      memory_key: key,
+      memory_type: type,
+      memory_value: value,
+      updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'org_id,user_id,memory_key',
+    });
+  } catch (e) {
+    console.error('Failed to save AI memory:', e);
+  }
+}
+
+async function loadFromMemory(orgId: string, userId: string, key: string): Promise<any | null> {
+  try {
+    const { data } = await supabase
+      .from('ai_memory')
+      .select('memory_value')
+      .eq('org_id', orgId)
+      .eq('user_id', userId)
+      .eq('memory_key', key)
+      .single();
+    return data?.memory_value || null;
+  } catch {
+    return null;
+  }
+}
+
 export function useAIChat(options: UseAIChatOptions = {}) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ action: string; parameters: Record<string, any> } | null>(null);
+  const [recentFilters, setRecentFilters] = useState<Record<string, any>>({});
+  const [sessionContext, setSessionContext] = useState<{
+    lastAction?: string;
+    lastResultType?: string;
+    topResults?: any[];
+  }>({});
+
+  // Load recent context on mount
+  useEffect(() => {
+    async function loadContext() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('org_id')
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (profile?.org_id) {
+        const savedFilters = await loadFromMemory(profile.org_id, session.user.id, 'recent_filters');
+        if (savedFilters) setRecentFilters(savedFilters);
+      }
+    }
+    loadContext();
+  }, []);
 
   const executeAction = useCallback(async (actionData: { action: string; parameters: Record<string, any> }) => {
     try {
@@ -50,7 +148,6 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         return null;
       }
 
-      // Get org_id from user profile
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('org_id')
@@ -67,6 +164,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
           action: actionData.action,
           parameters: actionData.parameters,
           org_id: profile.org_id,
+          user_id: session.user.id,
         },
       });
 
@@ -77,8 +175,22 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       const result: ActionResult = response.data;
       
       if (result.success) {
-        toast.success(result.result?.message || `Action "${actionData.action}" completed`);
+        toast.success(result.result?.message?.slice(0, 100) || `Action "${actionData.action}" completed`);
         options.onActionExecuted?.(result);
+
+        // Save recent filters for memory
+        if (actionData.parameters && Object.keys(actionData.parameters).length > 0) {
+          const newFilters = { ...recentFilters, [actionData.action]: actionData.parameters };
+          setRecentFilters(newFilters);
+          saveToMemory(profile.org_id, session.user.id, 'recent_filters', newFilters);
+        }
+
+        // Update session context
+        setSessionContext({
+          lastAction: actionData.action,
+          lastResultType: detectResultType(actionData.action, result.result),
+          topResults: result.result?.accounts?.slice(0, 3) || result.result?.contacts?.slice(0, 3),
+        });
       } else {
         toast.error(result.error || 'Action failed');
       }
@@ -89,7 +201,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       toast.error('Failed to execute action');
       return null;
     }
-  }, [options]);
+  }, [options, recentFilters]);
 
   const confirmAction = useCallback(async () => {
     if (!pendingAction) return;
@@ -98,27 +210,26 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     const result = await executeAction(pendingAction);
     
     if (result) {
+      const resultType = detectResultType(pendingAction.action, result.result);
+      
       setMessages(prev => {
         const newMessages = [...prev];
         const lastMsg = newMessages[newMessages.length - 1];
         if (lastMsg?.role === 'assistant') {
           lastMsg.action = result;
+          lastMsg.resultType = resultType;
+          lastMsg.resultData = result.result;
         }
         return newMessages;
       });
 
       // Add a follow-up message about the result
-      if (result.success) {
-        let followUpContent = result.result?.message || 'The action was executed.';
-        
-        // Format search results nicely if available
-        if (result.action === 'search_accounts' && result.result?.accounts?.length > 0) {
-          followUpContent = result.result.message;
-        }
-        
+      if (result.success && result.result?.message) {
         const followUp: ChatMessage = {
           role: 'assistant',
-          content: `✅ **Action completed successfully!**\n\n${followUpContent}`
+          content: `✅ **Action completed!**\n\n${result.result.message}`,
+          resultType,
+          resultData: result.result,
         };
         setMessages(prev => [...prev, followUp]);
       }
@@ -159,17 +270,24 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     };
 
     try {
-      const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
+      // Build enhanced context
+      const enhancedContext = {
+        ...options.context,
+        recentFilters: Object.keys(recentFilters).length > 0 ? recentFilters : undefined,
+        ...sessionContext,
+      };
+
+      const CHAT_URL = `https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/ai-chat`;
       
       const resp = await fetch(CHAT_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRoeWZiYXB0Y3ByeHhpeGducGJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNDQ0NzksImV4cCI6MjA2MzkyMDQ3OX0.wadO7aQoaPuXI1ykXJCxjdsk7vGbJ2Jg6q0bWGtmQbM`,
         },
         body: JSON.stringify({ 
-          messages: [...messages, userMessage],
-          context: options.context 
+          messages: [...messages, userMessage].map(m => ({ role: m.role, content: m.content })),
+          context: enhancedContext,
         }),
       });
 
@@ -225,7 +343,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
 
       // Final flush
       if (textBuffer.trim()) {
-        for (let raw of textBuffer.split('\n')) {
+        for (const raw of textBuffer.split('\n')) {
           if (!raw || raw.startsWith(':') || !raw.startsWith('data: ')) continue;
           const jsonStr = raw.slice(6).trim();
           if (jsonStr === '[DONE]') continue;
@@ -249,11 +367,12 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [messages, isLoading, options.context]);
+  }, [messages, isLoading, options.context, recentFilters, sessionContext]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);
     setPendingAction(null);
+    setSessionContext({});
   }, []);
 
   return {
@@ -264,5 +383,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     pendingAction,
     confirmAction,
     cancelAction,
+    sessionContext,
+    recentFilters,
   };
 }

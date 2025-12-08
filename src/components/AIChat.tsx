@@ -6,27 +6,38 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAIChat, ChatMessage } from '@/hooks/use-ai-chat';
 import { cn } from '@/lib/utils';
+import { 
+  AccountCardList, 
+  ContactCardList, 
+  InsightCard,
+  FilterBadges, 
+  SuggestedActions,
+  parseFiltersFromParams,
+  getSearchFollowUpActions,
+  getContextualActions,
+  type InsightData,
+} from '@/components/ai-chat';
 
 const PAGE_SUGGESTIONS: Record<string, string[]> = {
   '/': [
-    'Create an ICP for tech startups in the US',
-    'Show me my high-fit accounts',
-    'How can I improve my ICP?',
+    'Analyze my pipeline health',
+    'What accounts should I prioritize?',
+    'Find gaps in my data',
   ],
   '/icp-manager': [
+    'How can I improve my ICP?',
     'Create a new ICP for enterprise SaaS',
-    'Help me refine my ICP criteria',
-    'What industries should I target?',
+    'Compare tech vs healthcare segments',
   ],
   '/accounts': [
-    'Search accounts in Technology with score above 70',
-    'Find accounts similar to my best customers',
-    'Why do some accounts score low?',
+    'Find tech companies with CTOs scoring above 70',
+    'Analyze my territory by geography',
+    'Show recently funded high-fit accounts',
   ],
   '/leads': [
-    'How do I enrich my leads?',
-    'What makes a lead campaign-ready?',
-    'Help me filter high-value contacts',
+    'Find decision makers at high-fit accounts',
+    'Analyze persona coverage',
+    'Recommend contacts to reach out to',
   ],
   '/data-upload': [
     'What data format should I use?',
@@ -50,14 +61,121 @@ const ACTION_LABELS: Record<string, string> = {
   trigger_scoring: 'Start Bulk Scoring',
   get_insights: 'Get Insights',
   search_accounts: 'Search Accounts',
+  search_contacts: 'Search Contacts',
+  find_similar_accounts: 'Find Similar Accounts',
+  find_decision_makers: 'Find Decision Makers',
+  search_by_tech_stack: 'Search by Tech Stack',
+  search_recently_funded: 'Find Recently Funded',
+  analyze_pipeline: 'Analyze Pipeline',
+  analyze_territory: 'Analyze Territory',
+  analyze_persona_coverage: 'Analyze Personas',
+  get_scoring_insights: 'Scoring Insights',
+  compare_segments: 'Compare Segments',
+  recommend_accounts: 'Recommend Accounts',
+  recommend_contacts: 'Recommend Contacts',
+  suggest_icp_improvements: 'ICP Suggestions',
+  identify_gaps: 'Identify Gaps',
+  surface_opportunities: 'Find Opportunities',
   cleanup_jobs: 'Clean Up Jobs',
 };
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({ message, onSendMessage }: { message: ChatMessage; onSendMessage: (msg: string) => void }) {
   const isUser = message.role === 'user';
+  const navigate = useNavigate();
   
   // Clean action blocks from display
   const displayContent = message.content.replace(/```action[\s\S]*?```/g, '').trim();
+  
+  // Render rich result cards based on result type
+  const renderResultCards = () => {
+    if (!message.resultData || !message.resultType) return null;
+
+    switch (message.resultType) {
+      case 'accounts':
+        if (message.resultData.accounts?.length > 0) {
+          return (
+            <div className="mt-3">
+              <AccountCardList 
+                accounts={message.resultData.accounts}
+                onViewAccount={(id) => navigate(`/accounts?id=${id}`)}
+                onFindContacts={(id) => onSendMessage(`Find decision makers at account ${id}`)}
+                maxDisplay={3}
+              />
+              <div className="mt-2">
+                <SuggestedActions 
+                  actions={getSearchFollowUpActions('accounts', true)}
+                  onActionClick={onSendMessage}
+                  compact
+                />
+              </div>
+            </div>
+          );
+        }
+        break;
+
+      case 'contacts':
+        if (message.resultData.contacts?.length > 0) {
+          return (
+            <div className="mt-3">
+              <ContactCardList 
+                contacts={message.resultData.contacts}
+                maxDisplay={3}
+              />
+              <div className="mt-2">
+                <SuggestedActions 
+                  actions={getSearchFollowUpActions('contacts', true)}
+                  onActionClick={onSendMessage}
+                  compact
+                />
+              </div>
+            </div>
+          );
+        }
+        break;
+
+      case 'analytics':
+        if (message.resultData.insights) {
+          const insights: InsightData[] = [];
+          const data = message.resultData.insights;
+          
+          if (data.total_scored !== undefined) {
+            insights.push({ title: 'Total Scored', value: data.total_scored, type: 'info' });
+          }
+          if (data.high_fit_count !== undefined) {
+            insights.push({ 
+              title: 'High Fit', 
+              value: data.high_fit_count, 
+              subtitle: `${data.high_fit_percentage || 0}%`,
+              type: 'success' 
+            });
+          }
+          if (data.coverage_rate !== undefined) {
+            insights.push({ 
+              title: 'Coverage', 
+              value: `${data.coverage_rate}%`, 
+              type: data.coverage_rate >= 50 ? 'success' : 'warning',
+              progress: data.coverage_rate,
+            });
+          }
+          if (data.decision_makers_identified !== undefined) {
+            insights.push({ title: 'Decision Makers', value: data.decision_makers_identified, type: 'info' });
+          }
+
+          if (insights.length > 0) {
+            return (
+              <div className="mt-3 space-y-2">
+                {insights.map((insight, i) => (
+                  <InsightCard key={i} insight={insight} compact />
+                ))}
+              </div>
+            );
+          }
+        }
+        break;
+    }
+
+    return null;
+  };
   
   return (
     <div className={cn('flex gap-2 mb-3', isUser ? 'justify-end' : 'justify-start')}>
@@ -75,10 +193,14 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         )}
       >
         <div className="whitespace-pre-wrap break-words">{displayContent}</div>
+        
+        {/* Render rich cards */}
+        {renderResultCards()}
+        
         {message.action && (
           <div className={cn(
             'mt-2 pt-2 border-t text-xs flex items-center gap-1',
-            message.action.success ? 'text-green-600' : 'text-destructive'
+            message.action.success ? 'text-[hsl(var(--status-success))]' : 'text-destructive'
           )}>
             {message.action.success ? (
               <CheckCircle className="w-3 h-3" />
@@ -101,6 +223,8 @@ interface ActionConfirmationProps {
 }
 
 function ActionConfirmation({ action, onConfirm, onCancel, isLoading }: ActionConfirmationProps) {
+  const filters = parseFiltersFromParams(action.parameters);
+  
   return (
     <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 mb-3">
       <div className="flex items-center gap-2 mb-2">
@@ -109,8 +233,17 @@ function ActionConfirmation({ action, onConfirm, onCancel, isLoading }: ActionCo
       </div>
       <div className="text-xs text-muted-foreground mb-3">
         <strong>{ACTION_LABELS[action.action] || action.action}</strong>
-        {action.parameters && Object.keys(action.parameters).length > 0 && (
-          <div className="mt-1 p-2 bg-muted rounded text-xs font-mono">
+        
+        {/* Show filters as badges */}
+        {filters.length > 0 && (
+          <div className="mt-2">
+            <FilterBadges filters={filters} compact />
+          </div>
+        )}
+        
+        {/* Show remaining parameters */}
+        {action.parameters && Object.keys(action.parameters).length > 0 && filters.length === 0 && (
+          <div className="mt-1 p-2 bg-muted rounded text-xs font-mono max-h-20 overflow-auto">
             {JSON.stringify(action.parameters, null, 2)}
           </div>
         )}
@@ -143,7 +276,6 @@ export function AIChat() {
   const { messages, isLoading, sendMessage, clearMessages, pendingAction, confirmAction, cancelAction } = useAIChat({
     context: { currentPage },
     onActionExecuted: (action) => {
-      // Navigate to relevant page after action
       if (action.action === 'create_icp' && action.success) {
         setTimeout(() => navigate('/icp-manager'), 1500);
       }
@@ -209,7 +341,7 @@ export function AIChat() {
 
       {/* Chat Panel */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-96 h-[32rem] bg-card border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="fixed bottom-6 right-6 z-50 w-[420px] h-[36rem] bg-card border rounded-xl shadow-2xl flex flex-col overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
             <div className="flex items-center gap-2">
@@ -247,10 +379,15 @@ export function AIChat() {
             {messages.length === 0 ? (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground text-center">
-                  Hi! I can help you create ICPs, score accounts, and more. Try asking me to do something!
+                  I can search accounts, analyze your pipeline, find opportunities, and more. What would you like to do?
                 </p>
+                <SuggestedActions 
+                  actions={getContextualActions({ currentPage })}
+                  onActionClick={handleSuggestion}
+                  title="Try these:"
+                />
                 <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground font-medium">Try these:</p>
+                  <p className="text-xs text-muted-foreground font-medium">Or ask:</p>
                   {suggestions.map((suggestion, i) => (
                     <Button
                       key={i}
@@ -267,7 +404,7 @@ export function AIChat() {
             ) : (
               <div>
                 {messages.map((msg, i) => (
-                  <MessageBubble key={i} message={msg} />
+                  <MessageBubble key={i} message={msg} onSendMessage={sendMessage} />
                 ))}
                 {pendingAction && (
                   <ActionConfirmation
