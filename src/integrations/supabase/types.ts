@@ -178,6 +178,63 @@ export type Database = {
           },
         ]
       }
+      ai_action_logs: {
+        Row: {
+          action_name: string
+          action_parameters: Json
+          action_result: Json | null
+          created_at: string
+          error_message: string | null
+          execution_time_ms: number | null
+          id: string
+          org_id: string
+          status: string
+          user_id: string | null
+          workflow_id: string | null
+        }
+        Insert: {
+          action_name: string
+          action_parameters?: Json
+          action_result?: Json | null
+          created_at?: string
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          org_id: string
+          status?: string
+          user_id?: string | null
+          workflow_id?: string | null
+        }
+        Update: {
+          action_name?: string
+          action_parameters?: Json
+          action_result?: Json | null
+          created_at?: string
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          org_id?: string
+          status?: string
+          user_id?: string | null
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_action_logs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_action_logs_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "ai_workflows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_runs: {
         Row: {
           agent_id: string
@@ -277,6 +334,115 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ai_agents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_memory: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          memory_key: string
+          memory_type: string
+          memory_value: Json
+          org_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          memory_key: string
+          memory_type: string
+          memory_value?: Json
+          org_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          memory_key?: string
+          memory_type?: string
+          memory_value?: Json
+          org_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_memory_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_workflows: {
+        Row: {
+          completed_at: string | null
+          context: Json
+          created_at: string
+          current_step: number
+          error_message: string | null
+          id: string
+          org_id: string
+          started_at: string | null
+          status: string
+          step_outputs: Json
+          steps: Json
+          total_steps: number
+          updated_at: string
+          user_id: string
+          workflow_name: string
+          workflow_type: string
+        }
+        Insert: {
+          completed_at?: string | null
+          context?: Json
+          created_at?: string
+          current_step?: number
+          error_message?: string | null
+          id?: string
+          org_id: string
+          started_at?: string | null
+          status?: string
+          step_outputs?: Json
+          steps?: Json
+          total_steps?: number
+          updated_at?: string
+          user_id: string
+          workflow_name: string
+          workflow_type: string
+        }
+        Update: {
+          completed_at?: string | null
+          context?: Json
+          created_at?: string
+          current_step?: number
+          error_message?: string | null
+          id?: string
+          org_id?: string
+          started_at?: string | null
+          status?: string
+          step_outputs?: Json
+          steps?: Json
+          total_steps?: number
+          updated_at?: string
+          user_id?: string
+          workflow_name?: string
+          workflow_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_workflows_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
