@@ -11,19 +11,81 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
+const PENDING_INVITE_KEY = 'pending_invitation_token';
+
 export function AuthSystem() {
   const { signIn, signUp, user, loading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const inviteToken = searchParams.get('invite');
+  const inviteTokenFromUrl = searchParams.get('invite');
+  
+  // Get invite token from URL or localStorage (persisted through email verification)
+  const [inviteToken, setInviteToken] = useState<string | null>(() => {
+    return inviteTokenFromUrl || localStorage.getItem(PENDING_INVITE_KEY);
+  });
   
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [invitationInfo, setInvitationInfo] = useState<any>(null);
 
-  // Redirect authenticated users to dashboard
+  // Persist invite token to localStorage when present in URL
+  useEffect(() => {
+    if (inviteTokenFromUrl) {
+      localStorage.setItem(PENDING_INVITE_KEY, inviteTokenFromUrl);
+      setInviteToken(inviteTokenFromUrl);
+    }
+  }, [inviteTokenFromUrl]);
+
+  // Handle auth state changes - accept invitation after email verification
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const pendingToken = localStorage.getItem(PENDING_INVITE_KEY);
+        
+        if (pendingToken) {
+          console.log('AuthSystem: User signed in with pending invitation, accepting...');
+          
+          try {
+            const { data: acceptResult, error: acceptError } = await supabase.rpc(
+              'accept_invitation',
+              { p_token: pendingToken, p_user_id: session.user.id }
+            );
+
+            const result = acceptResult as any;
+            
+            if (acceptError || !result?.success) {
+              console.error('Error accepting invitation:', acceptError);
+              toast({
+                title: 'Invitation Issue',
+                description: 'There was an issue with the invitation. Please contact support.',
+                variant: 'destructive',
+              });
+            } else {
+              toast({
+                title: `Welcome to the team! 🎉`,
+                description: 'Your invitation has been accepted.',
+              });
+              localStorage.setItem('show_onboarding', 'true');
+            }
+          } catch (err) {
+            console.error('Error accepting invitation:', err);
+          } finally {
+            // Clear the pending invitation
+            localStorage.removeItem(PENDING_INVITE_KEY);
+          }
+        }
+        
+        // Redirect to dashboard
+        navigate('/', { replace: true });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate, toast]);
+
+  // Redirect authenticated users to dashboard (initial check)
   useEffect(() => {
     const checkAuth = async () => {
       if (loading) return;
@@ -190,10 +252,16 @@ export function AuthSystem() {
     }
 
     try {
+      // Build redirect URL with invite token if present
+      const redirectUrl = inviteToken 
+        ? `${window.location.origin}/auth?invite=${inviteToken}`
+        : `${window.location.origin}/auth`;
+      
       const { error } = await signUp(
         signUpData.email, 
         signUpData.password,
-        signUpData.fullName
+        signUpData.fullName,
+        redirectUrl
       );
 
       if (error) {
@@ -210,40 +278,16 @@ export function AuthSystem() {
           setError(`Sign up failed: ${error.message}`);
         }
       } else {
-        // If signing up with invitation, accept it
-        if (inviteToken && user) {
-          const { data: acceptResult, error: acceptError } = await supabase.rpc(
-            'accept_invitation',
-            { p_token: inviteToken, p_user_id: user.id }
-          );
-
-          const result = acceptResult as any;
-          
-          if (acceptError || !result?.success) {
-            console.error('Error accepting invitation:', acceptError);
-            toast({
-              title: 'Account created',
-              description: 'Account created but there was an issue with the invitation. Please contact support.',
-              variant: 'default',
-            });
-          } else {
-            toast({
-              title: `Welcome to ${invitationInfo?.organizations?.name || 'the team'}! 🎉`,
-              description: 'Your account has been created. Let\'s get you started with a quick tour.',
-            });
-            
-            // Trigger onboarding wizard for new users
-            localStorage.setItem('show_onboarding', 'true');
-          }
-        } else {
-          // Success - show clear instructions
-          toast({
-            title: "Account created successfully!",
-            description: "Please check your email inbox and click the confirmation link before signing in. Check your spam folder if you don't see it.",
-          });
-        }
+        // Success - show clear instructions
+        const orgName = invitationInfo?.organizations?.name;
+        toast({
+          title: "Account created successfully!",
+          description: orgName 
+            ? `Please check your email and click the confirmation link to join ${orgName}.`
+            : "Please check your email inbox and click the confirmation link before signing in. Check your spam folder if you don't see it.",
+        });
         
-        // Reset form and switch to sign in tab
+        // Reset form
         setSignUpData({
           email: '',
           password: '',
@@ -252,16 +296,11 @@ export function AuthSystem() {
           company: ''
         });
         
-        // Auto-switch to sign-in tab after 2 seconds if no invitation
-        if (!inviteToken) {
-          setTimeout(() => {
-            const signInTab = document.querySelector('[value="signin"]') as HTMLButtonElement;
-            if (signInTab) signInTab.click();
-          }, 2000);
-        } else {
-          // Redirect to dashboard if accepting invitation
-          setTimeout(() => navigate('/'), 500);
-        }
+        // Auto-switch to sign-in tab after 2 seconds
+        setTimeout(() => {
+          const signInTab = document.querySelector('[value="signin"]') as HTMLButtonElement;
+          if (signInTab) signInTab.click();
+        }, 2000);
       }
     } catch (err) {
       console.error('Sign up error:', err);
