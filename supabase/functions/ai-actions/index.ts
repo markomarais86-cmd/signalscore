@@ -1685,6 +1685,175 @@ ${gaps.length === 0 ? '✅ No significant gaps identified!' : gaps.map(g => `
         });
       }
 
+      // ============================================================
+      // TIER 5: MULTI-STEP WORKFLOWS
+      // ============================================================
+
+      case "build_target_list": {
+        const { industries, countries, min_score, job_titles, tech_stack, top_count, focus, limit } = parameters;
+
+        // Start workflow via orchestrator
+        const response = await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-orchestrator`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: req.headers.get("Authorization") || "",
+            },
+            body: JSON.stringify({
+              action: "start_workflow",
+              workflow_type: "build_target_list",
+              workflow_name: "Build Target List",
+              parameters: { industries, countries, min_score, job_titles, tech_stack, top_count, focus, limit },
+              org_id,
+              user_id,
+            }),
+          }
+        );
+
+        const workflowResult = await response.json();
+
+        await logAction(supabase, org_id, user_id, action, parameters, workflowResult, 
+          workflowResult.success ? 'success' : 'failed', 
+          workflowResult.error, 
+          Date.now() - startTime);
+
+        return new Response(JSON.stringify({ 
+          success: workflowResult.success, 
+          action, 
+          result: {
+            ...workflowResult,
+            isWorkflow: true,
+            workflowType: 'build_target_list',
+          }
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "audit_data_quality": {
+        const response = await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-orchestrator`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: req.headers.get("Authorization") || "",
+            },
+            body: JSON.stringify({
+              action: "start_workflow",
+              workflow_type: "audit_data_quality",
+              workflow_name: "Data Quality Audit",
+              parameters: {},
+              org_id,
+              user_id,
+            }),
+          }
+        );
+
+        const workflowResult = await response.json();
+
+        await logAction(supabase, org_id, user_id, action, parameters, workflowResult, 
+          workflowResult.success ? 'success' : 'failed', 
+          workflowResult.error, 
+          Date.now() - startTime);
+
+        return new Response(JSON.stringify({ 
+          success: workflowResult.success, 
+          action, 
+          result: {
+            ...workflowResult,
+            isWorkflow: true,
+            workflowType: 'audit_data_quality',
+          }
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "prepare_campaign": {
+        const { industries, countries, min_score, job_titles, personas, account_limit, contact_limit } = parameters;
+
+        const response = await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-orchestrator`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: req.headers.get("Authorization") || "",
+            },
+            body: JSON.stringify({
+              action: "start_workflow",
+              workflow_type: "prepare_campaign",
+              workflow_name: "Prepare Campaign",
+              parameters: { industries, countries, min_score, job_titles, personas, account_limit, contact_limit },
+              org_id,
+              user_id,
+            }),
+          }
+        );
+
+        const workflowResult = await response.json();
+
+        await logAction(supabase, org_id, user_id, action, parameters, workflowResult, 
+          workflowResult.success ? 'success' : 'failed', 
+          workflowResult.error, 
+          Date.now() - startTime);
+
+        return new Response(JSON.stringify({ 
+          success: workflowResult.success, 
+          action, 
+          result: {
+            ...workflowResult,
+            isWorkflow: true,
+            workflowType: 'prepare_campaign',
+          }
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "optimize_icp": {
+        const response = await fetch(
+          `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-orchestrator`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: req.headers.get("Authorization") || "",
+            },
+            body: JSON.stringify({
+              action: "start_workflow",
+              workflow_type: "optimize_icp",
+              workflow_name: "Optimize ICP",
+              parameters: {},
+              org_id,
+              user_id,
+            }),
+          }
+        );
+
+        const workflowResult = await response.json();
+
+        await logAction(supabase, org_id, user_id, action, parameters, workflowResult, 
+          workflowResult.success ? 'success' : 'failed', 
+          workflowResult.error, 
+          Date.now() - startTime);
+
+        return new Response(JSON.stringify({ 
+          success: workflowResult.success, 
+          action, 
+          result: {
+            ...workflowResult,
+            isWorkflow: true,
+            workflowType: 'optimize_icp',
+          }
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       default:
         await logAction(supabase, org_id, user_id, action, parameters, null, 'failed', `Unknown action: ${action}`, Date.now() - startTime);
         
