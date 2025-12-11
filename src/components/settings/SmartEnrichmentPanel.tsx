@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, TrendingUp, DollarSign, Zap } from "lucide-react";
+import { Sparkles, TrendingUp, DollarSign, Zap, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { calculateHybridCost, formatCost } from "@/utils/enrichment-cost-calculator";
 
@@ -30,6 +30,7 @@ export function SmartEnrichmentPanel() {
   const { userProfile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [enriching, setEnriching] = useState(false);
+  const [aiEnriching, setAiEnriching] = useState(false);
   const [dataQuality, setDataQuality] = useState<DataQuality | null>(null);
   const [priorityAccounts, setPriorityAccounts] = useState<PriorityAccount[]>([]);
 
@@ -200,6 +201,73 @@ export function SmartEnrichmentPanel() {
     }
   };
 
+  const startFreeAIEnrichment = async () => {
+    if (!userProfile?.org_id) return;
+
+    try {
+      setAiEnriching(true);
+      toast.info("Starting Free AI Enrichment...", {
+        description: "AI-powered estimates - no API credits needed!"
+      });
+
+      // Create enrichment job
+      const { data: job, error: jobError } = await supabase
+        .from('enrichment_jobs')
+        .insert({
+          org_id: userProfile.org_id,
+          provider: 'ai_free',
+          job_type: 'accounts',
+          status: 'pending',
+          total_records: priorityAccounts.length || 100
+        })
+        .select()
+        .single();
+
+      if (jobError) throw jobError;
+
+      // Call enrich-ai-only edge function
+      const { error } = await supabase.functions.invoke('enrich-ai-only', {
+        body: { jobId: job.id, batchSize: 100 }
+      });
+
+      if (error) throw error;
+
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        const { data: jobStatus } = await supabase
+          .from('enrichment_jobs')
+          .select('status, enriched_records, processed_records')
+          .eq('id', job.id)
+          .single();
+
+        if (jobStatus?.status === 'completed') {
+          clearInterval(pollInterval);
+          toast.success(`AI enriched ${jobStatus.enriched_records} accounts!`, {
+            description: "No API credits used"
+          });
+          loadDataQuality();
+          loadPriorityAccounts();
+          setAiEnriching(false);
+        } else if (jobStatus?.status === 'failed') {
+          clearInterval(pollInterval);
+          toast.error("AI enrichment failed");
+          setAiEnriching(false);
+        }
+      }, 2000);
+
+      // Stop polling after 5 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        setAiEnriching(false);
+      }, 300000);
+
+    } catch (error) {
+      console.error("Error during AI enrichment:", error);
+      toast.error("AI enrichment failed");
+      setAiEnriching(false);
+    }
+  };
+
   if (loading) {
     return <div>Loading enrichment data...</div>;
   }
@@ -289,7 +357,7 @@ export function SmartEnrichmentPanel() {
             </div>
           </div>
 
-          {/* Action Button */}
+          {/* Action Buttons */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-green-600" />
@@ -297,14 +365,25 @@ export function SmartEnrichmentPanel() {
                 Priority: High ICP Fit (70+) + Missing Data
               </span>
             </div>
-            <Button
-              onClick={startBatchEnrichment}
-              disabled={enriching || priorityAccounts.length === 0}
-              size="lg"
-            >
-              <Zap className="h-4 w-4 mr-2" />
-              {enriching ? "Enriching..." : `Enrich Top ${Math.min(priorityAccounts.length, 100)}`}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={startFreeAIEnrichment}
+                disabled={aiEnriching || enriching}
+                size="lg"
+              >
+                <Wand2 className="h-4 w-4 mr-2" />
+                {aiEnriching ? "AI Enriching..." : "Free AI Enrich"}
+              </Button>
+              <Button
+                onClick={startBatchEnrichment}
+                disabled={enriching || aiEnriching || priorityAccounts.length === 0}
+                size="lg"
+              >
+                <Zap className="h-4 w-4 mr-2" />
+                {enriching ? "Enriching..." : `Enrich Top ${Math.min(priorityAccounts.length, 100)}`}
+              </Button>
+            </div>
           </div>
 
           {/* Top Priority Accounts Preview */}

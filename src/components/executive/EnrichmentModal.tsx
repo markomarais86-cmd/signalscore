@@ -59,6 +59,13 @@ export function EnrichmentModal({
       fields: ["Industry", "Company Size", "Revenue", "Location", "Employee Count"]
     },
     {
+      id: "ai_free",
+      name: "Free AI Enrichment ⭐",
+      description: "AI-powered estimates using domain analysis. No API credits needed!",
+      tier: "free",
+      fields: ["Industry", "Employee Count", "Revenue Range", "Business Model"]
+    },
+    {
       id: "deep_research",
       name: "Deep Research (High-Value Accounts)",
       description: "AI-powered web research with citations, tech stack, funding, and confidence scores",
@@ -81,16 +88,20 @@ export function EnrichmentModal({
     setEnriching(true);
     try {
       const isDeepResearch = selectedProviders.includes('deep_research');
+      const isAIFree = selectedProviders.includes('ai_free');
+      
+      // Determine provider type
+      const providerType = isDeepResearch ? 'deep-research' : isAIFree ? 'ai_free' : 'smart-waterfall';
       
       // Create enrichment job
       const { data: job, error: jobError } = await supabase
         .from('enrichment_jobs')
         .insert({
           org_id: userProfile.org_id,
-          provider: isDeepResearch ? 'deep-research' : 'smart-waterfall',
+          provider: providerType,
           job_type: 'accounts',
           status: 'pending',
-          total_records: selectedAccounts || 0
+          total_records: selectedAccounts || batchSize
         })
         .select()
         .single();
@@ -119,6 +130,17 @@ export function EnrichmentModal({
 
           if (error) throw error;
         }
+      } else if (isAIFree) {
+        toast.info("Starting Free AI Enrichment...", {
+          description: "AI-powered estimates - no API credits needed!"
+        });
+
+        // Call enrich-ai-only edge function
+        const { error } = await supabase.functions.invoke('enrich-ai-only', {
+          body: { jobId: job.id, batchSize }
+        });
+
+        if (error) throw error;
       } else {
         toast.info("Starting enrichment...", {
           description: "Enrichment waterfall: PDL → Clearbit → AI"

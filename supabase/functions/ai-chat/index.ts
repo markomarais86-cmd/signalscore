@@ -123,7 +123,15 @@ These actions modify data and require explicit user confirmation:
     - provider: 'auto' | 'pdl' | 'clearbit' | 'ai' - Enrichment provider
     ⚠️ Costs credits. Always confirm before executing.
 
-26. **enrich_contacts** - Discover and enrich contacts for accounts
+26. **enrich_ai_free** - FREE AI-only enrichment (no API credits!) ⭐ NEW
+    Parameters:
+    - batch_size: number - Number of accounts to enrich (default 100)
+    - filters: object - Optional filters
+    Uses AI to estimate: Industry, Employee Count, Revenue Range, Business Model
+    Analyzes domain patterns and company names. Provides confidence scores.
+    ✅ $0 cost - no API credits used!
+
+27. **enrich_contacts** - Discover and enrich contacts for accounts
     Parameters:
     - account_ids: string[] (REQUIRED) - Account IDs to find contacts for
     - personas: string[] - Target personas (e.g., ["Executive", "Technical Decision Maker"])
@@ -131,7 +139,7 @@ These actions modify data and require explicit user confirmation:
     - verified_only: boolean - Only verified emails
     ⚠️ Costs credits. Always confirm before executing.
 
-27. **export_list** - Export accounts/contacts to CSV
+28. **export_list** - Export accounts/contacts to CSV
     Parameters:
     - type: 'accounts' | 'contacts' - What to export
     - filters: object - Filters to apply
@@ -139,7 +147,7 @@ These actions modify data and require explicit user confirmation:
     - format: 'csv' | 'json' - Export format
     Safe action, but confirm large exports.
 
-28. **create_campaign** - Create a campaign from selected records
+29. **create_campaign** - Create a campaign from selected records
     Parameters:
     - name: string (REQUIRED) - Campaign name
     - account_ids: string[] - Account IDs
@@ -147,27 +155,27 @@ These actions modify data and require explicit user confirmation:
     - campaign_type: 'outbound' | 'nurture' | 'event'
     Reversible action.
 
-29. **trigger_scoring** - Bulk score accounts against ICP
+30. **trigger_scoring** - Bulk score accounts against ICP
     Parameters:
     - filters: object - Account filters
     - icp_id: string - Specific ICP to score against
     - force_rescore: boolean - Re-score already scored accounts
     ⚠️ Can take several minutes for large datasets.
 
-30. **update_icp** - Update ICP criteria
+31. **update_icp** - Update ICP criteria
     Parameters:
     - icp_id: string (REQUIRED) - ICP to update
     - criteria_updates: object - Fields to update
     ⚠️ HIGH RISK: Changes targeting criteria. Always confirm.
 
-31. **sync_to_crm** - Sync records to connected CRM
+32. **sync_to_crm** - Sync records to connected CRM
     Parameters:
     - type: 'accounts' | 'contacts' - What to sync
     - ids: string[] (REQUIRED) - Record IDs
     - crm_type: 'auto' | 'salesforce' | 'hubspot'
     Requires CRM connection.
 
-32. **schedule_enrichment** - Set up recurring enrichment
+33. **schedule_enrichment** - Set up recurring enrichment
     Parameters:
     - filters: object - Account filters
     - frequency: 'daily' | 'weekly' | 'monthly'
@@ -282,6 +290,8 @@ Use Tier 5 workflow actions when:
 
 Use Tier 6 execution actions when:
 - User mentions "enrich", "get more data" → enrich_accounts or enrich_contacts
+- User mentions "free AI enrich", "AI enrich", "enrich with AI", "use AI to enrich", "estimate missing data" → enrich_ai_free
+- User mentions "fill in gaps", "estimate data", "AI fill in" → enrich_ai_free
 - User mentions "export", "download", "CSV" → export_list
 - User mentions "sync", "push to CRM", "update CRM" → sync_to_crm
 - User mentions "re-score", "score all", "bulk score" → trigger_scoring
