@@ -35,6 +35,7 @@ interface UseAIChatOptions {
     highFitCount?: number;
     activeIcp?: string;
     viewingAccount?: string;
+    userPreferences?: Record<string, any>;
   };
   onActionExecuted?: (action: ActionResult) => void;
   onWorkflowUpdate?: (status: WorkflowStatus) => void;

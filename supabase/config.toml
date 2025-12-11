@@ -224,3 +224,6 @@ verify_jwt = true
 
 [functions.ai-health-check]
 verify_jwt = false
+
+[functions.bulk-qualify-leads]
+verify_jwt = true
