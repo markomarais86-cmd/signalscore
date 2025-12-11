@@ -227,3 +227,6 @@ verify_jwt = false
 
 [functions.bulk-qualify-leads]
 verify_jwt = true
+
+[functions.enrich-ai-only]
+verify_jwt = true

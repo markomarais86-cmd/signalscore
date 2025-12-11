@@ -2581,6 +2581,86 @@ ${gaps.length === 0 ? '✅ No significant gaps identified!' : gaps.map(g => `
         });
       }
 
+      case "enrich_ai_free": {
+        const {
+          batch_size = 100,
+          filters = {}
+        } = parameters;
+
+        console.log(`[AI-Actions] enrich_ai_free: batch_size=${batch_size}`);
+
+        // Count accounts needing enrichment
+        const { count: needsEnrichment } = await supabase
+          .from("accounts")
+          .select("*", { count: "exact", head: true })
+          .eq("org_id", org_id)
+          .not("domain", "is", null)
+          .or("employee_count.is.null,revenue_range.is.null,industry_raw.is.null");
+
+        if (!needsEnrichment || needsEnrichment === 0) {
+          const result = {
+            message: "✅ All accounts already have complete data. No enrichment needed.",
+            accounts_needing_enrichment: 0,
+          };
+          await logAction(supabase, org_id, user_id, action, parameters, result, 'success', undefined, Date.now() - startTime);
+          return new Response(JSON.stringify({ success: true, action, result }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Create enrichment job
+        const { data: job, error: jobError } = await supabase
+          .from("enrichment_jobs")
+          .insert({
+            org_id,
+            provider: 'ai_free',
+            job_type: 'accounts',
+            status: 'pending',
+            total_records: Math.min(batch_size, needsEnrichment),
+            filter_criteria: filters,
+          })
+          .select()
+          .single();
+
+        if (jobError) throw new Error(jobError.message);
+
+        // Invoke the AI enrichment function
+        const supabaseUrl = Deno.env.get("SUPABASE_URL");
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+        try {
+          await fetch(`${supabaseUrl}/functions/v1/enrich-ai-only`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${serviceKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ jobId: job.id, batchSize: batch_size, filters }),
+          });
+        } catch (invokeError) {
+          console.error("[AI-Actions] Failed to invoke enrich-ai-only:", invokeError);
+        }
+
+        const targetCount = Math.min(batch_size, needsEnrichment);
+        const message = `**Free AI Enrichment Started** 🧠✨\n\n• **${targetCount.toLocaleString()} accounts** will be enriched\n• Using AI to estimate: Industry, Employee Count, Revenue, Business Model\n• **$0 cost** - no API credits used\n• Job ID: \`${job.id}\`\n\nEstimated time: ~${Math.ceil(targetCount / 25)} minutes\n\nI'll analyze domain patterns, company names, and available signals to fill in missing data with confidence scores.`;
+
+        const result = {
+          job_id: job.id,
+          accounts_to_enrich: targetCount,
+          accounts_needing_enrichment: needsEnrichment,
+          estimated_minutes: Math.ceil(targetCount / 25),
+          cost: 0,
+          message,
+          isExecution: true,
+        };
+
+        await logAction(supabase, org_id, user_id, action, parameters, result, 'success', undefined, Date.now() - startTime);
+
+        return new Response(JSON.stringify({ success: true, action, result }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       default:
         await logAction(supabase, org_id, user_id, action, parameters, null, 'failed', `Unknown action: ${action}`, Date.now() - startTime);
         
