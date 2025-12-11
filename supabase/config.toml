@@ -230,3 +230,9 @@ verify_jwt = true
 
 [functions.enrich-ai-only]
 verify_jwt = true
+
+[functions.generate-proactive-insights]
+verify_jwt = true
+
+[functions.agent-pipeline-controller]
+verify_jwt = true

@@ -288,6 +288,75 @@ export type Database = {
           },
         ]
       }
+      ai_agent_feedback: {
+        Row: {
+          account_id: string | null
+          agent_id: string | null
+          ai_reasoning: string | null
+          confidence_score: number | null
+          context_data: Json | null
+          created_at: string
+          decision_type: string
+          feedback_notes: string | null
+          feedback_score: number | null
+          id: string
+          lead_id: string | null
+          org_id: string
+          outcome: string | null
+          outcome_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_id?: string | null
+          agent_id?: string | null
+          ai_reasoning?: string | null
+          confidence_score?: number | null
+          context_data?: Json | null
+          created_at?: string
+          decision_type: string
+          feedback_notes?: string | null
+          feedback_score?: number | null
+          id?: string
+          lead_id?: string | null
+          org_id: string
+          outcome?: string | null
+          outcome_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string | null
+          agent_id?: string | null
+          ai_reasoning?: string | null
+          confidence_score?: number | null
+          context_data?: Json | null
+          created_at?: string
+          decision_type?: string
+          feedback_notes?: string | null
+          feedback_score?: number | null
+          id?: string
+          lead_id?: string | null
+          org_id?: string
+          outcome?: string | null
+          outcome_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_feedback_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "ai_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_agent_feedback_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_runs: {
         Row: {
           agent_id: string
@@ -2834,6 +2903,9 @@ export type Database = {
           phone_type: string | null
           phone_verification_status: string | null
           phone_verified: boolean | null
+          pipeline_stage: string | null
+          pipeline_triggered_by: string | null
+          pipeline_updated_at: string | null
           previous_company: string | null
           previous_title: string | null
           priority_rank: number | null
@@ -2919,6 +2991,9 @@ export type Database = {
           phone_type?: string | null
           phone_verification_status?: string | null
           phone_verified?: boolean | null
+          pipeline_stage?: string | null
+          pipeline_triggered_by?: string | null
+          pipeline_updated_at?: string | null
           previous_company?: string | null
           previous_title?: string | null
           priority_rank?: number | null
@@ -3004,6 +3079,9 @@ export type Database = {
           phone_type?: string | null
           phone_verification_status?: string | null
           phone_verified?: boolean | null
+          pipeline_stage?: string | null
+          pipeline_triggered_by?: string | null
+          pipeline_updated_at?: string | null
           previous_company?: string | null
           previous_title?: string | null
           priority_rank?: number | null

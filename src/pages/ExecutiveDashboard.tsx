@@ -42,6 +42,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
 import { DataQualityWarning } from "@/components/executive/DataQualityWarning";
+import { ProactiveInsightsWidget } from "@/components/insights/ProactiveInsightsWidget";
 
 
 export default function ExecutiveDashboard() {
@@ -497,6 +498,24 @@ export default function ExecutiveDashboard() {
           totalAccounts={totalAccounts}
           onEnrich={() => setIsEnrichmentModalOpen(true)}
         />
+
+        {/* Phase 5: Proactive AI Insights Widget */}
+        {userProfile?.org_id && (
+          <ProactiveInsightsWidget 
+            orgId={userProfile.org_id}
+            onAction={(action, params) => {
+              // Handle widget actions - navigate to AI chat or execute directly
+              if (action === 'run_pipeline') {
+                toast.info('Opening AI Chat to run pipeline...');
+                navigate('/ai-chat?action=run_pipeline');
+              } else if (action === 'agent_status') {
+                navigate('/ai-chat?action=agent_status');
+              } else {
+                toast.info(`Action: ${action}`);
+              }
+            }}
+          />
+        )}
 
         {/* Phase 5: System Health Dashboard */}
         {showHealthDashboard && (
