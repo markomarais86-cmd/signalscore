@@ -17,9 +17,9 @@ serve(async (req) => {
   );
 
   try {
-    const { agent_id, org_id } = await req.json();
+    const { agent_id, org_id, run_id } = await req.json();
 
-    console.log(`[Meeting Scheduler] Starting for agent ${agent_id}, org ${org_id}`);
+    console.log(`[Meeting Scheduler] Starting for agent ${agent_id}, org ${org_id}, run_id ${run_id}`);
 
     // Fetch agent configuration
     const { data: agent, error: agentError } = await supabase
@@ -32,19 +32,37 @@ serve(async (req) => {
       throw new Error(`Agent not found: ${agentError?.message}`);
     }
 
-    // Create run record
-    const { data: run, error: runError } = await supabase
-      .from('ai_agent_runs')
-      .insert({
-        agent_id,
-        status: 'running',
-        started_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+    // Use existing run record if provided, otherwise create new one
+    let run;
+    if (run_id) {
+      const { data, error } = await supabase
+        .from('ai_agent_runs')
+        .select()
+        .eq('id', run_id)
+        .single();
+      
+      if (error) {
+        console.error('[Meeting Scheduler] Failed to fetch run record:', error);
+        throw error;
+      }
+      run = data;
+      console.log(`[Meeting Scheduler] Using existing run record: ${run_id}`);
+    } else {
+      const { data, error: runError } = await supabase
+        .from('ai_agent_runs')
+        .insert({
+          agent_id,
+          status: 'running',
+          started_at: new Date().toISOString()
+        })
+        .select()
+        .single();
 
-    if (runError || !run) {
-      throw new Error(`Failed to create run record: ${runError?.message}`);
+      if (runError || !data) {
+        throw new Error(`Failed to create run record: ${runError?.message}`);
+      }
+      run = data;
+      console.log(`[Meeting Scheduler] Created new run record: ${run.id}`);
     }
 
     const minScore = agent.parameters?.min_lead_score || 70;
