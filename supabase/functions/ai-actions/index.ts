@@ -926,6 +926,118 @@ serve(async (req) => {
         });
       }
 
+      case "qualify_leads": {
+        const { batch_size = 100, dry_run = false } = parameters;
+
+        // Count open leads first
+        const { count: openCount } = await supabase
+          .from("Leads")
+          .select("id", { count: 'exact', head: true })
+          .eq("org_id", org_id)
+          .eq("status", "open")
+          .not("account_external_id", "is", null);
+
+        if (!openCount || openCount === 0) {
+          const result = {
+            message: "No open leads to qualify. All leads are already processed!",
+            total_open: 0,
+            qualified: 0,
+            rejected: 0,
+          };
+          await logAction(supabase, org_id, user_id, action, parameters, result, 'success', undefined, Date.now() - startTime);
+          return new Response(JSON.stringify({ success: true, action, result }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Get batch of leads with their account scores
+        const { data: leads } = await supabase
+          .from("Leads")
+          .select(`
+            id,
+            name,
+            email,
+            title,
+            persona,
+            account_external_id
+          `)
+          .eq("org_id", org_id)
+          .eq("status", "open")
+          .not("account_external_id", "is", null)
+          .limit(batch_size);
+
+        if (!leads || leads.length === 0) {
+          const result = {
+            message: "No leads found to qualify",
+            total_open: openCount,
+            qualified: 0,
+            rejected: 0,
+          };
+          await logAction(supabase, org_id, user_id, action, parameters, result, 'success', undefined, Date.now() - startTime);
+          return new Response(JSON.stringify({ success: true, action, result }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        // Get scores for these accounts
+        const accountIds = [...new Set(leads.map(l => l.account_external_id))];
+        const { data: scores } = await supabase
+          .from("scores")
+          .select("account_external_id, overall")
+          .eq("org_id", org_id)
+          .in("account_external_id", accountIds);
+
+        const scoreMap = new Map((scores || []).map(s => [s.account_external_id, s.overall]));
+
+        let qualified = 0;
+        let rejected = 0;
+
+        for (const lead of leads) {
+          const score = scoreMap.get(lead.account_external_id);
+          const hasEmail = lead.email && lead.email.includes("@");
+          const hasPersona = lead.persona && lead.persona !== "Unknown";
+          const isHighFit = score && score >= 70;
+
+          let newStatus: string;
+          if (isHighFit && hasEmail) {
+            newStatus = "qualified";
+            qualified++;
+          } else if (!score || score < 40) {
+            newStatus = "rejected";
+            rejected++;
+          } else {
+            newStatus = "qualified";
+            qualified++;
+          }
+
+          if (!dry_run) {
+            await supabase
+              .from("Leads")
+              .update({ status: newStatus, updated_at: new Date().toISOString() })
+              .eq("id", lead.id)
+              .eq("org_id", org_id);
+          }
+        }
+
+        const result = {
+          message: dry_run 
+            ? `Would qualify ${qualified} and reject ${rejected} leads (dry run)`
+            : `Qualified ${qualified} leads, rejected ${rejected} leads. ${openCount - leads.length} remaining.`,
+          total_open: openCount,
+          processed: leads.length,
+          qualified,
+          rejected,
+          remaining: openCount - leads.length,
+          has_more: openCount - leads.length > 0,
+        };
+
+        await logAction(supabase, org_id, user_id, action, parameters, result, 'success', undefined, Date.now() - startTime);
+
+        return new Response(JSON.stringify({ success: true, action, result }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // ============================================================
       // TIER 2: ANALYTICS & INTELLIGENCE
       // ============================================================

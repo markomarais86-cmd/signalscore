@@ -90,6 +90,9 @@ const SYSTEM_PROMPT = `You are LaunchPulse AI, an intelligent, goal-driven sales
 18. **trigger_scoring** - Re-score all accounts against ICP (⚠️ REQUIRES CONFIRMATION)
 19. **get_insights** - Get platform analytics
 20. **cleanup_jobs** - Clean up stuck jobs
+21. **qualify_leads** - Qualify open leads based on account scores
+    Parameters: batch_size (default 100), dry_run (default false)
+    Use when: User wants to process open leads and qualify/reject them
 
 ### TIER 5: Multi-Step Workflows (POWERFUL!)
 These actions run complete multi-step workflows automatically:
@@ -236,6 +239,11 @@ When parsing user requests, expand and normalize:
 - "which accounts" / "best accounts" / "top accounts" → IMMEDIATELY execute recommend_accounts
 - "this week" / "today" / "now" → recommend_accounts with focus='ready_to_engage'
 - DO NOT ask clarifying questions for priority/recommendation queries - just execute the action!
+
+**LEAD QUALIFICATION TRIGGERS:**
+- "qualify leads" / "qualify all leads" / "process leads" → IMMEDIATELY execute qualify_leads
+- "qualify open leads" / "what leads should I focus on" → IMMEDIATELY execute qualify_leads
+- "clean up leads" / "process my leads" → qualify_leads with batch_size: 100
 
 **Job Title Expansion:**
 - "C-suite" → ["CEO", "CTO", "CFO", "COO", "CMO", "CIO", "CISO", "CPO", "CRO"]

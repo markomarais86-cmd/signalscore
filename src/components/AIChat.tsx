@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { MessageCircle, X, Send, Sparkles, Trash2, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { MessageCircle, X, Send, Sparkles, Trash2, CheckCircle, XCircle, Loader2, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAIChat, ChatMessage } from '@/hooks/use-ai-chat';
+import { useAIMemory } from '@/hooks/use-ai-memory';
 import { cn } from '@/lib/utils';
 import { 
   AccountCardList, 
@@ -54,6 +55,7 @@ const PAGE_SUGGESTIONS: Record<string, string[]> = {
     'How do AI agents work?',
     'Clean up stuck jobs',
     'Set up automated enrichment',
+    'Qualify all open leads now',
   ],
   '/settings': [
     'How do I connect my CRM?',
@@ -83,6 +85,7 @@ const ACTION_LABELS: Record<string, string> = {
   identify_gaps: 'Identify Gaps',
   surface_opportunities: 'Find Opportunities',
   cleanup_jobs: 'Clean Up Jobs',
+  qualify_leads: 'Qualify Leads',
   // Tier 6: Execution Actions
   enrich_accounts: 'Enrich Accounts',
   enrich_contacts: 'Enrich Contacts',
@@ -343,14 +346,56 @@ export function AIChat() {
   const currentPage = location.pathname;
   const suggestions = PAGE_SUGGESTIONS[currentPage] || PAGE_SUGGESTIONS['/'];
 
-  const { messages, isLoading, sendMessage, clearMessages, pendingAction, confirmAction, cancelAction, activeWorkflow, cancelWorkflow } = useAIChat({
-    context: { currentPage },
-    onActionExecuted: (action) => {
-      if (action.action === 'create_icp' && action.success) {
-        setTimeout(() => navigate('/icp-manager'), 1500);
+  // AI Memory integration
+  const { 
+    preferences, 
+    templates, 
+    suggestions: aiSuggestions, 
+    learnPreference, 
+    refreshSuggestions,
+    isLoading: memoryLoading 
+  } = useAIMemory();
+
+  // Learn from successful actions
+  const handleActionExecuted = useCallback((action: { action: string; success: boolean; result?: any }) => {
+    if (action.action === 'create_icp' && action.success) {
+      setTimeout(() => navigate('/icp-manager'), 1500);
+    }
+    
+    // Learn user preferences from successful actions
+    if (action.success && action.result) {
+      // Learn industry preferences
+      if (action.result.filters?.industries?.length) {
+        learnPreference('preferred_industries', action.result.filters.industries, `action:${action.action}`);
       }
+      // Learn geography preferences
+      if (action.result.filters?.countries?.length) {
+        learnPreference('preferred_geographies', action.result.filters.countries, `action:${action.action}`);
+      }
+      // Learn persona preferences
+      if (action.result.filters?.personas?.length) {
+        learnPreference('preferred_personas', action.result.filters.personas, `action:${action.action}`);
+      }
+      // Learn action frequency
+      learnPreference(`action_frequency:${action.action}`, Date.now(), `action:${action.action}`);
+    }
+  }, [navigate, learnPreference]);
+
+  const { messages, isLoading, sendMessage, clearMessages, pendingAction, confirmAction, cancelAction, activeWorkflow, cancelWorkflow } = useAIChat({
+    context: { 
+      currentPage,
+      // Include learned preferences in context
+      userPreferences: Object.keys(preferences).length > 0 ? preferences : undefined,
     },
+    onActionExecuted: handleActionExecuted,
   });
+
+  // Refresh AI suggestions when chat opens
+  useEffect(() => {
+    if (isOpen) {
+      refreshSuggestions(currentPage);
+    }
+  }, [isOpen, currentPage, refreshSuggestions]);
 
   // Keyboard shortcut (Cmd/Ctrl + K)
   useEffect(() => {
