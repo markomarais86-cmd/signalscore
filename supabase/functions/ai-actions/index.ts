@@ -1325,20 +1325,29 @@ ${topReasons.length > 0 ? `**Top scoring factors:**\n${topReasons.map(r => `• 
       case "recommend_accounts": {
         const { count = 10, focus = 'high_fit' } = parameters;
 
-        // Get high-fit accounts with contact data
-        const { data: accounts, error } = await supabase
+        // Step 1: Fetch accounts separately (no nested select - no FK relationship exists)
+        const { data: accounts, error: accountsError } = await supabase
           .from("accounts")
-          .select(`
-            external_id, name, domain, industry_norm, country, employee_count,
-            last_funding_round, last_funding_date,
-            scores(overall, fit, intent)
-          `)
-          .eq("org_id", org_id)
-          .not("scores", "is", null);
+          .select("id, external_id, name, domain, industry_norm, country, employee_count, last_funding_round, last_funding_date")
+          .eq("org_id", org_id);
 
-        if (error) throw new Error(error.message);
+        if (accountsError) throw new Error(accountsError.message);
 
-        // Get contact counts per account
+        // Step 2: Fetch scores separately (join manually since no FK relationship)
+        const { data: scores, error: scoresError } = await supabase
+          .from("scores")
+          .select("account_external_id, overall, fit, intent")
+          .eq("org_id", org_id);
+
+        if (scoresError) throw new Error(scoresError.message);
+
+        // Step 3: Create a score lookup map
+        const scoreMap = new Map<string, { overall: number; fit: number; intent: number }>();
+        for (const s of scores || []) {
+          scoreMap.set(s.account_external_id, { overall: s.overall || 0, fit: s.fit || 0, intent: s.intent || 0 });
+        }
+
+        // Step 4: Get contact counts per account
         const { data: contactCounts } = await supabase
           .from("Leads")
           .select("account_external_id")
@@ -1350,16 +1359,15 @@ ${topReasons.length > 0 ? `**Top scoring factors:**\n${topReasons.map(r => `• 
           contactMap.set(c.account_external_id, (contactMap.get(c.account_external_id) || 0) + 1);
         }
 
-        // Score and rank accounts
-        const rankedAccounts = (accounts || [])
-          .filter(a => a.scores?.[0])
+        // Step 5: Merge accounts with scores and rank - prioritize scored accounts first
+        const scoredAccounts = (accounts || [])
+          .filter(a => scoreMap.has(a.external_id))
           .map(a => {
-            const score = a.scores![0];
+            const score = scoreMap.get(a.external_id)!;
             const contactCount = contactMap.get(a.external_id) || 0;
             const recentFunding = a.last_funding_date && 
               new Date(a.last_funding_date) > new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
             
-            // Composite priority score
             let priority = score.overall;
             if (contactCount > 0) priority += 10;
             if (contactCount >= 3) priority += 10;
@@ -1385,14 +1393,40 @@ ${topReasons.length > 0 ? `**Top scoring factors:**\n${topReasons.map(r => `• 
           .sort((a, b) => b.priority - a.priority)
           .slice(0, count);
 
-        const message = `**Top ${rankedAccounts.length} Recommended Accounts:**
+        // Step 6: Fallback to unscored accounts if no scored accounts exist
+        let rankedAccounts = scoredAccounts;
+        let fallbackUsed = false;
+        
+        if (rankedAccounts.length === 0 && (accounts || []).length > 0) {
+          fallbackUsed = true;
+          rankedAccounts = (accounts || [])
+            .slice(0, count)
+            .map(a => ({
+              ...a,
+              score: 0,
+              fit: 0,
+              intent: 0,
+              contactCount: contactMap.get(a.external_id) || 0,
+              recentFunding: false,
+              priority: 0,
+              reasoning: ['Account not yet scored - run bulk scoring for ICP fit analysis'],
+            }));
+        }
 
-${rankedAccounts.map((a, i) => `${i + 1}. **${a.name}** (Score: ${a.score})
-   ${a.reasoning.join(' • ')}`).join('\n\n')}
+        const message = rankedAccounts.length > 0
+          ? `**Top ${rankedAccounts.length} Recommended Accounts:**\n\n${rankedAccounts.map((a, i) => 
+              `${i + 1}. **${a.name}** (Score: ${a.score})\n   ${(a.reasoning as string[]).join(' • ')}`
+            ).join('\n\n')}\n\n💡 These accounts are prioritized by ICP fit, contact availability, and buying signals.${fallbackUsed ? '\n\n⚠️ These accounts are not scored yet. Run bulk scoring for better recommendations.' : ''}`
+          : `No accounts found. Please ensure accounts are imported into your organization.`;
 
-💡 These accounts are prioritized by ICP fit, contact availability, and buying signals.`;
-
-        const result = { accounts: rankedAccounts, count: rankedAccounts.length, message };
+        const result = { 
+          accounts: rankedAccounts, 
+          count: rankedAccounts.length, 
+          message,
+          totalAccounts: (accounts || []).length,
+          scoredAccounts: scoreMap.size,
+          fallbackUsed
+        };
         
         await logAction(supabase, org_id, user_id, action, parameters, result, 'success', undefined, Date.now() - startTime);
 
