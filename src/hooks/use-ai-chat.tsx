@@ -348,9 +348,12 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     setIsLoading(true);
 
     let assistantContent = '';
+    let streamHealthCheck: NodeJS.Timeout | null = null;
+    let lastActivity = Date.now();
 
     const updateAssistant = (chunk: string) => {
       assistantContent += chunk;
+      lastActivity = Date.now();
       setMessages(prev => {
         const last = prev[prev.length - 1];
         if (last?.role === 'assistant') {
@@ -360,6 +363,14 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         }
         return [...prev, { role: 'assistant', content: assistantContent }];
       });
+    };
+
+    // Cleanup helper
+    const cleanup = () => {
+      if (streamHealthCheck) {
+        clearInterval(streamHealthCheck);
+        streamHealthCheck = null;
+      }
     };
 
     try {
@@ -372,6 +383,10 @@ export function useAIChat(options: UseAIChatOptions = {}) {
 
       const CHAT_URL = `https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/ai-chat`;
       
+      // Add 60-second timeout with AbortController
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      
       const resp = await fetch(CHAT_URL, {
         method: 'POST',
         headers: {
@@ -382,7 +397,10 @@ export function useAIChat(options: UseAIChatOptions = {}) {
           messages: [...messages, userMessage].map(m => ({ role: m.role, content: m.content })),
           context: enhancedContext,
         }),
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
       if (!resp.ok) {
         const errorData = await resp.json().catch(() => ({}));
@@ -405,33 +423,47 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       const decoder = new TextDecoder();
       let textBuffer = '';
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        textBuffer += decoder.decode(value, { stream: true });
+      // Stream health check - abort if no data for 30 seconds
+      streamHealthCheck = setInterval(() => {
+        if (Date.now() - lastActivity > 30000) {
+          console.warn('Stream health check: No data received for 30s, aborting...');
+          reader.cancel();
+          cleanup();
+        }
+      }, 5000);
 
-        let newlineIndex: number;
-        while ((newlineIndex = textBuffer.indexOf('\n')) !== -1) {
-          let line = textBuffer.slice(0, newlineIndex);
-          textBuffer = textBuffer.slice(newlineIndex + 1);
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          lastActivity = Date.now();
+          textBuffer += decoder.decode(value, { stream: true });
 
-          if (line.endsWith('\r')) line = line.slice(0, -1);
-          if (line.startsWith(':') || line.trim() === '') continue;
-          if (!line.startsWith('data: ')) continue;
+          let newlineIndex: number;
+          while ((newlineIndex = textBuffer.indexOf('\n')) !== -1) {
+            let line = textBuffer.slice(0, newlineIndex);
+            textBuffer = textBuffer.slice(newlineIndex + 1);
 
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') break;
+            if (line.endsWith('\r')) line = line.slice(0, -1);
+            if (line.startsWith(':') || line.trim() === '') continue;
+            if (!line.startsWith('data: ')) continue;
 
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) updateAssistant(content);
-          } catch {
-            textBuffer = line + '\n' + textBuffer;
-            break;
+            const jsonStr = line.slice(6).trim();
+            if (jsonStr === '[DONE]') break;
+
+            try {
+              const parsed = JSON.parse(jsonStr);
+              const content = parsed.choices?.[0]?.delta?.content;
+              if (content) updateAssistant(content);
+            } catch {
+              textBuffer = line + '\n' + textBuffer;
+              break;
+            }
           }
         }
+      } finally {
+        cleanup();
       }
 
       // Final flush
@@ -455,9 +487,22 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       }
 
     } catch (error) {
+      cleanup();
       console.error('AI chat error:', error);
-      toast.error('Failed to connect to AI assistant');
+      
+      // User-friendly error messages based on error type
+      if (error instanceof Error && error.name === 'AbortError') {
+        toast.error('Request timed out. The AI may be busy - please try again.');
+      } else {
+        toast.error('Failed to connect to AI assistant. Please try again.');
+      }
+      
+      // Remove empty assistant message if no content was received
+      if (!assistantContent) {
+        setMessages(prev => prev.filter((m, i) => !(i === prev.length - 1 && m.role === 'assistant' && !m.content)));
+      }
     } finally {
+      cleanup();
       setIsLoading(false);
     }
   }, [messages, isLoading, options.context, recentFilters, sessionContext]);

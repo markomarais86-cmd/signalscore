@@ -389,7 +389,8 @@ function getAvailableProviders(): AIProvider[] {
 async function callProvider(
   config: ProviderConfig,
   messages: Array<{ role: string; content: string }>,
-  stream: boolean = true
+  stream: boolean = true,
+  timeoutMs: number = 45000
 ): Promise<Response> {
   const body: Record<string, any> = {
     model: config.model,
@@ -403,14 +404,29 @@ async function callProvider(
     body.temperature = 0.7;
   }
 
-  return fetch(config.endpoint, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  // Create abort controller for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(config.endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Provider timeout after ${timeoutMs}ms`);
+    }
+    throw error;
+  }
 }
 
 serve(async (req) => {
