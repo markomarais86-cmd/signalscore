@@ -47,46 +47,74 @@ serve(async (req) => {
       throw new Error(`Failed to create run record: ${runError?.message}`);
     }
 
-    const delayDays = agent.parameters?.sequence_delay_days || 3;
-    const maxAttempts = agent.parameters?.max_attempts || 5;
+    const delayDays = agent.parameters?.sequence_delay_days || 7;
+    const maxLeads = agent.parameters?.max_leads || 100;
     let recordsProcessed = 0;
     let recordsAffected = 0;
 
-    // Find leads that need follow-up (contacted X days ago)
+    // Find leads that need follow-up:
+    // - Status is 'open', 'contacted', or 'follow_up_needed'
+    // - Haven't been updated in X days (stale leads)
+    // - Have valid email
     const followUpDate = new Date(Date.now() - delayDays * 24 * 60 * 60 * 1000).toISOString();
+    
+    console.log(`[Follow-up] Looking for leads not updated since ${followUpDate}`);
     
     const { data: leads, error: leadsError } = await supabase
       .from('Leads')
-      .select('id, external_id, name, email, status')
+      .select('id, external_id, name, email, status, updated_at, account_external_id')
       .eq('org_id', org_id)
-      .eq('status', 'contacted')
+      .in('status', ['open', 'contacted', 'follow_up_needed'])
+      .not('email', 'is', null)
       .lte('updated_at', followUpDate)
-      .limit(50);
+      .order('updated_at', { ascending: true })
+      .limit(maxLeads);
 
     if (leadsError) {
-      console.error('Error fetching leads:', leadsError);
+      console.error('[Follow-up] Error fetching leads:', leadsError);
+      throw new Error(`Failed to fetch leads: ${leadsError.message}`);
     }
 
-    if (leads && leads.length > 0) {
-      console.log(`[Follow-up] Processing ${leads.length} leads`);
+    console.log(`[Follow-up] Found ${leads?.length || 0} stale leads to process`);
 
+    if (leads && leads.length > 0) {
       for (const lead of leads) {
         try {
-          // Mark for follow-up by updating status
-          await supabase
+          recordsProcessed++;
+          
+          // Check if lead's account is ICP qualified (prioritize those)
+          let priority = 'normal';
+          if (lead.account_external_id) {
+            const { data: account } = await supabase
+              .from('accounts')
+              .select('icp_qualified, name')
+              .eq('org_id', org_id)
+              .eq('external_id', lead.account_external_id)
+              .single();
+            
+            if (account?.icp_qualified) {
+              priority = 'high';
+            }
+          }
+
+          // Update lead status to follow_up_needed with metadata
+          const { error: updateError } = await supabase
             .from('Leads')
             .update({ 
               status: 'follow_up_needed',
-              updated_at: new Date().toISOString()
+              updated_at: new Date().toISOString(),
+              match_reasoning: `Marked for follow-up (priority: ${priority}). Last activity: ${lead.updated_at}. Previous status: ${lead.status}.`
             })
             .eq('id', lead.id);
           
-          recordsAffected++;
-          console.log(`[Follow-up] Marked lead for follow-up: ${lead.name}`);
-          recordsProcessed++;
+          if (updateError) {
+            console.error(`[Follow-up] Error updating lead ${lead.id}:`, updateError);
+          } else {
+            recordsAffected++;
+            console.log(`[Follow-up] Marked lead for follow-up: ${lead.name || lead.email} (${priority} priority)`);
+          }
         } catch (error) {
-          console.error(`Error processing lead ${lead.id}:`, error);
-          recordsProcessed++;
+          console.error(`[Follow-up] Error processing lead ${lead.id}:`, error);
         }
       }
     }
@@ -100,10 +128,11 @@ serve(async (req) => {
         records_processed: recordsProcessed,
         records_affected: recordsAffected,
         results: {
+          leads_found: leads?.length || 0,
           leads_processed: recordsProcessed,
           leads_marked_for_followup: recordsAffected,
           delay_days: delayDays,
-          max_attempts: maxAttempts
+          cutoff_date: followUpDate
         }
       })
       .eq('id', run.id);
@@ -123,7 +152,7 @@ serve(async (req) => {
       })
       .eq('id', agent_id);
 
-    console.log(`[Follow-up] Completed: ${recordsAffected}/${recordsProcessed} leads marked`);
+    console.log(`[Follow-up] Completed: ${recordsAffected}/${recordsProcessed} leads marked for follow-up`);
 
     return new Response(
       JSON.stringify({
