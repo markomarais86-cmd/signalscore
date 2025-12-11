@@ -67,13 +67,27 @@ serve(async (req) => {
         // Calculate next run time based on schedule
         const { data: nextRunData, error: nextRunError } = await supabase
           .rpc('calculate_next_run', {
-            p_agent_id: agent.id,
+            schedule: agent.schedule,
+            last_run: new Date().toISOString(),
           });
 
         if (nextRunError) {
           console.error(`[scheduled-agent-runner] Failed to calculate next run for ${agent.id}:`, nextRunError);
         } else {
           console.log(`[scheduled-agent-runner] Next run for ${agent.name}: ${nextRunData}`);
+          
+          // Update the agent's next_run_at field
+          const { error: updateError } = await supabase
+            .from('ai_agents')
+            .update({ 
+              next_run_at: nextRunData,
+              last_run_at: new Date().toISOString()
+            })
+            .eq('id', agent.id);
+            
+          if (updateError) {
+            console.error(`[scheduled-agent-runner] Failed to update next_run_at for ${agent.id}:`, updateError);
+          }
         }
       } catch (error) {
         console.error(`[scheduled-agent-runner] Exception running agent ${agent.id}:`, error);
