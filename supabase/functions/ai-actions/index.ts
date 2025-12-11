@@ -2661,6 +2661,242 @@ ${gaps.length === 0 ? '✅ No significant gaps identified!' : gaps.map(g => `
         });
       }
 
+      // ============================================================
+      // PHASE 5: AGENTIC AI FEATURES
+      // ============================================================
+
+      case "run_pipeline": {
+        const { stages, dry_run = false } = parameters;
+
+        console.log(`[AI-Actions] run_pipeline: stages=${stages || 'all'}, dry_run=${dry_run}`);
+
+        const supabaseUrl = Deno.env.get("SUPABASE_URL");
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+        try {
+          const response = await fetch(`${supabaseUrl}/functions/v1/agent-pipeline-controller`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${serviceKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ org_id, stages, dry_run }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || "Pipeline failed");
+          }
+
+          const stagesSummary = data.stages?.map((s: any) => 
+            `• **${s.agent}**: ${s.status === 'success' ? '✅' : s.status === 'skipped' ? '⏭️' : '❌'} ${s.message}`
+          ).join('\n') || '';
+
+          const message = `**Agent Pipeline ${dry_run ? '(Dry Run)' : 'Complete'}** 🚀\n\n${stagesSummary}\n\n**Summary:**\n• Total processed: ${data.summary?.total_processed || 0}\n• Records affected: ${data.summary?.total_affected || 0}\n• Duration: ${((data.summary?.duration_ms || 0) / 1000).toFixed(1)}s`;
+
+          const result = {
+            ...data,
+            message,
+            isExecution: true,
+          };
+
+          await logAction(supabase, org_id, user_id, action, parameters, result, 'success', undefined, Date.now() - startTime);
+
+          return new Response(JSON.stringify({ success: true, action, result }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (error) {
+          const errMsg = error instanceof Error ? error.message : "Pipeline failed";
+          await logAction(supabase, org_id, user_id, action, parameters, null, 'failed', errMsg, Date.now() - startTime);
+          throw new Error(errMsg);
+        }
+      }
+
+      case "agent_status": {
+        console.log(`[AI-Actions] agent_status for org: ${org_id}`);
+
+        // Get agents and their recent runs
+        const { data: agents } = await supabase
+          .from("ai_agents")
+          .select(`
+            id,
+            name,
+            agent_type,
+            status,
+            schedule,
+            last_run_at,
+            next_run_at,
+            enabled
+          `)
+          .eq("org_id", org_id)
+          .order("last_run_at", { ascending: false, nullsFirst: false });
+
+        // Get recent agent runs
+        const { data: recentRuns } = await supabase
+          .from("ai_agent_runs")
+          .select(`
+            id,
+            status,
+            records_processed,
+            records_affected,
+            started_at,
+            completed_at,
+            ai_agents(name)
+          `)
+          .in("agent_id", (agents || []).map(a => a.id))
+          .order("started_at", { ascending: false })
+          .limit(10);
+
+        // Get pipeline stats
+        const { data: pipelineData } = await supabase
+          .from("Leads")
+          .select("pipeline_stage")
+          .eq("org_id", org_id)
+          .not("pipeline_stage", "is", null);
+
+        const pipelineStats = { new: 0, qualified: 0, follow_up: 0, meeting_ready: 0 };
+        for (const lead of pipelineData || []) {
+          const stage = lead.pipeline_stage as keyof typeof pipelineStats;
+          if (stage in pipelineStats) pipelineStats[stage]++;
+        }
+
+        const agentList = (agents || []).slice(0, 5).map(a => {
+          const statusIcon = a.enabled ? (a.status === 'active' ? '🟢' : '🟡') : '⚫';
+          const lastRun = a.last_run_at ? new Date(a.last_run_at).toLocaleDateString() : 'Never';
+          return `${statusIcon} **${a.name}** (${a.schedule}) - Last: ${lastRun}`;
+        }).join('\n');
+
+        const runsList = (recentRuns || []).slice(0, 5).map(r => {
+          const statusIcon = r.status === 'completed' ? '✅' : r.status === 'running' ? '⏳' : '❌';
+          return `${statusIcon} ${(r.ai_agents as any)?.name}: ${r.records_affected} affected`;
+        }).join('\n');
+
+        const message = `**Agent Status** 🤖\n\n**Agents:**\n${agentList || 'No agents configured'}\n\n**Recent Runs:**\n${runsList || 'No recent runs'}\n\n**Pipeline:**\n• New: ${pipelineStats.new}\n• Qualified: ${pipelineStats.qualified}\n• Follow-up: ${pipelineStats.follow_up}\n• Meeting-ready: ${pipelineStats.meeting_ready}`;
+
+        const result = {
+          agents: agents || [],
+          recent_runs: recentRuns || [],
+          pipeline_stats: pipelineStats,
+          message,
+        };
+
+        await logAction(supabase, org_id, user_id, action, parameters, result, 'success', undefined, Date.now() - startTime);
+
+        return new Response(JSON.stringify({ success: true, action, result }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "agent_feedback_summary": {
+        console.log(`[AI-Actions] agent_feedback_summary for org: ${org_id}`);
+
+        // Get feedback summary
+        const { data: feedback } = await supabase
+          .from("ai_agent_feedback")
+          .select(`
+            id,
+            decision_type,
+            outcome,
+            confidence_score,
+            feedback_score,
+            ai_reasoning,
+            created_at,
+            ai_agents(name)
+          `)
+          .eq("org_id", org_id)
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+        // Calculate stats
+        const stats = {
+          total: feedback?.length || 0,
+          by_decision: {} as Record<string, number>,
+          by_outcome: {} as Record<string, number>,
+          avg_confidence: 0,
+          avg_feedback: 0,
+        };
+
+        let confidenceSum = 0;
+        let confidenceCount = 0;
+        let feedbackSum = 0;
+        let feedbackCount = 0;
+
+        for (const f of feedback || []) {
+          stats.by_decision[f.decision_type] = (stats.by_decision[f.decision_type] || 0) + 1;
+          if (f.outcome) stats.by_outcome[f.outcome] = (stats.by_outcome[f.outcome] || 0) + 1;
+          if (f.confidence_score) { confidenceSum += Number(f.confidence_score); confidenceCount++; }
+          if (f.feedback_score) { feedbackSum += f.feedback_score; feedbackCount++; }
+        }
+
+        stats.avg_confidence = confidenceCount > 0 ? Math.round((confidenceSum / confidenceCount) * 100) : 0;
+        stats.avg_feedback = feedbackCount > 0 ? (feedbackSum / feedbackCount).toFixed(1) : 'N/A';
+
+        const decisionBreakdown = Object.entries(stats.by_decision)
+          .map(([k, v]) => `• ${k}: ${v}`)
+          .join('\n');
+
+        const outcomeBreakdown = Object.entries(stats.by_outcome)
+          .map(([k, v]) => `• ${k}: ${v}`)
+          .join('\n');
+
+        const message = `**Agent Feedback Summary** 📊\n\n**Total Decisions:** ${stats.total}\n**Avg Confidence:** ${stats.avg_confidence}%\n**Avg User Rating:** ${stats.avg_feedback}/5\n\n**By Decision Type:**\n${decisionBreakdown || 'None yet'}\n\n**By Outcome:**\n${outcomeBreakdown || 'None tracked yet'}`;
+
+        const result = {
+          stats,
+          recent_feedback: (feedback || []).slice(0, 10),
+          message,
+        };
+
+        await logAction(supabase, org_id, user_id, action, parameters, result, 'success', undefined, Date.now() - startTime);
+
+        return new Response(JSON.stringify({ success: true, action, result }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "pause_agents": {
+        console.log(`[AI-Actions] pause_agents for org: ${org_id}`);
+
+        const { error: updateError } = await supabase
+          .from("ai_agents")
+          .update({ enabled: false, status: 'paused' })
+          .eq("org_id", org_id);
+
+        if (updateError) throw new Error(updateError.message);
+
+        const message = "**All Agents Paused** ⏸️\n\nAll automated agents have been paused. They won't run until you resume them.";
+
+        const result = { paused: true, message, isExecution: true };
+
+        await logAction(supabase, org_id, user_id, action, parameters, result, 'success', undefined, Date.now() - startTime);
+
+        return new Response(JSON.stringify({ success: true, action, result }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      case "resume_agents": {
+        console.log(`[AI-Actions] resume_agents for org: ${org_id}`);
+
+        const { error: updateError } = await supabase
+          .from("ai_agents")
+          .update({ enabled: true, status: 'active' })
+          .eq("org_id", org_id);
+
+        if (updateError) throw new Error(updateError.message);
+
+        const message = "**All Agents Resumed** ▶️\n\nAll automated agents have been resumed and will run according to their schedules.";
+
+        const result = { resumed: true, message, isExecution: true };
+
+        await logAction(supabase, org_id, user_id, action, parameters, result, 'success', undefined, Date.now() - startTime);
+
+        return new Response(JSON.stringify({ success: true, action, result }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       default:
         await logAction(supabase, org_id, user_id, action, parameters, null, 'failed', `Unknown action: ${action}`, Date.now() - startTime);
         
