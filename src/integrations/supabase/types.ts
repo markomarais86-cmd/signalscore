@@ -1055,6 +1055,62 @@ export type Database = {
           },
         ]
       }
+      campaigns: {
+        Row: {
+          account_ids: string[] | null
+          campaign_type: string
+          contact_ids: number[] | null
+          created_at: string
+          created_by: string | null
+          id: string
+          metadata: Json | null
+          name: string
+          org_id: string
+          status: string
+          total_accounts: number | null
+          total_contacts: number | null
+          updated_at: string
+        }
+        Insert: {
+          account_ids?: string[] | null
+          campaign_type?: string
+          contact_ids?: number[] | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          metadata?: Json | null
+          name: string
+          org_id: string
+          status?: string
+          total_accounts?: number | null
+          total_contacts?: number | null
+          updated_at?: string
+        }
+        Update: {
+          account_ids?: string[] | null
+          campaign_type?: string
+          contact_ids?: number[] | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          metadata?: Json | null
+          name?: string
+          org_id?: string
+          status?: string
+          total_accounts?: number | null
+          total_contacts?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       capital_tracking: {
         Row: {
           cac: number | null
