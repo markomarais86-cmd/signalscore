@@ -175,28 +175,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {/* Pipeline Stats */}
-        {pipelineStats && (
-          <div className="flex items-center gap-4 p-3 rounded-lg bg-muted/50 border text-sm">
-            <div className="flex items-center gap-1.5">
-              <CheckCircle2 className="h-4 w-4 text-green-500" />
-              <span className="font-medium">{pipelineStats.qualified}</span>
-              <span className="text-muted-foreground">qualified</span>
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            <div className="flex items-center gap-1.5">
-              <Clock className="h-4 w-4 text-amber-500" />
-              <span className="font-medium">{pipelineStats.follow_up}</span>
-              <span className="text-muted-foreground">follow-up</span>
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            <div className="flex items-center gap-1.5">
-              <Users className="h-4 w-4 text-primary" />
-              <span className="font-medium">{pipelineStats.meeting_ready}</span>
-              <span className="text-muted-foreground">meeting-ready</span>
-            </div>
-          </div>
-        )}
+        {/* Pipeline Stats - Hidden for now, focusing on data phase */}
 
         {/* Agent Activity Summary */}
         {agentActivity.length > 0 && (
@@ -286,10 +265,10 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
             variant="outline"
             size="sm"
             className="flex-1"
-            onClick={() => handleAction('run_pipeline')}
+            onClick={() => handleAction('enrich')}
           >
-            <Zap className="h-4 w-4 mr-1" />
-            Run Pipeline
+            <Sparkles className="h-4 w-4 mr-1" />
+            Enrich Data
           </Button>
           <Button
             variant="outline"

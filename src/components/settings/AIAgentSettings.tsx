@@ -71,41 +71,8 @@ interface AgentTemplate {
   icon: any;
 }
 
+// Only show data-focused agent templates (lead/follow-up/meeting agents archived for later phase)
 const AGENT_TEMPLATES: AgentTemplate[] = [
-  {
-    type: 'lead_qualification',
-    name: 'Lead Qualification',
-    description: 'Automatically score and qualify leads based on criteria',
-    icon: Bot,
-    defaultParameters: {
-      min_score_threshold: 70,
-      auto_assign: true,
-      notification_enabled: true
-    }
-  },
-  {
-    type: 'meeting_scheduling',
-    name: 'Meeting Scheduling',
-    description: 'Schedule meetings with qualified prospects',
-    icon: Calendar,
-    defaultParameters: {
-      calendar_integration: 'calendly',
-      min_lead_score: 75,
-      working_hours: '9-17',
-      timezone: 'UTC'
-    }
-  },
-  {
-    type: 'follow_up',
-    name: 'Follow-up Automation',
-    description: 'Send automated follow-up sequences',
-    icon: Clock,
-    defaultParameters: {
-      sequence_delay_days: 3,
-      max_attempts: 5,
-      personalization_enabled: true
-    }
-  },
   {
     type: 'data_enrichment',
     name: 'Data Enrichment',

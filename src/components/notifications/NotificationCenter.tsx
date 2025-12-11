@@ -41,9 +41,11 @@ export function NotificationCenter() {
     queryFn: async () => {
       if (!userProfile?.org_id) throw new Error("No organization found");
 
+      // Only show notifications for data-focused agents
       const { data, error } = await supabase
         .from("ai_agent_runs")
-        .select("*, ai_agents(name)")
+        .select("*, ai_agents!inner(name, agent_type)")
+        .in("ai_agents.agent_type", ["data_enrichment"])
         .order("started_at", { ascending: false })
         .limit(20);
 

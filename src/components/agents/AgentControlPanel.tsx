@@ -34,6 +34,9 @@ export function AgentControlPanel() {
   const { userProfile } = useAuth();
   const queryClient = useQueryClient();
 
+  // Only show data-focused agents (exclude lead_qualification, follow_up, meeting_scheduler)
+  const DATA_AGENT_TYPES = ["data_enrichment"];
+
   const { data: agents, isLoading } = useQuery({
     queryKey: ["ai-agents", userProfile?.org_id],
     queryFn: async () => {
@@ -43,6 +46,7 @@ export function AgentControlPanel() {
         .from("ai_agents")
         .select("*")
         .eq("org_id", userProfile.org_id)
+        .in("agent_type", DATA_AGENT_TYPES)
         .order("created_at", { ascending: true });
 
       if (error) throw error;
