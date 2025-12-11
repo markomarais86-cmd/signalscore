@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Bell, CheckCircle, XCircle, Info, X, CheckCheck } from "lucide-react";
+import { Bell, CheckCircle, XCircle, Info, X, CheckCheck, ChevronRight } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +33,7 @@ function saveDismissedIds(ids: Set<string>) {
 
 export function NotificationCenter() {
   const { userProfile } = useAuth();
+  const navigate = useNavigate();
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(getDismissedIds);
 
   const { data: recentRuns } = useQuery({
@@ -87,6 +89,27 @@ export function NotificationCenter() {
     saveDismissedIds(allIds);
   };
 
+  const getNavigationPath = (agentType: string): string => {
+    switch (agentType) {
+      case "lead_qualification":
+        return "/leads?status=qualified";
+      case "follow_up":
+        return "/leads?status=follow_up_needed";
+      case "meeting_scheduler":
+        return "/leads?status=meeting_ready";
+      case "data_enrichment":
+        return "/accounts";
+      default:
+        return "/agents";
+    }
+  };
+
+  const handleNotificationClick = (run: any) => {
+    const agentType = run.ai_agents?.agent_type || run.agent_type;
+    const path = getNavigationPath(agentType);
+    navigate(path);
+  };
+
   const getNotificationIcon = (status: string) => {
     switch (status) {
       case "completed":
@@ -138,8 +161,8 @@ export function NotificationCenter() {
             visibleNotifications.map((run) => (
               <DropdownMenuItem 
                 key={run.id} 
-                className="flex items-start gap-3 p-4 cursor-default group"
-                onSelect={(e) => e.preventDefault()}
+                className="flex items-start gap-3 p-4 cursor-pointer group hover:bg-accent/50 transition-colors"
+                onClick={() => handleNotificationClick(run)}
               >
                 <div className="mt-0.5">{getNotificationIcon(run.status)}</div>
                 <div className="flex-1 space-y-1">
@@ -153,14 +176,17 @@ export function NotificationCenter() {
                     {formatDistanceToNow(new Date(run.started_at), { addSuffix: true })}
                   </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={(e) => dismissNotification(run.id, e)}
-                >
-                  <X className="h-3 w-3" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => dismissNotification(run.id, e)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
               </DropdownMenuItem>
             ))
           ) : (
