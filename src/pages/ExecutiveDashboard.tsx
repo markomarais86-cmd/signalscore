@@ -504,39 +504,167 @@ export default function ExecutiveDashboard() {
           <ProactiveInsightsWidget 
             orgId={userProfile.org_id}
             onAction={async (action, params) => {
-              // Handle all widget action types
+              // Handle all widget action types with proper navigation and invocations
               switch (action) {
                 case 'enrich':
                 case 'enrich_accounts':
-                case 'enrich_ai_free':
                   setIsEnrichmentModalOpen(true);
                   break;
-                case 'enrich_contacts':
-                case 'search_contacts':
-                  navigate('/leads?tab=discover');
+                  
+                case 'enrich_ai_free':
+                  // Start Free AI Enrichment immediately without modal
+                  try {
+                    toast.info('Starting Free AI Enrichment...', {
+                      description: 'AI-powered estimates - no credits needed!',
+                      duration: 3000
+                    });
+                    
+                    const batchSize = params?.batch_size || 100;
+                    const { data: job, error: jobError } = await supabase
+                      .from('enrichment_jobs')
+                      .insert({
+                        org_id: userProfile.org_id,
+                        provider: 'ai_free',
+                        job_type: 'accounts',
+                        status: 'pending',
+                        total_records: batchSize
+                      })
+                      .select()
+                      .single();
+                    
+                    if (jobError) throw jobError;
+                    
+                    const { error } = await supabase.functions.invoke('enrich-ai-only', {
+                      body: { jobId: job.id, batchSize }
+                    });
+                    
+                    if (error) throw error;
+                    
+                    toast.success('AI Enrichment started!', {
+                      description: `Processing up to ${batchSize} accounts...`,
+                      duration: 4000
+                    });
+                    
+                    // Poll for completion with visible progress
+                    const pollInterval = setInterval(async () => {
+                      const { data: status } = await supabase
+                        .from('enrichment_jobs')
+                        .select('status, enriched_records, processed_records, total_records')
+                        .eq('id', job.id)
+                        .single();
+                      
+                      if (status?.status === 'processing') {
+                        const progress = status.processed_records > 0 
+                          ? Math.round((status.processed_records / status.total_records) * 100) 
+                          : 0;
+                        toast.info(`Enriching... ${progress}%`, {
+                          description: `${status.enriched_records || 0} accounts enriched`,
+                          duration: 2500
+                        });
+                      } else if (status?.status === 'completed') {
+                        clearInterval(pollInterval);
+                        toast.success(`Enrichment complete!`, {
+                          description: `${status.enriched_records} accounts enriched`
+                        });
+                        refetch();
+                      } else if (status?.status === 'failed') {
+                        clearInterval(pollInterval);
+                        toast.error('Enrichment failed');
+                      }
+                    }, 3000);
+                    
+                    setTimeout(() => clearInterval(pollInterval), 300000);
+                  } catch (err: any) {
+                    toast.error(err.message || 'Failed to start enrichment');
+                  }
                   break;
+                  
+                case 'enrich_contacts':
+                  // Navigate with account IDs if provided
+                  if (params?.account_ids?.length > 0) {
+                    const accountFilter = params.account_ids.slice(0, 20).join(',');
+                    navigate(`/leads?tab=discover&accounts=${accountFilter}`);
+                  } else {
+                    navigate('/leads?tab=discover');
+                  }
+                  toast.info('Find contacts for high-fit accounts');
+                  break;
+                  
+                case 'search_contacts':
+                  const contactParams = new URLSearchParams();
+                  if (params?.icp_qualified_only) contactParams.set('icp_qualified', 'true');
+                  if (params?.pipeline_stage) contactParams.set('pipeline_stage', params.pipeline_stage);
+                  navigate(`/leads${contactParams.toString() ? '?' + contactParams.toString() : ''}`);
+                  break;
+                  
                 case 'search_accounts':
                 case 'view_accounts':
-                  navigate('/accounts?min_score=80');
+                  // Use params for score filter if provided
+                  const scoreFilter = params?.min_score || 80;
+                  navigate(`/accounts?min_score=${scoreFilter}`);
                   break;
+                  
+                case 'search_recently_funded':
+                  navigate(`/accounts?funded_days=${params?.days || 30}`);
+                  break;
+                  
                 case 'agent_status':
-                case 'run_agent':
                   setShowHealthDashboard(true);
                   break;
+                  
+                case 'run_agent':
+                  // Actually invoke the agent instead of just showing health dashboard
+                  try {
+                    const agentType = params?.agent_type || 'follow_up';
+                    toast.info(`Starting ${agentType.replace('_', ' ')} agent...`, { duration: 3000 });
+                    
+                    const { data, error } = await supabase.functions.invoke(`agent-${agentType.replace('_', '-')}`, {
+                      body: { org_id: userProfile.org_id }
+                    });
+                    
+                    if (error) throw error;
+                    toast.success(`${agentType.replace('_', ' ')} agent started!`, {
+                      description: data?.message || `Processing leads...`,
+                      duration: 4000
+                    });
+                    setShowHealthDashboard(true);
+                  } catch (err: any) {
+                    console.error('Agent invocation error:', err);
+                    toast.error(err.message || 'Failed to run agent');
+                    setShowHealthDashboard(true);
+                  }
+                  break;
+                  
                 case 'score_accounts':
                   try {
+                    toast.info('Starting account scoring...', { duration: 2000 });
                     const { error } = await supabase.functions.invoke('bulk-score-accounts', {
                       body: { org_id: userProfile.org_id, chunk_size: 5000 }
                     });
                     if (error) throw error;
-                    toast.success('Scoring started!');
+                    toast.success('Scoring started!', { duration: 3000 });
                     checkDataFreshness();
                   } catch (err: any) {
                     toast.error(err.message || 'Failed to start scoring');
                   }
                   break;
+                  
+                case 'prepare_campaign':
+                  navigate('/campaign-builder');
+                  break;
+                  
+                case 'export_list':
+                  const exportType = params?.type || 'accounts';
+                  navigate(`/${exportType}?action=export`);
+                  break;
+                  
+                case 'agent_feedback_summary':
+                  setShowHealthDashboard(true);
+                  break;
+                  
                 default:
-                  toast.info(`Action: ${action}`);
+                  console.log('Unhandled action:', action, params);
+                  toast.info(`Action: ${action}`, { duration: 2000 });
               }
             }}
           />

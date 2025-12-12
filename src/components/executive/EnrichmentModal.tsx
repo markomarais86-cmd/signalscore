@@ -170,7 +170,7 @@ export function EnrichmentModal({
           if (jobStatus.status === 'processing') {
             toast.info(`Enriching... ${progress}%`, {
               description: `${jobStatus.enriched_records} of ${jobStatus.processed_records} accounts enriched`,
-              duration: 1000
+              duration: 3000
             });
           } else if (jobStatus.status === 'completed') {
             clearInterval(pollInterval);
