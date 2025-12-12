@@ -503,17 +503,40 @@ export default function ExecutiveDashboard() {
         {userProfile?.org_id && (
           <ProactiveInsightsWidget 
             orgId={userProfile.org_id}
-            onAction={(action, params) => {
-              // Handle widget actions - open AI chat panel with action
-              if (action === 'enrich' || action === 'agent_status') {
-                const message = action === 'enrich' 
-                  ? 'Run data enrichment on all accounts'
-                  : 'Show AI agent status';
-                window.dispatchEvent(new CustomEvent('open-ai-chat', { 
-                  detail: { message } 
-                }));
-              } else {
-                toast.info(`Action: ${action}`);
+            onAction={async (action, params) => {
+              // Handle all widget action types
+              switch (action) {
+                case 'enrich':
+                case 'enrich_accounts':
+                case 'enrich_ai_free':
+                  setIsEnrichmentModalOpen(true);
+                  break;
+                case 'enrich_contacts':
+                case 'search_contacts':
+                  navigate('/leads?tab=discover');
+                  break;
+                case 'search_accounts':
+                case 'view_accounts':
+                  navigate('/accounts?min_score=80');
+                  break;
+                case 'agent_status':
+                case 'run_agent':
+                  setShowHealthDashboard(true);
+                  break;
+                case 'score_accounts':
+                  try {
+                    const { error } = await supabase.functions.invoke('bulk-score-accounts', {
+                      body: { org_id: userProfile.org_id, chunk_size: 5000 }
+                    });
+                    if (error) throw error;
+                    toast.success('Scoring started!');
+                    checkDataFreshness();
+                  } catch (err: any) {
+                    toast.error(err.message || 'Failed to start scoring');
+                  }
+                  break;
+                default:
+                  toast.info(`Action: ${action}`);
               }
             }}
           />

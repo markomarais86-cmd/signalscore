@@ -1,4 +1,4 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -15,7 +15,7 @@ import {
   Building2,
   Users,
   TrendingUp,
-  Zap
+  Globe
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -79,7 +79,6 @@ export function EnrichmentStatusCard() {
 
     setIsRunningAgent(true);
     try {
-      // Find the data enrichment agent
       const { data: agent } = await supabase
         .from('ai_agents')
         .select('id')
@@ -99,8 +98,6 @@ export function EnrichmentStatusCard() {
       if (error) throw error;
 
       toast.success('Data Enrichment Agent started. Check notifications for progress.');
-      
-      // Refetch after a delay
       setTimeout(() => refetch(), 5000);
     } catch (error: any) {
       console.error('Error running enrichment agent:', error);
@@ -112,17 +109,17 @@ export function EnrichmentStatusCard() {
 
   if (isLoading || !metrics) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5" />
+      <Card className="border-primary/20">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Database className="h-5 w-5 text-primary" />
             Enrichment Status
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
             {[1, 2, 3].map(i => (
-              <div key={i} className="h-8 bg-muted/50 rounded animate-pulse" />
+              <div key={i} className="h-10 bg-muted/50 rounded-lg animate-pulse" />
             ))}
           </div>
         </CardContent>
@@ -134,120 +131,134 @@ export function EnrichmentStatusCard() {
     ? Math.round((metrics.enrichedAccounts / metrics.totalAccounts) * 100) 
     : 0;
 
+  const getStatusColor = (pct: number) => {
+    if (pct >= 80) return 'text-green-600 bg-green-500/10';
+    if (pct >= 50) return 'text-amber-600 bg-amber-500/10';
+    return 'text-red-600 bg-red-500/10';
+  };
+
   const fieldStats = [
-    { label: 'Employee Count', value: metrics.withEmployeeCount, icon: Users },
-    { label: 'Revenue Range', value: metrics.withRevenue, icon: TrendingUp },
-    { label: 'Industry', value: metrics.withIndustry, icon: Building2 },
-    { label: 'Domain', value: metrics.withDomain, icon: Zap },
+    { label: 'Employee Count', value: metrics.withEmployeeCount, icon: Users, color: 'text-blue-500' },
+    { label: 'Revenue', value: metrics.withRevenue, icon: TrendingUp, color: 'text-green-500' },
+    { label: 'Industry', value: metrics.withIndustry, icon: Building2, color: 'text-purple-500' },
+    { label: 'Domain', value: metrics.withDomain, icon: Globe, color: 'text-orange-500' },
   ];
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="border-primary/20 overflow-hidden">
+      <CardHeader className="pb-3 bg-gradient-to-r from-primary/5 to-transparent">
         <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Database className="h-5 w-5" />
-              Enrichment Status
-            </CardTitle>
-            <CardDescription>
-              {metrics.totalAccounts.toLocaleString()} total accounts
-            </CardDescription>
-          </div>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Database className="h-5 w-5 text-primary" />
+            Enrichment Status
+          </CardTitle>
           <Button
             variant="outline"
             size="sm"
             onClick={handleRunEnrichmentAgent}
             disabled={isRunningAgent}
+            className="h-8"
           >
             {isRunningAgent ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <RefreshCw className="h-4 w-4" />
             )}
-            <span className="ml-2">Run Agent</span>
+            <span className="ml-2 hidden sm:inline">Run Agent</span>
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Overall Enrichment */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Overall Enrichment</span>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold">{enrichmentRate}%</span>
-              {enrichmentRate >= 80 ? (
-                <Badge className="gap-1 bg-green-500/10 text-green-600">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Excellent
-                </Badge>
-              ) : enrichmentRate >= 50 ? (
-                <Badge variant="secondary" className="gap-1">
-                  Good
-                </Badge>
-              ) : (
-                <Badge variant="destructive" className="gap-1">
-                  <AlertCircle className="h-3 w-3" />
-                  Low
-                </Badge>
-              )}
-            </div>
+      
+      <CardContent className="space-y-4 pt-4">
+        {/* Overall Enrichment - Hero Section */}
+        <div className="p-4 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium text-muted-foreground">Overall Enrichment</span>
+            {enrichmentRate >= 80 ? (
+              <Badge className="gap-1 bg-green-500/20 text-green-600 border-green-500/30">
+                <CheckCircle2 className="h-3 w-3" />
+                Excellent
+              </Badge>
+            ) : enrichmentRate >= 50 ? (
+              <Badge className="gap-1 bg-amber-500/20 text-amber-600 border-amber-500/30">
+                Good
+              </Badge>
+            ) : (
+              <Badge className="gap-1 bg-red-500/20 text-red-600 border-red-500/30">
+                <AlertCircle className="h-3 w-3" />
+                Needs Work
+              </Badge>
+            )}
           </div>
-          <Progress value={enrichmentRate} className="h-2" />
+          
+          <div className="flex items-end gap-2 mb-2">
+            <span className="text-4xl font-bold text-primary">{enrichmentRate}%</span>
+            <span className="text-sm text-muted-foreground mb-1">enriched</span>
+          </div>
+          
+          <Progress value={enrichmentRate} className="h-2 mb-2" />
+          
           <p className="text-xs text-muted-foreground">
-            {metrics.enrichedAccounts.toLocaleString()} of {metrics.totalAccounts.toLocaleString()} accounts enriched
+            {metrics.enrichedAccounts.toLocaleString()} of {metrics.totalAccounts.toLocaleString()} accounts
           </p>
         </div>
 
-        {/* Field Coverage */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Field Coverage Grid */}
+        <div className="grid grid-cols-2 gap-2">
           {fieldStats.map(stat => {
             const pct = metrics.totalAccounts > 0 
               ? Math.round((stat.value / metrics.totalAccounts) * 100) 
               : 0;
+            const statusClass = getStatusColor(pct);
+            
             return (
-              <div key={stat.label} className="p-3 rounded-lg bg-muted/30 space-y-1">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <stat.icon className="h-3 w-3" />
-                  {stat.label}
+              <div 
+                key={stat.label} 
+                className="p-3 rounded-lg border bg-card hover:bg-muted/30 transition-colors"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className={`p-1.5 rounded-md ${statusClass}`}>
+                    <stat.icon className="h-3.5 w-3.5" />
+                  </div>
+                  <span className="text-xs font-medium text-muted-foreground truncate">
+                    {stat.label}
+                  </span>
                 </div>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-lg font-semibold">{pct}%</span>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-xl font-bold">{pct}%</span>
                   <span className="text-xs text-muted-foreground">
                     ({stat.value.toLocaleString()})
                   </span>
                 </div>
+                <Progress value={pct} className="h-1 mt-2" />
               </div>
             );
           })}
         </div>
 
         {/* Enrichment Sources */}
-        <div className="pt-2 border-t">
-          <p className="text-xs font-medium mb-2">Enrichment Sources</p>
-          <div className="flex flex-wrap gap-2">
-            {metrics.apolloEnriched > 0 && (
-              <Badge variant="outline" className="text-xs">
-                Apollo: {metrics.apolloEnriched.toLocaleString()}
-              </Badge>
-            )}
-            {metrics.pdlEnriched > 0 && (
-              <Badge variant="outline" className="text-xs">
-                PDL: {metrics.pdlEnriched.toLocaleString()}
-              </Badge>
-            )}
-            {metrics.aiEstimated > 0 && (
-              <Badge variant="outline" className="text-xs">
-                AI Estimates: {metrics.aiEstimated.toLocaleString()}
-              </Badge>
-            )}
-            {metrics.apolloEnriched === 0 && metrics.pdlEnriched === 0 && metrics.aiEstimated === 0 && (
-              <span className="text-xs text-muted-foreground">
-                No external enrichment yet
-              </span>
-            )}
+        {(metrics.apolloEnriched > 0 || metrics.pdlEnriched > 0 || metrics.aiEstimated > 0) && (
+          <div className="pt-3 border-t">
+            <p className="text-xs font-medium mb-2 text-muted-foreground">Sources</p>
+            <div className="flex flex-wrap gap-2">
+              {metrics.apolloEnriched > 0 && (
+                <Badge variant="outline" className="text-xs bg-blue-500/5 border-blue-500/20 text-blue-600">
+                  Apollo: {metrics.apolloEnriched.toLocaleString()}
+                </Badge>
+              )}
+              {metrics.pdlEnriched > 0 && (
+                <Badge variant="outline" className="text-xs bg-purple-500/5 border-purple-500/20 text-purple-600">
+                  PDL: {metrics.pdlEnriched.toLocaleString()}
+                </Badge>
+              )}
+              {metrics.aiEstimated > 0 && (
+                <Badge variant="outline" className="text-xs bg-amber-500/5 border-amber-500/20 text-amber-600">
+                  AI: {metrics.aiEstimated.toLocaleString()}
+                </Badge>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );
