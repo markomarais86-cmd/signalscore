@@ -94,7 +94,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.smart-enrich]
-verify_jwt = true
+verify_jwt = false
 
 [functions.map-industry-to-zoominfo]
 verify_jwt = true
