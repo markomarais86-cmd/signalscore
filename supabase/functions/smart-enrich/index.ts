@@ -317,14 +317,17 @@ ${batch.map(a => `- ${a.external_id}: ${a.name} (${a.domain})`).join('\n')}`;
       
       for (let i = 0; i < enrichedList.length; i += 20) {
         const scoreBatch = enrichedList.slice(i, i + 20);
-        await Promise.all(
-          scoreBatch.map(external_id => 
-            supabase.rpc('auto_score_account', {
+        const scorePromises = scoreBatch.map(async (external_id) => {
+          try {
+            await supabase.rpc('auto_score_account', {
               p_account_external_id: external_id,
               p_org_id: job.org_id
-            }).catch(err => console.error(`Score error for ${external_id}:`, err))
-          )
-        );
+            });
+          } catch (err) {
+            console.error(`Score error for ${external_id}:`, err);
+          }
+        });
+        await Promise.all(scorePromises);
       }
     }
 
