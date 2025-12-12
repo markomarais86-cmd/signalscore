@@ -15,8 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { UserPlus, XCircle, RefreshCw, Mail } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, addDays } from 'date-fns';
 
 interface Invitation {
   id: string;
@@ -84,9 +85,23 @@ export function InvitationsManager() {
     }
   };
 
-  const handleResendInvitation = async (invitation: Invitation) => {
+  const handleRenewAndResend = async (invitation: Invitation) => {
     setResendingId(invitation.id);
     try {
+      // Calculate new expiry date (7 days from now)
+      const newExpiresAt = addDays(new Date(), 7).toISOString();
+
+      // Update the invitation: extend expiry and reset status if expired
+      const { error: updateError } = await supabase
+        .from('invitations')
+        .update({ 
+          expires_at: newExpiresAt,
+          status: 'pending' // Reset to pending if it was expired
+        })
+        .eq('id', invitation.id);
+
+      if (updateError) throw updateError;
+
       // Get organization name for the email
       const { data: org } = await supabase
         .from('organizations')
@@ -94,8 +109,8 @@ export function InvitationsManager() {
         .eq('id', invitation.org_id)
         .single();
 
-      // Build invitation URL using the token, not the id
-      const inviteUrl = `https://launchpulse.io/auth?invite=${invitation.token}`;
+      // Build invitation URL using dynamic origin
+      const inviteUrl = `${window.location.origin}/auth?invite=${invitation.token}`;
       
       // Send email via edge function
       const { error: emailError } = await supabase.functions.invoke('send-invitation', {
@@ -109,13 +124,16 @@ export function InvitationsManager() {
       if (emailError) throw emailError;
 
       toast({
-        title: 'Invitation Resent',
-        description: `Invitation email has been resent to ${invitation.email}`,
+        title: 'Invitation Renewed',
+        description: `Invitation resent to ${invitation.email} - expires in 7 days`,
       });
+
+      // Reload to show updated expiry
+      loadInvitations();
     } catch (error: any) {
       toast({
         title: 'Error',
-        description: error.message || 'Failed to resend invitation',
+        description: error.message || 'Failed to renew invitation',
         variant: 'destructive',
       });
     } finally {
@@ -218,7 +236,28 @@ export function InvitationsManager() {
                         {invitation.organizations?.name || 'Unknown'}
                       </TableCell>
                     )}
-                    <TableCell className="font-medium">{invitation.email}</TableCell>
+                    <TableCell className="font-medium">
+                      {(invitation.status === 'pending' || invitation.status === 'expired' || new Date(invitation.expires_at) < new Date()) ? (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                onClick={() => handleRenewAndResend(invitation)}
+                                disabled={resendingId === invitation.id}
+                                className="text-left hover:text-primary hover:underline cursor-pointer transition-colors disabled:opacity-50"
+                              >
+                                {invitation.email}
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Click to renew & resend invitation</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        invitation.email
+                      )}
+                    </TableCell>
                     <TableCell className="capitalize">{invitation.role}</TableCell>
                     <TableCell>{getStatusBadge(invitation.status, invitation.expires_at)}</TableCell>
                     <TableCell>
@@ -228,12 +267,12 @@ export function InvitationsManager() {
                       {formatDistanceToNow(new Date(invitation.expires_at), { addSuffix: true })}
                     </TableCell>
                     <TableCell>
-                      {invitation.status === 'pending' && (
+                      {(invitation.status === 'pending' || invitation.status === 'expired' || new Date(invitation.expires_at) < new Date()) && (
                         <div className="flex gap-1">
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleResendInvitation(invitation)}
+                            onClick={() => handleRenewAndResend(invitation)}
                             disabled={resendingId === invitation.id}
                           >
                             {resendingId === invitation.id ? (
@@ -242,13 +281,15 @@ export function InvitationsManager() {
                               <Mail className="h-4 w-4" />
                             )}
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleCancelInvitation(invitation.id)}
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </Button>
+                          {invitation.status === 'pending' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleCancelInvitation(invitation.id)}
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          )}
                         </div>
                       )}
                     </TableCell>
