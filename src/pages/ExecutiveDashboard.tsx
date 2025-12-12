@@ -504,12 +504,14 @@ export default function ExecutiveDashboard() {
           <ProactiveInsightsWidget 
             orgId={userProfile.org_id}
             onAction={(action, params) => {
-              // Handle widget actions - navigate to AI chat or execute directly
-              if (action === 'run_pipeline') {
-                toast.info('Opening AI Chat to run pipeline...');
-                navigate('/ai-chat?action=run_pipeline');
-              } else if (action === 'agent_status') {
-                navigate('/ai-chat?action=agent_status');
+              // Handle widget actions - open AI chat panel with action
+              if (action === 'enrich' || action === 'agent_status') {
+                const message = action === 'enrich' 
+                  ? 'Run data enrichment on all accounts'
+                  : 'Show AI agent status';
+                window.dispatchEvent(new CustomEvent('open-ai-chat', { 
+                  detail: { message } 
+                }));
               } else {
                 toast.info(`Action: ${action}`);
               }

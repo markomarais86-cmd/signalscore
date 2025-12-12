@@ -412,12 +412,25 @@ export function AIChat() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
-  // Listen for custom event to open chat (from Help page)
+  // Listen for custom events to open chat (from Help page, Dashboard, etc.)
   useEffect(() => {
     const handleOpenChat = () => setIsOpen(true);
+    const handleOpenChatWithMessage = (e: CustomEvent<{ message?: string }>) => {
+      setIsOpen(true);
+      if (e.detail?.message) {
+        // Send the message after a short delay to ensure chat is open
+        setTimeout(() => {
+          sendMessage(e.detail.message!);
+        }, 200);
+      }
+    };
     window.addEventListener('openAIChat', handleOpenChat);
-    return () => window.removeEventListener('openAIChat', handleOpenChat);
-  }, []);
+    window.addEventListener('open-ai-chat', handleOpenChatWithMessage as EventListener);
+    return () => {
+      window.removeEventListener('openAIChat', handleOpenChat);
+      window.removeEventListener('open-ai-chat', handleOpenChatWithMessage as EventListener);
+    };
+  }, [sendMessage]);
 
   // Focus input when opened
   useEffect(() => {
