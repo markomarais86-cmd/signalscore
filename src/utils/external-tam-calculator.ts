@@ -20,10 +20,19 @@ interface ExternalTAMData {
 }
 
 /**
- * Normalize industry name for matching
+ * Normalize string for matching (lowercase, trim, remove special chars)
  */
-function normalizeIndustry(industry: string): string {
-  return industry.toLowerCase().trim();
+function normalizeString(str: string): string {
+  return str.toLowerCase().trim().replace(/[^a-z0-9\s]/g, '');
+}
+
+/**
+ * Check if two strings match (fuzzy matching)
+ */
+function fuzzyMatch(str1: string, str2: string): boolean {
+  const n1 = normalizeString(str1);
+  const n2 = normalizeString(str2);
+  return n1 === n2 || n1.includes(n2) || n2.includes(n1);
 }
 
 /**
@@ -34,35 +43,66 @@ export function calculateSAMFromBreakdown(
   tamData: ExternalTAMData,
   icpProfile: ICPProfile | null
 ): number {
-  if (!icpProfile || !tamData.industry_breakdown) {
-    return 0;
+  // If no ICP, return a reasonable default (30% of TAM)
+  if (!icpProfile) {
+    return Math.round(tamData.totalAccounts * 0.30);
   }
 
-  let samAccounts = 0;
+  const hasIndustryFilter = icpProfile.industries && icpProfile.industries.length > 0;
+  const hasGeoFilter = icpProfile.geographies && icpProfile.geographies.length > 0;
+  
+  // If no filters defined, SAM = 30% of TAM (conservative estimate)
+  if (!hasIndustryFilter && !hasGeoFilter) {
+    return Math.round(tamData.totalAccounts * 0.30);
+  }
 
-  // If ICP has target industries, sum only matching industries
-  if (icpProfile.industries && icpProfile.industries.length > 0) {
-    icpProfile.industries.forEach(industry => {
-      const normalized = normalizeIndustry(industry);
+  let industryRatio = 1.0;
+  let geoRatio = 1.0;
+
+  // Calculate industry ratio
+  if (hasIndustryFilter && tamData.industry_breakdown) {
+    let matchingAccounts = 0;
+    let totalBreakdownAccounts = 0;
+    
+    Object.entries(tamData.industry_breakdown).forEach(([industry, data]) => {
+      totalBreakdownAccounts += data.accounts;
       
-      // Try direct match
-      if (tamData.industry_breakdown![normalized]) {
-        samAccounts += tamData.industry_breakdown![normalized].accounts;
-      } else {
-        // Try partial matching
-        Object.entries(tamData.industry_breakdown!).forEach(([key, value]) => {
-          if (key.includes(normalized) || normalized.includes(key)) {
-            samAccounts += value.accounts;
-          }
-        });
+      // Check if this industry matches any ICP industry
+      const matches = icpProfile.industries!.some(icpInd => fuzzyMatch(icpInd, industry));
+      if (matches) {
+        matchingAccounts += data.accounts;
       }
     });
-  } else {
-    // If no industry filter, SAM = TAM
-    samAccounts = tamData.totalAccounts;
+
+    if (totalBreakdownAccounts > 0) {
+      industryRatio = matchingAccounts / totalBreakdownAccounts;
+    }
   }
 
-  return samAccounts;
+  // Calculate geography ratio
+  if (hasGeoFilter && tamData.geography_breakdown) {
+    let matchingAccounts = 0;
+    let totalBreakdownAccounts = 0;
+    
+    Object.entries(tamData.geography_breakdown).forEach(([geo, data]) => {
+      totalBreakdownAccounts += data.accounts;
+      
+      // Check if this geography matches any ICP geography
+      const matches = icpProfile.geographies!.some(icpGeo => fuzzyMatch(icpGeo, geo));
+      if (matches) {
+        matchingAccounts += data.accounts;
+      }
+    });
+
+    if (totalBreakdownAccounts > 0) {
+      geoRatio = matchingAccounts / totalBreakdownAccounts;
+    }
+  }
+
+  // Combine ratios (multiply for AND logic, with a minimum floor)
+  const combinedRatio = Math.max(industryRatio * geoRatio, 0.05);
+  
+  return Math.round(tamData.totalAccounts * combinedRatio);
 }
 
 /**
