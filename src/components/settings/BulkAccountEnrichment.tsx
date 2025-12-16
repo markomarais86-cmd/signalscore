@@ -178,7 +178,7 @@ export function BulkAccountEnrichment() {
           provider: provider,
           job_type: 'accounts',
           status: 'pending',
-          batch_size: parseInt(batchSize),
+          batch_size: batchSize === 'all' ? stats?.needsEnrichment || 5000 : parseInt(batchSize),
           total_records: stats?.needsEnrichment || 0,
           created_by: user.id
         })
@@ -191,10 +191,11 @@ export function BulkAccountEnrichment() {
 
       // Trigger enrichment edge function
       const functionName = provider === 'smart' ? 'smart-enrich' : 'enrich-accounts';
+      const actualBatchSize = batchSize === 'all' ? stats?.needsEnrichment || 5000 : parseInt(batchSize);
       const { error: enrichError } = await supabase.functions.invoke(functionName, {
         body: { 
           jobId: job.id,
-          batchSize: parseInt(batchSize)
+          batchSize: actualBatchSize
         }
       });
 
@@ -394,11 +395,12 @@ export function BulkAccountEnrichment() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="50">50 accounts</SelectItem>
                       <SelectItem value="100">100 accounts</SelectItem>
                       <SelectItem value="250">250 accounts</SelectItem>
                       <SelectItem value="500">500 accounts</SelectItem>
                       <SelectItem value="1000">1,000 accounts</SelectItem>
+                      <SelectItem value="2000">2,000 accounts</SelectItem>
+                      <SelectItem value="all">All accounts</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
