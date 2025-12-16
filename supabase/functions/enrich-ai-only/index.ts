@@ -6,6 +6,15 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ============= Configuration =============
+const AI_BATCH_SIZE = 10;          // Accounts per AI call
+const CONCURRENT_LIMIT = 3;        // Parallel AI calls
+const CONFIDENCE_THRESHOLD = 60;   // Minimum confidence to apply
+const MAX_RETRIES = 3;
+const BASE_RETRY_DELAY = 1000;
+const RATE_LIMIT_DELAY = 500;      // Delay between concurrent batches
+
+// ============= Types =============
 interface AccountToEnrich {
   external_id: string;
   name: string | null;
@@ -31,11 +40,70 @@ interface AIEnrichmentResult {
   business_model?: EnrichedField;
 }
 
-// Call Lovable AI with structured output via tool calling
+interface ProcessingError {
+  external_id: string;
+  error: string;
+  error_type: 'ai_failure' | 'update_failure' | 'validation_failure' | 'rate_limit';
+  timestamp: string;
+  retryable: boolean;
+}
+
+interface JobProgress {
+  processed_account_ids: string[];
+  failed_accounts: ProcessingError[];
+  last_processed_at: string | null;
+}
+
+// ============= Retry Helper =============
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = MAX_RETRIES,
+  baseDelay: number = BASE_RETRY_DELAY,
+  operationName: string = 'operation'
+): Promise<T> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error as Error;
+      const isRateLimit = error instanceof Error && 
+        (error.message.includes('429') || error.message.includes('rate limit'));
+      
+      if (attempt === maxRetries) {
+        console.error(`[enrich-ai-only] ${operationName} failed after ${maxRetries + 1} attempts:`, lastError.message);
+        throw lastError;
+      }
+      
+      // Exponential backoff with jitter
+      const delay = isRateLimit 
+        ? baseDelay * Math.pow(3, attempt) // Longer delay for rate limits
+        : baseDelay * Math.pow(2, attempt);
+      const jitter = delay * 0.1 * (Math.random() * 2 - 1);
+      const finalDelay = Math.floor(delay + jitter);
+      
+      console.log(`[enrich-ai-only] ${operationName} attempt ${attempt + 1} failed, retrying in ${finalDelay}ms...`);
+      await new Promise(r => setTimeout(r, finalDelay));
+    }
+  }
+  
+  throw lastError!;
+}
+
+// ============= Chunk Helper =============
+function chunkArray<T>(array: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+}
+
+// ============= AI Enrichment Call =============
 async function enrichWithAI(accounts: AccountToEnrich[]): Promise<AIEnrichmentResult[]> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
-    console.error("[enrich-ai-only] LOVABLE_API_KEY not configured");
     throw new Error("AI enrichment not available - API key not configured");
   }
 
@@ -155,15 +223,20 @@ Only return estimates you're confident about (>50%).`;
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error("[enrich-ai-only] AI API error:", response.status, errorText);
-    throw new Error(`AI enrichment failed: ${response.status}`);
+    if (response.status === 429) {
+      throw new Error(`Rate limit exceeded (429): ${errorText}`);
+    }
+    if (response.status === 402) {
+      throw new Error(`Payment required (402): ${errorText}`);
+    }
+    throw new Error(`AI enrichment failed (${response.status}): ${errorText}`);
   }
 
   const data = await response.json();
   const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
   
   if (!toolCall?.function?.arguments) {
-    console.error("[enrich-ai-only] No tool call in response");
+    console.warn("[enrich-ai-only] No tool call in response");
     return [];
   }
 
@@ -176,6 +249,155 @@ Only return estimates you're confident about (>50%).`;
   }
 }
 
+// ============= Process Single Batch with Retry =============
+async function processBatchWithRetry(
+  batch: AccountToEnrich[],
+  supabase: any,
+  orgId: string
+): Promise<{
+  enriched: number;
+  processed: number;
+  results: any[];
+  errors: ProcessingError[];
+}> {
+  const errors: ProcessingError[] = [];
+  const results: any[] = [];
+  let enriched = 0;
+  let processed = 0;
+
+  try {
+    // Call AI with retry
+    const aiResults = await retryWithBackoff(
+      () => enrichWithAI(batch),
+      MAX_RETRIES,
+      BASE_RETRY_DELAY,
+      `AI enrichment for ${batch.length} accounts`
+    );
+
+    // Process each result
+    for (const result of aiResults) {
+      const account = batch.find(a => a.external_id === result.external_id);
+      if (!account) continue;
+
+      try {
+        const updates: Record<string, any> = {
+          enriched_at: new Date().toISOString(),
+          enriched_from: "ai_free",
+        };
+
+        const fieldScores: Record<string, number> = {};
+        let fieldsEnriched = 0;
+
+        // Apply employee_count if confident and missing
+        if (result.employee_count && 
+            result.employee_count.confidence >= CONFIDENCE_THRESHOLD &&
+            !account.employee_count) {
+          updates.employee_count = result.employee_count.value;
+          fieldScores.employee_count = result.employee_count.confidence;
+          fieldsEnriched++;
+        }
+
+        // Apply revenue_range if confident and missing
+        if (result.revenue_range && 
+            result.revenue_range.confidence >= CONFIDENCE_THRESHOLD &&
+            !account.revenue_range) {
+          updates.revenue_range = result.revenue_range.value;
+          fieldScores.revenue_range = result.revenue_range.confidence;
+          fieldsEnriched++;
+        }
+
+        // Apply industry_norm if confident and missing
+        if (result.industry_norm && 
+            result.industry_norm.confidence >= CONFIDENCE_THRESHOLD &&
+            !account.industry_raw) {
+          updates.industry_norm = result.industry_norm.value;
+          updates.industry_raw = result.industry_norm.value;
+          fieldScores.industry = result.industry_norm.confidence;
+          fieldsEnriched++;
+        }
+
+        // Apply business_model if confident
+        if (result.business_model && 
+            result.business_model.confidence >= CONFIDENCE_THRESHOLD) {
+          updates.business_model = result.business_model.value;
+          fieldScores.business_model = result.business_model.confidence;
+          fieldsEnriched++;
+        }
+
+        // Calculate overall confidence
+        const confidenceValues = Object.values(fieldScores);
+        if (confidenceValues.length > 0) {
+          updates.enrichment_confidence = Math.round(
+            confidenceValues.reduce((a, b) => a + b, 0) / confidenceValues.length
+          );
+          updates.enrichment_field_scores = fieldScores;
+          updates.enrichment_phase = "ai_free";
+        }
+
+        // Update account with retry
+        if (fieldsEnriched > 0) {
+          await retryWithBackoff(
+            async () => {
+              const { error: updateError } = await supabase
+                .from("accounts")
+                .update(updates)
+                .eq("external_id", result.external_id)
+                .eq("org_id", orgId);
+              if (updateError) throw updateError;
+            },
+            2,
+            500,
+            `Update account ${result.external_id}`
+          );
+
+          enriched++;
+          results.push({
+            external_id: result.external_id,
+            fields_enriched: fieldsEnriched,
+            avg_confidence: updates.enrichment_confidence,
+          });
+        }
+
+        processed++;
+      } catch (updateError) {
+        errors.push({
+          external_id: result.external_id,
+          error: updateError instanceof Error ? updateError.message : 'Update failed',
+          error_type: 'update_failure',
+          timestamp: new Date().toISOString(),
+          retryable: true,
+        });
+        processed++;
+      }
+    }
+
+    // Mark accounts not in AI response as processed (no enrichment data available)
+    for (const account of batch) {
+      if (!aiResults.find(r => r.external_id === account.external_id)) {
+        processed++;
+      }
+    }
+
+  } catch (aiError) {
+    // AI call failed completely for this batch
+    const errorMessage = aiError instanceof Error ? aiError.message : 'AI call failed';
+    const isRateLimit = errorMessage.includes('429') || errorMessage.includes('rate limit');
+    
+    for (const account of batch) {
+      errors.push({
+        external_id: account.external_id,
+        error: errorMessage,
+        error_type: isRateLimit ? 'rate_limit' : 'ai_failure',
+        timestamp: new Date().toISOString(),
+        retryable: isRateLimit,
+      });
+    }
+  }
+
+  return { enriched, processed, results, errors };
+}
+
+// ============= Main Handler =============
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -184,8 +406,8 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { jobId, batchSize = 500, filters = {} } = await req.json();
-    console.log(`[enrich-ai-only] Starting AI-only enrichment, jobId: ${jobId}, batchSize: ${batchSize}`);
+    const { jobId, batchSize = 500, filters = {}, resumeFromCheckpoint = true } = await req.json();
+    console.log(`[enrich-ai-only] Starting AI enrichment, jobId: ${jobId}, batchSize: ${batchSize}, resume: ${resumeFromCheckpoint}`);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -203,10 +425,30 @@ serve(async (req) => {
       throw new Error(`Job not found: ${jobId}`);
     }
 
+    // Get existing progress for resumability
+    let existingProgress: JobProgress = {
+      processed_account_ids: [],
+      failed_accounts: [],
+      last_processed_at: null,
+    };
+
+    if (resumeFromCheckpoint && job.status === 'paused') {
+      // Parse existing progress from job metadata if available
+      const metadata = job.agent_config as any;
+      if (metadata?.progress) {
+        existingProgress = metadata.progress;
+        console.log(`[enrich-ai-only] Resuming from checkpoint: ${existingProgress.processed_account_ids.length} accounts already processed`);
+      }
+    }
+
     // Update job status
     await supabase
       .from("enrichment_jobs")
-      .update({ status: "processing", started_at: new Date().toISOString() })
+      .update({ 
+        status: "processing", 
+        started_at: job.started_at || new Date().toISOString(),
+        paused_at: null,
+      })
       .eq("id", jobId);
 
     // Build query for accounts needing enrichment
@@ -221,8 +463,10 @@ serve(async (req) => {
       query = query.or("employee_count.is.null,revenue_range.is.null,industry_raw.is.null");
     }
 
-    if (filters.min_score) {
-      // Would need to join scores table
+    // Exclude already processed accounts (for resumability)
+    if (existingProgress.processed_account_ids.length > 0) {
+      // Filter out already processed accounts
+      query = query.not("external_id", "in", `(${existingProgress.processed_account_ids.join(',')})`);
     }
 
     const { data: accounts, error: accountsError } = await query.limit(batchSize);
@@ -237,17 +481,20 @@ serve(async (req) => {
         .update({
           status: "completed",
           completed_at: new Date().toISOString(),
-          processed_records: 0,
-          enriched_records: 0,
-          error_message: "No accounts need enrichment"
+          processed_records: existingProgress.processed_account_ids.length,
+          enriched_records: job.enriched_records || 0,
+          error_message: existingProgress.processed_account_ids.length > 0 
+            ? "Resumed - no additional accounts need enrichment"
+            : "No accounts need enrichment"
         })
         .eq("id", jobId);
 
       return new Response(JSON.stringify({
         success: true,
         message: "No accounts need enrichment",
-        processed: 0,
-        enriched: 0
+        processed: existingProgress.processed_account_ids.length,
+        enriched: job.enriched_records || 0,
+        resumed: existingProgress.processed_account_ids.length > 0,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
@@ -255,130 +502,116 @@ serve(async (req) => {
 
     console.log(`[enrich-ai-only] Found ${accounts.length} accounts to enrich`);
 
-    // Process in smaller batches for AI
-    const AI_BATCH_SIZE = 10;
-    let totalEnriched = 0;
-    let totalProcessed = 0;
-    const enrichmentResults: any[] = [];
+    // Split accounts into AI-sized batches
+    const aiBatches = chunkArray(accounts, AI_BATCH_SIZE);
+    
+    let totalEnriched = job.enriched_records || 0;
+    let totalProcessed = existingProgress.processed_account_ids.length;
+    const allResults: any[] = [];
+    const allErrors: ProcessingError[] = [...existingProgress.failed_accounts];
+    const processedIds = new Set(existingProgress.processed_account_ids);
 
-    for (let i = 0; i < accounts.length; i += AI_BATCH_SIZE) {
-      const batch = accounts.slice(i, i + AI_BATCH_SIZE);
-      console.log(`[enrich-ai-only] Processing batch ${Math.floor(i / AI_BATCH_SIZE) + 1}/${Math.ceil(accounts.length / AI_BATCH_SIZE)}`);
+    // Process batches with controlled concurrency
+    const concurrentChunks = chunkArray(aiBatches, CONCURRENT_LIMIT);
+    
+    for (let chunkIndex = 0; chunkIndex < concurrentChunks.length; chunkIndex++) {
+      const concurrentBatches = concurrentChunks[chunkIndex];
+      
+      console.log(`[enrich-ai-only] Processing concurrent chunk ${chunkIndex + 1}/${concurrentChunks.length} (${concurrentBatches.length} parallel batches)`);
 
-      try {
-        const aiResults = await enrichWithAI(batch);
+      // Process batches in parallel
+      const batchPromises = concurrentBatches.map(batch => 
+        processBatchWithRetry(batch, supabase, job.org_id)
+      );
+
+      const batchResults = await Promise.allSettled(batchPromises);
+
+      // Collect results
+      for (let i = 0; i < batchResults.length; i++) {
+        const result = batchResults[i];
+        const batch = concurrentBatches[i];
         
-        // Apply enrichments with confidence threshold
-        const CONFIDENCE_THRESHOLD = 60;
-
-        for (const result of aiResults) {
-          const account = batch.find(a => a.external_id === result.external_id);
-          if (!account) continue;
-
-          const updates: Record<string, any> = {
-            enriched_at: new Date().toISOString(),
-            enriched_from: "ai_free",
-          };
-
-          const fieldScores: Record<string, number> = {};
-          let fieldsEnriched = 0;
-
-          // Apply employee_count if confident and missing
-          if (result.employee_count && 
-              result.employee_count.confidence >= CONFIDENCE_THRESHOLD &&
-              !account.employee_count) {
-            updates.employee_count = result.employee_count.value;
-            fieldScores.employee_count = result.employee_count.confidence;
-            fieldsEnriched++;
+        if (result.status === 'fulfilled') {
+          totalEnriched += result.value.enriched;
+          totalProcessed += result.value.processed;
+          allResults.push(...result.value.results);
+          allErrors.push(...result.value.errors);
+          
+          // Track processed account IDs
+          for (const account of batch) {
+            processedIds.add(account.external_id);
           }
-
-          // Apply revenue_range if confident and missing
-          if (result.revenue_range && 
-              result.revenue_range.confidence >= CONFIDENCE_THRESHOLD &&
-              !account.revenue_range) {
-            updates.revenue_range = result.revenue_range.value;
-            fieldScores.revenue_range = result.revenue_range.confidence;
-            fieldsEnriched++;
+        } else {
+          // Entire batch failed
+          console.error(`[enrich-ai-only] Batch failed:`, result.reason);
+          for (const account of batch) {
+            allErrors.push({
+              external_id: account.external_id,
+              error: result.reason?.message || 'Batch processing failed',
+              error_type: 'ai_failure',
+              timestamp: new Date().toISOString(),
+              retryable: true,
+            });
+            processedIds.add(account.external_id);
           }
-
-          // Apply industry_norm if confident and missing
-          if (result.industry_norm && 
-              result.industry_norm.confidence >= CONFIDENCE_THRESHOLD &&
-              !account.industry_raw) {
-            updates.industry_norm = result.industry_norm.value;
-            updates.industry_raw = result.industry_norm.value;
-            fieldScores.industry = result.industry_norm.confidence;
-            fieldsEnriched++;
-          }
-
-          // Apply business_model if confident
-          if (result.business_model && 
-              result.business_model.confidence >= CONFIDENCE_THRESHOLD) {
-            updates.business_model = result.business_model.value;
-            fieldScores.business_model = result.business_model.confidence;
-            fieldsEnriched++;
-          }
-
-          // Calculate overall confidence
-          const confidenceValues = Object.values(fieldScores);
-          if (confidenceValues.length > 0) {
-            updates.enrichment_confidence = Math.round(
-              confidenceValues.reduce((a, b) => a + b, 0) / confidenceValues.length
-            );
-            updates.enrichment_field_scores = fieldScores;
-            updates.enrichment_phase = "ai_free";
-          }
-
-          // Update account
-          if (fieldsEnriched > 0) {
-            const { error: updateError } = await supabase
-              .from("accounts")
-              .update(updates)
-              .eq("external_id", result.external_id)
-              .eq("org_id", job.org_id);
-
-            if (!updateError) {
-              totalEnriched++;
-              enrichmentResults.push({
-                external_id: result.external_id,
-                fields_enriched: fieldsEnriched,
-                avg_confidence: updates.enrichment_confidence,
-              });
-            }
-          }
-
-          totalProcessed++;
+          totalProcessed += batch.length;
         }
-
-        // Update job progress
-        await supabase
-          .from("enrichment_jobs")
-          .update({
-            processed_records: totalProcessed,
-            enriched_records: totalEnriched,
-            progress_percentage: Math.round((totalProcessed / accounts.length) * 100),
-            last_progress_update: new Date().toISOString(),
-          })
-          .eq("id", jobId);
-
-      } catch (batchError) {
-        console.error(`[enrich-ai-only] Batch error:`, batchError);
-        // Continue with next batch
       }
 
-      // Rate limit delay between AI calls to prevent throttling
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Update job progress after each concurrent chunk (checkpoint for resumability)
+      const progress: JobProgress = {
+        processed_account_ids: Array.from(processedIds),
+        failed_accounts: allErrors,
+        last_processed_at: new Date().toISOString(),
+      };
+
+      await supabase
+        .from("enrichment_jobs")
+        .update({
+          processed_records: totalProcessed,
+          enriched_records: totalEnriched,
+          failed_records: allErrors.length,
+          progress_percentage: Math.round((totalProcessed / (accounts.length + existingProgress.processed_account_ids.length)) * 100),
+          last_progress_update: new Date().toISOString(),
+          agent_config: { ...job.agent_config, progress },
+        })
+        .eq("id", jobId);
+
+      // Rate limit delay between concurrent chunks
+      if (chunkIndex < concurrentChunks.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
+      }
     }
+
+    // Determine final status
+    const retryableErrors = allErrors.filter(e => e.retryable);
+    const finalStatus = retryableErrors.length > 0 && retryableErrors.length === allErrors.length
+      ? "completed_with_errors"
+      : allErrors.length > 0
+        ? "completed_with_failures"
+        : "completed";
 
     // Complete job
     await supabase
       .from("enrichment_jobs")
       .update({
-        status: "completed",
+        status: finalStatus,
         completed_at: new Date().toISOString(),
         processed_records: totalProcessed,
         enriched_records: totalEnriched,
+        failed_records: allErrors.length,
         progress_percentage: 100,
+        error_message: allErrors.length > 0 
+          ? `${allErrors.length} accounts had errors (${retryableErrors.length} retryable)`
+          : null,
+        agent_config: {
+          ...job.agent_config,
+          progress: {
+            processed_account_ids: Array.from(processedIds),
+            failed_accounts: allErrors,
+            last_processed_at: new Date().toISOString(),
+          },
+        },
       })
       .eq("id", jobId);
 
@@ -388,35 +621,63 @@ serve(async (req) => {
       account_external_id: job.id,
       provider: "ai_free",
       enrichment_type: "firmographics",
-      status: "completed",
-      fields_enriched: enrichmentResults.map(r => r.external_id),
+      status: finalStatus,
+      fields_enriched: allResults.map(r => r.external_id),
       cost_usd: 0,
       credits_used: 0,
       response_time_ms: Date.now() - startTime,
+      error_message: allErrors.length > 0 ? JSON.stringify(allErrors.slice(0, 10)) : null,
     });
 
-    const avgConfidence = enrichmentResults.length > 0
-      ? Math.round(enrichmentResults.reduce((a, b) => a + b.avg_confidence, 0) / enrichmentResults.length)
+    const avgConfidence = allResults.length > 0
+      ? Math.round(allResults.reduce((a, b) => a + (b.avg_confidence || 0), 0) / allResults.length)
       : 0;
 
-    console.log(`[enrich-ai-only] Completed: ${totalEnriched}/${totalProcessed} accounts enriched (avg confidence: ${avgConfidence}%)`);
+    console.log(`[enrich-ai-only] Completed: ${totalEnriched}/${totalProcessed} accounts enriched, ${allErrors.length} errors (avg confidence: ${avgConfidence}%)`);
 
     return new Response(JSON.stringify({
       success: true,
+      status: finalStatus,
       processed: totalProcessed,
       enriched: totalEnriched,
+      failed: allErrors.length,
+      retryable_failures: retryableErrors.length,
       avg_confidence: avgConfidence,
       duration_ms: Date.now() - startTime,
       message: `AI enriched ${totalEnriched} of ${totalProcessed} accounts with ${avgConfidence}% average confidence`,
+      errors_sample: allErrors.slice(0, 5), // Return sample of errors for debugging
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
 
   } catch (error) {
     console.error("[enrich-ai-only] Error:", error);
+    
+    // Try to update job status to failed
+    try {
+      const { jobId } = await req.clone().json();
+      if (jobId) {
+        const supabase = createClient(
+          Deno.env.get("SUPABASE_URL") ?? "",
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+        );
+        await supabase
+          .from("enrichment_jobs")
+          .update({
+            status: "failed",
+            error_message: error instanceof Error ? error.message : "Unknown error",
+            completed_at: new Date().toISOString(),
+          })
+          .eq("id", jobId);
+      }
+    } catch (e) {
+      console.error("[enrich-ai-only] Failed to update job status:", e);
+    }
+
     return new Response(JSON.stringify({
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error"
+      error: error instanceof Error ? error.message : "Unknown error",
+      retryable: true,
     }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" }
