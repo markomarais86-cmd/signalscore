@@ -31,8 +31,10 @@ import { SignalScoreDisplay } from "@/components/SignalScoreDisplay";
 import { AITechnologyInsights } from "@/components/AITechnologyInsights";
 import { EnrichmentSourceViewer } from "@/components/enrichment/EnrichmentSourceViewer";
 import { DiscoveredLeadsSection } from "@/components/leads/DiscoveredLeadsSection";
+import { AccountInsightsPanel, AccountInsightsData } from "./AccountInsightsPanel";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
 
 interface Lead {
   id: number;
@@ -80,6 +82,12 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
   const navigate = useNavigate();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
+  
+  // AI Insights state
+  const [accountInsights, setAccountInsights] = useState<AccountInsightsData | null>(null);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [insightsCached, setInsightsCached] = useState(false);
 
   // All hooks must be called before any conditional returns
   const fetchLeads = useCallback(async () => {
@@ -108,8 +116,49 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
   useEffect(() => {
     if (isOpen && account) {
       fetchLeads();
+      // Reset insights when account changes
+      setAccountInsights(null);
+      setInsightsError(null);
     }
   }, [isOpen, account, fetchLeads]);
+
+  // Fetch AI insights for high-scoring accounts
+  const fetchAccountInsights = useCallback(async (forceRefresh = false) => {
+    if (!account || !userProfile?.org_id) return;
+    
+    // Only generate insights for high-scoring accounts
+    const score = account.score?.overall;
+    if (!score || score < 70) return;
+    
+    setIsLoadingInsights(true);
+    setInsightsError(null);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-account-insights', {
+        body: { 
+          accountExternalId: account.external_id,
+          forceRefresh 
+        }
+      });
+
+      if (error) throw error;
+      
+      if (data?.insights) {
+        setAccountInsights(data.insights);
+        setInsightsCached(data.cached || false);
+        if (!data.cached) {
+          toast.success("AI insights generated", {
+            description: "Personalized recommendations are ready"
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error("Error fetching account insights:", error);
+      setInsightsError(error.message || "Failed to generate insights");
+    } finally {
+      setIsLoadingInsights(false);
+    }
+  }, [account, userProfile?.org_id]);
 
   // Now safe to return early after all hooks are called
   if (!account) return null;
@@ -460,55 +509,16 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
           <TabsContent value="insights" className="space-y-4 mt-4">
             <AITechnologyInsights accountIds={[account.external_id]} />
             
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5" />
-                  Engagement Recommendations
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    <TrendingUp className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium text-sm">Best Time to Engage</h4>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Tuesday-Thursday, 10am-2pm {account.country ? `(${account.country} timezone)` : ''}
-                    </p>
-                  </div>
-                </div>
-                
-                <Separator />
-                
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    <Target className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium text-sm">Recommended Approach</h4>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Multi-threaded outreach with emphasis on {account.leads && account.leads > 0 ? 'existing leads' : 'decision-makers'}
-                    </p>
-                  </div>
-                </div>
-
-                <Separator />
-                
-                <div className="flex items-start gap-3">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    <Mail className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-medium text-sm">Key Messaging</h4>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Focus on {account.industry_norm || 'industry'}-specific pain points and ROI metrics
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Personalized AI Insights */}
+            <AccountInsightsPanel
+              accountExternalId={account.external_id}
+              accountScore={account.score?.overall}
+              insights={accountInsights}
+              isLoading={isLoadingInsights}
+              error={insightsError}
+              onRefresh={() => fetchAccountInsights(true)}
+              cached={insightsCached}
+            />
           </TabsContent>
 
           {/* Activity Tab */}
