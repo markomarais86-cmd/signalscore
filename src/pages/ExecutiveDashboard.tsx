@@ -613,13 +613,33 @@ export default function ExecutiveDashboard() {
                   break;
                   
                 case 'run_agent':
-                  // Actually invoke the agent instead of just showing health dashboard
                   try {
                     const agentType = params?.agent_type || 'follow_up';
                     toast.info(`Starting ${agentType.replace('_', ' ')} agent...`, { duration: 3000 });
                     
+                    // Look up the agent_id by agent_type
+                    const { data: agent, error: agentError } = await supabase
+                      .from('ai_agents')
+                      .select('id')
+                      .eq('org_id', userProfile.org_id)
+                      .eq('agent_type', agentType)
+                      .eq('enabled', true)
+                      .maybeSingle();
+                    
+                    if (agentError) throw agentError;
+                    if (!agent) {
+                      toast.error(`No active ${agentType.replace('_', ' ')} agent found`, {
+                        description: 'Please configure one in Settings > AI Agents'
+                      });
+                      setShowHealthDashboard(true);
+                      break;
+                    }
+                    
                     const { data, error } = await supabase.functions.invoke(`agent-${agentType.replace('_', '-')}`, {
-                      body: { org_id: userProfile.org_id }
+                      body: { 
+                        agent_id: agent.id,
+                        org_id: userProfile.org_id 
+                      }
                     });
                     
                     if (error) throw error;
