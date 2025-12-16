@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_insights: {
+        Row: {
+          account_external_id: string
+          confidence: number | null
+          content: Json
+          created_at: string
+          expires_at: string
+          generated_at: string
+          id: string
+          insight_type: string
+          org_id: string
+        }
+        Insert: {
+          account_external_id: string
+          confidence?: number | null
+          content?: Json
+          created_at?: string
+          expires_at?: string
+          generated_at?: string
+          id?: string
+          insight_type: string
+          org_id: string
+        }
+        Update: {
+          account_external_id?: string
+          confidence?: number | null
+          content?: Json
+          created_at?: string
+          expires_at?: string
+          generated_at?: string
+          id?: string
+          insight_type?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_insights_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accounts: {
         Row: {
           business_model: string | null

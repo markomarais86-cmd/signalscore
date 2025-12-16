@@ -236,3 +236,6 @@ verify_jwt = true
 
 [functions.agent-pipeline-controller]
 verify_jwt = true
+
+[functions.generate-account-insights]
+verify_jwt = true
