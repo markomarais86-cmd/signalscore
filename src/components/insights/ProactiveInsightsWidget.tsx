@@ -181,21 +181,40 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
     const pollProgress = async () => {
       const { data: status } = await supabase
         .from('enrichment_jobs')
-        .select('status, enriched_records, processed_records, total_records, last_progress_update')
+        .select('status, enriched_records, processed_records, total_records, last_progress_update, error_message')
         .eq('id', enrichmentProgress.jobId)
         .single();
       
       if (status) {
-        if (status.status === 'completed' || status.status === 'failed' || status.status === 'cancelled') {
+        if (status.status === 'completed' || status.status === 'completed_with_errors' || status.status === 'completed_with_failures') {
           setEnrichmentProgress(null);
-          if (status.status === 'completed') {
-            toast.success(`Enrichment complete! ${status.enriched_records} accounts enriched`);
-            fetchInsights();
-          } else if (status.status === 'failed') {
-            toast.error('Enrichment failed');
-          }
+          toast.success(`Enrichment complete! ${status.enriched_records} accounts enriched`);
+          fetchInsights();
+        } else if (status.status === 'failed' || status.status === 'cancelled') {
+          setEnrichmentProgress(null);
+          toast.error('Enrichment failed');
+        } else if (status.status === 'paused' && status.error_message?.includes('Auto-paused')) {
+          // Job was auto-paused before timeout - auto-resume it
+          console.log('[ProactiveInsightsWidget] Job auto-paused, triggering auto-resume...');
+          setEnrichmentProgress(prev => prev ? { ...prev, status: 'paused', isStalled: false } : null);
+          
+          // Auto-resume after a short delay
+          setTimeout(async () => {
+            try {
+              const { error } = await supabase.functions.invoke('enrich-ai-only', {
+                body: { 
+                  jobId: enrichmentProgress.jobId, 
+                  resumeFromCheckpoint: true,
+                  batchSize: 100 // Use reduced batch size for reliability
+                }
+              });
+              if (error) console.error('Auto-resume failed:', error);
+            } catch (err) {
+              console.error('Auto-resume error:', err);
+            }
+          }, 2000);
         } else {
-          // Check if job is stalled
+          // Check if job is stalled (processing but no progress for 5+ min)
           const lastUpdate = status.last_progress_update ? new Date(status.last_progress_update) : null;
           const isStalled = status.status === 'processing' && lastUpdate && 
             (new Date().getTime() - lastUpdate.getTime() > 5 * 60 * 1000);
@@ -209,13 +228,19 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
             lastProgressUpdate: status.last_progress_update,
             isStalled
           });
+          
+          // Auto-resume stalled jobs
+          if (isStalled && !isStartingEnrichment) {
+            console.log('[ProactiveInsightsWidget] Job stalled, triggering auto-resume...');
+            resumeStalledJob();
+          }
         }
       }
     };
     
     const interval = setInterval(pollProgress, 2000);
     return () => clearInterval(interval);
-  }, [enrichmentProgress?.jobId, fetchInsights]);
+  }, [enrichmentProgress?.jobId, fetchInsights, isStartingEnrichment]);
 
   const handleRefresh = () => {
     setRefreshing(true);
