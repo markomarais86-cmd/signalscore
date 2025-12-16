@@ -190,7 +190,12 @@ export function BulkAccountEnrichment() {
       console.log('Starting enrichment job:', job.id, 'with provider:', provider);
 
       // Trigger enrichment edge function
-      const functionName = provider === 'smart' ? 'smart-enrich' : 'enrich-accounts';
+      let functionName = 'enrich-accounts';
+      if (provider === 'smart') {
+        functionName = 'smart-enrich';
+      } else if (provider === 'ai_free') {
+        functionName = 'enrich-ai-only';
+      }
       const actualBatchSize = batchSize === 'all' ? stats?.needsEnrichment || 5000 : parseInt(batchSize);
       const { error: enrichError } = await supabase.functions.invoke(functionName, {
         body: { 
@@ -348,7 +353,7 @@ export function BulkAccountEnrichment() {
                       className="h-auto p-0 mt-2"
                       onClick={() => {
                         window.open(
-                          `https://supabase.com/dashboard/project/dhyfbaptcprxxixgnpby/functions/${activeJob.provider === 'smart' ? 'smart-enrich' : 'enrich-accounts'}/logs`,
+                          `https://supabase.com/dashboard/project/dhyfbaptcprxxixgnpby/functions/${activeJob.provider === 'smart' ? 'smart-enrich' : activeJob.provider === 'ai_free' ? 'enrich-ai-only' : 'enrich-accounts'}/logs`,
                           '_blank'
                         );
                       }}
@@ -416,6 +421,7 @@ export function BulkAccountEnrichment() {
                       <SelectItem value="pdl">People Data Labs Only</SelectItem>
                       <SelectItem value="clearbit">Clearbit Only</SelectItem>
                       <SelectItem value="ai">AI Estimation Only</SelectItem>
+                      <SelectItem value="ai_free">AI Free (No Credits - Test)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
