@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Bell, CheckCircle, XCircle, Info, X, CheckCheck, ChevronRight } from "lucide-react";
+import { Bell, CheckCircle, XCircle, Info, X, CheckCheck, ChevronRight, Database, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,18 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 const DISMISSED_KEY = "launchpulse_dismissed_notifications";
 
+interface UnifiedNotification {
+  id: string;
+  type: 'agent_run' | 'enrichment_job';
+  name: string;
+  status: string;
+  records_affected: number;
+  records_processed: number;
+  timestamp: Date;
+  agentType?: string;
+  provider?: string;
+}
+
 function getDismissedIds(): Set<string> {
   try {
     const saved = localStorage.getItem(DISMISSED_KEY);
@@ -31,17 +43,28 @@ function saveDismissedIds(ids: Set<string>) {
   localStorage.setItem(DISMISSED_KEY, JSON.stringify([...ids]));
 }
 
+function formatProviderName(provider: string): string {
+  const providerMap: Record<string, string> = {
+    'smart-waterfall': 'Smart Enrichment',
+    'apollo': 'Apollo',
+    'pdl': 'People Data Labs',
+    'ai-estimation': 'AI Estimation',
+    'deep-research': 'Deep Research',
+  };
+  return providerMap[provider] || provider;
+}
+
 export function NotificationCenter() {
   const { userProfile } = useAuth();
   const navigate = useNavigate();
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(getDismissedIds);
 
+  // Query for AI agent runs
   const { data: recentRuns } = useQuery({
-    queryKey: ["notifications", userProfile?.org_id],
+    queryKey: ["agent-notifications", userProfile?.org_id],
     queryFn: async () => {
       if (!userProfile?.org_id) throw new Error("No organization found");
 
-      // Only show notifications for data-focused agents
       const { data, error } = await supabase
         .from("ai_agent_runs")
         .select("*, ai_agents!inner(name, agent_type)")
@@ -56,24 +79,73 @@ export function NotificationCenter() {
     refetchInterval: 30000,
   });
 
+  // Query for enrichment jobs
+  const { data: enrichmentJobs } = useQuery({
+    queryKey: ["enrichment-notifications", userProfile?.org_id],
+    queryFn: async () => {
+      if (!userProfile?.org_id) throw new Error("No organization found");
+
+      const { data, error } = await supabase
+        .from("enrichment_jobs")
+        .select("*")
+        .eq("org_id", userProfile.org_id)
+        .in("status", ["completed", "failed", "processing", "pending"])
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!userProfile?.org_id,
+    refetchInterval: 30000,
+  });
+
+  // Merge and normalize both sources
+  const allNotifications = useMemo<UnifiedNotification[]>(() => {
+    const agentNotifications: UnifiedNotification[] = (recentRuns || []).map(run => ({
+      id: `agent-${run.id}`,
+      type: 'agent_run' as const,
+      name: run.ai_agents?.name || "Agent",
+      status: run.status,
+      records_affected: run.records_affected || 0,
+      records_processed: run.records_processed || 0,
+      timestamp: new Date(run.started_at),
+      agentType: run.ai_agents?.agent_type,
+    }));
+
+    const enrichmentNotifications: UnifiedNotification[] = (enrichmentJobs || []).map(job => ({
+      id: `enrichment-${job.id}`,
+      type: 'enrichment_job' as const,
+      name: formatProviderName(job.provider || 'enrichment'),
+      status: job.status,
+      records_affected: job.enriched_records || 0,
+      records_processed: job.processed_records || job.total_records || 0,
+      timestamp: new Date(job.created_at),
+      provider: job.provider,
+    }));
+
+    return [...agentNotifications, ...enrichmentNotifications]
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }, [recentRuns, enrichmentJobs]);
+
   // Clean up old dismissed IDs that are no longer in the notifications
   useEffect(() => {
-    if (recentRuns) {
-      const currentIds = new Set(recentRuns.map(r => r.id));
+    if (allNotifications.length > 0) {
+      const currentIds = new Set(allNotifications.map(n => n.id));
       const validDismissed = new Set([...dismissedIds].filter(id => currentIds.has(id)));
       if (validDismissed.size !== dismissedIds.size) {
         setDismissedIds(validDismissed);
         saveDismissedIds(validDismissed);
       }
     }
-  }, [recentRuns]);
+  }, [allNotifications]);
 
-  const visibleNotifications = recentRuns?.filter(
-    run => !dismissedIds.has(run.id)
-  ) || [];
+  const visibleNotifications = allNotifications.filter(
+    notification => !dismissedIds.has(notification.id)
+  );
 
   const unreadCount = visibleNotifications.filter(
-    run => run.status === "completed" || run.status === "failed"
+    notification => notification.status === "completed" || notification.status === "failed"
   ).length;
 
   const dismissNotification = (id: string, e: React.MouseEvent) => {
@@ -85,14 +157,16 @@ export function NotificationCenter() {
   };
 
   const dismissAll = () => {
-    if (!recentRuns) return;
-    const allIds = new Set(recentRuns.map(r => r.id));
+    const allIds = new Set(allNotifications.map(n => n.id));
     setDismissedIds(allIds);
     saveDismissedIds(allIds);
   };
 
-  const getNavigationPath = (agentType: string): string => {
-    switch (agentType) {
+  const getNavigationPath = (notification: UnifiedNotification): string => {
+    if (notification.type === 'enrichment_job') {
+      return "/accounts";
+    }
+    switch (notification.agentType) {
       case "lead_qualification":
         return "/leads?status=qualified";
       case "follow_up":
@@ -106,14 +180,26 @@ export function NotificationCenter() {
     }
   };
 
-  const handleNotificationClick = (run: any) => {
-    const agentType = run.ai_agents?.agent_type || run.agent_type;
-    const path = getNavigationPath(agentType);
+  const handleNotificationClick = (notification: UnifiedNotification) => {
+    const path = getNavigationPath(notification);
     navigate(path);
   };
 
-  const getNotificationIcon = (status: string) => {
-    switch (status) {
+  const getNotificationIcon = (notification: UnifiedNotification) => {
+    if (notification.type === 'enrichment_job') {
+      switch (notification.status) {
+        case "completed":
+          return <Database className="h-4 w-4 text-green-500" />;
+        case "failed":
+          return <XCircle className="h-4 w-4 text-red-500" />;
+        case "processing":
+          return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
+        default:
+          return <Database className="h-4 w-4 text-muted-foreground" />;
+      }
+    }
+    
+    switch (notification.status) {
       case "completed":
         return <CheckCircle className="h-4 w-4 text-green-500" />;
       case "failed":
@@ -121,6 +207,34 @@ export function NotificationCenter() {
       default:
         return <Info className="h-4 w-4 text-blue-500" />;
     }
+  };
+
+  const getStatusText = (notification: UnifiedNotification): string => {
+    if (notification.type === 'enrichment_job') {
+      switch (notification.status) {
+        case "completed":
+          return "completed";
+        case "failed":
+          return "failed";
+        case "processing":
+          return "in progress";
+        case "pending":
+          return "pending";
+        default:
+          return notification.status;
+      }
+    }
+    return notification.status;
+  };
+
+  const getRecordsText = (notification: UnifiedNotification): string => {
+    if (notification.type === 'enrichment_job') {
+      if (notification.status === 'pending') {
+        return `${notification.records_processed} records queued`;
+      }
+      return `${notification.records_affected} of ${notification.records_processed} records enriched`;
+    }
+    return `${notification.records_affected} of ${notification.records_processed} records affected`;
   };
 
   return (
@@ -160,22 +274,22 @@ export function NotificationCenter() {
         </div>
         <ScrollArea className="h-[400px]">
           {visibleNotifications.length > 0 ? (
-            visibleNotifications.map((run) => (
+            visibleNotifications.map((notification) => (
               <DropdownMenuItem 
-                key={run.id} 
+                key={notification.id} 
                 className="flex items-start gap-3 p-4 cursor-pointer group hover:bg-accent/50 transition-colors"
-                onClick={() => handleNotificationClick(run)}
+                onClick={() => handleNotificationClick(notification)}
               >
-                <div className="mt-0.5">{getNotificationIcon(run.status)}</div>
+                <div className="mt-0.5">{getNotificationIcon(notification)}</div>
                 <div className="flex-1 space-y-1">
                   <p className="text-sm font-medium">
-                    {run.ai_agents?.name || "Agent"} {run.status}
+                    {notification.name} {getStatusText(notification)}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {run.records_affected} of {run.records_processed} records affected
+                    {getRecordsText(notification)}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(run.started_at), { addSuffix: true })}
+                    {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
@@ -184,7 +298,7 @@ export function NotificationCenter() {
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => dismissNotification(run.id, e)}
+                    onClick={(e) => dismissNotification(notification.id, e)}
                   >
                     <X className="h-3 w-3" />
                   </Button>
@@ -197,7 +311,7 @@ export function NotificationCenter() {
             </div>
           )}
         </ScrollArea>
-        {recentRuns && recentRuns.length > 0 && dismissedIds.size > 0 && (
+        {allNotifications.length > 0 && dismissedIds.size > 0 && (
           <>
             <DropdownMenuSeparator />
             <div className="p-2 text-center">
