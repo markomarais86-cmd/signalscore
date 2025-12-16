@@ -184,7 +184,7 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { jobId, batchSize = 25, filters = {} } = await req.json();
+    const { jobId, batchSize = 500, filters = {} } = await req.json();
     console.log(`[enrich-ai-only] Starting AI-only enrichment, jobId: ${jobId}, batchSize: ${batchSize}`);
 
     const supabase = createClient(
@@ -366,8 +366,8 @@ serve(async (req) => {
         // Continue with next batch
       }
 
-      // Small delay between AI calls
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Rate limit delay between AI calls to prevent throttling
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     // Complete job

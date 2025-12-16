@@ -154,7 +154,8 @@ serve(async (req) => {
         description: "Enriching missing data improves scoring accuracy and campaign targeting.",
         metric: needsEnrichment,
         actions: [
-          { label: "Free AI Enrich", action: "enrich_ai_free", params: { batch_size: 100 } },
+          { label: "Enrich 500", action: "enrich_ai_free", params: { batch_size: 500 } },
+          { label: "Enrich All", action: "enrich_ai_free", params: { batch_size: 2000, enrich_all: true } },
           { label: "Smart Enrich", action: "enrich_accounts", params: {} },
         ],
         dismissible: true,
