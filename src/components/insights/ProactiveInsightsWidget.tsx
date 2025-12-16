@@ -97,18 +97,19 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
   const checkActiveEnrichmentJob = useCallback(async () => {
     if (!orgId) return;
     
+    // First check for active jobs (pending/processing)
     const { data: activeJob } = await supabase
       .from('enrichment_jobs')
-      .select('id, status, processed_records, total_records, enriched_records, last_progress_update')
+      .select('id, status, processed_records, total_records, enriched_records, last_progress_update, error_message')
       .eq('org_id', orgId)
       .eq('provider', 'ai_free')
       .in('status', ['pending', 'processing'])
+      .gt('total_records', 0) // Only valid jobs
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
     
     if (activeJob) {
-      // Check if job is stalled (no progress for 5+ minutes)
       const lastUpdate = activeJob.last_progress_update ? new Date(activeJob.last_progress_update) : null;
       const isStalled = activeJob.status === 'processing' && lastUpdate && 
         (new Date().getTime() - lastUpdate.getTime() > 5 * 60 * 1000);
@@ -121,6 +122,34 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
         enriched: activeJob.enriched_records || 0,
         lastProgressUpdate: activeJob.last_progress_update,
         isStalled
+      });
+      return;
+    }
+    
+    // Also check for paused jobs that need auto-resume
+    const { data: pausedJob } = await supabase
+      .from('enrichment_jobs')
+      .select('id, status, processed_records, total_records, enriched_records, last_progress_update, error_message')
+      .eq('org_id', orgId)
+      .eq('provider', 'ai_free')
+      .eq('status', 'paused')
+      .gt('total_records', 0)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    
+    if (pausedJob) {
+      const needsAutoResume = pausedJob.error_message?.includes('Auto-paused') || 
+                              pausedJob.error_message?.includes('stalled');
+      
+      setEnrichmentProgress({
+        jobId: pausedJob.id,
+        status: pausedJob.status,
+        processed: pausedJob.processed_records || 0,
+        total: pausedJob.total_records || 0,
+        enriched: pausedJob.enriched_records || 0,
+        lastProgressUpdate: pausedJob.last_progress_update,
+        isStalled: needsAutoResume // Trigger auto-resume for paused jobs that were auto-paused
       });
     }
   }, [orgId]);
