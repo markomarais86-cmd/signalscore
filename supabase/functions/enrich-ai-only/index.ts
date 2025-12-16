@@ -13,6 +13,8 @@ const CONFIDENCE_THRESHOLD = 60;   // Minimum confidence to apply
 const MAX_RETRIES = 3;
 const BASE_RETRY_DELAY = 1000;
 const RATE_LIMIT_DELAY = 500;      // Delay between concurrent batches
+const MAX_BATCH_SIZE = 100;        // Max accounts per function invocation (prevents timeout)
+const MAX_EXECUTION_MS = 45000;    // 45 second max execution time (leaves buffer before 60s timeout)
 
 // ============= Types =============
 interface AccountToEnrich {
@@ -406,8 +408,10 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { jobId, batchSize = 500, filters = {}, resumeFromCheckpoint = true } = await req.json();
-    console.log(`[enrich-ai-only] Starting AI enrichment, jobId: ${jobId}, batchSize: ${batchSize}, resume: ${resumeFromCheckpoint}`);
+    const { jobId, batchSize = 100, filters = {}, resumeFromCheckpoint = true } = await req.json();
+    // Enforce max batch size to prevent timeouts
+    const effectiveBatchSize = Math.min(batchSize, MAX_BATCH_SIZE);
+    console.log(`[enrich-ai-only] Starting AI enrichment, jobId: ${jobId}, batchSize: ${effectiveBatchSize} (requested: ${batchSize}), resume: ${resumeFromCheckpoint}`);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -469,7 +473,7 @@ serve(async (req) => {
       query = query.not("external_id", "in", `(${existingProgress.processed_account_ids.join(',')})`);
     }
 
-    const { data: accounts, error: accountsError } = await query.limit(batchSize);
+    const { data: accounts, error: accountsError } = await query.limit(effectiveBatchSize);
 
     if (accountsError) {
       throw new Error(`Failed to fetch accounts: ${accountsError.message}`);
@@ -514,10 +518,20 @@ serve(async (req) => {
     // Process batches with controlled concurrency
     const concurrentChunks = chunkArray(aiBatches, CONCURRENT_LIMIT);
     
+    let shouldPauseForTimeout = false;
+    
     for (let chunkIndex = 0; chunkIndex < concurrentChunks.length; chunkIndex++) {
+      // Check execution time before each chunk - auto-pause if approaching timeout
+      const elapsedMs = Date.now() - startTime;
+      if (elapsedMs > MAX_EXECUTION_MS) {
+        console.log(`[enrich-ai-only] Approaching timeout (${elapsedMs}ms elapsed), pausing job for resumption`);
+        shouldPauseForTimeout = true;
+        break;
+      }
+      
       const concurrentBatches = concurrentChunks[chunkIndex];
       
-      console.log(`[enrich-ai-only] Processing concurrent chunk ${chunkIndex + 1}/${concurrentChunks.length} (${concurrentBatches.length} parallel batches)`);
+      console.log(`[enrich-ai-only] Processing concurrent chunk ${chunkIndex + 1}/${concurrentChunks.length} (${concurrentBatches.length} parallel batches, ${elapsedMs}ms elapsed)`);
 
       // Process batches in parallel
       const batchPromises = concurrentBatches.map(batch => 
@@ -581,6 +595,42 @@ serve(async (req) => {
       if (chunkIndex < concurrentChunks.length - 1) {
         await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
       }
+    }
+    
+    // If pausing due to timeout, set job to paused state for auto-resume
+    if (shouldPauseForTimeout) {
+      const progress: JobProgress = {
+        processed_account_ids: Array.from(processedIds),
+        failed_accounts: allErrors,
+        last_processed_at: new Date().toISOString(),
+      };
+      
+      await supabase
+        .from("enrichment_jobs")
+        .update({
+          status: "paused",
+          paused_at: new Date().toISOString(),
+          can_pause: true,
+          processed_records: totalProcessed,
+          enriched_records: totalEnriched,
+          failed_records: allErrors.length,
+          last_progress_update: new Date().toISOString(),
+          error_message: "Auto-paused before timeout - will auto-resume",
+          agent_config: { ...job.agent_config, progress },
+        })
+        .eq("id", jobId);
+      
+      return new Response(JSON.stringify({
+        success: true,
+        status: "paused",
+        message: "Job paused before timeout, will auto-resume",
+        processed: totalProcessed,
+        enriched: totalEnriched,
+        duration_ms: Date.now() - startTime,
+        needs_resume: true,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
     }
 
     // Determine final status
