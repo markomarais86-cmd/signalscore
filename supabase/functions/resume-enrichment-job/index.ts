@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { updateHeartbeat, logRecoveryEvent } from '../_shared/job-heartbeat.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -54,15 +55,26 @@ serve(async (req) => {
       });
     }
 
-    // Update job status to processing
+    // Update job status to processing with heartbeat
     await supabase
       .from('enrichment_jobs')
       .update({ 
         status: 'processing', 
         paused_at: null,
-        last_progress_update: new Date().toISOString()
+        last_progress_update: new Date().toISOString(),
+        last_heartbeat: new Date().toISOString()
       })
       .eq('id', job_id);
+
+    // Log manual resume event
+    await logRecoveryEvent(supabase, {
+      jobId: job_id,
+      orgId: job.org_id,
+      recoveryType: 'manual_resume',
+      previousStatus: job.status,
+      newStatus: 'processing',
+      reason: 'Job manually resumed'
+    });
 
     // Reset any "processing" rows back to pending (they were interrupted)
     await supabase
@@ -107,9 +119,23 @@ serve(async (req) => {
         rows_completed: completedCount,
         rows_failed: failedCount,
         rows_pending: pendingCount,
-        enriched_records: completedCount
+        enriched_records: completedCount,
+        last_heartbeat: new Date().toISOString(),
+        error_message: timedOut ? 'Job paused due to timeout. Will auto-resume.' : null
       })
       .eq('id', job_id);
+
+    // Log timeout pause event if applicable
+    if (timedOut && pendingCount > 0) {
+      await logRecoveryEvent(supabase, {
+        jobId: job_id,
+        orgId: job.org_id,
+        recoveryType: 'timeout_pause',
+        previousStatus: 'processing',
+        newStatus: 'paused',
+        reason: `Job paused after timeout. ${pendingCount} rows pending.`
+      });
+    }
 
     console.log(`[Resume] Job ${job_id} ${finalStatus}: ${completedCount} success, ${failedCount} failed, ${pendingCount} pending`);
 
@@ -197,12 +223,18 @@ async function processRowsWithTimeLimit(
         }
       }
 
+      // Update progress with heartbeat
+      await updateHeartbeat(supabase, jobId, {
+        completed,
+        failed,
+        current_step: `Processing batch`
+      });
+      
       await supabase
         .from('enrichment_jobs')
         .update({
           rows_completed: completed,
-          rows_failed: failed,
-          last_progress_update: new Date().toISOString()
+          rows_failed: failed
         })
         .eq('id', jobId);
     }

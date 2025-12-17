@@ -239,3 +239,6 @@ verify_jwt = true
 
 [functions.generate-account-insights]
 verify_jwt = true
+
+[functions.job-auto-recovery]
+verify_jwt = false

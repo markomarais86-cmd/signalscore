@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { applyRateLimit } from "../_shared/rate-limit.ts";
+import { updateHeartbeat, logRecoveryEvent } from "../_shared/job-heartbeat.ts";
 
 // ============= Configuration =============
 const AI_BATCH_SIZE = 10;          // Accounts per AI call
@@ -449,13 +450,14 @@ serve(async (req) => {
       }
     }
 
-    // Update job status
+    // Update job status with heartbeat
     await supabase
       .from("enrichment_jobs")
       .update({ 
         status: "processing", 
         started_at: job.started_at || new Date().toISOString(),
         paused_at: null,
+        last_heartbeat: new Date().toISOString()
       })
       .eq("id", jobId);
 
@@ -588,6 +590,13 @@ serve(async (req) => {
         last_processed_at: new Date().toISOString(),
       };
 
+      // Update heartbeat and progress
+      await updateHeartbeat(supabase, jobId, {
+        processed: totalProcessed,
+        total: accounts.length + existingProgress.processed_account_ids.length,
+        current_step: `Processing batch ${chunkIndex + 1}/${concurrentChunks.length}`
+      });
+
       await supabase
         .from("enrichment_jobs")
         .update({
@@ -595,7 +604,6 @@ serve(async (req) => {
           enriched_records: totalEnriched,
           failed_records: allErrors.length,
           progress_percentage: Math.round((totalProcessed / (accounts.length + existingProgress.processed_account_ids.length)) * 100),
-          last_progress_update: new Date().toISOString(),
           agent_config: { ...job.agent_config, progress },
         })
         .eq("id", jobId);
@@ -624,10 +632,21 @@ serve(async (req) => {
           enriched_records: totalEnriched,
           failed_records: allErrors.length,
           last_progress_update: new Date().toISOString(),
+          last_heartbeat: new Date().toISOString(),
           error_message: "Auto-paused before timeout - will auto-resume",
           agent_config: { ...job.agent_config, progress },
         })
         .eq("id", jobId);
+
+      // Log timeout pause event
+      await logRecoveryEvent(supabase, {
+        jobId,
+        orgId: job.org_id,
+        recoveryType: 'timeout_pause',
+        previousStatus: 'processing',
+        newStatus: 'paused',
+        reason: `Auto-paused before timeout. ${totalProcessed} processed, ${allErrors.length} failed.`
+      });
       
       return new Response(JSON.stringify({
         success: true,

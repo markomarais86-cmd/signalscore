@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { applyIdempotency, recordIdempotencyKey, checkExistingJob, IDEMPOTENCY_TTL } from '../_shared/idempotency.ts';
+import { updateHeartbeat, createHeartbeatInterval, logRecoveryEvent } from '../_shared/job-heartbeat.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -205,10 +206,14 @@ serve(async (req) => {
       throw new Error(`Failed to create enrichment rows: ${rowsError.message}`);
     }
 
-    // Update job status to processing
+    // Update job status to processing with initial heartbeat
     await supabase
       .from('enrichment_jobs')
-      .update({ status: 'processing', started_at: new Date().toISOString() })
+      .update({ 
+        status: 'processing', 
+        started_at: new Date().toISOString(),
+        last_heartbeat: new Date().toISOString()
+      })
       .eq('id', job.id);
 
     // Process rows with chunked approach and time limit
@@ -247,9 +252,24 @@ serve(async (req) => {
         rows_failed: failedCount,
         rows_pending: pendingCount,
         enriched_records: completedCount,
-        contacts_discovered: contactsDiscovered
+        contacts_discovered: contactsDiscovered,
+        last_heartbeat: new Date().toISOString(),
+        error_message: timedOut ? 'Job paused due to timeout. Will auto-resume.' : null
       })
       .eq('id', job.id);
+
+    // Log recovery event if job was paused due to timeout
+    if (timedOut && pendingCount > 0) {
+      await logRecoveryEvent(supabase, {
+        jobId: job.id,
+        orgId: org_id,
+        recoveryType: 'timeout_pause',
+        previousStatus: 'processing',
+        newStatus: 'paused',
+        rowsRecovered: 0,
+        reason: `Job paused after ${Math.round((Date.now() - startTime) / 1000)}s. ${pendingCount} rows pending.`
+      });
+    }
 
     console.log(`[Orchestrator] Job ${job.id} ${finalStatus}: ${completedCount} success, ${failedCount} failed, ${pendingCount} pending, ${contactsDiscovered} contacts discovered`);
 
@@ -378,14 +398,21 @@ async function processRowsWithTimeLimit(
         }
       }
 
+      // Update progress with heartbeat
+      await updateHeartbeat(supabase, jobId, {
+        processed,
+        completed,
+        failed,
+        current_step: `Processing batch ${Math.ceil(processed / concurrency)}`
+      });
+      
       await supabase
         .from('enrichment_jobs')
         .update({
           processed_records: processed,
           rows_completed: completed,
           rows_failed: failed,
-          contacts_discovered: contactsDiscovered,
-          last_progress_update: new Date().toISOString()
+          contacts_discovered: contactsDiscovered
         })
         .eq('id', jobId);
     }
