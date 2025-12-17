@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,7 +10,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ICPProfile } from '@/types/icp';
+import { ConfidenceMeter } from './ConfidenceMeter';
 import { 
   Rocket, 
   Search, 
@@ -24,7 +27,8 @@ import {
   ExternalLink,
   Download,
   LinkIcon,
-  Clock
+  Clock,
+  CheckCircle2
 } from 'lucide-react';
 
 interface DiscoveredCompany {
@@ -392,120 +396,153 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
               )}
               <ScrollArea className="h-[400px]">
                 <div className="space-y-3">
-                  {result.companies.map((company) => (
-                    <div
-                      key={company.domain}
-                      className={`p-4 border rounded-lg transition-colors cursor-pointer ${
-                        selectedCompanies.has(company.domain)
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border hover:bg-muted/50'
-                      }`}
-                      onClick={() => toggleCompany(company.domain)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <Checkbox
-                          checked={selectedCompanies.has(company.domain)}
-                          onCheckedChange={() => toggleCompany(company.domain)}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className="font-semibold">{company.name}</h4>
-                            <a
-                              href={`https://${company.domain}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-primary hover:underline flex items-center gap-1"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {company.domain}
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                            <Badge variant="secondary" className="text-xs">
-                              {company.confidence}% match
-                            </Badge>
-                            {isRealTimeSearch && (
-                              <Badge variant="outline" className="text-xs text-green-600 border-green-600/30">
-                                <Globe className="h-3 w-3 mr-1" />
-                                Verified
-                              </Badge>
+                  {result.companies.map((company) => {
+                    const confidenceColor = company.confidence >= 90 
+                      ? 'border-green-500/30 bg-green-500/5' 
+                      : company.confidence >= 70 
+                        ? 'border-blue-500/30 bg-blue-500/5'
+                        : company.confidence >= 50 
+                          ? 'border-yellow-500/30 bg-yellow-500/5'
+                          : 'border-orange-500/30 bg-orange-500/5';
+                    
+                    return (
+                      <div
+                        key={company.domain}
+                        className={`p-4 border rounded-lg transition-all cursor-pointer ${
+                          selectedCompanies.has(company.domain)
+                            ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                            : `border-border hover:bg-muted/50 ${isRealTimeSearch ? confidenceColor : ''}`
+                        }`}
+                        onClick={() => toggleCompany(company.domain)}
+                      >
+                        <div className="flex items-start gap-3">
+                          <Checkbox
+                            checked={selectedCompanies.has(company.domain)}
+                            onCheckedChange={() => toggleCompany(company.domain)}
+                            className="mt-1"
+                          />
+                          
+                          <div className="flex-1 min-w-0">
+                            {/* Header with company name and verification status */}
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="font-semibold text-base">{company.name}</h4>
+                                  <a
+                                    href={`https://${company.domain}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs text-primary hover:underline flex items-center gap-1"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {company.domain}
+                                    <ExternalLink className="h-3 w-3" />
+                                  </a>
+                                </div>
+                                
+                                {/* Verification timestamp - prominent position */}
+                                {isRealTimeSearch && company.last_verified && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                          <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                                          <span className="text-xs font-medium text-green-600">
+                                            Verified {formatDistanceToNow(new Date(company.last_verified), { addSuffix: true })}
+                                          </span>
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="text-xs">
+                                          Last verified: {new Date(company.last_verified).toLocaleString()}
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </div>
+                              
+                              {/* Confidence Meter - prominent on the right */}
+                              <div className="flex-shrink-0">
+                                <ConfidenceMeter 
+                                  confidence={company.confidence} 
+                                  reason={company.discovery_reason}
+                                  size="md"
+                                />
+                              </div>
+                            </div>
+                            
+                            {/* Company details */}
+                            <div className="flex flex-wrap gap-2 mt-3 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Building2 className="h-3 w-3" />
+                                {company.industry}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                {company.employee_count.toLocaleString()} employees
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <DollarSign className="h-3 w-3" />
+                                {company.revenue_range}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Globe className="h-3 w-3" />
+                                {company.city ? `${company.city}, ` : ''}{company.country}
+                              </span>
+                            </div>
+
+                            {company.description && (
+                              <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+                                {company.description}
+                              </p>
+                            )}
+
+                            {company.tech_stack && company.tech_stack.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {company.tech_stack.slice(0, 5).map((tech, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-xs">
+                                    {tech}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Sources section for Perplexity results */}
+                            {company.sources && company.sources.length > 0 && (
+                              <div className="mt-3 pt-2 border-t border-border/50">
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                                  <LinkIcon className="h-3 w-3" />
+                                  <span>Sources:</span>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {company.sources.slice(0, 3).map((source, idx) => {
+                                    try {
+                                      const domain = new URL(source).hostname.replace('www.', '');
+                                      return (
+                                        <a
+                                          key={idx}
+                                          href={source}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-xs text-primary/70 hover:text-primary hover:underline"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          {domain}
+                                        </a>
+                                      );
+                                    } catch {
+                                      return null;
+                                    }
+                                  })}
+                                </div>
+                              </div>
                             )}
                           </div>
-                          
-                          <div className="flex flex-wrap gap-2 mt-2 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Building2 className="h-3 w-3" />
-                              {company.industry}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Users className="h-3 w-3" />
-                              {company.employee_count.toLocaleString()} employees
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <DollarSign className="h-3 w-3" />
-                              {company.revenue_range}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Globe className="h-3 w-3" />
-                              {company.city ? `${company.city}, ` : ''}{company.country}
-                            </span>
-                          </div>
-
-                          {company.description && (
-                            <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
-                              {company.description}
-                            </p>
-                          )}
-
-                          {company.tech_stack && company.tech_stack.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-2">
-                              {company.tech_stack.slice(0, 5).map((tech, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs">
-                                  {tech}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-
-                          <p className="text-xs text-primary/80 mt-2 italic">
-                            {company.discovery_reason}
-                          </p>
-
-                          {/* Sources section for Perplexity results */}
-                          {company.sources && company.sources.length > 0 && (
-                            <div className="mt-3 pt-2 border-t border-border/50">
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                                <LinkIcon className="h-3 w-3" />
-                                <span>Sources:</span>
-                              </div>
-                              <div className="flex flex-wrap gap-1">
-                                {company.sources.slice(0, 3).map((source, idx) => {
-                                  const domain = new URL(source).hostname.replace('www.', '');
-                                  return (
-                                    <a
-                                      key={idx}
-                                      href={source}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="text-xs text-primary/70 hover:text-primary hover:underline"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      {domain}
-                                    </a>
-                                  );
-                                })}
-                              </div>
-                              {company.last_verified && (
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-                                  <Clock className="h-3 w-3" />
-                                  <span>Verified: {new Date(company.last_verified).toLocaleDateString()}</span>
-                                </div>
-                              )}
-                            </div>
-                          )}
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </ScrollArea>
             </>
