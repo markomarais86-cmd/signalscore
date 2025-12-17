@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { formatNumber } from "@/utils/format-numbers";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { leadsLogger } from "@/lib/logger";
 import { Label } from "@/components/ui/label";
 import { HeroMetric } from "@/components/executive/HeroMetric";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
@@ -146,7 +147,7 @@ export default function Leads() {
     setIsMatching(true);
     
     try {
-      console.log('Starting fast SQL-based lead-to-account matching...');
+      leadsLogger.info('Starting fast SQL-based lead-to-account matching...');
       
       toast({
         title: "Matching Leads...",
@@ -159,11 +160,11 @@ export default function Leads() {
       });
 
       if (error) {
-        console.error('SQL function error:', error);
+        leadsLogger.error('SQL function error:', error);
         throw error;
       }
 
-      console.log('Matching result:', data);
+      leadsLogger.info('Matching result:', data);
       
       const result = data as { success: boolean; total_linked: number; matched_to_existing: number; new_accounts_created: number; failed: number };
       
@@ -179,7 +180,7 @@ export default function Leads() {
         throw new Error('Matching failed');
       }
     } catch (error) {
-      console.error('Error matching leads:', error);
+      leadsLogger.error('Error matching leads:', error);
       toast({
         title: "Matching Failed",
         description: error instanceof Error ? error.message : "Could not link leads to accounts.",
@@ -218,7 +219,7 @@ export default function Leads() {
         throw new Error('Scoring API not available');
       }
     } catch (error) {
-      console.error('Error rescoring account:', error);
+      leadsLogger.error('Error rescoring account:', error);
       toast({
         title: "Info",
         description: "Scoring API will be implemented soon",

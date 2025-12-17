@@ -4,6 +4,7 @@ import { ReactNode, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { DashboardSkeleton } from './DashboardSkeleton';
+import { authLogger } from '@/lib/logger';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -17,7 +18,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   // Phase B: Prefetch dashboard data as soon as user is authenticated
   useEffect(() => {
     if (user && userProfile?.org_id && location.pathname === '/') {
-      console.log('ProtectedRoute: Prefetching dashboard data');
+      authLogger.debug('Prefetching dashboard data');
       
       // Prefetch dashboard metrics
       queryClient.prefetchQuery({

@@ -6,6 +6,7 @@ import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, 
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { icpLogger } from "@/lib/logger";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { ICPWizard } from "@/components/icp/ICPWizard";
 import { ICPProfile } from "@/types/icp";
@@ -78,7 +79,7 @@ export default function ICPManager() {
       
       setIcps(typedData);
     } catch (error) {
-      console.error('Error loading ICPs:', error);
+      icpLogger.error('Error loading ICPs:', error);
       toast({
         title: "Error",
         description: "Failed to load ICP profiles",
@@ -107,7 +108,7 @@ export default function ICPManager() {
       toast({ title: "Success", description: "ICP profile deleted" });
       loadICPs();
     } catch (error) {
-      console.error('Error deleting ICP:', error);
+      icpLogger.error('Error deleting ICP:', error);
       toast({
         title: "Error",
         description: "Failed to delete ICP profile",
@@ -128,7 +129,7 @@ export default function ICPManager() {
     completeStep('create_icp');
     
     // Automatically trigger fast SQL-based re-scoring and Apollo sync
-    console.log("ICP saved successfully, triggering automatic re-scoring and Apollo sync...");
+    icpLogger.info("ICP saved successfully, triggering automatic re-scoring and Apollo sync...");
     if (userProfile?.org_id) {
       await triggerRescoring();
       await triggerApolloSync();
@@ -139,7 +140,7 @@ export default function ICPManager() {
     if (!userProfile?.org_id) return;
     
     try {
-      console.log('🔄 Syncing Apollo data with updated ICP...');
+      icpLogger.info('Syncing Apollo data with updated ICP...');
       
       const { data, error } = await supabase.functions.invoke('sync-external-provider', {
         body: {
@@ -149,7 +150,7 @@ export default function ICPManager() {
       });
 
       if (error) {
-        console.error('Apollo sync error:', error);
+        icpLogger.error('Apollo sync error:', error);
         // Don't show error toast - Apollo is optional
         return;
       }
@@ -164,7 +165,7 @@ export default function ICPManager() {
       });
       
     } catch (error) {
-      console.error('Apollo sync failed:', error);
+      icpLogger.error('Apollo sync failed:', error);
       // Silent fail - Apollo is optional feature
     }
   };
@@ -173,8 +174,8 @@ export default function ICPManager() {
     if (!userProfile?.org_id) return;
     
     try {
-      console.log('🚀 Starting automatic background rescoring...');
-      console.log('Invoking edge function with org_id:', userProfile.org_id);
+      icpLogger.info('Starting automatic background rescoring...');
+      icpLogger.debug('Invoking edge function with org_id:', userProfile.org_id);
       
       // Call edge function for background processing
       const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
@@ -197,8 +198,8 @@ export default function ICPManager() {
       pollScoringCompletion(data.job_id);
       
     } catch (error: any) {
-      console.error('❌ Scoring failed:', error);
-      console.error('Full error details:', JSON.stringify(error, null, 2));
+      icpLogger.error('Scoring failed:', error);
+      icpLogger.error('Full error details:', JSON.stringify(error, null, 2));
       toast({
         title: "Scoring Error",
         description: error.message || error.toString() || "Please try again",
@@ -263,7 +264,7 @@ export default function ICPManager() {
         });
       }
     } catch (error: any) {
-      console.error('Error generating AI recommendations:', error);
+      icpLogger.error('Error generating AI recommendations:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to generate AI recommendations",
