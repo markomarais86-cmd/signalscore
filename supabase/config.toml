@@ -263,3 +263,6 @@ verify_jwt = true
 
 [functions.resolve-firmographic-conflicts]
 verify_jwt = true
+
+[functions.ai-discover-accounts]
+verify_jwt = true
