@@ -1825,15 +1825,18 @@ export type Database = {
           estimated_completion_at: string | null
           failed_records: number | null
           filter_criteria: Json | null
+          heartbeat_interval_ms: number | null
           icp_criteria: Json | null
           id: string
           job_type: string
+          last_heartbeat: string | null
           last_progress_update: string | null
           org_id: string
           paused_at: string | null
           processed_records: number | null
           progress_percentage: number | null
           provider: string
+          recovery_count: number | null
           rows_completed: number | null
           rows_failed: number | null
           rows_pending: number | null
@@ -1864,15 +1867,18 @@ export type Database = {
           estimated_completion_at?: string | null
           failed_records?: number | null
           filter_criteria?: Json | null
+          heartbeat_interval_ms?: number | null
           icp_criteria?: Json | null
           id?: string
           job_type: string
+          last_heartbeat?: string | null
           last_progress_update?: string | null
           org_id: string
           paused_at?: string | null
           processed_records?: number | null
           progress_percentage?: number | null
           provider: string
+          recovery_count?: number | null
           rows_completed?: number | null
           rows_failed?: number | null
           rows_pending?: number | null
@@ -1903,15 +1909,18 @@ export type Database = {
           estimated_completion_at?: string | null
           failed_records?: number | null
           filter_criteria?: Json | null
+          heartbeat_interval_ms?: number | null
           icp_criteria?: Json | null
           id?: string
           job_type?: string
+          last_heartbeat?: string | null
           last_progress_update?: string | null
           org_id?: string
           paused_at?: string | null
           processed_records?: number | null
           progress_percentage?: number | null
           provider?: string
+          recovery_count?: number | null
           rows_completed?: number | null
           rows_failed?: number | null
           rows_pending?: number | null
@@ -2914,6 +2923,60 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "invitations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_recovery_log: {
+        Row: {
+          id: string
+          job_id: string | null
+          new_status: string | null
+          org_id: string | null
+          previous_status: string | null
+          reason: string | null
+          recovered_at: string | null
+          recovered_by: string | null
+          recovery_type: string
+          rows_recovered: number | null
+        }
+        Insert: {
+          id?: string
+          job_id?: string | null
+          new_status?: string | null
+          org_id?: string | null
+          previous_status?: string | null
+          reason?: string | null
+          recovered_at?: string | null
+          recovered_by?: string | null
+          recovery_type: string
+          rows_recovered?: number | null
+        }
+        Update: {
+          id?: string
+          job_id?: string | null
+          new_status?: string | null
+          org_id?: string | null
+          previous_status?: string | null
+          reason?: string | null
+          recovered_at?: string | null
+          recovered_by?: string | null
+          recovery_type?: string
+          rows_recovered?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_recovery_log_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "enrichment_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_recovery_log_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
