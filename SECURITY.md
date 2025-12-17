@@ -177,13 +177,34 @@ psql -h <your-db-host> -d postgres -f supabase/migrations/verify_security_fixes.
 | Issue | Severity | Status | Action Required |
 |-------|----------|--------|-----------------|
 | Function search paths | HIGH | ✅ FIXED | None (automated) |
-| Leaked password protection | HIGH | ✅ FIXED | None (configured 2025-12-07) |
-| OTP expiry too long | MEDIUM | ✅ FIXED | None (set to 1800s) |
+| Leaked password protection | HIGH | ⚠️ PENDING | Enable in dashboard |
+| OTP expiry too long | MEDIUM | ⚠️ PENDING | Reduce to 300s in dashboard |
 | Postgres upgrade available | MEDIUM | ⏳ PENDING | Scheduled maintenance |
 | pg_trgm in public | INFO | ✅ ACCEPTABLE | None (by design) |
 | Materialized views in API | INFO | ✅ SAFE | None (RLS protected) |
+| Leads table RLS | HIGH | ✅ SECURE | Proper org_id filtering |
 
-**Overall Security Rating:** 🟢 PRODUCTION READY
+**Overall Security Rating:** 🟡 REQUIRES DASHBOARD CONFIGURATION
+
+---
+
+## 🔧 P0 Critical Issues - Status
+
+### Stale Closure Fix (Code)
+**Status:** ✅ FIXED (2025-12-17)
+- **File:** `src/components/insights/ProactiveInsightsWidget.tsx`
+- **Issue:** setTimeout callbacks could access stale state values
+- **Fix:** Added useRef for state values, re-fetch job data inside setTimeout
+
+### Leads Table RLS 
+**Status:** ✅ VERIFIED SECURE
+- **Policies:** SELECT, INSERT, UPDATE, DELETE all filter by `org_id = get_current_user_org_id()`
+- **Note:** Security scan referenced "contacts" table which doesn't exist - actual data in "Leads" table is properly protected
+
+### Auth Settings (Dashboard)
+**Status:** ⚠️ REQUIRES MANUAL ACTION
+- **OTP Expiry:** Currently 86400s, should be 300s (5 min) for maximum security
+- **Leaked Password Protection:** Currently disabled, should be enabled
 
 ---
 
@@ -219,5 +240,5 @@ psql -h <your-db-host> -d postgres -f supabase/migrations/verify_security_fixes.
 
 ---
 
-**Last Updated:** 2025-10-27  
-**Next Review:** 2025-11-27
+**Last Updated:** 2025-12-17  
+**Next Review:** 2026-01-17
