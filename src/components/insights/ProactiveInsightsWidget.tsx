@@ -225,16 +225,28 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
         } else if (status.status === 'paused' && status.error_message?.includes('Auto-paused')) {
           // Job was auto-paused before timeout - auto-resume it
           console.log('[ProactiveInsightsWidget] Job auto-paused, triggering auto-resume...');
-          setEnrichmentProgress(prev => prev ? { ...prev, status: 'paused', isStalled: false } : null);
+          
+          // Capture jobId to avoid stale closure
+          const jobIdToResume = enrichmentProgress.jobId;
+          const totalRecords = status.total_records || enrichmentProgress.total;
+          
+          setEnrichmentProgress(prev => prev ? { 
+            ...prev, 
+            status: 'paused', 
+            isStalled: false,
+            processed: status.processed_records || prev.processed,
+            enriched: status.enriched_records || prev.enriched,
+          } : null);
           
           // Auto-resume after a short delay
           setTimeout(async () => {
             try {
+              console.log(`[ProactiveInsightsWidget] Auto-resuming job ${jobIdToResume}...`);
               const { error } = await supabase.functions.invoke('enrich-ai-only', {
                 body: { 
-                  jobId: enrichmentProgress.jobId, 
+                  jobId: jobIdToResume, 
                   resumeFromCheckpoint: true,
-                  batchSize: 100 // Use reduced batch size for reliability
+                  batchSize: totalRecords
                 }
               });
               if (error) console.error('Auto-resume failed:', error);
@@ -248,6 +260,9 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
           const isStalled = status.status === 'processing' && lastUpdate && 
             (new Date().getTime() - lastUpdate.getTime() > 5 * 60 * 1000);
           
+          // For paused jobs without auto-pause message, show as resumable
+          const isPausedAndResumable = status.status === 'paused';
+          
           setEnrichmentProgress({
             jobId: enrichmentProgress.jobId,
             status: status.status,
@@ -255,11 +270,11 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
             total: status.total_records || 0,
             enriched: status.enriched_records || 0,
             lastProgressUpdate: status.last_progress_update,
-            isStalled
+            isStalled: isStalled || isPausedAndResumable
           });
           
-          // Auto-resume stalled jobs
-          if (isStalled && !isStartingEnrichment) {
+          // Auto-resume stalled processing jobs (not manually paused ones)
+          if (isStalled && !isStartingEnrichment && status.status === 'processing') {
             console.log('[ProactiveInsightsWidget] Job stalled, triggering auto-resume...');
             resumeStalledJob();
           }
@@ -284,7 +299,25 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
   // Enhanced action handler that tracks enrichment progress
   const handleAction = async (action: string, params?: Record<string, any>) => {
     // Handle enrichment actions internally to track progress
-    if (action === 'enrich_ai_free' && !enrichmentProgress && !isStartingEnrichment) {
+    if (action === 'enrich_ai_free' && !isStartingEnrichment) {
+      // If there's already a paused job, resume it instead of creating a new one
+      if (enrichmentProgress && enrichmentProgress.status === 'paused') {
+        console.log('[ProactiveInsightsWidget] Resuming existing paused job...');
+        toast.info('Resuming existing enrichment job...', {
+          description: `Continuing from ${enrichmentProgress.processed}/${enrichmentProgress.total} processed`
+        });
+        resumeStalledJob();
+        return;
+      }
+      
+      // Don't create a new job if one is already running
+      if (enrichmentProgress && ['pending', 'processing'].includes(enrichmentProgress.status)) {
+        toast.info('Enrichment already in progress', {
+          description: `${enrichmentProgress.processed}/${enrichmentProgress.total} processed`
+        });
+        return;
+      }
+      
       setIsStartingEnrichment(true);
       try {
         const batchSize = params?.batch_size || 500;
@@ -450,11 +483,17 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
                 )}
                 {enrichmentProgress && (
                   <Badge className={`ml-1 ${
-                    enrichmentProgress.isStalled 
-                      ? 'bg-amber-500/20 text-amber-600' 
+                    enrichmentProgress.status === 'paused'
+                      ? 'bg-amber-500/20 text-amber-600'
+                      : enrichmentProgress.isStalled 
+                      ? 'bg-destructive/20 text-destructive' 
                       : 'bg-primary/20 text-primary animate-pulse'
                   }`}>
-                    {enrichmentProgress.isStalled ? '⚠️ Stalled' : 'Enriching...'}
+                    {enrichmentProgress.status === 'paused' 
+                      ? '⏸️ Paused' 
+                      : enrichmentProgress.isStalled 
+                      ? '⚠️ Stalled' 
+                      : 'Enriching...'}
                   </Badge>
                 )}
                 <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -479,24 +518,35 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
             {/* Active Enrichment Progress Banner */}
             {enrichmentProgress && (
               <div className={`p-3 rounded-lg border ${
-                enrichmentProgress.isStalled 
+                enrichmentProgress.status === 'paused'
                   ? 'bg-amber-500/5 border-amber-500/30' 
+                  : enrichmentProgress.isStalled
+                  ? 'bg-destructive/5 border-destructive/30'
                   : 'bg-primary/5 border-primary/20'
               }`}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    {enrichmentProgress.isStalled ? (
+                    {enrichmentProgress.status === 'paused' ? (
                       <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    ) : enrichmentProgress.isStalled ? (
+                      <AlertTriangle className="h-4 w-4 text-destructive" />
                     ) : (
                       <Loader2 className="h-4 w-4 animate-spin text-primary" />
                     )}
                     <span className="font-medium text-sm">
-                      {enrichmentProgress.isStalled 
+                      {enrichmentProgress.status === 'paused'
+                        ? 'Enrichment Paused'
+                        : enrichmentProgress.isStalled 
                         ? 'Enrichment Stalled' 
                         : 'AI Enrichment in Progress'}
                     </span>
-                    {enrichmentProgress.isStalled && (
+                    {enrichmentProgress.status === 'paused' && (
                       <Badge variant="outline" className="text-amber-600 border-amber-500/50">
+                        {enrichmentProgress.total - enrichmentProgress.processed} remaining
+                      </Badge>
+                    )}
+                    {enrichmentProgress.isStalled && enrichmentProgress.status !== 'paused' && (
+                      <Badge variant="outline" className="text-destructive border-destructive/50">
                         No progress for 5+ min
                       </Badge>
                     )}
@@ -519,7 +569,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
                       : 0}%
                   </span>
                 </div>
-                {enrichmentProgress.isStalled && (
+                {(enrichmentProgress.status === 'paused' || enrichmentProgress.isStalled) && (
                   <div className="mt-3 flex items-center gap-2">
                     <Button
                       size="sm"
@@ -540,7 +590,9 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
                       )}
                     </Button>
                     <span className="text-xs text-muted-foreground">
-                      Edge function may have timed out
+                      {enrichmentProgress.status === 'paused' 
+                        ? 'Click to continue processing'
+                        : 'Edge function may have timed out'}
                     </span>
                   </div>
                 )}
