@@ -1,10 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { 
+  successResponse, 
+  errorResponse, 
+  handleCors, 
+  parseJsonBody,
+  validateRequired,
+  ErrorCodes 
+} from "../_shared/response-helpers.ts";
 
 interface ProactiveInsight {
   id: string;
@@ -21,9 +24,9 @@ interface ProactiveInsight {
 }
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  // Handle CORS preflight
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
 
   try {
     const supabase = createClient(
@@ -31,15 +34,18 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { org_id } = await req.json();
+    const body = await parseJsonBody<{ org_id: string }>(req);
+    const validation = validateRequired(body, ['org_id']);
     
-    if (!org_id) {
-      return new Response(JSON.stringify({ error: "org_id required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!validation.valid) {
+      return errorResponse(
+        ErrorCodes.VALIDATION_ERROR,
+        `Missing required fields: ${validation.missing.join(', ')}`,
+        400
+      );
     }
 
+    const { org_id } = body!;
     console.log(`[Proactive Insights] Generating insights for org: ${org_id}`);
 
     const insights: ProactiveInsight[] = [];
@@ -248,21 +254,18 @@ serve(async (req) => {
 
     console.log(`[Proactive Insights] Generated ${insights.length} insights, ${agentActivity.length} agent activities`);
 
-    return new Response(JSON.stringify({
+    return successResponse({
       insights,
       agent_activity: agentActivity,
       pipeline_stats: pipelineStats,
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
   } catch (error) {
     console.error("[Proactive Insights] Error:", error);
-    return new Response(JSON.stringify({
-      error: error instanceof Error ? error.message : "Unknown error",
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return errorResponse(
+      ErrorCodes.INTERNAL_ERROR,
+      error instanceof Error ? error.message : "Unknown error",
+      500
+    );
   }
 });

@@ -23,6 +23,7 @@ import { AccountDetailDrawer } from "@/components/accounts/AccountDetailDrawer";
 import { BulkScoring } from "@/components/BulkScoring";
 import { CorrelationInsights } from "@/components/CorrelationInsights";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ComponentErrorBoundary } from "@/components/ComponentErrorBoundary";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import { getSourceLabel, getSourceBadgeVariant } from "@/utils/data-source-attribution";
@@ -32,6 +33,7 @@ import { TableSkeleton } from "@/components/TableSkeleton";
 import { useInfiniteAccounts } from "@/hooks/use-infinite-accounts";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { InfiniteScrollTrigger } from "@/components/InfiniteScrollTrigger";
+import { accountsLogger } from "@/lib/logger";
 
 interface Account {
   id: string;
@@ -388,7 +390,7 @@ export default function Accounts() {
         databaseAccounts: filteredDbCount
       });
     } catch (error) {
-      console.error('Error loading summary stats:', error);
+      accountsLogger.error('Error loading summary stats:', error);
     }
   };
 
@@ -486,7 +488,7 @@ export default function Accounts() {
 
         exportCSVData(fullAccounts, exportAll);
       } catch (error) {
-        console.error('Error exporting all accounts:', error);
+        accountsLogger.error('Error exporting all accounts:', error);
         toast({
           title: "Export failed",
           description: "Failed to fetch all accounts",
@@ -593,7 +595,7 @@ export default function Accounts() {
         description: `${formatNumber(leads.length)} leads from ${formatNumber(dataToExport.length)} accounts exported to CSV`
       });
     } catch (error) {
-      console.error('Export error:', error);
+      accountsLogger.error('Export error:', error);
       toast({
         title: "Export Failed",
         description: "Failed to export leads. Please try again.",

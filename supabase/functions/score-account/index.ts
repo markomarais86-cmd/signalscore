@@ -1,10 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { 
+  successResponse, 
+  errorResponse, 
+  handleCors, 
+  parseJsonBody,
+  validateRequired,
+  ErrorCodes 
+} from "../_shared/response-helpers.ts";
 
 interface ScoreRequest {
   org_id: string;
@@ -14,19 +17,23 @@ interface ScoreRequest {
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  // Handle CORS preflight
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
 
   try {
-    const { org_id, account_external_id, icp_id, version_hint }: ScoreRequest = await req.json();
+    const body = await parseJsonBody<ScoreRequest>(req);
+    const validation = validateRequired(body, ['org_id', 'account_external_id']);
 
-    if (!org_id || !account_external_id) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields: org_id and account_external_id' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+    if (!validation.valid) {
+      return errorResponse(
+        ErrorCodes.VALIDATION_ERROR,
+        `Missing required fields: ${validation.missing.join(', ')}`,
+        400
       );
     }
+
+    const { org_id, account_external_id, icp_id } = body!;
 
     // Initialize Supabase client
     const supabase = createClient(
@@ -200,36 +207,27 @@ serve(async (req) => {
 
     console.log('Score stored successfully');
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        overall: bestScore.overall,
-        band: bestScore.band,
-        confidence: bestScore.confidence,
-        components: {
-          fit: bestScore.fit,
-          intent: bestScore.intent,
-          reachability: bestScore.reachability
-        },
-        breakdown: bestScore.breakdown || {},
-        icp_id: bestIcpId,
-        scoring_version: scoringVersion,
-        computed_at: new Date().toISOString()
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
-    );
+    return successResponse({
+      overall: bestScore.overall,
+      band: bestScore.band,
+      confidence: bestScore.confidence,
+      components: {
+        fit: bestScore.fit,
+        intent: bestScore.intent,
+        reachability: bestScore.reachability
+      },
+      breakdown: bestScore.breakdown || {},
+      icp_id: bestIcpId,
+      scoring_version: scoringVersion,
+      computed_at: new Date().toISOString()
+    });
 
   } catch (error) {
     console.error('Error:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
+    return errorResponse(
+      ErrorCodes.SCORING_FAILED,
+      error instanceof Error ? error.message : 'Unknown scoring error',
+      500
     );
   }
 });

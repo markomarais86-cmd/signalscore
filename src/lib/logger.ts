@@ -92,5 +92,7 @@ export const authLogger = logger.scope('Auth');
 export const enrichmentLogger = logger.scope('Enrichment');
 export const scoringLogger = logger.scope('Scoring');
 export const apiLogger = logger.scope('API');
+export const accountsLogger = logger.scope('Accounts');
+export const insightsLogger = logger.scope('Insights');
 
 export default logger;

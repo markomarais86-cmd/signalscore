@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCursorPagination } from './use-cursor-pagination';
 import { useToast } from './use-toast';
+import { logger } from '@/lib/logger';
 
 interface Account {
   id: string;
@@ -98,7 +99,7 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
               try {
                 const { data, timestamp } = JSON.parse(cached);
                 if (Date.now() - timestamp < CACHE_TTL) {
-                  console.log('Using cached real-time data');
+                  logger.debug('Using cached real-time data');
                   pagination.setItems(data.accounts);
                   pagination.setCursor(data.cursor);
                   pagination.setHasMore(data.hasMore);
@@ -107,7 +108,7 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
                   return;
                 }
               } catch (e) {
-                console.error('Cache parse error:', e);
+                logger.error('Cache parse error:', e);
               }
             }
           }
@@ -224,7 +225,7 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
         }
 
         // Use database function for filtering
-        console.log('[useInfiniteAccounts] Calling get_filtered_accounts with params:', {
+        logger.debug('[useInfiniteAccounts] Calling get_filtered_accounts with params:', {
           p_org_id: orgId,
           p_cursor: isLoadingMore ? pagination.state.cursor : null,
           p_limit: pageSize,
@@ -237,8 +238,8 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
           p_campaign_ready: campaignReadyFilter || false,
         });
         
-        // @ts-ignore - Type will be available after regenerating Supabase types
-        const { data, error } = await supabase.rpc('get_filtered_accounts', {
+        // RPC call - type inference works via Supabase's generated types
+        const { data, error } = await supabase.rpc('get_filtered_accounts' as any, {
           p_org_id: orgId,
           p_cursor: isLoadingMore ? pagination.state.cursor : null,
           p_limit: pageSize,
@@ -251,13 +252,13 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
           p_campaign_ready: campaignReadyFilter || false,
         });
 
-        console.log('[useInfiniteAccounts] RPC result:', { 
+        logger.debug('[useInfiniteAccounts] RPC result:', { 
           dataType: Array.isArray(data) ? 'array' : typeof data,
           dataLength: Array.isArray(data) ? data.length : 'not an array',
           error 
         });
         if (error) {
-          console.error('[useInfiniteAccounts] RPC error:', error);
+          logger.error('[useInfiniteAccounts] RPC error:', error);
           throw error;
         }
 
@@ -345,7 +346,7 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
           }
         }
       } catch (error: any) {
-        console.error('Error loading accounts:', error);
+        logger.error('Error loading accounts:', error);
         pagination.setError(error);
         setLastError(error);
         
