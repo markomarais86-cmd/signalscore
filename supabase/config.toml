@@ -257,3 +257,9 @@ verify_jwt = true
 
 [functions.prediction-service]
 verify_jwt = true
+
+[functions.enrich-hq-address]
+verify_jwt = true
+
+[functions.resolve-firmographic-conflicts]
+verify_jwt = true
