@@ -16,6 +16,42 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Pending job threshold - jobs pending for longer than this should be auto-started
+const PENDING_JOB_THRESHOLD_MS = 120000; // 2 minutes
+
+interface PendingJob {
+  id: string;
+  org_id: string;
+  status: string;
+  created_at: string;
+  total_records: number | null;
+}
+
+/**
+ * Detect pending jobs that should be auto-started
+ */
+async function detectPendingJobs(
+  supabase: any,
+  thresholdMs: number = PENDING_JOB_THRESHOLD_MS
+): Promise<PendingJob[]> {
+  const threshold = new Date(Date.now() - thresholdMs).toISOString();
+  
+  const { data, error } = await supabase
+    .from('enrichment_jobs')
+    .select('id, org_id, status, created_at, total_records')
+    .eq('status', 'pending')
+    .lt('created_at', threshold)
+    .order('created_at', { ascending: true })
+    .limit(10); // Process up to 10 pending jobs at a time
+
+  if (error) {
+    console.error('[AutoRecovery] Failed to detect pending jobs:', error.message);
+    return [];
+  }
+
+  return data || [];
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -31,6 +67,8 @@ serve(async (req) => {
     );
 
     const results = {
+      pending_jobs_found: 0,
+      pending_jobs_started: 0,
       stale_jobs_found: 0,
       stale_jobs_paused: 0,
       stale_jobs_failed: 0,
@@ -39,6 +77,59 @@ serve(async (req) => {
       jobs_failed_max_retries: 0,
       errors: [] as string[],
     };
+
+    // Step 0: Find and auto-start pending jobs (NEW!)
+    console.log('[AutoRecovery] Checking for pending jobs to auto-start...');
+    const pendingJobs = await detectPendingJobs(supabase, PENDING_JOB_THRESHOLD_MS);
+    results.pending_jobs_found = pendingJobs.length;
+
+    for (const job of pendingJobs) {
+      try {
+        console.log(`[AutoRecovery] Auto-starting pending job ${job.id} (${job.total_records || 'unknown'} records)...`);
+        
+        // Update job status to processing
+        const { error: updateError } = await supabase
+          .from('enrichment_jobs')
+          .update({
+            status: 'processing',
+            started_at: new Date().toISOString(),
+            last_heartbeat: new Date().toISOString(),
+          })
+          .eq('id', job.id)
+          .eq('status', 'pending'); // Only update if still pending
+
+        if (updateError) {
+          results.errors.push(`Failed to update job ${job.id}: ${updateError.message}`);
+          continue;
+        }
+
+        // Invoke the enrichment function
+        const response = await fetch(
+          `${Deno.env.get('SUPABASE_URL')}/functions/v1/enrich-ai-only`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            },
+            body: JSON.stringify({ jobId: job.id, batchSize: 100 }),
+          }
+        );
+
+        if (response.ok) {
+          results.pending_jobs_started++;
+          console.log(`[AutoRecovery] Successfully auto-started job ${job.id}`);
+        } else {
+          const errorText = await response.text();
+          results.errors.push(`Failed to invoke enrichment for job ${job.id}: ${errorText}`);
+          console.error(`[AutoRecovery] Failed to invoke enrichment for job ${job.id}: ${errorText}`);
+        }
+      } catch (error) {
+        const errorMsg = `Failed to auto-start job ${job.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        results.errors.push(errorMsg);
+        console.error(`[AutoRecovery] ${errorMsg}`);
+      }
+    }
 
     // Step 1: Find and handle stale "processing" jobs (no heartbeat for 2+ minutes)
     console.log('[AutoRecovery] Checking for stale processing jobs...');
