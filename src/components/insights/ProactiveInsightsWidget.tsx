@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { enrichmentLogger as log } from "@/lib/logger";
 
 interface ProactiveInsight {
   id: string;
@@ -99,7 +100,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
       setAgentActivity(data?.agent_activity || []);
       setPipelineStats(data?.pipeline_stats || null);
     } catch (err) {
-      console.error('Failed to fetch proactive insights:', err);
+      log.error('Failed to fetch proactive insights:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -240,7 +241,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
           toast.error('Enrichment failed');
         } else if (status.status === 'paused' && status.error_message?.includes('Auto-paused')) {
           // Job was auto-paused before timeout - auto-resume it
-          console.log('[ProactiveInsightsWidget] Job auto-paused, triggering auto-resume...');
+          log.info('Job auto-paused, triggering auto-resume...');
           
           setEnrichmentProgress(prev => prev ? { 
             ...prev, 
@@ -262,7 +263,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
               
               const totalRecords = freshJob?.total_records || status.total_records || 500;
               
-              console.log(`[ProactiveInsightsWidget] Auto-resuming job ${currentJobId}...`);
+              log.info(`Auto-resuming job ${currentJobId}...`);
               const { error } = await supabase.functions.invoke('enrich-ai-only', {
                 body: { 
                   jobId: currentJobId, 
@@ -270,9 +271,9 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
                   batchSize: totalRecords
                 }
               });
-              if (error) console.error('Auto-resume failed:', error);
+              if (error) log.error('Auto-resume failed:', error);
             } catch (err) {
-              console.error('Auto-resume error:', err);
+              log.error('Auto-resume error:', err);
             }
           }, 2000);
         } else {
@@ -297,7 +298,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
           // Auto-resume stalled processing jobs (not manually paused ones)
           // Use ref to get current value and avoid stale closure
           if (isStalled && !isStartingEnrichmentRef.current && status.status === 'processing') {
-            console.log('[ProactiveInsightsWidget] Job stalled, triggering auto-resume...');
+            log.info('Job stalled, triggering auto-resume...');
             resumeStalledJob();
           }
         }
@@ -324,7 +325,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
     if (action === 'enrich_ai_free' && !isStartingEnrichment) {
       // If there's already a paused job, resume it instead of creating a new one
       if (enrichmentProgress && enrichmentProgress.status === 'paused') {
-        console.log('[ProactiveInsightsWidget] Resuming existing paused job...');
+        log.info('Resuming existing paused job...');
         toast.info('Resuming existing enrichment job...', {
           description: `Continuing from ${enrichmentProgress.processed}/${enrichmentProgress.total} processed`
         });

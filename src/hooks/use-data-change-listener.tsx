@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './use-auth';
+import { realtimeLogger as log } from '@/lib/logger';
 
 interface DataChangeListenerOptions {
   onAccountsChanged?: () => void;
@@ -22,8 +23,27 @@ export function useDataChangeListener({
   const { userProfile } = useAuth();
   const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
   const lastTriggerTimes = useRef<Record<string, number>>({});
+  
+  // Use refs for callbacks to avoid re-subscriptions when callbacks change
+  const onAccountsChangedRef = useRef(onAccountsChanged);
+  const onScoringCompletedRef = useRef(onScoringCompleted);
+  const onEnrichmentCompletedRef = useRef(onEnrichmentCompleted);
+  
+  // Keep refs in sync
+  useEffect(() => {
+    onAccountsChangedRef.current = onAccountsChanged;
+  }, [onAccountsChanged]);
+  
+  useEffect(() => {
+    onScoringCompletedRef.current = onScoringCompleted;
+  }, [onScoringCompleted]);
+  
+  useEffect(() => {
+    onEnrichmentCompletedRef.current = onEnrichmentCompleted;
+  }, [onEnrichmentCompleted]);
 
-  const debouncedCallback = useCallback((key: string, callback?: () => void) => {
+  const debouncedCallback = useCallback((key: string, callbackRef: React.MutableRefObject<(() => void) | undefined>) => {
+    const callback = callbackRef.current;
     if (!callback) return;
 
     // Clear existing timer
@@ -39,13 +59,13 @@ export function useDataChangeListener({
     if (timeSinceLastTrigger < 30000) {
       // Too soon, just debounce
       debounceTimers.current[key] = setTimeout(() => {
-        callback();
+        callbackRef.current?.();
         lastTriggerTimes.current[key] = Date.now();
       }, debounceMs);
     } else {
       // It's been a while, trigger immediately but still debounce future calls
       debounceTimers.current[key] = setTimeout(() => {
-        callback();
+        callbackRef.current?.();
         lastTriggerTimes.current[key] = Date.now();
       }, debounceMs);
     }
@@ -54,7 +74,10 @@ export function useDataChangeListener({
   useEffect(() => {
     if (!userProfile?.org_id) return;
 
-    console.log('[DataChangeListener] Setting up realtime subscriptions for org:', userProfile.org_id);
+    log.info('Setting up realtime subscriptions for org:', userProfile.org_id);
+
+    // Track mounted state to prevent state updates after unmount
+    let isMounted = true;
 
     // Listen for account changes (inserts/updates)
     const accountsChannel = supabase
@@ -68,17 +91,18 @@ export function useDataChangeListener({
           filter: `org_id=eq.${userProfile.org_id}`
         },
         (payload) => {
-          console.log('[DataChangeListener] Account change detected:', payload.eventType);
+          if (!isMounted) return;
+          log.debug('Account change detected:', payload.eventType);
           if (payload.eventType === 'INSERT') {
-            debouncedCallback('accounts-insert', onAccountsChanged);
+            debouncedCallback('accounts-insert', onAccountsChangedRef);
           } else if (payload.eventType === 'UPDATE' && (payload.new as any).propensity_score !== (payload.old as any)?.propensity_score) {
             // Score was updated
-            debouncedCallback('accounts-score', onAccountsChanged);
+            debouncedCallback('accounts-score', onAccountsChangedRef);
           }
         }
       )
       .subscribe((status) => {
-        console.log('[DataChangeListener] Accounts channel status:', status);
+        log.debug('Accounts channel status:', status);
       });
 
     // Listen for bulk scoring job completions
@@ -93,19 +117,20 @@ export function useDataChangeListener({
           filter: `org_id=eq.${userProfile.org_id}`
         },
         (payload) => {
+          if (!isMounted) return;
           const newStatus = (payload.new as any).status;
           const oldStatus = (payload.old as any)?.status;
           
-          console.log('[DataChangeListener] Scoring job status change:', { oldStatus, newStatus });
+          log.debug('Scoring job status change:', { oldStatus, newStatus });
           
           if (oldStatus !== 'completed' && newStatus === 'completed') {
-            console.log('[DataChangeListener] Scoring job completed, triggering refresh');
-            debouncedCallback('scoring-completed', onScoringCompleted);
+            log.info('Scoring job completed, triggering refresh');
+            debouncedCallback('scoring-completed', onScoringCompletedRef);
           }
         }
       )
       .subscribe((status) => {
-        console.log('[DataChangeListener] Scoring jobs channel status:', status);
+        log.debug('Scoring jobs channel status:', status);
       });
 
     // Listen for enrichment job completions
@@ -120,24 +145,26 @@ export function useDataChangeListener({
           filter: `org_id=eq.${userProfile.org_id}`
         },
         (payload) => {
+          if (!isMounted) return;
           const newStatus = (payload.new as any).status;
           const oldStatus = (payload.old as any)?.status;
           
-          console.log('[DataChangeListener] Enrichment job status change:', { oldStatus, newStatus });
+          log.debug('Enrichment job status change:', { oldStatus, newStatus });
           
           if (oldStatus !== 'completed' && newStatus === 'completed') {
-            console.log('[DataChangeListener] Enrichment job completed, triggering refresh');
-            debouncedCallback('enrichment-completed', onEnrichmentCompleted);
+            log.info('Enrichment job completed, triggering refresh');
+            debouncedCallback('enrichment-completed', onEnrichmentCompletedRef);
           }
         }
       )
       .subscribe((status) => {
-        console.log('[DataChangeListener] Enrichment jobs channel status:', status);
+        log.debug('Enrichment jobs channel status:', status);
       });
 
     // Cleanup
     return () => {
-      console.log('[DataChangeListener] Cleaning up subscriptions');
+      log.debug('Cleaning up subscriptions');
+      isMounted = false;
       supabase.removeChannel(accountsChannel);
       supabase.removeChannel(scoringChannel);
       supabase.removeChannel(enrichmentChannel);
@@ -146,7 +173,7 @@ export function useDataChangeListener({
       Object.values(debounceTimers.current).forEach(timer => clearTimeout(timer));
       debounceTimers.current = {};
     };
-  }, [userProfile?.org_id, debouncedCallback, onAccountsChanged, onScoringCompleted, onEnrichmentCompleted]);
+  }, [userProfile?.org_id, debouncedCallback]); // Removed callback dependencies
 
   // Cleanup timers on unmount
   useEffect(() => {

@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { formatNumber } from "@/utils/format-numbers";
+import { scoringLogger as log } from "@/lib/logger";
 
 interface BulkScoringProps {
   onComplete?: () => void;
@@ -43,12 +44,25 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
   // Use refs for synchronous locking (prevents race conditions)
   const isInvokingChunk = useRef(false);
   const lastTriggeredChunk = useRef(-1);
+  
+  // Use ref for onComplete to avoid re-subscriptions
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+  
+  // Track mounted state to prevent state updates after unmount
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   // Real-time subscription to job status + polling backup
   useEffect(() => {
     if (!userProfile?.org_id || !isScoring) return;
 
-    console.log('[Realtime] Subscribing to bulk_scoring_jobs changes');
+    log.info('Subscribing to bulk_scoring_jobs changes');
 
     const channel = supabase
       .channel('bulk-scoring-updates')
@@ -61,9 +75,11 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           filter: `org_id=eq.${userProfile.org_id}`
         },
         async (payload) => {
+          if (!mountedRef.current) return;
+          
           const job = payload.new as ScoringJob;
           
-          console.log('[Realtime] Update:', {
+          log.debug('Update:', {
             status: job?.status,
             current_chunk: job?.current_chunk,
             processed: job?.processed_accounts,
@@ -73,7 +89,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           });
           
           if (!job || !['pending', 'processing', 'completed'].includes(job.status)) {
-            console.log('[Realtime] Ignoring job with status:', job?.status);
+            log.debug('Ignoring job with status:', job?.status);
             return;
           }
 
@@ -83,14 +99,16 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
             ? Math.min(100, (safeProcessed / job.total_accounts) * 100)
             : 0;
           
-          setCurrentJob(job);
-          setProgress(progressPercent);
+          if (mountedRef.current) {
+            setCurrentJob(job);
+            setProgress(progressPercent);
+          }
 
           // Use current_chunk from database (already incremented by edge function)
           const nextChunkIndex = job.current_chunk;
           const isLastChunk = nextChunkIndex >= job.total_chunks;
           
-          console.log('[Realtime] Chunk decision:', {
+          log.debug('Chunk decision:', {
             nextChunkIndex,
             isLastChunk,
             shouldTrigger: !isLastChunk && job.status === "processing" && !isInvokingChunk.current && nextChunkIndex > lastTriggeredChunk.current
@@ -102,7 +120,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
             !isInvokingChunk.current && 
             nextChunkIndex > lastTriggeredChunk.current
           ) {
-            console.log(`[Trigger] Starting chunk ${nextChunkIndex} of ${job.total_chunks - 1}`);
+            log.info(`Starting chunk ${nextChunkIndex} of ${job.total_chunks - 1}`);
             
             isInvokingChunk.current = true;
             lastTriggeredChunk.current = nextChunkIndex;
@@ -116,9 +134,9 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
                   chunk_size: 5000,
                 },
               });
-              console.log('[Trigger] Result:', result);
+              log.debug('Trigger result:', result);
             } catch (error) {
-              console.error(`[Error] Chunk ${nextChunkIndex}:`, error);
+              log.error(`Chunk ${nextChunkIndex} error:`, error);
               isInvokingChunk.current = false;
             } finally {
               setTimeout(() => { isInvokingChunk.current = false; }, 1000);
@@ -127,9 +145,11 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
 
           // Handle completion
           if (job.status === "completed") {
-            console.log('[Realtime] Job completed');
-            setIsScoring(false);
-            setProgress(100);
+            log.info('Job completed');
+            if (mountedRef.current) {
+              setIsScoring(false);
+              setProgress(100);
+            }
 
             // Fetch final statistics
             const { count: totalAccounts } = await supabase
@@ -150,15 +170,17 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
               ? Math.round(scores.reduce((sum, s) => sum + (s.overall || 0), 0) / scoredCount)
               : 0;
 
-            setStats({
-              total: totalAccounts || 0,
-              completed: job.successful_scores,
-              avgScore,
-              failures: job.failed_scores,
-              scoredAccounts: scoredCount,
-              unscoredAccounts: unscoredCount,
-              scoringCoverage: coveragePercent,
-            });
+            if (mountedRef.current) {
+              setStats({
+                total: totalAccounts || 0,
+                completed: job.successful_scores,
+                avgScore,
+                failures: job.failed_scores,
+                scoredAccounts: scoredCount,
+                unscoredAccounts: unscoredCount,
+                scoringCoverage: coveragePercent,
+              });
+            }
 
             // Record data quality snapshot
             await supabase.rpc('record_data_quality_snapshot', {
@@ -166,7 +188,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
             });
 
             toast.success(`Successfully scored ${formatNumber(scoredCount)} accounts!`);
-            onComplete?.();
+            onCompleteRef.current?.();
           }
         }
       )
@@ -174,6 +196,8 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
 
     // POLLING BACKUP: Poll every 2 seconds as fallback
     const pollInterval = setInterval(async () => {
+      if (!mountedRef.current) return;
+      
       const { data: activeJob, error } = await supabase
         .from('bulk_scoring_jobs')
         .select('*')
@@ -185,7 +209,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
 
       // No active jobs means the job completed
       if (error?.code === 'PGRST116' || !activeJob) {
-        console.log('[Polling] No active jobs - checking for completion');
+        log.debug('No active jobs - checking for completion');
         
         // Fetch the most recent job to see if it completed
         const { data: lastJob } = await supabase
@@ -196,8 +220,8 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           .limit(1)
           .single();
 
-        if (lastJob?.status === 'completed') {
-          console.log('[Polling] Job completed successfully');
+        if (lastJob?.status === 'completed' && mountedRef.current) {
+          log.info('Job completed successfully');
           setIsScoring(false);
           setProgress(100);
           
@@ -220,25 +244,27 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
             ? Math.round(scores.reduce((sum, s) => sum + (s.overall || 0), 0) / scoredCount)
             : 0;
 
-          setStats({
-            total: totalAccounts || 0,
-            completed: lastJob.successful_scores,
-            avgScore,
-            failures: lastJob.failed_scores,
-            scoredAccounts: scoredCount,
-            unscoredAccounts: unscoredCount,
-            scoringCoverage: coveragePercent,
-          });
+          if (mountedRef.current) {
+            setStats({
+              total: totalAccounts || 0,
+              completed: lastJob.successful_scores,
+              avgScore,
+              failures: lastJob.failed_scores,
+              scoredAccounts: scoredCount,
+              unscoredAccounts: unscoredCount,
+              scoringCoverage: coveragePercent,
+            });
+          }
 
           toast.success(`Successfully scored ${formatNumber(scoredCount)} accounts!`);
-          onComplete?.();
+          onCompleteRef.current?.();
           clearInterval(pollInterval);
         }
         return;
       }
 
-      if (activeJob) {
-        console.log('[Polling] Job state:', {
+      if (activeJob && mountedRef.current) {
+        log.debug('Job state:', {
           current_chunk: activeJob.current_chunk,
           processed: activeJob.processed_accounts,
           status: activeJob.status
@@ -263,7 +289,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           !isInvokingChunk.current && 
           nextChunkIndex > lastTriggeredChunk.current
         ) {
-          console.log(`[Polling Trigger] Starting chunk ${nextChunkIndex}`);
+          log.info(`Polling trigger: Starting chunk ${nextChunkIndex}`);
           
           isInvokingChunk.current = true;
           lastTriggeredChunk.current = nextChunkIndex;
@@ -278,7 +304,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
               },
             });
           } catch (error) {
-            console.error('[Polling Error]:', error);
+            log.error('Polling error:', error);
             isInvokingChunk.current = false;
           } finally {
             setTimeout(() => { isInvokingChunk.current = false; }, 1000);
@@ -288,11 +314,11 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
     }, 2000);
 
     return () => {
-      console.log('[Realtime] Unsubscribing from bulk_scoring_jobs');
+      log.debug('Unsubscribing from bulk_scoring_jobs');
       clearInterval(pollInterval);
       supabase.removeChannel(channel);
     };
-  }, [userProfile?.org_id, isScoring, onComplete]);
+  }, [userProfile?.org_id, isScoring]); // Removed onComplete from dependencies
 
   // Timeout recovery: Release lock if chunk is stuck
   useEffect(() => {
@@ -300,7 +326,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
     
     const timeoutId = setTimeout(() => {
       if (isInvokingChunk.current) {
-        console.log('[Timeout] Chunk stuck for 15s, releasing lock');
+        log.warn('Chunk stuck for 15s, releasing lock');
         isInvokingChunk.current = false;
       }
     }, 15000);
@@ -373,7 +399,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
 
       // Polling will now track progress automatically
     } catch (error) {
-      console.error("Bulk scoring error:", error);
+      log.error("Bulk scoring error:", error);
       toast.error("Failed to start bulk scoring");
       setIsScoring(false);
     }
