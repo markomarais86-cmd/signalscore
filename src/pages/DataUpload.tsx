@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { uploadLogger } from "@/lib/logger";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { formatNumber } from "@/utils/format-numbers";
 import { FieldMappingDialog, FieldMapping } from "@/components/data-upload/FieldMappingDialog";
@@ -130,7 +131,7 @@ export default function DataUpload() {
       const mappedCount = Object.keys(autoMapping).length;
       const confidence = (mappedCount / Math.min(expectedFields.length, headers.length)) * 100;
       
-      console.log(`Auto-mapping confidence: ${confidence.toFixed(0)}%`, autoMapping);
+      uploadLogger.info(`Auto-mapping confidence: ${confidence.toFixed(0)}%`, autoMapping);
       
       // If high confidence (>80%), proceed directly. Otherwise show mapping dialog
       if (confidence > 80 && !showAdvanced) {
@@ -143,7 +144,7 @@ export default function DataUpload() {
       }
       
     } catch (error: any) {
-      console.error('Error analyzing CSV:', error);
+      uploadLogger.error('Error analyzing CSV:', error);
       
       let errorMessage = "Unable to read the CSV file. Please check the file format and try again.";
       
@@ -186,7 +187,7 @@ export default function DataUpload() {
       // Parse CSV
       const text = await pendingFile.file.text();
       const rawData = parseCSV(text);
-      console.log(`📊 Parsed ${rawData.length} rows from CSV`);
+      uploadLogger.info(`Parsed ${rawData.length} rows from CSV`);
       
       if (rawData.length === 0) {
         throw new Error("No data found in CSV file");
@@ -196,13 +197,13 @@ export default function DataUpload() {
 
       // Validate data
       const validation = validateDataWithMapping(rawData, mapping, 'leads');
-      console.log(`✅ Validation: ${validation.valid} valid, ${validation.errors} errors`);
+      uploadLogger.info(`Validation: ${validation.valid} valid, ${validation.errors} errors`);
       
       setUploadProgress(20);
 
       // Use edge function for large uploads (>5000 records)
       if (rawData.length > 5000) {
-        console.log(`🚀 Using edge function for bulk upload of ${rawData.length} leads`);
+        uploadLogger.info(`Using edge function for bulk upload of ${rawData.length} leads`);
         
         toast({
           title: "Large Upload Detected",
@@ -232,7 +233,7 @@ export default function DataUpload() {
 
       } else {
         // Optimized upload for smaller datasets
-        console.log(`⚡ Starting upload for ${rawData.length} leads...`);
+        uploadLogger.info(`Starting upload for ${rawData.length} leads...`);
         
         // Create reverse mapping: dbField -> csvColumn
         const reverseMapping: Record<string, string> = {};
@@ -244,7 +245,7 @@ export default function DataUpload() {
         
         for (let i = 0; i < rawData.length; i += batchSize) {
           const batch = rawData.slice(i, Math.min(i + batchSize, rawData.length));
-          console.log(`Processing batch ${Math.floor(i / batchSize) + 1}: rows ${i + 1} to ${i + batch.length}`);
+          uploadLogger.debug(`Processing batch ${Math.floor(i / batchSize) + 1}: rows ${i + 1} to ${i + batch.length}`);
 
           // Deduplicate leads by external_id within this batch
           const leadsMap = new Map<string, any>();
@@ -289,11 +290,11 @@ export default function DataUpload() {
             .select('id');
 
           if (error) {
-            console.error('❌ Leads error:', error);
+            uploadLogger.error('Leads error:', error);
             errors.push(`Batch ${Math.floor(i / batchSize) + 1}: ${error.message}`);
           } else {
             insertedLeads += result?.length || 0;
-            console.log(`✅ Inserted ${result?.length} leads`);
+            uploadLogger.info(`Inserted ${result?.length} leads`);
           }
 
           setUploadProgress(20 + Math.round((i / rawData.length) * 60));
@@ -329,7 +330,7 @@ export default function DataUpload() {
       });
 
     } catch (error: any) {
-      console.error('❌ Upload error:', error);
+      uploadLogger.error('Upload error:', error);
       
       toast({
         title: "Upload Failed",

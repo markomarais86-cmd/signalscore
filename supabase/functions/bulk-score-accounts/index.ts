@@ -1,11 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { successResponse, errorResponse, handleCors, ErrorCodes, parseJsonBody, validateRequired } from '../_shared/response-helpers.ts';
 
 interface BulkScoreRequest {
   org_id: string;
@@ -164,9 +160,9 @@ function rateLimitResponse(result: RateLimitResult, corsHeaders: Record<string, 
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  // Handle CORS
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
@@ -174,8 +170,18 @@ serve(async (req) => {
   );
 
   try {
-    const requestBody = await req.json() as BulkScoreRequest;
-    const { org_id, icp_id, chunk_size = 5000 } = requestBody;
+    const requestBody = await parseJsonBody<BulkScoreRequest>(req);
+    
+    // Validate required fields
+    const validation = validateRequired(requestBody, ['org_id']);
+    if (!validation.valid) {
+      return errorResponse(
+        ErrorCodes.VALIDATION_ERROR,
+        `Missing required fields: ${validation.missing.join(', ')}`,
+        400
+      );
+    }
+    const { org_id, icp_id, chunk_size = 5000 } = requestBody!;
     
     console.log('\n=== BULK SCORING JOB STARTED ===');
     console.log('Org ID:', org_id);
@@ -290,31 +296,23 @@ serve(async (req) => {
     );
 
     // Return immediately - scoring happens in background
-    return new Response(
-      JSON.stringify({
-        success: true,
-        job_id: jobId,
-        message: "Scoring started in background",
-        total_accounts: totalAccounts,
-        total_chunks: totalChunks,
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return successResponse({
+      job_id: jobId,
+      message: "Scoring started in background",
+      total_accounts: totalAccounts,
+      total_chunks: totalChunks,
+    });
 
   } catch (error) {
-    console.error('=== CHUNK PROCESSING ERROR ===');
+    console.error('=== BULK SCORING ERROR ===');
     console.error('Error:', error.message);
     console.error('Stack:', error.stack);
     
-    return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        details: 'Check edge function logs for more information'
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
+    return errorResponse(
+      ErrorCodes.INTERNAL_ERROR,
+      error.message || 'An unexpected error occurred',
+      500,
+      { details: 'Check edge function logs for more information' }
     );
   }
 });

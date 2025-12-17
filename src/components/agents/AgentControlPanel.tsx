@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Bot, Clock, CheckCircle, XCircle, Activity, Play } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
+import { agentLogger } from "@/lib/logger";
 
 interface Agent {
   id: string;
@@ -92,23 +93,23 @@ export function AgentControlPanel() {
 
   const runAgent = useMutation({
     mutationFn: async (agentId: string) => {
-      console.log('[AgentControlPanel] Running agent:', agentId);
+      agentLogger.info('Running agent:', agentId);
       
       const { data, error } = await supabase.functions.invoke('run-agent', {
         body: { agent_id: agentId, manual: true },
       });
 
       if (error) {
-        console.error('[AgentControlPanel] Agent run error:', error);
+        agentLogger.error('Agent run error:', error);
         throw new Error(error.message || 'Failed to run agent');
       }
 
       if (!data?.success) {
-        console.error('[AgentControlPanel] Agent run failed:', data);
+        agentLogger.error('Agent run failed:', data);
         throw new Error(data?.error || 'Agent execution failed');
       }
 
-      console.log('[AgentControlPanel] Agent run successful:', data);
+      agentLogger.info('Agent run successful:', data);
       return data;
     },
     onSuccess: (data) => {
@@ -126,7 +127,7 @@ export function AgentControlPanel() {
       }
     },
     onError: (error: Error) => {
-      console.error('[AgentControlPanel] Agent run mutation error:', error);
+      agentLogger.error('Agent run mutation error:', error);
       toast.error(`Failed to run agent: ${error.message}`, {
         description: 'Check the console and edge function logs for details',
       });

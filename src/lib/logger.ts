@@ -94,5 +94,10 @@ export const scoringLogger = logger.scope('Scoring');
 export const apiLogger = logger.scope('API');
 export const accountsLogger = logger.scope('Accounts');
 export const insightsLogger = logger.scope('Insights');
+export const leadsLogger = logger.scope('Leads');
+export const uploadLogger = logger.scope('Upload');
+export const icpLogger = logger.scope('ICP');
+export const agentLogger = logger.scope('Agent');
+export const campaignsLogger = logger.scope('Campaigns');
 
 export default logger;
