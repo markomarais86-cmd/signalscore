@@ -1,9 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { corsHeaders } from '../_shared/cors.ts'
+import { applyRateLimit } from '../_shared/rate-limit.ts'
 
 // Function to enrich existing leads with missing data
 async function enrichExistingLeads(supabaseClient: any, jobId: string, batchSize: number, provider: string) {
@@ -217,6 +214,16 @@ interface EnrichRequest {
   provider?: string
 }
 
+// Helper to get org_id from job
+async function getJobOrgId(supabase: any, jobId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from('enrichment_jobs')
+    .select('org_id')
+    .eq('id', jobId)
+    .single();
+  return data?.org_id || null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -237,6 +244,18 @@ Deno.serve(async (req) => {
     
     console.log('🚀 Starting bulk contact enrichment');
     console.log(`📋 Request params: jobId=${jobId}, orgId=${orgId}, batchSize=${batchSize}, provider=${provider}`);
+    
+    // Get effective org ID for rate limiting
+    const effectiveOrgId = orgId || (jobId ? await getJobOrgId(supabaseClient, jobId) : null);
+    
+    // Apply rate limiting if we have an org ID
+    if (effectiveOrgId) {
+      const rateLimitResponse = await applyRateLimit(supabaseClient, effectiveOrgId, 'enrich-contacts-bulk');
+      if (rateLimitResponse) {
+        console.log(`[enrich-contacts-bulk] Rate limited for org ${effectiveOrgId}`);
+        return rateLimitResponse;
+      }
+    }
     
     // If jobId is provided, this is a job-based enrichment for existing leads
     if (jobId) {

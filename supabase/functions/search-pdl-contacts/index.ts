@@ -1,10 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeaders } from '../_shared/cors.ts';
+import { applyRateLimit } from '../_shared/rate-limit.ts';
 
 interface SearchRequest {
   org_id: string;
@@ -32,6 +29,19 @@ serve(async (req) => {
         JSON.stringify({ error: 'org_id is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Create Supabase client for rate limiting
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Apply rate limiting
+    const rateLimitResponse = await applyRateLimit(supabase, org_id, 'search-pdl-contacts');
+    if (rateLimitResponse) {
+      console.log(`[search-pdl-contacts] Rate limited for org ${org_id}`);
+      return rateLimitResponse;
     }
 
     const pdlApiKey = Deno.env.get('PDL_API_KEY');
