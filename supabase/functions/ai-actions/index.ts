@@ -757,6 +757,29 @@ serve(async (req) => {
           });
         }
 
+        // Convert company_sizes from strings like "1000+" to numeric thresholds
+        const parseCompanySizes = (sizes: any[]): number[] => {
+          if (!sizes || sizes.length === 0) return [];
+          return sizes.map(size => {
+            if (typeof size === 'number') return size;
+            const str = String(size).toLowerCase().replace(/[,\s]/g, '');
+            // Handle ranges like "1000+", "500-1000", "enterprise", etc.
+            if (str.includes('+') || str === 'enterprise' || str === 'large') {
+              const num = parseInt(str.replace(/\D/g, ''), 10);
+              return num || 1000;
+            }
+            if (str.includes('-')) {
+              const parts = str.split('-').map(p => parseInt(p.replace(/\D/g, ''), 10));
+              return parts[1] || parts[0] || 100; // Use upper bound of range
+            }
+            if (str === 'startup' || str === 'small') return 50;
+            if (str === 'smb') return 200;
+            if (str === 'mid-market' || str === 'medium') return 500;
+            const parsed = parseInt(str.replace(/\D/g, ''), 10);
+            return isNaN(parsed) ? 100 : parsed;
+          }).filter(n => !isNaN(n) && n > 0);
+        };
+
         const { data: icp, error: icpError } = await supabase
           .from("icp_profiles")
           .insert({
@@ -764,7 +787,7 @@ serve(async (req) => {
             name,
             description: description || `AI-generated ICP: ${name}`,
             industries: industries || [],
-            company_sizes: company_sizes || [],
+            company_sizes: parseCompanySizes(company_sizes),
             revenue_ranges: revenue_ranges || [],
             geographies: geographies || [],
             persona_job_titles: persona_titles || [],

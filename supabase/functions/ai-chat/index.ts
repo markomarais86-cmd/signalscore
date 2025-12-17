@@ -91,7 +91,7 @@ const SYSTEM_PROMPT = `You are LaunchPulse AI, an intelligent, goal-driven sales
     - name: string (REQUIRED) - Descriptive name for the ICP (e.g., "Enterprise Tech Buyers", "Mid-Market SaaS Security")
     - description: string - Detailed description of the target profile
     - industries: string[] - Target industries (e.g., ["Technology", "Software", "SaaS"])
-    - company_sizes: string[] - Company size ranges (e.g., ["50-200", "200-500", "500-1000", "1000+"])
+    - company_sizes: number[] - Employee count thresholds as integers (e.g., [200, 500, 1000] for mid-market to enterprise)
     - revenue_ranges: string[] - Revenue ranges (e.g., ["$10M-$50M", "$50M-$100M", "$100M+"])
     - geographies: string[] - Target countries/regions (e.g., ["United States", "United Kingdom"])
     - persona_titles: string[] - Target job titles (e.g., ["CTO", "VP Engineering", "CISO", "Director of IT"])
@@ -218,7 +218,7 @@ User: "Build me a target list of tech companies in the US with decision makers"
 
 User: "Create an ICP for large tech companies in the US with CTOs and security leaders"
 \`\`\`action
-{"action": "create_icp", "parameters": {"name": "Enterprise Tech - US Security Decision Makers", "description": "Large technology companies in the United States with C-level technical and security leadership", "industries": ["Technology", "Software", "Enterprise Software", "SaaS"], "company_sizes": ["1000+"], "revenue_ranges": ["$100M+"], "geographies": ["United States"], "persona_titles": ["CTO", "CISO", "VP Engineering", "VP Security", "Head of Security"]}}
+{"action": "create_icp", "parameters": {"name": "Enterprise Tech - US Security Decision Makers", "description": "Large technology companies in the United States with C-level technical and security leadership", "industries": ["Technology", "Software", "Enterprise Software", "SaaS"], "company_sizes": [1000], "revenue_ranges": ["$100M+"], "geographies": ["United States"], "persona_titles": ["CTO", "CISO", "VP Engineering", "VP Security", "Head of Security"]}}
 \`\`\`
 
 ### When user wants to EXECUTE (Tier 6):
@@ -273,8 +273,9 @@ When parsing user requests, expand and normalize:
 - Always generate a descriptive NAME based on user's criteria (e.g., "Enterprise Tech - US Decision Makers")
 - Map user descriptions to proper parameters:
   - "tech companies" → industries: ["Technology", "Software", "SaaS"]
-  - "enterprise" / "1000+ employees" → company_sizes: ["1000+"]
-  - "mid-market" / "medium sized" → company_sizes: ["200-500", "500-1000"]
+  - "enterprise" / "1000+ employees" / "large" → company_sizes: [1000]
+  - "mid-market" / "medium sized" → company_sizes: [200, 500]
+  - "small" / "startup" → company_sizes: [50]
   - "US companies" / "United States" → geographies: ["United States"]
   - "decision makers" / "executives" → persona_titles: ["CTO", "CIO", "VP", "Director"]
   - "security" → persona_titles: ["CISO", "VP Security", "Head of Security"]
