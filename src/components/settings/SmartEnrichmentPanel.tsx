@@ -15,6 +15,7 @@ interface DataQuality {
   fundingCoverage: number;
   industryCoverage: number;
   employeeCoverage: number;
+  linkedinCoverage: number;
   overallCompleteness: number;
 }
 
@@ -78,12 +79,19 @@ export function SmartEnrichmentPanel() {
         .eq("org_id", userProfile.org_id)
         .not("employee_count", "is", null);
 
+      const { count: withLinkedin } = await supabase
+        .from("accounts")
+        .select("*", { count: "exact", head: true })
+        .eq("org_id", userProfile.org_id)
+        .not("linkedin_url", "is", null);
+
       const total = totalAccounts || 1;
       const techStackCoverage = ((withTechStack || 0) / total) * 100;
       const fundingCoverage = ((withFunding || 0) / total) * 100;
       const industryCoverage = ((withIndustry || 0) / total) * 100;
       const employeeCoverage = ((withEmployees || 0) / total) * 100;
-      const overallCompleteness = (techStackCoverage + fundingCoverage + industryCoverage + employeeCoverage) / 4;
+      const linkedinCoverage = ((withLinkedin || 0) / total) * 100;
+      const overallCompleteness = (techStackCoverage + fundingCoverage + industryCoverage + employeeCoverage + linkedinCoverage) / 5;
 
       setDataQuality({
         totalAccounts: total,
@@ -91,6 +99,7 @@ export function SmartEnrichmentPanel() {
         fundingCoverage,
         industryCoverage,
         employeeCoverage,
+        linkedinCoverage,
         overallCompleteness,
       });
     } catch (error) {
@@ -207,30 +216,48 @@ export function SmartEnrichmentPanel() {
     try {
       setAiEnriching(true);
       toast.info("Starting Free AI Enrichment...", {
-        description: "AI-powered estimates - no API credits needed!"
+        description: "AI-powered estimates - auto-starting now!"
       });
 
-      // Create enrichment job
+      // Get count of accounts needing enrichment
+      const { count: needsEnrichment } = await supabase
+        .from("accounts")
+        .select("*", { count: "exact", head: true })
+        .eq("org_id", userProfile.org_id)
+        .not("domain", "is", null)
+        .or("employee_count.is.null,revenue_range.is.null,industry_raw.is.null,linkedin_url.is.null");
+
+      const totalRecords = needsEnrichment || priorityAccounts.length || 100;
+
+      // Create enrichment job with 'processing' status (auto-start)
       const { data: job, error: jobError } = await supabase
         .from('enrichment_jobs')
         .insert({
           org_id: userProfile.org_id,
           provider: 'ai_free',
           job_type: 'accounts',
-          status: 'pending',
-          total_records: priorityAccounts.length || 100
+          status: 'processing',
+          started_at: new Date().toISOString(),
+          total_records: totalRecords
         })
         .select()
         .single();
 
       if (jobError) throw jobError;
 
-      // Call enrich-ai-only edge function
+      toast.success("Enrichment job created and started!", {
+        description: `Processing ${totalRecords.toLocaleString()} accounts`
+      });
+
+      // Immediately invoke the edge function (auto-start)
       const { error } = await supabase.functions.invoke('enrich-ai-only', {
         body: { jobId: job.id, batchSize: 100 }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Edge function error:", error);
+        // Job will handle its own status, don't fail here
+      }
 
       // Poll for completion
       const pollInterval = setInterval(async () => {
@@ -240,7 +267,7 @@ export function SmartEnrichmentPanel() {
           .eq('id', job.id)
           .single();
 
-        if (jobStatus?.status === 'completed') {
+        if (jobStatus?.status === 'completed' || jobStatus?.status === 'completed_with_errors') {
           clearInterval(pollInterval);
           toast.success(`AI enriched ${jobStatus.enriched_records} accounts!`, {
             description: "No API credits used"
@@ -252,14 +279,17 @@ export function SmartEnrichmentPanel() {
           clearInterval(pollInterval);
           toast.error("AI enrichment failed");
           setAiEnriching(false);
+        } else if (jobStatus?.status === 'paused') {
+          // Job paused for auto-resume, keep polling
+          toast.info(`Processing... ${jobStatus.processed_records || 0} accounts done`);
         }
-      }, 2000);
+      }, 3000);
 
-      // Stop polling after 5 minutes
+      // Stop polling after 10 minutes (longer for large jobs)
       setTimeout(() => {
         clearInterval(pollInterval);
         setAiEnriching(false);
-      }, 300000);
+      }, 600000);
 
     } catch (error) {
       console.error("Error during AI enrichment:", error);
@@ -299,7 +329,7 @@ export function SmartEnrichmentPanel() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Data Quality Overview */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Tech Stack</span>
@@ -335,6 +365,15 @@ export function SmartEnrichmentPanel() {
                 </span>
               </div>
               <Progress value={dataQuality.employeeCoverage} />
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">LinkedIn</span>
+                <span className="text-sm text-muted-foreground">
+                  {dataQuality.linkedinCoverage.toFixed(0)}%
+                </span>
+              </div>
+              <Progress value={dataQuality.linkedinCoverage} />
             </div>
           </div>
 
