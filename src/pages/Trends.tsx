@@ -7,17 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 export default function Trends() {
   const [period, setPeriod] = useState<number>(90);
-  const { metrics, isLoading, refresh } = useTrendData(period);
+  const { metrics, isLoading, isPending, refresh } = useTrendData(period);
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  const handleRefresh = () => {
-    refresh();
   };
 
   if (isLoading) {
@@ -38,7 +35,7 @@ export default function Trends() {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className={cn("space-y-6", isPending && "opacity-70 transition-opacity")}>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Trend Analysis</h1>
@@ -58,9 +55,9 @@ export default function Trends() {
                 <SelectItem value="365">Last Year</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={handleRefresh}>
+            <Button variant="outline" onClick={() => refresh()} disabled={isPending}>
               <Activity className="h-4 w-4 mr-2" />
-              Refresh
+              {isPending ? 'Refreshing...' : 'Refresh'}
             </Button>
           </div>
         </div>
