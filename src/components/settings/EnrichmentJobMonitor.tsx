@@ -24,6 +24,7 @@ export function EnrichmentJobMonitor() {
   const [pausingJobs, setPausingJobs] = useState<Set<string>>(new Set());
   const [resumingJobs, setResumingJobs] = useState<Set<string>>(new Set());
   const [retryingJobs, setRetryingJobs] = useState<Set<string>>(new Set());
+  const [startingJobs, setStartingJobs] = useState<Set<string>>(new Set());
   const { userProfile } = useAuth();
 
   // Use realtime enrichment hook for live updates
@@ -205,6 +206,41 @@ export function EnrichmentJobMonitor() {
       console.error('Retry error:', error);
     } finally {
       setRetryingJobs(prev => {
+        const next = new Set(prev);
+        next.delete(jobId);
+        return next;
+      });
+    }
+  };
+
+  const handleStartJob = async (jobId: string) => {
+    setStartingJobs(prev => new Set(prev).add(jobId));
+    try {
+      // Update job status to processing
+      const { error: updateError } = await supabase
+        .from('enrichment_jobs')
+        .update({ 
+          status: 'processing', 
+          started_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
+
+      if (updateError) throw updateError;
+
+      // Invoke the enrichment function
+      const { error } = await supabase.functions.invoke('enrich-ai-only', {
+        body: { jobId, batchSize: 100 }
+      });
+
+      if (error) throw error;
+
+      toast.success('Enrichment job started');
+      refetch();
+    } catch (error) {
+      toast.error('Failed to start job');
+      console.error('Start error:', error);
+    } finally {
+      setStartingJobs(prev => {
         const next = new Set(prev);
         next.delete(jobId);
         return next;
@@ -406,6 +442,29 @@ export function EnrichmentJobMonitor() {
                   <>
                     <RotateCcw className="mr-2 h-4 w-4" />
                     Retry Failed Rows ({job.failed_records})
+                  </>
+                )}
+              </Button>
+            )}
+
+            {/* Start Pending Job Button */}
+            {job.status === 'pending' && (
+              <Button
+                onClick={() => handleStartJob(job.id)}
+                disabled={startingJobs.has(job.id)}
+                variant="default"
+                size="sm"
+                className="w-full"
+              >
+                {startingJobs.has(job.id) ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <Play className="mr-2 h-4 w-4" />
+                    Start Enrichment ({job.total_records.toLocaleString()} records)
                   </>
                 )}
               </Button>
