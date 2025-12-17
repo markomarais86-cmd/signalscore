@@ -2,7 +2,7 @@ import { Layout } from '@/components/Layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTrendData } from '@/hooks/use-trend-data';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { TrendingUp, TrendingDown, Activity, Target, Database, Zap } from 'lucide-react';
+import { TrendingUp, Activity, Target, Database, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useState } from 'react';
@@ -14,6 +14,10 @@ export default function Trends() {
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const handleRefresh = () => {
+    refresh();
   };
 
   if (isLoading) {
@@ -54,7 +58,7 @@ export default function Trends() {
                 <SelectItem value="365">Last Year</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={refresh}>
+            <Button variant="outline" onClick={handleRefresh}>
               <Activity className="h-4 w-4 mr-2" />
               Refresh
             </Button>
@@ -75,12 +79,12 @@ export default function Trends() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={metrics?.scoreTrends.overall.map((point, idx) => ({
+                <LineChart data={metrics?.scoreHistory.map((point, idx) => ({
                   date: formatDate(point.date),
                   overall: point.value,
-                  fit: metrics.scoreTrends.fit[idx]?.value || 0,
-                  intent: metrics.scoreTrends.intent[idx]?.value || 0,
-                  reachability: metrics.scoreTrends.reachability[idx]?.value || 0,
+                  fit: metrics.fitScoreHistory[idx]?.value || 0,
+                  intent: metrics.intentScoreHistory[idx]?.value || 0,
+                  reachability: metrics.reachabilityHistory[idx]?.value || 0,
                 }))}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
@@ -109,7 +113,7 @@ export default function Trends() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={metrics?.dataQualityTrends.map(point => ({
+                <LineChart data={metrics?.dataQualityHistory.map(point => ({
                   date: formatDate(point.date),
                   completeness: point.value,
                 }))}>
@@ -143,7 +147,7 @@ export default function Trends() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={metrics?.icpMatchRateTrends.map(point => ({
+                <LineChart data={metrics?.icpMatchHistory.map(point => ({
                   date: formatDate(point.date),
                   matchRate: point.value,
                 }))}>
@@ -171,15 +175,15 @@ export default function Trends() {
                 <Zap className="h-5 w-5 text-primary" />
                 <div>
                   <CardTitle>Pipeline Velocity</CardTitle>
-                  <CardDescription>Average days to close won deals</CardDescription>
+                  <CardDescription>Pipeline entries per day</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={metrics?.pipelineVelocityTrends.map(point => ({
+                <LineChart data={metrics?.pipelineVelocity.map(point => ({
                   date: formatDate(point.date),
-                  days: point.value,
+                  entries: point.value,
                 }))}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
@@ -188,10 +192,10 @@ export default function Trends() {
                   <Legend />
                   <Line 
                     type="monotone" 
-                    dataKey="days" 
+                    dataKey="entries" 
                     stroke="hsl(var(--chart-1))" 
                     strokeWidth={2}
-                    name="Days to Close"
+                    name="Pipeline Entries"
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -200,10 +204,10 @@ export default function Trends() {
         </div>
 
         {metrics && (
-          metrics.scoreTrends.overall.length === 0 &&
-          metrics.dataQualityTrends.length === 0 &&
-          metrics.icpMatchRateTrends.length === 0 &&
-          metrics.pipelineVelocityTrends.length === 0
+          metrics.scoreHistory.length === 0 &&
+          metrics.dataQualityHistory.length === 0 &&
+          metrics.icpMatchHistory.length === 0 &&
+          metrics.pipelineVelocity.length === 0
         ) && (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
