@@ -3,33 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Activity, Loader2, CheckCircle2, XCircle, AlertCircle, Pause, Play, Clock, RotateCcw } from "lucide-react";
+import { Activity, Loader2, CheckCircle2, XCircle, AlertCircle, Pause, Play, Clock, RotateCcw, Wifi, WifiOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useRealtimeEnrichment, type EnrichmentJob } from "@/hooks/use-realtime-enrichment";
 import { pauseEnrichmentJob, resumeEnrichmentJob } from "@/hooks/use-enrichment-progress";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-
-interface EnrichmentJob {
-  id: string;
-  provider: string;
-  job_type: string;
-  status: string;
-  total_records: number;
-  processed_records: number;
-  enriched_records: number;
-  failed_records: number;
-  started_at: string;
-  completed_at?: string;
-  credits_used?: number;
-  credits_remaining?: number;
-  progress_percentage?: number;
-  estimated_completion_at?: string | null;
-  current_batch?: number;
-  total_batches?: number;
-  can_pause?: boolean;
-  paused_at?: string | null;
-}
 
 interface OrgCredits {
   total: number;
@@ -38,7 +18,6 @@ interface OrgCredits {
 }
 
 export function EnrichmentJobMonitor() {
-  const [jobs, setJobs] = useState<EnrichmentJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [cleaningUp, setCleaningUp] = useState(false);
   const [orgCredits, setOrgCredits] = useState<OrgCredits | null>(null);
@@ -47,58 +26,39 @@ export function EnrichmentJobMonitor() {
   const [retryingJobs, setRetryingJobs] = useState<Set<string>>(new Set());
   const { userProfile } = useAuth();
 
-  useEffect(() => {
-    loadJobs();
-    loadCredits();
-    
-    // Set up realtime subscription
-    const channel = supabase
-      .channel('enrichment-jobs-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'enrichment_jobs'
-        },
-        () => {
-          loadJobs();
-          loadCredits();
-        }
-      )
-      .subscribe();
-
-    // Poll every 30 seconds only if there are active jobs
-    const interval = setInterval(() => {
-      if (jobs.length > 0) {
-        loadJobs();
-        loadCredits();
+  // Use realtime enrichment hook for live updates
+  const { 
+    jobs: realtimeJobs, 
+    isConnected,
+    refetch 
+  } = useRealtimeEnrichment({
+    orgId: userProfile?.org_id || null,
+    enabled: !!userProfile?.org_id,
+    onStatusChange: (job, oldStatus) => {
+      if (job.status === 'completed' && oldStatus === 'processing') {
+        toast.success(`Enrichment job completed`, {
+          description: `${job.enriched_records} records enriched`
+        });
       }
-    }, 30000);
+    },
+    onError: (job) => {
+      toast.error(`Enrichment job failed`, {
+        description: job.error_message || 'Unknown error'
+      });
+    }
+  });
 
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(interval);
-    };
+  useEffect(() => {
+    loadCredits();
+    // Set loading to false after initial connection
+    const timer = setTimeout(() => setLoading(false), 1000);
+    return () => clearTimeout(timer);
   }, [userProfile?.org_id]);
 
-  const loadJobs = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("enrichment_jobs")
-        .select("*")
-        .in("status", ["pending", "processing", "paused", "failed"])
-        .order("started_at", { ascending: false })
-        .limit(10);
-
-      if (error) throw error;
-      setJobs(data || []);
-    } catch (error) {
-      console.error("Error loading jobs:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Filter to active jobs only
+  const activeJobs = realtimeJobs.filter(j => 
+    ['pending', 'processing', 'paused', 'failed'].includes(j.status || '')
+  );
 
   const loadCredits = async () => {
     if (!userProfile?.org_id) return;
@@ -125,7 +85,7 @@ export function EnrichmentJobMonitor() {
       const result = data as { cleaned_up: number; jobs: any[] };
       if (result.cleaned_up > 0) {
         toast.success(`Cleaned up ${result.cleaned_up} stuck job(s)`);
-        loadJobs();
+        refetch();
       } else {
         toast.info('No stuck jobs found to clean up');
       }
@@ -138,7 +98,7 @@ export function EnrichmentJobMonitor() {
   };
 
   const calculateETR = (job: EnrichmentJob): string => {
-    if (job.processed_records === 0 || job.status !== 'processing') {
+    if (job.processed_records === 0 || job.status !== 'processing' || !job.started_at) {
       return 'Calculating...';
     }
     
@@ -180,7 +140,7 @@ export function EnrichmentJobMonitor() {
     try {
       await pauseEnrichmentJob(jobId);
       toast.success('Enrichment job paused');
-      loadJobs();
+      refetch();
     } catch (error) {
       toast.error('Failed to pause job');
       console.error('Pause error:', error);
@@ -198,7 +158,7 @@ export function EnrichmentJobMonitor() {
     try {
       await resumeEnrichmentJob(jobId);
       toast.success('Enrichment job resumed');
-      loadJobs();
+      refetch();
     } catch (error) {
       toast.error('Failed to resume job');
       console.error('Resume error:', error);
@@ -239,7 +199,7 @@ export function EnrichmentJobMonitor() {
       await resumeEnrichmentJob(jobId);
       
       toast.success('Retrying failed enrichment rows');
-      loadJobs();
+      refetch();
     } catch (error) {
       toast.error('Failed to retry job');
       console.error('Retry error:', error);
@@ -270,13 +230,21 @@ export function EnrichmentJobMonitor() {
     );
   }
 
-  if (jobs.length === 0) {
+  if (activeJobs.length === 0) {
     return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
             Active Jobs
+            {/* Connection status indicator */}
+            <span className="flex items-center gap-1 ml-2">
+              {isConnected ? (
+                <Wifi className="h-3 w-3 text-[hsl(var(--signal-high))]" />
+              ) : (
+                <WifiOff className="h-3 w-3 text-muted-foreground" />
+              )}
+            </span>
           </CardTitle>
           <CardDescription>
             No enrichment jobs currently running
@@ -294,6 +262,17 @@ export function EnrichmentJobMonitor() {
             <CardTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5" />
               Active Enrichment Jobs
+              {/* Connection status indicator */}
+              <span className="flex items-center gap-1 ml-2">
+                {isConnected ? (
+                  <Wifi className="h-3 w-3 text-[hsl(var(--signal-high))]" />
+                ) : (
+                  <WifiOff className="h-3 w-3 text-muted-foreground" />
+                )}
+                <span className="text-xs text-muted-foreground">
+                  {isConnected ? 'Live' : 'Offline'}
+                </span>
+              </span>
             </CardTitle>
             <CardDescription>
               Real-time monitoring of enrichment progress
@@ -327,7 +306,7 @@ export function EnrichmentJobMonitor() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {jobs.map((job) => (
+        {activeJobs.map((job) => (
           <div key={job.id} className="border rounded-lg p-4 space-y-3">
             <div className="flex items-start justify-between">
               <div className="space-y-1">
