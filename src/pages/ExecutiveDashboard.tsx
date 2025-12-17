@@ -519,7 +519,7 @@ export default function ExecutiveDashboard() {
                       duration: 3000
                     });
                     
-                    const batchSize = params?.batch_size || 100;
+                    const batchSize = Number(params?.batch_size) || 100;
                     const { data: job, error: jobError } = await supabase
                       .from('enrichment_jobs')
                       .insert({
@@ -528,7 +528,7 @@ export default function ExecutiveDashboard() {
                         job_type: 'accounts',
                         status: 'pending',
                         total_records: batchSize
-                      })
+                      } as const)
                       .select()
                       .single();
                     
@@ -581,8 +581,9 @@ export default function ExecutiveDashboard() {
                   
                 case 'enrich_contacts':
                   // Navigate with account IDs if provided
-                  if (params?.account_ids?.length > 0) {
-                    const accountFilter = params.account_ids.slice(0, 20).join(',');
+                  const accountIds = params?.account_ids as string[] | undefined;
+                  if (accountIds && accountIds.length > 0) {
+                    const accountFilter = accountIds.slice(0, 20).join(',');
                     navigate(`/leads?tab=discover&accounts=${accountFilter}`);
                   } else {
                     navigate('/leads?tab=discover');
@@ -593,7 +594,7 @@ export default function ExecutiveDashboard() {
                 case 'search_contacts':
                   const contactParams = new URLSearchParams();
                   if (params?.icp_qualified_only) contactParams.set('icp_qualified', 'true');
-                  if (params?.pipeline_stage) contactParams.set('pipeline_stage', params.pipeline_stage);
+                  if (params?.pipeline_stage) contactParams.set('pipeline_stage', String(params.pipeline_stage));
                   navigate(`/leads${contactParams.toString() ? '?' + contactParams.toString() : ''}`);
                   break;
                   
@@ -614,7 +615,7 @@ export default function ExecutiveDashboard() {
                   
                 case 'run_agent':
                   try {
-                    const agentType = params?.agent_type || 'follow_up';
+                    const agentType = String(params?.agent_type || 'follow_up');
                     toast.info(`Starting ${agentType.replace('_', ' ')} agent...`, { duration: 3000 });
                     
                     // Look up the agent_id by agent_type
