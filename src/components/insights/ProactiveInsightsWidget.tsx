@@ -404,24 +404,19 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
     const isActive = isEnrichAction && enrichmentProgress;
     const isStarting = isEnrichAction && isStartingEnrichment;
     
+    // If enrichment is active, don't show duplicate progress here - the banner handles it
     if (isActive && enrichmentProgress) {
-      const progressPercent = enrichmentProgress.total > 0 
-        ? Math.round((enrichmentProgress.processed / enrichmentProgress.total) * 100) 
-        : 0;
-      
       return (
-        <div key={idx} className="w-full space-y-1">
-          <div className="flex items-center justify-between text-xs">
-            <span className="flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Enriching...
-            </span>
-            <span className="text-muted-foreground">
-              {enrichmentProgress.enriched} enriched • {progressPercent}%
-            </span>
-          </div>
-          <Progress value={progressPercent} className="h-2" />
-        </div>
+        <Button
+          key={idx}
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          disabled
+        >
+          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          See progress above
+        </Button>
       );
     }
     
