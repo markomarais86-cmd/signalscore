@@ -502,14 +502,25 @@ serve(async (req) => {
       throw new Error("No AI provider available. Please configure OPENAI_API_KEY, ABACUS_API_KEY, or LOVABLE_API_KEY.");
     }
 
+    // Priority order: OpenAI first (most reliable), Abacus second, Lovable last (currently degraded with HTTP 405)
+    // Note: Lovable gateway is excluded until it's fixed
     const orderedProviders: AIProvider[] = [];
-    if (preferredProvider && available.includes(preferredProvider)) {
+    
+    // Add preferred provider first, but only if it's not lovable (which is degraded)
+    if (preferredProvider && preferredProvider !== 'lovable' && available.includes(preferredProvider)) {
       orderedProviders.push(preferredProvider);
     }
-    for (const p of ['openai', 'abacus', 'lovable'] as AIProvider[]) {
+    
+    // Always prioritize openai and abacus over lovable
+    for (const p of ['openai', 'abacus'] as AIProvider[]) {
       if (available.includes(p) && !orderedProviders.includes(p)) {
         orderedProviders.push(p);
       }
+    }
+    
+    // Only add lovable as last resort fallback (currently returning HTTP 405)
+    if (available.includes('lovable') && !orderedProviders.includes('lovable')) {
+      orderedProviders.push('lovable');
     }
     
     console.log(`[${requestId}] Provider Priority: ${orderedProviders.join(' -> ')}`);
