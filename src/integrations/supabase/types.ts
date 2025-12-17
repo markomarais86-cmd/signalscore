@@ -222,6 +222,88 @@ export type Database = {
           },
         ]
       }
+      activities: {
+        Row: {
+          account_external_id: string | null
+          activity_date: string
+          activity_type: string
+          completed_at: string | null
+          created_at: string
+          deal_id: string | null
+          description: string | null
+          duration_minutes: number | null
+          external_id: string | null
+          id: string
+          lead_id: number | null
+          metadata: Json | null
+          org_id: string
+          outcome: string | null
+          owner_id: string | null
+          owner_name: string | null
+          subject: string | null
+        }
+        Insert: {
+          account_external_id?: string | null
+          activity_date: string
+          activity_type: string
+          completed_at?: string | null
+          created_at?: string
+          deal_id?: string | null
+          description?: string | null
+          duration_minutes?: number | null
+          external_id?: string | null
+          id?: string
+          lead_id?: number | null
+          metadata?: Json | null
+          org_id: string
+          outcome?: string | null
+          owner_id?: string | null
+          owner_name?: string | null
+          subject?: string | null
+        }
+        Update: {
+          account_external_id?: string | null
+          activity_date?: string
+          activity_type?: string
+          completed_at?: string | null
+          created_at?: string
+          deal_id?: string | null
+          description?: string | null
+          duration_minutes?: number | null
+          external_id?: string | null
+          id?: string
+          lead_id?: number | null
+          metadata?: Json | null
+          org_id?: string
+          outcome?: string | null
+          owner_id?: string | null
+          owner_name?: string | null
+          subject?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activities_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activities_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_action_logs: {
         Row: {
           action_name: string
@@ -1553,6 +1635,125 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "data_quality_history_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deal_stage_history: {
+        Row: {
+          created_at: string
+          deal_id: string
+          entered_at: string
+          exited_at: string | null
+          id: string
+          org_id: string
+          stage: string
+        }
+        Insert: {
+          created_at?: string
+          deal_id: string
+          entered_at?: string
+          exited_at?: string | null
+          id?: string
+          org_id: string
+          stage: string
+        }
+        Update: {
+          created_at?: string
+          deal_id?: string
+          entered_at?: string
+          exited_at?: string | null
+          id?: string
+          org_id?: string
+          stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deal_stage_history_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deal_stage_history_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deals: {
+        Row: {
+          account_external_id: string | null
+          amount: number | null
+          closed_date: string | null
+          created_at: string
+          deal_type: string | null
+          expected_close_date: string | null
+          external_id: string | null
+          id: string
+          loss_reason: string | null
+          metadata: Json | null
+          name: string
+          org_id: string
+          owner_id: string | null
+          owner_name: string | null
+          probability: number | null
+          source: string | null
+          stage: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          account_external_id?: string | null
+          amount?: number | null
+          closed_date?: string | null
+          created_at?: string
+          deal_type?: string | null
+          expected_close_date?: string | null
+          external_id?: string | null
+          id?: string
+          loss_reason?: string | null
+          metadata?: Json | null
+          name: string
+          org_id: string
+          owner_id?: string | null
+          owner_name?: string | null
+          probability?: number | null
+          source?: string | null
+          stage: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          account_external_id?: string | null
+          amount?: number | null
+          closed_date?: string | null
+          created_at?: string
+          deal_type?: string | null
+          expected_close_date?: string | null
+          external_id?: string | null
+          id?: string
+          loss_reason?: string | null
+          metadata?: Json | null
+          name?: string
+          org_id?: string
+          owner_id?: string | null
+          owner_name?: string | null
+          probability?: number | null
+          source?: string | null
+          stage?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deals_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -4808,6 +5009,10 @@ export type Database = {
       get_dashboard_metrics_fast: {
         Args: { p_org_id: string; p_source_filter?: string }
         Returns: Json
+      }
+      get_deal_stage_duration_hours: {
+        Args: { p_deal_id: string; p_stage: string }
+        Returns: number
       }
       get_filtered_accounts: {
         Args: {
