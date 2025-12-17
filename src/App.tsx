@@ -34,6 +34,7 @@ import AIAgents from "./pages/AIAgents";
 import AgentTester from "./pages/AgentTester";
 import AITest from "./pages/AITest";
 import Help from "./pages/Help";
+import Discovery from "./pages/Discovery";
 
 const queryClient = new QueryClient();
 
@@ -212,6 +213,16 @@ function AppContent() {
                     <ProtectedRoute>
                       <Layout>
                         <AITest />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/discovery"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Discovery />
                       </Layout>
                     </ProtectedRoute>
                   }
