@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.55.0";
+import { generateIdempotencyKey, checkIdempotency, recordIdempotencyKey, IDEMPOTENCY_TTL } from '../_shared/idempotency.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,9 +44,31 @@ serve(async (req) => {
       );
     }
 
-    // Check for duplicate using idempotency key (skip this check for now - use simple approach)
-    // Idempotency is handled by checking if a webhook with same content was recently processed
-    // For a more robust implementation, use a separate idempotency_keys table
+    // Check for duplicate webhook using idempotency
+    const idempotencyKey = payload.idempotency_key || 
+      generateIdempotencyKey(orgId, 'clay-webhook-receiver', { 
+        webhook_type: payload.webhook_type, 
+        data: payload.data 
+      });
+    
+    const idempotencyResult = await checkIdempotency(
+      supabaseClient, 
+      idempotencyKey, 
+      'clay-webhook-receiver', 
+      IDEMPOTENCY_TTL['clay-webhook-receiver']
+    );
+    
+    if (idempotencyResult.isDuplicate && idempotencyResult.cachedResponse) {
+      console.log(`[ClayWebhook] Returning cached response for duplicate webhook`);
+      return new Response(
+        JSON.stringify({ 
+          ...idempotencyResult.cachedResponse, 
+          _cached: true,
+          _idempotency_key: idempotencyKey.substring(0, 20) + '...'
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Check if webhook type is enabled for this org
     const { data: config } = await supabaseClient
@@ -106,8 +129,20 @@ serve(async (req) => {
         })
         .eq('id', logEntry.id);
 
+      const responseBody = { success: true, result };
+      
+      // Record idempotency key with response
+      await recordIdempotencyKey(
+        supabaseClient,
+        idempotencyKey,
+        'clay-webhook-receiver',
+        orgId,
+        responseBody,
+        IDEMPOTENCY_TTL['clay-webhook-receiver']
+      );
+
       return new Response(
-        JSON.stringify({ success: true, result }),
+        JSON.stringify(responseBody),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
 

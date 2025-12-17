@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { applyIdempotency, recordIdempotencyKey, checkExistingJob, IDEMPOTENCY_TTL } from '../_shared/idempotency.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -82,6 +83,43 @@ serve(async (req) => {
       agent_config = { search: true, validation: true, icp: true, discover_contacts: false },
       discovery_config = { target_titles: DEFAULT_TARGET_TITLES, max_contacts_per_account: 5 }
     } = request;
+
+    // Check for duplicate request using idempotency
+    const { response: cachedResponse, key: idempotencyKey } = await applyIdempotency(
+      supabase,
+      org_id,
+      'enrichment-orchestrator',
+      { org_id, record_type, record_ids: record_ids.slice(0, 10), source_type }, // Use subset for key
+      corsHeaders
+    );
+    
+    if (cachedResponse) {
+      console.log(`[Orchestrator] Returning cached response for duplicate request`);
+      return cachedResponse;
+    }
+
+    // Check for existing in-progress job for this org
+    const { exists: hasExistingJob, existingJob } = await checkExistingJob(
+      supabase,
+      org_id,
+      'enrichment_jobs',
+      'status',
+      ['pending', 'processing'],
+      30 // 30 minutes
+    );
+
+    if (hasExistingJob && existingJob) {
+      console.log(`[Orchestrator] Found existing job ${existingJob.id}, returning it`);
+      return new Response(JSON.stringify({
+        success: true,
+        job_id: existingJob.id,
+        message: 'Existing job in progress',
+        status: existingJob.status,
+        _existing_job: true
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     console.log(`[Orchestrator] Starting enrichment job for ${record_ids.length} ${record_type}s`);
     console.log(`[Orchestrator] Agent config:`, agent_config);
@@ -215,7 +253,7 @@ serve(async (req) => {
 
     console.log(`[Orchestrator] Job ${job.id} ${finalStatus}: ${completedCount} success, ${failedCount} failed, ${pendingCount} pending, ${contactsDiscovered} contacts discovered`);
 
-    return new Response(JSON.stringify({
+    const responseBody = {
       success: true,
       job_id: job.id,
       total_records: record_ids.length,
@@ -225,7 +263,19 @@ serve(async (req) => {
       contacts_discovered: contactsDiscovered,
       status: finalStatus,
       timed_out: timedOut
-    }), {
+    };
+
+    // Record idempotency key with response
+    await recordIdempotencyKey(
+      supabase,
+      idempotencyKey,
+      'enrichment-orchestrator',
+      org_id,
+      responseBody,
+      IDEMPOTENCY_TTL['enrichment-orchestrator']
+    );
+
+    return new Response(JSON.stringify(responseBody), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 

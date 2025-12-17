@@ -2589,6 +2589,47 @@ export type Database = {
           },
         ]
       }
+      idempotency_keys: {
+        Row: {
+          created_at: string | null
+          endpoint: string
+          expires_at: string
+          id: string
+          idempotency_key: string
+          org_id: string | null
+          request_hash: string | null
+          response: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          endpoint: string
+          expires_at: string
+          id?: string
+          idempotency_key: string
+          org_id?: string | null
+          request_hash?: string | null
+          response?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          endpoint?: string
+          expires_at?: string
+          id?: string
+          idempotency_key?: string
+          org_id?: string | null
+          request_hash?: string | null
+          response?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "idempotency_keys_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       identity_registry: {
         Row: {
           account_id: string | null
@@ -4466,6 +4507,7 @@ export type Database = {
         }
         Returns: Json
       }
+      cleanup_expired_idempotency_keys: { Args: never; Returns: number }
       cleanup_expired_oauth_states: { Args: never; Returns: number }
       cleanup_stuck_enrichment_jobs: { Args: never; Returns: Json }
       count_campaign_ready_accounts: {
