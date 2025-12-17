@@ -216,73 +216,15 @@ serve(async (req) => {
       })
       .eq('id', job.id);
 
-    // Process rows with chunked approach and time limit
     const effectiveConcurrency = Math.min(concurrency, CONCURRENCY_LIMIT);
-    const { processed, completed, failed, timedOut, contactsDiscovered } = await processRowsWithTimeLimit(
-      supabase, 
-      job.id, 
-      org_id, 
-      effectiveConcurrency,
-      agent_config,
-      config_icp_id,
-      discovery_config,
-      startTime,
-      MAX_PROCESSING_TIME_MS
-    );
 
-    // Update job status based on whether we completed or timed out
-    const { data: finalCounts } = await supabase
-      .from('enrichment_rows')
-      .select('status')
-      .eq('job_id', job.id);
-
-    const completedCount = finalCounts?.filter(r => r.status === 'completed').length || 0;
-    const failedCount = finalCounts?.filter(r => r.status === 'failed').length || 0;
-    const pendingCount = finalCounts?.filter(r => r.status === 'pending' || r.status === 'processing').length || 0;
-
-    const finalStatus = pendingCount > 0 ? 'paused' : 'completed';
-
-    await supabase
-      .from('enrichment_jobs')
-      .update({
-        status: finalStatus,
-        completed_at: finalStatus === 'completed' ? new Date().toISOString() : null,
-        paused_at: finalStatus === 'paused' ? new Date().toISOString() : null,
-        rows_completed: completedCount,
-        rows_failed: failedCount,
-        rows_pending: pendingCount,
-        enriched_records: completedCount,
-        contacts_discovered: contactsDiscovered,
-        last_heartbeat: new Date().toISOString(),
-        error_message: timedOut ? 'Job paused due to timeout. Will auto-resume.' : null
-      })
-      .eq('id', job.id);
-
-    // Log recovery event if job was paused due to timeout
-    if (timedOut && pendingCount > 0) {
-      await logRecoveryEvent(supabase, {
-        jobId: job.id,
-        orgId: org_id,
-        recoveryType: 'timeout_pause',
-        previousStatus: 'processing',
-        newStatus: 'paused',
-        rowsRecovered: 0,
-        reason: `Job paused after ${Math.round((Date.now() - startTime) / 1000)}s. ${pendingCount} rows pending.`
-      });
-    }
-
-    console.log(`[Orchestrator] Job ${job.id} ${finalStatus}: ${completedCount} success, ${failedCount} failed, ${pendingCount} pending, ${contactsDiscovered} contacts discovered`);
-
+    // Response body for immediate return
     const responseBody = {
       success: true,
       job_id: job.id,
       total_records: record_ids.length,
-      completed: completedCount,
-      failed: failedCount,
-      pending: pendingCount,
-      contacts_discovered: contactsDiscovered,
-      status: finalStatus,
-      timed_out: timedOut
+      status: 'processing',
+      message: 'Enrichment job started in background'
     };
 
     // Record idempotency key with response
@@ -295,6 +237,22 @@ serve(async (req) => {
       IDEMPOTENCY_TTL['enrichment-orchestrator']
     );
 
+    // Start background processing using EdgeRuntime.waitUntil()
+    // @ts-ignore - EdgeRuntime is available in Deno Edge Functions
+    EdgeRuntime.waitUntil(
+      processJobInBackground(
+        supabase,
+        job.id,
+        org_id,
+        effectiveConcurrency,
+        agent_config,
+        config_icp_id,
+        discovery_config,
+        startTime
+      )
+    );
+
+    // Return immediately - processing happens in background
     return new Response(JSON.stringify(responseBody), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
@@ -331,6 +289,89 @@ function buildSearchPayload(record: any, recordType: string): any {
       domain: record.domain,
       phone: record.phone
     };
+  }
+}
+
+// Background processing function using EdgeRuntime.waitUntil()
+async function processJobInBackground(
+  supabase: any,
+  jobId: string,
+  orgId: string,
+  concurrency: number,
+  agentConfig: { search: boolean; validation: boolean; icp: boolean; discover_contacts: boolean },
+  icpConfigId: string | undefined,
+  discoveryConfig: { target_titles: string[]; max_contacts_per_account: number },
+  startTime: number
+): Promise<void> {
+  console.log(`[Orchestrator] Background processing started for job ${jobId}`);
+  
+  try {
+    const { processed, completed, failed, timedOut, contactsDiscovered } = await processRowsWithTimeLimit(
+      supabase, 
+      jobId, 
+      orgId, 
+      concurrency,
+      agentConfig,
+      icpConfigId,
+      discoveryConfig,
+      startTime,
+      MAX_PROCESSING_TIME_MS
+    );
+
+    // Update job status based on whether we completed or timed out
+    const { data: finalCounts } = await supabase
+      .from('enrichment_rows')
+      .select('status')
+      .eq('job_id', jobId);
+
+    const completedCount = finalCounts?.filter((r: any) => r.status === 'completed').length || 0;
+    const failedCount = finalCounts?.filter((r: any) => r.status === 'failed').length || 0;
+    const pendingCount = finalCounts?.filter((r: any) => r.status === 'pending' || r.status === 'processing').length || 0;
+
+    const finalStatus = pendingCount > 0 ? 'paused' : 'completed';
+
+    await supabase
+      .from('enrichment_jobs')
+      .update({
+        status: finalStatus,
+        completed_at: finalStatus === 'completed' ? new Date().toISOString() : null,
+        paused_at: finalStatus === 'paused' ? new Date().toISOString() : null,
+        rows_completed: completedCount,
+        rows_failed: failedCount,
+        rows_pending: pendingCount,
+        enriched_records: completedCount,
+        contacts_discovered: contactsDiscovered,
+        last_heartbeat: new Date().toISOString(),
+        error_message: timedOut ? 'Job paused due to timeout. Will auto-resume.' : null
+      })
+      .eq('id', jobId);
+
+    // Log recovery event if job was paused due to timeout
+    if (timedOut && pendingCount > 0) {
+      await logRecoveryEvent(supabase, {
+        jobId,
+        orgId,
+        recoveryType: 'timeout_pause',
+        previousStatus: 'processing',
+        newStatus: 'paused',
+        rowsRecovered: 0,
+        reason: `Job paused after ${Math.round((Date.now() - startTime) / 1000)}s. ${pendingCount} rows pending.`
+      });
+    }
+
+    console.log(`[Orchestrator] Background job ${jobId} ${finalStatus}: ${completedCount} success, ${failedCount} failed, ${pendingCount} pending, ${contactsDiscovered} contacts discovered`);
+  } catch (error) {
+    console.error(`[Orchestrator] Background processing error for job ${jobId}:`, error);
+    
+    // Update job status to failed
+    await supabase
+      .from('enrichment_jobs')
+      .update({
+        status: 'failed',
+        error_message: error instanceof Error ? error.message : 'Unknown background processing error',
+        last_heartbeat: new Date().toISOString()
+      })
+      .eq('id', jobId);
   }
 }
 
