@@ -2,6 +2,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0';
 import { successResponse, errorResponse, handleCors, ErrorCodes, parseJsonBody, validateRequired } from '../_shared/response-helpers.ts';
+import { checkExistingJob, generateIdempotencyKey, checkIdempotency, recordIdempotencyKey, IDEMPOTENCY_TTL } from '../_shared/idempotency.ts';
 
 interface BulkScoreRequest {
   org_id: string;
@@ -188,6 +189,40 @@ serve(async (req) => {
     console.log('ICP ID:', icp_id);
     console.log('Chunk Size:', chunk_size);
 
+    // Check for duplicate request using idempotency
+    const idempotencyKey = generateIdempotencyKey(org_id, 'bulk-score-accounts', { org_id, icp_id });
+    const idempotencyResult = await checkIdempotency(supabase, idempotencyKey, 'bulk-score-accounts', IDEMPOTENCY_TTL['bulk-score-accounts']);
+    
+    if (idempotencyResult.isDuplicate && idempotencyResult.cachedResponse) {
+      console.log(`[BulkScore] Returning cached response for duplicate request`);
+      return successResponse({
+        ...idempotencyResult.cachedResponse,
+        _cached: true,
+      });
+    }
+
+    // Check for existing in-progress job for this org
+    const { exists: hasExistingJob, existingJob } = await checkExistingJob(
+      supabase,
+      org_id,
+      'bulk_scoring_jobs',
+      'status',
+      ['pending', 'processing'],
+      60 // 60 minutes
+    );
+
+    if (hasExistingJob && existingJob) {
+      console.log(`[BulkScore] Found existing job ${existingJob.id}, returning it`);
+      return successResponse({
+        job_id: existingJob.id,
+        message: 'Existing scoring job in progress',
+        status: existingJob.status,
+        total_accounts: existingJob.total_accounts,
+        processed_accounts: existingJob.processed_accounts,
+        _existing_job: true,
+      });
+    }
+
     // 🧹 Clean up zombie jobs (stuck for >1 hour)
     console.log('🧹 Cleaning up zombie jobs...');
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -295,13 +330,25 @@ serve(async (req) => {
       processAllChunks(supabase, jobId, org_id, orgScoringVersion, icpProfiles, totalAccounts, chunk_size)
     );
 
-    // Return immediately - scoring happens in background
-    return successResponse({
+    const responseBody = {
       job_id: jobId,
       message: "Scoring started in background",
       total_accounts: totalAccounts,
       total_chunks: totalChunks,
-    });
+    };
+
+    // Record idempotency key with response
+    await recordIdempotencyKey(
+      supabase,
+      idempotencyKey,
+      'bulk-score-accounts',
+      org_id,
+      responseBody,
+      IDEMPOTENCY_TTL['bulk-score-accounts']
+    );
+
+    // Return immediately - scoring happens in background
+    return successResponse(responseBody);
 
   } catch (error) {
     console.error('=== BULK SCORING ERROR ===');
