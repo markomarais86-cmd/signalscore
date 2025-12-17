@@ -2,15 +2,17 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 
-interface EnrichmentJob {
+export interface EnrichmentJob {
   id: string;
   org_id: string;
+  provider: string;
+  job_type: string;
   status: string;
   progress_percentage: number | null;
-  processed_records: number | null;
-  total_records: number | null;
-  enriched_records: number | null;
-  failed_records: number | null;
+  processed_records: number;
+  total_records: number;
+  enriched_records: number;
+  failed_records: number;
   current_batch: number | null;
   total_batches: number | null;
   started_at: string | null;
@@ -18,6 +20,10 @@ interface EnrichmentJob {
   paused_at: string | null;
   error_message: string | null;
   last_heartbeat: string | null;
+  credits_used?: number;
+  credits_remaining?: number;
+  estimated_completion_at?: string | null;
+  can_pause?: boolean;
 }
 
 interface UseRealtimeEnrichmentOptions {

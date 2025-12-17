@@ -15,6 +15,7 @@ import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import { TableSkeleton } from "@/components/TableSkeleton";
 import { useInfiniteAccounts } from "@/hooks/use-infinite-accounts";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { useBatchPredictions } from "@/hooks/use-predictions";
 import { accountsLogger } from "@/lib/logger";
 import { SUB_INDUSTRIES_MAP } from "@/constants/zoominfo-industries";
 
@@ -167,6 +168,20 @@ export default function Accounts() {
     
     fetchActiveIcp();
   }, [userProfile?.org_id, icpContext?.icpId]);
+
+  // Fetch predictions for accounts
+  const { data: predictionsData, isPending: isPredictionsLoading } = useBatchPredictions(userProfile?.org_id || null);
+  
+  // Create predictions map for fast lookup
+  const predictionsMap = useMemo(() => {
+    const map = new Map<string, { account_id: string; probability: number; confidence: number }>();
+    if (predictionsData?.predictions) {
+      for (const pred of predictionsData.predictions) {
+        map.set(pred.account_id, pred);
+      }
+    }
+    return map;
+  }, [predictionsData]);
 
   // Infinite scroll hook
   const {
@@ -532,6 +547,8 @@ export default function Accounts() {
         hasActiveFilters={hasActiveFilters}
         fitFilter={fitFilter}
         clearFilters={clearFilters}
+        predictions={predictionsMap}
+        isPredictionsLoading={isPredictionsLoading}
         observerTarget={observerTarget}
         isLoadingMore={isLoadingMore}
         hasMore={hasMore}

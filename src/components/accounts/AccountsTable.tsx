@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { formatNumber } from "@/utils/format-numbers";
 import { getSourceLabel, getSourceBadgeVariant } from "@/utils/data-source-attribution";
 import { InfiniteScrollTrigger } from "@/components/InfiniteScrollTrigger";
+import { PredictionBadgeCompact } from "@/components/PredictionBadge";
 
 interface Account {
   id: string;
@@ -41,6 +42,12 @@ interface Account {
   campaignReadyLeads?: number;
 }
 
+interface PredictionData {
+  account_id: string;
+  probability: number;
+  confidence: number;
+}
+
 interface AccountsTableProps {
   accounts: Account[];
   totalCount: number;
@@ -51,6 +58,9 @@ interface AccountsTableProps {
   hasActiveFilters: boolean;
   fitFilter: string | null;
   clearFilters: () => void;
+  // Predictions
+  predictions?: Map<string, PredictionData>;
+  isPredictionsLoading?: boolean;
   // Infinite scroll props
   observerTarget: React.RefObject<HTMLDivElement>;
   isLoadingMore: boolean;
@@ -83,6 +93,8 @@ export function AccountsTable({
   hasActiveFilters,
   fitFilter,
   clearFilters,
+  predictions,
+  isPredictionsLoading,
   observerTarget,
   isLoadingMore,
   hasMore,
@@ -122,13 +134,14 @@ export function AccountsTable({
               <TableHead>Data Quality</TableHead>
               <TableHead>Leads</TableHead>
               <TableHead>Campaign Ready</TableHead>
+              <TableHead>Prediction</TableHead>
               <TableHead>Score</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {accounts.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={10} className="h-32">
+                <TableCell colSpan={11} className="h-32">
                   <div className="flex flex-col items-center justify-center text-center space-y-3">
                     <AlertCircle className="h-12 w-12 text-muted-foreground/50" />
                     <div>
@@ -246,6 +259,17 @@ export function AccountsTable({
                           <span className="text-xs text-muted-foreground">-</span>
                         )}
                       </div>
+                    </TableCell>
+                    <TableCell>
+                      {(() => {
+                        const prediction = predictions?.get(account.external_id);
+                        return (
+                          <PredictionBadgeCompact
+                            probability={prediction?.probability ?? null}
+                            isLoading={isPredictionsLoading}
+                          />
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       {account.score?.overall ? (
