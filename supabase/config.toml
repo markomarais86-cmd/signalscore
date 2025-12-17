@@ -242,3 +242,6 @@ verify_jwt = true
 
 [functions.job-auto-recovery]
 verify_jwt = false
+
+[functions.pipeline-metrics]
+verify_jwt = true
