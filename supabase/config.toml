@@ -254,3 +254,6 @@ verify_jwt = true
 
 [functions.trend-metrics]
 verify_jwt = true
+
+[functions.prediction-service]
+verify_jwt = true
