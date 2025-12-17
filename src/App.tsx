@@ -35,6 +35,7 @@ import AgentTester from "./pages/AgentTester";
 import AITest from "./pages/AITest";
 import Help from "./pages/Help";
 import Discovery from "./pages/Discovery";
+import PipelineAnalyticsPage from "./pages/PipelineAnalyticsPage";
 
 const queryClient = new QueryClient();
 
@@ -143,6 +144,16 @@ function AppContent() {
                     <ProtectedRoute>
                       <Layout>
                         <PipelineEfficiency />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                  />
+                <Route
+                  path="/pipeline-analytics"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <PipelineAnalyticsPage />
                       </Layout>
                     </ProtectedRoute>
                   }
