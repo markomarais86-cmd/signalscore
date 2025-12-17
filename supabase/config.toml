@@ -245,3 +245,12 @@ verify_jwt = false
 
 [functions.pipeline-metrics]
 verify_jwt = true
+
+[functions.capital-metrics]
+verify_jwt = true
+
+[functions.cohort-metrics]
+verify_jwt = true
+
+[functions.trend-metrics]
+verify_jwt = true
