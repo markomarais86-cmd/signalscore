@@ -633,7 +633,52 @@ serve(async (req) => {
       });
     }
 
-    // Determine final status
+    // Check if more accounts remain to be processed
+    const moreAccountsRemaining = totalProcessed < job.total_records;
+    
+    if (moreAccountsRemaining) {
+      // Pause for auto-resume instead of completing
+      const progress: JobProgress = {
+        processed_account_ids: Array.from(processedIds),
+        failed_accounts: allErrors,
+        last_processed_at: new Date().toISOString(),
+      };
+      
+      const progressPercentage = Math.round((totalProcessed / job.total_records) * 100);
+      
+      await supabase
+        .from("enrichment_jobs")
+        .update({
+          status: "paused",
+          paused_at: new Date().toISOString(),
+          can_pause: true,
+          processed_records: totalProcessed,
+          enriched_records: totalEnriched,
+          failed_records: allErrors.length,
+          progress_percentage: progressPercentage,
+          last_progress_update: new Date().toISOString(),
+          error_message: `Auto-paused after batch - ${job.total_records - totalProcessed} accounts remaining`,
+          agent_config: { ...job.agent_config, progress },
+        })
+        .eq("id", jobId);
+      
+      console.log(`[enrich-ai-only] Paused for auto-resume: ${totalProcessed}/${job.total_records} processed, ${job.total_records - totalProcessed} remaining`);
+      
+      return new Response(JSON.stringify({
+        success: true,
+        status: "paused",
+        message: `Batch complete, paused for auto-resume. ${job.total_records - totalProcessed} accounts remaining.`,
+        processed: totalProcessed,
+        enriched: totalEnriched,
+        remaining: job.total_records - totalProcessed,
+        duration_ms: Date.now() - startTime,
+        needs_resume: true,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+
+    // All accounts processed - determine final status
     const retryableErrors = allErrors.filter(e => e.retryable);
     const finalStatus = retryableErrors.length > 0 && retryableErrors.length === allErrors.length
       ? "completed_with_errors"
