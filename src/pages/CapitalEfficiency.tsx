@@ -5,9 +5,10 @@ import { LoadingState } from "@/components/LoadingState";
 import { EmptyState } from "@/components/EmptyState";
 import { DollarSign, TrendingUp, Target, Zap } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
 export default function CapitalEfficiency() {
-  const { metrics, isLoading, error } = useCapitalData();
+  const { metrics, isLoading, isPending, error } = useCapitalData();
 
   if (isLoading) return <LoadingState message="Loading capital efficiency data..." fullScreen />;
 
@@ -61,7 +62,7 @@ export default function CapitalEfficiency() {
 
   return (
     <Layout>
-      <div className="p-8 space-y-8">
+      <div className={cn("p-8 space-y-8", isPending && "opacity-70 transition-opacity")}>
         <div>
           <h1 className="text-3xl font-bold text-foreground">Capital Efficiency</h1>
           <p className="text-muted-foreground mt-2">

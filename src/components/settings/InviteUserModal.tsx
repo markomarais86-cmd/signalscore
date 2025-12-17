@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useActionState, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Mail, Loader2 } from 'lucide-react';
+import { FormState, initialFormState, validateEmail, getFormValue, createErrorState, createFormState } from '@/lib/form-actions';
 
 interface InviteUserModalProps {
   open: boolean;
@@ -31,25 +32,27 @@ interface InviteUserModalProps {
 export function InviteUserModal({ open, onOpenChange, onInviteSent }: InviteUserModalProps) {
   const { userProfile } = useAuth();
   const { toast } = useToast();
-  const [email, setEmail] = useState('');
   const [role, setRole] = useState<'user' | 'admin'>('user');
-  const [loading, setLoading] = useState(false);
 
-  const handleInvite = async () => {
-    if (!email || !userProfile) return;
+  const inviteAction = async (prevState: FormState, formData: FormData): Promise<FormState> => {
+    const email = getFormValue(formData, 'email');
+    
+    if (!email || !validateEmail(email)) {
+      return createErrorState('Please enter a valid email address');
+    }
+    
+    if (!userProfile) {
+      return createErrorState('User profile not found');
+    }
 
-    setLoading(true);
     try {
       // Generate invitation token
-      const { data: tokenData, error: tokenError } = await supabase.rpc(
-        'generate_invitation_token'
-      );
-
+      const { data: tokenData, error: tokenError } = await supabase.rpc('generate_invitation_token');
       if (tokenError) throw tokenError;
 
       const token = tokenData as string;
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+      expiresAt.setDate(expiresAt.getDate() + 7);
 
       // Create invitation record
       const { error: inviteError } = await supabase.from('invitations').insert({
@@ -70,17 +73,14 @@ export function InviteUserModal({ open, onOpenChange, onInviteSent }: InviteUser
         body: {
           email: email.toLowerCase(),
           inviteUrl,
-          orgName: 'LaunchPulse', // You can fetch org name if needed
+          orgName: 'LaunchPulse',
         },
       });
 
       if (emailError) {
-        console.error('Email sending error:', emailError);
-        // Don't fail the whole operation if email fails
         toast({
           title: 'Invitation Created',
           description: 'Invitation created but email may not have been sent. Share the link manually.',
-          variant: 'default',
         });
       } else {
         toast({
@@ -89,21 +89,18 @@ export function InviteUserModal({ open, onOpenChange, onInviteSent }: InviteUser
         });
       }
 
-      setEmail('');
       setRole('user');
       onInviteSent?.();
       onOpenChange(false);
+      
+      return createFormState();
     } catch (error: any) {
       console.error('Error sending invitation:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to send invitation',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+      return createErrorState(error.message || 'Failed to send invitation');
     }
   };
+
+  const [state, formAction, isPending] = useActionState(inviteAction, initialFormState);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -115,54 +112,59 @@ export function InviteUserModal({ open, onOpenChange, onInviteSent }: InviteUser
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email Address</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="colleague@company.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="role">Role</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as 'user' | 'admin')}>
-              <SelectTrigger id="role" disabled={loading}>
-                <SelectValue placeholder="Select role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="user">User</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Admins can manage team members and settings
-            </p>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            Cancel
-          </Button>
-          <Button onClick={handleInvite} disabled={!email || loading}>
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Sending...
-              </>
-            ) : (
-              <>
-                <Mail className="h-4 w-4 mr-2" />
-                Send Invitation
-              </>
+        <form action={formAction}>
+          <div className="grid gap-4 py-4">
+            {state.error && (
+              <p className="text-sm text-destructive">{state.error}</p>
             )}
-          </Button>
-        </DialogFooter>
+            
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                placeholder="colleague@company.com"
+                disabled={isPending}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="role">Role</Label>
+              <Select value={role} onValueChange={(v) => setRole(v as 'user' | 'admin')}>
+                <SelectTrigger id="role" disabled={isPending}>
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Admins can manage team members and settings
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isPending}>
+              {isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Mail className="h-4 w-4 mr-2" />
+                  Send Invitation
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

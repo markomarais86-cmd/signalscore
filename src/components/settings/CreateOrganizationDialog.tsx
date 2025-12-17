@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useActionState, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,6 +7,7 @@ import { Loader2, Building, Mail, User, Copy, CheckCircle2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { FormState, initialFormState, validateEmail, getFormValue, createErrorState, createFormState } from '@/lib/form-actions';
 
 interface CreateOrganizationDialogProps {
   open: boolean;
@@ -14,59 +15,36 @@ interface CreateOrganizationDialogProps {
   onSuccess: () => void;
 }
 
+interface CreateOrgState extends FormState {
+  invitationUrl?: string;
+}
+
 export function CreateOrganizationDialog({ open, onOpenChange, onSuccess }: CreateOrganizationDialogProps) {
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [invitationUrl, setInvitationUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [formData, setFormData] = useState({
-    orgName: '',
-    adminEmail: '',
-    adminFullName: '',
-  });
 
-  const validateEmail = (email: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
+  const createOrgAction = async (prevState: CreateOrgState, formData: FormData): Promise<CreateOrgState> => {
+    const orgName = getFormValue(formData, 'orgName');
+    const adminEmail = getFormValue(formData, 'adminEmail');
+    const adminFullName = getFormValue(formData, 'adminFullName');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validation
-    if (!formData.orgName.trim()) {
-      toast({
-        title: 'Validation Error',
-        description: 'Organization name is required',
-        variant: 'destructive',
-      });
-      return;
+    if (!orgName.trim()) {
+      return createErrorState('Organization name is required');
     }
 
-    if (!validateEmail(formData.adminEmail)) {
-      toast({
-        title: 'Validation Error',
-        description: 'Please enter a valid email address',
-        variant: 'destructive',
-      });
-      return;
+    if (!validateEmail(adminEmail)) {
+      return createErrorState('Please enter a valid email address');
     }
 
-    if (!formData.adminFullName.trim()) {
-      toast({
-        title: 'Validation Error',
-        description: 'Admin full name is required',
-        variant: 'destructive',
-      });
-      return;
+    if (!adminFullName.trim()) {
+      return createErrorState('Admin full name is required');
     }
-
-    setLoading(true);
 
     try {
       // 1. Create organization
       const { data: org, error: orgError } = await supabase
         .from('organizations')
-        .insert({ name: formData.orgName })
+        .insert({ name: orgName })
         .select()
         .single();
 
@@ -74,18 +52,17 @@ export function CreateOrganizationDialog({ open, onOpenChange, onSuccess }: Crea
 
       // 2. Generate invitation token
       const { data: tokenData, error: tokenError } = await supabase.rpc('generate_invitation_token');
-      
       if (tokenError) throw tokenError;
       
       const token = tokenData as string;
 
       // 3. Create invitation for org admin
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
+      expiresAt.setDate(expiresAt.getDate() + 7);
 
       const { error: inviteError } = await supabase.from('invitations').insert({
         org_id: org.id,
-        email: formData.adminEmail,
+        email: adminEmail,
         role: 'org_admin',
         token: token,
         expires_at: expiresAt.toISOString(),
@@ -94,67 +71,50 @@ export function CreateOrganizationDialog({ open, onOpenChange, onSuccess }: Crea
 
       if (inviteError) throw inviteError;
 
-      // 4. Send invitation email via edge function
+      // 4. Send invitation email
       const inviteUrl = `https://launchpulse.io/auth?invite=${token}`;
       
       const { error: emailError } = await supabase.functions.invoke('send-invitation', {
         body: {
-          email: formData.adminEmail,
+          email: adminEmail,
           inviteUrl: inviteUrl,
-          orgName: formData.orgName,
-          inviterName: formData.adminFullName,
+          orgName: orgName,
+          inviterName: adminFullName,
         },
       });
 
-      // Show the invitation URL regardless of email success
-      setInvitationUrl(inviteUrl);
-
       if (emailError) {
-        console.error('Email sending error:', emailError);
         toast({
           title: 'Organization Created',
-          description: 'Organization created! Copy the invitation link below to share with the admin.',
-          variant: 'default',
+          description: 'Copy the invitation link below to share with the admin.',
         });
       } else {
         toast({
           title: 'Success!',
-          description: `Organization "${formData.orgName}" created and invitation sent to ${formData.adminEmail}`,
+          description: `Organization "${orgName}" created and invitation sent to ${adminEmail}`,
         });
       }
 
       onSuccess();
+      return { success: true, error: null, invitationUrl: inviteUrl };
     } catch (error: any) {
       console.error('Error creating organization:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to create organization',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+      return createErrorState(error.message || 'Failed to create organization');
     }
   };
 
+  const [state, formAction, isPending] = useActionState(createOrgAction, { success: false, error: null } as CreateOrgState);
+
   const copyToClipboard = () => {
-    if (invitationUrl) {
-      navigator.clipboard.writeText(invitationUrl);
+    if (state.invitationUrl) {
+      navigator.clipboard.writeText(state.invitationUrl);
       setCopied(true);
-      toast({
-        title: 'Copied!',
-        description: 'Invitation link copied to clipboard',
-      });
+      toast({ title: 'Copied!', description: 'Invitation link copied to clipboard' });
       setTimeout(() => setCopied(false), 2000);
     }
   };
 
   const handleClose = () => {
-    setFormData({
-      orgName: '',
-      adminEmail: '',
-      adminFullName: '',
-    });
-    setInvitationUrl(null);
     setCopied(false);
     onOpenChange(false);
   };
@@ -169,7 +129,7 @@ export function CreateOrganizationDialog({ open, onOpenChange, onSuccess }: Crea
           </DialogDescription>
         </DialogHeader>
 
-        {invitationUrl ? (
+        {state.invitationUrl ? (
           <div className="space-y-4">
             <Alert>
               <CheckCircle2 className="h-4 w-4" />
@@ -181,93 +141,76 @@ export function CreateOrganizationDialog({ open, onOpenChange, onSuccess }: Crea
             <div className="space-y-2">
               <Label>Invitation Link</Label>
               <div className="flex gap-2">
-                <Input
-                  value={invitationUrl}
-                  readOnly
-                  className="font-mono text-xs"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  onClick={copyToClipboard}
-                >
+                <Input value={state.invitationUrl} readOnly className="font-mono text-xs" />
+                <Button type="button" variant="outline" size="icon" onClick={copyToClipboard}>
                   {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">This link expires in 7 days</p>
+            </div>
+
+            <DialogFooter>
+              <Button onClick={handleClose}>Done</Button>
+            </DialogFooter>
+          </div>
+        ) : (
+          <form action={formAction} className="space-y-4">
+            {state.error && (
+              <p className="text-sm text-destructive">{state.error}</p>
+            )}
+            
+            <div className="space-y-2">
+              <Label htmlFor="orgName">Organization Name</Label>
+              <div className="relative">
+                <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="orgName"
+                  name="orgName"
+                  placeholder="Acme Corporation"
+                  className="pl-10"
+                  disabled={isPending}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="adminFullName">Admin Full Name</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="adminFullName"
+                  name="adminFullName"
+                  placeholder="John Doe"
+                  className="pl-10"
+                  disabled={isPending}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="adminEmail">Admin Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="adminEmail"
+                  name="adminEmail"
+                  type="email"
+                  placeholder="admin@acme.com"
+                  className="pl-10"
+                  disabled={isPending}
+                />
+              </div>
               <p className="text-xs text-muted-foreground">
-                This link expires in 7 days
+                An invitation email will be sent to this address
               </p>
             </div>
 
             <DialogFooter>
-              <Button onClick={handleClose}>
-                Done
-              </Button>
-            </DialogFooter>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="orgName">Organization Name</Label>
-            <div className="relative">
-              <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="orgName"
-                placeholder="Acme Corporation"
-                className="pl-10"
-                value={formData.orgName}
-                onChange={(e) => setFormData((prev) => ({ ...prev, orgName: e.target.value }))}
-                disabled={loading}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="adminFullName">Admin Full Name</Label>
-            <div className="relative">
-              <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="adminFullName"
-                placeholder="John Doe"
-                className="pl-10"
-                value={formData.adminFullName}
-                onChange={(e) => setFormData((prev) => ({ ...prev, adminFullName: e.target.value }))}
-                disabled={loading}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="adminEmail">Admin Email</Label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="adminEmail"
-                type="email"
-                placeholder="admin@acme.com"
-                className="pl-10"
-                value={formData.adminEmail}
-                onChange={(e) => setFormData((prev) => ({ ...prev, adminEmail: e.target.value }))}
-                disabled={loading}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              An invitation email will be sent to this address
-            </p>
-          </div>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleClose}
-                disabled={loading}
-              >
+              <Button type="button" variant="outline" onClick={handleClose} disabled={isPending}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? (
+              <Button type="submit" disabled={isPending}>
+                {isPending ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Creating...

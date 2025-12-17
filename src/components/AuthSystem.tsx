@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useActionState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Loader2, Eye, EyeOff, Mail, Lock, User, Building, CheckCircle2 } from '
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { FormState, initialFormState, validateEmail, validatePassword, getFormValue, createErrorState, createFormState } from '@/lib/form-actions';
 
 const PENDING_INVITE_KEY = 'pending_invitation_token';
 
@@ -20,14 +21,11 @@ export function AuthSystem() {
   const [searchParams] = useSearchParams();
   const inviteTokenFromUrl = searchParams.get('invite');
   
-  // Get invite token from URL or localStorage (persisted through email verification)
   const [inviteToken, setInviteToken] = useState<string | null>(() => {
     return inviteTokenFromUrl || localStorage.getItem(PENDING_INVITE_KEY);
   });
   
-  const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
   const [invitationInfo, setInvitationInfo] = useState<any>(null);
 
   // Persist invite token to localStorage when present in URL
@@ -45,8 +43,6 @@ export function AuthSystem() {
         const pendingToken = localStorage.getItem(PENDING_INVITE_KEY);
         
         if (pendingToken) {
-          console.log('AuthSystem: User signed in with pending invitation, accepting...');
-          
           try {
             const { data: acceptResult, error: acceptError } = await supabase.rpc(
               'accept_invitation',
@@ -56,7 +52,6 @@ export function AuthSystem() {
             const result = acceptResult as any;
             
             if (acceptError || !result?.success) {
-              console.error('Error accepting invitation:', acceptError);
               toast({
                 title: 'Invitation Issue',
                 description: 'There was an issue with the invitation. Please contact support.',
@@ -72,12 +67,10 @@ export function AuthSystem() {
           } catch (err) {
             console.error('Error accepting invitation:', err);
           } finally {
-            // Clear the pending invitation
             localStorage.removeItem(PENDING_INVITE_KEY);
           }
         }
         
-        // Redirect to dashboard
         navigate('/', { replace: true });
       }
     });
@@ -85,18 +78,15 @@ export function AuthSystem() {
     return () => subscription.unsubscribe();
   }, [navigate, toast]);
 
-  // Redirect authenticated users to dashboard (initial check)
+  // Redirect authenticated users to dashboard
   useEffect(() => {
     const checkAuth = async () => {
       if (loading) return;
-      
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        console.log('AuthSystem: User already authenticated, redirecting to dashboard');
         navigate('/', { replace: true });
       }
     };
-    
     checkAuth();
   }, [loading, navigate]);
 
@@ -125,7 +115,6 @@ export function AuthSystem() {
         return;
       }
 
-      // Check if expired
       if (new Date(data.expires_at) < new Date()) {
         toast({
           title: 'Invitation Expired',
@@ -136,179 +125,101 @@ export function AuthSystem() {
       }
 
       setInvitationInfo(data);
-      setSignUpData((prev) => ({ ...prev, email: data.email }));
     } catch (error) {
       console.error('Error loading invitation:', error);
     }
   };
 
-  // Sign In Form
-  const [signInData, setSignInData] = useState({
-    email: '',
-    password: ''
-  });
+  // Sign In Action
+  const signInAction = async (prevState: FormState, formData: FormData): Promise<FormState> => {
+    const email = getFormValue(formData, 'email');
+    const password = getFormValue(formData, 'password');
 
-  // Sign Up Form
-  const [signUpData, setSignUpData] = useState({
-    email: '',
-    password: '',
-    confirmPassword: '',
-    fullName: '',
-    company: ''
-  });
-
-  const validateEmail = (email: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
-
-  const validatePassword = (password: string) => {
-    return password.length >= 8;
-  };
-
-  const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
-
-    if (!validateEmail(signInData.email)) {
-      setError('Please enter a valid email address');
-      setIsLoading(false);
-      return;
+    if (!validateEmail(email)) {
+      return createErrorState('Please enter a valid email address');
     }
 
-    if (!signInData.password) {
-      setError('Password is required');
-      setIsLoading(false);
-      return;
+    if (!password) {
+      return createErrorState('Password is required');
     }
 
     try {
-      // Phase B: Show progressive loading feedback
-      toast({
-        title: "Signing in...",
-        description: "Please wait a moment"
-      });
+      toast({ title: "Signing in...", description: "Please wait a moment" });
       
-      const { error } = await signIn(signInData.email, signInData.password);
+      const { error } = await signIn(email, password);
       
       if (error) {
-        // Provide more specific and helpful error messages
         if (error.message.includes('Invalid login credentials')) {
-          setError('Invalid email or password. If you recently signed up, please check your email and click the confirmation link first. You can also try resetting your password.');
+          return createErrorState('Invalid email or password. If you recently signed up, please check your email and click the confirmation link first.');
         } else if (error.message.includes('Email not confirmed')) {
-          setError('Please check your email and click the confirmation link before signing in. Check your spam folder if you don\'t see the email.');
+          return createErrorState("Please check your email and click the confirmation link before signing in.");
         } else if (error.message.includes('Too many requests')) {
-          setError('Too many sign in attempts. Please wait a few minutes before trying again.');
-        } else if (error.message.includes('Signup is disabled')) {
-          setError('This account may not be properly set up. Please contact support.');
-        } else {
-          setError(`Sign in failed: ${error.message}`);
+          return createErrorState('Too many sign in attempts. Please wait a few minutes before trying again.');
         }
-      } else {
-        // Phase B: Show loading dashboard message
-        toast({
-          title: "Loading your dashboard...",
-          description: "Almost there!"
-        });
-        // Redirect to dashboard after successful sign-in
-        navigate('/');
+        return createErrorState(`Sign in failed: ${error.message}`);
       }
+      
+      toast({ title: "Loading your dashboard...", description: "Almost there!" });
+      navigate('/');
+      return createFormState();
     } catch (err) {
-      console.error('Sign in error:', err);
-      setError('An unexpected error occurred. Please try again or contact support.');
-    } finally {
-      setIsLoading(false);
+      return createErrorState('An unexpected error occurred. Please try again.');
     }
   };
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setIsLoading(true);
+  // Sign Up Action
+  const signUpAction = async (prevState: FormState, formData: FormData): Promise<FormState> => {
+    const email = getFormValue(formData, 'email');
+    const password = getFormValue(formData, 'password');
+    const confirmPassword = getFormValue(formData, 'confirmPassword');
+    const fullName = getFormValue(formData, 'fullName');
 
-    // Validation
-    if (!validateEmail(signUpData.email)) {
-      setError('Please enter a valid email address');
-      setIsLoading(false);
-      return;
+    if (!validateEmail(email)) {
+      return createErrorState('Please enter a valid email address');
     }
 
-    if (!validatePassword(signUpData.password)) {
-      setError('Password must be at least 8 characters long');
-      setIsLoading(false);
-      return;
+    if (!validatePassword(password)) {
+      return createErrorState('Password must be at least 8 characters long');
     }
 
-    if (signUpData.password !== signUpData.confirmPassword) {
-      setError('Passwords do not match');
-      setIsLoading(false);
-      return;
+    if (password !== confirmPassword) {
+      return createErrorState('Passwords do not match');
     }
 
-    if (!signUpData.fullName.trim()) {
-      setError('Full name is required');
-      setIsLoading(false);
-      return;
+    if (!fullName.trim()) {
+      return createErrorState('Full name is required');
     }
 
     try {
-      // Build redirect URL with invite token if present
       const redirectUrl = inviteToken 
         ? `${window.location.origin}/auth?invite=${inviteToken}`
         : `${window.location.origin}/auth`;
       
-      const { error } = await signUp(
-        signUpData.email, 
-        signUpData.password,
-        signUpData.fullName,
-        redirectUrl
-      );
+      const { error } = await signUp(email, password, fullName, redirectUrl);
 
       if (error) {
-        // Handle specific error cases
         if (error.message.includes('User already registered')) {
-          setError('An account with this email already exists. Please sign in instead or try resetting your password.');
-        } else if (error.message.includes('signup_disabled')) {
-          setError('New account registration is currently disabled.');
-        } else if (error.message.includes('Password should be at least 6 characters')) {
-          setError('Password must be at least 6 characters long');
-        } else if (error.message.includes('Invalid email')) {
-          setError('Please enter a valid email address');
-        } else {
-          setError(`Sign up failed: ${error.message}`);
+          return createErrorState('An account with this email already exists. Please sign in instead.');
         }
-      } else {
-        // Success - show clear instructions
-        const orgName = invitationInfo?.organizations?.name;
-        toast({
-          title: "Account created successfully!",
-          description: orgName 
-            ? `Please check your email and click the confirmation link to join ${orgName}.`
-            : "Please check your email inbox and click the confirmation link before signing in. Check your spam folder if you don't see it.",
-        });
-        
-        // Reset form
-        setSignUpData({
-          email: '',
-          password: '',
-          confirmPassword: '',
-          fullName: '',
-          company: ''
-        });
-        
-        // Auto-switch to sign-in tab after 2 seconds
-        setTimeout(() => {
-          const signInTab = document.querySelector('[value="signin"]') as HTMLButtonElement;
-          if (signInTab) signInTab.click();
-        }, 2000);
+        return createErrorState(`Sign up failed: ${error.message}`);
       }
+
+      const orgName = invitationInfo?.organizations?.name;
+      toast({
+        title: "Account created successfully!",
+        description: orgName 
+          ? `Please check your email and click the confirmation link to join ${orgName}.`
+          : "Please check your email inbox and click the confirmation link before signing in.",
+      });
+      
+      return createFormState();
     } catch (err) {
-      console.error('Sign up error:', err);
-      setError('An unexpected error occurred. Please try again or contact support.');
-    } finally {
-      setIsLoading(false);
+      return createErrorState('An unexpected error occurred. Please try again.');
     }
   };
+
+  const [signInState, signInFormAction, signInPending] = useActionState(signInAction, initialFormState);
+  const [signUpState, signUpFormAction, signUpPending] = useActionState(signUpAction, initialFormState);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/20 p-4">
@@ -335,27 +246,26 @@ export function AuthSystem() {
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
 
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
             {/* Sign In Form */}
             <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-4">
+              <form action={signInFormAction} className="space-y-4">
+                {signInState.error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{signInState.error}</AlertDescription>
+                  </Alert>
+                )}
+                
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">Email</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="signin-email"
+                      name="email"
                       type="email"
                       placeholder="you@company.com"
                       className="pl-10"
-                      value={signInData.email}
-                      onChange={(e) => setSignInData(prev => ({ ...prev, email: e.target.value }))}
-                      disabled={isLoading}
+                      disabled={signInPending}
                     />
                   </div>
                 </div>
@@ -366,29 +276,24 @@ export function AuthSystem() {
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="signin-password"
+                      name="password"
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Enter your password"
                       className="pl-10 pr-10"
-                      value={signInData.password}
-                      onChange={(e) => setSignInData(prev => ({ ...prev, password: e.target.value }))}
-                      disabled={isLoading}
+                      disabled={signInPending}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
                     >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? (
+                <Button type="submit" className="w-full" disabled={signInPending}>
+                  {signInPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Signing in...
@@ -413,19 +318,24 @@ export function AuthSystem() {
 
             {/* Sign Up Form */}
             <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4">
+              <form action={signUpFormAction} className="space-y-4">
+                {signUpState.error && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{signUpState.error}</AlertDescription>
+                  </Alert>
+                )}
+                
                 <div className="space-y-2">
                   <Label htmlFor="signup-name">Full Name</Label>
                   <div className="relative">
                     <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="signup-name"
+                      name="fullName"
                       type="text"
                       placeholder="John Doe"
                       className="pl-10"
-                      value={signUpData.fullName}
-                      onChange={(e) => setSignUpData(prev => ({ ...prev, fullName: e.target.value }))}
-                      disabled={isLoading}
+                      disabled={signUpPending}
                     />
                   </div>
                 </div>
@@ -436,12 +346,12 @@ export function AuthSystem() {
                     <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="signup-email"
+                      name="email"
                       type="email"
                       placeholder="you@company.com"
                       className="pl-10"
-                      value={signUpData.email}
-                      onChange={(e) => setSignUpData(prev => ({ ...prev, email: e.target.value }))}
-                      disabled={isLoading}
+                      defaultValue={invitationInfo?.email || ''}
+                      disabled={signUpPending}
                     />
                   </div>
                 </div>
@@ -452,12 +362,11 @@ export function AuthSystem() {
                     <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="signup-company"
+                      name="company"
                       type="text"
                       placeholder="Your Company"
                       className="pl-10"
-                      value={signUpData.company}
-                      onChange={(e) => setSignUpData(prev => ({ ...prev, company: e.target.value }))}
-                      disabled={isLoading}
+                      disabled={signUpPending}
                     />
                   </div>
                 </div>
@@ -468,23 +377,18 @@ export function AuthSystem() {
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="signup-password"
+                      name="password"
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Create a password"
                       className="pl-10 pr-10"
-                      value={signUpData.password}
-                      onChange={(e) => setSignUpData(prev => ({ ...prev, password: e.target.value }))}
-                      disabled={isLoading}
+                      disabled={signUpPending}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
                     >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -498,18 +402,17 @@ export function AuthSystem() {
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="signup-confirm"
+                      name="confirmPassword"
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Confirm your password"
                       className="pl-10"
-                      value={signUpData.confirmPassword}
-                      onChange={(e) => setSignUpData(prev => ({ ...prev, confirmPassword: e.target.value }))}
-                      disabled={isLoading}
+                      disabled={signUpPending}
                     />
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? (
+                <Button type="submit" className="w-full" disabled={signUpPending}>
+                  {signUpPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Creating account...
