@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp, ArrowRight, Sparkles, RefreshCw, Rocket } from "lucide-react";
+import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp, ArrowRight, Sparkles, RefreshCw, Rocket, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -23,6 +23,7 @@ import { ICPRecommendationDialog } from "@/components/icp/ICPRecommendationDialo
 import { ICPGridSkeleton } from "@/components/ICPGridSkeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function ICPManager() {
   const [icps, setIcps] = useState<ICPProfile[]>([]);
@@ -36,6 +37,7 @@ export default function ICPManager() {
   const [selectedICPForCampaign, setSelectedICPForCampaign] = useState<string | undefined>();
   const [selectedIcp, setSelectedIcp] = useState<ICPProfile | null>(null);
   const [detailTab, setDetailTab] = useState<string>('overview');
+  const [discoveryIcpId, setDiscoveryIcpId] = useState<string>('');
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
@@ -377,7 +379,7 @@ export default function ICPManager() {
               ) : (
                 <>
                   <Sparkles className="h-4 w-4" />
-                  Get AI Recommendations
+                  AI ICP Builder
                 </>
               )}
             </Button>
@@ -400,7 +402,57 @@ export default function ICPManager() {
           />
         )}
 
-        {/* ICP Content */}
+        {/* LaunchPulse Discovery Card - Always Visible */}
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Rocket className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-xl">LaunchPulse Discovery</CardTitle>
+                <CardDescription>Find new companies matching your ICP criteria</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Select ICP to discover companies for:</label>
+              <Select value={discoveryIcpId} onValueChange={setDiscoveryIcpId}>
+                <SelectTrigger>
+                  <SelectValue placeholder={icps.length > 0 ? "Choose an ICP profile..." : "Create an ICP first"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {icps.map((icp) => (
+                    <SelectItem key={icp.id} value={icp.id}>
+                      {icp.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              className="w-full"
+              disabled={!discoveryIcpId}
+              onClick={() => {
+                const selectedDiscoveryIcp = icps.find(i => i.id === discoveryIcpId);
+                if (selectedDiscoveryIcp) {
+                  setSelectedIcp(selectedDiscoveryIcp);
+                  setDetailTab('discover');
+                }
+              }}
+            >
+              <Search className="h-4 w-4 mr-2" />
+              Start Discovery
+            </Button>
+            {icps.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center">
+                Create an ICP profile first to start discovering companies
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
         {/* ICP Grid */}
         {icps.length > 0 && (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
