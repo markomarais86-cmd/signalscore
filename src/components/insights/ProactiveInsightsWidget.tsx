@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +71,19 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
   // Enrichment progress state
   const [enrichmentProgress, setEnrichmentProgress] = useState<EnrichmentProgress | null>(null);
   const [isStartingEnrichment, setIsStartingEnrichment] = useState(false);
+  
+  // Refs to avoid stale closures in setTimeout callbacks
+  const enrichmentProgressRef = useRef<EnrichmentProgress | null>(null);
+  const isStartingEnrichmentRef = useRef(false);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    enrichmentProgressRef.current = enrichmentProgress;
+  }, [enrichmentProgress]);
+  
+  useEffect(() => {
+    isStartingEnrichmentRef.current = isStartingEnrichment;
+  }, [isStartingEnrichment]);
 
   const fetchInsights = useCallback(async () => {
     if (!orgId) return;
@@ -207,11 +220,14 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
   useEffect(() => {
     if (!enrichmentProgress?.jobId) return;
     
+    // Capture jobId at effect start to avoid stale closures
+    const currentJobId = enrichmentProgress.jobId;
+    
     const pollProgress = async () => {
       const { data: status } = await supabase
         .from('enrichment_jobs')
         .select('status, enriched_records, processed_records, total_records, last_progress_update, error_message')
-        .eq('id', enrichmentProgress.jobId)
+        .eq('id', currentJobId)
         .single();
       
       if (status) {
@@ -226,10 +242,6 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
           // Job was auto-paused before timeout - auto-resume it
           console.log('[ProactiveInsightsWidget] Job auto-paused, triggering auto-resume...');
           
-          // Capture jobId to avoid stale closure
-          const jobIdToResume = enrichmentProgress.jobId;
-          const totalRecords = status.total_records || enrichmentProgress.total;
-          
           setEnrichmentProgress(prev => prev ? { 
             ...prev, 
             status: 'paused', 
@@ -238,13 +250,22 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
             enriched: status.enriched_records || prev.enriched,
           } : null);
           
-          // Auto-resume after a short delay
+          // Auto-resume after a short delay - re-fetch job data to avoid stale values
           setTimeout(async () => {
             try {
-              console.log(`[ProactiveInsightsWidget] Auto-resuming job ${jobIdToResume}...`);
+              // Re-fetch current job data to get accurate total_records
+              const { data: freshJob } = await supabase
+                .from('enrichment_jobs')
+                .select('total_records')
+                .eq('id', currentJobId)
+                .single();
+              
+              const totalRecords = freshJob?.total_records || status.total_records || 500;
+              
+              console.log(`[ProactiveInsightsWidget] Auto-resuming job ${currentJobId}...`);
               const { error } = await supabase.functions.invoke('enrich-ai-only', {
                 body: { 
-                  jobId: jobIdToResume, 
+                  jobId: currentJobId, 
                   resumeFromCheckpoint: true,
                   batchSize: totalRecords
                 }
@@ -264,7 +285,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
           const isPausedAndResumable = status.status === 'paused';
           
           setEnrichmentProgress({
-            jobId: enrichmentProgress.jobId,
+            jobId: currentJobId,
             status: status.status,
             processed: status.processed_records || 0,
             total: status.total_records || 0,
@@ -274,7 +295,8 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
           });
           
           // Auto-resume stalled processing jobs (not manually paused ones)
-          if (isStalled && !isStartingEnrichment && status.status === 'processing') {
+          // Use ref to get current value and avoid stale closure
+          if (isStalled && !isStartingEnrichmentRef.current && status.status === 'processing') {
             console.log('[ProactiveInsightsWidget] Job stalled, triggering auto-resume...');
             resumeStalledJob();
           }
