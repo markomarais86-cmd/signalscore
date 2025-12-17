@@ -3484,6 +3484,47 @@ export type Database = {
         }
         Relationships: []
       }
+      org_benchmarks: {
+        Row: {
+          benchmark_value: number
+          created_at: string | null
+          id: string
+          industry: string | null
+          metric_type: string
+          org_id: string
+          stage: string
+          updated_at: string | null
+        }
+        Insert: {
+          benchmark_value: number
+          created_at?: string | null
+          id?: string
+          industry?: string | null
+          metric_type: string
+          org_id: string
+          stage: string
+          updated_at?: string | null
+        }
+        Update: {
+          benchmark_value?: number
+          created_at?: string | null
+          id?: string
+          industry?: string | null
+          metric_type?: string
+          org_id?: string
+          stage?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_benchmarks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string | null
@@ -4864,6 +4905,10 @@ export type Database = {
       scheduled_quality_snapshot_all_orgs: { Args: never; Returns: undefined }
       seed_default_ai_agents: {
         Args: { target_org_id: string }
+        Returns: undefined
+      }
+      seed_default_benchmarks: {
+        Args: { p_org_id: string }
         Returns: undefined
       }
       show_limit: { Args: never; Returns: number }

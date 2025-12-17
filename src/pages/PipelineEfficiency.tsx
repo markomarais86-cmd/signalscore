@@ -1,17 +1,21 @@
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePipelineData } from "@/hooks/use-pipeline-data";
+import { useBenchmarks } from "@/hooks/use-benchmarks";
 import { LoadingState } from "@/components/LoadingState";
 import { EmptyState } from "@/components/EmptyState";
 import { formatNumber } from "@/utils/format-numbers";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { TrendingUp, TrendingDown, Clock, Target } from "lucide-react";
+import { TrendingUp, TrendingDown, Clock, Target, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 export default function PipelineEfficiency() {
-  const { metrics, isLoading, error } = usePipelineData();
+  const { metrics, isLoading, isPending, error } = usePipelineData();
+  const { pipelineBenchmarks, isLoading: benchmarksLoading, isPending: benchmarksPending, hasCustomBenchmarks } = useBenchmarks('pipeline_conversion');
 
-  if (isLoading) return <LoadingState message="Loading pipeline efficiency data..." fullScreen />;
+  if (isLoading || benchmarksLoading) return <LoadingState message="Loading pipeline efficiency data..." fullScreen />;
 
   if (error) {
     return (
@@ -47,22 +51,24 @@ export default function PipelineEfficiency() {
     closed_won: "hsl(var(--primary))",
   };
 
-  const benchmarks = {
-    dial: 100,
-    connect: 25,
-    meeting: 40,
-    opportunity: 50,
-    closed_won: 30,
-  };
+  const isRefreshing = isPending || benchmarksPending;
 
   return (
     <Layout>
-      <div className="p-8 space-y-8">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Pipeline Efficiency</h1>
-          <p className="text-muted-foreground mt-2">
-            Analyze conversion rates and identify bottlenecks in your sales funnel
-          </p>
+      <div className={cn("p-8 space-y-8", isRefreshing && "opacity-70 transition-opacity")}>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Pipeline Efficiency</h1>
+            <p className="text-muted-foreground mt-2">
+              Analyze conversion rates and identify bottlenecks in your sales funnel
+            </p>
+          </div>
+          <Link to="/settings">
+            <Button variant="outline" size="sm">
+              <Settings className="h-4 w-4 mr-2" />
+              {hasCustomBenchmarks ? 'Edit Benchmarks' : 'Configure Benchmarks'}
+            </Button>
+          </Link>
         </div>
 
         {/* Key Metrics */}
@@ -150,21 +156,32 @@ export default function PipelineEfficiency() {
         {/* Conversion Rates & Benchmarks */}
         <Card>
           <CardHeader>
-            <CardTitle>Stage Performance</CardTitle>
-            <CardDescription>Conversion rates vs. industry benchmarks</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Stage Performance</CardTitle>
+                <CardDescription>
+                  Conversion rates vs. {hasCustomBenchmarks ? 'your custom' : 'industry'} benchmarks
+                </CardDescription>
+              </div>
+              {!hasCustomBenchmarks && (
+                <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">
+                  Using default benchmarks
+                </span>
+              )}
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {metrics.stages.map((stage, idx) => {
                 if (idx === 0) return null; // Skip first stage
-                const benchmark = benchmarks[stage.stage as keyof typeof benchmarks];
+                const benchmark = pipelineBenchmarks[stage.stage] || 30;
                 const isBelowBenchmark = stage.conversionRate < benchmark;
 
                 return (
                   <div key={stage.stage} className="space-y-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium capitalize">{stage.stage}</span>
+                        <span className="text-sm font-medium capitalize">{stage.stage.replace('_', ' ')}</span>
                         {isBelowBenchmark ? (
                           <TrendingDown className="h-4 w-4 text-destructive" />
                         ) : (
