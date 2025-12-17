@@ -1,10 +1,18 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.55.0";
+import { 
+  withCircuitBreaker, 
+  isCircuitOpen, 
+  recordSuccess, 
+  recordFailure 
+} from "../_shared/circuit-breaker.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const SERVICE_NAME = 'pdl';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -28,6 +36,21 @@ serve(async (req) => {
       db: { schema: 'public' },
       auth: { persistSession: false }
     });
+
+    // Check circuit breaker before processing
+    const { isOpen, state, cooldownRemaining } = await isCircuitOpen(SERVICE_NAME, supabase);
+    if (isOpen) {
+      console.log(`[enrich-pdl] Circuit breaker OPEN, skipping enrichment`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `PDL service temporarily unavailable. Retry in ${Math.round((cooldownRemaining || 0) / 1000)}s`,
+          circuit_state: state 
+        }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { job_id } = await req.json();
 
     if (!job_id) {
@@ -89,27 +112,38 @@ serve(async (req) => {
 
     let enriched = 0;
     let failed = 0;
+    let circuitBroken = false;
 
     // Process accounts one by one (PDL rate limits)
     for (const account of accounts) {
+      // Check if circuit was opened during processing
+      if (circuitBroken) {
+        console.log('[enrich-pdl] Circuit breaker opened, stopping batch');
+        break;
+      }
+
       try {
-        // PDL Company Enrichment API
+        // PDL Company Enrichment API with circuit breaker
         const pdlUrl = `https://api.peopledatalabs.com/v5/company/enrich?website=${encodeURIComponent(account.domain)}`;
         
         console.log(`[enrich-pdl] Enriching ${account.name} (${account.domain})`);
-        console.log(`[enrich-pdl] Request URL: ${pdlUrl}`);
         
+        const startTime = Date.now();
         const response = await fetch(pdlUrl, {
           headers: {
             'X-Api-Key': pdlApiKey,
             'Accept': 'application/json',
           },
         });
+        const responseTime = Date.now() - startTime;
 
         console.log(`[enrich-pdl] PDL API Response Status: ${response.status}`);
 
         if (response.ok) {
           const data = await response.json();
+          
+          // Record success with circuit breaker
+          await recordSuccess(SERVICE_NAME, responseTime, supabase);
           
           const updates: any = {
             enriched_at: new Date().toISOString(),
@@ -167,23 +201,41 @@ serve(async (req) => {
           }
         } else if (response.status === 404) {
           console.log(`[enrich-pdl] Company not found in PDL: ${account.name}`);
+          // 404 is not a service failure, just no data
+          await recordSuccess(SERVICE_NAME, responseTime, supabase);
           failed++;
         } else if (response.status === 429) {
           const responseText = await response.text();
           console.error(`[enrich-pdl] Rate limit hit for PDL`);
           console.error(`[enrich-pdl] Rate limit response:`, responseText);
+          
+          // Record failure - rate limiting indicates service stress
+          const { circuitOpened } = await recordFailure(SERVICE_NAME, `Rate limited: ${response.status}`, supabase);
+          if (circuitOpened) {
+            circuitBroken = true;
+          }
           failed++;
           break; // Stop processing if rate limited
         } else if (response.status === 401 || response.status === 403) {
           const responseText = await response.text();
           console.error(`[enrich-pdl] Authentication error (${response.status}):`, responseText);
           console.error(`[enrich-pdl] Please verify PDL_API_KEY is correct`);
+          
+          // Auth errors are config issues, not service failures - don't trip circuit
           failed++;
           break; // Stop if auth fails
         } else {
           const responseText = await response.text();
           console.error(`[enrich-pdl] PDL returned ${response.status} for ${account.name}`);
           console.error(`[enrich-pdl] Response body:`, responseText);
+          
+          // Record failure for 5xx errors
+          if (response.status >= 500) {
+            const { circuitOpened } = await recordFailure(SERVICE_NAME, `Server error: ${response.status}`, supabase);
+            if (circuitOpened) {
+              circuitBroken = true;
+            }
+          }
           failed++;
         }
 

@@ -3972,6 +3972,60 @@ export type Database = {
           },
         ]
       }
+      service_health: {
+        Row: {
+          avg_response_time_ms: number | null
+          circuit_state: string | null
+          cooldown_until: string | null
+          created_at: string | null
+          failure_count: number | null
+          id: string
+          last_error_message: string | null
+          last_failure_at: string | null
+          last_success_at: string | null
+          service_name: string
+          state_changed_at: string | null
+          success_count: number | null
+          total_failures: number | null
+          total_requests: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          avg_response_time_ms?: number | null
+          circuit_state?: string | null
+          cooldown_until?: string | null
+          created_at?: string | null
+          failure_count?: number | null
+          id?: string
+          last_error_message?: string | null
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          service_name: string
+          state_changed_at?: string | null
+          success_count?: number | null
+          total_failures?: number | null
+          total_requests?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          avg_response_time_ms?: number | null
+          circuit_state?: string | null
+          cooldown_until?: string | null
+          created_at?: string | null
+          failure_count?: number | null
+          id?: string
+          last_error_message?: string | null
+          last_failure_at?: string | null
+          last_success_at?: string | null
+          service_name?: string
+          state_changed_at?: string | null
+          success_count?: number | null
+          total_failures?: number | null
+          total_requests?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       signals_raw: {
         Row: {
           account_external_id: string | null

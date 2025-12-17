@@ -1,10 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { 
+  isCircuitOpen, 
+  recordSuccess, 
+  recordFailure 
+} from "../_shared/circuit-breaker.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const SERVICE_NAME = 'salesforce';
 
 interface SalesforceCredentials {
   access_token: string;
@@ -53,6 +60,20 @@ serve(async (req) => {
 
     if (!org_id || !campaign_name || !contacts || contacts.length === 0) {
       throw new Error('Missing required fields: org_id, campaign_name, and contacts');
+    }
+
+    // Check circuit breaker before making Salesforce calls
+    const { isOpen, state, cooldownRemaining } = await isCircuitOpen(SERVICE_NAME, supabase);
+    if (isOpen) {
+      console.log(`[push-campaign-to-crm] Circuit breaker OPEN, skipping CRM push`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Salesforce service temporarily unavailable. Retry in ${Math.round((cooldownRemaining || 0) / 1000)}s`,
+          circuit_state: state 
+        }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Create sync log entry
@@ -114,6 +135,7 @@ serve(async (req) => {
     if (!sfCampaignId) {
       console.log('[push-campaign-to-crm] Creating new Salesforce campaign:', campaign_name);
       
+      const startTime = Date.now();
       const campaignResponse = await fetch(`${credentials.instance_url}/services/data/v59.0/sobjects/Campaign`, {
         method: 'POST',
         headers: {
@@ -128,13 +150,23 @@ serve(async (req) => {
           Description: `Campaign created from ICP Signal Platform. ICP: ${batch_metadata?.icp_name || 'Custom'}. ${contacts.length} contacts.`
         })
       });
+      const responseTime = Date.now() - startTime;
 
       if (!campaignResponse.ok) {
         const errorText = await campaignResponse.text();
         console.error('[push-campaign-to-crm] Campaign creation failed:', errorText);
+        
+        // Record failure for 5xx and rate limit errors
+        if (campaignResponse.status >= 500 || campaignResponse.status === 429) {
+          await recordFailure(SERVICE_NAME, `Campaign creation failed: ${campaignResponse.status}`, supabase);
+        }
+        
         throw new Error(`Failed to create Salesforce campaign: ${errorText}`);
       }
 
+      // Record success
+      await recordSuccess(SERVICE_NAME, responseTime, supabase);
+      
       const campaignData = await campaignResponse.json();
       sfCampaignId = campaignData.id;
       console.log('[push-campaign-to-crm] Created campaign with ID:', sfCampaignId);

@@ -89,6 +89,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AIProviderSettings } from "@/components/settings/AIProviderSettings";
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
 import DataUploadContent from "@/components/settings/DataUploadContent";
+import { ServiceHealthStatus } from "@/components/settings/ServiceHealthStatus";
 
 interface TeamMember {
   id: string;
@@ -680,6 +681,7 @@ export default function Settings() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pt-4 space-y-4">
+                <ServiceHealthStatus />
                 <EnrichmentProviderSetup />
                 <RateLimitSettings />
               </AccordionContent>

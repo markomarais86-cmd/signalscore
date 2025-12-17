@@ -1,10 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { 
+  isCircuitOpen, 
+  recordSuccess, 
+  recordFailure 
+} from "../_shared/circuit-breaker.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const SERVICE_NAME = 'apollo';
 
 interface ApolloUsageResponse {
   hourly_requests_limit: number;
@@ -43,10 +50,30 @@ serve(async (req) => {
       );
     }
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Check circuit breaker before calling Apollo
+    const { isOpen, state, cooldownRemaining } = await isCircuitOpen(SERVICE_NAME, supabase);
+    if (isOpen) {
+      console.log(`[get-apollo-credits] Circuit breaker OPEN, skipping API call`);
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          configured: true,
+          api_accessible: false,
+          circuit_state: state,
+          message: `Apollo service temporarily unavailable. Retry in ${Math.round((cooldownRemaining || 0) / 1000)}s`,
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log('[get-apollo-credits] Fetching Apollo usage stats...');
 
     // Call Apollo's usage stats endpoint - this does NOT consume credits
-    // Apollo requires POST method with empty body for this endpoint
+    const startTime = Date.now();
     const response = await fetch('https://api.apollo.io/api/v1/usage_stats/api_usage_stats', {
       method: 'POST',
       headers: {
@@ -55,14 +82,17 @@ serve(async (req) => {
       },
       body: '{}',
     });
+    const responseTime = Date.now() - startTime;
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('[get-apollo-credits] Apollo API error:', response.status, errorText);
       
       // Handle 403 - API_INACCESSIBLE (common for plans without usage stats access)
+      // This is not a service failure, just a plan limitation
       if (response.status === 403) {
         console.log('[get-apollo-credits] Usage stats API not accessible - API key is valid but credits not trackable');
+        await recordSuccess(SERVICE_NAME, responseTime, supabase);
         return new Response(
           JSON.stringify({ 
             success: true,
@@ -79,6 +109,11 @@ serve(async (req) => {
         );
       }
       
+      // Record failure for rate limits and server errors
+      if (response.status === 429 || response.status >= 500) {
+        await recordFailure(SERVICE_NAME, `Apollo API error: ${response.status}`, supabase);
+      }
+      
       return new Response(
         JSON.stringify({ 
           error: `Apollo API error: ${response.status}`,
@@ -88,6 +123,9 @@ serve(async (req) => {
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    // Record success
+    await recordSuccess(SERVICE_NAME, responseTime, supabase);
 
     const usageData: ApolloUsageResponse = await response.json();
     console.log('[get-apollo-credits] Usage data:', usageData);
@@ -96,11 +134,6 @@ serve(async (req) => {
     const creditsRemaining = usageData.daily_requests_limit - usageData.daily_requests_consumed;
     const creditsUsedToday = usageData.daily_requests_consumed;
     const dailyLimit = usageData.daily_requests_limit;
-
-    // Update external_data_sources with credit info
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { error: updateError } = await supabase
       .from('external_data_sources')
