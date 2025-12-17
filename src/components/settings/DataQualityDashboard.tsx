@@ -6,7 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { CheckCircle2, AlertCircle, TrendingUp, Database, Sparkles, Users, Loader2 } from 'lucide-react';
+import { CheckCircle2, AlertCircle, TrendingUp, Database, Sparkles, RefreshCw, ArrowLeftRight, Loader2, Zap } from 'lucide-react';
 
 interface DataQualityMetrics {
   totalAccounts: number;
@@ -19,16 +19,24 @@ interface DataQualityMetrics {
   overallCompleteness: number;
 }
 
+interface SyncOpportunities {
+  leads_can_enrich: number;
+  accounts_can_enrich: number;
+  pending_conflicts: number;
+}
+
 export function DataQualityDashboard() {
   const { userProfile } = useAuth();
   const [metrics, setMetrics] = useState<DataQualityMetrics | null>(null);
+  const [syncOpportunities, setSyncOpportunities] = useState<SyncOpportunities | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isStandardizing, setIsStandardizing] = useState(false);
-  const [isEnrichingPersonas, setIsEnrichingPersonas] = useState(false);
-  const [isEnrichingContacts, setIsEnrichingContacts] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isResolvingConflicts, setIsResolvingConflicts] = useState(false);
 
   useEffect(() => {
     loadMetrics();
+    loadSyncOpportunities();
   }, [userProfile?.org_id]);
 
   const loadMetrics = async () => {
@@ -51,8 +59,7 @@ export function DataQualityDashboard() {
       const withRev = accounts?.filter(a => a.revenue_range).length || 0;
       const withCountry = accounts?.filter(a => a.country).length || 0;
 
-      // Check how many are using ZoomInfo taxonomy (this is a placeholder - would need actual check)
-      const standardized = withPrimary; // For now, assume normalized = standardized
+      const standardized = withPrimary;
 
       const completeness = total > 0 
         ? ((withPrimary + withSub + withEmp + withRev + withCountry) / (total * 5)) * 100 
@@ -73,6 +80,102 @@ export function DataQualityDashboard() {
       toast.error('Failed to load data quality metrics');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadSyncOpportunities = async () => {
+    if (!userProfile?.org_id) return;
+
+    try {
+      const { data, error } = await supabase.rpc('get_firmographic_sync_opportunities', {
+        p_org_id: userProfile.org_id
+      });
+
+      if (error) throw error;
+      setSyncOpportunities(data as unknown as SyncOpportunities);
+    } catch (error) {
+      console.error('Error loading sync opportunities:', error);
+    }
+  };
+
+  const handleBidirectionalSync = async () => {
+    if (!userProfile?.org_id) return;
+
+    setIsSyncing(true);
+    try {
+      toast.loading('Syncing firmographic data...', { id: 'firmographic-sync' });
+
+      const { data, error } = await supabase.rpc('bidirectional_firmographic_sync', {
+        p_org_id: userProfile.org_id
+      });
+
+      if (error) throw error;
+
+      const result = data as { accounts_updated: number; leads_updated: number };
+      toast.success(
+        `Synced ${result.accounts_updated} accounts and ${result.leads_updated} leads`,
+        { id: 'firmographic-sync' }
+      );
+
+      await Promise.all([loadMetrics(), loadSyncOpportunities()]);
+    } catch (error: any) {
+      console.error('Error syncing firmographics:', error);
+      toast.error(error.message || 'Failed to sync firmographics', { id: 'firmographic-sync' });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleDetectConflicts = async () => {
+    if (!userProfile?.org_id) return;
+
+    try {
+      toast.loading('Detecting conflicts...', { id: 'detect-conflicts' });
+
+      const { data, error } = await supabase.rpc('detect_firmographic_conflicts', {
+        p_org_id: userProfile.org_id
+      });
+
+      if (error) throw error;
+
+      const result = data as { conflicts_found: number };
+      if (result.conflicts_found > 0) {
+        toast.success(`Found ${result.conflicts_found} new conflicts`, { id: 'detect-conflicts' });
+      } else {
+        toast.success('No new conflicts found', { id: 'detect-conflicts' });
+      }
+
+      await loadSyncOpportunities();
+    } catch (error: any) {
+      console.error('Error detecting conflicts:', error);
+      toast.error(error.message || 'Failed to detect conflicts', { id: 'detect-conflicts' });
+    }
+  };
+
+  const handleResolveConflicts = async () => {
+    if (!userProfile?.org_id) return;
+
+    setIsResolvingConflicts(true);
+    try {
+      toast.loading('AI is resolving conflicts...', { id: 'resolve-conflicts' });
+
+      const { data, error } = await supabase.functions.invoke('resolve-firmographic-conflicts', {
+        body: { org_id: userProfile.org_id, auto_apply: true }
+      });
+
+      if (error) throw error;
+
+      toast.success(
+        `Resolved ${data.resolved} conflicts with AI`,
+        { id: 'resolve-conflicts' }
+      );
+
+      await Promise.all([loadMetrics(), loadSyncOpportunities()]);
+    } catch (error: any) {
+      console.error('Error resolving conflicts:', error);
+      toast.error(error.message || 'Failed to resolve conflicts', { id: 'resolve-conflicts' });
+    } finally {
+      setIsResolvingConflicts(false);
     }
   };
 
@@ -122,52 +225,6 @@ export function DataQualityDashboard() {
     }
   };
 
-  const handleEnrichPersonas = async () => {
-    if (!userProfile?.org_id) return;
-
-    setIsEnrichingPersonas(true);
-    try {
-      toast.loading('Mapping personas for all contacts...', { id: 'persona-enrichment' });
-
-      const { data, error } = await supabase.functions.invoke('enrich-contacts-persona', {
-        body: { orgId: userProfile.org_id, batchSize: 1000 }
-      });
-
-      if (error) throw error;
-
-      toast.success(`Enriched ${data.enriched} contacts with persona data`, { id: 'persona-enrichment' });
-      await loadMetrics();
-    } catch (error: any) {
-      console.error('Error enriching personas:', error);
-      toast.error(error.message || 'Failed to enrich personas', { id: 'persona-enrichment' });
-    } finally {
-      setIsEnrichingPersonas(false);
-    }
-  };
-
-  const handleEnrichContacts = async () => {
-    if (!userProfile?.org_id) return;
-
-    setIsEnrichingContacts(true);
-    try {
-      toast.loading('Finding contacts for high-fit accounts...', { id: 'contact-enrichment' });
-
-      const { data, error } = await supabase.functions.invoke('enrich-contacts-bulk', {
-        body: { orgId: userProfile.org_id, batchSize: 100 }
-      });
-
-      if (error) throw error;
-
-      toast.success(`Created ${data.enriched} contacts for ${data.total} accounts`, { id: 'contact-enrichment' });
-      await loadMetrics();
-    } catch (error: any) {
-      console.error('Error enriching contacts:', error);
-      toast.error(error.message || 'Failed to enrich contacts', { id: 'contact-enrichment' });
-    } finally {
-      setIsEnrichingContacts(false);
-    }
-  };
-
   if (isLoading || !metrics) {
     return (
       <Card>
@@ -197,6 +254,10 @@ export function DataQualityDashboard() {
     { label: 'Revenue Range', value: metrics.withRevenue, total: metrics.totalAccounts },
     { label: 'Geography', value: metrics.withCountry, total: metrics.totalAccounts }
   ];
+
+  const totalSyncOpportunities = syncOpportunities 
+    ? syncOpportunities.leads_can_enrich + syncOpportunities.accounts_can_enrich 
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -238,6 +299,103 @@ export function DataQualityDashboard() {
               </div>
             </div>
             <Progress value={metrics.overallCompleteness} className="h-2" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Firmographic Sync */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ArrowLeftRight className="h-5 w-5" />
+            Firmographic Data Sync
+          </CardTitle>
+          <CardDescription>
+            Synchronize data between accounts and leads
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {syncOpportunities && totalSyncOpportunities > 0 && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-3 bg-primary/10 rounded-lg">
+                <div className="text-2xl font-bold text-primary">
+                  {syncOpportunities.leads_can_enrich.toLocaleString()}
+                </div>
+                <div className="text-xs text-muted-foreground">Leads can be enriched from accounts</div>
+              </div>
+              <div className="p-3 bg-secondary/50 rounded-lg">
+                <div className="text-2xl font-bold">
+                  {syncOpportunities.accounts_can_enrich.toLocaleString()}
+                </div>
+                <div className="text-xs text-muted-foreground">Accounts can be enriched from leads</div>
+              </div>
+            </div>
+          )}
+
+          {syncOpportunities?.pending_conflicts && syncOpportunities.pending_conflicts > 0 && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium text-amber-600 dark:text-amber-400">
+                    {syncOpportunities.pending_conflicts} data conflicts detected
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Accounts and leads have different values
+                  </div>
+                </div>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={handleResolveConflicts}
+                  disabled={isResolvingConflicts}
+                >
+                  {isResolvingConflicts ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Zap className="h-4 w-4 mr-1" />
+                      AI Resolve
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleBidirectionalSync}
+              disabled={isSyncing || totalSyncOpportunities === 0}
+              className="flex-1"
+            >
+              {isSyncing ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Syncing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Sync All ({totalSyncOpportunities.toLocaleString()})
+                </>
+              )}
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={handleDetectConflicts}
+            >
+              Detect Conflicts
+            </Button>
+          </div>
+
+          <div className="p-3 bg-muted/50 rounded-lg text-sm">
+            <div className="font-medium mb-1">How sync works</div>
+            <ul className="text-muted-foreground space-y-1 text-xs">
+              <li>• Aggregates lead data up to accounts (consensus from multiple leads)</li>
+              <li>• Pushes account firmographics down to linked leads</li>
+              <li>• Only fills empty fields - never overwrites existing data</li>
+              <li>• AI resolves conflicts when account and lead values differ</li>
+            </ul>
           </div>
         </CardContent>
       </Card>
@@ -331,6 +489,17 @@ export function DataQualityDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-3 text-sm">
+              {totalSyncOpportunities > 0 && (
+                <div className="flex gap-2">
+                  <RefreshCw className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-medium">Run firmographic sync</div>
+                    <div className="text-muted-foreground">
+                      {totalSyncOpportunities.toLocaleString()} records can be enriched instantly
+                    </div>
+                  </div>
+                </div>
+              )}
               {metrics.withPrimaryIndustry < metrics.totalAccounts * 0.8 && (
                 <div className="flex gap-2">
                   <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
