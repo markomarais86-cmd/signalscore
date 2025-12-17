@@ -6,7 +6,7 @@ import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { CheckCircle2, AlertCircle, TrendingUp, Database, Sparkles, RefreshCw, ArrowLeftRight, Loader2, Zap } from 'lucide-react';
+import { CheckCircle2, AlertCircle, TrendingUp, Database, Sparkles, RefreshCw, ArrowLeftRight, Loader2, Zap, MapPin } from 'lucide-react';
 
 interface DataQualityMetrics {
   totalAccounts: number;
@@ -30,9 +30,12 @@ export function DataQualityDashboard() {
   const [metrics, setMetrics] = useState<DataQualityMetrics | null>(null);
   const [syncOpportunities, setSyncOpportunities] = useState<SyncOpportunities | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isStandardizing, setIsStandardizing] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isResolvingConflicts, setIsResolvingConflicts] = useState(false);
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+
+  const isStandardizing = actionInProgress === 'standardize';
+  const isSyncing = actionInProgress === 'sync';
+  const isResolvingConflicts = actionInProgress === 'resolve';
+  const isEnrichingHQ = actionInProgress === 'hq-enrich';
 
   useEffect(() => {
     loadMetrics();
@@ -99,129 +102,124 @@ export function DataQualityDashboard() {
   };
 
   const handleBidirectionalSync = async () => {
-    if (!userProfile?.org_id) return;
-
-    setIsSyncing(true);
+    setActionInProgress('sync');
     try {
-      toast.loading('Syncing firmographic data...', { id: 'firmographic-sync' });
-
       const { data, error } = await supabase.rpc('bidirectional_firmographic_sync', {
-        p_org_id: userProfile.org_id
+        p_org_id: userProfile?.org_id
       });
-
+      
       if (error) throw error;
-
-      const result = data as { accounts_updated: number; leads_updated: number };
-      toast.success(
-        `Synced ${result.accounts_updated} accounts and ${result.leads_updated} leads`,
-        { id: 'firmographic-sync' }
-      );
-
-      await Promise.all([loadMetrics(), loadSyncOpportunities()]);
-    } catch (error: any) {
-      console.error('Error syncing firmographics:', error);
-      toast.error(error.message || 'Failed to sync firmographics', { id: 'firmographic-sync' });
+      
+      const result = data as { leads_updated?: number; accounts_updated?: number } | null;
+      toast.success(`Sync complete: Updated ${result?.leads_updated || 0} leads and ${result?.accounts_updated || 0} accounts`);
+      
+      loadMetrics();
+      loadSyncOpportunities();
+    } catch (error) {
+      console.error('Sync error:', error);
+      toast.error(error instanceof Error ? error.message : "Sync failed");
     } finally {
-      setIsSyncing(false);
+      setActionInProgress(null);
     }
   };
 
   const handleDetectConflicts = async () => {
-    if (!userProfile?.org_id) return;
-
+    setActionInProgress('conflicts');
     try {
-      toast.loading('Detecting conflicts...', { id: 'detect-conflicts' });
-
       const { data, error } = await supabase.rpc('detect_firmographic_conflicts', {
-        p_org_id: userProfile.org_id
+        p_org_id: userProfile?.org_id
       });
-
+      
       if (error) throw error;
-
-      const result = data as { conflicts_found: number };
-      if (result.conflicts_found > 0) {
-        toast.success(`Found ${result.conflicts_found} new conflicts`, { id: 'detect-conflicts' });
-      } else {
-        toast.success('No new conflicts found', { id: 'detect-conflicts' });
-      }
-
-      await loadSyncOpportunities();
-    } catch (error: any) {
-      console.error('Error detecting conflicts:', error);
-      toast.error(error.message || 'Failed to detect conflicts', { id: 'detect-conflicts' });
+      
+      toast.success(`Found ${data || 0} conflicts to review`);
+      loadSyncOpportunities();
+    } catch (error) {
+      console.error('Conflict detection error:', error);
+      toast.error(error instanceof Error ? error.message : "Detection failed");
+    } finally {
+      setActionInProgress(null);
     }
   };
 
   const handleResolveConflicts = async () => {
-    if (!userProfile?.org_id) return;
-
-    setIsResolvingConflicts(true);
+    setActionInProgress('resolve');
     try {
-      toast.loading('AI is resolving conflicts...', { id: 'resolve-conflicts' });
-
       const { data, error } = await supabase.functions.invoke('resolve-firmographic-conflicts', {
-        body: { org_id: userProfile.org_id, auto_apply: true }
+        body: { org_id: userProfile?.org_id, auto_apply: true }
       });
-
+      
       if (error) throw error;
-
-      toast.success(
-        `Resolved ${data.resolved} conflicts with AI`,
-        { id: 'resolve-conflicts' }
-      );
-
-      await Promise.all([loadMetrics(), loadSyncOpportunities()]);
-    } catch (error: any) {
-      console.error('Error resolving conflicts:', error);
-      toast.error(error.message || 'Failed to resolve conflicts', { id: 'resolve-conflicts' });
+      
+      toast.success(`Resolved ${data?.resolved || 0} conflicts`);
+      loadSyncOpportunities();
+    } catch (error) {
+      console.error('Resolution error:', error);
+      toast.error(error instanceof Error ? error.message : "Resolution failed");
     } finally {
-      setIsResolvingConflicts(false);
+      setActionInProgress(null);
+    }
+  };
+
+  const handleEnrichHQAddresses = async () => {
+    setActionInProgress('hq-enrich');
+    try {
+      const { data, error } = await supabase.functions.invoke('enrich-hq-address', {
+        body: { org_id: userProfile?.org_id, max_accounts: 100 }
+      });
+      
+      if (error) throw error;
+      
+      toast.success(`Enriched ${data?.enriched || 0} accounts (${data?.failed || 0} failed) via ${data?.provider || 'unknown'}`);
+      loadMetrics();
+    } catch (error) {
+      console.error('HQ enrichment error:', error);
+      toast.error(error instanceof Error ? error.message : "Enrichment failed");
+    } finally {
+      setActionInProgress(null);
     }
   };
 
   const handleStandardizeAll = async () => {
-    if (!userProfile?.org_id) return;
-
-    setIsStandardizing(true);
+    if (!metrics) return;
+    setActionInProgress('standardize');
+    
     try {
-      const { data: accounts } = await supabase
+      const { data: accounts, error: fetchError } = await supabase
         .from('accounts')
-        .select('external_id, industry_raw')
-        .eq('org_id', userProfile.org_id)
+        .select('id, industry_raw')
+        .eq('org_id', userProfile?.org_id)
+        .is('industry_norm', null)
         .not('industry_raw', 'is', null)
-        .is('industry_norm', null);
+        .limit(100);
 
-      if (!accounts || accounts.length === 0) {
-        toast.success('All industries are already standardized!');
-        return;
-      }
+      if (fetchError) throw fetchError;
 
       let standardized = 0;
-      for (const account of accounts) {
-        const { data, error } = await supabase.functions.invoke('map-industry-to-zoominfo', {
-          body: { industry: account.industry_raw }
+      for (const account of accounts || []) {
+        const { data, error } = await supabase.functions.invoke('standardize-industry', {
+          body: { industry_raw: account.industry_raw }
         });
-
-        if (!error && data?.primary_industry) {
+        
+        if (!error && data?.industry_norm) {
           await supabase
             .from('accounts')
             .update({ 
-              industry_norm: data.primary_industry,
+              industry_norm: data.industry_norm,
               sub_industry: data.sub_industry 
             })
-            .eq('external_id', account.external_id);
-          
+            .eq('id', account.id);
           standardized++;
         }
       }
 
-      toast.success(`Standardized ${standardized} industries using ZoomInfo taxonomy`);
-      await loadMetrics();
-    } catch (error: any) {
-      console.error('Error standardizing industries:', error);
-      toast.error(error.message || 'Failed to start standardization');
+      toast.success(`Standardized ${standardized} industries`);
+      loadMetrics();
+    } catch (error) {
+      console.error('Standardization error:', error);
+      toast.error(error instanceof Error ? error.message : "Standardization failed");
     } finally {
-      setIsStandardizing(false);
+      setActionInProgress(null);
     }
   };
 
@@ -395,6 +393,63 @@ export function DataQualityDashboard() {
               <li>• Pushes account firmographics down to linked leads</li>
               <li>• Only fills empty fields - never overwrites existing data</li>
               <li>• AI resolves conflicts when account and lead values differ</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* HQ Address Enrichment */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className="h-5 w-5" />
+            HQ Address Enrichment
+          </CardTitle>
+          <CardDescription>
+            Fetch company headquarters addresses from Apollo/PDL
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <div className="text-2xl font-bold">
+                {Math.round((metrics.withCountry / metrics.totalAccounts) * 100) || 0}%
+              </div>
+              <div className="text-xs text-muted-foreground">Accounts with country</div>
+            </div>
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <div className="text-2xl font-bold">
+                {metrics.totalAccounts - metrics.withCountry}
+              </div>
+              <div className="text-xs text-muted-foreground">Missing HQ addresses</div>
+            </div>
+          </div>
+
+          <Button 
+            onClick={handleEnrichHQAddresses}
+            disabled={isEnrichingHQ || metrics.withCountry === metrics.totalAccounts}
+            className="w-full"
+          >
+            {isEnrichingHQ ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Enriching addresses...
+              </>
+            ) : (
+              <>
+                <MapPin className="mr-2 h-4 w-4" />
+                Enrich HQ Addresses (up to 100)
+              </>
+            )}
+          </Button>
+
+          <div className="p-3 bg-muted/50 rounded-lg text-sm">
+            <div className="font-medium mb-1">What this enriches</div>
+            <ul className="text-muted-foreground space-y-1 text-xs">
+              <li>• Street address, city, state, postal code</li>
+              <li>• Country for all missing records</li>
+              <li>• Auto-syncs to linked leads</li>
+              <li>• Uses Apollo API (or PDL fallback)</li>
             </ul>
           </div>
         </CardContent>
