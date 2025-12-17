@@ -2,19 +2,20 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp, ArrowRight, Sparkles, RefreshCw } from "lucide-react";
+import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp, ArrowRight, Sparkles, RefreshCw, Rocket } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { icpLogger } from "@/lib/logger";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { ICPWizard } from "@/components/icp/ICPWizard";
+import { ICPDetailView } from "@/components/icp/ICPDetailView";
 import { ICPProfile } from "@/types/icp";
 import { HeroMetric } from "@/components/executive/HeroMetric";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { DEMO_ICP_PROFILES } from "@/data/mockData";
 import { DemoModeBanner } from "@/components/DemoModeBanner";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ClosedWonInsights } from "@/components/icp/ClosedWonInsights";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,12 +34,28 @@ export default function ICPManager() {
   const [loadingRecommendation, setLoadingRecommendation] = useState(false);
   const [showCampaignBuilder, setShowCampaignBuilder] = useState(false);
   const [selectedICPForCampaign, setSelectedICPForCampaign] = useState<string | undefined>();
+  const [selectedIcp, setSelectedIcp] = useState<ICPProfile | null>(null);
+  const [detailTab, setDetailTab] = useState<string>('overview');
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
   const { flags } = useFeatureFlags();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+
+  // Handle URL params for direct navigation to discovery
+  useEffect(() => {
+    const icpId = searchParams.get('icp_id');
+    const tab = searchParams.get('tab');
+    if (icpId && icps.length > 0) {
+      const icp = icps.find(i => i.id === icpId);
+      if (icp) {
+        setSelectedIcp(icp);
+        if (tab) setDetailTab(tab);
+      }
+    }
+  }, [searchParams, icps]);
 
   useEffect(() => {
     if (userProfile?.org_id) {
@@ -309,6 +326,32 @@ export default function ICPManager() {
   if (loading) {
     return <ICPGridSkeleton cards={3} />;
   }
+  // Show detail view if an ICP is selected
+  if (selectedIcp) {
+    return (
+      <div className="space-y-6 p-6">
+        <DemoModeBanner />
+        <ICPDetailView
+          icp={selectedIcp}
+          onBack={() => {
+            setSelectedIcp(null);
+            setDetailTab('overview');
+          }}
+          onEdit={(icp) => {
+            setEditingIcp(icp);
+            setIsWizardOpen(true);
+          }}
+          defaultTab={detailTab}
+        />
+        <ICPWizard
+          isOpen={isWizardOpen}
+          onClose={handleWizardClose}
+          onComplete={handleWizardComplete}
+          editingICP={editingIcp}
+        />
+      </div>
+    );
+  }
   
   return (
     <>
@@ -482,8 +525,20 @@ export default function ICPManager() {
                         </div>
                       )}
 
-                      {/* View Matching Accounts CTA */}
-                      <div className="pt-4 border-t">
+                      {/* Action Buttons */}
+                      <div className="pt-4 border-t space-y-2">
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedIcp(icp);
+                            setDetailTab('discover');
+                          }}
+                          className="w-full flex items-center justify-center gap-2"
+                        >
+                          <Rocket className="h-4 w-4" />
+                          Discover Companies
+                        </Button>
                         <Button 
                           variant="outline" 
                           size="sm"
