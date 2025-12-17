@@ -1,13 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { 
-  successResponse, 
-  errorResponse, 
   handleCors, 
   parseJsonBody,
   validateRequired,
   ErrorCodes 
 } from "../_shared/response-helpers.ts";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 interface ProactiveInsight {
   id: string;
@@ -38,10 +41,18 @@ serve(async (req) => {
     const validation = validateRequired(body, ['org_id']);
     
     if (!validation.valid) {
-      return errorResponse(
-        ErrorCodes.VALIDATION_ERROR,
-        `Missing required fields: ${validation.missing.join(', ')}`,
-        400
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Missing required fields: ${validation.missing.join(', ')}`,
+        }),
+        { 
+          status: 400,
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          } 
+        }
       );
     }
 
@@ -254,18 +265,35 @@ serve(async (req) => {
 
     console.log(`[Proactive Insights] Generated ${insights.length} insights, ${agentActivity.length} agent activities`);
 
-    return successResponse({
-      insights,
-      agent_activity: agentActivity,
-      pipeline_stats: pipelineStats,
-    });
+    return new Response(
+      JSON.stringify({
+        success: true,
+        insights,
+        agent_activity: agentActivity,
+        pipeline_stats: pipelineStats,
+      }),
+      { 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
+      }
+    );
 
   } catch (error) {
     console.error("[Proactive Insights] Error:", error);
-    return errorResponse(
-      ErrorCodes.INTERNAL_ERROR,
-      error instanceof Error ? error.message : "Unknown error",
-      500
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+      }),
+      { 
+        status: 500,
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
+      }
     );
   }
 });
