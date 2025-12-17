@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./hooks/use-auth";
 import { FeatureFlagsProvider } from "./hooks/use-feature-flags";
 import { OnboardingProvider } from "./hooks/use-onboarding";
@@ -34,7 +34,7 @@ import AIAgents from "./pages/AIAgents";
 import AgentTester from "./pages/AgentTester";
 import AITest from "./pages/AITest";
 import Help from "./pages/Help";
-import Discovery from "./pages/Discovery";
+
 import PipelineAnalyticsPage from "./pages/PipelineAnalyticsPage";
 import AIFeedbackPage from "./pages/AIFeedbackPage";
 
@@ -241,13 +241,7 @@ function AppContent() {
                 />
                 <Route
                   path="/discovery"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Discovery />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
+                  element={<Navigate to="/icp-manager" replace />}
                 />
                 <Route
                   path="/help"
