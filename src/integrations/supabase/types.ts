@@ -2272,6 +2272,75 @@ export type Database = {
           },
         ]
       }
+      firmographic_conflicts: {
+        Row: {
+          account_external_id: string
+          account_value: string | null
+          ai_confidence: number | null
+          ai_reasoning: string | null
+          created_at: string | null
+          field_name: string
+          id: string
+          lead_id: number | null
+          lead_value: string | null
+          org_id: string
+          resolution_source: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          resolved_value: string | null
+          status: string
+        }
+        Insert: {
+          account_external_id: string
+          account_value?: string | null
+          ai_confidence?: number | null
+          ai_reasoning?: string | null
+          created_at?: string | null
+          field_name: string
+          id?: string
+          lead_id?: number | null
+          lead_value?: string | null
+          org_id: string
+          resolution_source?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_value?: string | null
+          status?: string
+        }
+        Update: {
+          account_external_id?: string
+          account_value?: string | null
+          ai_confidence?: number | null
+          ai_reasoning?: string | null
+          created_at?: string | null
+          field_name?: string
+          id?: string
+          lead_id?: number | null
+          lead_value?: string | null
+          org_id?: string
+          resolution_source?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_value?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "firmographic_conflicts_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "firmographic_conflicts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       icp_feature_weights: {
         Row: {
           computed_at: string | null
@@ -4586,6 +4655,10 @@ export type Database = {
         Args: { p_org_id?: string }
         Returns: Json
       }
+      bidirectional_firmographic_sync: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
       bulk_create_accounts: {
         Args: { p_accounts: Json; p_org_id: string }
         Returns: {
@@ -4697,6 +4770,10 @@ export type Database = {
         Args: { org_id_param: string }
         Returns: undefined
       }
+      detect_firmographic_conflicts: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
       enrich_accounts_from_master: { Args: { p_org_id: string }; Returns: Json }
       estimate_icp_matches: {
         Args: {
@@ -4756,6 +4833,10 @@ export type Database = {
           overall_score: number
           total_count: number
         }[]
+      }
+      get_firmographic_sync_opportunities: {
+        Args: { p_org_id: string }
+        Returns: Json
       }
       get_geography_distribution: {
         Args: { p_org_id: string; p_source_filter?: string }
@@ -4911,6 +4992,10 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: undefined
       }
+      set_firmographic_auto_sync: {
+        Args: { p_enabled: boolean; p_org_id: string }
+        Returns: Json
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       sync_account_scores_from_scores_table: {
@@ -4918,6 +5003,14 @@ export type Database = {
         Returns: Json
       }
       sync_accounts_from_leads: { Args: { p_org_id: string }; Returns: Json }
+      sync_firmographics_to_accounts: {
+        Args: { p_account_external_id?: string; p_org_id: string }
+        Returns: Json
+      }
+      sync_firmographics_to_leads: {
+        Args: { p_account_external_id?: string; p_org_id: string }
+        Returns: Json
+      }
       sync_industry_to_leads: { Args: { p_org_id: string }; Returns: Json }
       update_enrichment_job_progress: {
         Args: {
