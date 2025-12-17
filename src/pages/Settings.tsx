@@ -599,6 +599,22 @@ export default function Settings() {
               </AccordionContent>
             </AccordionItem>
 
+            {/* Data Quality & Firmographic Sync - Always visible */}
+            <AccordionItem value="data-quality" className="border rounded-lg px-4">
+              <AccordionTrigger className="hover:no-underline">
+                <div className="flex items-center gap-2">
+                  <Target className="h-5 w-5 text-primary" />
+                  <div className="text-left">
+                    <p className="font-semibold">Data Quality & Firmographic Sync</p>
+                    <p className="text-sm text-muted-foreground">Sync data between accounts and leads, enrich HQ addresses</p>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="pt-4">
+                <DataQualityDashboard />
+              </AccordionContent>
+            </AccordionItem>
+
             {/* Advanced sections - Admin only and conditionally rendered */}
             {isAdmin && showAdvanced && (
               <>
