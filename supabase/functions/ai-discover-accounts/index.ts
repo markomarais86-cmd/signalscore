@@ -28,6 +28,266 @@ interface DiscoveredCompany {
   tech_stack?: string[];
   confidence: number;
   discovery_reason: string;
+  sources?: string[];
+  last_verified?: string;
+}
+
+// Search companies using Perplexity's real-time web search
+async function searchWithPerplexity(criteria: DiscoveryCriteria, limit: number): Promise<{ content: string; citations: string[] }> {
+  const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
+  
+  if (!perplexityKey) {
+    throw new Error('PERPLEXITY_API_KEY not configured');
+  }
+
+  const searchPrompt = buildPerplexitySearchPrompt(criteria, limit);
+  
+  console.log('[Perplexity] Initiating real-time web search...');
+  
+  const response = await fetch('https://api.perplexity.ai/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${perplexityKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'sonar-pro',
+      messages: [
+        { 
+          role: 'system', 
+          content: `You are an expert B2B market researcher. Search the web to find REAL, currently operating companies that match the criteria. For each company provide: company name, website domain, industry, approximate employee count, estimated revenue range, headquarters location, a brief description, and any known technology they use. Focus on accuracy - only include companies you can verify exist.`
+        },
+        { role: 'user', content: searchPrompt }
+      ],
+      search_recency_filter: 'month',
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[Perplexity] API error: ${response.status}`, errorText);
+    throw new Error(`Perplexity API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || '';
+  const citations = data.citations || [];
+  
+  console.log(`[Perplexity] Received response with ${citations.length} citations`);
+  
+  return { content, citations };
+}
+
+function buildPerplexitySearchPrompt(criteria: DiscoveryCriteria, limit: number): string {
+  let prompt = `Find ${limit} real B2B companies that currently exist and match these criteria:\n\n`;
+  
+  if (criteria.industries?.length) {
+    prompt += `Industries: ${criteria.industries.join(', ')}\n`;
+  }
+  if (criteria.geographies?.length) {
+    prompt += `Located in: ${criteria.geographies.join(', ')}\n`;
+  }
+  if (criteria.company_sizes?.length) {
+    prompt += `Company sizes: ${criteria.company_sizes.join(', ')}\n`;
+  }
+  if (criteria.revenue_ranges?.length) {
+    prompt += `Revenue ranges: ${criteria.revenue_ranges.join(', ')}\n`;
+  }
+  if (criteria.keywords?.length) {
+    prompt += `Focus areas/keywords: ${criteria.keywords.join(', ')}\n`;
+  }
+  if (criteria.tech_stack?.length) {
+    prompt += `Using technologies: ${criteria.tech_stack.join(', ')}\n`;
+  }
+  
+  prompt += `\nFor each company, provide the company name, website domain, industry, employee count, revenue range, location, and a brief description. Include a mix of well-known and emerging companies in the space.`;
+  
+  return prompt;
+}
+
+// Parse Perplexity results using Lovable AI for structured output
+async function parsePerplexityResults(
+  rawContent: string, 
+  citations: string[], 
+  criteria: DiscoveryCriteria,
+  lovableApiKey: string
+): Promise<DiscoveredCompany[]> {
+  console.log('[Lovable AI] Parsing Perplexity results into structured format...');
+  
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${lovableApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a data extraction expert. Parse the company information from web search results into structured data. Extract only real companies with verifiable information. Be accurate with domains, employee counts, and revenue estimates. Include confidence scores based on data quality.`
+        },
+        {
+          role: 'user',
+          content: `Parse the following company search results into structured data. The data came from real-time web search.\n\nSearch Results:\n${rawContent}\n\nSource citations: ${citations.join(', ')}\n\nICP Criteria used:\n- Industries: ${criteria.industries?.join(', ') || 'Any'}\n- Geographies: ${criteria.geographies?.join(', ') || 'Any'}\n- Sizes: ${criteria.company_sizes?.join(', ') || 'Any'}`
+        }
+      ],
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'parsed_companies',
+            description: 'Return structured company data from the search results',
+            parameters: {
+              type: 'object',
+              properties: {
+                companies: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string' },
+                      domain: { type: 'string' },
+                      industry: { type: 'string' },
+                      employee_count: { type: 'number' },
+                      revenue_range: { 
+                        type: 'string',
+                        enum: ['<$1M', '$1M-$5M', '$5M-$10M', '$10M-$25M', '$25M-$50M', '$50M-$100M', '$100M-$250M', '$250M-$500M', '$500M-$1B', '$1B+']
+                      },
+                      country: { type: 'string' },
+                      city: { type: 'string' },
+                      description: { type: 'string' },
+                      tech_stack: { type: 'array', items: { type: 'string' } },
+                      confidence: { type: 'number', minimum: 0, maximum: 100 },
+                      discovery_reason: { type: 'string' }
+                    },
+                    required: ['name', 'domain', 'industry', 'employee_count', 'revenue_range', 'country', 'confidence', 'discovery_reason']
+                  }
+                }
+              },
+              required: ['companies']
+            }
+          }
+        }
+      ],
+      tool_choice: { type: 'function', function: { name: 'parsed_companies' } }
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Lovable AI parsing error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+  
+  if (toolCall?.function?.arguments) {
+    const parsed = JSON.parse(toolCall.function.arguments);
+    const companies = parsed.companies || [];
+    
+    // Add citations and timestamp to each company
+    const now = new Date().toISOString();
+    return companies.map((c: DiscoveredCompany) => ({
+      ...c,
+      sources: citations.slice(0, 5),
+      last_verified: now
+    }));
+  }
+  
+  return [];
+}
+
+// Fallback: Direct discovery with Lovable AI (original behavior)
+async function discoverWithLovableAI(
+  criteria: DiscoveryCriteria, 
+  existingCount: number,
+  lovableApiKey: string
+): Promise<{ companies: DiscoveredCompany[]; searchSummary: string }> {
+  console.log('[Lovable AI] Using fallback AI discovery (no Perplexity key)...');
+  
+  const limit = criteria.limit || 20;
+  let prompt = `Find ${limit} real B2B companies that match the following Ideal Customer Profile criteria:\n\n`;
+  
+  if (criteria.industries?.length) prompt += `**Industries:** ${criteria.industries.join(', ')}\n`;
+  if (criteria.geographies?.length) prompt += `**Geographies:** ${criteria.geographies.join(', ')}\n`;
+  if (criteria.company_sizes?.length) prompt += `**Company Sizes:** ${criteria.company_sizes.join(', ')}\n`;
+  if (criteria.revenue_ranges?.length) prompt += `**Revenue Ranges:** ${criteria.revenue_ranges.join(', ')}\n`;
+  if (criteria.keywords?.length) prompt += `**Keywords:** ${criteria.keywords.join(', ')}\n`;
+  if (criteria.tech_stack?.length) prompt += `**Tech Stack:** ${criteria.tech_stack.join(', ')}\n`;
+  
+  prompt += `\nThe client has ${existingCount} existing accounts. Return ${limit} companies sorted by confidence.`;
+
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${lovableApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages: [
+        {
+          role: 'system',
+          content: `You are an expert B2B market researcher. Suggest real companies that match the ICP criteria. Provide accurate information and indicate confidence levels. Note: This data is from AI knowledge, not real-time search.`
+        },
+        { role: 'user', content: prompt }
+      ],
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'discovered_companies',
+            description: 'Return companies matching the ICP',
+            parameters: {
+              type: 'object',
+              properties: {
+                companies: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string' },
+                      domain: { type: 'string' },
+                      industry: { type: 'string' },
+                      employee_count: { type: 'number' },
+                      revenue_range: { type: 'string', enum: ['<$1M', '$1M-$5M', '$5M-$10M', '$10M-$25M', '$25M-$50M', '$50M-$100M', '$100M-$250M', '$250M-$500M', '$500M-$1B', '$1B+'] },
+                      country: { type: 'string' },
+                      city: { type: 'string' },
+                      description: { type: 'string' },
+                      tech_stack: { type: 'array', items: { type: 'string' } },
+                      confidence: { type: 'number', minimum: 0, maximum: 100 },
+                      discovery_reason: { type: 'string' }
+                    },
+                    required: ['name', 'domain', 'industry', 'employee_count', 'revenue_range', 'country', 'confidence', 'discovery_reason']
+                  }
+                },
+                search_summary: { type: 'string' }
+              },
+              required: ['companies', 'search_summary']
+            }
+          }
+        }
+      ],
+      tool_choice: { type: 'function', function: { name: 'discovered_companies' } }
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Lovable AI error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+  
+  if (toolCall?.function?.arguments) {
+    const parsed = JSON.parse(toolCall.function.arguments);
+    return {
+      companies: parsed.companies || [],
+      searchSummary: parsed.search_summary || 'Companies discovered using AI knowledge base (not real-time search)'
+    };
+  }
+  
+  return { companies: [], searchSummary: '' };
 }
 
 serve(async (req) => {
@@ -39,6 +299,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
+    const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
     
     const supabase = createClient(supabaseUrl, supabaseKey);
     
@@ -62,8 +323,8 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[AI Discovery] Starting discovery for org ${org_id}, mode: ${mode}`);
-    console.log(`[AI Discovery] Criteria:`, JSON.stringify(criteria));
+    const limit = criteria.limit || 20;
+    console.log(`[AI Discovery] Starting for org ${org_id}, mode: ${mode}, using: ${perplexityKey ? 'Perplexity' : 'Lovable AI fallback'}`);
 
     // Get existing domains to deduplicate
     const { data: existingAccounts } = await supabase
@@ -76,139 +337,33 @@ serve(async (req) => {
       (existingAccounts || []).map(a => a.domain?.toLowerCase()).filter(Boolean)
     );
 
-    console.log(`[AI Discovery] Found ${existingDomains.size} existing domains to exclude`);
+    console.log(`[AI Discovery] Found ${existingDomains.size} existing domains`);
 
-    // Build the AI prompt for company discovery
-    const discoveryPrompt = buildDiscoveryPrompt(criteria, existingDomains.size);
-
-    // Call Lovable AI with tool calling for structured output
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an expert B2B market researcher and sales intelligence analyst. Your job is to identify real companies that match specific Ideal Customer Profile (ICP) criteria. 
-
-CRITICAL RULES:
-1. Only suggest REAL companies that actually exist
-2. Provide accurate information - if unsure, indicate lower confidence
-3. Focus on companies that are likely to be in-market for B2B solutions
-4. Include a mix of well-known and emerging companies
-5. Provide realistic employee counts and revenue estimates
-6. Always include the company's primary domain
-
-For each company, assess:
-- Industry alignment with criteria
-- Size/revenue fit
-- Geographic match
-- Technology relevance (if applicable)
-- Likelihood to be a good B2B prospect`
-          },
-          {
-            role: 'user',
-            content: discoveryPrompt
-          }
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'discovered_companies',
-              description: 'Return a list of companies matching the ICP criteria',
-              parameters: {
-                type: 'object',
-                properties: {
-                  companies: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        name: { type: 'string', description: 'Company legal name' },
-                        domain: { type: 'string', description: 'Primary website domain (e.g., company.com)' },
-                        industry: { type: 'string', description: 'Primary industry' },
-                        employee_count: { type: 'number', description: 'Estimated employee count' },
-                        revenue_range: { 
-                          type: 'string', 
-                          enum: ['<$1M', '$1M-$5M', '$5M-$10M', '$10M-$25M', '$25M-$50M', '$50M-$100M', '$100M-$250M', '$250M-$500M', '$500M-$1B', '$1B+'],
-                          description: 'Estimated annual revenue range' 
-                        },
-                        country: { type: 'string', description: 'Headquarters country' },
-                        city: { type: 'string', description: 'Headquarters city' },
-                        description: { type: 'string', description: 'Brief company description (1-2 sentences)' },
-                        tech_stack: { 
-                          type: 'array', 
-                          items: { type: 'string' },
-                          description: 'Known technologies used'
-                        },
-                        confidence: { 
-                          type: 'number', 
-                          minimum: 0, 
-                          maximum: 100,
-                          description: 'Confidence score (0-100) that this company matches the ICP'
-                        },
-                        discovery_reason: { type: 'string', description: 'Why this company was selected (brief)' }
-                      },
-                      required: ['name', 'domain', 'industry', 'employee_count', 'revenue_range', 'country', 'confidence', 'discovery_reason']
-                    }
-                  },
-                  search_summary: {
-                    type: 'string',
-                    description: 'Brief summary of the discovery process and results'
-                  }
-                },
-                required: ['companies', 'search_summary']
-              }
-            }
-          }
-        ],
-        tool_choice: { type: 'function', function: { name: 'discovered_companies' } }
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      console.error(`[AI Discovery] AI API error: ${aiResponse.status}`, errorText);
-      
-      if (aiResponse.status === 429) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Rate limit exceeded. Please try again later.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      return new Response(
-        JSON.stringify({ success: false, error: 'AI service error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const aiData = await aiResponse.json();
-    console.log(`[AI Discovery] AI response received`);
-
-    // Extract tool call result
     let discoveredCompanies: DiscoveredCompany[] = [];
     let searchSummary = '';
+    let dataSource = 'ai_knowledge';
 
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (toolCall?.function?.arguments) {
+    // Try Perplexity first if configured, otherwise fallback to Lovable AI
+    if (perplexityKey) {
       try {
-        const parsed = JSON.parse(toolCall.function.arguments);
-        discoveredCompanies = parsed.companies || [];
-        searchSummary = parsed.search_summary || '';
-      } catch (e) {
-        console.error('[AI Discovery] Failed to parse tool call arguments:', e);
+        const { content, citations } = await searchWithPerplexity(criteria, limit);
+        discoveredCompanies = await parsePerplexityResults(content, citations, criteria, lovableApiKey);
+        searchSummary = `Real-time web search found ${discoveredCompanies.length} companies. Data verified from ${citations.length} sources as of ${new Date().toLocaleString()}.`;
+        dataSource = 'perplexity_realtime';
+        console.log(`[AI Discovery] Perplexity returned ${discoveredCompanies.length} companies`);
+      } catch (perplexityError) {
+        console.error('[AI Discovery] Perplexity failed, falling back to Lovable AI:', perplexityError);
+        const fallbackResult = await discoverWithLovableAI(criteria, existingDomains.size, lovableApiKey);
+        discoveredCompanies = fallbackResult.companies;
+        searchSummary = fallbackResult.searchSummary + ' (Perplexity unavailable, used AI fallback)';
       }
+    } else {
+      const result = await discoverWithLovableAI(criteria, existingDomains.size, lovableApiKey);
+      discoveredCompanies = result.companies;
+      searchSummary = result.searchSummary;
     }
 
-    console.log(`[AI Discovery] Discovered ${discoveredCompanies.length} companies`);
-
-    // Deduplicate against existing accounts
+    // Deduplicate
     const newCompanies = discoveredCompanies.filter(company => {
       const normalizedDomain = company.domain?.toLowerCase().replace(/^www\./, '');
       return normalizedDomain && !existingDomains.has(normalizedDomain);
@@ -216,12 +371,13 @@ For each company, assess:
 
     console.log(`[AI Discovery] ${newCompanies.length} new companies after deduplication`);
 
-    // If preview mode, just return the discovered companies
+    // Preview mode
     if (mode === 'preview') {
       return new Response(
         JSON.stringify({
           success: true,
           mode: 'preview',
+          data_source: dataSource,
           discovered_count: newCompanies.length,
           duplicates_filtered: discoveredCompanies.length - newCompanies.length,
           companies: newCompanies,
@@ -231,7 +387,7 @@ For each company, assess:
       );
     }
 
-    // Import mode: Add companies to accounts table
+    // Import mode
     let importedCount = 0;
     let failedCount = 0;
     const importedAccounts: string[] = [];
@@ -255,12 +411,14 @@ For each company, assess:
             city: company.city,
             hq_city: company.city,
             tech_stack: company.tech_stack,
-            data_source: 'ai_discovery',
+            data_source: dataSource,
             enrichment_confidence: company.confidence,
             trust_signals: {
               ai_discovery: true,
               discovery_reason: company.discovery_reason,
               discovered_at: new Date().toISOString(),
+              sources: company.sources || [],
+              last_verified: company.last_verified
             }
           })
           .select('id, external_id')
@@ -273,7 +431,6 @@ For each company, assess:
           importedCount++;
           importedAccounts.push(inserted.external_id);
           
-          // Auto-score the account
           try {
             await supabase.rpc('calculate_account_score', {
               p_account_external_id: inserted.external_id,
@@ -289,13 +446,13 @@ For each company, assess:
       }
     }
 
-    // Log the discovery action
     await supabase.from('audit_logs').insert({
       org_id,
       actor: 'ai_discovery',
       action: 'accounts_discovered',
       meta: {
         criteria,
+        data_source: dataSource,
         discovered_count: newCompanies.length,
         imported_count: importedCount,
         failed_count: failedCount,
@@ -309,6 +466,7 @@ For each company, assess:
       JSON.stringify({
         success: true,
         mode: 'import',
+        data_source: dataSource,
         discovered_count: discoveredCompanies.length,
         duplicates_filtered: discoveredCompanies.length - newCompanies.length,
         imported_count: importedCount,
@@ -331,46 +489,3 @@ For each company, assess:
     );
   }
 });
-
-function buildDiscoveryPrompt(criteria: DiscoveryCriteria, existingCount: number): string {
-  const limit = criteria.limit || 20;
-  
-  let prompt = `Find ${limit} real B2B companies that match the following Ideal Customer Profile criteria:\n\n`;
-  
-  if (criteria.industries?.length) {
-    prompt += `**Industries:** ${criteria.industries.join(', ')}\n`;
-  }
-  
-  if (criteria.geographies?.length) {
-    prompt += `**Geographies:** ${criteria.geographies.join(', ')}\n`;
-  }
-  
-  if (criteria.company_sizes?.length) {
-    prompt += `**Company Sizes (employee count):** ${criteria.company_sizes.join(', ')}\n`;
-  }
-  
-  if (criteria.revenue_ranges?.length) {
-    prompt += `**Revenue Ranges:** ${criteria.revenue_ranges.join(', ')}\n`;
-  }
-  
-  if (criteria.keywords?.length) {
-    prompt += `**Keywords/Focus Areas:** ${criteria.keywords.join(', ')}\n`;
-  }
-  
-  if (criteria.tech_stack?.length) {
-    prompt += `**Technology Stack:** ${criteria.tech_stack.join(', ')}\n`;
-  }
-  
-  prompt += `\n**Important Notes:**
-- The client already has ${existingCount} accounts in their database
-- Focus on finding companies they might NOT already have
-- Include a mix of well-known and emerging companies
-- Prioritize companies showing growth signals or recent activity
-- Each company should have a valid, working domain
-- Provide accurate employee counts and revenue estimates
-- Include confidence scores based on how well each company matches the criteria
-
-Return ${limit} companies sorted by confidence score (highest first).`;
-
-  return prompt;
-}

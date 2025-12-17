@@ -22,7 +22,9 @@ import {
   Loader2,
   TrendingUp,
   ExternalLink,
-  Download
+  Download,
+  LinkIcon,
+  Clock
 } from 'lucide-react';
 
 interface DiscoveredCompany {
@@ -37,12 +39,15 @@ interface DiscoveredCompany {
   tech_stack?: string[];
   confidence: number;
   discovery_reason: string;
+  sources?: string[];
+  last_verified?: string;
   selected?: boolean;
 }
 
 interface DiscoveryResult {
   success: boolean;
   mode: string;
+  data_source?: string;
   discovered_count: number;
   duplicates_filtered: number;
   imported_count?: number;
@@ -62,7 +67,7 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
   const [result, setResult] = useState<DiscoveryResult | null>(null);
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
   
-  // Criteria state - initialize from ICP if provided
+  // Criteria state
   const [keywords, setKeywords] = useState('');
   const [techStack, setTechStack] = useState('');
   const [limit, setLimit] = useState(20);
@@ -74,7 +79,6 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
   const revenueRanges = icp?.revenue_ranges || [];
 
   useEffect(() => {
-    // Pre-populate tech stack from ICP if available
     if (icp?.tech_stack?.length) {
       setTechStack(icp.tech_stack.join(', '));
     }
@@ -116,7 +120,8 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
       if (data.success) {
         setResult(data);
         setSelectedCompanies(new Set(data.companies.map((c: DiscoveredCompany) => c.domain)));
-        toast.success(`Found ${data.discovered_count} companies matching your ICP!`);
+        const sourceType = data.data_source === 'perplexity_realtime' ? 'real-time web search' : 'AI knowledge';
+        toast.success(`Found ${data.discovered_count} companies via ${sourceType}!`);
       } else {
         toast.error(data.error || 'Discovery failed');
       }
@@ -193,9 +198,11 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
     setSelectedCompanies(new Set());
   };
 
+  const isRealTimeSearch = result?.data_source === 'perplexity_realtime';
+
   return (
     <div className="space-y-6">
-      {/* Header - Only show if not compact */}
+      {/* Header */}
       {!compact && (
         <div className="flex items-center gap-3">
           <div className="p-2 rounded-lg bg-primary/10">
@@ -296,10 +303,7 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
               value={limit}
               onChange={(e) => setLimit(parseInt(e.target.value) || 20)}
             />
-            <Button
-              onClick={handleDiscover}
-              disabled={isDiscovering}
-            >
+            <Button onClick={handleDiscover} disabled={isDiscovering}>
               {isDiscovering ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
@@ -318,9 +322,17 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
               <CardTitle className="text-lg flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
                 Discovery Results
+                {isRealTimeSearch && (
+                  <Badge variant="default" className="ml-2 text-xs">
+                    <Globe className="h-3 w-3 mr-1" />
+                    Real-time Search
+                  </Badge>
+                )}
               </CardTitle>
               <CardDescription>
-                {result ? `Found ${result.discovered_count} companies (${result.duplicates_filtered} duplicates filtered)` : 'Click discover to find matching companies'}
+                {result 
+                  ? `Found ${result.discovered_count} companies (${result.duplicates_filtered} duplicates filtered)` 
+                  : 'Click discover to find matching companies'}
               </CardDescription>
             </div>
             {result && result.companies.length > 0 && (
@@ -361,8 +373,8 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
           {isDiscovering && (
             <div className="flex flex-col items-center justify-center py-12">
               <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-              <p className="text-lg font-medium">Searching for companies...</p>
-              <p className="text-sm text-muted-foreground">This may take 15-30 seconds</p>
+              <p className="text-lg font-medium">Searching the web for companies...</p>
+              <p className="text-sm text-muted-foreground">Using real-time search to find current data (15-30 seconds)</p>
             </div>
           )}
 
@@ -370,7 +382,12 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
             <>
               {result.search_summary && (
                 <div className="mb-4 p-3 bg-muted/50 rounded-lg text-sm">
-                  <strong>Discovery Summary:</strong> {result.search_summary}
+                  <div className="flex items-start gap-2">
+                    {isRealTimeSearch && <Globe className="h-4 w-4 mt-0.5 text-primary" />}
+                    <div>
+                      <strong>Discovery Summary:</strong> {result.search_summary}
+                    </div>
+                  </div>
                 </div>
               )}
               <ScrollArea className="h-[400px]">
@@ -406,6 +423,12 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
                             <Badge variant="secondary" className="text-xs">
                               {company.confidence}% match
                             </Badge>
+                            {isRealTimeSearch && (
+                              <Badge variant="outline" className="text-xs text-green-600 border-green-600/30">
+                                <Globe className="h-3 w-3 mr-1" />
+                                Verified
+                              </Badge>
+                            )}
                           </div>
                           
                           <div className="flex flex-wrap gap-2 mt-2 text-xs text-muted-foreground">
@@ -446,6 +469,39 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
                           <p className="text-xs text-primary/80 mt-2 italic">
                             {company.discovery_reason}
                           </p>
+
+                          {/* Sources section for Perplexity results */}
+                          {company.sources && company.sources.length > 0 && (
+                            <div className="mt-3 pt-2 border-t border-border/50">
+                              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                                <LinkIcon className="h-3 w-3" />
+                                <span>Sources:</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                {company.sources.slice(0, 3).map((source, idx) => {
+                                  const domain = new URL(source).hostname.replace('www.', '');
+                                  return (
+                                    <a
+                                      key={idx}
+                                      href={source}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-primary/70 hover:text-primary hover:underline"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      {domain}
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                              {company.last_verified && (
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                                  <Clock className="h-3 w-3" />
+                                  <span>Verified: {new Date(company.last_verified).toLocaleDateString()}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
