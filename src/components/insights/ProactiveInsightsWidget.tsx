@@ -7,32 +7,19 @@ import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   Sparkles, 
-  Target, 
-  AlertTriangle, 
   TrendingUp, 
   RefreshCw,
   X,
   ChevronDown,
   Zap,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { enrichmentLogger as log } from "@/lib/logger";
-
-interface ProactiveInsight {
-  id: string;
-  type: 'critical' | 'opportunity' | 'info' | 'agent_activity';
-  title: string;
-  description: string;
-  metric?: number;
-  actions: {
-    label: string;
-    action: string;
-    params?: Record<string, any>;
-  }[];
-  dismissible: boolean;
-}
+import { TIMING, ENRICHMENT } from "@/lib/constants";
+import { InsightCard, type ProactiveInsight } from "./InsightCard";
 
 interface AgentActivity {
   agent_name: string;
@@ -53,7 +40,7 @@ interface EnrichmentProgress {
 
 interface ProactiveInsightsWidgetProps {
   orgId: string;
-  onAction?: (action: string, params?: Record<string, any>) => void;
+  onAction?: (action: string, params?: Record<string, unknown>) => void;
 }
 
 export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWidgetProps) {
@@ -63,11 +50,6 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
   const [refreshing, setRefreshing] = useState(false);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [isOpen, setIsOpen] = useState(true);
-  const [pipelineStats, setPipelineStats] = useState<{
-    qualified: number;
-    follow_up: number;
-    meeting_ready: number;
-  } | null>(null);
   
   // Enrichment progress state
   const [enrichmentProgress, setEnrichmentProgress] = useState<EnrichmentProgress | null>(null);
@@ -98,7 +80,6 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
 
       setInsights(data?.insights || []);
       setAgentActivity(data?.agent_activity || []);
-      setPipelineStats(data?.pipeline_stats || null);
     } catch (err) {
       log.error('Failed to fetch proactive insights:', err);
     } finally {
@@ -118,7 +99,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
       .eq('org_id', orgId)
       .eq('provider', 'ai_free')
       .in('status', ['pending', 'processing'])
-      .gt('total_records', 0) // Only valid jobs
+      .gt('total_records', 0)
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -126,7 +107,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
     if (activeJob) {
       const lastUpdate = activeJob.last_progress_update ? new Date(activeJob.last_progress_update) : null;
       const isStalled = activeJob.status === 'processing' && lastUpdate && 
-        (new Date().getTime() - lastUpdate.getTime() > 5 * 60 * 1000);
+        (new Date().getTime() - lastUpdate.getTime() > TIMING.JOB_STALL_THRESHOLD);
       
       setEnrichmentProgress({
         jobId: activeJob.id,
@@ -163,7 +144,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
         total: pausedJob.total_records || 0,
         enriched: pausedJob.enriched_records || 0,
         lastProgressUpdate: pausedJob.last_progress_update,
-        isStalled: needsAutoResume // Trigger auto-resume for paused jobs that were auto-paused
+        isStalled: needsAutoResume
       });
     }
   }, [orgId]);
@@ -201,8 +182,9 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
       toast.success('Resuming enrichment job...', {
         description: `Continuing from ${enrichmentProgress.processed} processed records`
       });
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to resume job');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to resume job';
+      toast.error(message);
     } finally {
       setIsStartingEnrichment(false);
     }
@@ -212,8 +194,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
     fetchInsights();
     checkActiveEnrichmentJob();
     
-    // Refresh every 5 minutes
-    const interval = setInterval(fetchInsights, 5 * 60 * 1000);
+    const interval = setInterval(fetchInsights, TIMING.INSIGHTS_REFRESH_INTERVAL);
     return () => clearInterval(interval);
   }, [fetchInsights, checkActiveEnrichmentJob]);
 
@@ -221,7 +202,6 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
   useEffect(() => {
     if (!enrichmentProgress?.jobId) return;
     
-    // Capture jobId at effect start to avoid stale closures
     const currentJobId = enrichmentProgress.jobId;
     
     const pollProgress = async () => {
@@ -232,15 +212,14 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
         .single();
       
       if (status) {
-        if (status.status === 'completed' || status.status === 'completed_with_errors' || status.status === 'completed_with_failures') {
+        if (['completed', 'completed_with_errors', 'completed_with_failures'].includes(status.status)) {
           setEnrichmentProgress(null);
           toast.success(`Enrichment complete! ${status.enriched_records} accounts enriched`);
           fetchInsights();
-        } else if (status.status === 'failed' || status.status === 'cancelled') {
+        } else if (['failed', 'cancelled'].includes(status.status)) {
           setEnrichmentProgress(null);
           toast.error('Enrichment failed');
         } else if (status.status === 'paused' && status.error_message?.includes('Auto-paused')) {
-          // Job was auto-paused before timeout - auto-resume it
           log.info('Job auto-paused, triggering auto-resume...');
           
           setEnrichmentProgress(prev => prev ? { 
@@ -251,17 +230,16 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
             enriched: status.enriched_records || prev.enriched,
           } : null);
           
-          // Auto-resume after a short delay - re-fetch job data to avoid stale values
+          // Auto-resume after a short delay
           setTimeout(async () => {
             try {
-              // Re-fetch current job data to get accurate total_records
               const { data: freshJob } = await supabase
                 .from('enrichment_jobs')
                 .select('total_records')
                 .eq('id', currentJobId)
                 .single();
               
-              const totalRecords = freshJob?.total_records || status.total_records || 500;
+              const totalRecords = freshJob?.total_records || status.total_records || ENRICHMENT.DEFAULT_BATCH_SIZE;
               
               log.info(`Auto-resuming job ${currentJobId}...`);
               const { error } = await supabase.functions.invoke('enrich-ai-only', {
@@ -275,14 +253,12 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
             } catch (err) {
               log.error('Auto-resume error:', err);
             }
-          }, 2000);
+          }, TIMING.AUTO_RESUME_DELAY);
         } else {
-          // Check if job is stalled (processing but no progress for 5+ min)
           const lastUpdate = status.last_progress_update ? new Date(status.last_progress_update) : null;
           const isStalled = status.status === 'processing' && lastUpdate && 
-            (new Date().getTime() - lastUpdate.getTime() > 5 * 60 * 1000);
+            (new Date().getTime() - lastUpdate.getTime() > TIMING.JOB_STALL_THRESHOLD);
           
-          // For paused jobs without auto-pause message, show as resumable
           const isPausedAndResumable = status.status === 'paused';
           
           setEnrichmentProgress({
@@ -295,8 +271,6 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
             isStalled: isStalled || isPausedAndResumable
           });
           
-          // Auto-resume stalled processing jobs (not manually paused ones)
-          // Use ref to get current value and avoid stale closure
           if (isStalled && !isStartingEnrichmentRef.current && status.status === 'processing') {
             log.info('Job stalled, triggering auto-resume...');
             resumeStalledJob();
@@ -305,9 +279,9 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
       }
     };
     
-    const interval = setInterval(pollProgress, 2000);
+    const interval = setInterval(pollProgress, TIMING.ENRICHMENT_POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, [enrichmentProgress?.jobId, fetchInsights, isStartingEnrichment]);
+  }, [enrichmentProgress?.jobId, fetchInsights]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -319,11 +293,8 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
     setDismissedIds(prev => new Set([...prev, id]));
   };
 
-  // Enhanced action handler that tracks enrichment progress
-  const handleAction = async (action: string, params?: Record<string, any>) => {
-    // Handle enrichment actions internally to track progress
+  const handleAction = async (action: string, params?: Record<string, unknown>) => {
     if (action === 'enrich_ai_free' && !isStartingEnrichment) {
-      // If there's already a paused job, resume it instead of creating a new one
       if (enrichmentProgress && enrichmentProgress.status === 'paused') {
         log.info('Resuming existing paused job...');
         toast.info('Resuming existing enrichment job...', {
@@ -333,7 +304,6 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
         return;
       }
       
-      // Don't create a new job if one is already running
       if (enrichmentProgress && ['pending', 'processing'].includes(enrichmentProgress.status)) {
         toast.info('Enrichment already in progress', {
           description: `${enrichmentProgress.processed}/${enrichmentProgress.total} processed`
@@ -343,7 +313,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
       
       setIsStartingEnrichment(true);
       try {
-        const batchSize = params?.batch_size || 500;
+        const batchSize = (params?.batch_size as number) || ENRICHMENT.DEFAULT_BATCH_SIZE;
         
         const { data: job, error: jobError } = await supabase
           .from('enrichment_jobs')
@@ -359,7 +329,6 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
         
         if (jobError) throw jobError;
         
-        // Set progress immediately
         setEnrichmentProgress({
           jobId: job.id,
           status: 'pending',
@@ -368,7 +337,6 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
           enriched: 0
         });
         
-        // Invoke the enrichment function
         const { error } = await supabase.functions.invoke('enrich-ai-only', {
           body: { jobId: job.id, batchSize }
         });
@@ -378,90 +346,21 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
         toast.success('AI Enrichment started!', {
           description: `Processing up to ${batchSize} accounts...`
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         setEnrichmentProgress(null);
-        toast.error(err.message || 'Failed to start enrichment');
+        const message = err instanceof Error ? err.message : 'Failed to start enrichment';
+        toast.error(message);
       } finally {
         setIsStartingEnrichment(false);
       }
       return;
     }
     
-    // Pass other actions to parent handler
     if (onAction) {
       onAction(action, params);
     } else {
       toast.info(`Action: ${action}`);
     }
-  };
-
-  const getTypeIcon = (type: ProactiveInsight['type']) => {
-    switch (type) {
-      case 'critical':
-        return <AlertTriangle className="h-4 w-4 text-destructive" />;
-      case 'opportunity':
-        return <Target className="h-4 w-4 text-primary" />;
-      case 'agent_activity':
-        return <Zap className="h-4 w-4 text-amber-500" />;
-      default:
-        return <TrendingUp className="h-4 w-4 text-muted-foreground" />;
-    }
-  };
-
-  const getTypeBadge = (type: ProactiveInsight['type']) => {
-    switch (type) {
-      case 'critical':
-        return <Badge variant="destructive">High Priority</Badge>;
-      case 'opportunity':
-        return <Badge className="bg-primary/10 text-primary">Opportunity</Badge>;
-      case 'agent_activity':
-        return <Badge className="bg-amber-500/10 text-amber-600">Agent Activity</Badge>;
-      default:
-        return <Badge variant="secondary">Info</Badge>;
-    }
-  };
-
-  // Render enrichment action button with progress
-  const renderEnrichmentButton = (insight: ProactiveInsight, actionItem: { label: string; action: string; params?: Record<string, any> }, idx: number) => {
-    const isEnrichAction = actionItem.action === 'enrich_ai_free';
-    const isActive = isEnrichAction && enrichmentProgress;
-    const isStarting = isEnrichAction && isStartingEnrichment;
-    
-    // If enrichment is active, don't show duplicate progress here - the banner handles it
-    if (isActive && enrichmentProgress) {
-      return (
-        <Button
-          key={idx}
-          variant="outline"
-          size="sm"
-          className="h-7 text-xs"
-          disabled
-        >
-          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-          See progress above
-        </Button>
-      );
-    }
-    
-    return (
-      <Button
-        key={idx}
-        variant={idx === 0 ? "default" : "outline"}
-        size="sm"
-        className="h-7 text-xs"
-        disabled={isStarting}
-        onClick={() => handleAction(actionItem.action, actionItem.params)}
-      >
-        {isStarting ? (
-          <>
-            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-            Starting...
-          </>
-        ) : (
-          actionItem.label
-        )}
-      </Button>
-    );
   };
 
   const visibleInsights = insights.filter(i => !dismissedIds.has(i.id));
@@ -484,6 +383,10 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
       </Card>
     );
   }
+
+  const progressPercent = enrichmentProgress && enrichmentProgress.total > 0
+    ? Math.round((enrichmentProgress.processed / enrichmentProgress.total) * 100)
+    : 0;
 
   return (
     <Card className="border-primary/20 bg-gradient-to-br from-background to-primary/5">
@@ -573,19 +476,10 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
                     {enrichmentProgress.enriched} enriched
                   </Badge>
                 </div>
-                <Progress 
-                  value={enrichmentProgress.total > 0 
-                    ? Math.round((enrichmentProgress.processed / enrichmentProgress.total) * 100) 
-                    : 0} 
-                  className="h-2" 
-                />
+                <Progress value={progressPercent} className="h-2" />
                 <div className="flex justify-between mt-1 text-xs text-muted-foreground">
                   <span>{enrichmentProgress.processed} / {enrichmentProgress.total} processed</span>
-                  <span>
-                    {enrichmentProgress.total > 0 
-                      ? Math.round((enrichmentProgress.processed / enrichmentProgress.total) * 100) 
-                      : 0}%
-                  </span>
+                  <span>{progressPercent}%</span>
                 </div>
                 {(enrichmentProgress.status === 'paused' || enrichmentProgress.isStalled) && (
                   <div className="mt-3 flex items-center gap-2">
@@ -644,55 +538,14 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
               </div>
             ) : (
               visibleInsights.map((insight) => (
-                <div
+                <InsightCard
                   key={insight.id}
-                  className={`p-3 rounded-lg border transition-all ${
-                    insight.type === 'critical' 
-                      ? 'bg-destructive/5 border-destructive/20' 
-                      : insight.type === 'opportunity'
-                      ? 'bg-primary/5 border-primary/20'
-                      : 'bg-muted/50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-2 flex-1">
-                      {getTypeIcon(insight.type)}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {getTypeBadge(insight.type)}
-                          {insight.metric !== undefined && !enrichmentProgress && (
-                            <span className="font-bold text-lg">{insight.metric.toLocaleString()}</span>
-                          )}
-                          {insight.metric !== undefined && enrichmentProgress && insight.id === 'needs_enrichment' && (
-                            <span className="font-bold text-lg text-muted-foreground">
-                              ~{Math.max(0, insight.metric - enrichmentProgress.enriched).toLocaleString()}
-                            </span>
-                          )}
-                        </div>
-                        <p className="font-medium text-sm mt-1">{insight.title}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{insight.description}</p>
-                        
-                        {insight.actions.length > 0 && (
-                          <div className="flex items-center gap-2 mt-2 flex-wrap">
-                            {insight.actions.map((actionItem, idx) => 
-                              renderEnrichmentButton(insight, actionItem, idx)
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {insight.dismissible && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 opacity-50 hover:opacity-100"
-                        onClick={() => handleDismiss(insight.id)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
+                  insight={insight}
+                  onAction={handleAction}
+                  onDismiss={handleDismiss}
+                  isEnrichmentActive={!!enrichmentProgress}
+                  isStartingEnrichment={isStartingEnrichment}
+                />
               ))
             )}
 
