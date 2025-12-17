@@ -467,17 +467,22 @@ serve(async (req) => {
       query = query.or("employee_count.is.null,revenue_range.is.null,industry_raw.is.null");
     }
 
-    // Exclude already processed accounts (for resumability)
-    if (existingProgress.processed_account_ids.length > 0) {
-      // Filter out already processed accounts
-      query = query.not("external_id", "in", `(${existingProgress.processed_account_ids.join(',')})`);
-    }
-
-    const { data: accounts, error: accountsError } = await query.limit(effectiveBatchSize);
+    // NOTE: We do NOT filter out processed IDs in the query because it causes URL length overflow
+    // when there are hundreds of processed IDs. Instead, we fetch more and filter in memory.
+    const processedIdsSet = new Set(existingProgress.processed_account_ids);
+    
+    // Fetch more accounts than needed to account for filtering
+    const fetchLimit = effectiveBatchSize + Math.min(processedIdsSet.size, 500);
+    const { data: rawAccounts, error: accountsError } = await query.limit(fetchLimit);
 
     if (accountsError) {
       throw new Error(`Failed to fetch accounts: ${accountsError.message}`);
     }
+
+    // Filter out already processed accounts in memory
+    const accounts = (rawAccounts || [])
+      .filter(a => !processedIdsSet.has(a.external_id))
+      .slice(0, effectiveBatchSize);
 
     if (!accounts || accounts.length === 0) {
       await supabase
