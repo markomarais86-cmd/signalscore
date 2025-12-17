@@ -36,6 +36,7 @@ import AITest from "./pages/AITest";
 import Help from "./pages/Help";
 import Discovery from "./pages/Discovery";
 import PipelineAnalyticsPage from "./pages/PipelineAnalyticsPage";
+import AIFeedbackPage from "./pages/AIFeedbackPage";
 
 const queryClient = new QueryClient();
 
@@ -154,6 +155,16 @@ function AppContent() {
                     <ProtectedRoute>
                       <Layout>
                         <PipelineAnalyticsPage />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/ai-feedback"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <AIFeedbackPage />
                       </Layout>
                     </ProtectedRoute>
                   }
