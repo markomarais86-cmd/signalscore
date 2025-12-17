@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { callAI, getAvailableProviders } from "../_shared/ai-config.ts";
+import { applyRateLimit } from "../_shared/rate-limit.ts";
+import { isCircuitOpen, recordSuccess, recordFailure } from "../_shared/circuit-breaker.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,6 +14,79 @@ interface AccountInsight {
   content: Record<string, any>;
   confidence: number;
 }
+
+// Tool definition for structured output
+const insightsTool = {
+  type: "function",
+  function: {
+    name: "generate_account_insights",
+    description: "Generate structured insights for a B2B account based on provided data",
+    parameters: {
+      type: "object",
+      properties: {
+        engagement: {
+          type: "object",
+          properties: {
+            bestTime: { type: "string", description: "Specific day/time recommendation with reasoning" },
+            bestChannel: { type: "string", description: "Channel recommendation (email/phone/linkedin) with reasoning" },
+            keyMessaging: {
+              type: "array",
+              items: { type: "string" },
+              description: "3-4 specific messaging angles based on account data"
+            },
+            urgencySignals: {
+              type: "array",
+              items: { type: "string" },
+              description: "Time-sensitive opportunities to act on"
+            }
+          },
+          required: ["bestTime", "bestChannel", "keyMessaging", "urgencySignals"]
+        },
+        buyingSignals: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              signal: { type: "string" },
+              strength: { type: "string", enum: ["high", "medium", "low"] },
+              action: { type: "string" }
+            },
+            required: ["signal", "strength", "action"]
+          }
+        },
+        similarAccounts: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              similarity: { type: "number" },
+              outcome: { type: "string" },
+              dealSize: { type: "string" },
+              insight: { type: "string" }
+            },
+            required: ["name", "similarity", "outcome", "dealSize", "insight"]
+          }
+        },
+        recommendedActions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              priority: { type: "number" },
+              action: { type: "string" },
+              persona: { type: "string" },
+              reason: { type: "string" }
+            },
+            required: ["priority", "action", "persona", "reason"]
+          }
+        },
+        confidence: { type: "number", description: "Confidence score between 0 and 1" }
+      },
+      required: ["engagement", "buyingSignals", "similarAccounts", "recommendedActions", "confidence"]
+    }
+  }
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -68,6 +144,12 @@ serve(async (req) => {
 
     const orgId = profile.org_id;
     console.log(`[generate-account-insights] Generating for account ${accountExternalId}, org ${orgId}`);
+
+    // Apply rate limiting
+    const rateLimitResponse = await applyRateLimit(supabase, orgId, 'generate-account-insights');
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
 
     // Check for cached insights if not forcing refresh
     if (!forceRefresh) {
@@ -167,7 +249,7 @@ serve(async (req) => {
       .eq('status', 'active')
       .single();
 
-    // Generate AI insights
+    // Generate AI insights with circuit breaker
     const insights = await generateAIInsights(
       account, 
       score, 
@@ -253,19 +335,37 @@ async function generateAIInsights(
   similarAccounts: any[],
   icpProfile: any | null
 ) {
-  // Try to use AI provider
-  const openaiKey = Deno.env.get('OPENAI_API_KEY');
-  const abacusKey = Deno.env.get('ABACUS_API_KEY');
+  const providers = getAvailableProviders();
   
-  if (openaiKey || abacusKey) {
-    try {
-      return await callAIForInsights(account, score, leads, similarAccounts, icpProfile, openaiKey, abacusKey);
-    } catch (error) {
-      console.error('[generate-account-insights] AI call failed, using fallback:', error);
+  // Check if AI is available and circuit is not open
+  if (providers.length > 0) {
+    // Check circuit breaker for AI service (use 'lovable' as primary)
+    const serviceName = providers.includes('lovable') ? 'lovable' : providers[0];
+    const circuitOpen = await isCircuitOpen(serviceName);
+    
+    if (!circuitOpen) {
+      try {
+        const startTime = Date.now();
+        const result = await callAIForInsights(account, score, leads, similarAccounts, icpProfile);
+        
+        // Record success
+        await recordSuccess(serviceName, Date.now() - startTime);
+        console.log(`[generate-account-insights] AI insights generated successfully via ${serviceName}`);
+        
+        return result;
+      } catch (error) {
+        console.error('[generate-account-insights] AI call failed, using fallback:', error);
+        
+        // Record failure
+        await recordFailure(serviceName, error.message);
+      }
+    } else {
+      console.log(`[generate-account-insights] Circuit open for ${serviceName}, using fallback`);
     }
   }
 
   // Fallback to rule-based insights
+  console.log('[generate-account-insights] Using rule-based fallback');
   return generateRuleBasedInsights(account, score, leads, similarAccounts, icpProfile);
 }
 
@@ -274,83 +374,82 @@ async function callAIForInsights(
   score: any | null,
   leads: any[],
   similarAccounts: any[],
-  icpProfile: any | null,
-  openaiKey: string | undefined,
-  abacusKey: string | undefined
+  icpProfile: any | null
 ) {
   const prompt = buildInsightPrompt(account, score, leads, similarAccounts, icpProfile);
   
-  let response;
-  
-  if (openaiKey) {
-    response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiKey}`,
-        'Content-Type': 'application/json'
+  // Use tool calling for structured output
+  const response = await callAI(
+    'analysis',
+    [
+      {
+        role: 'system',
+        content: 'You are a B2B sales intelligence analyst. Generate actionable insights for account-based marketing. Use the provided tool to return structured insights.'
       },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a B2B sales intelligence analyst. Generate actionable insights for account-based marketing. Always respond with valid JSON matching the exact schema provided.'
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 1500,
-        response_format: { type: 'json_object' }
-      })
-    });
-  } else if (abacusKey) {
-    response = await fetch('https://api.abacus.ai/v0/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${abacusKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'claude-3-5-sonnet',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a B2B sales intelligence analyst. Generate actionable insights for account-based marketing. Always respond with valid JSON matching the exact schema provided.'
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 1500
-      })
-    });
-  } else {
-    throw new Error('No AI provider available');
-  }
+      { role: 'user', content: prompt }
+    ],
+    {
+      tools: [insightsTool],
+      tool_choice: { type: 'function', function: { name: 'generate_account_insights' } },
+      maxTokens: 2000,
+      preferredProvider: 'lovable' // Prefer Lovable AI Gateway
+    }
+  );
 
   if (!response.ok) {
-    throw new Error(`AI API error: ${response.status}`);
+    const errorText = await response.text();
+    throw new Error(`AI API error: ${response.status} - ${errorText}`);
   }
 
   const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
   
-  if (!content) {
-    throw new Error('No content in AI response');
+  // Extract tool call arguments
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+  if (toolCall?.function?.arguments) {
+    try {
+      const parsed = JSON.parse(toolCall.function.arguments);
+      return {
+        engagement: parsed.engagement || {},
+        buyingSignals: parsed.buyingSignals || [],
+        similarAccounts: parsed.similarAccounts?.length > 0 ? parsed.similarAccounts : formatSimilarAccounts(similarAccounts),
+        recommendedActions: parsed.recommendedActions || [],
+        confidence: parsed.confidence || 0.85
+      };
+    } catch (e) {
+      console.error('[generate-account-insights] Failed to parse tool call arguments:', e);
+      throw e;
+    }
   }
+  
+  // Fallback: try to get content from message (for providers that don't support tool calling)
+  const content = data.choices?.[0]?.message?.content;
+  if (content) {
+    try {
+      const parsed = JSON.parse(content);
+      return {
+        engagement: parsed.engagement || {},
+        buyingSignals: parsed.buyingSignals || [],
+        similarAccounts: parsed.similarAccounts?.length > 0 ? parsed.similarAccounts : formatSimilarAccounts(similarAccounts),
+        recommendedActions: parsed.recommendedActions || [],
+        confidence: parsed.confidence || 0.75
+      };
+    } catch (e) {
+      console.error('[generate-account-insights] Failed to parse content:', e);
+      throw e;
+    }
+  }
+  
+  throw new Error('No valid response from AI');
+}
 
-  try {
-    const parsed = JSON.parse(content);
-    return {
-      engagement: parsed.engagement || {},
-      buyingSignals: parsed.buyingSignals || [],
-      similarAccounts: parsed.similarAccounts || similarAccounts,
-      recommendedActions: parsed.recommendedActions || [],
-      confidence: parsed.confidence || 0.75
-    };
-  } catch (e) {
-    console.error('[generate-account-insights] Failed to parse AI response:', e);
-    throw e;
-  }
+function formatSimilarAccounts(similarAccounts: any[]) {
+  return similarAccounts.map(a => ({
+    name: a.name,
+    similarity: 0.8,
+    outcome: 'closed_won',
+    dealSize: a.dealValue ? `$${(a.dealValue / 1000).toFixed(0)}K` : 'N/A',
+    insight: `Similar industry company, ${a.salesCycleDays || 60} day sales cycle`
+  }));
 }
 
 function buildInsightPrompt(
@@ -390,29 +489,13 @@ SIMILAR CLOSED-WON: ${similarSummary}
 
 ICP PROFILE: ${icpProfile?.name || 'Default'} targeting ${icpProfile?.persona_job_titles?.slice(0, 3).join(', ') || 'decision makers'}
 
-Generate insights in this exact JSON format:
-{
-  "engagement": {
-    "bestTime": "specific day/time recommendation with reasoning",
-    "bestChannel": "email/phone/linkedin recommendation with reasoning",
-    "keyMessaging": ["3-4 specific messaging angles based on the account data"],
-    "urgencySignals": ["any time-sensitive opportunities to act on"]
-  },
-  "buyingSignals": [
-    {"signal": "observed signal", "strength": "high/medium/low", "action": "recommended action"},
-    {"signal": "another signal", "strength": "high/medium/low", "action": "recommended action"}
-  ],
-  "similarAccounts": [
-    {"name": "company name", "similarity": 0.85, "outcome": "closed_won", "dealSize": "$XXK", "insight": "what we can learn"}
-  ],
-  "recommendedActions": [
-    {"priority": 1, "action": "specific action", "persona": "target persona", "reason": "why this matters"},
-    {"priority": 2, "action": "another action", "persona": "target persona", "reason": "why this matters"}
-  ],
-  "confidence": 0.85
-}
+Generate actionable, specific insights for engaging this account. Focus on:
+1. Best timing and channels for outreach
+2. Key messaging angles based on industry and company size
+3. Observable buying signals
+4. Priority actions for the sales team
 
-Focus on actionable, specific recommendations. Be direct and avoid generic advice.`;
+Be direct and avoid generic advice.`;
 }
 
 function generateRuleBasedInsights(
@@ -441,13 +524,7 @@ function generateRuleBasedInsights(
   const buyingSignals = generateBuyingSignals(account, score, leads);
   
   // Format similar accounts
-  const formattedSimilar = similarAccounts.map(a => ({
-    name: a.name,
-    similarity: 0.8,
-    outcome: 'closed_won',
-    dealSize: a.dealValue ? `$${(a.dealValue / 1000).toFixed(0)}K` : 'N/A',
-    insight: `Similar ${account.industry_norm || 'industry'} company, ${a.salesCycleDays || 60} day sales cycle`
-  }));
+  const formattedSimilar = formatSimilarAccounts(similarAccounts);
 
   // Generate recommended actions
   const recommendedActions = generateRecommendedActions(account, leads, icpProfile);
