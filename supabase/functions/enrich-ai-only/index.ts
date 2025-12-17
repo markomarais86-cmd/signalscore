@@ -23,6 +23,7 @@ interface AccountToEnrich {
   employee_count: number | null;
   revenue_range: string | null;
   country: string | null;
+  linkedin_url: string | null;
 }
 
 interface EnrichedField {
@@ -38,6 +39,7 @@ interface AIEnrichmentResult {
   industry_norm?: EnrichedField;
   company_type?: EnrichedField;
   business_model?: EnrichedField;
+  linkedin_url?: EnrichedField;
 }
 
 interface ProcessingError {
@@ -119,6 +121,18 @@ Revenue ranges: $0-1M, $1M-10M, $10M-50M, $50M-100M, $100M-500M, $500M-1B, $1B+
 Company types: startup, scaleup, sme, mid-market, enterprise, government, non-profit
 Business models: B2B, B2C, B2B2C, Marketplace, SaaS, Services, Manufacturing, Retail
 
+LINKEDIN URL ESTIMATION:
+Generate the company's LinkedIn URL based on their name and domain. LinkedIn company URLs follow this pattern:
+https://www.linkedin.com/company/{company-slug}
+- Remove suffixes: Inc, LLC, Corp, Ltd, Co, Company, Technologies, Solutions
+- Replace spaces with hyphens
+- Make lowercase
+- Remove special characters
+Examples:
+- "Salesforce Inc" → https://www.linkedin.com/company/salesforce
+- "Meta Platforms Inc" → https://www.linkedin.com/company/meta
+- "Acme Technologies LLC" → https://www.linkedin.com/company/acme-technologies
+
 Be conservative with confidence scores:
 - 90%+: Known major companies or very clear signals
 - 70-89%: Strong domain/name indicators
@@ -135,6 +149,7 @@ Only return estimates you're confident about (>50%).`;
     current_employee_count: a.employee_count,
     current_revenue: a.revenue_range,
     country: a.country,
+    current_linkedin: a.linkedin_url,
   }));
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -203,6 +218,14 @@ Only return estimates you're confident about (>50%).`;
                         type: "object",
                         properties: {
                           value: { type: "string", enum: ["B2B", "B2C", "B2B2C", "Marketplace", "SaaS", "Services", "Manufacturing", "Retail"] },
+                          confidence: { type: "number", minimum: 0, maximum: 100 },
+                          reasoning: { type: "string" }
+                        }
+                      },
+                      linkedin_url: {
+                        type: "object",
+                        properties: {
+                          value: { type: "string", description: "Full LinkedIn company URL e.g. https://www.linkedin.com/company/salesforce" },
                           confidence: { type: "number", minimum: 0, maximum: 100 },
                           reasoning: { type: "string" }
                         }
@@ -322,6 +345,19 @@ async function processBatchWithRetry(
           updates.business_model = result.business_model.value;
           fieldScores.business_model = result.business_model.confidence;
           fieldsEnriched++;
+        }
+
+        // Apply linkedin_url if confident and missing
+        if (result.linkedin_url && 
+            result.linkedin_url.confidence >= CONFIDENCE_THRESHOLD &&
+            !account.linkedin_url) {
+          // Validate URL format
+          const linkedinUrl = result.linkedin_url.value;
+          if (linkedinUrl && linkedinUrl.includes('linkedin.com/company/')) {
+            updates.linkedin_url = linkedinUrl;
+            fieldScores.linkedin_url = result.linkedin_url.confidence;
+            fieldsEnriched++;
+          }
         }
 
         // Calculate overall confidence
@@ -464,13 +500,13 @@ serve(async (req) => {
     // Build query for accounts needing enrichment
     let query = supabase
       .from("accounts")
-      .select("external_id, name, domain, industry_raw, employee_count, revenue_range, country")
+      .select("external_id, name, domain, industry_raw, employee_count, revenue_range, country, linkedin_url")
       .eq("org_id", job.org_id)
       .not("domain", "is", null);
 
-    // Apply filters - focus on accounts missing data
+    // Apply filters - focus on accounts missing data (including linkedin_url)
     if (!filters.include_complete) {
-      query = query.or("employee_count.is.null,revenue_range.is.null,industry_raw.is.null");
+      query = query.or("employee_count.is.null,revenue_range.is.null,industry_raw.is.null,linkedin_url.is.null");
     }
 
     // NOTE: We do NOT filter out processed IDs in the query because it causes URL length overflow
