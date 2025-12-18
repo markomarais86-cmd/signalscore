@@ -8,7 +8,38 @@ This document explains the security warnings from the Supabase Linter and provid
 
 ## ✅ Already Fixed (Automated)
 
-### 1. Function Search Paths
+### 1. master_account_data Public Access Fix
+**Status:** ✅ FIXED (2024-12-18)
+**Priority:** CRITICAL
+**Migration:** `20251218_security_fixes.sql`
+
+**Issue:** The `master_account_data` table was publicly accessible without authentication, exposing 28,000+ company records.
+
+**Fix Applied:**
+```sql
+-- Removed dangerous public policy
+DROP POLICY "Anyone can read master data" ON master_account_data;
+
+-- Created secure authenticated-only policy
+CREATE POLICY "Authenticated users can read master data" 
+ON master_account_data FOR SELECT 
+TO authenticated
+USING (true);
+```
+
+### 2. user_profiles Policy Consolidation
+**Status:** ✅ FIXED (2024-12-18)
+**Priority:** MEDIUM
+**Migration:** `20251218_security_fixes.sql`
+
+**Issue:** Redundant overlapping SELECT policies on `user_profiles` table.
+
+**Fix Applied:** Removed redundant policies:
+- Dropped: `"Users can read their own profile"`
+- Dropped: `"Users can view their own profile directly"`
+- Kept: `"Users can view profiles in their org"` (most comprehensive org-based policy)
+
+### 3. Function Search Paths
 **Status:** ✅ FIXED in migration `20251027122500`
 
 All security-sensitive functions now use `SET search_path = public, pg_temp` to prevent search_path attacks:
@@ -19,7 +50,7 @@ All security-sensitive functions now use `SET search_path = public, pg_temp` to 
 
 **Verification:** Run `verify_security_fixes.sql` to confirm.
 
-### 2. Database Function Security
+### 4. Database Function Security
 **Status:** ✅ HARDENED
 
 All functions that modify data or access sensitive information are:
@@ -176,6 +207,8 @@ psql -h <your-db-host> -d postgres -f supabase/migrations/verify_security_fixes.
 
 | Issue | Severity | Status | Action Required |
 |-------|----------|--------|-----------------|
+| master_account_data public | CRITICAL | ✅ FIXED | None (migration applied) |
+| user_profiles policies | MEDIUM | ✅ FIXED | None (consolidated) |
 | Function search paths | HIGH | ✅ FIXED | None (automated) |
 | Leaked password protection | HIGH | ⚠️ PENDING | Enable in dashboard |
 | OTP expiry too long | MEDIUM | ⚠️ PENDING | Reduce to 300s in dashboard |
@@ -183,8 +216,10 @@ psql -h <your-db-host> -d postgres -f supabase/migrations/verify_security_fixes.
 | pg_trgm in public | INFO | ✅ ACCEPTABLE | None (by design) |
 | Materialized views in API | INFO | ✅ SAFE | None (RLS protected) |
 | Leads table RLS | HIGH | ✅ SECURE | Proper org_id filtering |
+| Deals table RLS | HIGH | ✅ SECURE | Proper org_id filtering |
+| Accounts table RLS | HIGH | ✅ SECURE | Proper org_id filtering |
 
-**Overall Security Rating:** 🟡 REQUIRES DASHBOARD CONFIGURATION
+**Overall Security Rating:** 🟡 REQUIRES DASHBOARD CONFIGURATION (Auth settings only)
 
 ---
 
@@ -240,5 +275,5 @@ psql -h <your-db-host> -d postgres -f supabase/migrations/verify_security_fixes.
 
 ---
 
-**Last Updated:** 2025-12-17  
-**Next Review:** 2026-01-17
+**Last Updated:** 2025-12-18  
+**Next Review:** 2026-01-18
