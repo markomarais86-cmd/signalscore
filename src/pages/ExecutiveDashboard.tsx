@@ -580,20 +580,22 @@ export default function ExecutiveDashboard() {
                   break;
                   
                 case 'enrich_contacts':
-                  // Navigate with account IDs if provided
+                  // Navigate to ICP Manager with discover context
                   const accountIds = params?.account_ids as string[] | undefined;
                   if (accountIds && accountIds.length > 0) {
-                    const accountFilter = accountIds.slice(0, 20).join(',');
-                    navigate(`/leads?tab=discover&accounts=${accountFilter}`);
+                    sessionStorage.setItem('discovery_account_ids', JSON.stringify(accountIds.slice(0, 50)));
+                    navigate('/icp-manager?action=discover');
+                    toast.info(`Ready to discover contacts for ${accountIds.length} high-fit accounts`);
                   } else {
-                    navigate('/leads?tab=discover');
+                    navigate('/icp-manager');
+                    toast.info('Go to ICP Manager to discover contacts');
                   }
-                  toast.info('Find contacts for high-fit accounts');
                   break;
                   
                 case 'search_contacts':
                   const contactParams = new URLSearchParams();
-                  if (params?.icp_qualified_only) contactParams.set('icp_qualified', 'true');
+                  if (params?.icp_qualified_only) contactParams.set('icp', 'qualified');
+                  if (params?.stale_days) contactParams.set('stale_days', String(params.stale_days));
                   if (params?.pipeline_stage) contactParams.set('pipeline_stage', String(params.pipeline_stage));
                   navigate(`/leads${contactParams.toString() ? '?' + contactParams.toString() : ''}`);
                   break;
@@ -681,6 +683,14 @@ export default function ExecutiveDashboard() {
                   
                 case 'agent_feedback_summary':
                   setShowHealthDashboard(true);
+                  break;
+                
+                case 'view_agent_run':
+                  // Show health dashboard with specific run context
+                  setShowHealthDashboard(true);
+                  if (params?.run_id) {
+                    toast.info(`Viewing agent run details`, { duration: 2000 });
+                  }
                   break;
                   
                 default:
