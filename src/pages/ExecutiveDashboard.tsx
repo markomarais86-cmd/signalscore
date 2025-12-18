@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
-import { TrendingUp, Target, Database, Download, MapPin, Sparkles, Building2, Settings, AlertCircle, Users, RefreshCw, Activity } from "lucide-react";
+import { TrendingUp, Target, Database, Download, MapPin, Sparkles, Building2, Settings, AlertCircle, Users, RefreshCw, Activity, Search } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useDashboardData, useGeographyData, useSourceFilterStats } from "@/hooks/use-dashboard-data";
 import { useOnboarding } from "@/hooks/use-onboarding";
@@ -41,9 +41,10 @@ import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
 import { EmptyState } from "@/components/EmptyState";
 import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
-import { DataQualityWarning } from "@/components/executive/DataQualityWarning";
 import { ProactiveInsightsWidget } from "@/components/insights/ProactiveInsightsWidget";
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
+import { CommandPalette, CommandPaletteTrigger } from "@/components/executive/CommandPalette";
+import { StatusBar, useStatusItems } from "@/components/executive/StatusBar";
 
 
 export default function ExecutiveDashboard() {
@@ -355,33 +356,90 @@ export default function ExecutiveDashboard() {
     : totalAccounts;
   const showEmptyState = effectiveAccountCount === 0 && !isLoading;
 
+  // Build status items for StatusBar
+  const statusItems = useStatusItems({
+    activeScoringJob,
+    apolloStale,
+    isDataStale,
+    dataCompleteness,
+    totalAccounts,
+    sourceFilter,
+    onSyncApollo: async () => {
+      setSyncingApolloFromAlert(true);
+      await handleSyncApollo();
+      setSyncingApolloFromAlert(false);
+      setApolloStale(false);
+    },
+    onGoToICP: () => navigate('/icp-manager'),
+    onEnrich: () => setIsEnrichmentModalOpen(true),
+    syncingApollo: syncingApolloFromAlert
+  });
+
+  // Score accounts handler for command palette
+  const handleScoreAccounts = async () => {
+    try {
+      console.log('🚀 Manual scoring trigger clicked');
+      const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
+        body: { org_id: userProfile.org_id, chunk_size: 5000 }
+      });
+      if (error) {
+        toast.error(error.message || 'Failed to start scoring');
+      } else {
+        toast.success('Scoring started! Processing in background...');
+        checkDataFreshness();
+      }
+    } catch (err) {
+      toast.error('Failed to start scoring');
+    }
+  };
+
   return (
     <div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-3 lg:space-y-4">
-      {/* Header Section */}
+      {/* Command Palette - Global keyboard shortcut */}
+      <CommandPalette
+        onScoreAccounts={handleScoreAccounts}
+        onEnrich={() => setIsEnrichmentModalOpen(true)}
+        onSyncApollo={handleSyncApollo}
+        onRefresh={() => {
+          refetch();
+          toast.success('Refreshing dashboard data...');
+        }}
+        onToggleHealth={() => setShowHealthDashboard(!showHealthDashboard)}
+        isScoring={!!activeScoringJob}
+        isSyncing={isSyncing}
+      />
+
+      {/* Header Section - Simplified */}
       <div className="flex items-center justify-between flex-wrap gap-3 lg:gap-4">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">Executive Dashboard</h1>
-            <p className="text-xs lg:text-sm text-muted-foreground mt-1">Filter data by source to focus on your CRM, database, or combined view</p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <SourceFilterToggle
-              value={sourceFilter}
-              onChange={setSourceFilter}
-              stats={{
-                crm: filterStats?.crm || 0,
-                database: filterStats?.database || 0,
-              }}
-            />
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">Executive Dashboard</h1>
+          <p className="text-xs lg:text-sm text-muted-foreground mt-1">Filter data by source to focus on your CRM, database, or combined view</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Command Palette Trigger - for users who don't know keyboard shortcut */}
+          <CommandPaletteTrigger />
+          
+          <SourceFilterToggle
+            value={sourceFilter}
+            onChange={setSourceFilter}
+            stats={{
+              crm: filterStats?.crm || 0,
+              database: filterStats?.database || 0,
+            }}
+          />
+          
+          {/* Primary Actions - Grouped */}
+          <div className="flex items-center gap-1.5">
             {sourceFilter === 'database' && (
               <Button 
                 variant="default" 
                 onClick={handleSyncApollo}
                 disabled={isSyncing}
                 size="sm"
-                className="bg-primary"
+                className="bg-primary hover:shadow-md transition-shadow"
               >
                 <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                {isSyncing ? 'Syncing...' : 'Sync Apollo Data'}
+                {isSyncing ? 'Syncing...' : 'Sync Apollo'}
               </Button>
             )}
             <Button 
@@ -392,45 +450,31 @@ export default function ExecutiveDashboard() {
               }}
               disabled={isLoading}
               size="sm"
+              className="hover:shadow-sm transition-shadow"
             >
               <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
+          </div>
+          
+          {/* Secondary Actions */}
+          <div className="flex items-center gap-1.5">
             <Button 
               variant="outline" 
               size="sm"
-              onClick={async () => {
-                try {
-                  console.log('🚀 Manual scoring trigger clicked');
-                  console.log('Org ID:', userProfile.org_id);
-                  
-                  const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
-                    body: { 
-                      org_id: userProfile.org_id, 
-                      chunk_size: 5000 
-                    }
-                  });
-                  
-                  if (error) {
-                    console.error('❌ Scoring error:', error);
-                    console.error('Full error:', JSON.stringify(error, null, 2));
-                    toast.error(error.message || 'Failed to start scoring');
-                  } else {
-                    console.log('✅ Scoring job started:', data);
-                    toast.success('Scoring started! Processing in background...');
-                    checkDataFreshness(); // Refresh to show active job
-                  }
-                } catch (err) {
-                  console.error('❌ Exception during scoring:', err);
-                  toast.error('Failed to start scoring');
-                }
-              }}
+              onClick={handleScoreAccounts}
               disabled={!!activeScoringJob}
+              className="hover:shadow-sm transition-shadow active:scale-[0.98]"
             >
               <Target className="mr-2 h-4 w-4" />
-              {activeScoringJob ? 'Scoring...' : 'Start Scoring'}
+              {activeScoringJob ? 'Scoring...' : 'Score'}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => setIsEnrichmentModalOpen(true)}>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setIsEnrichmentModalOpen(true)}
+              className="hover:shadow-sm transition-shadow active:scale-[0.98]"
+            >
               <Sparkles className="mr-2 h-4 w-4" />
               Enrich
             </Button>
@@ -438,68 +482,22 @@ export default function ExecutiveDashboard() {
               variant={showHealthDashboard ? "default" : "outline"} 
               size="sm" 
               onClick={() => setShowHealthDashboard(!showHealthDashboard)}
+              className="hover:shadow-sm transition-shadow active:scale-[0.98]"
             >
               <Activity className="mr-2 h-4 w-4" />
-              {showHealthDashboard ? 'Hide' : 'Show'} Health
+              Health
             </Button>
-            <Button variant="outline" size="sm" onClick={() => navigate('/settings')}>
-              <Settings className="mr-2 h-4 w-4" />
-              Settings
-            </Button>
-            <QuickCampaignButton 
-              highFitAccounts={highFitAccounts}
-              disabled={isLoading || highFitAccounts === 0}
-            />
           </div>
+          
+          <QuickCampaignButton 
+            highFitAccounts={highFitAccounts}
+            disabled={isLoading || highFitAccounts === 0}
+          />
         </div>
+      </div>
 
-        {/* Apollo Stale Data Warning */}
-        {apolloStale && sourceFilter === 'database' && !isSyncing && (
-          <Alert className="bg-blue-500/10 border-blue-500/50">
-            <AlertCircle className="h-4 w-4 text-blue-500" />
-            <AlertDescription className="flex items-center justify-between">
-              <span>Your ICP was updated. Apollo TAM data may be outdated.</span>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={async () => {
-                  setSyncingApolloFromAlert(true);
-                  await handleSyncApollo();
-                  setSyncingApolloFromAlert(false);
-                  setApolloStale(false);
-                }}
-                disabled={syncingApolloFromAlert}
-              >
-                {syncingApolloFromAlert ? 'Syncing...' : 'Refresh Apollo Data'}
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Stale Data Warning */}
-        {isDataStale && !activeScoringJob && (
-          <Alert className="bg-amber-500/10 border-amber-500/50">
-            <AlertCircle className="h-4 w-4 text-amber-500" />
-            <AlertDescription className="flex items-center justify-between">
-              <span>Your ICP was recently updated. Re-score accounts to see updated fit scores.</span>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => navigate('/icp-manager')}
-                className="ml-4"
-              >
-                Go to ICP Manager
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Data Quality Warning */}
-        <DataQualityWarning 
-          dataCompleteness={dataCompleteness}
-          totalAccounts={totalAccounts}
-          onEnrich={() => setIsEnrichmentModalOpen(true)}
-        />
+      {/* Consolidated Status Bar - Replaces scattered alerts */}
+      <StatusBar items={statusItems} />
 
         {/* Phase 5: Proactive AI Insights Widget */}
         {userProfile?.org_id && (
@@ -729,27 +727,7 @@ export default function ExecutiveDashboard() {
           onOpenChange={(open) => !open && setSelectedAgentRunId(null)}
         />
 
-        {/* Active Scoring Job Progress */}
-        {activeScoringJob && (
-          <Alert className="bg-primary/10 border-primary/50">
-            <RefreshCw className="h-4 w-4 text-primary animate-spin" />
-            <AlertDescription>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium">Re-scoring in progress...</div>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    {activeScoringJob.processed_accounts || 0} of {activeScoringJob.total_accounts || 0} accounts processed
-                  </div>
-                </div>
-                <div className="text-2xl font-bold">
-                  {activeScoringJob.total_accounts > 0 
-                    ? Math.round((activeScoringJob.processed_accounts / activeScoringJob.total_accounts) * 100)
-                    : 0}%
-                </div>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
+        {/* Note: Active scoring job is now shown in StatusBar above */}
 
         {isLoading ? (
           <DashboardSkeleton />
@@ -761,31 +739,40 @@ export default function ExecutiveDashboard() {
               description="Get started by generating sample data to explore the platform, uploading your account data, or connecting your CRM."
             />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl">
-              <Card className="border-primary/50 bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer" onClick={async () => {
-                try {
-                  toast.info('Generating sample data...');
-                  const { data, error } = await supabase.rpc('generate_sample_data');
-                  if (error) throw error;
-                  toast.success('Sample data generated! Refreshing...');
-                  setTimeout(() => window.location.reload(), 1500);
-                } catch (err: any) {
-                  toast.error(err.message || 'Failed to generate sample data');
-                }
-              }}>
+              <Card 
+                className="border-primary/50 bg-primary/5 hover:bg-primary/10 hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer" 
+                onClick={async () => {
+                  try {
+                    toast.info('Generating sample data...');
+                    const { data, error } = await supabase.rpc('generate_sample_data');
+                    if (error) throw error;
+                    toast.success('Sample data generated! Refreshing...');
+                    setTimeout(() => window.location.reload(), 1500);
+                  } catch (err: any) {
+                    toast.error(err.message || 'Failed to generate sample data');
+                  }
+                }}
+              >
                 <CardContent className="pt-6 text-center">
                   <Sparkles className="h-8 w-8 text-primary mx-auto mb-3" />
                   <h3 className="font-semibold mb-1">Generate Sample Data</h3>
                   <p className="text-sm text-muted-foreground">Quick demo with realistic accounts</p>
                 </CardContent>
               </Card>
-              <Card className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => navigate('/data-upload')}>
+              <Card 
+                className="hover:bg-muted/50 hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer" 
+                onClick={() => navigate('/data-upload')}
+              >
                 <CardContent className="pt-6 text-center">
                   <Database className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
                   <h3 className="font-semibold mb-1">Upload CSV Data</h3>
                   <p className="text-sm text-muted-foreground">Import your own account data</p>
                 </CardContent>
               </Card>
-              <Card className="hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => navigate('/settings?tab=integrations')}>
+              <Card 
+                className="hover:bg-muted/50 hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer" 
+                onClick={() => navigate('/settings?tab=integrations')}
+              >
                 <CardContent className="pt-6 text-center">
                   <Settings className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
                   <h3 className="font-semibold mb-1">Connect CRM</h3>

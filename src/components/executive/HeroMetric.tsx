@@ -63,7 +63,7 @@ export function HeroMetric({
 
   return (
     <Card 
-      className={`relative overflow-hidden border-l-4 ${getStatusColor()} hover:shadow-lg transition-all duration-300 ${onClick ? 'cursor-pointer' : ''}`}
+      className={`relative overflow-hidden border-l-4 ${getStatusColor()} hover:shadow-lg hover:scale-[1.01] transition-all duration-200 ${onClick ? 'cursor-pointer active:scale-[0.99]' : ''}`}
       onClick={onClick}
     >
       <div className="p-3 lg:p-4">
