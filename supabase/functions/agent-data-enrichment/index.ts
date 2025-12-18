@@ -392,115 +392,138 @@ serve(async (req) => {
         try {
           recordsProcessed++;
           let enrichedThisAccount = false;
+          let enrichedFields: string[] = [];
           const updateData: any = {};
 
-          console.log(`[Data Enrichment Agent] Processing: ${account.name} (${account.domain || 'no domain'}) - confidence: ${decision.confidence}%`);
+          console.log(`[Data Enrichment Agent] Processing: ${account.name} (${account.domain || 'no domain'}) - priority: ${decision.priority}, confidence: ${decision.confidence}%`);
 
-          // LOWERED THRESHOLD: Apply AI estimates if confidence >= 50%
-          if (decision.confidence >= 50 && decision.estimated_data && Object.keys(decision.estimated_data).length > 0) {
-            console.log(`[Data Enrichment Agent] AI estimates available for ${account.name}:`, decision.estimated_data);
+          // PRIORITY FIX: Try API enrichment FIRST for accounts with valid domains
+          // This ensures we use real data from Apollo/PDL when available
+          if (account.domain && account.domain.length > 3 && !account.domain.includes('example')) {
+            console.log(`[Data Enrichment Agent] Attempting API enrichment first for: ${account.name} (${account.domain})`);
             
-            if (decision.estimated_data.employee_count && !account.employee_count) {
-              updateData.employee_count = decision.estimated_data.employee_count;
-            }
-            if (decision.estimated_data.revenue_range && !account.revenue_range) {
-              updateData.revenue_range = decision.estimated_data.revenue_range;
-            }
-            if (decision.estimated_data.industry && !account.industry_raw) {
-              updateData.industry_raw = decision.estimated_data.industry;
-            }
-
-            if (Object.keys(updateData).length > 0) {
-              updateData.enriched_from = 'ai_estimation';
-              updateData.enriched_at = new Date().toISOString();
-              updateData.enrichment_confidence = decision.confidence;
-              
-              const { error: updateError } = await supabase
-                .from('accounts')
-                .update(updateData)
-                .eq('id', account.id);
-
-              if (!updateError) {
-                aiEstimatesApplied++;
-                recordsAffected++;
-                enrichedThisAccount = true;
-                console.log(`[Data Enrichment Agent] ✓ AI enriched ${account.name}: ${Object.keys(updateData).filter(k => !['enriched_from', 'enriched_at', 'enrichment_confidence'].includes(k)).join(', ')}`);
-              } else {
-                console.error(`[Data Enrichment Agent] Failed to update ${account.name}:`, updateError);
-              }
-            }
-          }
-
-          // For high priority accounts with domain, try API enrichment if AI didn't provide enough
-          if (decision.priority === 'high' && account.domain && !enrichedThisAccount) {
-            console.log(`[Data Enrichment Agent] Trying API enrichment for high-priority: ${account.name}`);
-            
-            // Try Apollo first
+            // Try Apollo first (prioritize real data)
             const apolloData = await enrichWithApollo(account.domain);
-            if (apolloData) {
-              const apiUpdateData: any = {
-                enriched_from: 'apollo',
-                enriched_at: new Date().toISOString()
-              };
-              
+            if (apolloData && Object.keys(apolloData).length > 0) {
               if (apolloData.employee_count && !account.employee_count) {
-                apiUpdateData.employee_count = apolloData.employee_count;
+                updateData.employee_count = apolloData.employee_count;
+                enrichedFields.push('employee_count');
               }
               if (apolloData.revenue_range && !account.revenue_range) {
-                apiUpdateData.revenue_range = apolloData.revenue_range;
+                updateData.revenue_range = apolloData.revenue_range;
+                enrichedFields.push('revenue_range');
               }
               if (apolloData.industry && !account.industry_raw) {
-                apiUpdateData.industry_raw = apolloData.industry;
+                updateData.industry_raw = apolloData.industry;
+                enrichedFields.push('industry');
               }
               
-              if (Object.keys(apiUpdateData).length > 2) {
+              if (enrichedFields.length > 0) {
+                updateData.enriched_from = 'apollo';
+                updateData.enriched_at = new Date().toISOString();
+                updateData.enrichment_confidence = 95; // High confidence for API data
+                
                 const { error: updateError } = await supabase
                   .from('accounts')
-                  .update(apiUpdateData)
+                  .update(updateData)
                   .eq('id', account.id);
                   
                 if (!updateError) {
                   apolloEnrichments++;
                   recordsAffected++;
                   enrichedThisAccount = true;
-                  console.log(`[Data Enrichment Agent] ✓ Apollo enriched ${account.name}`);
+                  console.log(`[Data Enrichment Agent] ✓ Apollo enriched ${account.name}: ${enrichedFields.join(', ')}`);
+                } else {
+                  console.error(`[Data Enrichment Agent] Apollo update failed for ${account.name}:`, updateError);
                 }
               }
             }
             
-            // Fall back to PDL if Apollo didn't work
+            // Fall back to PDL if Apollo didn't provide data
             if (!enrichedThisAccount) {
               const pdlData = await enrichWithPDL(account.domain);
-              if (pdlData) {
-                const apiUpdateData: any = {
-                  enriched_from: 'pdl',
-                  enriched_at: new Date().toISOString()
-                };
+              if (pdlData && Object.keys(pdlData).length > 0) {
+                enrichedFields = [];
+                const pdlUpdateData: any = {};
                 
                 if (pdlData.employee_count && !account.employee_count) {
-                  apiUpdateData.employee_count = pdlData.employee_count;
+                  pdlUpdateData.employee_count = pdlData.employee_count;
+                  enrichedFields.push('employee_count');
                 }
                 if (pdlData.revenue_range && !account.revenue_range) {
-                  apiUpdateData.revenue_range = pdlData.revenue_range;
+                  pdlUpdateData.revenue_range = pdlData.revenue_range;
+                  enrichedFields.push('revenue_range');
                 }
                 if (pdlData.industry && !account.industry_raw) {
-                  apiUpdateData.industry_raw = pdlData.industry;
+                  pdlUpdateData.industry_raw = pdlData.industry;
+                  enrichedFields.push('industry');
                 }
                 
-                if (Object.keys(apiUpdateData).length > 2) {
+                if (enrichedFields.length > 0) {
+                  pdlUpdateData.enriched_from = 'pdl';
+                  pdlUpdateData.enriched_at = new Date().toISOString();
+                  pdlUpdateData.enrichment_confidence = 90; // High confidence for API data
+                  
                   const { error: updateError } = await supabase
                     .from('accounts')
-                    .update(apiUpdateData)
+                    .update(pdlUpdateData)
                     .eq('id', account.id);
                     
                   if (!updateError) {
                     pdlEnrichments++;
                     recordsAffected++;
-                    console.log(`[Data Enrichment Agent] ✓ PDL enriched ${account.name}`);
+                    enrichedThisAccount = true;
+                    console.log(`[Data Enrichment Agent] ✓ PDL enriched ${account.name}: ${enrichedFields.join(', ')}`);
+                  } else {
+                    console.error(`[Data Enrichment Agent] PDL update failed for ${account.name}:`, updateError);
                   }
                 }
               }
             }
+          }
+
+          // FALLBACK: Use AI estimates if API enrichment didn't work and confidence >= 50%
+          if (!enrichedThisAccount && decision.confidence >= 50 && decision.estimated_data && Object.keys(decision.estimated_data).length > 0) {
+            console.log(`[Data Enrichment Agent] Falling back to AI estimates for ${account.name}:`, decision.estimated_data);
+            enrichedFields = [];
+            const aiUpdateData: any = {};
+            
+            if (decision.estimated_data.employee_count && !account.employee_count) {
+              aiUpdateData.employee_count = decision.estimated_data.employee_count;
+              enrichedFields.push('employee_count');
+            }
+            if (decision.estimated_data.revenue_range && !account.revenue_range) {
+              aiUpdateData.revenue_range = decision.estimated_data.revenue_range;
+              enrichedFields.push('revenue_range');
+            }
+            if (decision.estimated_data.industry && !account.industry_raw) {
+              aiUpdateData.industry_raw = decision.estimated_data.industry;
+              enrichedFields.push('industry');
+            }
+
+            if (enrichedFields.length > 0) {
+              aiUpdateData.enriched_from = 'ai_estimation';
+              aiUpdateData.enriched_at = new Date().toISOString();
+              aiUpdateData.enrichment_confidence = decision.confidence;
+              
+              const { error: updateError } = await supabase
+                .from('accounts')
+                .update(aiUpdateData)
+                .eq('id', account.id);
+
+              if (!updateError) {
+                aiEstimatesApplied++;
+                recordsAffected++;
+                enrichedThisAccount = true;
+                console.log(`[Data Enrichment Agent] ✓ AI enriched ${account.name}: ${enrichedFields.join(', ')}`);
+              } else {
+                console.error(`[Data Enrichment Agent] AI update failed for ${account.name}:`, updateError);
+              }
+            }
+          }
+
+          if (!enrichedThisAccount) {
+            console.log(`[Data Enrichment Agent] Could not enrich ${account.name} - no domain or no data available`);
           }
         } catch (error) {
           console.error(`[Data Enrichment Agent] Error processing account ${account.id}:`, error);

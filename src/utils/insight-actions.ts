@@ -15,14 +15,45 @@ export interface Insight {
   relatedSegments?: string[];
 }
 
+export interface CampaignFromInsightParams {
+  insightTitle: string;
+  suggestedCampaignName: string;
+  targetAccountIds?: string[];
+  filters?: {
+    minScore?: number;
+    industries?: string[];
+    segments?: string[];
+  };
+}
+
 export const executeInsightAction = async (
   action: string,
   insight: Insight,
-  navigate: (path: string) => void
+  navigate: (path: string) => void,
+  openCampaignBuilder?: (context: CampaignFromInsightParams) => void
 ) => {
   switch (action) {
     case 'build_campaign':
-      // Navigate to accounts with pre-filled filters
+      // If we have a campaign builder opener, use it directly
+      if (openCampaignBuilder) {
+        const suggestedName = generateCampaignName(insight);
+        openCampaignBuilder({
+          insightTitle: insight.title,
+          suggestedCampaignName: suggestedName,
+          targetAccountIds: insight.targetAccounts?.map(a => a.id),
+          filters: {
+            minScore: 70,
+            industries: insight.relatedSegments,
+            segments: insight.relatedSegments,
+          }
+        });
+        toast.success("Campaign Builder opened", {
+          description: `Pre-loaded with ${insight.targetAccounts?.length || 0} accounts from insight`
+        });
+        return;
+      }
+      
+      // Fallback to navigation
       const params = new URLSearchParams({
         score_min: '70',
         action: 'export'
@@ -116,3 +147,26 @@ export const getActionIcon = (action?: string): string => {
       return 'ArrowRight';
   }
 };
+
+// Helper to generate campaign name from insight
+function generateCampaignName(insight: Insight): string {
+  const date = new Date();
+  const weekNumber = Math.ceil((date.getDate() - date.getDay() + 1) / 7);
+  const monthName = date.toLocaleString('default', { month: 'short' });
+  
+  // Extract key info from insight title
+  let prefix = 'Insight';
+  if (insight.title.toLowerCase().includes('high-fit')) {
+    prefix = 'HighFit';
+  } else if (insight.title.toLowerCase().includes('enrich')) {
+    prefix = 'Enriched';
+  } else if (insight.title.toLowerCase().includes('score')) {
+    prefix = 'Scored';
+  } else if (insight.title.toLowerCase().includes('icp')) {
+    prefix = 'ICP';
+  }
+  
+  const segment = insight.relatedSegments?.[0] || 'All';
+  
+  return `${prefix}_${segment}_W${weekNumber}${monthName}`.replace(/\s+/g, '_');
+}

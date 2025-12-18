@@ -23,11 +23,23 @@ import { ApolloCreditsDisplay } from "./ApolloCreditsDisplay";
 import { ApolloRedemptionDialog, ICPCriteria } from "./ApolloRedemptionDialog";
 import { useApolloCredits } from "@/hooks/use-apollo-credits";
 
+export interface InsightContext {
+  insightTitle?: string;
+  suggestedCampaignName?: string;
+  targetAccountIds?: string[];
+  filters?: {
+    minScore?: number;
+    industries?: string[];
+    segments?: string[];
+  };
+}
+
 interface CampaignBuilderV2Props {
   isOpen: boolean;
   onClose: () => void;
   icpId?: string;
-  source: 'icp-manager' | 'executive-dashboard';
+  source: 'icp-manager' | 'executive-dashboard' | 'insight';
+  insightContext?: InsightContext;
 }
 
 interface ICPProfile {
@@ -114,7 +126,7 @@ const SEQUENCE_TEMPLATES = {
   }
 };
 
-export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBuilderV2Props) {
+export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightContext }: CampaignBuilderV2Props) {
   const { userProfile } = useAuth();
   const { toast } = useToast();
   
@@ -129,6 +141,9 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
     fitScoreMin: 70, // Default to high-fit accounts
     fitScoreMax: 100
   });
+  
+  // Pre-loaded account IDs from insight
+  const [insightAccountIds, setInsightAccountIds] = useState<string[]>([]);
   
   // Apollo TAM data state for 'database' source
   const [apolloTamData, setApolloTamData] = useState<any>(null);
@@ -258,8 +273,27 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source }: CampaignBu
     loadApolloTamData();
   }, [userProfile?.org_id, dataSource]);
 
+  // Initialize from insight context when provided
   useEffect(() => {
-    console.log('[Campaign Builder] Opening with:', { icpId, source, useICP, org_id: userProfile?.org_id });
+    if (isOpen && insightContext) {
+      console.log('[Campaign Builder] Opening from insight:', insightContext);
+      if (insightContext.suggestedCampaignName) {
+        setCampaignName(insightContext.suggestedCampaignName);
+      }
+      if (insightContext.targetAccountIds && insightContext.targetAccountIds.length > 0) {
+        setInsightAccountIds(insightContext.targetAccountIds);
+      }
+      if (insightContext.filters?.minScore) {
+        setFilterCriteria(prev => ({
+          ...prev,
+          fitScoreMin: insightContext.filters!.minScore!
+        }));
+      }
+    }
+  }, [isOpen, insightContext]);
+
+  useEffect(() => {
+    console.log('[Campaign Builder] Opening with:', { icpId, source, useICP, org_id: userProfile?.org_id, insightContext: !!insightContext });
     if (isOpen && userProfile?.org_id) {
       loadICP();
     }
