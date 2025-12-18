@@ -365,7 +365,10 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
     }
   };
 
-  const visibleInsights = insights.filter(i => !dismissedIds.has(i.id));
+  // Filter out needs_enrichment insight when enrichment is active
+  const visibleInsights = insights
+    .filter(i => !dismissedIds.has(i.id))
+    .filter(i => !(i.id === 'needs_enrichment' && enrichmentProgress));
 
   if (loading) {
     return (

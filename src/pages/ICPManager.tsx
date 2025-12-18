@@ -50,6 +50,8 @@ export default function ICPManager() {
   useEffect(() => {
     const icpId = searchParams.get('icp_id');
     const tab = searchParams.get('tab');
+    const action = searchParams.get('action');
+    
     if (icpId && icps.length > 0) {
       const icp = icps.find(i => i.id === icpId);
       if (icp) {
@@ -57,7 +59,38 @@ export default function ICPManager() {
         if (tab) setDetailTab(tab);
       }
     }
-  }, [searchParams, icps]);
+    
+    // Handle action=discover from Executive Dashboard
+    if (action === 'discover' && icps.length > 0 && !loading) {
+      const storedIds = sessionStorage.getItem('discovery_account_ids');
+      if (storedIds) {
+        try {
+          const accountIds = JSON.parse(storedIds);
+          sessionStorage.removeItem('discovery_account_ids');
+          
+          // Find first active ICP or first one
+          const primaryIcp = icps.find(i => i.status === 'active') || icps[0];
+          if (primaryIcp) {
+            setSelectedIcp(primaryIcp);
+            setDetailTab('discover');
+            toast({
+              title: "Contact Discovery",
+              description: `Ready to discover contacts for ${accountIds.length} high-fit accounts`
+            });
+          }
+        } catch {
+          // Silent fail if JSON parse fails
+        }
+      } else {
+        // No stored IDs, just open ICP discovery
+        const primaryIcp = icps.find(i => i.status === 'active') || icps[0];
+        if (primaryIcp) {
+          setSelectedIcp(primaryIcp);
+          setDetailTab('discover');
+        }
+      }
+    }
+  }, [searchParams, icps, loading, toast]);
 
   useEffect(() => {
     if (userProfile?.org_id) {
