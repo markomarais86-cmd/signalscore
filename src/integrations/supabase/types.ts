@@ -269,6 +269,77 @@ export type Database = {
           },
         ]
       }
+      action_templates: {
+        Row: {
+          action_type: string
+          content_template: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          is_system: boolean | null
+          name: string
+          org_id: string
+          priority_weight: number | null
+          subject_template: string | null
+          success_rate: number | null
+          suggested_delay_hours: number | null
+          trigger_conditions: Json | null
+          updated_at: string
+          usage_count: number | null
+          variables: Json | null
+        }
+        Insert: {
+          action_type: string
+          content_template?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_system?: boolean | null
+          name: string
+          org_id: string
+          priority_weight?: number | null
+          subject_template?: string | null
+          success_rate?: number | null
+          suggested_delay_hours?: number | null
+          trigger_conditions?: Json | null
+          updated_at?: string
+          usage_count?: number | null
+          variables?: Json | null
+        }
+        Update: {
+          action_type?: string
+          content_template?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_system?: boolean | null
+          name?: string
+          org_id?: string
+          priority_weight?: number | null
+          subject_template?: string | null
+          success_rate?: number | null
+          suggested_delay_hours?: number | null
+          trigger_conditions?: Json | null
+          updated_at?: string
+          usage_count?: number | null
+          variables?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activities: {
         Row: {
           account_external_id: string | null
@@ -1255,6 +1326,175 @@ export type Database = {
           },
         ]
       }
+      call_insights: {
+        Row: {
+          action_items: Json | null
+          ai_model: string | null
+          budget_discussed: boolean | null
+          buying_signals: Json | null
+          call_id: string
+          competitor_mentions: Json | null
+          confidence: number | null
+          created_at: string
+          decision_makers_identified: Json | null
+          id: string
+          key_topics: Json | null
+          next_steps: string | null
+          objections: Json | null
+          org_id: string
+          risk_indicators: Json | null
+          sentiment: string | null
+          sentiment_score: number | null
+          summary: string | null
+          timeline_discussed: boolean | null
+        }
+        Insert: {
+          action_items?: Json | null
+          ai_model?: string | null
+          budget_discussed?: boolean | null
+          buying_signals?: Json | null
+          call_id: string
+          competitor_mentions?: Json | null
+          confidence?: number | null
+          created_at?: string
+          decision_makers_identified?: Json | null
+          id?: string
+          key_topics?: Json | null
+          next_steps?: string | null
+          objections?: Json | null
+          org_id: string
+          risk_indicators?: Json | null
+          sentiment?: string | null
+          sentiment_score?: number | null
+          summary?: string | null
+          timeline_discussed?: boolean | null
+        }
+        Update: {
+          action_items?: Json | null
+          ai_model?: string | null
+          budget_discussed?: boolean | null
+          buying_signals?: Json | null
+          call_id?: string
+          competitor_mentions?: Json | null
+          confidence?: number | null
+          created_at?: string
+          decision_makers_identified?: Json | null
+          id?: string
+          key_topics?: Json | null
+          next_steps?: string | null
+          objections?: Json | null
+          org_id?: string
+          risk_indicators?: Json | null
+          sentiment?: string | null
+          sentiment_score?: number | null
+          summary?: string | null
+          timeline_discussed?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_insights_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "call_recordings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_insights_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      call_recordings: {
+        Row: {
+          account_external_id: string | null
+          call_type: string | null
+          created_at: string
+          deal_id: string | null
+          duration_seconds: number | null
+          error_message: string | null
+          external_id: string | null
+          id: string
+          lead_id: number | null
+          metadata: Json | null
+          org_id: string
+          participants: Json | null
+          processed_at: string | null
+          processing_status: string | null
+          recorded_at: string | null
+          recording_url: string | null
+          source: string | null
+          transcript: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_external_id?: string | null
+          call_type?: string | null
+          created_at?: string
+          deal_id?: string | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          external_id?: string | null
+          id?: string
+          lead_id?: number | null
+          metadata?: Json | null
+          org_id: string
+          participants?: Json | null
+          processed_at?: string | null
+          processing_status?: string | null
+          recorded_at?: string | null
+          recording_url?: string | null
+          source?: string | null
+          transcript?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_external_id?: string | null
+          call_type?: string | null
+          created_at?: string
+          deal_id?: string | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          external_id?: string | null
+          id?: string
+          lead_id?: number | null
+          metadata?: Json | null
+          org_id?: string
+          participants?: Json | null
+          processed_at?: string | null
+          processing_status?: string | null
+          recorded_at?: string | null
+          recording_url?: string | null
+          source?: string | null
+          transcript?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_recordings_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_recordings_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_recordings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_naming_registry: {
         Row: {
           campaign_name: string
@@ -2113,6 +2353,121 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "dsar_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_threads: {
+        Row: {
+          account_external_id: string | null
+          action_required: boolean | null
+          action_required_by: string | null
+          created_at: string
+          deal_id: string | null
+          external_id: string | null
+          first_message_at: string | null
+          id: string
+          intent: string | null
+          key_points: Json | null
+          labels: Json | null
+          last_message_at: string | null
+          last_sender: string | null
+          lead_id: number | null
+          message_count: number | null
+          metadata: Json | null
+          org_id: string
+          participants: Json | null
+          processed_at: string | null
+          processing_status: string | null
+          response_time_avg_hours: number | null
+          sentiment: string | null
+          source: string | null
+          subject: string | null
+          summary: string | null
+          thread_id: string | null
+          updated_at: string
+          urgency: string | null
+        }
+        Insert: {
+          account_external_id?: string | null
+          action_required?: boolean | null
+          action_required_by?: string | null
+          created_at?: string
+          deal_id?: string | null
+          external_id?: string | null
+          first_message_at?: string | null
+          id?: string
+          intent?: string | null
+          key_points?: Json | null
+          labels?: Json | null
+          last_message_at?: string | null
+          last_sender?: string | null
+          lead_id?: number | null
+          message_count?: number | null
+          metadata?: Json | null
+          org_id: string
+          participants?: Json | null
+          processed_at?: string | null
+          processing_status?: string | null
+          response_time_avg_hours?: number | null
+          sentiment?: string | null
+          source?: string | null
+          subject?: string | null
+          summary?: string | null
+          thread_id?: string | null
+          updated_at?: string
+          urgency?: string | null
+        }
+        Update: {
+          account_external_id?: string | null
+          action_required?: boolean | null
+          action_required_by?: string | null
+          created_at?: string
+          deal_id?: string | null
+          external_id?: string | null
+          first_message_at?: string | null
+          id?: string
+          intent?: string | null
+          key_points?: Json | null
+          labels?: Json | null
+          last_message_at?: string | null
+          last_sender?: string | null
+          lead_id?: number | null
+          message_count?: number | null
+          metadata?: Json | null
+          org_id?: string
+          participants?: Json | null
+          processed_at?: string | null
+          processing_status?: string | null
+          response_time_avg_hours?: number | null
+          sentiment?: string | null
+          source?: string | null
+          subject?: string | null
+          summary?: string | null
+          thread_id?: string | null
+          updated_at?: string
+          urgency?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_threads_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_threads_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_threads_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -3939,6 +4294,157 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      next_best_actions: {
+        Row: {
+          accepted_at: string | null
+          account_external_id: string | null
+          action_type: string
+          ai_confidence: number | null
+          ai_model: string | null
+          completed_at: string | null
+          context_summary: string | null
+          created_at: string
+          deal_id: string | null
+          description: string | null
+          dismissed_reason: string | null
+          due_date: string | null
+          effectiveness_score: number | null
+          expires_at: string | null
+          id: string
+          lead_id: number | null
+          metadata: Json | null
+          org_id: string
+          outcome: string | null
+          outcome_notes: string | null
+          priority: number | null
+          reasoning: string | null
+          related_call_id: string | null
+          related_email_id: string | null
+          source: string | null
+          status: string | null
+          suggested_content: Json | null
+          suggested_subject: string | null
+          suggested_talking_points: Json | null
+          template_id: string | null
+          title: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          account_external_id?: string | null
+          action_type: string
+          ai_confidence?: number | null
+          ai_model?: string | null
+          completed_at?: string | null
+          context_summary?: string | null
+          created_at?: string
+          deal_id?: string | null
+          description?: string | null
+          dismissed_reason?: string | null
+          due_date?: string | null
+          effectiveness_score?: number | null
+          expires_at?: string | null
+          id?: string
+          lead_id?: number | null
+          metadata?: Json | null
+          org_id: string
+          outcome?: string | null
+          outcome_notes?: string | null
+          priority?: number | null
+          reasoning?: string | null
+          related_call_id?: string | null
+          related_email_id?: string | null
+          source?: string | null
+          status?: string | null
+          suggested_content?: Json | null
+          suggested_subject?: string | null
+          suggested_talking_points?: Json | null
+          template_id?: string | null
+          title: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          account_external_id?: string | null
+          action_type?: string
+          ai_confidence?: number | null
+          ai_model?: string | null
+          completed_at?: string | null
+          context_summary?: string | null
+          created_at?: string
+          deal_id?: string | null
+          description?: string | null
+          dismissed_reason?: string | null
+          due_date?: string | null
+          effectiveness_score?: number | null
+          expires_at?: string | null
+          id?: string
+          lead_id?: number | null
+          metadata?: Json | null
+          org_id?: string
+          outcome?: string | null
+          outcome_notes?: string | null
+          priority?: number | null
+          reasoning?: string | null
+          related_call_id?: string | null
+          related_email_id?: string | null
+          source?: string | null
+          status?: string | null
+          suggested_content?: Json | null
+          suggested_subject?: string | null
+          suggested_talking_points?: Json | null
+          template_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "next_best_actions_deal_id_fkey"
+            columns: ["deal_id"]
+            isOneToOne: false
+            referencedRelation: "deals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "next_best_actions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "next_best_actions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "next_best_actions_related_call_id_fkey"
+            columns: ["related_call_id"]
+            isOneToOne: false
+            referencedRelation: "call_recordings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "next_best_actions_related_email_id_fkey"
+            columns: ["related_email_id"]
+            isOneToOne: false
+            referencedRelation: "email_threads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "next_best_actions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "action_templates"
             referencedColumns: ["id"]
           },
         ]
