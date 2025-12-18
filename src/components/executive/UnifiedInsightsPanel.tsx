@@ -100,7 +100,18 @@ export function UnifiedInsightsPanel({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [enrichmentModalOpen, setEnrichmentModalOpen] = useState(false);
   const [selectedEnrichmentFields, setSelectedEnrichmentFields] = useState<string[]>([]);
-  const [isOpen, setIsOpen] = useState(true);
+  const [isInsightsLoading, setIsInsightsLoading] = useState(false);
+  
+  // Persist collapse state to localStorage
+  const [isOpen, setIsOpen] = useState(() => {
+    const stored = localStorage.getItem('unified-insights-panel-open');
+    return stored !== null ? stored === 'true' : true;
+  });
+  
+  // Save collapse state to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('unified-insights-panel-open', String(isOpen));
+  }, [isOpen]);
   
   // Enrichment progress state
   const [enrichmentProgress, setEnrichmentProgress] = useState<EnrichmentProgress | null>(null);
@@ -120,20 +131,31 @@ export function UnifiedInsightsPanel({
 
   const effectiveOrgId = orgId || userProfile?.org_id;
 
-  // Check for active enrichment jobs on mount
+  // Check for active enrichment jobs on mount - with better stuck job detection
   const checkActiveEnrichmentJob = useCallback(async () => {
     if (!effectiveOrgId) return;
     
-    const { data: activeJob } = await supabase
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    
+    // First, try to find an active job with actual progress
+    const { data: activeJobs } = await supabase
       .from('enrichment_jobs')
-      .select('id, status, processed_records, total_records, enriched_records, last_progress_update, error_message')
+      .select('id, status, processed_records, total_records, enriched_records, last_progress_update, error_message, created_at')
       .eq('org_id', effectiveOrgId)
       .eq('provider', 'ai_free')
       .in('status', ['pending', 'processing'])
-      .gt('total_records', 0)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .limit(5);
+    
+    // Filter out stuck jobs (0 processed_records for >5 minutes)
+    const validActiveJob = activeJobs?.find(job => {
+      // Jobs with progress are always valid
+      if ((job.processed_records || 0) > 0) return true;
+      // For jobs with 0 progress, only consider if created recently (within 5 min)
+      return new Date(job.created_at) > new Date(fiveMinutesAgo);
+    });
+    
+    const activeJob = validActiveJob || null;
     
     if (activeJob) {
       const lastUpdate = activeJob.last_progress_update ? new Date(activeJob.last_progress_update) : null;
@@ -221,6 +243,25 @@ export function UnifiedInsightsPanel({
   useEffect(() => {
     checkActiveEnrichmentJob();
   }, [checkActiveEnrichmentJob]);
+
+  // Auto-load insights on mount if none exist
+  useEffect(() => {
+    const shouldLoadInsights = insights.length === 0 && risks.length === 0 && onRefresh && !isRefreshing;
+    if (shouldLoadInsights) {
+      setIsInsightsLoading(true);
+      onRefresh();
+      // Clear loading state after a timeout (in case onRefresh doesn't set it)
+      const timeout = setTimeout(() => setIsInsightsLoading(false), 5000);
+      return () => clearTimeout(timeout);
+    }
+  }, []);  // Only run on mount
+  
+  // Clear loading state when insights arrive
+  useEffect(() => {
+    if (insights.length > 0 || risks.length > 0) {
+      setIsInsightsLoading(false);
+    }
+  }, [insights.length, risks.length]);
 
   // Poll for enrichment progress when active
   useEffect(() => {
@@ -644,6 +685,11 @@ export function UnifiedInsightsPanel({
           <CardDescription>
             AI-driven recommendations and risk mitigation prioritized by impact
           </CardDescription>
+          {!isOpen && totalItems > 0 && (
+            <p className="text-xs text-primary mt-1 animate-pulse">
+              ↑ Click to expand and view {totalItems} insight{totalItems > 1 ? 's' : ''}
+            </p>
+          )}
         </CardHeader>
 
         <CollapsibleContent>
@@ -744,7 +790,13 @@ export function UnifiedInsightsPanel({
               </TabsList>
 
               <TabsContent value="urgent" className="space-y-3">
-                {urgent.length > 0 ? (
+                {isInsightsLoading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {[1, 2].map(i => (
+                      <div key={i} className="h-32 rounded-lg bg-muted/50 animate-pulse" />
+                    ))}
+                  </div>
+                ) : urgent.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {urgent.map(renderItemCard)}
                   </div>
@@ -758,7 +810,13 @@ export function UnifiedInsightsPanel({
               </TabsContent>
 
               <TabsContent value="quick-wins" className="space-y-3">
-                {quickWins.length > 0 ? (
+                {isInsightsLoading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="h-32 rounded-lg bg-muted/50 animate-pulse" />
+                    ))}
+                  </div>
+                ) : quickWins.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {quickWins.map(renderItemCard)}
                   </div>
@@ -771,7 +829,13 @@ export function UnifiedInsightsPanel({
               </TabsContent>
 
               <TabsContent value="strategic" className="space-y-3">
-                {strategic.length > 0 ? (
+                {isInsightsLoading ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="h-32 rounded-lg bg-muted/50 animate-pulse" />
+                    ))}
+                  </div>
+                ) : strategic.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {strategic.map(renderItemCard)}
                   </div>
