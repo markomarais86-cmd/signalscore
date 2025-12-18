@@ -280,36 +280,36 @@ export default function Settings() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-7">
-          <TabsTrigger value="account" className="flex items-center gap-2">
+        <TabsList className="flex w-full overflow-x-auto scrollbar-hide">
+          <TabsTrigger value="account" className="flex items-center gap-2 flex-shrink-0">
             <User className="h-4 w-4" />
-            Account
+            <span className="hidden sm:inline">Account</span>
           </TabsTrigger>
-          <TabsTrigger value="team" className="flex items-center gap-2">
+          <TabsTrigger value="team" className="flex items-center gap-2 flex-shrink-0">
             <Users className="h-4 w-4" />
-            Team
+            <span className="hidden sm:inline">Team</span>
           </TabsTrigger>
-          <TabsTrigger value="data-upload" className="flex items-center gap-2">
+          <TabsTrigger value="data-upload" className="flex items-center gap-2 flex-shrink-0">
             <Upload className="h-4 w-4" />
-            Data Upload
+            <span className="hidden sm:inline">Data Upload</span>
           </TabsTrigger>
-          <TabsTrigger value="configuration" className="flex items-center gap-2">
+          <TabsTrigger value="configuration" className="flex items-center gap-2 flex-shrink-0">
             <Target className="h-4 w-4" />
-            Configuration
+            <span className="hidden sm:inline">Configuration</span>
           </TabsTrigger>
-          <TabsTrigger value="integrations" className="flex items-center gap-2">
+          <TabsTrigger value="integrations" className="flex items-center gap-2 flex-shrink-0">
             <Database className="h-4 w-4" />
-            Data & Enrichment
+            <span className="hidden sm:inline">Data & Enrichment</span>
           </TabsTrigger>
           {isAdmin && (
-            <TabsTrigger value="automation" className="flex items-center gap-2">
+            <TabsTrigger value="automation" className="flex items-center gap-2 flex-shrink-0">
               <Bot className="h-4 w-4" />
-              Automation & AI
+              <span className="hidden sm:inline">Automation & AI</span>
             </TabsTrigger>
           )}
-          <TabsTrigger value="export-history" className="flex items-center gap-2">
+          <TabsTrigger value="export-history" className="flex items-center gap-2 flex-shrink-0">
             <Download className="h-4 w-4" />
-            Exports
+            <span className="hidden sm:inline">Exports</span>
           </TabsTrigger>
         </TabsList>
 
