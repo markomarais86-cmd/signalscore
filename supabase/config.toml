@@ -266,3 +266,27 @@ verify_jwt = true
 
 [functions.ai-discover-accounts]
 verify_jwt = true
+
+[functions.estimate-enrichment-cost]
+verify_jwt = true
+
+[functions.send-alert]
+verify_jwt = true
+
+[functions.query-external-providers]
+verify_jwt = true
+
+[functions.check-alerts]
+verify_jwt = false
+
+[functions.process-call-recording]
+verify_jwt = true
+
+[functions.analyze-email-thread]
+verify_jwt = true
+
+[functions.generate-next-best-action]
+verify_jwt = true
+
+[functions.complete-nba-action]
+verify_jwt = true
