@@ -60,6 +60,7 @@ interface UseInfiniteLeadsOptions {
   personaFilter?: string;
   campaignReadyFilter?: string;
   icpFilter?: string;
+  staleDaysFilter?: number;
   enabled?: boolean;
 }
 
@@ -76,6 +77,7 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
     personaFilter = 'all',
     campaignReadyFilter = 'all',
     icpFilter = 'all',
+    staleDaysFilter,
     enabled = true,
   } = options;
 
@@ -151,6 +153,13 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
           query = query.eq('icp_qualified', false);
         } else if (icpFilter === 'not_enriched') {
           query = query.is('enriched_at', null);
+        }
+
+        // Stale days filter - show leads not updated in X days
+        if (staleDaysFilter && staleDaysFilter > 0) {
+          const staleCutoffDate = new Date();
+          staleCutoffDate.setDate(staleCutoffDate.getDate() - staleDaysFilter);
+          query = query.lt('updated_at', staleCutoffDate.toISOString());
         }
 
         const { data, error, count } = await query;
@@ -265,6 +274,7 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
       personaFilter,
       campaignReadyFilter,
       icpFilter,
+      staleDaysFilter,
       pagination,
       toast,
     ]
@@ -299,7 +309,7 @@ export function useInfiniteLeads(options: UseInfiniteLeadsOptions) {
   useEffect(() => {
     pagination.reset();
     loadLeads(false);
-  }, [orgId, searchTerm, statusFilter, linkFilter, personaFilter, campaignReadyFilter, icpFilter]);
+  }, [orgId, searchTerm, statusFilter, linkFilter, personaFilter, campaignReadyFilter, icpFilter, staleDaysFilter]);
 
   return {
     leads: pagination.state.items,

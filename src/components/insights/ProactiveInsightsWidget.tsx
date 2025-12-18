@@ -22,6 +22,7 @@ import { TIMING, ENRICHMENT } from "@/lib/constants";
 import { InsightCard, type ProactiveInsight } from "./InsightCard";
 
 interface AgentActivity {
+  run_id?: string;
   agent_name: string;
   action: string;
   count: number;
@@ -215,7 +216,8 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
         if (['completed', 'completed_with_errors', 'completed_with_failures'].includes(status.status)) {
           setEnrichmentProgress(null);
           toast.success(`Enrichment complete! ${status.enriched_records} accounts enriched`);
-          fetchInsights();
+          // Delay refresh to ensure database is updated
+          setTimeout(() => fetchInsights(), 2000);
         } else if (['failed', 'cancelled'].includes(status.status)) {
           setEnrichmentProgress(null);
           toast.error('Enrichment failed');
@@ -520,7 +522,11 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
                 </div>
                 <div className="space-y-1">
                   {agentActivity.slice(0, 3).map((activity, idx) => (
-                    <div key={idx} className="text-sm text-muted-foreground flex items-center justify-between">
+                    <div 
+                      key={idx} 
+                      className="text-sm text-muted-foreground flex items-center justify-between cursor-pointer hover:bg-accent/50 rounded p-1 -mx-1 transition-colors"
+                      onClick={() => onAction?.('view_agent_run', { run_id: activity.run_id })}
+                    >
                       <span>{activity.agent_name}: {activity.action}</span>
                       <Badge variant="secondary" className="text-xs">{activity.count}</Badge>
                     </div>

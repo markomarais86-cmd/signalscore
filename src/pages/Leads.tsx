@@ -82,6 +82,7 @@ export default function Leads() {
   const [personaFilter, setPersonaFilter] = useState("all");
   const [campaignReadyFilter, setCampaignReadyFilter] = useState("all");
   const [icpFilter, setIcpFilter] = useState("all");
+  const [staleDaysFilter, setStaleDaysFilter] = useState<number | undefined>(undefined);
   const [showMatcher, setShowMatcher] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
   const [hasAttemptedMatch, setHasAttemptedMatch] = useState(false);
@@ -96,11 +97,13 @@ export default function Leads() {
     const source = params.get('source');
     const status = params.get('status');
     const icp = params.get('icp');
+    const staleDays = params.get('stale_days');
     
     if (campaignReady === 'true') setCampaignReadyFilter('ready');
     if (source) setLinkFilter(source === 'crm' ? 'linked' : source);
     if (status) setStatusFilter(status);
     if (icp === 'qualified') setIcpFilter('qualified');
+    if (staleDays) setStaleDaysFilter(parseInt(staleDays, 10));
   }, []);
 
   // Use infinite scroll hook
@@ -122,7 +125,8 @@ export default function Leads() {
     linkFilter: linkFilter !== 'all' ? linkFilter : undefined,
     personaFilter: personaFilter !== 'all' ? personaFilter : undefined,
     campaignReadyFilter: campaignReadyFilter !== 'all' ? campaignReadyFilter : undefined,
-    icpFilter: icpFilter !== 'all' ? icpFilter : undefined
+    icpFilter: icpFilter !== 'all' ? icpFilter : undefined,
+    staleDaysFilter
   });
 
   // Set up infinite scroll observer

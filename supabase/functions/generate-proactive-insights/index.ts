@@ -122,7 +122,7 @@ serve(async (req) => {
         description: "These ICP-qualified leads haven't been updated in 7+ days. Consider prioritizing outreach.",
         metric: staleCount,
         actions: [
-          { label: "View Leads", action: "search_contacts", params: { icp_qualified_only: true } },
+          { label: "View Leads", action: "search_contacts", params: { icp_qualified_only: true, stale_days: 7 } },
           { label: "Run Follow-Up Agent", action: "run_agent", params: { agent_type: "follow_up" } },
         ],
         dismissible: true,
@@ -199,6 +199,7 @@ serve(async (req) => {
       .limit(10);
 
     const agentActivity = (agentRuns || []).map(run => ({
+      run_id: run.id,
       agent_name: (run.ai_agents as any)?.name || "Unknown Agent",
       action: `processed ${run.records_processed || 0} records`,
       count: run.records_affected || 0,
