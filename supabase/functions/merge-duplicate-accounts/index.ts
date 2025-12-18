@@ -174,6 +174,23 @@ Deno.serve(async (req) => {
         console.log(`Relinked ${scoresCount} scores to master account`);
       }
 
+      // Log merge to account_merge_log before deleting
+      for (const dupId of duplicateIds) {
+        const dupAccount = accountList.find(a => a.external_id === dupId);
+        await supabase.from('account_merge_log').insert({
+          org_id: orgId,
+          old_account_external_id: dupId,
+          new_account_external_id: master.external_id,
+          merged_by: user.id,
+          merge_details: {
+            domain,
+            reason: 'duplicate_domain',
+            master_selected_by: 'data_completeness',
+          },
+          old_account_data: dupAccount,
+        });
+      }
+
       // Delete duplicate accounts
       const { error: deleteError } = await supabase
         .from('accounts')
