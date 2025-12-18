@@ -41,7 +41,7 @@ import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
 import { EmptyState } from "@/components/EmptyState";
 import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
-import { ProactiveInsightsWidget } from "@/components/insights/ProactiveInsightsWidget";
+
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
 import { CommandPalette, CommandPaletteTrigger } from "@/components/executive/CommandPalette";
 import { StatusBar, useStatusItems } from "@/components/executive/StatusBar";
@@ -499,208 +499,6 @@ export default function ExecutiveDashboard() {
       {/* Consolidated Status Bar - Replaces scattered alerts */}
       <StatusBar items={statusItems} />
 
-        {/* Phase 5: Proactive AI Insights Widget */}
-        {userProfile?.org_id && (
-          <ProactiveInsightsWidget 
-            orgId={userProfile.org_id}
-            onAction={async (action, params) => {
-              // Handle all widget action types with proper navigation and invocations
-              switch (action) {
-                case 'enrich':
-                case 'enrich_accounts':
-                  setIsEnrichmentModalOpen(true);
-                  break;
-                  
-                case 'enrich_ai_free':
-                  // Start Free AI Enrichment immediately without modal
-                  try {
-                    toast.info('Starting Free AI Enrichment...', {
-                      description: 'AI-powered estimates - no credits needed!',
-                      duration: 3000
-                    });
-                    
-                    const batchSize = Number(params?.batch_size) || 100;
-                    const { data: job, error: jobError } = await supabase
-                      .from('enrichment_jobs')
-                      .insert({
-                        org_id: userProfile.org_id,
-                        provider: 'ai_free',
-                        job_type: 'accounts',
-                        status: 'pending',
-                        total_records: batchSize
-                      } as const)
-                      .select()
-                      .single();
-                    
-                    if (jobError) throw jobError;
-                    
-                    const { error } = await supabase.functions.invoke('enrich-ai-only', {
-                      body: { jobId: job.id, batchSize }
-                    });
-                    
-                    if (error) throw error;
-                    
-                    toast.success('AI Enrichment started!', {
-                      description: `Processing up to ${batchSize} accounts...`,
-                      duration: 4000
-                    });
-                    
-                    // Poll for completion with visible progress
-                    const pollInterval = setInterval(async () => {
-                      const { data: status } = await supabase
-                        .from('enrichment_jobs')
-                        .select('status, enriched_records, processed_records, total_records')
-                        .eq('id', job.id)
-                        .single();
-                      
-                      if (status?.status === 'processing') {
-                        const progress = status.processed_records > 0 
-                          ? Math.round((status.processed_records / status.total_records) * 100) 
-                          : 0;
-                        toast.info(`Enriching... ${progress}%`, {
-                          description: `${status.enriched_records || 0} accounts enriched`,
-                          duration: 2500
-                        });
-                      } else if (status?.status === 'completed') {
-                        clearInterval(pollInterval);
-                        toast.success(`Enrichment complete!`, {
-                          description: `${status.enriched_records} accounts enriched`
-                        });
-                        refetch();
-                      } else if (status?.status === 'failed') {
-                        clearInterval(pollInterval);
-                        toast.error('Enrichment failed');
-                      }
-                    }, 3000);
-                    
-                    setTimeout(() => clearInterval(pollInterval), 300000);
-                  } catch (err: any) {
-                    toast.error(err.message || 'Failed to start enrichment');
-                  }
-                  break;
-                  
-                case 'enrich_contacts':
-                  // Navigate to ICP Manager with discover context
-                  const accountIds = params?.account_ids as string[] | undefined;
-                  if (accountIds && accountIds.length > 0) {
-                    sessionStorage.setItem('discovery_account_ids', JSON.stringify(accountIds.slice(0, 50)));
-                    navigate('/icp-manager?action=discover');
-                    toast.info(`Ready to discover contacts for ${accountIds.length} high-fit accounts`);
-                  } else {
-                    navigate('/icp-manager');
-                    toast.info('Go to ICP Manager to discover contacts');
-                  }
-                  break;
-                  
-                case 'search_contacts':
-                  const contactParams = new URLSearchParams();
-                  if (params?.icp_qualified_only) contactParams.set('icp', 'qualified');
-                  if (params?.stale_days) contactParams.set('stale_days', String(params.stale_days));
-                  if (params?.pipeline_stage) contactParams.set('pipeline_stage', String(params.pipeline_stage));
-                  navigate(`/leads${contactParams.toString() ? '?' + contactParams.toString() : ''}`);
-                  break;
-                  
-                case 'search_accounts':
-                case 'view_accounts':
-                  // Use params for score filter if provided
-                  const scoreFilter = params?.min_score || 80;
-                  navigate(`/accounts?min_score=${scoreFilter}`);
-                  break;
-                  
-                case 'search_recently_funded':
-                  navigate(`/accounts?funded_days=${params?.days || 30}`);
-                  break;
-                  
-                case 'agent_status':
-                  setShowHealthDashboard(true);
-                  break;
-                  
-                case 'run_agent':
-                  try {
-                    const agentType = String(params?.agent_type || 'follow_up');
-                    toast.info(`Starting ${agentType.replace('_', ' ')} agent...`, { duration: 3000 });
-                    
-                    // Look up the agent_id by agent_type
-                    const { data: agent, error: agentError } = await supabase
-                      .from('ai_agents')
-                      .select('id')
-                      .eq('org_id', userProfile.org_id)
-                      .eq('agent_type', agentType)
-                      .eq('enabled', true)
-                      .maybeSingle();
-                    
-                    if (agentError) throw agentError;
-                    if (!agent) {
-                      toast.error(`No active ${agentType.replace('_', ' ')} agent found`, {
-                        description: 'Please configure one in Settings > AI Agents'
-                      });
-                      setShowHealthDashboard(true);
-                      break;
-                    }
-                    
-                    const { data, error } = await supabase.functions.invoke(`agent-${agentType.replace('_', '-')}`, {
-                      body: { 
-                        agent_id: agent.id,
-                        org_id: userProfile.org_id 
-                      }
-                    });
-                    
-                    if (error) throw error;
-                    toast.success(`${agentType.replace('_', ' ')} agent started!`, {
-                      description: data?.message || `Processing leads...`,
-                      duration: 4000
-                    });
-                    setShowHealthDashboard(true);
-                  } catch (err: any) {
-                    console.error('Agent invocation error:', err);
-                    toast.error(err.message || 'Failed to run agent');
-                    setShowHealthDashboard(true);
-                  }
-                  break;
-                  
-                case 'score_accounts':
-                  try {
-                    toast.info('Starting account scoring...', { duration: 2000 });
-                    const { error } = await supabase.functions.invoke('bulk-score-accounts', {
-                      body: { org_id: userProfile.org_id, chunk_size: 5000 }
-                    });
-                    if (error) throw error;
-                    toast.success('Scoring started!', { duration: 3000 });
-                    checkDataFreshness();
-                  } catch (err: any) {
-                    toast.error(err.message || 'Failed to start scoring');
-                  }
-                  break;
-                  
-                case 'prepare_campaign':
-                  navigate('/campaign-builder');
-                  break;
-                  
-                case 'export_list':
-                  const exportType = params?.type || 'accounts';
-                  navigate(`/${exportType}?action=export`);
-                  break;
-                  
-                case 'agent_feedback_summary':
-                  setShowHealthDashboard(true);
-                  break;
-                
-                case 'view_agent_run':
-                  // Open agent run detail sheet
-                  if (params?.run_id) {
-                    setSelectedAgentRunId(params.run_id as string);
-                  } else {
-                    setShowHealthDashboard(true);
-                  }
-                  break;
-                  
-                default:
-                  console.log('Unhandled action:', action, params);
-                  toast.info(`Action: ${action}`, { duration: 2000 });
-              }
-            }}
-          />
-        )}
 
         {/* Phase 5: System Health Dashboard */}
         {showHealthDashboard && (
@@ -989,6 +787,7 @@ export default function ExecutiveDashboard() {
               <UnifiedInsightsPanel
                 risks={risks}
                 insights={insights || []}
+                orgId={userProfile?.org_id}
                 onRefresh={handleRefreshInsights}
                 campaignReadyCount={campaignReadyAccounts}
                 completenessScore={dataCompleteness}
