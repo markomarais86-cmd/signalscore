@@ -280,14 +280,11 @@ function renderMarkdown(content: string) {
 }
 
 const categories = [
-  { id: 'getting-started', name: 'Getting Started', icon: Zap, color: 'text-green-500' },
-  { id: 'icp-scoring', name: 'ICP & Scoring', icon: Target, color: 'text-blue-500' },
-  { id: 'accounts', name: 'Accounts', icon: Database, color: 'text-purple-500' },
-  { id: 'contacts', name: 'Contacts', icon: Users, color: 'text-orange-500' },
-  { id: 'ai-agents', name: 'AI Agents', icon: Bot, color: 'text-pink-500' },
-  { id: 'data-upload', name: 'Data Upload', icon: Upload, color: 'text-cyan-500' },
-  { id: 'integrations', name: 'Integrations', icon: Settings, color: 'text-yellow-500' },
-  { id: 'analytics', name: 'Analytics', icon: TrendingUp, color: 'text-red-500' },
+  { id: 'quickstart', name: 'Getting Started', icon: Zap, color: 'text-green-500' },
+  { id: 'concepts', name: 'Concepts', icon: Target, color: 'text-blue-500' },
+  { id: 'workflows', name: 'Workflows', icon: Database, color: 'text-purple-500' },
+  { id: 'troubleshooting', name: 'Troubleshooting', icon: Settings, color: 'text-orange-500' },
+  { id: 'best-practices', name: 'Best Practices', icon: TrendingUp, color: 'text-yellow-500' },
 ];
 
 const faqs = [
@@ -334,8 +331,7 @@ export default function Help() {
       item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.content.toLowerCase().includes(searchQuery.toLowerCase());
     
-    const matchesCategory = !activeCategory || 
-      item.category.toLowerCase().replace(/\s+/g, '-') === activeCategory;
+    const matchesCategory = !activeCategory || item.category === activeCategory;
     
     return matchesSearch && matchesCategory;
   });
@@ -445,54 +441,52 @@ export default function Help() {
               </Card>
             ) : (
               <div className="grid gap-6">
-                {Object.entries(groupedHelp).map(([category, items]) => (
-                  <div key={category}>
-                    <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                      {categories.find(c => c.name === category)?.icon && (
-                        (() => {
-                          const IconComponent = categories.find(c => c.name === category)?.icon;
-                          const colorClass = categories.find(c => c.name === category)?.color;
-                          return IconComponent ? <IconComponent className={`h-5 w-5 ${colorClass}`} /> : null;
-                        })()
-                      )}
-                      {category}
-                    </h2>
-                    <div className="grid gap-3">
-                      {items.map(item => (
-                        <Card 
-                          key={item.id} 
-                          className="hover:border-primary/50 transition-colors cursor-pointer"
-                          onClick={() => setSelectedArticle(item)}
-                        >
-                          <CardHeader className="pb-2">
-                            <div className="flex items-start justify-between">
-                              <div>
-                                <CardTitle className="text-base">{item.title}</CardTitle>
-                                <CardDescription className="mt-1">
-                                  {item.description}
-                                </CardDescription>
+                {Object.entries(groupedHelp).map(([category, items]) => {
+                  const categoryConfig = categories.find(c => c.id === category);
+                  const IconComponent = categoryConfig?.icon;
+                  return (
+                    <div key={category}>
+                      <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                        {IconComponent && <IconComponent className={`h-5 w-5 ${categoryConfig?.color}`} />}
+                        {categoryConfig?.name || category}
+                      </h2>
+                      <div className="grid gap-3">
+                        {items.map(item => (
+                          <Card 
+                            key={item.id} 
+                            className="hover:border-primary/50 transition-colors cursor-pointer group"
+                            onClick={() => setSelectedArticle(item)}
+                          >
+                            <CardHeader className="pb-2">
+                              <div className="flex items-start justify-between">
+                                <div>
+                                  <CardTitle className="text-base group-hover:text-primary transition-colors">{item.title}</CardTitle>
+                                  <CardDescription className="mt-1">
+                                    {item.description}
+                                  </CardDescription>
+                                </div>
+                                {item.videoUrl && (
+                                  <Badge variant="secondary" className="shrink-0">
+                                    <Video className="h-3 w-3 mr-1" />
+                                    Video
+                                  </Badge>
+                                )}
                               </div>
-                              {item.videoUrl && (
-                                <Badge variant="secondary" className="shrink-0">
-                                  <Video className="h-3 w-3 mr-1" />
-                                  Video
-                                </Badge>
-                              )}
-                            </div>
-                          </CardHeader>
-                          <CardContent>
-                            <p className="text-sm text-muted-foreground line-clamp-2">
-                              {item.description}
-                            </p>
-                            <Button variant="link" className="px-0 mt-2 text-primary">
-                              Read more <ChevronRight className="h-4 w-4 ml-1" />
-                            </Button>
-                          </CardContent>
-                        </Card>
-                      ))}
+                            </CardHeader>
+                            <CardContent>
+                              <p className="text-sm text-muted-foreground line-clamp-2">
+                                {item.description}
+                              </p>
+                              <span className="inline-flex items-center px-0 mt-2 text-primary text-sm font-medium group-hover:underline">
+                                Read more <ChevronRight className="h-4 w-4 ml-1" />
+                              </span>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </TabsContent>
