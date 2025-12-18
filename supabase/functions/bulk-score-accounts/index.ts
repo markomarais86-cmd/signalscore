@@ -157,6 +157,28 @@ function rateLimitResponse(result: RateLimitResult, corsHeaders: Record<string, 
     }
   }
   
+  // Update match_count for each ICP after scoring completes
+  console.log(`📊 Updating match counts for ${icpProfiles.length} ICP(s)...`);
+  for (const icp of icpProfiles) {
+    try {
+      const { count } = await supabase
+        .from('scores')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', orgId)
+        .eq('icp_id', icp.id)
+        .gte('overall', 70);
+      
+      await supabase
+        .from('icp_profiles')
+        .update({ match_count: count || 0 })
+        .eq('id', icp.id);
+      
+      console.log(`✓ Updated ${icp.name}: ${count} high-fit matches`);
+    } catch (err) {
+      console.error(`Failed to update match_count for ICP ${icp.id}:`, err);
+    }
+  }
+  
   console.log(`🎉 All ${totalAccounts} accounts scored!`);
 }
 
