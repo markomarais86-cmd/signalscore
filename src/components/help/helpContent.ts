@@ -1170,6 +1170,589 @@ Focus on titles that:
     keywords: ['campaign', 'success', 'convert', 'best practice', 'outreach', 'abm'],
     category: 'best-practices',
     relatedPages: ['/accounts', '/leads']
+  },
+
+  // ==================== AI FEATURES ====================
+  {
+    id: 'ai-chat',
+    title: 'Using AI Chat',
+    description: 'Get instant answers and perform actions with natural language',
+    content: `# AI Chat Assistant
+
+Access your AI assistant anytime with **Cmd/Ctrl + K** or click the chat icon.
+
+## What You Can Ask
+
+### Data Questions
+- "How many high-fit accounts do I have?"
+- "Show me accounts in the healthcare industry"
+- "What's my ICP coverage for Enterprise segment?"
+
+### Actions
+- "Create a campaign with top 50 high-fit accounts"
+- "Score these new accounts against my ICP"
+- "Export accounts with fit score above 80"
+
+### Analysis
+- "Why is Acme Corp a high-fit account?"
+- "Compare my two ICPs"
+- "What industries have the best fit scores?"
+
+### Navigation
+- "Take me to ICP Manager"
+- "Open account details for Acme Corp"
+- "Show me the data quality report"
+
+## Tips for Better Results
+
+💡 **Be specific**: "Show SaaS companies with 50-200 employees" works better than "Show me some companies"
+
+💡 **Use context**: "In my Enterprise ICP, which accounts need enrichment?"
+
+💡 **Ask follow-ups**: The AI remembers your conversation context
+
+💡 **Request formats**: "Give me a table of..." or "Summarize the key points"
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| Cmd/Ctrl + K | Open AI Chat |
+| Escape | Close chat |
+| Enter | Send message |
+| Shift + Enter | New line |`,
+    keywords: ['ai', 'chat', 'assistant', 'natural language', 'ask', 'question', 'cmd k', 'search'],
+    category: 'concepts',
+    relatedPages: ['/']
+  },
+  {
+    id: 'ai-agents-setup',
+    title: 'Setting Up AI Agents',
+    description: 'Automate repetitive tasks with intelligent agents',
+    content: `# AI Agents
+
+AI Agents automate repetitive tasks in the background, saving you hours of manual work.
+
+## Available Agent Types
+
+### Enrichment Agent
+Automatically enriches new accounts as they're added.
+- Triggers: New account upload, CRM sync
+- Actions: Fetch firmographics, tech stack, contacts
+
+### Scoring Agent
+Keeps fit scores up-to-date as data changes.
+- Triggers: Data update, ICP change
+- Actions: Recalculate scores, update segments
+
+### Monitoring Agent
+Watches for important changes in your data.
+- Triggers: Scheduled (daily/weekly)
+- Actions: Detect anomalies, send alerts
+
+### Cleanup Agent
+Maintains data quality automatically.
+- Triggers: Scheduled
+- Actions: Merge duplicates, flag stale records
+
+## Creating an Agent
+
+1. Go to **AI Agents** from the sidebar
+2. Click **Create New Agent**
+3. Choose agent type
+4. Configure parameters:
+   - Schedule (real-time, hourly, daily)
+   - Scope (all accounts or filtered)
+   - Notifications (email, in-app)
+5. Enable and save
+
+## Monitoring Agents
+
+View agent activity in the **Agent Runs** panel:
+- Last run time
+- Records processed
+- Errors encountered
+- Run duration
+
+## Best Practices
+
+🤖 **Start simple**: Enable one agent at a time
+
+🤖 **Set alerts**: Get notified on failures
+
+🤖 **Review regularly**: Check agent logs weekly
+
+🤖 **Adjust scope**: Narrow agents if they run too long`,
+    keywords: ['ai', 'agents', 'automation', 'background', 'enrichment', 'scoring', 'monitoring', 'schedule'],
+    category: 'workflows',
+    relatedPages: ['/ai-agents', '/settings']
+  },
+  {
+    id: 'ai-enrichment',
+    title: 'AI-Powered Enrichment',
+    description: 'How AI enhances your data beyond traditional providers',
+    content: `# AI-Powered Enrichment
+
+Beyond traditional data providers, LaunchPulse uses AI to enrich accounts with insights that APIs can't provide.
+
+## How It Works
+
+### 1. Web Intelligence
+AI searches and analyzes:
+- Company websites
+- News articles
+- Press releases
+- Job postings
+- Social media
+
+### 2. Pattern Recognition
+Identifies signals like:
+- Growth indicators
+- Technology adoption
+- Hiring patterns
+- Expansion plans
+
+### 3. Synthesis
+Combines findings into:
+- Business model classification
+- Buying stage estimation
+- Risk indicators
+
+## AI vs Traditional Enrichment
+
+| Aspect | Traditional | AI-Powered |
+|--------|-------------|------------|
+| Source | API databases | Web + AI analysis |
+| Data age | Quarterly updates | Real-time |
+| Coverage | Structured fields | Unstructured insights |
+| Cost | Per-record | Included |
+
+## Confidence Scoring
+
+Each AI-enriched field includes a confidence score:
+- **90-100%**: Very reliable, multiple sources
+- **70-89%**: Likely accurate, some verification
+- **50-69%**: Possible, needs review
+- **<50%**: Low confidence, treat as suggestion
+
+## Enabling AI Enrichment
+
+1. Go to **Settings → Enrichment**
+2. Toggle **AI Enrichment** on
+3. Choose fields to enhance:
+   - Business model
+   - Tech signals
+   - Growth indicators
+4. Set enrichment priority
+
+## Reviewing Results
+
+AI-enriched fields are marked with a ✨ icon. Click to see:
+- Source citations
+- Confidence score
+- Enrichment date`,
+    keywords: ['ai', 'enrichment', 'intelligence', 'signals', 'confidence', 'web', 'analysis', 'insights'],
+    category: 'concepts',
+    relatedPages: ['/accounts', '/settings']
+  },
+
+  // ==================== LEAD MANAGEMENT ====================
+  {
+    id: 'lead-management',
+    title: 'Managing Leads',
+    description: 'Work with contacts and their account relationships',
+    content: `# Lead Management
+
+Leads (contacts) are the people at your target accounts. Here's how to manage them effectively.
+
+## Leads vs Accounts
+
+| Concept | Description | Example |
+|---------|-------------|---------|
+| Account | Company | Acme Corp |
+| Lead | Person at company | Jane Doe, VP Sales |
+
+## Viewing Leads
+
+Navigate to **Leads** to see all contacts:
+
+### Key Fields
+- Name & title
+- Email & phone
+- Account association
+- Lead score
+- Last activity
+
+### Filters
+- By account (fit score, industry)
+- By persona (title, seniority)
+- By status (new, contacted, qualified)
+- By data quality (verified email)
+
+## Lead-to-Account Matching
+
+LaunchPulse automatically links leads to accounts by:
+1. Email domain matching
+2. Company name fuzzy matching
+3. Manual override option
+
+### Unmatched Leads
+If a lead can't be matched:
+- Appears in "Orphan Leads" list
+- Can create new account from lead
+- Can manually assign to existing account
+
+## Lead Actions
+
+### Individual
+- View lead details
+- Edit information
+- Add to campaign
+- Log activity
+
+### Bulk
+- Select multiple leads
+- Add to campaign
+- Update status
+- Export to CSV
+
+## Lead Scoring
+
+Leads receive scores based on:
+- Account fit score (inherited)
+- Title/seniority match
+- Email verification status
+- Engagement signals`,
+    keywords: ['leads', 'contacts', 'people', 'manage', 'account', 'matching', 'orphan'],
+    category: 'quickstart',
+    relatedPages: ['/leads', '/accounts']
+  },
+  {
+    id: 'lead-scoring',
+    title: 'Lead Scoring Explained',
+    description: 'How individual lead scores are calculated',
+    content: `# Lead Scoring
+
+Each lead receives a score that combines account fit with individual relevance.
+
+## Score Components
+
+### 1. Account Fit (60%)
+Inherited from the associated account:
+- If account is 80 fit → Lead starts at 48
+- Ensures you focus on leads at good accounts
+
+### 2. Persona Match (25%)
+How well the lead matches your target personas:
+- Title alignment (+10)
+- Seniority level (+8)
+- Department match (+7)
+
+### 3. Data Quality (15%)
+Contact information reliability:
+- Verified email (+8)
+- Direct phone (+4)
+- LinkedIn profile (+3)
+
+## Score Calculation
+
+\`\`\`
+Lead Score = (Account Fit × 0.6) + (Persona × 0.25) + (Quality × 0.15)
+\`\`\`
+
+## Example
+
+**Lead**: Jane Doe, VP Sales at Acme Corp
+
+| Component | Value | Weighted |
+|-----------|-------|----------|
+| Account Fit | 85 | 51 |
+| Persona Match | 90 | 22.5 |
+| Data Quality | 80 | 12 |
+| **Total** | | **85.5** |
+
+## Using Lead Scores
+
+### Campaign Prioritization
+- Score 80+: Priority outreach
+- Score 60-79: Secondary list
+- Score <60: Nurture only
+
+### Sales Handoff
+Only pass leads with:
+- Score 70+
+- Verified contact info
+- At high-fit accounts
+
+## Improving Scores
+
+📈 **Enrich accounts**: Better account data improves all lead scores
+
+📈 **Verify emails**: Clean contact data boosts quality score
+
+📈 **Refine personas**: Align personas with your best buyers`,
+    keywords: ['lead', 'score', 'scoring', 'persona', 'calculation', 'priority', 'quality'],
+    category: 'concepts',
+    relatedPages: ['/leads', '/icp-manager']
+  },
+
+  // ==================== SETTINGS & ADMIN ====================
+  {
+    id: 'settings-guide',
+    title: 'Settings & Configuration',
+    description: 'Configure your workspace and preferences',
+    content: `# Settings Overview
+
+Access settings via the gear icon in the sidebar.
+
+## Account Settings
+
+### Profile
+- Update name and email
+- Change password
+- Set timezone
+- Upload avatar
+
+### Notifications
+- Email digest frequency
+- Alert preferences
+- Campaign notifications
+- Agent status updates
+
+## Workspace Settings
+
+### General
+- Workspace name
+- Default ICP
+- Date format
+- Number format
+
+### Team Management
+- Invite users
+- Set roles (Admin, Member, Viewer)
+- Remove users
+- Transfer ownership
+
+### API Keys
+- Generate API keys
+- Set key permissions
+- View usage
+- Revoke keys
+
+## Integration Settings
+
+### CRM
+- Salesforce connection
+- HubSpot connection
+- Sync frequency
+- Field mappings
+
+### Enrichment
+- Provider priorities
+- Spending caps
+- AI enrichment toggle
+- Credit balance
+
+### Webhooks
+- Outbound webhooks
+- Event triggers
+- Payload format
+- Delivery logs
+
+## Data Settings
+
+### Privacy
+- Data retention period
+- Export data
+- Delete data
+- GDPR compliance
+
+### Import/Export
+- Upload templates
+- Export formats
+- Scheduled exports
+
+## Quick Links
+
+| Setting | Path |
+|---------|------|
+| Profile | Settings → Profile |
+| Team | Settings → Team |
+| Integrations | Settings → Integrations |
+| API | Settings → API Keys |`,
+    keywords: ['settings', 'configuration', 'profile', 'workspace', 'team', 'api', 'integrations'],
+    category: 'workflows',
+    relatedPages: ['/settings']
+  },
+  {
+    id: 'user-roles',
+    title: 'User Roles & Permissions',
+    description: 'Understanding access levels in your workspace',
+    content: `# User Roles & Permissions
+
+Control what team members can see and do in LaunchPulse.
+
+## Role Types
+
+### Owner
+Full administrative control:
+- All Admin permissions
+- Transfer ownership
+- Delete workspace
+- Billing management
+
+### Admin
+Manage workspace and users:
+- Invite/remove users
+- Create/edit ICPs
+- Manage integrations
+- View all data
+- Configure settings
+
+### Member
+Standard user access:
+- View accounts and leads
+- Build campaigns
+- Use AI features
+- Export data
+- Cannot manage users
+
+### Viewer
+Read-only access:
+- View dashboards
+- View accounts (no edit)
+- View reports
+- Cannot export
+
+## Permission Matrix
+
+| Action | Owner | Admin | Member | Viewer |
+|--------|-------|-------|--------|--------|
+| View data | ✅ | ✅ | ✅ | ✅ |
+| Edit accounts | ✅ | ✅ | ✅ | ❌ |
+| Build campaigns | ✅ | ✅ | ✅ | ❌ |
+| Export data | ✅ | ✅ | ✅ | ❌ |
+| Manage ICPs | ✅ | ✅ | ❌ | ❌ |
+| User management | ✅ | ✅ | ❌ | ❌ |
+| Billing | ✅ | ❌ | ❌ | ❌ |
+
+## Managing Roles
+
+### Invite New User
+1. Go to **Settings → Team**
+2. Click **Invite User**
+3. Enter email
+4. Select role
+5. Send invite
+
+### Change Role
+1. Find user in team list
+2. Click role dropdown
+3. Select new role
+4. Confirm change
+
+### Remove User
+1. Find user in team list
+2. Click **Remove**
+3. Confirm removal
+4. User loses access immediately
+
+## Best Practices
+
+👥 **Least privilege**: Start with Viewer, upgrade as needed
+
+👥 **Multiple admins**: Have 2+ admins for continuity
+
+👥 **Regular audits**: Review access quarterly`,
+    keywords: ['roles', 'permissions', 'access', 'admin', 'member', 'viewer', 'owner', 'team', 'users'],
+    category: 'concepts',
+    relatedPages: ['/settings']
+  },
+
+  // ==================== DATA OPERATIONS ====================
+  {
+    id: 'bulk-operations',
+    title: 'Bulk Data Operations',
+    description: 'Efficiently manage large datasets with bulk actions',
+    content: `# Bulk Operations
+
+Perform actions on multiple records at once.
+
+## Bulk Selection
+
+### Select All on Page
+Click the checkbox in the header to select all visible records.
+
+### Select All Matching
+After filtering, click **Select all X matching** to include all filtered records (not just visible).
+
+### Manual Selection
+Hold **Shift** and click to select a range.
+Hold **Cmd/Ctrl** and click for individual selection.
+
+## Available Bulk Actions
+
+### Accounts
+
+| Action | Description |
+|--------|-------------|
+| **Add to Campaign** | Create campaign from selection |
+| **Re-score** | Recalculate fit scores |
+| **Enrich** | Trigger enrichment |
+| **Export** | Download as CSV |
+| **Update Field** | Edit common fields |
+| **Archive** | Remove from active view |
+| **Delete** | Permanently remove |
+
+### Leads
+
+| Action | Description |
+|--------|-------------|
+| **Add to Campaign** | Include in campaign |
+| **Assign to Account** | Link orphan leads |
+| **Update Status** | Change lead status |
+| **Export** | Download as CSV |
+| **Delete** | Permanently remove |
+
+## Merge Duplicates
+
+Find and merge duplicate accounts:
+
+1. Go to **Accounts → Duplicates**
+2. Review suggested matches
+3. Select merge strategy:
+   - Keep newest data
+   - Keep oldest data
+   - Manual field selection
+4. Click **Merge**
+5. Leads auto-transfer to merged account
+
+## Archiving vs Deleting
+
+### Archive
+- Removes from main view
+- Data preserved
+- Can restore anytime
+- Excluded from scoring
+
+### Delete
+- Permanent removal
+- Cannot be undone
+- Associated leads orphaned
+- Use with caution
+
+## Performance Tips
+
+⚡ **Large operations**: Operations on 1000+ records run in background
+
+⚡ **Progress tracking**: Check Jobs panel for status
+
+⚡ **Timing**: Run bulk operations during off-hours
+
+⚡ **Batching**: System automatically batches large selections`,
+    keywords: ['bulk', 'mass', 'operations', 'select', 'edit', 'delete', 'archive', 'merge', 'duplicates'],
+    category: 'workflows',
+    relatedPages: ['/accounts', '/leads']
   }
 ];
 
