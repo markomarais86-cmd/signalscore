@@ -5,6 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { LaunchPulseDiscovery } from '@/components/discovery/LaunchPulseDiscovery';
+import { ICPMatchedAccountsTab } from './ICPMatchedAccountsTab';
+import { ICPTAMAnalysisTab } from './ICPTAMAnalysisTab';
+import { WhitespaceMappingCard } from './WhitespaceMappingCard';
 import { 
   Building, 
   Users, 
@@ -204,24 +207,7 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
 
         {/* Matched Accounts Tab */}
         <TabsContent value="accounts">
-          <Card>
-            <CardHeader>
-              <CardTitle>Matched Accounts</CardTitle>
-              <CardDescription>
-                Accounts in your database that match this ICP
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                <Building className="h-12 w-12 mb-4 opacity-50" />
-                <p className="text-lg font-medium">Account matching coming soon</p>
-                <p className="text-sm">View matched accounts in the Accounts page with ICP filter</p>
-                <Button variant="outline" className="mt-4" asChild>
-                  <a href={`/accounts?icp_id=${icp.id}`}>View in Accounts</a>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <ICPMatchedAccountsTab icpId={icp.id} icpName={icp.name} />
         </TabsContent>
 
         {/* Discover Tab */}
@@ -231,30 +217,14 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
 
         {/* TAM Analysis Tab */}
         <TabsContent value="tam">
-          <Card>
-            <CardHeader>
-              <CardTitle>TAM Analysis</CardTitle>
-              <CardDescription>
-                Total Addressable Market analysis for this ICP
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                <BarChart3 className="h-12 w-12 mb-4 opacity-50" />
-                <p className="text-lg font-medium">TAM Analysis</p>
-                <p className="text-sm">
-                  {icp.tam_estimate 
-                    ? `Estimated TAM: ${icp.tam_estimate.toLocaleString()} companies`
-                    : 'Run discovery to estimate TAM'}
-                </p>
-                {icp.match_count && (
-                  <p className="text-sm mt-2">
-                    Current matches: {icp.match_count.toLocaleString()} accounts
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            <ICPTAMAnalysisTab icp={icp} />
+            <WhitespaceMappingCard 
+              icpId={icp.id} 
+              icpName={icp.name} 
+              tamEstimate={icp.tam_estimate} 
+            />
+          </div>
         </TabsContent>
       </Tabs>
     </div>
