@@ -290,3 +290,30 @@ verify_jwt = true
 
 [functions.complete-nba-action]
 verify_jwt = true
+
+[functions.detect-anomalies]
+verify_jwt = true
+
+[functions.generate-pipeline-summary]
+verify_jwt = true
+
+[functions.generate-embeddings]
+verify_jwt = true
+
+[functions.rag-search]
+verify_jwt = true
+
+[functions.rag-augmented-chat]
+verify_jwt = true
+
+[functions.generate-email-draft]
+verify_jwt = true
+
+[functions.process-follow-up-sequence]
+verify_jwt = false
+
+[functions.analyze-rep-performance]
+verify_jwt = true
+
+[functions.generate-coaching-insights]
+verify_jwt = true

@@ -1033,6 +1033,59 @@ export type Database = {
           },
         ]
       }
+      anomaly_rules: {
+        Row: {
+          comparison: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          lookback_days: number | null
+          metric_name: string
+          name: string
+          org_id: string
+          severity: string | null
+          threshold: number
+          updated_at: string | null
+        }
+        Insert: {
+          comparison: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          lookback_days?: number | null
+          metric_name: string
+          name: string
+          org_id: string
+          severity?: string | null
+          threshold: number
+          updated_at?: string | null
+        }
+        Update: {
+          comparison?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          lookback_days?: number | null
+          metric_name?: string
+          name?: string
+          org_id?: string
+          severity?: string | null
+          threshold?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anomaly_rules_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_keys: {
         Row: {
           created_at: string
@@ -1886,6 +1939,62 @@ export type Database = {
         }
         Relationships: []
       }
+      coaching_recommendations: {
+        Row: {
+          best_practice_source: string | null
+          category: string | null
+          completed_at: string | null
+          created_at: string | null
+          evidence: Json | null
+          example_call_id: string | null
+          id: string
+          org_id: string
+          priority: number | null
+          recommendation: string
+          status: string | null
+          topic: string
+          user_id: string
+        }
+        Insert: {
+          best_practice_source?: string | null
+          category?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          evidence?: Json | null
+          example_call_id?: string | null
+          id?: string
+          org_id: string
+          priority?: number | null
+          recommendation: string
+          status?: string | null
+          topic: string
+          user_id: string
+        }
+        Update: {
+          best_practice_source?: string | null
+          category?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          evidence?: Json | null
+          example_call_id?: string | null
+          id?: string
+          org_id?: string
+          priority?: number | null
+          recommendation?: string
+          status?: string | null
+          topic?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coaching_recommendations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consent_registry: {
         Row: {
           consent_given: boolean | null
@@ -2239,6 +2348,72 @@ export type Database = {
           },
         ]
       }
+      detected_anomalies: {
+        Row: {
+          acknowledged: boolean | null
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          ai_recommendation: string | null
+          created_at: string | null
+          deviation_percent: number | null
+          expected_value: number | null
+          explanation: string | null
+          id: string
+          metric_name: string
+          metric_value: number
+          org_id: string
+          rule_id: string | null
+          severity: string | null
+        }
+        Insert: {
+          acknowledged?: boolean | null
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          ai_recommendation?: string | null
+          created_at?: string | null
+          deviation_percent?: number | null
+          expected_value?: number | null
+          explanation?: string | null
+          id?: string
+          metric_name: string
+          metric_value: number
+          org_id: string
+          rule_id?: string | null
+          severity?: string | null
+        }
+        Update: {
+          acknowledged?: boolean | null
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          ai_recommendation?: string | null
+          created_at?: string | null
+          deviation_percent?: number | null
+          expected_value?: number | null
+          explanation?: string | null
+          id?: string
+          metric_name?: string
+          metric_value?: number
+          org_id?: string
+          rule_id?: string | null
+          severity?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "detected_anomalies_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "detected_anomalies_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "anomaly_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dismissed_recommendations: {
         Row: {
           dismissed_at: string
@@ -2268,6 +2443,50 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      document_embeddings: {
+        Row: {
+          content: string
+          created_at: string | null
+          embedding: string | null
+          id: string
+          metadata: Json | null
+          org_id: string
+          source_id: string | null
+          source_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+          org_id: string
+          source_id?: string | null
+          source_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+          org_id?: string
+          source_id?: string | null
+          source_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_embeddings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       domain_aliases: {
         Row: {
@@ -2353,6 +2572,68 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "dsar_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_drafts: {
+        Row: {
+          account_external_id: string | null
+          ai_model: string | null
+          approved_at: string | null
+          approved_by: string | null
+          body: string
+          context_used: Json | null
+          created_at: string | null
+          deal_id: string | null
+          draft_type: string | null
+          id: string
+          lead_id: number | null
+          org_id: string
+          sent_at: string | null
+          status: string | null
+          subject: string
+        }
+        Insert: {
+          account_external_id?: string | null
+          ai_model?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          body: string
+          context_used?: Json | null
+          created_at?: string | null
+          deal_id?: string | null
+          draft_type?: string | null
+          id?: string
+          lead_id?: number | null
+          org_id: string
+          sent_at?: string | null
+          status?: string | null
+          subject: string
+        }
+        Update: {
+          account_external_id?: string | null
+          ai_model?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          body?: string
+          context_used?: Json | null
+          created_at?: string | null
+          deal_id?: string | null
+          draft_type?: string | null
+          id?: string
+          lead_id?: number | null
+          org_id?: string
+          sent_at?: string | null
+          status?: string | null
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_drafts_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -3112,6 +3393,53 @@ export type Database = {
           },
           {
             foreignKeyName: "firmographic_conflicts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      follow_up_sequences: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          org_id: string
+          steps: Json | null
+          trigger_event: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          org_id: string
+          steps?: Json | null
+          trigger_event: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          org_id?: string
+          steps?: Json | null
+          trigger_event?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follow_up_sequences_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -4668,6 +4996,59 @@ export type Database = {
           },
         ]
       }
+      pipeline_summaries: {
+        Row: {
+          ai_model: string | null
+          created_at: string | null
+          generated_at: string | null
+          id: string
+          key_insights: Json | null
+          metrics_snapshot: Json | null
+          opportunities: Json | null
+          org_id: string
+          recommended_actions: Json | null
+          risks: Json | null
+          summary_text: string
+          summary_type: string | null
+        }
+        Insert: {
+          ai_model?: string | null
+          created_at?: string | null
+          generated_at?: string | null
+          id?: string
+          key_insights?: Json | null
+          metrics_snapshot?: Json | null
+          opportunities?: Json | null
+          org_id: string
+          recommended_actions?: Json | null
+          risks?: Json | null
+          summary_text: string
+          summary_type?: string | null
+        }
+        Update: {
+          ai_model?: string | null
+          created_at?: string | null
+          generated_at?: string | null
+          id?: string
+          key_insights?: Json | null
+          metrics_snapshot?: Json | null
+          opportunities?: Json | null
+          org_id?: string
+          recommended_actions?: Json | null
+          risks?: Json | null
+          summary_text?: string
+          summary_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_summaries_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plan_limits: {
         Row: {
           api_calls_monthly: number | null
@@ -4913,6 +5294,86 @@ export type Database = {
           },
         ]
       }
+      rep_performance: {
+        Row: {
+          avg_deal_size: number | null
+          avg_sales_cycle_days: number | null
+          avg_talk_ratio: number | null
+          calls_made: number | null
+          closing_score: number | null
+          computed_at: string | null
+          created_at: string | null
+          deals_lost: number | null
+          deals_won: number | null
+          discovery_score: number | null
+          emails_sent: number | null
+          id: string
+          meetings_booked: number | null
+          objection_handling_score: number | null
+          org_id: string
+          period_end: string
+          period_start: string
+          pipeline_generated: number | null
+          revenue_closed: number | null
+          user_id: string
+          win_rate: number | null
+        }
+        Insert: {
+          avg_deal_size?: number | null
+          avg_sales_cycle_days?: number | null
+          avg_talk_ratio?: number | null
+          calls_made?: number | null
+          closing_score?: number | null
+          computed_at?: string | null
+          created_at?: string | null
+          deals_lost?: number | null
+          deals_won?: number | null
+          discovery_score?: number | null
+          emails_sent?: number | null
+          id?: string
+          meetings_booked?: number | null
+          objection_handling_score?: number | null
+          org_id: string
+          period_end: string
+          period_start: string
+          pipeline_generated?: number | null
+          revenue_closed?: number | null
+          user_id: string
+          win_rate?: number | null
+        }
+        Update: {
+          avg_deal_size?: number | null
+          avg_sales_cycle_days?: number | null
+          avg_talk_ratio?: number | null
+          calls_made?: number | null
+          closing_score?: number | null
+          computed_at?: string | null
+          created_at?: string | null
+          deals_lost?: number | null
+          deals_won?: number | null
+          discovery_score?: number | null
+          emails_sent?: number | null
+          id?: string
+          meetings_booked?: number | null
+          objection_handling_score?: number | null
+          org_id?: string
+          period_end?: string
+          period_start?: string
+          pipeline_generated?: number | null
+          revenue_closed?: number | null
+          user_id?: string
+          win_rate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rep_performance_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_schedules: {
         Row: {
           created_at: string
@@ -4963,6 +5424,66 @@ export type Database = {
             columns: ["report_id"]
             isOneToOne: false
             referencedRelation: "custom_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_follow_ups: {
+        Row: {
+          account_external_id: string | null
+          completed_at: string | null
+          created_at: string | null
+          current_step: number | null
+          deal_id: string | null
+          id: string
+          last_error: string | null
+          lead_id: number | null
+          org_id: string
+          scheduled_at: string
+          sequence_id: string | null
+          status: string | null
+        }
+        Insert: {
+          account_external_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: number | null
+          deal_id?: string | null
+          id?: string
+          last_error?: string | null
+          lead_id?: number | null
+          org_id: string
+          scheduled_at: string
+          sequence_id?: string | null
+          status?: string | null
+        }
+        Update: {
+          account_external_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          current_step?: number | null
+          deal_id?: string | null
+          id?: string
+          last_error?: string | null
+          lead_id?: number | null
+          org_id?: string
+          scheduled_at?: string
+          sequence_id?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_follow_ups_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_follow_ups_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "follow_up_sequences"
             referencedColumns: ["id"]
           },
         ]
