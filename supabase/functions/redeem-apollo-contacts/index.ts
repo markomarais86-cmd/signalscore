@@ -38,6 +38,36 @@ serve(async (req) => {
   }
 
   try {
+    // ========== AUTHENTICATION ==========
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.error('[redeem-apollo-contacts] Missing Authorization header');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // Create auth client to verify user
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await authClient.auth.getUser();
+    if (authError || !user) {
+      console.error('[redeem-apollo-contacts] Auth error:', authError?.message);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized - invalid token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[redeem-apollo-contacts] Authenticated user: ${user.id}`);
+
     const { 
       org_id, 
       account_domains, 
@@ -53,6 +83,24 @@ serve(async (req) => {
       );
     }
 
+    // Verify user belongs to the requested org
+    const { data: profile, error: profileError } = await authClient
+      .from('user_profiles')
+      .select('org_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (profileError || !profile || profile.org_id !== org_id) {
+      console.error('[redeem-apollo-contacts] Org access denied for user:', user.id);
+      return new Response(
+        JSON.stringify({ error: 'Forbidden - you do not have access to this organization' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[redeem-apollo-contacts] User ${user.id} authorized for org ${org_id}`);
+    // ========== END AUTHENTICATION ==========
+
     const apolloApiKey = Deno.env.get('APOLLO_API_KEY');
     if (!apolloApiKey) {
       return new Response(
@@ -61,8 +109,7 @@ serve(async (req) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    // Use service role client for data operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     console.log(`[redeem-apollo-contacts] Starting redemption for org ${org_id}`);
