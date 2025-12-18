@@ -1,7 +1,7 @@
 # TAM Intelligence Platform - Feature Inventory
 
-**Last Updated:** 2025-10-26  
-**Version:** 1.0
+**Last Updated:** 2025-12-18  
+**Version:** 2.0
 
 ---
 
@@ -37,10 +37,10 @@
 
 ---
 
-## Phase 2: Scoring & Enrichment (LABS 🧪)
+## Phase 2: Scoring & Enrichment (LIVE ✅)
 
 ### Account Scoring Engine
-**Status:** ✅ LIVE (Core)  
+**Status:** ✅ LIVE  
 **Location:** `/accounts`
 
 - Multi-dimensional scoring (Fit, Intent, Reachability)
@@ -101,20 +101,52 @@
 - Pipeline value monitoring
 - Investment efficiency metrics
 
+### Pipeline Analytics Dashboard
+**Status:** ✅ LIVE  
+**Location:** `/pipeline-analytics`
+
+- Pipeline velocity metrics
+- Deal flow visualization
+- Stage conversion analysis
+- Win/loss trending
+- Forecast accuracy tracking
+
 ---
 
-## Phase 4: AI Agents (FUTURE 🚧)
+## Phase 4: AI Agents (LIVE ✅)
 
-### AI Automation
-**Status:** 🚧 FUTURE  
-**Flag:** `ai_agents`
+### AI Agent Framework
+**Status:** ✅ LIVE  
+**Flag:** `ai_agents`  
+**Location:** `/agents`
 
-**Planned Features:**
-- Automated lead qualification
-- AI-powered scheduling
-- Intelligent follow-up suggestions
-- Automated enrichment workflows
-- Smart alerts and notifications
+**Agent Types:**
+- **Lead Qualification** - Automatic lead scoring and qualification
+- **Meeting Scheduler** - AI-powered meeting scheduling suggestions
+- **Follow-up Sequences** - Automated follow-up campaign orchestration
+- **Data Enrichment** - Background data enrichment automation
+- **Pipeline Controller** - Pipeline stage automation and alerts
+- **ICP Persona** - Persona classification and matching
+- **Validation Scoring** - Score validation and quality checks
+- **Discovery** - Account and contact discovery
+- **Search Enrichment** - Search-based data enrichment
+
+**Edge Functions:**
+- `run-agent` - Core agent execution engine
+- `execute-agent-action` - Individual action executor
+- `process-agent-queue` - Background queue processor
+- `scheduled-agent-runner` - Scheduled agent execution
+- `ai-orchestrate-enrichment` - Multi-step enrichment orchestration
+- `job-auto-recover` - Failed job recovery system
+- `ai-agent-feedback` - Agent feedback collection
+
+**Features:**
+- Agent configuration and scheduling
+- Multi-step workflow execution
+- Action template library
+- Agent run history and logging
+- Performance metrics tracking
+- Feedback loop for continuous improvement
 
 ---
 
@@ -195,6 +227,62 @@
 
 ---
 
+## Agent Insights & Monitoring (LIVE ✅)
+
+### Proactive Insights
+**Status:** ✅ LIVE  
+**Location:** Executive Dashboard Widget
+
+- AI-generated insights and recommendations
+- Data quality alerts
+- Enrichment opportunity detection
+- ICP optimization suggestions
+- Actionable recommendation cards
+
+### System Health Dashboard
+**Status:** ✅ LIVE  
+**Location:** `/system-health`
+
+- Agent run monitoring
+- Job status tracking
+- Error rate analytics
+- Performance metrics
+- Real-time enrichment progress
+
+### Agent Run Tracking
+**Status:** ✅ LIVE
+
+- Agent run history
+- Detailed run results
+- Error logging and diagnostics
+- Run detail sheets
+- Feedback collection
+
+---
+
+## Discovery Features (LIVE ✅)
+
+### Account Discovery
+**Status:** ✅ LIVE  
+**Location:** `/discovery`
+
+- AI-powered account discovery
+- ICP-based company matching
+- Market expansion recommendations
+- Lookalike company identification
+
+### Contact Discovery
+**Status:** ✅ LIVE  
+**Location:** Account Detail → Find Contacts
+
+- Contact search within accounts
+- Apollo/PDL integration
+- Persona-based filtering
+- Email verification
+- Credit-based discovery
+
+---
+
 ## 🔧 Core Infrastructure
 
 ### Data Management
@@ -214,6 +302,8 @@
 - Row-level security (RLS) policies
 - API key management
 - Invitation system
+- Edge function authentication middleware
+- Secure credential storage
 
 ### Integrations
 **Status:** ✅ LIVE
@@ -222,6 +312,17 @@
 - External data provider APIs
 - CRM data sync
 - Database enrichment providers
+- Apollo.io integration
+- PDL (People Data Labs) integration
+
+### AI Infrastructure
+**Status:** ✅ LIVE
+
+- AI orchestration layer
+- Multi-provider AI support (OpenAI, Anthropic)
+- AI usage tracking and cost monitoring
+- Provider health monitoring
+- Automatic failover
 
 ---
 
@@ -236,6 +337,7 @@
 - ICP coverage metrics
 - Geographic distribution
 - Risk and exception tracking
+- Proactive Insights widget
 
 ### Account Intelligence
 **Status:** ✅ LIVE  
@@ -266,12 +368,21 @@
 - Search path hardening on all functions
 - RLS policies on all tables
 - Secure credential storage
+- Input validation on all endpoints
 
 ### Auth & Permissions
 - Supabase authentication
 - User profile management
 - Role-based feature access
 - Organization isolation
+- Edge function auth middleware
+
+### API Security
+- API key authentication
+- Rate limiting
+- Request validation
+- Audit logging
+- Secure secret management
 
 ---
 
@@ -296,6 +407,13 @@
 - Dashboard usage
 - Report generation frequency
 
+### Agent Metrics
+- Agent run success rate
+- Records processed per agent
+- Average execution time
+- Error rates by agent type
+- Feedback scores
+
 ---
 
 ## 🚀 Deployment Status
@@ -306,10 +424,14 @@
 | TAM Intelligence | ✅ LIVE | `icp_tam_intelligence` | `/executive` |
 | Account Scoring | ✅ LIVE | N/A | `/accounts` |
 | AI Enrichment | ✅ LIVE | N/A | Multiple |
+| AI Agents | ✅ LIVE | `ai_agents` | `/agents` |
+| Agent Insights | ✅ LIVE | N/A | Dashboard Widget |
+| System Health | ✅ LIVE | N/A | `/system-health` |
+| Discovery | ✅ LIVE | N/A | `/discovery` |
+| Pipeline Analytics | ✅ LIVE | N/A | `/pipeline-analytics` |
 | Personas & Segments | 🧪 LABS | `personas_segments` | `/segmentation` |
 | Pipeline Efficiency | 🧪 LABS | `pipeline_efficiency` | `/pipeline-efficiency` |
 | Capital Efficiency | 🧪 LABS | `capital_efficiency` | `/capital-efficiency` |
-| AI Agents | 🚧 FUTURE | `ai_agents` | TBD |
 | Custom Reports | 🧪 LABS | `custom_reports` | `/report-builder` |
 | Cohort Analysis | 🧪 LABS | `cohort_analysis` | `/trends` |
 | Predictive Scoring | 🧪 LABS | `predictive_scoring` | Multiple |
@@ -327,8 +449,8 @@
 
 ---
 
-**Platform Version:** 1.0  
-**Total Features:** 15 major features  
-**Edge Functions:** 20+ functions  
-**Database Tables:** 30+ tables  
-**Feature Flags:** 13 flags
+**Platform Version:** 2.0  
+**Total Features:** 20+ major features  
+**Edge Functions:** 95+ functions  
+**Database Tables:** 50+ tables  
+**Feature Flags:** 15+ flags
