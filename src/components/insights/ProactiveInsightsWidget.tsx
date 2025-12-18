@@ -9,9 +9,7 @@ import {
   Sparkles, 
   TrendingUp, 
   RefreshCw,
-  X,
   ChevronDown,
-  Zap,
   Loader2,
   AlertTriangle,
 } from "lucide-react";
@@ -20,14 +18,7 @@ import { toast } from "sonner";
 import { enrichmentLogger as log } from "@/lib/logger";
 import { TIMING, ENRICHMENT } from "@/lib/constants";
 import { InsightCard, type ProactiveInsight } from "./InsightCard";
-
-interface AgentActivity {
-  run_id?: string;
-  agent_name: string;
-  action: string;
-  count: number;
-  timestamp: string;
-}
+import { DataCompletenessCard } from "./DataCompletenessCard";
 
 interface EnrichmentProgress {
   jobId: string;
@@ -46,7 +37,6 @@ interface ProactiveInsightsWidgetProps {
 
 export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWidgetProps) {
   const [insights, setInsights] = useState<ProactiveInsight[]>([]);
-  const [agentActivity, setAgentActivity] = useState<AgentActivity[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
@@ -80,7 +70,6 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
       if (error) throw error;
 
       setInsights(data?.insights || []);
-      setAgentActivity(data?.agent_activity || []);
     } catch (err) {
       log.error('Failed to fetch proactive insights:', err);
     } finally {
@@ -516,27 +505,8 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
               </div>
             )}
 
-            {/* Agent Activity Summary */}
-            {agentActivity.length > 0 && (
-              <div className="p-3 rounded-lg border bg-amber-500/5 border-amber-500/20">
-                <div className="flex items-center gap-2 mb-2">
-                  <Zap className="h-4 w-4 text-amber-500" />
-                  <span className="font-medium text-sm">Agent Activity Today</span>
-                </div>
-                <div className="space-y-1">
-                  {agentActivity.slice(0, 3).map((activity, idx) => (
-                    <div 
-                      key={idx} 
-                      className="text-sm text-muted-foreground flex items-center justify-between cursor-pointer hover:bg-accent/50 rounded p-1 -mx-1 transition-colors"
-                      onClick={() => onAction?.('view_agent_run', { run_id: activity.run_id })}
-                    >
-                      <span>{activity.agent_name}: {activity.action}</span>
-                      <Badge variant="secondary" className="text-xs">{activity.count}</Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Data Completeness Summary */}
+            <DataCompletenessCard orgId={orgId} />
 
             {/* Insights */}
             {visibleInsights.length === 0 ? (
