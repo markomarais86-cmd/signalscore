@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { 
   CheckCircle, 
   AlertCircle, 
@@ -11,10 +12,26 @@ import {
   Database,
   Zap,
   Target,
-  Activity
+  Activity,
+  Bot,
+  ChevronRight
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+
+interface AgentRun {
+  id: string;
+  status: string;
+  started_at: string;
+  completed_at: string | null;
+  records_processed: number | null;
+  records_affected: number | null;
+  error_message: string | null;
+  agent: {
+    name: string;
+    agent_type: string;
+  } | null;
+}
 
 interface SystemHealth {
   crmSync: {
@@ -59,9 +76,14 @@ const formatTimeAgo = (dateString: string): string => {
   return `${Math.floor(diffMins / 1440)}d ago`;
 };
 
-export function SystemHealthDashboard() {
+interface SystemHealthDashboardProps {
+  onViewAgentRun?: (runId: string) => void;
+}
+
+export function SystemHealthDashboard({ onViewAgentRun }: SystemHealthDashboardProps = {}) {
   const { userProfile } = useAuth();
   const [health, setHealth] = useState<SystemHealth | null>(null);
+  const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -128,6 +150,19 @@ export function SystemHealthDashboard() {
       automations?.forEach(a => {
         lastRuns[a.setting_key] = a.last_run_at;
       });
+
+      // Fetch recent agent runs
+      const { data: recentRuns } = await supabase
+        .from('ai_agent_runs')
+        .select(`
+          id, status, started_at, completed_at, records_processed, records_affected, error_message,
+          agent:ai_agents(name, agent_type)
+        `)
+        .eq('agent:ai_agents.org_id', userProfile.org_id)
+        .order('started_at', { ascending: false })
+        .limit(5);
+
+      setAgentRuns((recentRuns || []) as AgentRun[]);
 
       // Calculate overall coverage
       const overallCoverage = total > 0 
@@ -378,6 +413,57 @@ export function SystemHealthDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Recent Agent Runs */}
+      {agentRuns.length > 0 && (
+        <Card className="mt-4">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <div className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-muted-foreground" />
+              <CardTitle className="text-base font-medium">Recent Agent Runs</CardTitle>
+            </div>
+            <Badge variant="secondary">{agentRuns.length} runs</Badge>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {agentRuns.map(run => (
+                <div
+                  key={run.id}
+                  className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50 cursor-pointer transition-colors"
+                  onClick={() => onViewAgentRun?.(run.id)}
+                >
+                  <div className="flex items-center gap-3">
+                    {run.status === 'completed' ? (
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    ) : run.status === 'failed' ? (
+                      <AlertCircle className="h-4 w-4 text-destructive" />
+                    ) : run.status === 'running' ? (
+                      <RefreshCw className="h-4 w-4 text-primary animate-spin" />
+                    ) : (
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <div>
+                      <p className="text-sm font-medium">{run.agent?.name || 'Unknown Agent'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatTimeAgo(run.started_at)} • {run.records_processed ?? 0} processed
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge 
+                      variant={run.status === 'completed' ? 'default' : run.status === 'failed' ? 'destructive' : 'secondary'}
+                      className="text-xs"
+                    >
+                      {run.status}
+                    </Badge>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

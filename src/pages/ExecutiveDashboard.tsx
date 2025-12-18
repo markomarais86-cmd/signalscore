@@ -43,6 +43,7 @@ import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton"
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
 import { DataQualityWarning } from "@/components/executive/DataQualityWarning";
 import { ProactiveInsightsWidget } from "@/components/insights/ProactiveInsightsWidget";
+import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
 
 
 export default function ExecutiveDashboard() {
@@ -76,6 +77,7 @@ export default function ExecutiveDashboard() {
   const [showHealthDashboard, setShowHealthDashboard] = useState(false);
   const [apolloStale, setApolloStale] = useState(false);
   const [syncingApolloFromAlert, setSyncingApolloFromAlert] = useState(false);
+  const [selectedAgentRunId, setSelectedAgentRunId] = useState<string | null>(null);
   
 
   const totalAccounts = dashboardData?.metrics?.total_accounts || 0;
@@ -686,10 +688,11 @@ export default function ExecutiveDashboard() {
                   break;
                 
                 case 'view_agent_run':
-                  // Show health dashboard with specific run context
-                  setShowHealthDashboard(true);
+                  // Open agent run detail sheet
                   if (params?.run_id) {
-                    toast.info(`Viewing agent run details`, { duration: 2000 });
+                    setSelectedAgentRunId(params.run_id as string);
+                  } else {
+                    setShowHealthDashboard(true);
                   }
                   break;
                   
@@ -714,10 +717,17 @@ export default function ExecutiveDashboard() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <SystemHealthDashboard />
+              <SystemHealthDashboard onViewAgentRun={(runId) => setSelectedAgentRunId(runId)} />
             </CardContent>
           </Card>
         )}
+
+        {/* Agent Run Detail Sheet */}
+        <AgentRunDetailSheet
+          runId={selectedAgentRunId}
+          open={!!selectedAgentRunId}
+          onOpenChange={(open) => !open && setSelectedAgentRunId(null)}
+        />
 
         {/* Active Scoring Job Progress */}
         {activeScoringJob && (
