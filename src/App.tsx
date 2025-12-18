@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./hooks/use-auth";
 import { FeatureFlagsProvider } from "./hooks/use-feature-flags";
 import { OnboardingProvider } from "./hooks/use-onboarding";
+import { CampaignContextProvider } from "./hooks/use-campaign-context";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { Layout } from "./components/Layout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -264,13 +265,15 @@ function App() {
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
         <AuthProvider>
           <OnboardingProvider>
-            <FeatureFlagsProvider>
-              <TooltipProvider>
-                <ErrorBoundary>
-                  <AppContent />
-                </ErrorBoundary>
-              </TooltipProvider>
-            </FeatureFlagsProvider>
+            <CampaignContextProvider>
+              <FeatureFlagsProvider>
+                <TooltipProvider>
+                  <ErrorBoundary>
+                    <AppContent />
+                  </ErrorBoundary>
+                </TooltipProvider>
+              </FeatureFlagsProvider>
+            </CampaignContextProvider>
           </OnboardingProvider>
         </AuthProvider>
       </ThemeProvider>

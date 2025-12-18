@@ -6,6 +6,8 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { HelpPanel } from "@/components/help/HelpPanel";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { AIChat } from "@/components/AIChat";
+import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
+import { useCampaignContext } from "@/hooks/use-campaign-context";
 
 interface LayoutProps {
   children: ReactNode;
@@ -13,6 +15,7 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
+  const { isCampaignBuilderOpen, closeCampaignBuilder, insightContext } = useCampaignContext();
 
   return (
     <SidebarProvider>
@@ -44,6 +47,14 @@ export function Layout({ children }: LayoutProps) {
           </footer>
         </main>
         <AIChat />
+        
+        {/* Global Campaign Builder - triggered from insights */}
+        <CampaignBuilderV2
+          isOpen={isCampaignBuilderOpen}
+          onClose={closeCampaignBuilder}
+          source="insight"
+          insightContext={insightContext || undefined}
+        />
       </div>
     </SidebarProvider>
   );
