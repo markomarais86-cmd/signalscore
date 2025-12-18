@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, ReactElement } from 'react';
 import { 
   Search, 
   BookOpen, 
@@ -14,7 +14,8 @@ import {
   Users,
   Zap,
   ExternalLink,
-  ArrowLeft
+  ArrowLeft,
+  X
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -29,7 +30,254 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import { helpDatabase, videoTutorials } from '@/components/help/helpContent';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { helpDatabase, videoTutorials, HelpItem } from '@/components/help/helpContent';
+
+// Simple markdown renderer for help content
+function renderMarkdown(content: string) {
+  const lines = content.split('\n');
+  const elements: React.ReactNode[] = [];
+  let inCodeBlock = false;
+  let codeContent: string[] = [];
+  let inTable = false;
+  let tableRows: string[][] = [];
+  let tableHeaders: string[] = [];
+
+  const processInlineMarkdown = (text: string): React.ReactNode => {
+    // Handle bold, italic, inline code, and links
+    const parts: React.ReactNode[] = [];
+    let remaining = text;
+    let keyCounter = 0;
+
+    while (remaining.length > 0) {
+      // Bold **text**
+      const boldMatch = remaining.match(/\*\*([^*]+)\*\*/);
+      // Inline code `code`
+      const codeMatch = remaining.match(/`([^`]+)`/);
+      // Link [text](url)
+      const linkMatch = remaining.match(/\[([^\]]+)\]\(([^)]+)\)/);
+
+      let firstMatch: { type: string; index: number; match: RegExpMatchArray } | null = null;
+
+      if (boldMatch && boldMatch.index !== undefined) {
+        if (!firstMatch || boldMatch.index < firstMatch.index) {
+          firstMatch = { type: 'bold', index: boldMatch.index, match: boldMatch };
+        }
+      }
+      if (codeMatch && codeMatch.index !== undefined) {
+        if (!firstMatch || codeMatch.index < firstMatch.index) {
+          firstMatch = { type: 'code', index: codeMatch.index, match: codeMatch };
+        }
+      }
+      if (linkMatch && linkMatch.index !== undefined) {
+        if (!firstMatch || linkMatch.index < firstMatch.index) {
+          firstMatch = { type: 'link', index: linkMatch.index, match: linkMatch };
+        }
+      }
+
+      if (!firstMatch) {
+        parts.push(remaining);
+        break;
+      }
+
+      if (firstMatch.index > 0) {
+        parts.push(remaining.slice(0, firstMatch.index));
+      }
+
+      if (firstMatch.type === 'bold') {
+        parts.push(<strong key={keyCounter++}>{firstMatch.match[1]}</strong>);
+        remaining = remaining.slice(firstMatch.index + firstMatch.match[0].length);
+      } else if (firstMatch.type === 'code') {
+        parts.push(
+          <code key={keyCounter++} className="px-1.5 py-0.5 bg-muted rounded text-sm font-mono">
+            {firstMatch.match[1]}
+          </code>
+        );
+        remaining = remaining.slice(firstMatch.index + firstMatch.match[0].length);
+      } else if (firstMatch.type === 'link') {
+        parts.push(
+          <a key={keyCounter++} href={firstMatch.match[2]} className="text-primary underline hover:no-underline" target="_blank" rel="noopener noreferrer">
+            {firstMatch.match[1]}
+          </a>
+        );
+        remaining = remaining.slice(firstMatch.index + firstMatch.match[0].length);
+      }
+    }
+
+    return <>{parts}</>;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmedLine = line.trim();
+
+    // Code blocks
+    if (trimmedLine.startsWith('```')) {
+      if (inCodeBlock) {
+        elements.push(
+          <pre key={i} className="bg-muted p-4 rounded-lg overflow-x-auto my-4">
+            <code className="text-sm font-mono">{codeContent.join('\n')}</code>
+          </pre>
+        );
+        codeContent = [];
+        inCodeBlock = false;
+      } else {
+        inCodeBlock = true;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeContent.push(line);
+      continue;
+    }
+
+    // Tables
+    if (trimmedLine.startsWith('|') && trimmedLine.endsWith('|')) {
+      const cells = trimmedLine.slice(1, -1).split('|').map(c => c.trim());
+      
+      // Skip separator row
+      if (cells.every(c => c.match(/^[-:]+$/))) {
+        continue;
+      }
+
+      if (!inTable) {
+        inTable = true;
+        tableHeaders = cells;
+      } else {
+        tableRows.push(cells);
+      }
+      continue;
+    } else if (inTable) {
+      // End of table
+      elements.push(
+        <div key={i} className="overflow-x-auto my-4">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                {tableHeaders.map((h, idx) => (
+                  <th key={idx} className="border border-border px-4 py-2 bg-muted text-left font-semibold">
+                    {processInlineMarkdown(h)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {tableRows.map((row, rowIdx) => (
+                <tr key={rowIdx}>
+                  {row.map((cell, cellIdx) => (
+                    <td key={cellIdx} className="border border-border px-4 py-2">
+                      {processInlineMarkdown(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      inTable = false;
+      tableHeaders = [];
+      tableRows = [];
+    }
+
+    // Empty line
+    if (!trimmedLine) {
+      continue;
+    }
+
+    // Headers
+    if (trimmedLine.startsWith('# ')) {
+      elements.push(
+        <h1 key={i} className="text-2xl font-bold mt-6 mb-4 first:mt-0">
+          {trimmedLine.slice(2)}
+        </h1>
+      );
+      continue;
+    }
+    if (trimmedLine.startsWith('## ')) {
+      elements.push(
+        <h2 key={i} className="text-xl font-semibold mt-6 mb-3">
+          {trimmedLine.slice(3)}
+        </h2>
+      );
+      continue;
+    }
+    if (trimmedLine.startsWith('### ')) {
+      elements.push(
+        <h3 key={i} className="text-lg font-semibold mt-4 mb-2">
+          {trimmedLine.slice(4)}
+        </h3>
+      );
+      continue;
+    }
+
+    // List items
+    if (trimmedLine.match(/^[-*] /)) {
+      elements.push(
+        <li key={i} className="ml-6 list-disc text-muted-foreground">
+          {processInlineMarkdown(trimmedLine.slice(2))}
+        </li>
+      );
+      continue;
+    }
+
+    // Numbered lists
+    if (trimmedLine.match(/^\d+\. /)) {
+      const content = trimmedLine.replace(/^\d+\. /, '');
+      elements.push(
+        <li key={i} className="ml-6 list-decimal text-muted-foreground">
+          {processInlineMarkdown(content)}
+        </li>
+      );
+      continue;
+    }
+
+    // Regular paragraph
+    elements.push(
+      <p key={i} className="text-muted-foreground mb-3">
+        {processInlineMarkdown(trimmedLine)}
+      </p>
+    );
+  }
+
+  // Close any remaining table
+  if (inTable && tableHeaders.length > 0) {
+    elements.push(
+      <div key="final-table" className="overflow-x-auto my-4">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              {tableHeaders.map((h, idx) => (
+                <th key={idx} className="border border-border px-4 py-2 bg-muted text-left font-semibold">
+                  {processInlineMarkdown(h)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {tableRows.map((row, rowIdx) => (
+              <tr key={rowIdx}>
+                {row.map((cell, cellIdx) => (
+                  <td key={cellIdx} className="border border-border px-4 py-2">
+                    {processInlineMarkdown(cell)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  return elements;
+}
 
 const categories = [
   { id: 'getting-started', name: 'Getting Started', icon: Zap, color: 'text-green-500' },
@@ -74,6 +322,7 @@ export default function Help() {
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [selectedArticle, setSelectedArticle] = useState<HelpItem | null>(null);
 
   // Get the previous path for back navigation
   const fromPath = (location.state as any)?.from || '/';
@@ -210,7 +459,11 @@ export default function Help() {
                     </h2>
                     <div className="grid gap-3">
                       {items.map(item => (
-                        <Card key={item.id} className="hover:border-primary/50 transition-colors cursor-pointer">
+                        <Card 
+                          key={item.id} 
+                          className="hover:border-primary/50 transition-colors cursor-pointer"
+                          onClick={() => setSelectedArticle(item)}
+                        >
                           <CardHeader className="pb-2">
                             <div className="flex items-start justify-between">
                               <div>
@@ -228,8 +481,8 @@ export default function Help() {
                             </div>
                           </CardHeader>
                           <CardContent>
-                            <p className="text-sm text-muted-foreground line-clamp-3">
-                              {item.content}
+                            <p className="text-sm text-muted-foreground line-clamp-2">
+                              {item.description}
                             </p>
                             <Button variant="link" className="px-0 mt-2 text-primary">
                               Read more <ChevronRight className="h-4 w-4 ml-1" />
@@ -346,6 +599,51 @@ export default function Help() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Article Detail Dialog */}
+      <Dialog open={!!selectedArticle} onOpenChange={(open) => !open && setSelectedArticle(null)}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader className="shrink-0">
+            <div className="flex items-start justify-between pr-8">
+              <div>
+                <Badge variant="secondary" className="mb-2">
+                  {selectedArticle?.category}
+                </Badge>
+                <DialogTitle className="text-xl">{selectedArticle?.title}</DialogTitle>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {selectedArticle?.description}
+                </p>
+              </div>
+            </div>
+          </DialogHeader>
+          <ScrollArea className="flex-1 pr-4">
+            <div className="py-4">
+              {selectedArticle && renderMarkdown(selectedArticle.content)}
+            </div>
+          </ScrollArea>
+          {selectedArticle?.relatedPages && selectedArticle.relatedPages.length > 0 && (
+            <div className="shrink-0 border-t pt-4 mt-4">
+              <p className="text-sm font-medium mb-2">Related Pages</p>
+              <div className="flex flex-wrap gap-2">
+                {selectedArticle.relatedPages.map((page, idx) => (
+                  <Button 
+                    key={idx} 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setSelectedArticle(null);
+                      navigate(page);
+                    }}
+                  >
+                    {page === '/' ? 'Dashboard' : page.replace('/', '').replace(/-/g, ' ')}
+                    <ExternalLink className="h-3 w-3 ml-1" />
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
