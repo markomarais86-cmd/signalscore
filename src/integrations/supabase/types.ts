@@ -58,6 +58,50 @@ export type Database = {
           },
         ]
       }
+      account_merge_log: {
+        Row: {
+          created_at: string
+          id: string
+          merge_details: Json | null
+          merged_at: string
+          merged_by: string | null
+          new_account_external_id: string
+          old_account_data: Json | null
+          old_account_external_id: string
+          org_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          merge_details?: Json | null
+          merged_at?: string
+          merged_by?: string | null
+          new_account_external_id: string
+          old_account_data?: Json | null
+          old_account_external_id: string
+          org_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          merge_details?: Json | null
+          merged_at?: string
+          merged_by?: string | null
+          new_account_external_id?: string
+          old_account_data?: Json | null
+          old_account_external_id?: string
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_merge_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accounts: {
         Row: {
           business_model: string | null
@@ -91,6 +135,7 @@ export type Database = {
           industry_raw: string | null
           last_funding_date: string | null
           last_funding_round: string | null
+          last_verified_at: string | null
           legal_name: string | null
           linkedin_url: string | null
           mobile: string | null
@@ -142,6 +187,7 @@ export type Database = {
           industry_raw?: string | null
           last_funding_date?: string | null
           last_funding_round?: string | null
+          last_verified_at?: string | null
           legal_name?: string | null
           linkedin_url?: string | null
           mobile?: string | null
@@ -193,6 +239,7 @@ export type Database = {
           industry_raw?: string | null
           last_funding_date?: string | null
           last_funding_round?: string | null
+          last_verified_at?: string | null
           legal_name?: string | null
           linkedin_url?: string | null
           mobile?: string | null
@@ -786,6 +833,128 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ai_workflows_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alert_history: {
+        Row: {
+          alert_id: string
+          context_data: Json | null
+          id: string
+          notification_channels: string[] | null
+          notification_error: string | null
+          notification_sent: boolean
+          org_id: string
+          threshold_value: number | null
+          trigger_value: number | null
+          triggered_at: string
+        }
+        Insert: {
+          alert_id: string
+          context_data?: Json | null
+          id?: string
+          notification_channels?: string[] | null
+          notification_error?: string | null
+          notification_sent?: boolean
+          org_id: string
+          threshold_value?: number | null
+          trigger_value?: number | null
+          triggered_at?: string
+        }
+        Update: {
+          alert_id?: string
+          context_data?: Json | null
+          id?: string
+          notification_channels?: string[] | null
+          notification_error?: string | null
+          notification_sent?: boolean
+          org_id?: string
+          threshold_value?: number | null
+          trigger_value?: number | null
+          triggered_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_history_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alert_history_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      alerts: {
+        Row: {
+          alert_type: string
+          comparison_period: string | null
+          created_at: string
+          created_by: string | null
+          email_recipients: string[] | null
+          id: string
+          is_active: boolean
+          last_triggered_at: string | null
+          name: string
+          notification_channels: Json
+          org_id: string
+          slack_webhook_url: string | null
+          threshold_operator: string | null
+          threshold_value: number | null
+          trigger_count: number
+          updated_at: string
+          webhook_url: string | null
+        }
+        Insert: {
+          alert_type: string
+          comparison_period?: string | null
+          created_at?: string
+          created_by?: string | null
+          email_recipients?: string[] | null
+          id?: string
+          is_active?: boolean
+          last_triggered_at?: string | null
+          name: string
+          notification_channels?: Json
+          org_id: string
+          slack_webhook_url?: string | null
+          threshold_operator?: string | null
+          threshold_value?: number | null
+          trigger_count?: number
+          updated_at?: string
+          webhook_url?: string | null
+        }
+        Update: {
+          alert_type?: string
+          comparison_period?: string | null
+          created_at?: string
+          created_by?: string | null
+          email_recipients?: string[] | null
+          id?: string
+          is_active?: boolean
+          last_triggered_at?: string | null
+          name?: string
+          notification_channels?: Json
+          org_id?: string
+          slack_webhook_url?: string | null
+          threshold_operator?: string | null
+          threshold_value?: number | null
+          trigger_count?: number
+          updated_at?: string
+          webhook_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -1891,6 +2060,59 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "domain_aliases_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dsar_requests: {
+        Row: {
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          org_id: string
+          request_details: Json | null
+          request_type: string
+          requested_at: string
+          result_data: Json | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          org_id: string
+          request_details?: Json | null
+          request_type: string
+          requested_at?: string
+          result_data?: Json | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          org_id?: string
+          request_details?: Json | null
+          request_type?: string
+          requested_at?: string
+          result_data?: Json | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dsar_requests_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -3798,32 +4020,87 @@ export type Database = {
       organizations: {
         Row: {
           created_at: string | null
+          enrichment_credits_reset_at: string | null
           enrichment_credits_total: number | null
           enrichment_credits_used: number | null
           id: string
           name: string
+          plan_id: string | null
           scoring_version: string | null
           status: string | null
         }
         Insert: {
           created_at?: string | null
+          enrichment_credits_reset_at?: string | null
           enrichment_credits_total?: number | null
           enrichment_credits_used?: number | null
           id?: string
           name: string
+          plan_id?: string | null
           scoring_version?: string | null
           status?: string | null
         }
         Update: {
           created_at?: string | null
+          enrichment_credits_reset_at?: string | null
           enrichment_credits_total?: number | null
           enrichment_credits_used?: number | null
           id?: string
           name?: string
+          plan_id?: string | null
           scoring_version?: string | null
           status?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "organizations_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plan_limits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipeline_metrics_cache: {
+        Row: {
+          computed_at: string
+          date_range_end: string
+          date_range_start: string
+          expires_at: string
+          filters: Json | null
+          id: string
+          metrics: Json
+          org_id: string
+        }
+        Insert: {
+          computed_at?: string
+          date_range_end: string
+          date_range_start: string
+          expires_at?: string
+          filters?: Json | null
+          id?: string
+          metrics: Json
+          org_id: string
+        }
+        Update: {
+          computed_at?: string
+          date_range_end?: string
+          date_range_start?: string
+          expires_at?: string
+          filters?: Json | null
+          id?: string
+          metrics?: Json
+          org_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_metrics_cache_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pipeline_stages: {
         Row: {
@@ -3884,6 +4161,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      plan_limits: {
+        Row: {
+          api_calls_monthly: number | null
+          created_at: string
+          display_name: string
+          enrichment_credits_monthly: number | null
+          features: Json
+          id: string
+          is_active: boolean
+          max_accounts: number | null
+          max_leads: number | null
+          max_users: number | null
+          plan_name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          api_calls_monthly?: number | null
+          created_at?: string
+          display_name: string
+          enrichment_credits_monthly?: number | null
+          features?: Json
+          id?: string
+          is_active?: boolean
+          max_accounts?: number | null
+          max_leads?: number | null
+          max_users?: number | null
+          plan_name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          api_calls_monthly?: number | null
+          created_at?: string
+          display_name?: string
+          enrichment_credits_monthly?: number | null
+          features?: Json
+          id?: string
+          is_active?: boolean
+          max_accounts?: number | null
+          max_leads?: number | null
+          max_users?: number | null
+          plan_name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       processing_locks: {
         Row: {
@@ -4930,6 +5255,14 @@ export type Database = {
         }
         Returns: Json
       }
+      check_plan_limit: {
+        Args: {
+          p_limit_type: string
+          p_org_id: string
+          p_requested_amount?: number
+        }
+        Returns: Json
+      }
       check_rate_limit: {
         Args: {
           p_endpoint: string
@@ -4991,6 +5324,8 @@ export type Database = {
         Args: { country_input?: string; phone_input: string }
         Returns: string
       }
+      gdpr_delete_user_data: { Args: { target_user_id: string }; Returns: Json }
+      gdpr_export_user_data: { Args: { target_user_id: string }; Returns: Json }
       generate_invitation_token: { Args: never; Returns: string }
       generate_sample_data: { Args: never; Returns: Json }
       get_active_icp_id: { Args: { p_org_id: string }; Returns: string }
