@@ -526,6 +526,13 @@ serve(async (req) => {
     // Dashboard criteria: employee_count, revenue_range, industry_norm/industry_raw, country
     if (!filters.include_complete) {
       query = query.or("employee_count.is.null,revenue_range.is.null,industry_raw.is.null,country.is.null");
+      
+      // CRITICAL: Only process accounts that haven't been enriched yet
+      // This prevents infinite re-processing of accounts the AI can't confidently enrich
+      // Use force_reenrich=true to override this and retry previously enriched accounts
+      if (!filters.force_reenrich) {
+        query = query.is("enriched_at", null);
+      }
     }
 
     // NOTE: We do NOT filter out processed IDs in the query because it causes URL length overflow
