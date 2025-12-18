@@ -165,12 +165,39 @@ serve(async (req) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
 
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  );
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
   try {
+    // ========== AUTHENTICATION ==========
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.error('[bulk-score-accounts] Missing Authorization header');
+      return errorResponse(
+        ErrorCodes.UNAUTHORIZED || 'UNAUTHORIZED',
+        'Unauthorized - missing authorization header',
+        401
+      );
+    }
+
+    // Create auth client to verify user
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await authClient.auth.getUser();
+    if (authError || !user) {
+      console.error('[bulk-score-accounts] Auth error:', authError?.message);
+      return errorResponse(
+        ErrorCodes.UNAUTHORIZED || 'UNAUTHORIZED',
+        'Unauthorized - invalid token',
+        401
+      );
+    }
+
+    console.log(`[bulk-score-accounts] Authenticated user: ${user.id}`);
+
     const requestBody = await parseJsonBody<BulkScoreRequest>(req);
     
     // Validate required fields
@@ -183,6 +210,28 @@ serve(async (req) => {
       );
     }
     const { org_id, icp_id, chunk_size = 5000 } = requestBody!;
+
+    // Verify user belongs to the requested org
+    const { data: profile, error: profileError } = await authClient
+      .from('user_profiles')
+      .select('org_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (profileError || !profile || profile.org_id !== org_id) {
+      console.error('[bulk-score-accounts] Org access denied for user:', user.id);
+      return errorResponse(
+        ErrorCodes.FORBIDDEN || 'FORBIDDEN',
+        'Forbidden - you do not have access to this organization',
+        403
+      );
+    }
+
+    console.log(`[bulk-score-accounts] User ${user.id} authorized for org ${org_id}`);
+    // ========== END AUTHENTICATION ==========
+
+    // Use service role client for data operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     console.log('\n=== BULK SCORING JOB STARTED ===');
     console.log('Org ID:', org_id);

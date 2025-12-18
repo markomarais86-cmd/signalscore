@@ -8,26 +8,34 @@ This document explains the security warnings from the Supabase Linter and provid
 
 ## ✅ Already Fixed (Automated)
 
-### 1. master_account_data Public Access Fix
-**Status:** ✅ FIXED (2024-12-18)
+### 1. Edge Function Authentication Fix
+**Status:** ✅ FIXED (2025-12-18)
+**Priority:** CRITICAL
+**Files:** `supabase/functions/redeem-apollo-contacts/index.ts`, `supabase/functions/bulk-score-accounts/index.ts`
+
+**Issue:** Edge functions accepted `org_id` from request body without verifying the user belonged to that organization.
+
+**Fix Applied:**
+- Added `Authorization` header validation
+- Verify user via `auth.getUser()` with anon key client
+- Confirm user belongs to requested `org_id` via `user_profiles` table lookup
+- Return 401 for missing/invalid auth, 403 for org access denied
+
+### 2. master_account_data Public Access Fix
+**Status:** ✅ FIXED (2025-12-18)
 **Priority:** CRITICAL
 **Migration:** `20251218_security_fixes.sql`
 
-**Issue:** The `master_account_data` table was publicly accessible without authentication, exposing 28,000+ company records.
+**Issue:** The `master_account_data` table was publicly accessible without authentication.
 
 **Fix Applied:**
 ```sql
--- Removed dangerous public policy
 DROP POLICY "Anyone can read master data" ON master_account_data;
-
--- Created secure authenticated-only policy
 CREATE POLICY "Authenticated users can read master data" 
-ON master_account_data FOR SELECT 
-TO authenticated
-USING (true);
+ON master_account_data FOR SELECT TO authenticated USING (true);
 ```
 
-### 2. user_profiles Policy Consolidation
+### 3. user_profiles Policy Consolidation
 **Status:** ✅ FIXED (2024-12-18)
 **Priority:** MEDIUM
 **Migration:** `20251218_security_fixes.sql`
@@ -207,19 +215,19 @@ psql -h <your-db-host> -d postgres -f supabase/migrations/verify_security_fixes.
 
 | Issue | Severity | Status | Action Required |
 |-------|----------|--------|-----------------|
-| master_account_data public | CRITICAL | ✅ FIXED | None (migration applied) |
-| user_profiles policies | MEDIUM | ✅ FIXED | None (consolidated) |
-| Function search paths | HIGH | ✅ FIXED | None (automated) |
-| Leaked password protection | HIGH | ⚠️ PENDING | Enable in dashboard |
-| OTP expiry too long | MEDIUM | ⚠️ PENDING | Reduce to 300s in dashboard |
-| Postgres upgrade available | MEDIUM | ⏳ PENDING | Scheduled maintenance |
-| pg_trgm in public | INFO | ✅ ACCEPTABLE | None (by design) |
-| Materialized views in API | INFO | ✅ SAFE | None (RLS protected) |
-| Leads table RLS | HIGH | ✅ SECURE | Proper org_id filtering |
-| Deals table RLS | HIGH | ✅ SECURE | Proper org_id filtering |
-| Accounts table RLS | HIGH | ✅ SECURE | Proper org_id filtering |
+| Edge function auth | CRITICAL | ✅ FIXED | Auth added to code |
+| master_account_data public | CRITICAL | ✅ FIXED | Migration applied |
+| user_profiles policies | MEDIUM | ✅ FIXED | Consolidated |
+| Function search paths | HIGH | ✅ VERIFIED | Uses SET search_path |
+| pg_trgm in public | INFO | ✅ ACCEPTABLE | By design |
+| Materialized views in API | INFO | ✅ SAFE | RLS protected |
+| Leads table RLS | HIGH | ✅ SECURE | org_id filtering |
+| Deals table RLS | HIGH | ✅ SECURE | org_id filtering |
+| Accounts table RLS | HIGH | ✅ SECURE | org_id filtering |
+| Activities table RLS | HIGH | ✅ SECURE | org_id filtering |
+| Postgres version | MEDIUM | ⚠️ PENDING | Upgrade in Dashboard |
 
-**Overall Security Rating:** 🟡 REQUIRES DASHBOARD CONFIGURATION (Auth settings only)
+**Overall Security Rating:** 🟢 SECURE (Dashboard Postgres upgrade recommended)
 
 ---
 
