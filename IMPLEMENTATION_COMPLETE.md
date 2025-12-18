@@ -15,6 +15,7 @@ This document provides a comprehensive guide to all implementation phases for th
 | **Phase 3** | Pipeline Intelligence | ✅ Complete | Funnel analysis & efficiency metrics |
 | **Phase 4** | External Data & AI | ✅ Complete | Data enrichment & AI agents |
 | **Phase 5** | Integrations | ✅ Complete | Webhooks, rate limits, audit trails |
+| **Phase 6** | Advanced Analytics | ✅ Complete | Reports, ML scoring, segments, trends |
 
 ---
 
@@ -252,6 +253,138 @@ This document provides a comprehensive guide to all implementation phases for th
 
 ---
 
+## Phase 6: Advanced Analytics
+
+### ✅ Status: COMPLETE
+
+**Purpose:** Enable advanced analytics including custom reports, cohort analysis, ML-powered predictions, and dynamic segmentation.
+
+**Features:**
+
+### 6.1 Custom Report Builder
+**Page:** `/report-builder` (`src/pages/ReportBuilder.tsx`)
+**Hook:** `use-reports` (`src/hooks/use-reports.tsx`)
+**Edge Function:** `generate-scheduled-report` (`supabase/functions/generate-scheduled-report/index.ts`)
+
+**Report Templates:**
+- Executive Summary
+- Account Performance
+- ICP Analysis
+- Data Quality Report
+
+**Capabilities:**
+- Create reports from templates
+- Configure parameters and filters
+- Schedule automated generation (daily, weekly, monthly)
+- Export to PDF
+- Manage report schedules
+
+**UI Access:** Navigate to `/report-builder` (when feature flag enabled)
+
+### 6.2 Cohort Analysis
+**Page:** `/trends` (Cohort Analysis tab)
+**Component:** `CohortAnalysis` (`src/components/analytics/CohortAnalysis.tsx`)
+**Hook:** `use-cohort-data` (`src/hooks/use-cohort-data.tsx`)
+**Edge Function:** `analyze-cohorts` (`supabase/functions/analyze-cohorts/index.ts`)
+
+**Capabilities:**
+- Analyze accounts by creation cohort (monthly)
+- Track retention rates over time
+- Calculate lifetime value (LTV) per cohort
+- Conversion rate analysis
+- Identify highest-performing cohorts
+
+**UI Access:** Navigate to `/trends` > Cohort Analysis tab
+
+### 6.3 Predictive ML Scoring
+**Hook:** `use-propensity-scoring` (`src/hooks/use-propensity-scoring.tsx`)
+**Component:** `PropensityScoreCard` (`src/components/analytics/PropensityScoreCard.tsx`)
+**Edge Function:** `train-propensity-model` (`supabase/functions/train-propensity-model/index.ts`)
+
+**Capabilities:**
+- ML-powered propensity-to-buy scoring
+- Feature importance analysis
+- Historical pattern recognition
+- Account-level predictions
+- Model training on closed-won data
+
+**Database:**
+- Table: `ml_models` - Stores trained model metadata
+- Fields: `accounts.propensity_score`, `accounts.propensity_computed_at`
+
+### 6.4 Advanced Segmentation
+**Page:** `/segmentation` (`src/pages/Segmentation.tsx`)
+**Hook:** `use-segments` (`src/hooks/use-segments.tsx`)
+
+**Capabilities:**
+- Create dynamic account segments
+- Complex multi-criteria filtering
+- Save and reuse segment definitions
+- Track segment size and performance
+- Export segment members
+
+**Database Table:** `segments`
+
+**UI Access:** Navigate to `/segmentation` (when feature flag enabled)
+
+### 6.5 Trend Analysis Dashboard
+**Page:** `/trends` (`src/pages/Trends.tsx`)
+**Hook:** `use-trend-data` (`src/hooks/use-trend-data.tsx`)
+
+**Capabilities:**
+- Score trends over time (Overall, Fit, Intent, Reachability)
+- Data quality trends
+- ICP match rate evolution
+- Pipeline velocity tracking
+- Configurable time windows (7, 30, 90 days)
+
+**Database Tables:**
+- `score_history` - Score change tracking
+- `data_quality_history` - Quality snapshots
+- `pipeline_stages` - Pipeline movement
+
+**UI Access:** Navigate to `/trends` (when feature flag enabled)
+
+### 6.6 Feature Flags
+All Phase 6 features are controlled by feature flags (disabled by default):
+
+```typescript
+custom_reports: false          // Custom Report Builder
+cohort_analysis: false         // Cohort Analysis
+predictive_scoring: false      // ML Propensity Scoring
+advanced_segmentation: false   // Dynamic Segments
+trend_analysis: false          // Trend Dashboard
+```
+
+**Enable in:** Settings → Labs → Phase 6 - Advanced Analytics
+
+**Complete Documentation:** See `PHASE6_COMPLETION.md`
+
+---
+
+## Recent Enhancements
+
+### Security Improvements
+- ✅ Edge function authentication enforced
+- ✅ Public table access secured with RLS
+- ✅ Search path security for database functions
+- ✅ Policy consolidation and optimization
+
+**Documentation:** See `SECURITY.md`
+
+### Agent Insights Fixes
+- ✅ Agent run detail sheet for viewing feedback/logs
+- ✅ System health dashboard with agent runs section
+- ✅ Fixed enrichment progress display
+- ✅ Fixed "Find Contacts" action navigation
+
+**Key Components:**
+- `AgentRunDetailSheet` (`src/components/insights/AgentRunDetailSheet.tsx`)
+- `ProactiveInsightsWidget` (updated)
+- `SystemHealthDashboard` (enhanced)
+
+---
+
 ## 🚀 Getting Started Guide
 
 ### For New Users
@@ -276,6 +409,11 @@ This document provides a comprehensive guide to all implementation phases for th
    - Configure Zapier webhooks for workflow automation
    - Monitor rate limits
    - Generate API keys if needed
+
+6. **Phase 6: Enable Advanced Analytics**
+   - Settings > Labs > Enable Phase 6 features
+   - Access Report Builder, Segmentation, Trends dashboards
+   - Train ML models with closed-won data
 
 ---
 
@@ -303,6 +441,7 @@ This document provides a comprehensive guide to all implementation phases for th
 - Phase 2: Personas & Segments
 - Phase 3: Pipeline & Capital Efficiency
 - Phase 4: AI Agents
+- Phase 6: Reports, Cohorts, ML Scoring, Segments, Trends
 
 ### Main Navigation
 
@@ -313,6 +452,9 @@ This document provides a comprehensive guide to all implementation phases for th
 - `/pipeline-efficiency` - Phase 3
 - `/capital-efficiency` - Phase 3
 - `/ai-agents` - Phase 4
+- `/report-builder` - Phase 6
+- `/segmentation` - Phase 6
+- `/trends` - Phase 6
 
 **Data:**
 - `/accounts` - Account Management
@@ -332,6 +474,11 @@ This document provides a comprehensive guide to all implementation phases for th
 - `external_data_sources` (Phase 4)
 - `bulk_scoring_jobs`
 - `enrichment_jobs`
+- `custom_reports` (Phase 6)
+- `report_schedules` (Phase 6)
+- `segments` (Phase 6)
+- `ml_models` (Phase 6)
+- `data_quality_history` (Phase 6)
 - All supporting tables
 
 ### Edge Functions
@@ -340,10 +487,13 @@ This document provides a comprehensive guide to all implementation phases for th
 3. `match-external-data` (Phase 4)
 4. `zapier-sync` (Phase 5)
 5. `generate-api-key` (Phase 5)
-6. `bulk-score-accounts`
-7. `enrich-accounts`
-8. `generate-icp-insights`
-9. Additional scoring and analysis functions
+6. `generate-scheduled-report` (Phase 6)
+7. `analyze-cohorts` (Phase 6)
+8. `train-propensity-model` (Phase 6)
+9. `bulk-score-accounts`
+10. `enrich-accounts`
+11. `generate-icp-insights`
+12. Additional scoring and analysis functions
 
 ### Database Functions
 - `normalize_domain_text()` - Domain normalization
@@ -359,6 +509,8 @@ This document provides a comprehensive guide to all implementation phases for th
 - Org-scoped data access
 - Admin-only operations for sensitive features
 - API key authentication for external access
+- Edge function JWT verification
+- Secure search_path configuration
 
 ---
 
@@ -389,6 +541,13 @@ This document provides a comprehensive guide to all implementation phases for th
 - ✅ Rate limits enforced
 - ✅ Audit trail enabled
 
+### Phase 6 Success
+- ✅ Custom reports available
+- ✅ Cohort analysis functional
+- ✅ ML predictions enabled
+- ✅ Dynamic segmentation working
+- ✅ Trend analysis accessible
+
 ---
 
 ## 📝 Next Steps
@@ -399,6 +558,7 @@ This document provides a comprehensive guide to all implementation phases for th
 3. Enable features in Labs
 4. Configure external integrations
 5. Set up Zapier webhooks
+6. Enable Phase 6 advanced analytics
 
 ### Ongoing Maintenance
 - Monitor rate limits
@@ -406,6 +566,8 @@ This document provides a comprehensive guide to all implementation phases for th
 - Optimize AI agents
 - Update ICP profiles
 - Analyze pipeline metrics
+- Train ML models with new closed-won data
+- Review cohort performance
 
 ---
 
@@ -413,6 +575,8 @@ This document provides a comprehensive guide to all implementation phases for th
 
 - `PHASE2_COMPLETION.md` - Phase 2 detailed guide
 - `PHASE5_IMPLEMENTATION.md` - Phase 5 detailed guide
+- `PHASE6_COMPLETION.md` - Phase 6 detailed guide
+- `SECURITY.md` - Security configuration
 - Edge function logs: Supabase Dashboard
 - Database schema: Supabase Table Editor
 
@@ -434,6 +598,12 @@ This document provides a comprehensive guide to all implementation phases for th
 **Issue:** Lead not matching to account
 **Solution:** Check domain format, run lead matcher
 
+**Issue:** Phase 6 features not visible
+**Solution:** Enable feature flags in Settings > Labs
+
+**Issue:** ML model not training
+**Solution:** Ensure sufficient closed-won data exists
+
 ### Debug Tools
 - Edge function logs in Supabase Dashboard
 - Console logs in browser DevTools
@@ -443,5 +613,5 @@ This document provides a comprehensive guide to all implementation phases for th
 ---
 
 **Implementation Status:** All Phases Complete ✅  
-**Last Updated:** 2025-10-04  
-**Version:** 1.0.0
+**Last Updated:** 2025-12-18  
+**Version:** 2.0.0
