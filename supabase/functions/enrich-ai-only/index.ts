@@ -37,6 +37,7 @@ interface AIEnrichmentResult {
   employee_count?: EnrichedField;
   revenue_range?: EnrichedField;
   industry_norm?: EnrichedField;
+  country?: EnrichedField;
   company_type?: EnrichedField;
   business_model?: EnrichedField;
   linkedin_url?: EnrichedField;
@@ -222,6 +223,14 @@ Only return estimates you're confident about (>50%).`;
                           reasoning: { type: "string" }
                         }
                       },
+                      country: {
+                        type: "object",
+                        properties: {
+                          value: { type: "string", description: "Country name e.g. United States, United Kingdom, Germany" },
+                          confidence: { type: "number", minimum: 0, maximum: 100 },
+                          reasoning: { type: "string" }
+                        }
+                      },
                       linkedin_url: {
                         type: "object",
                         properties: {
@@ -344,6 +353,15 @@ async function processBatchWithRetry(
             result.business_model.confidence >= CONFIDENCE_THRESHOLD) {
           updates.business_model = result.business_model.value;
           fieldScores.business_model = result.business_model.confidence;
+          fieldsEnriched++;
+        }
+
+        // Apply country if confident and missing
+        if (result.country && 
+            result.country.confidence >= CONFIDENCE_THRESHOLD &&
+            !account.country) {
+          updates.country = result.country.value;
+          fieldScores.country = result.country.confidence;
           fieldsEnriched++;
         }
 
@@ -504,9 +522,10 @@ serve(async (req) => {
       .eq("org_id", job.org_id)
       .not("domain", "is", null);
 
-    // Apply filters - focus on accounts missing data (including linkedin_url)
+    // Apply filters - focus on accounts missing data that matter for dashboard counts
+    // Dashboard criteria: employee_count, revenue_range, industry_norm/industry_raw, country
     if (!filters.include_complete) {
-      query = query.or("employee_count.is.null,revenue_range.is.null,industry_raw.is.null,linkedin_url.is.null");
+      query = query.or("employee_count.is.null,revenue_range.is.null,industry_raw.is.null,country.is.null");
     }
 
     // NOTE: We do NOT filter out processed IDs in the query because it causes URL length overflow
