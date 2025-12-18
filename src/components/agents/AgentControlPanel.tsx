@@ -245,47 +245,46 @@ export function AgentControlPanel() {
         })}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Agent Activity</CardTitle>
-          <CardDescription>Last 10 agent runs across all agents</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {recentRuns?.map((run) => {
-              const agent = agents?.find((a) => a.id === run.agent_id);
-              return (
-                <div
-                  key={run.id}
-                  className="flex items-center justify-between border-b pb-2 last:border-0"
-                >
-                  <div className="flex items-center gap-3">
-                    {run.status === "completed" ? (
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                    ) : run.status === "failed" ? (
-                      <XCircle className="h-4 w-4 text-red-500" />
-                    ) : (
-                      <Clock className="h-4 w-4 text-yellow-500" />
-                    )}
-                    <div>
-                      <p className="text-sm font-medium">{agent?.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(run.started_at), { addSuffix: true })}
-                      </p>
+      {recentRuns && recentRuns.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Recent Activity</CardTitle>
+            <CardDescription>Last {Math.min(recentRuns.length, 5)} agent runs</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {recentRuns?.slice(0, 5).map((run) => {
+                const agent = agents?.find((a) => a.id === run.agent_id);
+                return (
+                  <div
+                    key={run.id}
+                    className="flex items-center justify-between border-b pb-2 last:border-0"
+                  >
+                    <div className="flex items-center gap-3">
+                      {run.status === "completed" ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : run.status === "failed" ? (
+                        <XCircle className="h-4 w-4 text-red-500" />
+                      ) : (
+                        <Clock className="h-4 w-4 text-yellow-500" />
+                      )}
+                      <div>
+                        <p className="text-sm font-medium">{agent?.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(run.started_at), { addSuffix: true })}
+                        </p>
+                      </div>
                     </div>
+                    <Badge variant={run.status === "completed" ? "default" : run.status === "failed" ? "destructive" : "secondary"}>
+                      {run.status}
+                    </Badge>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium">
-                      {run.records_affected}/{run.records_processed}
-                    </p>
-                    <p className="text-xs text-muted-foreground">records affected</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
