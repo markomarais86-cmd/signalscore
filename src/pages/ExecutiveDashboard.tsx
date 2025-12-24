@@ -594,10 +594,14 @@ export default function ExecutiveDashboard() {
                   subtitle={sourceFilter === 'database' ? `Available via ${tamData?.provider || 'Database'}` : 'In your CRM'}
                   trend={sourceFilter === 'crm' && trendData?.totalAccountsGrowth ? { value: trendData.totalAccountsGrowth, period: "last week" } : undefined}
                   icon={Building2}
+                  onClick={() => {
+                    console.log('[ExecutiveDashboard] Total Accounts clicked');
+                    navigate('/accounts');
+                  }}
                   tooltip={{
                     title: "Total Accounts",
                     description: "The total number of accounts in your system. CRM view shows accounts from your sales system, Database view shows your full addressable market.",
-                    example: "Filter by data source to see different views"
+                    example: "Click to view all accounts"
                   }}
                 />
                 {sourceFilter === 'database' ? (
@@ -606,10 +610,14 @@ export default function ExecutiveDashboard() {
                     value={tamData?.totalLeads || 0}
                     subtitle="Available in market database"
                     icon={Users}
+                    onClick={() => {
+                      console.log('[ExecutiveDashboard] Total Contacts (database) clicked');
+                      navigate('/leads');
+                    }}
                     tooltip={{
                       title: "Available Contacts",
                       description: "Total contacts available in your TAM database. Redeem contacts to import them into your CRM for campaigns.",
-                      example: "Use Campaign Builder to redeem contacts"
+                      example: "Click to view contacts"
                     }}
                   />
                 ) : (
@@ -620,7 +628,10 @@ export default function ExecutiveDashboard() {
                     trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
                     icon={Users}
                     status={campaignReadyLeads > 0 ? 'success' : 'warning'}
-                    onClick={() => navigate('/leads?campaign_ready=true')}
+                    onClick={() => {
+                      console.log('[ExecutiveDashboard] Campaign Ready clicked');
+                      navigate('/leads?campaign_ready=true');
+                    }}
                     tooltip={{
                       title: "Campaign Ready Contacts",
                       description: "Leads that have email, job title, and persona identified. These contacts can be immediately used in campaigns without additional enrichment cost.",

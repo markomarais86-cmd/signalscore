@@ -66,7 +66,11 @@ export function FitDistributionHero({
           {/* High Fit */}
           <div
             className="relative z-10 cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-high/20 bg-fit-high/5"
-            onClick={() => navigate('/accounts?fit=high')}
+            onClick={(e) => {
+              e.stopPropagation();
+              console.log('[FitDistributionHero] High Fit clicked, navigating to /accounts?fit=high');
+              navigate('/accounts?fit=high');
+            }}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-medium text-muted-foreground">High Fit</div>
@@ -104,7 +108,11 @@ export function FitDistributionHero({
           {/* Medium Fit */}
           <div
             className="relative z-10 cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-medium/20 bg-fit-medium/5"
-            onClick={() => navigate('/accounts?fit=medium')}
+            onClick={(e) => {
+              e.stopPropagation();
+              console.log('[FitDistributionHero] Medium Fit clicked, navigating to /accounts?fit=medium');
+              navigate('/accounts?fit=medium');
+            }}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-medium text-muted-foreground">Medium Fit</div>
@@ -142,7 +150,11 @@ export function FitDistributionHero({
           {/* Low Fit */}
           <div
             className="relative z-10 cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-low/20 bg-fit-low/5"
-            onClick={() => navigate('/accounts?fit=low')}
+            onClick={(e) => {
+              e.stopPropagation();
+              console.log('[FitDistributionHero] Low Fit clicked, navigating to /accounts?fit=low');
+              navigate('/accounts?fit=low');
+            }}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-medium text-muted-foreground">Low Fit</div>
