@@ -61,10 +61,16 @@ export function HeroMetric({
     }
   };
 
+  const handleClick = onClick ? (e: React.MouseEvent) => {
+    e.stopPropagation();
+    console.log(`[HeroMetric] "${label}" clicked`);
+    onClick();
+  } : undefined;
+
   return (
     <Card 
       className={`relative overflow-hidden border-l-4 ${getStatusColor()} hover:shadow-lg hover:scale-[1.01] transition-all duration-200 ${onClick ? 'cursor-pointer active:scale-[0.99]' : ''}`}
-      onClick={onClick}
+      onClick={handleClick}
     >
       <div className="p-3 lg:p-4">
         <div className="flex items-start justify-between mb-3">
