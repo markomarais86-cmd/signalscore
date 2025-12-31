@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp, ArrowRight, Sparkles, RefreshCw, Rocket, Search } from "lucide-react";
+import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, TrendingUp, ArrowRight, RefreshCw, Rocket, Search } from "lucide-react";
+import { LaunchPulseMark } from '@/components/BrandLogo';
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -411,7 +412,7 @@ export default function ICPManager() {
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-4 w-4" />
+                  <LaunchPulseMark className="h-4 w-4" />
                   AI ICP Builder
                 </>
               )}

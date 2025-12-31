@@ -1,7 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, AlertCircle, Info, Sparkles } from "lucide-react";
+import { AlertTriangle, AlertCircle, Info } from "lucide-react";
+import { LaunchPulseMark } from '@/components/BrandLogo';
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { RiskItem } from "@/utils/risk-detector";
@@ -89,7 +90,7 @@ export function RiskExceptionsPanel({ risks, onRiskClick }: RiskExceptionsPanelP
             onClick={() => navigate('/settings?tab=integrations')}
             className="gap-2"
           >
-            <Sparkles className="h-4 w-4" />
+            <LaunchPulseMark className="h-4 w-4" />
             Enrich Missing Data
           </Button>
         </div>

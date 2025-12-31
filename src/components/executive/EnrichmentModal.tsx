@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, Database, AlertCircle } from "lucide-react";
+import { Database, AlertCircle } from "lucide-react";
+import { LaunchPulseMark } from '@/components/BrandLogo';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -212,7 +213,7 @@ export function EnrichmentModal({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <LaunchPulseMark className="h-5 w-5 text-primary" />
             Enrich Account Data
           </DialogTitle>
           <DialogDescription>
@@ -325,7 +326,7 @@ export function EnrichmentModal({
               </>
             ) : (
               <>
-                <Sparkles className="h-4 w-4 mr-2" />
+                <LaunchPulseMark className="h-4 w-4 mr-2" />
                 Start Enrichment
               </>
             )}

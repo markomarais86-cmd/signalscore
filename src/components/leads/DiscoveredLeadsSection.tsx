@@ -6,7 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { UserSearch, ExternalLink, Mail, Phone, Linkedin, Sparkles } from "lucide-react";
+import { UserSearch, ExternalLink, Mail, Phone, Linkedin } from "lucide-react";
+import { LaunchPulseMark } from '@/components/BrandLogo';
 
 interface DiscoveredLead {
   id: number;
@@ -113,7 +114,7 @@ export function DiscoveredLeadsSection({ accountExternalId, accountName }: Disco
             Discovered Contacts
           </span>
           <Badge variant="secondary" className="flex items-center gap-1">
-            <Sparkles className="h-3 w-3" />
+            <LaunchPulseMark className="h-3 w-3" />
             {totalCount} AI-Found
           </Badge>
         </CardTitle>
