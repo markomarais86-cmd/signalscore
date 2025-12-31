@@ -60,11 +60,13 @@ export function SimpleICPTable({
   ];
 
   return (
-    <Card className={`${className} border-border/50 bg-card/80 backdrop-blur-sm hover:border-primary/20 transition-colors duration-300`}>
+    <Card className={`${className} floating-card border-border/30 bg-card/90 backdrop-blur-xl shadow-xl shadow-primary/5 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500`}>
       <CardContent className="p-6">
         {/* Header */}
         <div className="flex items-center gap-2 mb-4">
-          <Database className="h-4 w-4 text-primary" />
+          <div className="p-1.5 rounded-md bg-primary/10">
+            <Database className="h-4 w-4 text-primary" />
+          </div>
           <span className="text-sm font-medium text-muted-foreground">ICP Coverage by Source</span>
         </div>
         
@@ -85,7 +87,7 @@ export function SimpleICPTable({
                     <row.icon className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium text-foreground">{row.source}</span>
                     {row.isExternal && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
                         Apollo
                       </span>
                     )}
