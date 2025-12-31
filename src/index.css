@@ -321,6 +321,45 @@
       radial-gradient(at 0% 100%, hsl(161 88% 67% / 0.1) 0px, transparent 50%);
   }
   
+  /* Grid Pattern Background */
+  .bg-grid-pattern {
+    background-image: 
+      linear-gradient(to right, hsl(var(--border) / 0.03) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.03) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  
+  /* Floating Card 3D Effects */
+  .floating-card {
+    @apply relative transition-all duration-500 ease-out;
+    transform: perspective(1000px) rotateX(2deg);
+  }
+  
+  .floating-card:hover {
+    transform: perspective(1000px) rotateX(0deg) translateY(-8px);
+    box-shadow: 
+      0 25px 50px -12px hsl(161 85% 60% / 0.25),
+      0 12px 24px -8px hsl(0 0% 0% / 0.2);
+  }
+  
+  .floating-card-left {
+    @apply relative transition-all duration-500 ease-out;
+    transform: perspective(1000px) rotateY(4deg) rotateX(2deg);
+  }
+  
+  .floating-card-left:hover {
+    transform: perspective(1000px) rotateY(0deg) rotateX(0deg) translateY(-8px);
+  }
+  
+  .floating-card-right {
+    @apply relative transition-all duration-500 ease-out;
+    transform: perspective(1000px) rotateY(-4deg) rotateX(2deg);
+  }
+  
+  .floating-card-right:hover {
+    transform: perspective(1000px) rotateY(0deg) rotateX(0deg) translateY(-8px);
+  }
+  
   /* Animation utilities */
   .animate-float {
     animation: float 6s ease-in-out infinite;

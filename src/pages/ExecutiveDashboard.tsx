@@ -31,6 +31,7 @@ import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
 // Simplified components
 import { SimplifiedHeroMetrics } from "@/components/executive/SimplifiedHeroMetrics";
 import { ICPDonutChart } from "@/components/executive/ICPDonutChart";
+import { ICPCoveragePanel } from "@/components/executive/ICPCoveragePanel";
 import { SimpleICPTable } from "@/components/executive/SimpleICPTable";
 import { SimpleTAMCard } from "@/components/executive/SimpleTAMCard";
 import { SimpleGeographyCard } from "@/components/executive/SimpleGeographyCard";
@@ -386,7 +387,7 @@ export default function ExecutiveDashboard() {
   };
 
   return (
-    <div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-3 lg:space-y-4">
+    <div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-6 lg:space-y-8 hero-gradient bg-grid-pattern min-h-screen pb-8">
       {/* Command Palette - Global keyboard shortcut */}
       <CommandPalette
         onScoreAccounts={handleScoreAccounts}
@@ -573,7 +574,7 @@ export default function ExecutiveDashboard() {
           </div>
         ) : (
           <>
-            {/* Simplified Hero Metrics */}
+            {/* Simplified Hero Metrics - Floating Cards */}
             <SimplifiedHeroMetrics
               totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
               totalLeads={sourceFilter === 'database' ? (tamData?.totalLeads || 0) : totalLeads}
@@ -582,64 +583,73 @@ export default function ExecutiveDashboard() {
               tamProvider={tamData?.provider}
             />
 
-            {/* Main Content Grid - 2 columns */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-              {/* Left Column */}
-              <div className="space-y-4">
-                {/* ICP Coverage Table */}
-                <SimpleICPTable
-                  crmAccounts={crmAccounts}
-                  databaseAccounts={databaseAccounts}
-                  highFitCrmAccounts={highFitCrmAccounts}
-                  highFitDatabaseAccounts={highFitDatabaseAccounts}
-                  apolloAccounts={tamData?.totalAccounts}
-                  apolloHighFitEstimate={
-                    tamData?.totalAccounts && tamData?.industry_breakdown
-                      ? Math.round(tamData.totalAccounts * 0.35) // Estimate 35% high-fit from Apollo industry data
-                      : undefined
-                  }
-                />
-                
-                {/* Geography Card */}
-                <SimpleGeographyCard
-                  geoData={
-                    sourceFilter === 'database' && tamData?.geography_breakdown
-                      ? Object.entries(tamData.geography_breakdown as Record<string, number>).map(([country, count]) => ({
-                          country,
-                          count,
-                        })).sort((a, b) => b.count - a.count)
-                      : geographyDistribution.map(g => ({ country: g.country, count: g.count }))
-                  }
-                />
-                
-                {/* TAM/SAM/SOM Card */}
-                <SimpleTAMCard
-                  totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-                  highFitAccounts={highFitAccounts}
-                  campaignReadyAccounts={campaignReadyAccounts}
-                  averageDealSize={75000}
-                />
-              </div>
+            {/* Central ICP Coverage Panel */}
+            <ICPCoveragePanel
+              highFitAccounts={highFitAccounts}
+              medFitAccounts={medFitAccounts}
+              lowFitAccounts={lowFitAccounts}
+              totalScored={totalScores}
+              highFitLeads={highFitLeads}
+              totalLeads={totalLeads}
+            />
 
-              {/* Right Column */}
-              <div className="space-y-4">
-                {/* ICP Donut Chart */}
-                <ICPDonutChart
-                  highFitAccounts={highFitAccounts}
-                  totalScored={totalScores}
-                />
-                
-                {/* CRM Insights Panel */}
-                <UnifiedInsightsPanel
-                  risks={risks}
-                  insights={insights || []}
-                  orgId={userProfile?.org_id}
-                  onRefresh={handleRefreshInsights}
-                  campaignReadyCount={campaignReadyAccounts}
-                  completenessScore={dataCompleteness}
-                  totalScored={totalScores}
-                />
-              </div>
+            {/* Main Content Grid - 3 columns for visual balance */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Column - ICP Coverage Table */}
+              <SimpleICPTable
+                crmAccounts={crmAccounts}
+                databaseAccounts={databaseAccounts}
+                highFitCrmAccounts={highFitCrmAccounts}
+                highFitDatabaseAccounts={highFitDatabaseAccounts}
+                apolloAccounts={tamData?.totalAccounts}
+                apolloHighFitEstimate={
+                  tamData?.totalAccounts && tamData?.industry_breakdown
+                    ? Math.round(tamData.totalAccounts * 0.35)
+                    : undefined
+                }
+              />
+              
+              {/* Center Column - TAM/SAM/SOM Card */}
+              <SimpleTAMCard
+                totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
+                highFitAccounts={highFitAccounts}
+                campaignReadyAccounts={campaignReadyAccounts}
+                averageDealSize={75000}
+              />
+              
+              {/* Right Column - Geography Card */}
+              <SimpleGeographyCard
+                geoData={
+                  sourceFilter === 'database' && tamData?.geography_breakdown
+                    ? Object.entries(tamData.geography_breakdown as Record<string, number>).map(([country, count]) => ({
+                        country,
+                        count,
+                      })).sort((a, b) => b.count - a.count)
+                    : geographyDistribution.map(g => ({ country: g.country, count: g.count }))
+                }
+              />
+            </div>
+
+            {/* Bottom Row - Insights */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* ICP Donut Chart */}
+              <ICPDonutChart
+                highFitAccounts={highFitAccounts}
+                medFitAccounts={medFitAccounts}
+                lowFitAccounts={lowFitAccounts}
+                totalScored={totalScores}
+              />
+              
+              {/* CRM Insights Panel */}
+              <UnifiedInsightsPanel
+                risks={risks}
+                insights={insights || []}
+                orgId={userProfile?.org_id}
+                onRefresh={handleRefreshInsights}
+                campaignReadyCount={campaignReadyAccounts}
+                completenessScore={dataCompleteness}
+                totalScored={totalScores}
+              />
             </div>
           </>
         )}
