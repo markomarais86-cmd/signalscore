@@ -10,10 +10,10 @@ import {
   Database, 
   BarChart3, 
   ArrowRight,
-  ArrowLeft,
-  Sparkles
+  ArrowLeft
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { LaunchPulseMark } from '@/components/BrandLogo';
 
 interface OnboardingStep {
   id: string;
@@ -108,7 +108,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       {/* Header */}
       <div className="text-center space-y-2">
         <div className="inline-flex items-center gap-2 mb-4">
-          <Sparkles className="h-6 w-6 text-primary" />
+          <LaunchPulseMark className="w-6 h-6" />
           <h1 className="text-2xl font-bold">Welcome to LaunchPulse</h1>
         </div>
         <p className="text-muted-foreground">

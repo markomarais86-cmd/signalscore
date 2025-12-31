@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
 import { useSearchParams, useLocation, useNavigate, Link } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { ScoreBreakdownDialog } from "@/components/scoring/ScoreBreakdownDialog";
 import { AccountDetailDrawer } from "@/components/accounts/AccountDetailDrawer";
@@ -492,7 +492,7 @@ export default function Accounts() {
       {/* Scoring Alert */}
       {needsScoring && (
         <Alert className="border-primary bg-primary/5">
-          <Sparkles className="h-4 w-4 text-primary" />
+          <LaunchPulseMark className="w-4 h-4" />
           <AlertDescription>
             <strong>Ready to score your accounts!</strong> You have {totalAccountsForSummary} accounts and an active ICP profile. 
             Use the Bulk Scoring Engine below to calculate ICP match scores for all accounts.

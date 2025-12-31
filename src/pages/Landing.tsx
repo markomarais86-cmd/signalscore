@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, ArrowRight, Target, TrendingUp, Database, Zap, Users, Shield, Sparkles } from "lucide-react";
+import { Check, ArrowRight, Target, TrendingUp, Database, Zap, Users, Shield } from "lucide-react";
 import { Link } from "react-router-dom";
-import { BrandLogo } from "@/components/BrandLogo";
+import { BrandLogo, LaunchPulseMark } from "@/components/BrandLogo";
 import { GradientBackground } from "@/components/ui/GradientBackground";
 
 export default function Landing() {
@@ -127,7 +127,7 @@ export default function Landing() {
       <section className="container mx-auto px-6 pt-24 pb-20 text-center relative">
         <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
           <Badge className="mb-6 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" variant="outline">
-            <Sparkles className="w-3 h-3 mr-1" />
+            <LaunchPulseMark className="w-3 h-3 mr-1" />
             Where GTM Meets ICP Precision
           </Badge>
         </div>
