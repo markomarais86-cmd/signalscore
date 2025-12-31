@@ -6,7 +6,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
-  Sparkles, 
   TrendingUp, 
   Target, 
   Mail, 
@@ -19,6 +18,7 @@ import {
   RefreshCw,
   AlertCircle
 } from "lucide-react";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -94,13 +94,13 @@ export function AccountInsightsPanel({
     return (
       <Card>
         <CardContent className="py-8 text-center">
-          <Sparkles className="h-12 w-12 mx-auto text-primary mb-4" />
+          <LaunchPulseMark className="h-12 w-12 mx-auto text-primary mb-4" />
           <h4 className="font-semibold mb-2">AI Insights Available</h4>
           <p className="text-sm text-muted-foreground mb-4">
             This high-fit account qualifies for personalized AI insights
           </p>
           <Button onClick={onRefresh}>
-            <Sparkles className="h-4 w-4 mr-2" />
+            <LaunchPulseMark className="h-4 w-4 mr-2" />
             Generate AI Insights
           </Button>
         </CardContent>
@@ -133,7 +133,7 @@ export function AccountInsightsPanel({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 animate-pulse text-primary" />
+            <LaunchPulseMark className="h-5 w-5 animate-pulse text-primary" />
             Generating Personalized Insights...
           </CardTitle>
           <CardDescription>Analyzing account data and similar closed-won deals</CardDescription>
@@ -170,7 +170,7 @@ export function AccountInsightsPanel({
       {/* Header with refresh */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
+          <LaunchPulseMark className="h-5 w-5 text-primary" />
           <span className="font-semibold">AI-Powered Insights</span>
           {cached && (
             <Badge variant="outline" className="text-xs">Cached</Badge>

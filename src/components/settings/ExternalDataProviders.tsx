@@ -11,7 +11,8 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Database, Check, X, Loader2, UserCheck, Sparkles, AlertCircle } from "lucide-react";
+import { Database, Check, X, Loader2, UserCheck, AlertCircle } from "lucide-react";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Provider {
@@ -288,7 +289,7 @@ export function ExternalDataProviders() {
         <CardHeader>
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
-              <Sparkles className="h-5 w-5 text-primary" />
+              <LaunchPulseMark className="h-5 w-5 text-primary" />
               <div>
                 <CardTitle className="text-base">Contact Persona Enrichment</CardTitle>
                 <CardDescription>Automatically map job titles to standardized personas</CardDescription>
@@ -332,7 +333,7 @@ export function ExternalDataProviders() {
                 </>
               ) : (
                 <>
-                  <Sparkles className="h-4 w-4 mr-2" />
+                  <LaunchPulseMark className="h-4 w-4 mr-2" />
                   Enrich {contactStats.pending.toLocaleString()} Contacts
                 </>
               )}

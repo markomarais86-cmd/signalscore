@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
-  Sparkles, 
   TrendingUp, 
   Users, 
   Target,
@@ -13,6 +12,7 @@ import {
   BarChart3,
   Loader2
 } from 'lucide-react';
+import { LaunchPulseMark } from '@/components/BrandLogo';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
@@ -112,7 +112,7 @@ export function AIInsightsPanel({ formData, onApplyRecommendation }: AIInsightsP
     <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
+          <LaunchPulseMark className="h-5 w-5 text-primary" />
           AI ICP Assistant
         </CardTitle>
         <CardDescription>
@@ -157,7 +157,7 @@ export function AIInsightsPanel({ formData, onApplyRecommendation }: AIInsightsP
               disabled={isGenerating}
               className="flex items-center gap-2"
             >
-              <Sparkles className="h-4 w-4" />
+              <LaunchPulseMark className="h-4 w-4" />
               Generate Recommendations
             </Button>
           </div>
