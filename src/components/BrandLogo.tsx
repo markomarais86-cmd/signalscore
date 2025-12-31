@@ -1,43 +1,12 @@
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/ui/sidebar";
+import launchpulseLogo from "@/assets/launchpulse-logo.png";
 
 interface BrandLogoProps {
   variant?: "light" | "dark";
   className?: string;
   showTagline?: boolean;
   collapsed?: boolean;
-}
-
-// Pulse/wave icon mark SVG component
-function PulseIcon({ className }: { className?: string }) {
-  return (
-    <svg 
-      viewBox="0 0 32 32" 
-      fill="none" 
-      xmlns="http://www.w3.org/2000/svg"
-      className={cn("w-8 h-8", className)}
-    >
-      {/* Pulse wave lines */}
-      <path 
-        d="M4 16h4l3-8 4 16 4-12 3 4h6" 
-        stroke="currentColor" 
-        strokeWidth="2.5" 
-        strokeLinecap="round" 
-        strokeLinejoin="round"
-        className="text-primary"
-      />
-      {/* Glow circle behind */}
-      <circle 
-        cx="16" 
-        cy="16" 
-        r="14" 
-        stroke="currentColor" 
-        strokeWidth="1.5" 
-        strokeOpacity="0.3"
-        className="text-primary"
-      />
-    </svg>
-  );
 }
 
 export function BrandLogo({ 
@@ -61,7 +30,11 @@ export function BrandLogo({
   if (isCollapsed) {
     return (
       <div className={cn("flex items-center justify-center", className)}>
-        <PulseIcon className="w-7 h-7" />
+        <img 
+          src={launchpulseLogo} 
+          alt="LaunchPulse" 
+          className="w-7 h-7 object-contain"
+        />
       </div>
     );
   }
@@ -69,7 +42,11 @@ export function BrandLogo({
   return (
     <div className={cn("flex flex-col", className)}>
       <div className="flex items-center gap-2">
-        <PulseIcon className="w-8 h-8" />
+        <img 
+          src={launchpulseLogo} 
+          alt="LaunchPulse" 
+          className="w-8 h-8 object-contain"
+        />
         <div className={cn(
           "text-2xl font-bold font-heading tracking-tight",
           variant === "light" ? "text-foreground" : "text-background"
