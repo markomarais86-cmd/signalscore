@@ -1,12 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { MessageCircle, X, Send, Sparkles, Trash2, CheckCircle, XCircle, Loader2, Brain } from 'lucide-react';
+import { MessageCircle, X, Send, Trash2, CheckCircle, XCircle, Loader2, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAIChat, ChatMessage } from '@/hooks/use-ai-chat';
 import { useAIMemory } from '@/hooks/use-ai-memory';
 import { cn } from '@/lib/utils';
+import { LaunchPulseMark } from '@/components/BrandLogo';
 import { 
   AccountCardList, 
   ContactCardList, 
@@ -254,7 +255,7 @@ function MessageBubble({ message, onSendMessage }: { message: ChatMessage; onSen
     <div className={cn('flex gap-2 mb-3', isUser ? 'justify-end' : 'justify-start')}>
       {!isUser && (
         <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-          <Sparkles className="w-4 h-4 text-primary" />
+          <LaunchPulseMark className="w-4 h-4" />
         </div>
       )}
       <div
@@ -301,7 +302,7 @@ function ActionConfirmation({ action, onConfirm, onCancel, isLoading }: ActionCo
   return (
     <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 mb-3">
       <div className="flex items-center gap-2 mb-2">
-        <Sparkles className="w-4 h-4 text-primary" />
+        <LaunchPulseMark className="w-4 h-4" />
         <span className="font-medium text-sm">Ready to execute action</span>
       </div>
       <div className="text-xs text-muted-foreground mb-3">
@@ -480,7 +481,7 @@ export function AIChat() {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-primary" />
+              <LaunchPulseMark className="w-5 h-5" />
               <span className="font-semibold text-sm">LaunchPulse AI</span>
               <kbd className="hidden sm:inline-flex h-5 items-center gap-1 rounded border bg-muted px-1.5 text-[10px] text-muted-foreground">
                 ⌘K
@@ -572,7 +573,7 @@ export function AIChat() {
                 {isLoading && !pendingAction && !activeWorkflow && messages[messages.length - 1]?.role === 'user' && (
                   <div className="flex gap-2 mb-3">
                     <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Sparkles className="w-4 h-4 text-primary animate-pulse" />
+                      <LaunchPulseMark className="w-4 h-4 animate-pulse" />
                     </div>
                     <div className="bg-muted rounded-lg px-3 py-2">
                       <div className="flex gap-1">

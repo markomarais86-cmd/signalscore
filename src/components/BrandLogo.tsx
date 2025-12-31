@@ -9,7 +9,7 @@ interface BrandLogoProps {
 }
 
 // LaunchPulse brand mark - the geometric logo icon
-function LaunchPulseMark({ className }: { className?: string }) {
+export function LaunchPulseMark({ className }: { className?: string }) {
   return (
     <svg 
       viewBox="0 0 1000 1000" 
