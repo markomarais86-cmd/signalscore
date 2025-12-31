@@ -11,6 +11,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { FormState, initialFormState, validateEmail, validatePassword, getFormValue, createErrorState, createFormState } from '@/lib/form-actions';
+import { GradientBackground } from '@/components/ui/GradientBackground';
+import { BrandLogo } from '@/components/BrandLogo';
 
 const PENDING_INVITE_KEY = 'pending_invitation_token';
 
@@ -222,227 +224,237 @@ export function AuthSystem() {
   const [signUpState, signUpFormAction, signUpPending] = useActionState(signUpAction, initialFormState);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/20 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">LaunchPulse</CardTitle>
-          <p className="text-muted-foreground">
-            ICP Analysis & Lead Scoring Platform
-          </p>
-        </CardHeader>
-        <CardContent>
-          {invitationInfo && (
-            <Alert className="mb-4">
-              <CheckCircle2 className="h-4 w-4" />
-              <AlertDescription>
-                You've been invited to join <strong>{invitationInfo.organizations?.name}</strong>
-              </AlertDescription>
-            </Alert>
-          )}
-          
-          <Tabs defaultValue={inviteToken ? "signup" : "signin"} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
+    <GradientBackground variant="auth" showOrbs>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-md animate-fade-in">
+          {/* Logo */}
+          <div className="text-center mb-8">
+            <BrandLogo variant="light" className="justify-center" />
+          </div>
 
-            {/* Sign In Form */}
-            <TabsContent value="signin">
-              <form action={signInFormAction} className="space-y-4">
-                {signInState.error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{signInState.error}</AlertDescription>
-                  </Alert>
-                )}
-                
-                <div className="space-y-2">
-                  <Label htmlFor="signin-email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="signin-email"
-                      name="email"
-                      type="email"
-                      placeholder="you@company.com"
-                      className="pl-10"
-                      disabled={signInPending}
-                    />
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="signin-password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="signin-password"
-                      name="password"
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="Enter your password"
-                      className="pl-10 pr-10"
-                      disabled={signInPending}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
+          <Card variant="glass" className="shadow-glow-sm">
+            <CardHeader className="text-center pb-2">
+              <CardTitle className="text-2xl font-bold">
+                {invitationInfo ? 'Accept Invitation' : 'Welcome Back'}
+              </CardTitle>
+              <p className="text-muted-foreground text-sm mt-1">
+                ICP Analysis & Lead Scoring Platform
+              </p>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {invitationInfo && (
+                <Alert className="mb-4 bg-primary/10 border-primary/20">
+                  <CheckCircle2 className="h-4 w-4 text-primary" />
+                  <AlertDescription className="text-foreground">
+                    You've been invited to join <strong>{invitationInfo.organizations?.name}</strong>
+                  </AlertDescription>
+                </Alert>
+              )}
+              
+              <Tabs defaultValue={inviteToken ? "signup" : "signin"} className="space-y-4">
+                <TabsList className="grid w-full grid-cols-2 bg-muted/50">
+                  <TabsTrigger value="signin" className="data-[state=active]:bg-background">Sign In</TabsTrigger>
+                  <TabsTrigger value="signup" className="data-[state=active]:bg-background">Sign Up</TabsTrigger>
+                </TabsList>
 
-                <Button type="submit" className="w-full" disabled={signInPending}>
-                  {signInPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    'Sign In'
-                  )}
-                </Button>
+                {/* Sign In Form */}
+                <TabsContent value="signin">
+                  <form action={signInFormAction} className="space-y-4">
+                    {signInState.error && (
+                      <Alert variant="destructive" className="bg-destructive/10 border-destructive/20">
+                        <AlertDescription>{signInState.error}</AlertDescription>
+                      </Alert>
+                    )}
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="signin-email" className="text-sm font-medium">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="signin-email"
+                          name="email"
+                          type="email"
+                          placeholder="you@company.com"
+                          className="pl-10 bg-background/50 border-border/50 focus:border-primary/50 input-glow"
+                          disabled={signInPending}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="signin-password" className="text-sm font-medium">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="signin-password"
+                          name="password"
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder="Enter your password"
+                          className="pl-10 pr-10 bg-background/50 border-border/50 focus:border-primary/50 input-glow"
+                          disabled={signInPending}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
 
-                <div className="text-center">
-                  <Button
-                    type="button"
-                    variant="link"
-                    className="text-sm text-muted-foreground hover:text-primary"
-                    onClick={() => navigate('/reset-password')}
-                  >
-                    Forgot password?
-                  </Button>
-                </div>
-              </form>
-            </TabsContent>
+                    <Button type="submit" className="w-full" variant="glow" disabled={signInPending}>
+                      {signInPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Signing in...
+                        </>
+                      ) : (
+                        'Sign In'
+                      )}
+                    </Button>
 
-            {/* Sign Up Form */}
-            <TabsContent value="signup">
-              <form action={signUpFormAction} className="space-y-4">
-                {signUpState.error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{signUpState.error}</AlertDescription>
-                  </Alert>
-                )}
-                
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Full Name</Label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="signup-name"
-                      name="fullName"
-                      type="text"
-                      placeholder="John Doe"
-                      className="pl-10"
-                      disabled={signUpPending}
-                    />
-                  </div>
-                </div>
+                    <div className="text-center">
+                      <Button
+                        type="button"
+                        variant="link"
+                        className="text-sm text-muted-foreground hover:text-primary"
+                        onClick={() => navigate('/reset-password')}
+                      >
+                        Forgot password?
+                      </Button>
+                    </div>
+                  </form>
+                </TabsContent>
 
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="signup-email"
-                      name="email"
-                      type="email"
-                      placeholder="you@company.com"
-                      className="pl-10"
-                      defaultValue={invitationInfo?.email || ''}
-                      disabled={signUpPending}
-                    />
-                  </div>
-                </div>
+                {/* Sign Up Form */}
+                <TabsContent value="signup">
+                  <form action={signUpFormAction} className="space-y-4">
+                    {signUpState.error && (
+                      <Alert variant="destructive" className="bg-destructive/10 border-destructive/20">
+                        <AlertDescription>{signUpState.error}</AlertDescription>
+                      </Alert>
+                    )}
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-name" className="text-sm font-medium">Full Name</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="signup-name"
+                          name="fullName"
+                          type="text"
+                          placeholder="John Doe"
+                          className="pl-10 bg-background/50 border-border/50 focus:border-primary/50 input-glow"
+                          disabled={signUpPending}
+                        />
+                      </div>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="signup-company">Company (Optional)</Label>
-                  <div className="relative">
-                    <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="signup-company"
-                      name="company"
-                      type="text"
-                      placeholder="Your Company"
-                      className="pl-10"
-                      disabled={signUpPending}
-                    />
-                  </div>
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-email" className="text-sm font-medium">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="signup-email"
+                          name="email"
+                          type="email"
+                          placeholder="you@company.com"
+                          className="pl-10 bg-background/50 border-border/50 focus:border-primary/50 input-glow"
+                          defaultValue={invitationInfo?.email || ''}
+                          disabled={signUpPending}
+                        />
+                      </div>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="signup-password"
-                      name="password"
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="Create a password"
-                      className="pl-10 pr-10"
-                      disabled={signUpPending}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Must be at least 8 characters long
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-company" className="text-sm font-medium">Company (Optional)</Label>
+                      <div className="relative">
+                        <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="signup-company"
+                          name="company"
+                          type="text"
+                          placeholder="Your Company"
+                          className="pl-10 bg-background/50 border-border/50 focus:border-primary/50 input-glow"
+                          disabled={signUpPending}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-password" className="text-sm font-medium">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="signup-password"
+                          name="password"
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder="Create a password"
+                          className="pl-10 pr-10 bg-background/50 border-border/50 focus:border-primary/50 input-glow"
+                          disabled={signUpPending}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-3 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Must be at least 8 characters long
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-confirm" className="text-sm font-medium">Confirm Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="signup-confirm"
+                          name="confirmPassword"
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder="Confirm your password"
+                          className="pl-10 bg-background/50 border-border/50 focus:border-primary/50 input-glow"
+                          disabled={signUpPending}
+                        />
+                      </div>
+                    </div>
+
+                    <Button type="submit" className="w-full" variant="glow" disabled={signUpPending}>
+                      {signUpPending ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Creating account...
+                        </>
+                      ) : (
+                        'Create Account'
+                      )}
+                    </Button>
+                  </form>
+                </TabsContent>
+              </Tabs>
+
+              <div className="mt-6 space-y-4 text-center text-sm text-muted-foreground">
+                <div className="glass-card p-4 rounded-xl">
+                  <p className="font-medium mb-2 text-foreground">📧 Email Confirmation Required</p>
+                  <p className="text-xs">
+                    After signing up, check your email and click the confirmation link before signing in.
                   </p>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="signup-confirm">Confirm Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="signup-confirm"
-                      name="confirmPassword"
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="Confirm your password"
-                      className="pl-10"
-                      disabled={signUpPending}
-                    />
-                  </div>
-                </div>
-
-                <Button type="submit" className="w-full" disabled={signUpPending}>
-                  {signUpPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Creating account...
-                    </>
-                  ) : (
-                    'Create Account'
-                  )}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
-
-          <div className="mt-6 space-y-4 text-center text-sm text-muted-foreground">
-            <div className="bg-muted/50 p-4 rounded-lg">
-              <p className="font-medium mb-2">📧 Important: Email Confirmation Required</p>
-              <p>
-                After signing up, you <strong>must</strong> check your email and click the confirmation link before you can sign in. 
-                Check your spam folder if you don't see the email within a few minutes.
-              </p>
-            </div>
-            <p>
-              By signing in, you agree to our{' '}
-              <Link to="/terms" className="text-primary hover:underline">Terms of Service</Link>
-              {' '}and{' '}
-              <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+                <p className="text-xs">
+                  By signing in, you agree to our{' '}
+                  <Link to="/terms" className="text-primary hover:underline">Terms of Service</Link>
+                  {' '}and{' '}
+                  <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </GradientBackground>
   );
 }
 

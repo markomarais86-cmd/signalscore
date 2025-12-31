@@ -2,15 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/* LaunchPulse Premium Design System
+   Inspired by launchpulse.webflow.io
+   All colors MUST be HSL.
 */
 
 @layer base {
   :root {
     /* LaunchPulse Brand Colors - Light Mode */
     --background: 0 0% 100%;
-    --foreground: 0 0% 9%; /* Neutral dark gray */
+    --foreground: 0 0% 9%;
 
     --card: 0 0% 100%;
     --card-foreground: 0 0% 9%;
@@ -18,70 +19,59 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 9%;
 
-    --primary: 161 85% 60%; /* LaunchPulse Green #3CF1AE */
-    --primary-foreground: 210 94% 18%; /* Dark Navy text on green */
+    --primary: 161 85% 60%; /* LaunchPulse Mint #3CF1AE */
+    --primary-foreground: 210 94% 18%;
 
-    --secondary: 161 88% 67%; /* Accent Green #5CF4BC */
+    --secondary: 161 88% 67%; /* Accent Mint #5CF4BC */
     --secondary-foreground: 210 94% 18%;
 
-    --muted: 223 23% 87%; /* Platinum */
-    --muted-foreground: 0 0% 45%; /* Neutral gray */
+    --muted: 223 23% 87%;
+    --muted-foreground: 0 0% 45%;
 
-    --accent: 161 85% 60%; /* LaunchPulse Green */
+    --accent: 161 85% 60%;
     --accent-foreground: 210 94% 18%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 223 23% 81%; /* Light Grey */
+    --border: 223 23% 81%;
     --input: 223 23% 81%;
     --ring: 161 85% 60%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    /* LaunchPulse Chart Colors */
-    --chart-1: 161 85% 60%; /* Primary Green */
-    --chart-2: 161 88% 67%; /* Accent Green */
-    --chart-3: 210 88% 22%; /* Dark Navy */
-    --chart-4: 198 15% 25%; /* Dark Grey */
-    --chart-5: 198 10% 41%; /* Grey */
+    /* Chart Colors */
+    --chart-1: 161 85% 60%;
+    --chart-2: 161 88% 67%;
+    --chart-3: 210 88% 22%;
+    --chart-4: 198 15% 25%;
+    --chart-5: 198 10% 41%;
     
-    /* ICP Fit Level Colors - Semantic Design System */
-    --fit-high: 161 85% 60%; /* LaunchPulse Green */
-    --fit-high-foreground: 0 0% 100%; /* White text */
-    --fit-medium: 43 96% 56%; /* Amber */
-    --fit-medium-foreground: 0 0% 9%; /* Dark text for contrast */
-    --fit-low: 0 84% 60%; /* Rose */
-    --fit-low-foreground: 0 0% 100%; /* White text */
+    /* ICP Fit Level Colors */
+    --fit-high: 161 85% 60%;
+    --fit-high-foreground: 0 0% 100%;
+    --fit-medium: 43 96% 56%;
+    --fit-medium-foreground: 0 0% 9%;
+    --fit-low: 0 84% 60%;
+    --fit-low-foreground: 0 0% 100%;
     
-    /* Signal scoring colors - keeping for compatibility */
-    --signal-high: 161 85% 60%; /* LaunchPulse Green for high */
-    --signal-medium: 43 96% 56%; /* Amber */
-    --signal-low: 0 84% 60%; /* Rose */
+    /* Signal scoring */
+    --signal-high: 161 85% 60%;
+    --signal-medium: 43 96% 56%;
+    --signal-low: 0 84% 60%;
     
-    /* LaunchPulse Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(161 85% 60%), hsl(161 88% 67%));
-    --gradient-success: linear-gradient(135deg, hsl(161 85% 60%), hsl(161 88% 50%));
-    --gradient-accent: linear-gradient(135deg, hsl(161 88% 67%), hsl(161 90% 75%));
-    --gradient-dark: linear-gradient(135deg, hsl(210 88% 22%), hsl(210 94% 18%));
-    
-    /* Executive dashboard styling */
-    --executive-green: 161 85% 60%; /* LaunchPulse Green */
-    --executive-amber: 43 96% 56%;  /* Amber */
-    --executive-red: 0 84% 60%;     /* Rose */
-    --executive-navy: 210 88% 22%;  /* Dark Navy */
-    --executive-cyan: 161 88% 67%;  /* Accent Green */
+    /* Executive dashboard */
+    --executive-green: 161 85% 60%;
+    --executive-amber: 43 96% 56%;
+    --executive-red: 0 84% 60%;
+    --executive-navy: 210 88% 22%;
+    --executive-cyan: 161 88% 67%;
     
     /* Status indicators */
-    --status-success: 161 85% 60%; /* LaunchPulse Green */
-    --status-warning: 43 96% 56%;  /* Amber */
-    --status-danger: 0 84% 60%;    /* Rose */
-    --status-info: 210 88% 22%;    /* Dark Navy */
-    
-    /* LaunchPulse Shadows */
-    --shadow-executive: 0 4px 20px -2px hsl(210 88% 22% / 0.15);
-    --shadow-card: 0 2px 10px -2px hsl(210 88% 22% / 0.08);
-    --shadow-glow: 0 0 30px -5px hsl(161 85% 60% / 0.3);
+    --status-success: 161 85% 60%;
+    --status-warning: 43 96% 56%;
+    --status-danger: 0 84% 60%;
+    --status-info: 210 88% 22%;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 0 0% 9%;
@@ -94,49 +84,49 @@ All colors MUST be HSL.
   }
 
   .dark {
-    /* LaunchPulse Brand Colors - Dark Mode - True Black */
-    --background: 0 0% 6%; /* Near-black */
+    /* LaunchPulse Premium Dark Mode - True Black like Webflow */
+    --background: 240 10% 4%; /* Deep black #0A0A0F */
     --foreground: 0 0% 98%;
 
-    --card: 0 0% 9%; /* Slightly lighter black for cards */
+    --card: 240 10% 6%; /* Slightly lighter for cards */
     --card-foreground: 0 0% 98%;
 
-    --popover: 0 0% 9%;
+    --popover: 240 10% 8%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 161 85% 60%; /* LaunchPulse Green */
-    --primary-foreground: 0 0% 6%;
+    --primary: 161 85% 60%; /* Mint green */
+    --primary-foreground: 240 10% 4%;
 
-    --secondary: 161 88% 67%; /* Accent Green */
-    --secondary-foreground: 0 0% 6%;
+    --secondary: 161 88% 67%;
+    --secondary-foreground: 240 10% 4%;
 
-    --muted: 0 0% 15%; /* Dark gray */
-    --muted-foreground: 0 0% 65%; /* Light gray text */
+    --muted: 240 5% 12%;
+    --muted-foreground: 0 0% 65%;
 
     --accent: 161 85% 60%;
-    --accent-foreground: 0 0% 6%;
+    --accent-foreground: 240 10% 4%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 18%; /* Visible borders on black */
-    --input: 0 0% 18%;
+    --border: 240 5% 16%;
+    --input: 240 5% 16%;
     --ring: 161 85% 60%;
 
     /* Chart colors - dark mode */
-    --chart-1: 161 85% 60%; /* Primary Green */
-    --chart-2: 161 88% 67%; /* Accent Green */
-    --chart-3: 0 0% 75%; /* Light gray */
-    --chart-4: 0 0% 50%; /* Medium gray */
-    --chart-5: 0 0% 30%; /* Dark gray */
+    --chart-1: 161 85% 60%;
+    --chart-2: 161 88% 67%;
+    --chart-3: 0 0% 75%;
+    --chart-4: 0 0% 50%;
+    --chart-5: 0 0% 30%;
 
-    --sidebar-background: 0 0% 6%;
+    --sidebar-background: 240 10% 4%;
     --sidebar-foreground: 0 0% 98%;
     --sidebar-primary: 161 85% 60%;
-    --sidebar-primary-foreground: 0 0% 6%;
-    --sidebar-accent: 0 0% 12%;
+    --sidebar-primary-foreground: 240 10% 4%;
+    --sidebar-accent: 240 5% 12%;
     --sidebar-accent-foreground: 161 85% 60%;
-    --sidebar-border: 0 0% 18%;
+    --sidebar-border: 240 5% 16%;
     --sidebar-ring: 161 85% 60%;
   }
 }
@@ -147,11 +137,142 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply bg-background text-foreground font-sans antialiased;
   }
   
   h1, h2, h3, h4, h5, h6 {
-    @apply font-heading;
+    @apply font-heading tracking-tight;
+  }
+}
+
+@layer components {
+  /* Glassmorphism Card */
+  .glass-card {
+    @apply bg-card/40 backdrop-blur-xl border border-border/50;
+    box-shadow: 
+      0 0 0 1px hsl(var(--border) / 0.1),
+      0 4px 24px -4px hsl(0 0% 0% / 0.2),
+      inset 0 1px 0 hsl(0 0% 100% / 0.05);
+  }
+  
+  .dark .glass-card {
+    @apply bg-card/60 border-border/30;
+    box-shadow: 
+      0 0 0 1px hsl(161 85% 60% / 0.05),
+      0 8px 32px -8px hsl(0 0% 0% / 0.5),
+      inset 0 1px 0 hsl(0 0% 100% / 0.02);
+  }
+  
+  /* Glow Border Effect */
+  .glow-border {
+    @apply relative;
+  }
+  
+  .glow-border::before {
+    content: '';
+    @apply absolute inset-0 rounded-lg;
+    background: linear-gradient(135deg, hsl(161 85% 60% / 0.3), hsl(161 88% 67% / 0.1));
+    padding: 1px;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    -webkit-mask-composite: xor;
+    pointer-events: none;
+  }
+  
+  /* Gradient Border */
+  .gradient-border {
+    @apply relative;
+    background: linear-gradient(hsl(var(--card)), hsl(var(--card))) padding-box,
+                linear-gradient(135deg, hsl(161 85% 60% / 0.5), hsl(161 88% 67% / 0.2), hsl(240 5% 20% / 0.3)) border-box;
+    border: 1px solid transparent;
+  }
+  
+  /* Gradient Text */
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(161 85% 60%), hsl(161 88% 67%));
+  }
+  
+  /* Premium Button Glow */
+  .btn-glow {
+    @apply relative overflow-hidden;
+    box-shadow: 
+      0 0 20px -5px hsl(161 85% 60% / 0.5),
+      0 0 40px -10px hsl(161 85% 60% / 0.3);
+  }
+  
+  .btn-glow::before {
+    content: '';
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    background: linear-gradient(135deg, hsl(161 85% 70% / 0.2), transparent);
+  }
+  
+  .btn-glow:hover::before {
+    @apply opacity-100;
+  }
+  
+  /* Floating Orb Background Effect */
+  .floating-orb {
+    @apply absolute rounded-full blur-3xl opacity-30 animate-pulse;
+    background: radial-gradient(circle, hsl(161 85% 60%), transparent 70%);
+  }
+  
+  /* Card Hover Lift Effect */
+  .card-hover {
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  .card-hover:hover {
+    @apply -translate-y-1;
+    box-shadow: 
+      0 12px 40px -12px hsl(161 85% 60% / 0.2),
+      0 4px 16px -4px hsl(0 0% 0% / 0.1);
+  }
+  
+  /* Stat Card Styling */
+  .stat-card {
+    @apply glass-card rounded-xl p-6;
+    background: linear-gradient(
+      135deg,
+      hsl(var(--card) / 0.8),
+      hsl(var(--card) / 0.4)
+    );
+  }
+  
+  .dark .stat-card {
+    background: linear-gradient(
+      135deg,
+      hsl(240 10% 8% / 0.9),
+      hsl(240 10% 6% / 0.6)
+    );
+  }
+  
+  /* Hero Gradient Background */
+  .hero-gradient {
+    @apply relative overflow-hidden;
+    background: 
+      radial-gradient(ellipse 80% 50% at 50% -20%, hsl(161 85% 60% / 0.15), transparent),
+      radial-gradient(ellipse 60% 40% at 80% 60%, hsl(161 88% 67% / 0.08), transparent),
+      radial-gradient(ellipse 50% 30% at 20% 80%, hsl(210 88% 40% / 0.05), transparent),
+      hsl(var(--background));
+  }
+  
+  /* Feature Card */
+  .feature-card {
+    @apply glass-card rounded-xl p-6 card-hover;
+  }
+  
+  .feature-card .icon-wrapper {
+    @apply w-12 h-12 rounded-lg flex items-center justify-center mb-4;
+    background: linear-gradient(135deg, hsl(161 85% 60% / 0.2), hsl(161 85% 60% / 0.05));
+  }
+  
+  /* Input Glow on Focus */
+  .input-glow:focus {
+    box-shadow: 
+      0 0 0 2px hsl(var(--background)),
+      0 0 0 4px hsl(161 85% 60% / 0.3),
+      0 0 20px -5px hsl(161 85% 60% / 0.4);
   }
 }
 
@@ -163,5 +284,83 @@ All colors MUST be HSL.
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+  
+  /* Premium Shadows */
+  .shadow-glow {
+    box-shadow: 0 0 40px -10px hsl(161 85% 60% / 0.4);
+  }
+  
+  .shadow-glow-sm {
+    box-shadow: 0 0 20px -5px hsl(161 85% 60% / 0.3);
+  }
+  
+  .shadow-glow-lg {
+    box-shadow: 0 0 60px -15px hsl(161 85% 60% / 0.5);
+  }
+  
+  .shadow-executive {
+    box-shadow: 0 4px 24px -4px hsl(0 0% 0% / 0.15);
+  }
+  
+  .shadow-card {
+    box-shadow: 0 2px 12px -3px hsl(0 0% 0% / 0.1);
+  }
+  
+  /* Gradient Backgrounds */
+  .bg-gradient-radial {
+    background: radial-gradient(circle at center, var(--tw-gradient-stops));
+  }
+  
+  .bg-gradient-mesh {
+    background: 
+      radial-gradient(at 40% 20%, hsl(161 85% 60% / 0.15) 0px, transparent 50%),
+      radial-gradient(at 80% 0%, hsl(161 88% 67% / 0.1) 0px, transparent 50%),
+      radial-gradient(at 0% 50%, hsl(210 88% 40% / 0.08) 0px, transparent 50%),
+      radial-gradient(at 80% 50%, hsl(161 85% 60% / 0.08) 0px, transparent 50%),
+      radial-gradient(at 0% 100%, hsl(161 88% 67% / 0.1) 0px, transparent 50%);
+  }
+  
+  /* Animation utilities */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  .animate-float-delayed {
+    animation: float 6s ease-in-out 2s infinite;
+  }
+  
+  .animate-glow-pulse {
+    animation: glow-pulse 3s ease-in-out infinite;
+  }
+}
+
+/* Keyframe Animations */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-20px) rotate(2deg);
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 0.3;
+    box-shadow: 0 0 40px -10px hsl(161 85% 60% / 0.4);
+  }
+  50% {
+    opacity: 0.5;
+    box-shadow: 0 0 60px -10px hsl(161 85% 60% / 0.6);
+  }
+}
+
+@keyframes gradient-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
   }
 }

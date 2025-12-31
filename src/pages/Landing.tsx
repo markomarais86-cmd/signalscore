@@ -1,9 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, ArrowRight, Target, TrendingUp, Database, Zap, Users, Shield } from "lucide-react";
+import { Check, ArrowRight, Target, TrendingUp, Database, Zap, Users, Shield, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { BrandLogo } from "@/components/BrandLogo";
+import { GradientBackground } from "@/components/ui/GradientBackground";
 
 export default function Landing() {
   const pricingPlans = [
@@ -96,97 +97,116 @@ export default function Landing() {
     }
   ];
 
+  const stats = [
+    { value: "34%", label: "Average TAM coverage increase" },
+    { value: "2.3x", label: "Faster pipeline growth" },
+    { value: "18%", label: "Improvement in close rates" },
+    { value: "$2.4M", label: "Avg. whitespace opportunity found" }
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+    <GradientBackground variant="hero" showOrbs>
       {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b border-border/50 bg-background/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
           <BrandLogo variant="light" />
           <div className="flex items-center gap-4">
             <Link to="/auth">
-              <Button variant="ghost">Sign In</Button>
+              <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
+                Sign In
+              </Button>
             </Link>
             <Link to="/auth">
-              <Button>Get Started</Button>
+              <Button variant="glow">Get Started</Button>
             </Link>
           </div>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="container mx-auto px-6 py-24 text-center">
-        <Badge className="mb-6" variant="secondary">
-          Where GTM Meets ICP Precision
-        </Badge>
-        <h1 className="text-6xl font-bold font-heading mb-6 bg-gradient-to-r from-primary via-secondary to-primary bg-clip-text text-transparent">
-          Know Your Market Coverage
+      <section className="container mx-auto px-6 pt-24 pb-20 text-center relative">
+        <div className="animate-fade-in" style={{ animationDelay: '0.1s' }}>
+          <Badge className="mb-6 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20" variant="outline">
+            <Sparkles className="w-3 h-3 mr-1" />
+            Where GTM Meets ICP Precision
+          </Badge>
+        </div>
+        
+        <h1 className="text-5xl md:text-7xl font-bold font-heading mb-6 animate-fade-in" style={{ animationDelay: '0.2s' }}>
+          <span className="gradient-text">Know Your Market</span>
+          <br />
+          <span className="text-foreground">Coverage</span>
         </h1>
-        <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-8">
+        
+        <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-10 animate-fade-in" style={{ animationDelay: '0.3s' }}>
           LaunchPulse shows B2B revenue teams exactly how much of their addressable market they're covering—and where the biggest whitespace opportunities are.
         </p>
-        <div className="flex items-center justify-center gap-4">
+        
+        <div className="flex items-center justify-center gap-4 animate-fade-in" style={{ animationDelay: '0.4s' }}>
           <Link to="/auth">
-            <Button size="lg" className="text-lg px-8">
+            <Button size="xl" variant="glow" className="text-lg">
               Start 14-Day Free Trial
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </Link>
-          <Button size="lg" variant="outline" className="text-lg px-8">
+          <Button size="xl" variant="glass" className="text-lg">
             Watch Demo
           </Button>
         </div>
-        <p className="text-sm text-muted-foreground mt-4">
+        
+        <p className="text-sm text-muted-foreground mt-6 animate-fade-in" style={{ animationDelay: '0.5s' }}>
           No credit card required • Setup in 5 minutes
         </p>
       </section>
 
       {/* Stats Section */}
-      <section className="container mx-auto px-6 py-12">
+      <section className="container mx-auto px-6 py-16">
         <div className="grid md:grid-cols-4 gap-6">
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <div className="text-4xl font-bold text-primary mb-2">34%</div>
-              <div className="text-sm text-muted-foreground">Average TAM coverage increase</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <div className="text-4xl font-bold text-primary mb-2">2.3x</div>
-              <div className="text-sm text-muted-foreground">Faster pipeline growth</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <div className="text-4xl font-bold text-primary mb-2">18%</div>
-              <div className="text-sm text-muted-foreground">Improvement in close rates</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <div className="text-4xl font-bold text-primary mb-2">$2.4M</div>
-              <div className="text-sm text-muted-foreground">Avg. whitespace opportunity found</div>
-            </CardContent>
-          </Card>
+          {stats.map((stat, index) => (
+            <Card 
+              key={index} 
+              variant="glass" 
+              hover="glow"
+              className="animate-fade-in"
+              style={{ animationDelay: `${0.1 * index}s` }}
+            >
+              <CardContent className="pt-6 text-center">
+                <div className="text-4xl md:text-5xl font-bold gradient-text mb-2">{stat.value}</div>
+                <div className="text-sm text-muted-foreground">{stat.label}</div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </section>
 
       {/* Features Section */}
       <section className="container mx-auto px-6 py-24">
         <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold mb-4">Everything You Need for TAM Intelligence</h2>
-          <p className="text-xl text-muted-foreground">
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+            Everything You Need for{" "}
+            <span className="gradient-text">TAM Intelligence</span>
+          </h2>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             From ICP definition to whitespace identification
           </p>
         </div>
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-3 gap-6">
           {features.map((feature, index) => (
-            <Card key={index} className="border-2 hover:border-primary/50 transition-colors">
+            <Card 
+              key={index} 
+              variant="glass" 
+              hover="lift"
+              className="animate-fade-in"
+              style={{ animationDelay: `${0.1 * index}s` }}
+            >
               <CardHeader>
-                <div className="p-3 bg-primary/10 rounded-lg w-fit mb-4">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-primary/10 border border-primary/20">
                   <feature.icon className="h-6 w-6 text-primary" />
                 </div>
-                <CardTitle>{feature.title}</CardTitle>
-                <CardDescription>{feature.description}</CardDescription>
+                <CardTitle className="text-lg">{feature.title}</CardTitle>
+                <CardDescription className="text-muted-foreground">
+                  {feature.description}
+                </CardDescription>
               </CardHeader>
             </Card>
           ))}
@@ -194,25 +214,29 @@ export default function Landing() {
       </section>
 
       {/* Pricing Section */}
-      <section className="container mx-auto px-6 py-24 bg-muted/30 rounded-3xl">
+      <section className="container mx-auto px-6 py-24">
         <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+            Simple, <span className="gradient-text">Transparent</span> Pricing
+          </h2>
           <p className="text-xl text-muted-foreground">
             Choose the plan that fits your team size and needs
           </p>
         </div>
-        <div className="grid md:grid-cols-3 gap-8 max-w-7xl mx-auto">
+        <div className="grid md:grid-cols-3 gap-6 max-w-7xl mx-auto">
           {pricingPlans.map((plan, index) => (
             <Card 
               key={index} 
-              className={`relative ${plan.popular ? 'border-primary border-2 shadow-xl scale-105' : ''}`}
+              variant={plan.popular ? "gradient" : "glass"}
+              hover="lift"
+              className={`relative ${plan.popular ? 'md:scale-105 shadow-glow' : ''}`}
             >
               {plan.popular && (
-                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">
+                <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground shadow-glow-sm">
                   Most Popular
                 </Badge>
               )}
-              <CardHeader>
+              <CardHeader className="pt-8">
                 <CardTitle className="text-2xl">{plan.name}</CardTitle>
                 <CardDescription>{plan.description}</CardDescription>
                 <div className="mt-4">
@@ -224,7 +248,9 @@ export default function Landing() {
                 <ul className="space-y-3">
                   {plan.features.map((feature, idx) => (
                     <li key={idx} className="flex items-start gap-3">
-                      <Check className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                      <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <Check className="h-3 w-3 text-primary" />
+                      </div>
                       <span className="text-sm">{feature}</span>
                     </li>
                   ))}
@@ -232,7 +258,7 @@ export default function Landing() {
                 <Link to="/auth" className="block">
                   <Button 
                     className="w-full" 
-                    variant={plan.popular ? "default" : "outline"}
+                    variant={plan.popular ? "glow" : "outline"}
                     size="lg"
                   >
                     {plan.cta}
@@ -245,20 +271,28 @@ export default function Landing() {
       </section>
 
       {/* CTA Section */}
-      <section className="container mx-auto px-6 py-24 text-center">
-        <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5">
-          <CardContent className="pt-12 pb-12">
-            <h2 className="text-4xl font-bold mb-4">Ready to Unlock Your TAM?</h2>
-            <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+      <section className="container mx-auto px-6 py-24">
+        <Card variant="gradient" className="overflow-hidden relative">
+          {/* Background Glow */}
+          <div 
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-20 pointer-events-none"
+            style={{ background: 'radial-gradient(circle, hsl(161 85% 60% / 0.3), transparent 60%)' }}
+          />
+          
+          <CardContent className="pt-16 pb-16 text-center relative z-10">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">
+              Ready to <span className="gradient-text">Unlock Your TAM</span>?
+            </h2>
+            <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
               Join revenue teams at fast-growing B2B companies who use LaunchPulse to optimize their market coverage
             </p>
             <Link to="/auth">
-              <Button size="lg" className="text-lg px-8">
+              <Button size="xl" variant="glow" className="text-lg">
                 Start Your Free Trial
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <p className="text-sm text-muted-foreground mt-4">
+            <p className="text-sm text-muted-foreground mt-6">
               14-day free trial • No credit card required
             </p>
           </CardContent>
@@ -266,7 +300,7 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t bg-card/50 backdrop-blur-sm">
+      <footer className="border-t border-border/50 bg-background/30 backdrop-blur-xl">
         <div className="container mx-auto px-6 py-8">
           <div className="flex items-center justify-between">
             <BrandLogo variant="light" showTagline />
@@ -276,6 +310,6 @@ export default function Landing() {
           </div>
         </div>
       </footer>
-    </div>
+    </GradientBackground>
   );
 }
