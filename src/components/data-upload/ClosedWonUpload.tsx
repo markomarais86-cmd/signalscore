@@ -13,6 +13,7 @@ import { parseCSV } from "@/utils/csv-parser";
 import { normalizeDomain, createNormalizedDomainMap } from "@/utils/domain-normalizer";
 import { SampleDataGenerator } from "@/components/SampleDataGenerator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { uploadLogger } from "@/lib/logger";
 
 // CSV headers for different modes
 const EASY_MODE_HEADERS = ['domain'];
@@ -63,7 +64,7 @@ export function ClosedWonUpload() {
   }, [userProfile?.org_id]);
 
   const checkDatabaseConnection = async () => {
-    console.log('ClosedWonUpload: Checking DB connection. Auth loading:', authLoading, 'User:', !!user, 'Profile:', !!userProfile, 'Org ID:', userProfile?.org_id);
+    uploadLogger.debug('Checking DB connection. Auth loading:', authLoading, 'User:', !!user, 'Profile:', !!userProfile, 'Org ID:', userProfile?.org_id);
     
     if (!userProfile?.org_id) {
       // Don't set error if we're still loading auth
@@ -107,7 +108,7 @@ export function ClosedWonUpload() {
       setDbConnectionStatus('connected');
       setDbError(null);
     } catch (error: any) {
-      console.error('Database connection check failed:', error);
+      uploadLogger.error('Database connection check failed:', error);
       setDbConnectionStatus('error');
       setDbError(error.message || 'Unknown database error');
     }
@@ -139,13 +140,13 @@ export function ClosedWonUpload() {
   };
 
   const handleFileSelect = async (file: File, mode: 'easy' | 'detailed') => {
-    console.log('ClosedWonUpload: handleFileSelect called with file:', file.name, 'mode:', mode);
+    uploadLogger.debug('handleFileSelect called with file:', file.name, 'mode:', mode);
     
     // Reset previous upload result
     setUploadResult(null);
     
     if (!userProfile?.org_id) {
-      console.log('ClosedWonUpload: No org_id found');
+      uploadLogger.warn('No org_id found');
       toast({
         title: "Error",
         description: "User profile not loaded",
@@ -160,16 +161,16 @@ export function ClosedWonUpload() {
       description: `Processing ${file.name}...`
     });
 
-    console.log('ClosedWonUpload: Starting upload for org:', userProfile.org_id);
+    uploadLogger.debug('Starting upload for org:', userProfile.org_id);
     setUploading(true);
     setUploadProgress(0);
     setUploadResult(null);
 
     try {
       const text = await file.text();
-      console.log('ClosedWonUpload: File read, parsing CSV...');
+      uploadLogger.debug('File read, parsing CSV...');
       const rawData = parseCSV(text);
-      console.log('ClosedWonUpload: Parsed rows:', rawData.length);
+      uploadLogger.debug('Parsed rows:', rawData.length);
       
       setUploadProgress(25);
 
@@ -190,12 +191,12 @@ export function ClosedWonUpload() {
           throw new Error(`No domain column found. Expected one of: ${DOMAIN_COLUMN_VARIATIONS.join(', ')}. Found columns: ${rawData.length > 0 ? Object.keys(rawData[0]).join(', ') : 'none'}`);
         }
         
-        console.log('ClosedWonUpload: Using column name:', domainColumnName);
+        uploadLogger.debug('Using column name:', domainColumnName);
         
         const normalizedDomains = rawData
           .map(row => normalizeDomain(row[domainColumnName]))
           .filter(Boolean);
-        console.log('ClosedWonUpload: Processing normalized domains:', normalizedDomains);
+        uploadLogger.debug('Processing normalized domains:', normalizedDomains);
         
         // Fetch ALL accounts for this org (we'll normalize and match in-memory)
         const { data: accounts, error: accountError } = await supabase
@@ -205,13 +206,13 @@ export function ClosedWonUpload() {
           .not('domain', 'is', null);
 
         if (accountError) throw accountError;
-        console.log('ClosedWonUpload: Found accounts:', accounts?.length);
+        uploadLogger.debug('Found accounts:', accounts?.length);
 
         setUploadProgress(40);
 
         // Create a map of normalized domain to account_external_id
         const domainMap = createNormalizedDomainMap(accounts || []);
-        console.log('ClosedWonUpload: Created normalized domain map with', domainMap.size, 'entries');
+        uploadLogger.debug('Created normalized domain map with', domainMap.size, 'entries');
         console.log('ClosedWonUpload: Domain map entries (first 5):', Array.from(domainMap.entries()).slice(0, 5));
 
         // Helper function to derive company name from domain
@@ -230,7 +231,6 @@ export function ClosedWonUpload() {
           const originalDomain = row[domainColumnName];
           const normalizedDomain = normalizeDomain(originalDomain);
           
-          console.log('ClosedWonUpload: Processing row - Original:', originalDomain, 'Normalized:', normalizedDomain, 'In map?', normalizedDomain ? domainMap.has(normalizedDomain) : false);
           
           if (normalizedDomain && domainMap.has(normalizedDomain)) {
             matchedRows.push({ row, normalizedDomain, accountExternalId: domainMap.get(normalizedDomain) });
@@ -241,9 +241,7 @@ export function ClosedWonUpload() {
           }
         }
 
-        console.log('ClosedWonUpload: Matched:', matchedRows.length, 'Unmatched:', unmatchedRows.length, 'Rejected:', rejectedCount);
-        console.log('ClosedWonUpload: Sample matched rows:', matchedRows.slice(0, 2));
-        console.log('ClosedWonUpload: Sample unmatched rows:', unmatchedRows.slice(0, 2));
+        uploadLogger.debug('Matched:', matchedRows.length, 'Unmatched:', unmatchedRows.length, 'Rejected:', rejectedCount);
 
         setUploadProgress(50);
 
@@ -257,29 +255,26 @@ export function ClosedWonUpload() {
         }));
 
         if (newAccountsToCreate.length > 0) {
-          console.log('ClosedWonUpload: Creating', newAccountsToCreate.length, 'new accounts');
+          uploadLogger.debug('Creating', newAccountsToCreate.length, 'new accounts');
           const { data: createdAccounts, error: createError } = await supabase
             .from('accounts')
             .insert(newAccountsToCreate)
             .select('external_id, domain');
 
           if (createError) {
-            console.error('Error creating accounts:', createError);
+            uploadLogger.error('Error creating accounts:', createError);
             throw new Error(`Failed to create new accounts: ${createError.message}`);
           } else if (createdAccounts) {
             accountsCreated = createdAccounts.length;
-            console.log('ClosedWonUpload: Successfully created', accountsCreated, 'accounts');
-            console.log('ClosedWonUpload: Created accounts:', createdAccounts);
+            uploadLogger.debug('Successfully created', accountsCreated, 'accounts');
             
             // Add created accounts to the domain map
             for (const account of createdAccounts) {
               const normalized = normalizeDomain(account.domain);
               if (normalized) {
                 domainMap.set(normalized, account.external_id);
-                console.log('ClosedWonUpload: Added to domain map:', normalized, '->', account.external_id);
               }
             }
-            console.log('ClosedWonUpload: Domain map size after adding created accounts:', domainMap.size);
           }
         }
 
@@ -292,16 +287,12 @@ export function ClosedWonUpload() {
         const today = new Date().toISOString().split('T')[0];
         const allRows = [...matchedRows, ...unmatchedRows];
         
-        console.log('ClosedWonUpload: About to transform', allRows.length, 'total rows');
-        console.log('ClosedWonUpload: Domain map final size:', domainMap.size);
-        
         transformedData = allRows
-          .map((item, index) => {
+          .map((item) => {
             const hasMatch = item.normalizedDomain && domainMap.has(item.normalizedDomain);
-            console.log(`ClosedWonUpload: Transform row ${index} - Domain:`, item.normalizedDomain, 'Has match?', hasMatch);
             
             if (!hasMatch) {
-              console.warn('ClosedWonUpload: No match found for domain:', item.normalizedDomain);
+              uploadLogger.warn('No match found for domain:', item.normalizedDomain);
               return null;
             }
             
@@ -315,8 +306,7 @@ export function ClosedWonUpload() {
           })
           .filter(Boolean); // Remove nulls
 
-        console.log('ClosedWonUpload: Final transformed data:', transformedData.length, 'records. Matched:', accountsMatched, 'Created:', accountsCreated);
-        console.log('ClosedWonUpload: Sample transformed data:', transformedData.slice(0, 2));
+        uploadLogger.debug('Final transformed data:', transformedData.length, 'records. Matched:', accountsMatched, 'Created:', accountsCreated);
       } else {
         // Detailed mode: Use provided data
         const validData = rawData.filter(row => {
@@ -367,7 +357,7 @@ export function ClosedWonUpload() {
       });
 
     } catch (error: any) {
-      console.error('Upload error:', error);
+      uploadLogger.error('Upload error:', error);
       
       let errorMessage = "Failed to upload closed won data";
       if (error.message?.includes('relation') && error.message?.includes('does not exist')) {

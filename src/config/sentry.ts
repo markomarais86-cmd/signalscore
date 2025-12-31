@@ -1,4 +1,7 @@
 import * as Sentry from "@sentry/react";
+import { logger } from '@/lib/logger';
+
+const sentryLogger = logger.scope('Sentry');
 
 export function initializeSentry() {
   try {
@@ -6,9 +9,7 @@ export function initializeSentry() {
     
     // Only initialize if DSN is provided and in production
     if (!sentryDsn || !import.meta.env.PROD) {
-      if (import.meta.env.DEV) {
-        console.log('Sentry: Disabled in development mode');
-      }
+      sentryLogger.debug('Disabled in development mode or no DSN');
       return;
     }
 
@@ -36,9 +37,9 @@ export function initializeSentry() {
       },
     });
     
-    console.log('Sentry initialized successfully');
+    sentryLogger.info('Initialized successfully');
   } catch (error) {
-    console.error('Failed to initialize Sentry:', error);
+    sentryLogger.error('Failed to initialize:', error);
     // Don't throw - allow app to continue without Sentry
   }
 }
@@ -51,7 +52,7 @@ export function captureException(error: Error, context?: Record<string, any>) {
       });
     }
   } catch (e) {
-    console.error('Failed to capture exception in Sentry:', e);
+    sentryLogger.error('Failed to capture exception:', e);
   }
 }
 
@@ -65,7 +66,7 @@ export function setUserContext(user: { id: string; email?: string; username?: st
       });
     }
   } catch (e) {
-    console.error('Failed to set user context in Sentry:', e);
+    sentryLogger.error('Failed to set user context:', e);
   }
 }
 
@@ -75,6 +76,6 @@ export function clearUserContext() {
       Sentry.setUser(null);
     }
   } catch (e) {
-    console.error('Failed to clear user context in Sentry:', e);
+    sentryLogger.error('Failed to clear user context:', e);
   }
 }
