@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './use-auth';
 import { useToast } from './use-toast';
+import { insightsLogger } from '@/lib/logger';
 
 const CACHE_VERSION = 'v2'; // Bump this when edge function changes
 const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
@@ -64,7 +65,7 @@ export function useICPInsights() {
     const timeSinceLastRefresh = now - lastRefreshRef.current;
     
     if (!forceRefresh && timeSinceLastRefresh < MIN_REFRESH_INTERVAL) {
-      console.log(`⏱️ Rate limited: Last refresh was ${Math.round(timeSinceLastRefresh / 1000)}s ago`);
+      insightsLogger.debug(`Rate limited: Last refresh was ${Math.round(timeSinceLastRefresh / 1000)}s ago`);
       if (isAutoRefresh) {
         const waitTime = Math.round((MIN_REFRESH_INTERVAL - timeSinceLastRefresh) / 1000);
         toast({
@@ -92,19 +93,19 @@ export function useICPInsights() {
             setInsights(cachedData.insights);
             setStatistics(cachedData.statistics);
             setLastUpdated(new Date(parseInt(timestamp)));
-            console.log('✅ Loaded insights from cache');
+            insightsLogger.debug('Loaded insights from cache');
             return;
           }
         }
       } catch (err) {
-        console.warn('Cache read error:', err);
+        insightsLogger.warn('Cache read error:', err);
       }
     }
 
     setLoading(true);
     clearError();
     setUsingFallback(false);
-    console.log('🔄 Generating ICP insights', isAutoRefresh ? '(auto-refresh)' : '');
+    insightsLogger.debug('Generating ICP insights', isAutoRefresh ? '(auto-refresh)' : '');
     
     try {
       const { data, error } = await supabase.functions.invoke('generate-icp-insights', {
@@ -123,10 +124,10 @@ export function useICPInsights() {
         // Check if fallback was used
         if (data._debug?.fallback_used) {
           setUsingFallback(true);
-          console.log('⚠️ AI parsing failed, using fallback insights');
+          insightsLogger.warn('AI parsing failed, using fallback insights');
         }
         if (data._debug?.ai_parse_error) {
-          console.warn('AI parse error:', data._debug.ai_parse_error);
+          insightsLogger.warn('AI parse error:', data._debug.ai_parse_error);
         }
         
         const timestamp = Date.now();
@@ -142,10 +143,10 @@ export function useICPInsights() {
           localStorage.setItem(timestampKey, timestamp.toString());
           setLastUpdated(new Date(timestamp));
         } catch (err) {
-          console.warn('Cache write error:', err);
+          insightsLogger.warn('Cache write error:', err);
         }
         
-        console.log('✅ Generated', data.insights.length, 'ICP insights');
+        insightsLogger.info('Generated', data.insights.length, 'ICP insights');
         
         if (isAutoRefresh) {
           toast({
@@ -160,7 +161,7 @@ export function useICPInsights() {
         }
       }
     } catch (error: any) {
-      console.error('Error generating insights:', error);
+      insightsLogger.error('Error generating insights:', error);
       setError(error.message || "Failed to generate insights");
       if (!isAutoRefresh) {
         toast({
@@ -178,7 +179,7 @@ export function useICPInsights() {
   useEffect(() => {
     if (!userProfile?.org_id) return;
 
-    console.log('🔄 Setting up ICP insights auto-refresh for org:', userProfile.org_id);
+    insightsLogger.info('Setting up ICP insights auto-refresh for org:', userProfile.org_id);
 
     // Debounced refresh function to batch multiple changes
     const scheduleRefresh = () => {
@@ -189,7 +190,7 @@ export function useICPInsights() {
 
       // Schedule a refresh after debounce delay
       refreshTimeoutRef.current = setTimeout(() => {
-        console.log('🔄 Auto-refreshing ICP insights due to data changes');
+        insightsLogger.debug('Auto-refreshing ICP insights due to data changes');
         generateInsights(undefined, false, true);
       }, DEBOUNCE_DELAY);
     };
@@ -206,7 +207,7 @@ export function useICPInsights() {
           filter: `org_id=eq.${userProfile.org_id}`
         },
         (payload) => {
-          console.log('📥 New lead detected, scheduling insights refresh');
+          insightsLogger.debug('New lead detected, scheduling insights refresh');
           scheduleRefresh();
         }
       )
@@ -224,14 +225,14 @@ export function useICPInsights() {
           filter: `org_id=eq.${userProfile.org_id}`
         },
         (payload) => {
-          console.log('📊 Score updated, scheduling insights refresh');
+          insightsLogger.debug('Score updated, scheduling insights refresh');
           scheduleRefresh();
         }
       )
       .subscribe();
 
     return () => {
-      console.log('🧹 Cleaning up ICP insights auto-refresh');
+      insightsLogger.info('Cleaning up ICP insights auto-refresh');
       if (refreshTimeoutRef.current) {
         clearTimeout(refreshTimeoutRef.current);
       }

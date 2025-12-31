@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
+import { realtimeLogger } from '@/lib/logger';
 
 export interface EnrichmentJob {
   id: string;
@@ -110,7 +111,7 @@ export function useRealtimeEnrichment({
       )
       .subscribe((status) => {
         setIsConnected(status === 'SUBSCRIBED');
-        console.log(`[Realtime] Enrichment jobs subscription: ${status}`);
+        realtimeLogger.debug(`Enrichment jobs subscription: ${status}`);
       });
 
     return () => {

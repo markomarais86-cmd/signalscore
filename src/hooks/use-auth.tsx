@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useRef, ReactNode } fro
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { authLogger } from '@/lib/logger';
 
 // Helper functions for Sentry (loaded dynamically)
 const setUserContextSafe = async (user: { id: string; email?: string }) => {
@@ -75,9 +76,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return;
         
         if (error) {
-          console.error('Auth: Error fetching user profile:', error);
+          authLogger.error('Error fetching user profile:', error);
         } else if (profile) {
-          console.log('Auth: User profile loaded:', profile);
+          authLogger.info('User profile loaded:', profile);
           setUserProfile(profile as UserProfile);
           // Cache the profile with 60 second expiry for instant login
           localStorage.setItem('user_profile_cache', JSON.stringify({
@@ -107,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('Auth: State change event:', event);
+        authLogger.info('State change event:', event);
         if (!mounted) return;
         
         setSession(session);
@@ -129,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               const { profile, timestamp } = JSON.parse(cached);
               // Use cache if less than 60 seconds old for instant login
               if (Date.now() - timestamp < 60 * 1000) {
-                console.log('Auth: Using cached profile for instant render');
+                authLogger.debug('Using cached profile for instant render');
                 setUserProfile(profile as UserProfile);
                 setLoading(false);
                 usedCache = true;
@@ -159,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           // Redirect to auth page when signed out
           if (event === 'SIGNED_OUT') {
-            console.log('Auth: User signed out, redirecting to /auth');
+            authLogger.info('User signed out, redirecting to /auth');
             window.location.href = '/auth';
           }
         }
@@ -175,7 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           try {
             const { profile, timestamp } = JSON.parse(cached);
             if (Date.now() - timestamp < 60 * 1000) {
-              console.log('Auth: Pre-loading cached profile');
+              authLogger.debug('Pre-loading cached profile');
               setUserProfile(profile as UserProfile);
             }
           } catch (e) {
@@ -187,10 +188,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (!mounted) return;
         
-        console.log('Auth: Initial session check:', !!session);
+        authLogger.debug('Initial session check:', !!session);
         
         if (error) {
-          console.error('Auth: Error getting session:', error);
+          authLogger.error('Error getting session:', error);
         }
         
         setSession(session);
@@ -201,7 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         setLoading(false);
       } catch (error) {
-        console.error('Auth: Fatal error during init:', error);
+        authLogger.error('Fatal error during init:', error);
         if (mounted) {
           setLoading(false);
         }
@@ -255,7 +256,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) {
-      console.error('Sign in error:', error);
+      authLogger.error('Sign in error:', error);
       let errorMessage = error.message;
       
       // Provide more helpful error messages
@@ -282,7 +283,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     try {
-      console.log('Auth: Starting sign out process');
+      authLogger.info('Starting sign out process');
       
       // Clear state immediately
       setUser(null);
@@ -298,10 +299,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: "You have been signed out successfully."
       });
       
-      console.log('Auth: Sign out complete, redirecting to /auth');
+      authLogger.info('Sign out complete');
       // The auth state listener will handle the redirect
     } catch (error) {
-      console.error('Sign out error:', error);
+      authLogger.error('Sign out error:', error);
       toast({
         title: "Error signing out",
         description: "Please try again.",

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { apiLogger } from '@/lib/logger';
 
 interface DedupedRequestOptions {
   debounceMs?: number;
@@ -63,14 +64,14 @@ export function useDedupedRequest<TBody = any, TResponse = any>(
     
     // Debounce rapid calls
     if (now - lastExecutionRef.current < debounceMs) {
-      console.log(`[useDedupedRequest] Debounced call to ${functionName}`);
+      apiLogger.debug(`Debounced call to ${functionName}`);
       return null;
     }
     
     // Check for in-flight request with same key
     const existingRequest = inFlightRef.current.get(key);
     if (existingRequest) {
-      console.log(`[useDedupedRequest] Returning in-flight request for ${functionName}`);
+      apiLogger.debug(`Returning in-flight request for ${functionName}`);
       return existingRequest;
     }
     

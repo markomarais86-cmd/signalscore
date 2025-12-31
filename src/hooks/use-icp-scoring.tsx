@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { icpLogger, scoringLogger } from '@/lib/logger';
 
 interface ICPProfile {
   id: string;
@@ -59,7 +60,7 @@ export function useICPScoring() {
         .eq('org_id', userProfile.org_id);
 
       if (icpError) throw icpError;
-      console.log('Loaded ICP profiles:', icpData?.length || 0);
+      icpLogger.debug('Loaded ICP profiles:', icpData?.length || 0);
       setIcpProfiles(icpData || []);
 
       // Load accounts - get count first to handle large datasets
@@ -68,7 +69,7 @@ export function useICPScoring() {
         .select('*', { count: 'exact', head: true })
         .eq('org_id', userProfile.org_id);
 
-      console.log('Total accounts in database:', count || 0);
+      icpLogger.debug('Total accounts in database:', count || 0);
 
       // Load all accounts by setting a high limit
       const { data: accountData, error: accountError } = await supabase
@@ -78,7 +79,7 @@ export function useICPScoring() {
         .limit(50000);
 
       if (accountError) throw accountError;
-      console.log('Loaded accounts:', accountData?.length || 0);
+      icpLogger.debug('Loaded accounts:', accountData?.length || 0);
       setAccounts(accountData || []);
 
       // Load existing scores from database
@@ -89,7 +90,7 @@ export function useICPScoring() {
 
       if (scoresError) throw scoresError;
       
-      console.log('Loaded existing scores:', scoresData?.length || 0);
+      scoringLogger.debug('Loaded existing scores:', scoresData?.length || 0);
       
       // Transform database scores to ICPScore format
       const transformedScores: ICPScore[] = (scoresData || []).map(score => ({
@@ -192,7 +193,7 @@ export function useICPScoring() {
             });
 
           if (error) {
-            console.error('Error calculating score:', error);
+            scoringLogger.error('Error calculating score:', error);
             continue;
           }
 
@@ -225,7 +226,7 @@ export function useICPScoring() {
               });
 
             if (upsertError) {
-              console.error('Error upserting score:', upsertError);
+              scoringLogger.error('Error upserting score:', upsertError);
             }
           }
         }
@@ -233,7 +234,7 @@ export function useICPScoring() {
 
       setScores(newScores);
     } catch (error) {
-      console.error('Error in scoreAllAccounts:', error);
+      scoringLogger.error('Error in scoreAllAccounts:', error);
     } finally {
       setLoading(false);
     }

@@ -1,5 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { logger } from '@/lib/logger';
+
+const dashboardLogger = logger.scope('Dashboard');
 
 interface DashboardMetrics {
   total_accounts: number;
@@ -93,18 +96,18 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
       ]);
       
       if (metricsResult.error) {
-        console.error('[useDashboardData] ❌ Metrics fetch error:', metricsResult.error);
+        dashboardLogger.error('Metrics fetch error:', metricsResult.error);
         throw metricsResult.error;
       }
       
       if (icpResult.error) {
-        console.error('[useDashboardData] ❌ ICP fetch error:', icpResult.error);
+        dashboardLogger.error('ICP fetch error:', icpResult.error);
         throw icpResult.error;
       }
 
       // TAM data is optional, don't throw if missing
       if (tamResult.error) {
-        console.warn('[useDashboardData] ⚠️ TAM fetch error:', tamResult.error);
+        dashboardLogger.warn('TAM fetch error:', tamResult.error);
       }
       
       // Map the function response to expected structure (handles both array and direct object returns)
@@ -230,7 +233,7 @@ export function useSourceFilterStats(orgId: string | undefined) {
       ]);
       
       if (crmResult.error) {
-        console.error('[useSourceFilterStats] RPC error', crmResult.error);
+        dashboardLogger.error('Source filter stats RPC error', crmResult.error);
       }
       
       const crmMetrics = (crmResult.data as any)?.[0] ?? crmResult.data;

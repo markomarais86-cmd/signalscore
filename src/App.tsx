@@ -13,6 +13,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { useEffect } from "react";
 import { useOnboarding } from "./hooks/use-onboarding";
+import { logger } from "./lib/logger";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
@@ -48,7 +49,7 @@ function AppContent() {
     // Check if we should trigger onboarding wizard
     const showOnboarding = localStorage.getItem('show_onboarding');
     if (showOnboarding === 'true') {
-      console.log('Triggering onboarding wizard');
+      logger.debug('Triggering onboarding wizard');
       startOnboarding();
       localStorage.removeItem('show_onboarding');
     }
