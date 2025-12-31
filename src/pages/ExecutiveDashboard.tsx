@@ -14,36 +14,26 @@ import { useOnboarding } from "@/hooks/use-onboarding";
 import { useDataChangeListener } from "@/hooks/use-data-change-listener";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { HeroMetric } from "@/components/executive/HeroMetric";
 import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { useICPInsights } from "@/hooks/use-icp-insights";
-import { Lightbulb } from "lucide-react";
-import { DataSourceBreakdownCard } from "@/components/executive/DataSourceBreakdownCard";
-import { TrendIndicator } from "@/components/executive/TrendIndicator";
 import { calculateTrends, TrendData } from "@/utils/trend-calculator";
 import { detectRisks, RiskItem } from "@/utils/risk-detector";
-import { CombinedScoringICPCard } from "@/components/executive/CombinedScoringICPCard";
-import { GeographyChartCard } from "@/components/executive/GeographyChartCard";
-import { EnhancedGeographyCard } from "@/components/executive/EnhancedGeographyCard";
 import { UnifiedInsightsPanel, Insight } from "@/components/executive/UnifiedInsightsPanel";
-import { SyncStatusBadge } from "@/components/executive/SyncStatusBadge";
 import { SyncProgressModal } from "@/components/settings/SyncProgressModal";
-import { ICPCoverageCard } from "@/components/executive/ICPCoverageCard";
-import { EnhancedRisksCard } from "@/components/executive/EnhancedRisksCard";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
-import { TAMSAMSOMCalculator } from "@/components/executive/TAMSAMSOMCalculator";
 import { SourceFilterToggle, type SourceFilter } from "@/components/executive/SourceFilterToggle";
-import { ExternalGeographyBreakdownCard } from "@/components/executive/ExternalGeographyBreakdownCard";
-import { UnifiedTAMCard } from "@/components/executive/UnifiedTAMCard";
-import { FitDistributionHero } from "@/components/executive/FitDistributionHero";
-import { MarketIntelligenceCard } from "@/components/executive/MarketIntelligenceCard";
-import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
 import { EmptyState } from "@/components/EmptyState";
 import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
-
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
+
+// Simplified components
+import { SimplifiedHeroMetrics } from "@/components/executive/SimplifiedHeroMetrics";
+import { ICPDonutChart } from "@/components/executive/ICPDonutChart";
+import { SimpleICPTable } from "@/components/executive/SimpleICPTable";
+import { SimpleTAMCard } from "@/components/executive/SimpleTAMCard";
+
 import { CommandPalette, CommandPaletteTrigger } from "@/components/executive/CommandPalette";
 import { StatusBar, useStatusItems } from "@/components/executive/StatusBar";
 import { dashboardLogger } from "@/lib/logger";
@@ -582,228 +572,55 @@ export default function ExecutiveDashboard() {
           </div>
         ) : (
           <>
+            {/* Simplified Hero Metrics */}
+            <SimplifiedHeroMetrics
+              totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
+              totalLeads={sourceFilter === 'database' ? (tamData?.totalLeads || 0) : totalLeads}
+              campaignReady={campaignReadyLeads}
+              sourceFilter={sourceFilter}
+              tamProvider={tamData?.provider}
+            />
 
-            {/* Your Database Metrics */}
-            <div>
-              <h2 className="text-lg lg:text-xl font-semibold mb-3 flex items-center gap-2">
-                {sourceFilter === 'database' ? <Database className="h-5 w-5" /> : <Building2 className="h-5 w-5" />}
-                {sourceFilter === 'database' ? 'Available Market' : 'Your Pipeline'}
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4 xl:gap-5">
-                <HeroMetric
-                  label="Total Accounts"
-                  value={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-                  subtitle={sourceFilter === 'database' ? `Available via ${tamData?.provider || 'Database'}` : 'In your CRM'}
-                  trend={sourceFilter === 'crm' && trendData?.totalAccountsGrowth ? { value: trendData.totalAccountsGrowth, period: "last week" } : undefined}
-                  icon={Building2}
-                  onClick={() => {
-                    dashboardLogger.debug('Total Accounts clicked');
-                    navigate('/accounts');
-                  }}
-                  tooltip={{
-                    title: "Total Accounts",
-                    description: "The total number of accounts in your system. CRM view shows accounts from your sales system, Database view shows your full addressable market.",
-                    example: "Click to view all accounts"
-                  }}
-                />
-                {sourceFilter === 'database' ? (
-                  <HeroMetric
-                    label="Total Contacts"
-                    value={tamData?.totalLeads || 0}
-                    subtitle="Available in market database"
-                    icon={Users}
-                    onClick={() => {
-                      dashboardLogger.debug('Total Contacts (database) clicked');
-                      navigate('/leads');
-                    }}
-                    tooltip={{
-                      title: "Available Contacts",
-                      description: "Total contacts available in your TAM database. Redeem contacts to import them into your CRM for campaigns.",
-                      example: "Click to view contacts"
-                    }}
-                  />
-                ) : (
-                  <HeroMetric
-                    label="Campaign Ready"
-                    value={campaignReadyLeads}
-                    subtitle={`Across ${campaignReadyAccounts.toLocaleString()} accounts`}
-                    trend={trendData ? { value: trendData.campaignReady, period: "last week" } : undefined}
-                    icon={Users}
-                    status={campaignReadyLeads > 0 ? 'success' : 'warning'}
-                    onClick={() => {
-                      dashboardLogger.debug('Campaign Ready clicked');
-                      navigate('/leads?campaign_ready=true');
-                    }}
-                    tooltip={{
-                      title: "Campaign Ready Contacts",
-                      description: "Leads that have email, job title, and persona identified. These contacts can be immediately used in campaigns without additional enrichment cost.",
-                      example: "Click to view all campaign-ready contacts"
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Fit Distribution Hero Section - Only for CRM mode where scores exist */}
-            {sourceFilter === 'crm' && totalScores > 0 && (
-              <FitDistributionHero
-                highFitAccounts={highFitAccounts}
-                mediumFitAccounts={medFitAccounts}
-                lowFitAccounts={lowFitAccounts}
-                totalScored={totalScores}
-                highFitTrend={weeklyTrendData?.highFitAccounts}
-                mediumFitTrend={weeklyTrendData?.mediumFitAccounts}
-                lowFitTrend={weeklyTrendData?.lowFitAccounts}
-                highFitPercentageTrend={weeklyTrendData?.highFitPercentage}
-                mediumFitPercentageTrend={weeklyTrendData?.mediumFitPercentage}
-                lowFitPercentageTrend={weeklyTrendData?.lowFitPercentage}
-              />
-            )}
-
-            {/* Market Intelligence Card - Only for Database mode */}
-            {sourceFilter === 'database' && tamData && (
-              <MarketIntelligenceCard
-                totalAccounts={tamData.totalAccounts}
-                totalContacts={tamData.totalLeads}
-                provider={tamData.provider}
-                industryBreakdown={tamData.industry_breakdown}
-                companySizeBreakdown={tamData.company_size_breakdown}
-                revenueBreakdown={tamData.revenue_breakdown}
-                geographyBreakdown={tamData.geography_breakdown}
-              />
-            )}
-
-            {/* Available Market Card - NOT shown for database filter (redundant with TAM calculator) */}
-
-            {/* Main Content Grid */}
+            {/* Main Content Grid - 2 columns */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
-
-              {/* ICP Coverage Card - Only for CRM mode */}
-              {sourceFilter === 'crm' && (
-                <ICPCoverageCard
-                  totalAccounts={totalAccounts}
+              {/* Left Column */}
+              <div className="space-y-4">
+                {/* ICP Coverage Table */}
+                <SimpleICPTable
                   crmAccounts={crmAccounts}
                   databaseAccounts={databaseAccounts}
-                  highFitAccounts={highFitAccounts}
-                  highFitCrmAccounts={dashboardData.metrics.high_fit_crm_accounts}
-                  highFitDatabaseAccounts={dashboardData.metrics.high_fit_database_accounts}
-                  mediumFitAccounts={medFitAccounts}
-                  mediumFitCrmAccounts={dashboardData.metrics.medium_fit_crm_accounts}
-                  mediumFitDatabaseAccounts={dashboardData.metrics.medium_fit_database_accounts}
-                  lowFitAccounts={lowFitAccounts}
-                  lowFitCrmAccounts={dashboardData.metrics.low_fit_crm_accounts}
-                  lowFitDatabaseAccounts={dashboardData.metrics.low_fit_database_accounts}
-                  totalLeads={totalLeads}
-                  crmLeads={crmLeads}
-                  databaseLeads={databaseLeads}
-                  highFitLeads={highFitLeads}
-                  highFitCrmLeads={highFitCrmLeads}
-                  highFitDatabaseLeads={highFitDatabaseLeads}
-                  mediumFitCrmLeads={dashboardData.metrics.medium_fit_crm_leads}
-                  mediumFitDatabaseLeads={dashboardData.metrics.medium_fit_database_leads}
-                  lowFitCrmLeads={dashboardData.metrics.low_fit_crm_leads}
-                  lowFitDatabaseLeads={dashboardData.metrics.low_fit_database_leads}
-                  tamAccounts={tamData?.totalAccounts}
-                  tamLeads={tamData?.totalLeads}
-                  tamProvider={tamData?.provider}
+                  highFitCrmAccounts={highFitCrmAccounts}
+                  highFitDatabaseAccounts={highFitDatabaseAccounts}
                 />
-              )}
-
-              {/* Combined Scoring ICP Card - Only for CRM mode */}
-              {sourceFilter === 'crm' && (
-                <CombinedScoringICPCard
-                  scoringProgress={totalAccounts > 0 ? Math.round((totalScores / totalAccounts) * 100) : 0}
-                  totalScored={totalScores}
-                  totalAccounts={totalAccounts}
-                  crmScored={crmScoredAccounts}
-                  databaseScored={databaseScoredAccounts}
-                  fitDistribution={[
-                    { name: 'High Fit', value: highFitAccounts, percentage: totalScores > 0 ? Math.round((highFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-green))' },
-                    { name: 'Medium Fit', value: medFitAccounts, percentage: totalScores > 0 ? Math.round((medFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-amber))' },
-                    { name: 'Low Fit', value: lowFitAccounts, percentage: totalScores > 0 ? Math.round((lowFitAccounts / totalScores) * 100) : 0, color: 'hsl(var(--executive-red))' }
-                  ]}
-                  completeness={dataCompleteness}
-                  industryCompleteness={75}
-                  sizeCompleteness={65}
-                  revenueCompleteness={55}
-                  geoCompleteness={80}
-                  scoringTrend={trendData?.scoringProgress}
-                  completenessTrend={trendData?.completeness}
-                  fitTrends={weeklyTrendData ? {
-                    highFitAccounts: weeklyTrendData.highFitAccounts,
-                    mediumFitAccounts: weeklyTrendData.mediumFitAccounts,
-                    lowFitAccounts: weeklyTrendData.lowFitAccounts,
-                    highFitPercentage: weeklyTrendData.highFitPercentage,
-                    mediumFitPercentage: weeklyTrendData.mediumFitPercentage,
-                    lowFitPercentage: weeklyTrendData.lowFitPercentage,
-                  } : undefined}
-                />
-              )}
-
-              {/* TAM/SAM/SOM Calculator */}
-              {sourceFilter === 'database' && tamData ? (
-                (() => {
-                  const { sam, som } = calculateExternalTAMMetrics(
-                    tamData,
-                    icpProfiles[0] || null,
-                    0.15,
-                    12
-                  );
-                  return (
-                    <TAMSAMSOMCalculator
-                      totalAccounts={tamData.totalAccounts}
-                      highFitAccounts={sam}
-                      campaignReadyAccounts={som}
-                      averageDealSize={75000}
-                      conversionRate={0.15}
-                      externalTAMAccounts={tamData.totalAccounts}
-                      isExternalView={true}
-                    />
-                  );
-                })()
-              ) : (
-              <TAMSAMSOMCalculator
-                  totalAccounts={totalAccounts}
-                  highFitAccounts={highFitAccounts}
-                  campaignReadyAccounts={campaignReadyAccounts}
+                
+                {/* TAM Card */}
+                <SimpleTAMCard
+                  tamValue={0}
+                  totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
                   averageDealSize={75000}
-                  conversionRate={0.15}
-                  externalTAMAccounts={sourceFilter === 'crm' ? undefined : tamData?.totalAccounts}
-                  isExternalView={false}
                 />
-              )}
+              </div>
 
-              {/* Geography Distribution - Shown for all filters */}
-              {sourceFilter === 'database' && tamData?.geography_breakdown ? (
-                <EnhancedGeographyCard 
-                  geoData={Object.entries(tamData.geography_breakdown).map(([country, data]) => ({
-                    country,
-                    count: typeof data === 'object' && data !== null ? (data as any).accounts || 0 : Number(data) || 0
-                  })).sort((a, b) => b.count - a.count)}
-                  invalidCount={0}
-                  title="TAM Geographic Distribution"
-                  sourceFilter={sourceFilter}
+              {/* Right Column */}
+              <div className="space-y-4">
+                {/* ICP Donut Chart */}
+                <ICPDonutChart
+                  highFitAccounts={highFitAccounts}
+                  totalScored={totalScores}
                 />
-              ) : geographyData && geographyData.length > 0 && (
-                <EnhancedGeographyCard 
-                  geoData={geographyDistribution} 
-                  invalidCount={0}
-                  title="Your Geographic Distribution"
-                  sourceFilter={sourceFilter}
+                
+                {/* CRM Insights Panel */}
+                <UnifiedInsightsPanel
+                  risks={risks}
+                  insights={insights || []}
+                  orgId={userProfile?.org_id}
+                  onRefresh={handleRefreshInsights}
+                  campaignReadyCount={campaignReadyAccounts}
+                  completenessScore={dataCompleteness}
+                  totalScored={totalScores}
                 />
-              )}
+              </div>
             </div>
-
-            {/* Unified Insights Panel - CRM Insights */}
-            <UnifiedInsightsPanel
-              risks={risks}
-              insights={insights || []}
-              orgId={userProfile?.org_id}
-              onRefresh={handleRefreshInsights}
-              campaignReadyCount={campaignReadyAccounts}
-              completenessScore={dataCompleteness}
-              totalScored={totalScores}
-            />
           </>
         )}
 
