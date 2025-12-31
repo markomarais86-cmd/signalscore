@@ -320,3 +320,6 @@ verify_jwt = true
 
 [functions.generate-coaching-insights]
 verify_jwt = true
+
+[functions.ask-account-ai]
+verify_jwt = true

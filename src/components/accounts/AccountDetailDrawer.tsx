@@ -32,6 +32,7 @@ import { AITechnologyInsights } from "@/components/AITechnologyInsights";
 import { EnrichmentSourceViewer } from "@/components/enrichment/EnrichmentSourceViewer";
 import { DiscoveredLeadsSection } from "@/components/leads/DiscoveredLeadsSection";
 import { AccountInsightsPanel, AccountInsightsData } from "./AccountInsightsPanel";
+import { AskAccountAI } from "./AskAccountAI";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
@@ -507,6 +508,14 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
 
           {/* AI Insights Tab */}
           <TabsContent value="insights" className="space-y-4 mt-4">
+            {/* Ask AI Chat Interface */}
+            <div className="h-[400px]">
+              <AskAccountAI 
+                accountExternalId={account.external_id} 
+                accountName={account.name || undefined}
+              />
+            </div>
+            
             <AITechnologyInsights accountIds={[account.external_id]} />
             
             {/* Personalized AI Insights */}
