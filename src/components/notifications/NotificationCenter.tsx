@@ -17,6 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const DISMISSED_KEY = "launchpulse_dismissed_notifications";
+const LAST_SEEN_KEY = "launchpulse_notifications_last_seen";
+const NOTIFICATION_MAX_AGE_HOURS = 48;
 
 interface UnifiedNotification {
   id: string;
@@ -41,6 +43,19 @@ function getDismissedIds(): Set<string> {
 
 function saveDismissedIds(ids: Set<string>) {
   localStorage.setItem(DISMISSED_KEY, JSON.stringify([...ids]));
+}
+
+function getLastSeenTimestamp(): number {
+  try {
+    const saved = localStorage.getItem(LAST_SEEN_KEY);
+    return saved ? parseInt(saved, 10) : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function saveLastSeenTimestamp(timestamp: number) {
+  localStorage.setItem(LAST_SEEN_KEY, timestamp.toString());
 }
 
 function formatProviderName(provider: string): string {
@@ -100,52 +115,52 @@ export function NotificationCenter() {
     refetchInterval: 30000,
   });
 
-  // Merge and normalize both sources
+  // Merge and normalize both sources - only show recent notifications
   const allNotifications = useMemo<UnifiedNotification[]>(() => {
-    const agentNotifications: UnifiedNotification[] = (recentRuns || []).map(run => ({
-      id: `agent-${run.id}`,
-      type: 'agent_run' as const,
-      name: run.ai_agents?.name || "Agent",
-      status: run.status,
-      records_affected: run.records_affected || 0,
-      records_processed: run.records_processed || 0,
-      timestamp: new Date(run.started_at),
-      agentType: run.ai_agents?.agent_type,
-    }));
+    const maxAgeMs = NOTIFICATION_MAX_AGE_HOURS * 60 * 60 * 1000;
+    const cutoffTime = Date.now() - maxAgeMs;
 
-    const enrichmentNotifications: UnifiedNotification[] = (enrichmentJobs || []).map(job => ({
-      id: `enrichment-${job.id}`,
-      type: 'enrichment_job' as const,
-      name: formatProviderName(job.provider || 'enrichment'),
-      status: job.status,
-      records_affected: job.enriched_records || 0,
-      records_processed: job.processed_records || job.total_records || 0,
-      timestamp: new Date(job.created_at),
-      provider: job.provider,
-    }));
+    const agentNotifications: UnifiedNotification[] = (recentRuns || [])
+      .filter(run => new Date(run.started_at).getTime() > cutoffTime)
+      .map(run => ({
+        id: `agent-${run.id}`,
+        type: 'agent_run' as const,
+        name: run.ai_agents?.name || "Agent",
+        status: run.status,
+        records_affected: run.records_affected || 0,
+        records_processed: run.records_processed || 0,
+        timestamp: new Date(run.started_at),
+        agentType: run.ai_agents?.agent_type,
+      }));
+
+    const enrichmentNotifications: UnifiedNotification[] = (enrichmentJobs || [])
+      .filter(job => new Date(job.created_at).getTime() > cutoffTime)
+      .map(job => ({
+        id: `enrichment-${job.id}`,
+        type: 'enrichment_job' as const,
+        name: formatProviderName(job.provider || 'enrichment'),
+        status: job.status,
+        records_affected: job.enriched_records || 0,
+        records_processed: job.processed_records || job.total_records || 0,
+        timestamp: new Date(job.created_at),
+        provider: job.provider,
+      }));
 
     return [...agentNotifications, ...enrichmentNotifications]
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }, [recentRuns, enrichmentJobs]);
 
-  // Clean up old dismissed IDs that are no longer in the notifications
-  useEffect(() => {
-    if (allNotifications.length > 0) {
-      const currentIds = new Set(allNotifications.map(n => n.id));
-      const validDismissed = new Set([...dismissedIds].filter(id => currentIds.has(id)));
-      if (validDismissed.size !== dismissedIds.size) {
-        setDismissedIds(validDismissed);
-        saveDismissedIds(validDismissed);
-      }
-    }
-  }, [allNotifications]);
-
+  // Don't clean up dismissed IDs - keep them so notifications stay dismissed
   const visibleNotifications = allNotifications.filter(
     notification => !dismissedIds.has(notification.id)
   );
 
+  // Only count as "unread" notifications newer than last seen timestamp
+  const lastSeen = getLastSeenTimestamp();
   const unreadCount = visibleNotifications.filter(
-    notification => notification.status === "completed" || notification.status === "failed"
+    notification => 
+      (notification.status === "completed" || notification.status === "failed") &&
+      notification.timestamp.getTime() > lastSeen
   ).length;
 
   const dismissNotification = (id: string, e: React.MouseEvent) => {
@@ -157,9 +172,11 @@ export function NotificationCenter() {
   };
 
   const dismissAll = () => {
-    const allIds = new Set(allNotifications.map(n => n.id));
+    const allIds = new Set([...dismissedIds, ...allNotifications.map(n => n.id)]);
     setDismissedIds(allIds);
     saveDismissedIds(allIds);
+    // Update last seen to current time
+    saveLastSeenTimestamp(Date.now());
   };
 
   const getNavigationPath = (notification: UnifiedNotification): string => {
