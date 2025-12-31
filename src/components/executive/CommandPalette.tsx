@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/command";
 import { 
   Target, 
-  Sparkles, 
   RefreshCw, 
   Download, 
   Users, 
@@ -29,6 +28,7 @@ import {
   Lightbulb,
   MapPin
 } from "lucide-react";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 
 interface CommandPaletteProps {
   onScoreAccounts?: () => void;
@@ -97,7 +97,7 @@ export function CommandPalette({
       id: 'enrich',
       label: 'Enrich Accounts',
       description: 'Add missing data via AI or providers',
-      icon: Sparkles,
+      icon: LaunchPulseMark,
       action: () => onEnrich?.(),
       group: 'quick-actions',
       keywords: ['enrich', 'data', 'fill', 'complete'],

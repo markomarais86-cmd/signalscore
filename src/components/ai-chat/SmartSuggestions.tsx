@@ -1,5 +1,6 @@
 import React from 'react';
-import { Lightbulb, Sparkles, Clock, Star, ArrowRight } from 'lucide-react';
+import { Lightbulb, Clock, Star, ArrowRight } from 'lucide-react';
+import { LaunchPulseMark } from '@/components/BrandLogo';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -22,7 +23,7 @@ interface SmartSuggestionsProps {
 const SUGGESTION_ICONS: Record<string, React.ElementType> = {
   template: Star,
   frequent: Clock,
-  preference: Sparkles,
+  preference: LaunchPulseMark,
 };
 
 const SUGGESTION_COLORS: Record<string, string> = {
@@ -45,7 +46,7 @@ export function SmartSuggestions({ suggestions, onSelect, className }: SmartSugg
       
       <div className="flex flex-wrap gap-2">
         {suggestions.map((suggestion, index) => {
-          const Icon = SUGGESTION_ICONS[suggestion.type] || Sparkles;
+          const Icon = SUGGESTION_ICONS[suggestion.type] || LaunchPulseMark;
           const colorClass = SUGGESTION_COLORS[suggestion.type] || SUGGESTION_COLORS.preference;
           
           return (
@@ -85,7 +86,7 @@ interface SuggestionCardProps {
 }
 
 export function SuggestionCard({ suggestion, onSelect }: SuggestionCardProps) {
-  const Icon = SUGGESTION_ICONS[suggestion.type] || Sparkles;
+  const Icon = SUGGESTION_ICONS[suggestion.type] || LaunchPulseMark;
   
   return (
     <button

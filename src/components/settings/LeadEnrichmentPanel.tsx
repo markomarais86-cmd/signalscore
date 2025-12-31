@@ -8,8 +8,9 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Loader2, PlayCircle, CheckCircle, AlertCircle, 
-  RefreshCw, Bot, Target, Sparkles, Search, ShieldCheck, Play, Pause, Clock
+  RefreshCw, Bot, Target, Search, ShieldCheck, Play, Pause, Clock
 } from "lucide-react";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDistanceToNow } from "date-fns";
 import { enrichmentLogger } from "@/lib/logger";
@@ -529,7 +530,7 @@ export function LeadEnrichmentPanel() {
                   {enriching ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Sparkles className="h-4 w-4" />
+                    <LaunchPulseMark className="h-4 w-4" />
                   )}
                   Start Multi-Agent Enrichment
                 </Button>

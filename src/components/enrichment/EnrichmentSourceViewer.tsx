@@ -2,7 +2,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ExternalLink, ChevronDown, Database, Brain, Sparkles, TrendingUp } from "lucide-react";
+import { ExternalLink, ChevronDown, Database, Brain, TrendingUp } from "lucide-react";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 import { useState } from "react";
 
 interface EnrichmentSourceViewerProps {
@@ -39,7 +40,7 @@ export function EnrichmentSourceViewer({ account }: EnrichmentSourceViewerProps)
       case 'ai':
         return <Brain className="h-4 w-4" />;
       case 'deep_research':
-        return <Sparkles className="h-4 w-4" />;
+        return <LaunchPulseMark className="h-4 w-4" />;
       default:
         return <Database className="h-4 w-4" />;
     }
