@@ -1,23 +1,36 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import {
-  detectStaleJobs,
-  detectAutoResumeJobs,
-  markJobAsStuck,
-  prepareJobForResume,
-  logRecoveryEvent,
-  MAX_RECOVERY_ATTEMPTS,
-  STALE_JOB_THRESHOLD_MS,
-  AUTO_RESUME_THRESHOLD_MS,
-} from "../_shared/job-heartbeat.ts";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ============= Inlined constants from job-heartbeat.ts =============
+
+// Stale threshold - jobs without heartbeat for this long are considered stuck
+const STALE_JOB_THRESHOLD_MS = 120000; // 2 minutes
+
+// Auto-resume threshold - paused jobs older than this can be auto-resumed
+const AUTO_RESUME_THRESHOLD_MS = 300000; // 5 minutes
+
+// Max recovery attempts before marking job as failed
+const MAX_RECOVERY_ATTEMPTS = 3;
+
 // Pending job threshold - jobs pending for longer than this should be auto-started
 const PENDING_JOB_THRESHOLD_MS = 120000; // 2 minutes
+
+// ============= Inlined interfaces =============
+
+interface StaleJob {
+  id: string;
+  org_id: string;
+  status: string;
+  last_heartbeat: string | null;
+  recovery_count: number;
+  paused_at: string | null;
+  error_message: string | null;
+}
 
 interface PendingJob {
   id: string;
@@ -27,11 +40,187 @@ interface PendingJob {
   total_records: number | null;
 }
 
+// ============= Inlined functions from job-heartbeat.ts =============
+
+/**
+ * Detect jobs that appear to be stuck (no heartbeat update for too long)
+ */
+async function detectStaleJobs(
+  supabase: SupabaseClient,
+  orgId?: string,
+  staleThresholdMs: number = STALE_JOB_THRESHOLD_MS
+): Promise<StaleJob[]> {
+  const staleThreshold = new Date(Date.now() - staleThresholdMs).toISOString();
+  
+  let query = supabase
+    .from('enrichment_jobs')
+    .select('id, org_id, status, last_heartbeat, recovery_count, paused_at, error_message')
+    .eq('status', 'processing')
+    .or(`last_heartbeat.is.null,last_heartbeat.lt.${staleThreshold}`);
+
+  if (orgId) {
+    query = query.eq('org_id', orgId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('[AutoRecovery] Failed to detect stale jobs:', error.message);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Detect paused jobs that are candidates for auto-resume
+ */
+async function detectAutoResumeJobs(
+  supabase: SupabaseClient,
+  orgId?: string,
+  resumeThresholdMs: number = AUTO_RESUME_THRESHOLD_MS
+): Promise<StaleJob[]> {
+  const resumeThreshold = new Date(Date.now() - resumeThresholdMs).toISOString();
+  
+  let query = supabase
+    .from('enrichment_jobs')
+    .select('id, org_id, status, last_heartbeat, recovery_count, paused_at, error_message')
+    .eq('status', 'paused')
+    .lt('paused_at', resumeThreshold)
+    .lt('recovery_count', MAX_RECOVERY_ATTEMPTS);
+
+  // Only auto-resume jobs that were paused due to timeout (have auto-resume message)
+  query = query.or('error_message.ilike.%auto-resume%,error_message.ilike.%timeout%,error_message.is.null');
+
+  if (orgId) {
+    query = query.eq('org_id', orgId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('[AutoRecovery] Failed to detect auto-resume jobs:', error.message);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Log a recovery event for audit purposes
+ */
+async function logRecoveryEvent(
+  supabase: SupabaseClient,
+  params: {
+    jobId: string;
+    orgId: string;
+    recoveryType: 'auto_resume' | 'manual_resume' | 'stuck_cleanup' | 'timeout_pause';
+    previousStatus: string;
+    newStatus: string;
+    rowsRecovered?: number;
+    reason?: string;
+    recoveredBy?: string;
+  }
+): Promise<void> {
+  const { error } = await supabase
+    .from('job_recovery_log')
+    .insert({
+      job_id: params.jobId,
+      org_id: params.orgId,
+      recovery_type: params.recoveryType,
+      previous_status: params.previousStatus,
+      new_status: params.newStatus,
+      rows_recovered: params.rowsRecovered || 0,
+      reason: params.reason,
+      recovered_by: params.recoveredBy,
+    });
+
+  if (error) {
+    console.error('[AutoRecovery] Failed to log recovery event:', error.message);
+  }
+}
+
+/**
+ * Mark a stuck job as paused and increment recovery count
+ */
+async function markJobAsStuck(
+  supabase: SupabaseClient,
+  job: StaleJob,
+  reason: string
+): Promise<boolean> {
+  const newRecoveryCount = (job.recovery_count || 0) + 1;
+  const newStatus = newRecoveryCount >= MAX_RECOVERY_ATTEMPTS ? 'failed' : 'paused';
+  
+  const { error } = await supabase
+    .from('enrichment_jobs')
+    .update({
+      status: newStatus,
+      paused_at: new Date().toISOString(),
+      recovery_count: newRecoveryCount,
+      error_message: reason,
+    })
+    .eq('id', job.id)
+    .eq('status', 'processing'); // Only update if still processing
+
+  if (error) {
+    console.error(`[AutoRecovery] Failed to mark job ${job.id} as stuck:`, error.message);
+    return false;
+  }
+
+  // Log the recovery event
+  await logRecoveryEvent(supabase, {
+    jobId: job.id,
+    orgId: job.org_id,
+    recoveryType: 'stuck_cleanup',
+    previousStatus: job.status,
+    newStatus,
+    reason,
+  });
+
+  return true;
+}
+
+/**
+ * Prepare a paused job for auto-resume
+ */
+async function prepareJobForResume(
+  supabase: SupabaseClient,
+  job: StaleJob
+): Promise<boolean> {
+  // Reset any stuck "processing" rows back to pending
+  const { data: resetRows, error: resetError } = await supabase
+    .from('enrichment_rows')
+    .update({ status: 'pending', current_agent: null })
+    .eq('job_id', job.id)
+    .eq('status', 'processing')
+    .select('id');
+
+  if (resetError) {
+    console.error(`[AutoRecovery] Failed to reset rows for job ${job.id}:`, resetError.message);
+    return false;
+  }
+
+  const rowsRecovered = resetRows?.length || 0;
+
+  // Log the recovery event
+  await logRecoveryEvent(supabase, {
+    jobId: job.id,
+    orgId: job.org_id,
+    recoveryType: 'auto_resume',
+    previousStatus: job.status,
+    newStatus: 'processing',
+    rowsRecovered,
+    reason: 'Auto-resumed after timeout',
+  });
+
+  return true;
+}
+
 /**
  * Detect pending jobs that should be auto-started
  */
 async function detectPendingJobs(
-  supabase: any,
+  supabase: SupabaseClient,
   thresholdMs: number = PENDING_JOB_THRESHOLD_MS
 ): Promise<PendingJob[]> {
   const threshold = new Date(Date.now() - thresholdMs).toISOString();
@@ -51,6 +240,8 @@ async function detectPendingJobs(
 
   return data || [];
 }
+
+// ============= Main handler =============
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -78,7 +269,7 @@ serve(async (req) => {
       errors: [] as string[],
     };
 
-    // Step 0: Find and auto-start pending jobs (NEW!)
+    // Step 0: Find and auto-start pending jobs
     console.log('[AutoRecovery] Checking for pending jobs to auto-start...');
     const pendingJobs = await detectPendingJobs(supabase, PENDING_JOB_THRESHOLD_MS);
     results.pending_jobs_found = pendingJobs.length;
