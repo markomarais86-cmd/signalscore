@@ -220,26 +220,31 @@ function AppContent() {
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="/agent-tester"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <AgentTester />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/ai-test"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <AITest />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
+                {/* Test routes - only available in development */}
+                {import.meta.env.DEV && (
+                  <>
+                    <Route
+                      path="/agent-tester"
+                      element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <AgentTester />
+                          </Layout>
+                        </ProtectedRoute>
+                      }
+                    />
+                    <Route
+                      path="/ai-test"
+                      element={
+                        <ProtectedRoute>
+                          <Layout>
+                            <AITest />
+                          </Layout>
+                        </ProtectedRoute>
+                      }
+                    />
+                  </>
+                )}
                 <Route
                   path="/discovery"
                   element={<Navigate to="/icp-manager" replace />}
