@@ -14,10 +14,12 @@ const corsHeaders = {
 
 interface ProactiveInsight {
   id: string;
-  type: 'critical' | 'opportunity' | 'info' | 'agent_activity';
+  type: 'critical' | 'opportunity' | 'info' | 'agent_activity' | 'warning' | 'engagement';
   title: string;
   description: string;
   metric?: number;
+  priority?: 'critical' | 'high' | 'medium' | 'low';
+  category?: 'action_required' | 'opportunity' | 'warning' | 'info';
   actions: {
     label: string;
     action: string;
@@ -170,10 +172,124 @@ serve(async (req) => {
         title: `${needsEnrichment.toLocaleString()} accounts need data enrichment`,
         description: "Enriching missing data improves scoring accuracy and campaign targeting.",
         metric: needsEnrichment,
+        priority: needsEnrichment > 1000 ? 'high' : 'medium',
+        category: needsEnrichment > 1000 ? 'action_required' : 'info',
         actions: [
           { label: "Enrich 500", action: "enrich_ai_free", params: { batch_size: 500 } },
           { label: "Enrich All", action: "enrich_ai_free", params: { batch_size: 2000, enrich_all: true } },
           { label: "Smart Enrich", action: "enrich_accounts", params: {} },
+        ],
+        dismissible: true,
+      });
+    }
+
+    // 5a. Multi-threading gap: High-fit accounts with only 1 contact
+    const { data: highFitScores } = await supabase
+      .from("scores")
+      .select("account_external_id")
+      .eq("org_id", org_id)
+      .gte("overall", 70);
+    
+    if (highFitScores && highFitScores.length > 0) {
+      const highFitAccountIds = highFitScores.map(s => s.account_external_id);
+      
+      // Count contacts per high-fit account
+      const { data: contactCounts } = await supabase
+        .from("Leads")
+        .select("account_external_id")
+        .eq("org_id", org_id)
+        .in("account_external_id", highFitAccountIds);
+      
+      const accountContactMap: Record<string, number> = {};
+      contactCounts?.forEach(c => {
+        accountContactMap[c.account_external_id] = (accountContactMap[c.account_external_id] || 0) + 1;
+      });
+      
+      const singleContactAccounts = highFitAccountIds.filter(id => accountContactMap[id] === 1).length;
+      const noContactAccounts = highFitAccountIds.filter(id => !accountContactMap[id]).length;
+      
+      if (singleContactAccounts > 20) {
+        insights.push({
+          id: "multi_threading_gap",
+          type: "warning",
+          title: `${singleContactAccounts} high-fit accounts have only 1 contact`,
+          description: "Multi-threading is critical for enterprise deals. Reduce deal risk by adding more decision-makers.",
+          metric: singleContactAccounts,
+          priority: singleContactAccounts > 100 ? 'critical' : 'high',
+          category: 'action_required',
+          actions: [
+            { label: "Find More Contacts", action: "enrich_contacts", params: { single_thread_only: true } },
+            { label: "View Accounts", action: "search_accounts", params: { single_contact_only: true } },
+          ],
+          dismissible: true,
+        });
+      }
+      
+      if (noContactAccounts > 10) {
+        insights.push({
+          id: "high_fit_no_contacts",
+          type: "critical",
+          title: `${noContactAccounts} high-fit accounts have no contacts`,
+          description: "Your best-fit accounts can't be reached. Priority for contact discovery.",
+          metric: noContactAccounts,
+          priority: 'critical',
+          category: 'action_required',
+          actions: [
+            { label: "Find Contacts", action: "enrich_contacts", params: { no_contacts_only: true } },
+          ],
+          dismissible: true,
+        });
+      }
+    }
+
+    // 5b. Score velocity: Accounts with significant score changes
+    const { data: recentScores } = await supabase
+      .from("scores")
+      .select("account_external_id, overall, calculated_at, accounts(name)")
+      .eq("org_id", org_id)
+      .order("calculated_at", { ascending: false })
+      .limit(1000);
+    
+    // Count score improvements (simplified - would need historical comparison in production)
+    const highScoreCount = recentScores?.filter(s => s.overall >= 80).length || 0;
+    
+    if (highScoreCount > 50 && !insights.find(i => i.id.includes('high_score'))) {
+      insights.push({
+        id: "high_score_opportunity",
+        type: "opportunity",
+        title: `${highScoreCount} accounts score 80+`,
+        description: "These are your best-fit accounts. Prioritize outreach to maximize conversion.",
+        metric: highScoreCount,
+        priority: 'high',
+        category: 'opportunity',
+        actions: [
+          { label: "View Top Accounts", action: "search_accounts", params: { min_score: 80 } },
+          { label: "Build Campaign", action: "prepare_campaign", params: { min_score: 80 } },
+        ],
+        dismissible: true,
+      });
+    }
+
+    // 5c. Campaign readiness insight
+    const { count: campaignReadyCount } = await supabase
+      .from("Leads")
+      .select("id", { count: "exact" })
+      .eq("org_id", org_id)
+      .eq("icp_qualified", true)
+      .not("email", "is", null);
+    
+    if (campaignReadyCount && campaignReadyCount > 100) {
+      insights.push({
+        id: "campaign_ready",
+        type: "opportunity",
+        title: `${campaignReadyCount.toLocaleString()} qualified leads ready for campaigns`,
+        description: "These ICP-qualified leads have valid emails and are ready for outreach.",
+        metric: campaignReadyCount,
+        priority: 'medium',
+        category: 'opportunity',
+        actions: [
+          { label: "Build Campaign", action: "prepare_campaign", params: { qualified_only: true } },
+          { label: "Export List", action: "export_list", params: { type: "qualified_leads" } },
         ],
         dismissible: true,
       });
@@ -260,18 +376,29 @@ serve(async (req) => {
       });
     }
 
-    // Sort insights by priority
-    const priorityOrder = { critical: 0, opportunity: 1, agent_activity: 2, info: 3 };
-    insights.sort((a, b) => priorityOrder[a.type] - priorityOrder[b.type]);
+    // Sort insights by priority (type-based, then priority field)
+    const typeOrder: Record<string, number> = { critical: 0, warning: 1, opportunity: 2, engagement: 3, agent_activity: 4, info: 5 };
+    const priorityLevelOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+    
+    insights.sort((a, b) => {
+      const typeA = typeOrder[a.type] ?? 5;
+      const typeB = typeOrder[b.type] ?? 5;
+      if (typeA !== typeB) return typeA - typeB;
+      
+      const priorityA = priorityLevelOrder[a.priority || 'medium'] ?? 2;
+      const priorityB = priorityLevelOrder[b.priority || 'medium'] ?? 2;
+      return priorityA - priorityB;
+    });
 
     console.log(`[Proactive Insights] Generated ${insights.length} insights, ${agentActivity.length} agent activities`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        insights,
+        insights: insights.slice(0, 15), // Max 15 insights
         agent_activity: agentActivity,
         pipeline_stats: pipelineStats,
+        total_insights: insights.length,
       }),
       { 
         headers: { 

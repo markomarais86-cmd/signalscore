@@ -9,12 +9,13 @@ interface InsightsRequest {
 }
 
 interface Insight {
-  type: 'revenue' | 'persona' | 'firmographic' | 'signal';
-  priority: 'high' | 'medium' | 'low';
+  type: 'opportunity' | 'risk' | 'engagement' | 'coverage' | 'revenue' | 'persona' | 'firmographic' | 'signal';
+  priority: 'critical' | 'high' | 'medium' | 'low';
   title: string;
   description: string;
   impact: string;
   confidence: number;
+  category?: 'action_required' | 'opportunity' | 'warning' | 'info';
   relatedSegments?: string[];
   targetAccounts?: Array<{
     account_id: string;
@@ -22,7 +23,7 @@ interface Insight {
     score: number;
     reason: string;
   }>;
-  nextAction?: 'build_campaign' | 'export_csv' | 'view_accounts' | 'enrich_data' | 'score_accounts';
+  nextAction?: 'build_campaign' | 'export_csv' | 'view_accounts' | 'enrich_data' | 'score_accounts' | 'contact_leads' | 'review_accounts';
   revenue_opportunity?: number;
 }
 
@@ -51,7 +52,7 @@ async function callAIWithToolCalling(
     type: "function",
     function: {
       name: "generate_insights",
-      description: "Generate 3 actionable B2B sales insights based on the data provided",
+      description: "Generate 8-10 actionable B2B sales insights covering: opportunities, risks, engagement gaps, coverage issues, and recommendations",
       parameters: {
         type: "object",
         properties: {
@@ -62,13 +63,13 @@ async function callAIWithToolCalling(
               properties: {
                 type: {
                   type: "string",
-                  enum: ["revenue", "persona", "firmographic", "signal"],
-                  description: "Category of insight"
+                  enum: ["opportunity", "risk", "engagement", "coverage", "revenue", "persona", "firmographic", "signal"],
+                  description: "Category of insight: opportunity (new deals), risk (churn/loss), engagement (activity gaps), coverage (data/contact gaps), revenue (deal patterns), persona (buyer insights), firmographic (company data), signal (buying signals)"
                 },
                 priority: {
                   type: "string",
-                  enum: ["high", "medium", "low"],
-                  description: "Urgency level"
+                  enum: ["critical", "high", "medium", "low"],
+                  description: "Urgency level - critical needs immediate action"
                 },
                 title: {
                   type: "string",
@@ -80,18 +81,23 @@ async function callAIWithToolCalling(
                 },
                 impact: {
                   type: "string",
-                  description: "Expected business impact"
+                  description: "Expected business impact with specific numbers if possible"
                 },
                 confidence: {
                   type: "number",
                   description: "Confidence score 0-100"
+                },
+                category: {
+                  type: "string",
+                  enum: ["action_required", "opportunity", "warning", "info"],
+                  description: "Visual category for UI grouping"
                 }
               },
-              required: ["type", "priority", "title", "description", "impact", "confidence"],
+              required: ["type", "priority", "title", "description", "impact", "confidence", "category"],
               additionalProperties: false
             },
-            minItems: 3,
-            maxItems: 3
+            minItems: 6,
+            maxItems: 10
           }
         },
         required: ["insights"],
@@ -312,33 +318,93 @@ serve(async (req) => {
     // Generate insights using tool calling
     const leadCoverageNum = parseFloat(leadCoverageStats.leadCoveragePercent);
     
-    const systemPrompt = `You are a B2B sales analyst. Generate exactly 3 actionable insights.
+    // Calculate additional metrics for richer insights
+    const avgScore = accounts?.reduce((sum, a) => sum + (a.scores?.[0]?.overall || 0), 0) / (accounts?.length || 1);
+    const lowScoreAccounts = accounts?.filter(a => a.scores?.[0]?.overall < 40) || [];
+    const mediumScoreAccounts = accounts?.filter(a => a.scores?.[0]?.overall >= 40 && a.scores?.[0]?.overall < 70) || [];
+    const scoringGaps = accounts?.filter(a => !a.scores || a.scores.length === 0) || [];
+    
+    // Find accounts with single contact (multi-threading gap)
+    const accountContactCounts: Record<string, number> = {};
+    leads?.forEach(l => {
+      if (l.account_external_id) {
+        accountContactCounts[l.account_external_id] = (accountContactCounts[l.account_external_id] || 0) + 1;
+      }
+    });
+    const singleContactHighFit = highScoreAccounts.filter(a => accountContactCounts[a.external_id] === 1).length;
+    const noContactHighFit = highScoreAccounts.filter(a => !accountContactCounts[a.external_id]).length;
+    
+    // Industry concentration analysis
+    const sortedIndustries = Object.entries(industryDistribution).sort((a, b) => b[1] - a[1]);
+    const topIndustryConcentration = sortedIndustries[0] ? (sortedIndustries[0][1] / (accounts?.length || 1)) * 100 : 0;
+    const industryDiversity = sortedIndustries.length;
+    
+    // Geographic opportunities
+    const sortedGeos = Object.entries(geoDistribution).sort((a, b) => b[1] - a[1]);
+    const underPenetratedGeos = sortedGeos.filter(([_, count]) => count < (accounts?.length || 1) * 0.05);
+    
+    const systemPrompt = `You are a B2B sales intelligence analyst for LaunchPulse. Generate 8-10 diverse, actionable insights.
+
+INSIGHT CATEGORIES (generate at least one from each):
+1. OPPORTUNITIES: High-fit accounts ready for outreach, untapped segments, similar-to-closed-won patterns
+2. RISKS: Low engagement, score drops, stale data, churning signals
+3. ENGAGEMENT: Activity gaps, accounts needing follow-up, multi-threading opportunities
+4. COVERAGE: Contact gaps, missing personas, geographic expansion
+5. REVENUE: Deal patterns, pipeline opportunities, segment performance
 
 RULES:
-- If lead coverage >= 85%, focus on campaign execution, NOT lead enrichment
-- If data completeness >= 80%, do NOT suggest data enrichment
-- Use specific numbers from the data provided
+- If lead coverage >= 85%, emphasize campaign execution and engagement insights
+- If data completeness >= 80%, focus on action insights not enrichment
+- Use specific numbers from data provided
+- Assign category: "action_required" for critical/high priority, "opportunity" for growth, "warning" for risks, "info" for insights
+- Mix priorities: 1-2 critical, 2-3 high, 3-4 medium, 1-2 low
+- Each insight must be unique and actionable
 - Keep titles under 50 characters
-- Keep descriptions under 100 words
-- Each insight must be unique and actionable`;
+- Keep descriptions under 100 words`;
 
-    const userPrompt = `Generate 3 insights based on this data:
+    const userPrompt = `Generate 8-10 diverse insights based on this data:
 
-DATA:
-- Accounts: ${accounts?.length || 0} total, ${highScoreAccounts.length} high-fit
-- Leads: ${leadCoverageStats.totalLeads} total, ${leadCoverageStats.leadCoveragePercent}% coverage
-- Missing leads: ${leadCoverageStats.highFitMissingLeads}
-- Data completeness: ${dataCompleteness.toFixed(0)}%
-- Top industry: ${Object.entries(industryDistribution).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown'} (${Object.entries(industryDistribution).sort((a, b) => b[1] - a[1])[0]?.[1] || 0})
-- Top revenue: ${Object.entries(revenueDistribution).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown'} (${Object.entries(revenueDistribution).sort((a, b) => b[1] - a[1])[0]?.[1] || 0})
-- Top geo: ${Object.entries(geoDistribution).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown'} (${Object.entries(geoDistribution).sort((a, b) => b[1] - a[1])[0]?.[1] || 0})
+ACCOUNT METRICS:
+- Total accounts: ${accounts?.length || 0}
+- High-fit (score 70+): ${highScoreAccounts.length} (${((highScoreAccounts.length / (accounts?.length || 1)) * 100).toFixed(1)}%)
+- Medium-fit (40-70): ${mediumScoreAccounts.length}
+- Low-fit (<40): ${lowScoreAccounts.length}
+- Unscored: ${scoringGaps.length}
+- Average score: ${avgScore.toFixed(0)}
+
+CONTACT COVERAGE:
+- Total leads: ${leadCoverageStats.totalLeads}
+- Lead coverage: ${leadCoverageStats.leadCoveragePercent}%
+- High-fit with no contacts: ${noContactHighFit}
+- High-fit with only 1 contact: ${singleContactHighFit} (multi-threading gap)
+- Accounts missing leads: ${leadCoverageStats.highFitMissingLeads}
+
+DATA COMPLETENESS: ${dataCompleteness.toFixed(0)}%
+- Industry: ${((accountsWithIndustry / totalAccounts) * 100).toFixed(0)}%
+- Revenue: ${((accountsWithRevenue / totalAccounts) * 100).toFixed(0)}%
+- Size: ${((accountsWithSize / totalAccounts) * 100).toFixed(0)}%
+- Geography: ${((accountsWithGeo / totalAccounts) * 100).toFixed(0)}%
+
+DISTRIBUTIONS:
+- Top industry: ${sortedIndustries[0]?.[0] || 'Unknown'} (${sortedIndustries[0]?.[1] || 0} accounts, ${topIndustryConcentration.toFixed(1)}% concentration)
+- Second industry: ${sortedIndustries[1]?.[0] || 'N/A'} (${sortedIndustries[1]?.[1] || 0})
+- Industry diversity: ${industryDiversity} unique industries
+- Top geography: ${sortedGeos[0]?.[0] || 'Unknown'} (${sortedGeos[0]?.[1] || 0})
+- Under-penetrated regions: ${underPenetratedGeos.length} (less than 5% each)
 - Top persona: ${Object.entries(personaDistribution).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown'} (${Object.entries(personaDistribution).sort((a, b) => b[1] - a[1])[0]?.[1] || 0})
-- Avg deal: $${avgDealValue.toFixed(0)}
 
-Coverage status: ${leadCoverageNum >= 85 ? 'EXCELLENT - suggest campaigns' : leadCoverageNum >= 60 ? 'MODERATE' : 'NEEDS IMPROVEMENT'}
-Data status: ${dataCompleteness >= 80 ? 'COMPLETE - no enrichment needed' : dataCompleteness >= 60 ? 'MODERATE' : 'NEEDS ENRICHMENT'}`;
+DEAL CONTEXT:
+- Avg deal value: $${avgDealValue.toFixed(0)}
+- Closed deals: ${deals?.length || 0}
 
-    const aiInsights = await callAIWithToolCalling(systemPrompt, userPrompt, 1200);
+STATUS SUMMARY:
+- Coverage: ${leadCoverageNum >= 85 ? 'EXCELLENT - focus on campaigns' : leadCoverageNum >= 60 ? 'MODERATE - some gaps' : 'NEEDS IMPROVEMENT'}
+- Data: ${dataCompleteness >= 80 ? 'COMPLETE' : dataCompleteness >= 60 ? 'MODERATE' : 'NEEDS ENRICHMENT'}
+- Multi-threading: ${singleContactHighFit > 20 ? 'CRITICAL GAP - many single-contact accounts' : singleContactHighFit > 10 ? 'NEEDS ATTENTION' : 'HEALTHY'}
+
+Generate insights that are immediately actionable for a sales/marketing team.`;
+
+    const aiInsights = await callAIWithToolCalling(systemPrompt, userPrompt, 2500);
 
     // POST-AI VALIDATION: Filter out hallucinated insights
     const validatedAiInsights = aiInsights.filter(insight => {
@@ -377,65 +443,128 @@ Data status: ${dataCompleteness >= 80 ? 'COMPLETE - no enrichment needed' : data
     // Add DATA-DRIVEN insights based on REAL metrics
     const insights: Insight[] = [...validatedAiInsights];
     
+    // Reuse calculated variables
+    const topRevenue = Object.entries(revenueDistribution).sort((a, b) => b[1] - a[1])[0];
+    const topIndustry = sortedIndustries[0];
+    const secondIndustry = sortedIndustries[1];
+    const topGeo = sortedGeos[0];
+    const topPersona = Object.entries(personaDistribution).sort((a, b) => b[1] - a[1])[0];
+    
+    // CRITICAL: Multi-threading gap insight
+    if (singleContactHighFit > 10) {
+      insights.push({
+        type: 'engagement',
+        priority: singleContactHighFit > 50 ? 'critical' : 'high',
+        title: `${singleContactHighFit} high-fit accounts have only 1 contact`,
+        description: `Multi-threading is critical for enterprise sales. These accounts have a single point of failure. Add more decision-makers to improve deal velocity.`,
+        impact: `Reduce deal risk for ${singleContactHighFit} high-value accounts`,
+        confidence: 95,
+        category: 'action_required',
+        nextAction: 'enrich_data'
+      });
+    }
+    
+    // CRITICAL: No contacts in high-fit accounts
+    if (noContactHighFit > 5) {
+      insights.push({
+        type: 'coverage',
+        priority: noContactHighFit > 20 ? 'critical' : 'high',
+        title: `${noContactHighFit} high-fit accounts missing contacts`,
+        description: `These are your best-fit accounts with no reachable leads. Priority for contact discovery.`,
+        impact: `Unlock outreach to ${noContactHighFit} high-potential accounts`,
+        confidence: 100,
+        category: 'action_required',
+        nextAction: 'enrich_data'
+      });
+    }
+    
     // Lead coverage insight - ONLY if there's actually a problem
     if (leadCoverageStats.highFitMissingLeads > 100) {
       insights.push({
-        type: 'signal',
+        type: 'coverage',
         priority: 'high',
         title: `${leadCoverageStats.highFitMissingLeads.toLocaleString()} high-fit accounts need leads`,
         description: `${leadCoverageStats.leadCoveragePercent}% lead coverage. ${leadCoverageStats.highFitAccountsWithLeads} of ${highScoreAccounts.length} high-fit accounts have reachable leads.`,
         impact: `Potential to reach ${leadCoverageStats.highFitMissingLeads} additional high-fit accounts`,
         confidence: 95,
+        category: 'action_required',
         nextAction: 'enrich_data'
       });
     } else if (leadCoverageNum >= 85 && highScoreAccounts.length > 10) {
       // POSITIVE insight when coverage is excellent
       insights.push({
-        type: 'signal',
-        priority: 'low',
-        title: `Excellent lead coverage: ${leadCoverageStats.leadCoveragePercent}%`,
-        description: `${leadCoverageStats.highFitAccountsWithLeads} of ${highScoreAccounts.length} high-fit accounts have reachable leads. Your data is campaign-ready.`,
-        impact: 'Strong outreach readiness - focus on campaign execution',
+        type: 'opportunity',
+        priority: 'medium',
+        title: `Campaign-ready: ${leadCoverageStats.leadCoveragePercent}% coverage`,
+        description: `${leadCoverageStats.highFitAccountsWithLeads} of ${highScoreAccounts.length} high-fit accounts have reachable leads. Your data is ready for outreach.`,
+        impact: 'Strong outreach readiness - launch targeted campaigns',
         confidence: 100,
+        category: 'opportunity',
         nextAction: 'build_campaign'
       });
     }
 
-    // Expanded data-driven fallback insights
-    const topRevenue = Object.entries(revenueDistribution).sort((a, b) => b[1] - a[1])[0];
-    const topIndustry = Object.entries(industryDistribution).sort((a, b) => b[1] - a[1])[0];
-    const topGeo = Object.entries(geoDistribution).sort((a, b) => b[1] - a[1])[0];
-    const topPersona = Object.entries(personaDistribution).sort((a, b) => b[1] - a[1])[0];
-    const secondIndustry = Object.entries(industryDistribution).sort((a, b) => b[1] - a[1])[1];
+    // OPPORTUNITY: High-fit accounts ready for campaign
+    if (highScoreAccounts.length > 0) {
+      const campaignReady = highScoreAccounts.filter(a => accountContactCounts[a.external_id] >= 1).length;
+      if (campaignReady > 10) {
+        insights.push({
+          type: 'opportunity',
+          priority: 'high',
+          title: `${campaignReady} high-fit accounts ready for outreach`,
+          description: `These accounts score 70+ and have contacts. Perfect targets for your next campaign.`,
+          impact: `Estimated $${Math.round(campaignReady * avgDealValue * 0.05).toLocaleString()} pipeline opportunity`,
+          confidence: 90,
+          category: 'opportunity',
+          nextAction: 'build_campaign'
+        });
+      }
+    }
 
-    // Always add revenue insight if we have data and need more insights
-    if (topRevenue && insights.length < 5) {
+    // Revenue segment insight
+    if (topRevenue && insights.length < 12) {
       insights.push({
         type: 'revenue',
-        priority: 'high',
+        priority: 'medium',
         title: `Target ${topRevenue[0]} segment`,
         description: `${topRevenue[1]} accounts (${((topRevenue[1] / (accounts?.length || 1)) * 100).toFixed(1)}%) in this revenue range. Strong concentration for focused campaigns.`,
-        impact: `Estimated ${Math.round(topRevenue[1] * avgDealValue * 0.1).toLocaleString()} pipeline from this segment`,
+        impact: `Estimated $${Math.round(topRevenue[1] * avgDealValue * 0.1).toLocaleString()} pipeline from this segment`,
         confidence: 88,
+        category: 'opportunity',
         nextAction: 'build_campaign'
       });
     }
 
-    // Industry insight
-    if (topIndustry && insights.length < 5) {
+    // Industry concentration insight
+    if (topIndustry && topIndustryConcentration > 30 && insights.length < 12) {
       insights.push({
         type: 'firmographic',
         priority: 'medium',
-        title: `${topIndustry[0]} leads your pipeline`,
-        description: `${topIndustry[1]} accounts (${((topIndustry[1] / (accounts?.length || 1)) * 100).toFixed(1)}%) in ${topIndustry[0]}. ${secondIndustry ? `${secondIndustry[0]} is second with ${secondIndustry[1]} accounts.` : ''}`,
-        impact: 'Focus messaging and case studies on top verticals',
+        title: `${topIndustry[0]} dominates at ${topIndustryConcentration.toFixed(0)}%`,
+        description: `${topIndustry[1]} accounts in ${topIndustry[0]}. ${secondIndustry ? `${secondIndustry[0]} is second with ${secondIndustry[1]}.` : ''} Strong vertical focus.`,
+        impact: 'Develop industry-specific messaging and case studies',
         confidence: 85,
+        category: 'info',
+        nextAction: 'view_accounts'
+      });
+    }
+
+    // Industry diversity opportunity
+    if (industryDiversity > 10 && insights.length < 15) {
+      insights.push({
+        type: 'firmographic',
+        priority: 'low',
+        title: `${industryDiversity} industries in your pipeline`,
+        description: `Diverse industry spread offers multiple market opportunities. Consider segment-specific campaigns.`,
+        impact: 'Reduce concentration risk through diversification',
+        confidence: 75,
+        category: 'info',
         nextAction: 'view_accounts'
       });
     }
 
     // Persona insight
-    if (topPersona && insights.length < 5) {
+    if (topPersona && insights.length < 12) {
       insights.push({
         type: 'persona',
         priority: 'medium',
@@ -443,35 +572,85 @@ Data status: ${dataCompleteness >= 80 ? 'COMPLETE - no enrichment needed' : data
         description: `${topPersona[1]} contacts (${((topPersona[1] / (leads?.length || 1)) * 100).toFixed(1)}%) match this persona. Tailor outreach to their pain points.`,
         impact: 'Higher conversion with persona-specific messaging',
         confidence: 80,
+        category: 'info',
         nextAction: 'build_campaign'
       });
     }
 
     // Geographic insight
-    if (topGeo && insights.length < 5) {
+    if (topGeo && insights.length < 15) {
       insights.push({
         type: 'firmographic',
         priority: 'low',
-        title: `${topGeo[0]} dominates geography`,
-        description: `${topGeo[1]} accounts (${((topGeo[1] / (accounts?.length || 1)) * 100).toFixed(1)}%) in ${topGeo[0]}. Consider expanding to adjacent markets.`,
-        impact: 'Potential for geographic expansion campaigns',
+        title: `${topGeo[0]} leads geography`,
+        description: `${topGeo[1]} accounts (${((topGeo[1] / (accounts?.length || 1)) * 100).toFixed(1)}%) in ${topGeo[0]}. ${underPenetratedGeos.length > 0 ? `${underPenetratedGeos.length} regions under-penetrated.` : ''}`,
+        impact: 'Consider geographic expansion campaigns',
         confidence: 75,
+        category: 'info',
+        nextAction: 'view_accounts'
+      });
+    }
+
+    // Unscored accounts warning
+    if (scoringGaps.length > 50) {
+      insights.push({
+        type: 'risk',
+        priority: scoringGaps.length > 200 ? 'high' : 'medium',
+        title: `${scoringGaps.length} accounts unscored`,
+        description: `These accounts haven't been scored against your ICP. You may be missing opportunities or wasting effort on low-fit accounts.`,
+        impact: `Score ${scoringGaps.length} accounts to prioritize correctly`,
+        confidence: 100,
+        category: 'warning',
+        nextAction: 'score_accounts'
+      });
+    }
+
+    // Low-fit accounts insight
+    if (lowScoreAccounts.length > 100 && insights.length < 15) {
+      const lowFitPercent = ((lowScoreAccounts.length / (accounts?.length || 1)) * 100).toFixed(0);
+      insights.push({
+        type: 'risk',
+        priority: 'low',
+        title: `${lowFitPercent}% of accounts are low-fit`,
+        description: `${lowScoreAccounts.length} accounts score below 40. Consider deprioritizing or removing these from active campaigns.`,
+        impact: 'Focus resources on higher-probability accounts',
+        confidence: 85,
+        category: 'warning',
         nextAction: 'view_accounts'
       });
     }
 
     // Data completeness insight - only if actually needed
-    if (dataCompleteness < 70 && insights.length < 5) {
+    if (dataCompleteness < 70) {
       insights.push({
-        type: 'signal',
-        priority: 'high',
+        type: 'coverage',
+        priority: dataCompleteness < 50 ? 'high' : 'medium',
         title: `Data completeness at ${dataCompleteness.toFixed(0)}%`,
         description: `Industry: ${((accountsWithIndustry / totalAccounts) * 100).toFixed(0)}%, Revenue: ${((accountsWithRevenue / totalAccounts) * 100).toFixed(0)}%, Size: ${((accountsWithSize / totalAccounts) * 100).toFixed(0)}%, Geography: ${((accountsWithGeo / totalAccounts) * 100).toFixed(0)}%`,
         impact: 'Better data enables more accurate scoring and targeting',
         confidence: 100,
+        category: 'warning',
         nextAction: 'enrich_data'
       });
     }
+
+    // Medium-fit opportunity
+    if (mediumScoreAccounts.length > 50 && insights.length < 15) {
+      insights.push({
+        type: 'opportunity',
+        priority: 'medium',
+        title: `${mediumScoreAccounts.length} medium-fit accounts to nurture`,
+        description: `These accounts score 40-70. With better data or engagement, some could become high-fit targets.`,
+        impact: `Potential to upgrade ${Math.round(mediumScoreAccounts.length * 0.2)} accounts to high-fit`,
+        confidence: 70,
+        category: 'opportunity',
+        nextAction: 'enrich_data'
+      });
+    }
+
+    // Sort insights by priority (critical first, then high, medium, low)
+    const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+    insights.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
     // Filter out dismissed recommendations
     const filteredInsights = insights.filter(insight => {
@@ -484,18 +663,24 @@ Data status: ${dataCompleteness >= 80 ? 'COMPLETE - no enrichment needed' : data
     return new Response(
       JSON.stringify({
         success: true,
-        insights: filteredInsights.slice(0, 6), // Max 6 insights
+        insights: filteredInsights.slice(0, 15), // Max 15 insights
         stats: {
           totalAccounts: accounts?.length || 0,
           highFitAccounts: highScoreAccounts.length,
+          mediumFitAccounts: mediumScoreAccounts.length,
+          lowFitAccounts: lowScoreAccounts.length,
+          unscoredAccounts: scoringGaps.length,
           leadCoverage: leadCoverageStats,
           dataCompleteness: dataCompleteness.toFixed(1),
+          multiThreadingGap: singleContactHighFit,
+          noContactHighFit: noContactHighFit,
         },
         debug: {
           aiInsightsGenerated: aiInsights.length,
           aiInsightsValidated: validatedAiInsights.length,
           dataInsightsAdded: insights.length - validatedAiInsights.length,
           dismissedFiltered: insights.length - filteredInsights.length,
+          totalBeforeLimit: filteredInsights.length,
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
