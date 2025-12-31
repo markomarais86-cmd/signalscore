@@ -123,11 +123,25 @@ export function AIRecommendationsTiles({ insights, onRefresh }: AIRecommendation
   // Get unique categories
   const categories = ['all', ...Array.from(new Set(insights.map(i => i.category).filter(Boolean)))];
   
-  // Filter insights by selected category and dismissed status
+  const [showAll, setShowAll] = useState(false);
+  const [impactFilter, setImpactFilter] = useState<string>('all');
+
+  // Filter insights by selected category, dismissed status, and impact
   const filteredInsights = (selectedCategory === 'all' 
     ? insights 
     : insights.filter(i => i.category === selectedCategory)
-  ).filter(i => !dismissedIds.has(i.id || ''));
+  ).filter(i => !dismissedIds.has(i.id || ''))
+   .filter(i => {
+     if (impactFilter === 'all') return true;
+     const impact = i.impact?.toLowerCase() || '';
+     if (impactFilter === 'high') return impact.includes('high') || impact.includes('significant') || impact.includes('major');
+     if (impactFilter === 'medium') return impact.includes('medium') || impact.includes('moderate');
+     if (impactFilter === 'low') return impact.includes('low') || impact.includes('minor');
+     return true;
+   });
+
+  const displayedInsights = showAll ? filteredInsights.slice(0, 12) : filteredInsights.slice(0, 6);
+  const hasMore = filteredInsights.length > 6;
 
   if (!insights || insights.length === 0) {
     return (
@@ -177,25 +191,43 @@ export function AIRecommendationsTiles({ insights, onRefresh }: AIRecommendation
         </div>
       </CardHeader>
       <CardContent>
-        {/* Category Filter Pills */}
-        {categories.length > 1 && (
-          <div className="flex items-center gap-2 mb-4 flex-wrap">
-            <span className="text-sm text-muted-foreground">Filter by:</span>
-            {categories.map(cat => (
+        {/* Filters Row */}
+        <div className="flex flex-wrap items-center gap-4 mb-4">
+          {/* Category Filter Pills */}
+          {categories.length > 1 && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-muted-foreground">Category:</span>
+              {categories.map(cat => (
+                <Badge
+                  key={cat}
+                  variant={selectedCategory === cat ? 'default' : 'outline'}
+                  className="cursor-pointer capitalize"
+                  onClick={() => setSelectedCategory(cat)}
+                >
+                  {cat}
+                </Badge>
+              ))}
+            </div>
+          )}
+          
+          {/* Impact Filter */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-muted-foreground">Impact:</span>
+            {['all', 'high', 'medium', 'low'].map(impact => (
               <Badge
-                key={cat}
-                variant={selectedCategory === cat ? 'default' : 'outline'}
+                key={impact}
+                variant={impactFilter === impact ? 'default' : 'outline'}
                 className="cursor-pointer capitalize"
-                onClick={() => setSelectedCategory(cat)}
+                onClick={() => setImpactFilter(impact)}
               >
-                {cat}
+                {impact === 'all' ? 'All' : impact}
               </Badge>
             ))}
           </div>
-        )}
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredInsights.slice(0, 6).map((insight, idx) => {
+          {displayedInsights.map((insight, idx) => {
             const Icon = getIconForCategory(insight.category);
             const colorClass = getColorForCategory(insight.category);
             
@@ -271,6 +303,20 @@ export function AIRecommendationsTiles({ insights, onRefresh }: AIRecommendation
             );
           })}
         </div>
+
+        {/* Show More/Less Toggle */}
+        {hasMore && (
+          <div className="flex justify-center mt-4">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setShowAll(!showAll)}
+              className="gap-2"
+            >
+              {showAll ? 'Show Less' : `Show ${Math.min(filteredInsights.length - 6, 6)} More`}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

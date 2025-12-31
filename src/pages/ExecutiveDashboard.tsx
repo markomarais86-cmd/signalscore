@@ -44,6 +44,8 @@ import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton"
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
 import { SignalFeed } from "@/components/executive/SignalFeed";
 import { SignalSummaryCard } from "@/components/executive/SignalSummaryCard";
+import { SignalsHeroCard } from "@/components/executive/SignalsHeroCard";
+import { WeeklyReportCard } from "@/components/executive/WeeklyReportCard";
 
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
 import { CommandPalette, CommandPaletteTrigger } from "@/components/executive/CommandPalette";
@@ -584,6 +586,12 @@ export default function ExecutiveDashboard() {
           </div>
         ) : (
           <>
+            {/* Signals Hero Card - Prominent signal summary */}
+            <SignalsHeroCard className="mb-4" />
+
+            {/* Weekly Report Card - AI-generated summary */}
+            <WeeklyReportCard className="mb-4" />
+
             {/* Your Database Metrics */}
             <div>
               <h2 className="text-lg lg:text-xl font-semibold mb-3 flex items-center gap-2">
