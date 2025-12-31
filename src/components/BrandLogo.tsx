@@ -1,12 +1,42 @@
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/components/ui/sidebar";
-import launchpulseLogo from "@/assets/launchpulse-logo.png";
 
 interface BrandLogoProps {
   variant?: "light" | "dark";
   className?: string;
   showTagline?: boolean;
   collapsed?: boolean;
+}
+
+// Geometric chevron mark - the LaunchPulse brand icon
+function ChevronMark({ className }: { className?: string }) {
+  return (
+    <svg 
+      viewBox="0 0 32 32" 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg"
+      className={cn("w-8 h-8", className)}
+    >
+      {/* Outer chevron */}
+      <path 
+        d="M6 24 L16 8 L26 24" 
+        stroke="currentColor" 
+        strokeWidth="3" 
+        strokeLinecap="round" 
+        strokeLinejoin="round"
+        className="text-primary"
+      />
+      {/* Inner chevron for depth */}
+      <path 
+        d="M11 20 L16 12 L21 20" 
+        stroke="currentColor" 
+        strokeWidth="2.5" 
+        strokeLinecap="round" 
+        strokeLinejoin="round"
+        className="text-primary"
+      />
+    </svg>
+  );
 }
 
 export function BrandLogo({ 
@@ -30,11 +60,7 @@ export function BrandLogo({
   if (isCollapsed) {
     return (
       <div className={cn("flex items-center justify-center", className)}>
-        <img 
-          src={launchpulseLogo} 
-          alt="LaunchPulse" 
-          className="w-7 h-7 object-contain"
-        />
+        <ChevronMark className="w-7 h-7" />
       </div>
     );
   }
@@ -42,11 +68,7 @@ export function BrandLogo({
   return (
     <div className={cn("flex flex-col", className)}>
       <div className="flex items-center gap-2">
-        <img 
-          src={launchpulseLogo} 
-          alt="LaunchPulse" 
-          className="w-8 h-8 object-contain"
-        />
+        <ChevronMark className="w-8 h-8" />
         <div className={cn(
           "text-2xl font-bold font-heading tracking-tight",
           variant === "light" ? "text-foreground" : "text-background"

@@ -7,9 +7,18 @@
   </defs>
   <!-- Background -->
   <rect width="32" height="32" rx="6" fill="#0a0a0a"/>
-  <!-- Geometric chevron mark -->
+  <!-- Outer chevron -->
   <path 
-    d="M8 22 L16 10 L24 22 M12 18 L16 12 L20 18" 
+    d="M6 24 L16 8 L26 24" 
+    stroke="url(#chevronGradient)" 
+    stroke-width="3" 
+    stroke-linecap="round" 
+    stroke-linejoin="round"
+    fill="none"
+  />
+  <!-- Inner chevron -->
+  <path 
+    d="M11 20 L16 12 L21 20" 
     stroke="url(#chevronGradient)" 
     stroke-width="2.5" 
     stroke-linecap="round" 
