@@ -593,10 +593,11 @@ export default function ExecutiveDashboard() {
                   highFitDatabaseAccounts={highFitDatabaseAccounts}
                 />
                 
-                {/* TAM Card */}
+                {/* TAM/SAM/SOM Card */}
                 <SimpleTAMCard
-                  tamValue={0}
                   totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
+                  highFitAccounts={highFitAccounts}
+                  campaignReadyAccounts={campaignReadyAccounts}
                   averageDealSize={75000}
                 />
               </div>
