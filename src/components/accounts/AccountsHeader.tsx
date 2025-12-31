@@ -1,4 +1,5 @@
-import { Database, Target, Sparkles, AlertCircle } from "lucide-react";
+import { Database, Target, AlertCircle } from "lucide-react";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -121,7 +122,7 @@ export function AccountsHeader({
             variant="outline" 
             onClick={onOpenEnrichmentModal}
           >
-            <Sparkles className="h-4 w-4 mr-2" />
+            <LaunchPulseMark className="h-4 w-4 mr-2" />
             Enrich Data
           </Button>
         </div>

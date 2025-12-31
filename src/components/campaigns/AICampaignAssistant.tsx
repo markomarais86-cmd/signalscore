@@ -3,7 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Sparkles, TrendingUp, AlertCircle, CheckCircle2, Lightbulb, Loader2 } from "lucide-react";
+import { TrendingUp, AlertCircle, CheckCircle2, Lightbulb, Loader2 } from "lucide-react";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -142,7 +143,7 @@ export function AICampaignAssistant({
     <Card className="h-full border-primary/20 bg-gradient-to-br from-background to-muted/20">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-primary" />
+          <LaunchPulseMark className="h-5 w-5" />
           <CardTitle className="text-lg">AI Assistant</CardTitle>
         </div>
         <CardDescription>{getStepTitle()}</CardDescription>
@@ -187,7 +188,7 @@ export function AICampaignAssistant({
         {/* Pro Tips */}
         <div className="pt-4 border-t border-border/50">
           <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
+            <LaunchPulseMark className="h-4 w-4" />
             Pro Tips
           </h4>
           <div className="space-y-2 text-xs text-muted-foreground">

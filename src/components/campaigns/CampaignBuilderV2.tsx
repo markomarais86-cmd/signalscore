@@ -12,7 +12,8 @@ import { Slider } from "@/components/ui/slider";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, Users, DollarSign, CheckCircle2, Target, AlertCircle, Loader2, ArrowRight, ArrowLeft, ChevronRight, AlertTriangle, TrendingUp, Zap, BarChart3 } from "lucide-react";
+import { Users, DollarSign, CheckCircle2, Target, AlertCircle, Loader2, ArrowRight, ArrowLeft, ChevronRight, AlertTriangle, TrendingUp, Zap, BarChart3 } from "lucide-react";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 import { MarketIntelligencePreview } from "./MarketIntelligencePreview";
 import { formatNumber } from "@/utils/format-numbers";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -847,7 +848,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
                   disabled={isGeneratingNames}
                   className="gap-2"
                 >
-                  <Sparkles className="h-3 w-3" />
+                  <LaunchPulseMark className="h-3 w-3" />
                   {isGeneratingNames ? "Generating..." : "AI Generate"}
                 </Button>
               </div>
@@ -1137,13 +1138,13 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
                 disabled={isOptimizingSequence}
                 className="gap-2"
               >
-                <Sparkles className="h-3 w-3" />
+                <LaunchPulseMark className="h-3 w-3" />
                 {isOptimizingSequence ? "Optimizing..." : "AI Optimize"}
               </Button>
             </div>
             {sequenceRecommendations && (
               <Alert className="bg-primary/5 border-primary/20">
-                <Sparkles className="h-4 w-4" />
+                <LaunchPulseMark className="h-4 w-4" />
                 <AlertDescription>
                   <div className="font-medium mb-2">AI Recommendation: {sequenceRecommendations.recommendedTemplate.toUpperCase()}</div>
                   <p className="text-xs">{sequenceRecommendations.reasoning}</p>
@@ -1340,7 +1341,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
                   disabled={isEstimatingROI}
                   className="gap-2"
                 >
-                  <Sparkles className="h-3 w-3" />
+                  <LaunchPulseMark className="h-3 w-3" />
                   {isEstimatingROI ? "Calculating..." : "Calculate ROI"}
                 </Button>
               )}

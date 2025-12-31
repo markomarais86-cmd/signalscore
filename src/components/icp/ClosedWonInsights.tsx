@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { TrendingUp, DollarSign, Clock, Target, Sparkles, Building, Users, MapPin, ChevronRight, Upload, Database, FileQuestion, Info } from 'lucide-react';
+import { TrendingUp, DollarSign, Clock, Target, Building, Users, MapPin, ChevronRight, Upload, Database, FileQuestion, Info } from 'lucide-react';
+import { LaunchPulseMark } from "@/components/BrandLogo";
 import { useClosedWonAnalysis, ICPRecommendation } from '@/hooks/use-closed-won-analysis';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SampleDataGenerator } from '@/components/SampleDataGenerator';
@@ -96,7 +97,7 @@ export function ClosedWonInsights({ onCreateICP }: ClosedWonInsightsProps) {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
+              <LaunchPulseMark className="h-5 w-5" />
               What You'll Discover
             </CardTitle>
             <CardDescription>
@@ -216,7 +217,7 @@ export function ClosedWonInsights({ onCreateICP }: ClosedWonInsightsProps) {
           <div className="flex items-start justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
+                <LaunchPulseMark className="h-5 w-5" />
                 Win-Based Intelligence
               </CardTitle>
               <CardDescription>
