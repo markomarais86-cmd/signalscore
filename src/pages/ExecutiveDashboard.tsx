@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
-import { TrendingUp, Target, Database, Download, MapPin, Sparkles, Building2, Settings, AlertCircle, Users, RefreshCw, Activity, Search } from "lucide-react";
+import { TrendingUp, Target, Database, Download, MapPin, Building2, Settings, AlertCircle, Users, RefreshCw, Activity, Search } from "lucide-react";
+import { LaunchPulseMark } from '@/components/BrandLogo';
 import { useAuth } from "@/hooks/use-auth";
 import { useDashboardData, useGeographyData, useSourceFilterStats } from "@/hooks/use-dashboard-data";
 import { useOnboarding } from "@/hooks/use-onboarding";
@@ -475,7 +476,7 @@ export default function ExecutiveDashboard() {
               onClick={() => setIsEnrichmentModalOpen(true)}
               className="hover:shadow-sm transition-shadow active:scale-[0.98]"
             >
-              <Sparkles className="mr-2 h-4 w-4" />
+              <LaunchPulseMark className="mr-2 h-4 w-4" />
               Enrich
             </Button>
             <Button 
@@ -552,7 +553,7 @@ export default function ExecutiveDashboard() {
                 }}
               >
                 <CardContent className="pt-6 text-center">
-                  <Sparkles className="h-8 w-8 text-primary mx-auto mb-3" />
+                  <LaunchPulseMark className="h-8 w-8 text-primary mx-auto mb-3" />
                   <h3 className="font-semibold mb-1">Generate Sample Data</h3>
                   <p className="text-sm text-muted-foreground">Quick demo with realistic accounts</p>
                 </CardContent>

@@ -1,7 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, Sparkles, AlertCircle } from 'lucide-react';
+import { CheckCircle, AlertCircle } from 'lucide-react';
+import { LaunchPulseMark } from '@/components/BrandLogo';
 import { ICPFormData } from '@/types/icp';
 import { useICPInsights } from '@/hooks/use-icp-insights';
 import { useEffect } from 'react';
@@ -29,7 +30,7 @@ export function ICPWizardStep5({ formData, onValidate }: ICPWizardStep5Props) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-6 w-6 text-primary" />
+              <LaunchPulseMark className="h-6 w-6 text-primary" />
               <CardTitle>AI-Powered ICP Insights</CardTitle>
             </div>
             <Button 

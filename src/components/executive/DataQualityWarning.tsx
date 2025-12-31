@@ -1,6 +1,7 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle, Sparkles } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
+import { LaunchPulseMark } from '@/components/BrandLogo';
 import { useNavigate } from "react-router-dom";
 
 interface DataQualityWarningProps {
@@ -38,7 +39,7 @@ export function DataQualityWarning({
               onClick={onEnrich}
               className="border-amber-500/50 hover:bg-amber-500/10"
             >
-              <Sparkles className="mr-1 h-3 w-3" />
+              <LaunchPulseMark className="mr-1 h-3 w-3" />
               Enrich Data
             </Button>
           )}

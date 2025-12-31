@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Bot, Sparkles } from "lucide-react";
+import { Bot } from "lucide-react";
+import { LaunchPulseMark } from '@/components/BrandLogo';
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 
@@ -142,7 +143,7 @@ export function LeadQualificationQueue() {
           ))}
           {!leads?.length && (
             <div className="text-center py-12">
-              <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <LaunchPulseMark className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
               <p className="text-muted-foreground">All leads have been qualified!</p>
             </div>
           )}

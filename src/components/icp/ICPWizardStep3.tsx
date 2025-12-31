@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { User, Crown, Building2, Target, Lightbulb, Sparkles, X } from 'lucide-react';
+import { User, Crown, Building2, Target, Lightbulb, X } from 'lucide-react';
+import { LaunchPulseMark } from '@/components/BrandLogo';
 import { ICPFormData } from '@/types/icp';
 import { 
   PERSONA_JOB_TITLES, 
@@ -126,7 +127,7 @@ export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Pro
       {/* Persona Suggestions from Leads */}
       {topTitles && topTitles.length > 0 && (
         <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/20 dark:border-blue-800">
-          <Sparkles className="h-4 w-4 text-blue-600" />
+          <LaunchPulseMark className="h-4 w-4 text-blue-600" />
           <AlertDescription>
             <strong className="text-blue-900 dark:text-blue-100">We found these job titles in your leads:</strong>
             <div className="flex flex-wrap gap-2 mt-2">

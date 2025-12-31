@@ -3,7 +3,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Sparkles, TrendingUp, Target, MapPin, Building2, DollarSign, Clock } from "lucide-react";
+import { TrendingUp, Target, MapPin, Building2, DollarSign, Clock } from "lucide-react";
+import { LaunchPulseMark } from '@/components/BrandLogo';
 import { useNavigate } from "react-router-dom";
 
 interface RecommendationData {
@@ -51,7 +52,7 @@ export function ICPRecommendationDialog({
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <LaunchPulseMark className="h-5 w-5 text-primary" />
             AI-Generated ICP Recommendation
           </DialogTitle>
           <DialogDescription>
