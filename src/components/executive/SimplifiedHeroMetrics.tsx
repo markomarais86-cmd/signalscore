@@ -1,24 +1,25 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Building2, Users, Target } from "lucide-react";
-import { BarChart, Bar, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, ResponsiveContainer, Cell } from "recharts";
+import { Building2, Users, Rocket } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 interface SimplifiedHeroMetricsProps {
   totalAccounts: number;
   totalLeads: number;
   campaignReady: number;
-  sourceFilter: 'crm' | 'database';
+  sourceFilter: "crm" | "database";
   tamProvider?: string;
 }
 
 const miniChartData = [
-  { value: 30 },
-  { value: 45 },
   { value: 35 },
-  { value: 55 },
   { value: 48 },
-  { value: 62 },
+  { value: 42 },
   { value: 58 },
+  { value: 52 },
+  { value: 68 },
+  { value: 62 },
+  { value: 75 },
 ];
 
 export function SimplifiedHeroMetrics({
@@ -33,68 +34,69 @@ export function SimplifiedHeroMetrics({
   const metrics = [
     {
       label: "Total Accounts",
-      value: totalAccounts,
-      subtitle: sourceFilter === 'database' ? `Via ${tamProvider || 'Database'}` : "In your CRM",
+      value: totalAccounts.toLocaleString(),
+      subtitle: sourceFilter === "database" ? `Via ${tamProvider || "Database"}` : "In your CRM",
       icon: Building2,
-      onClick: () => navigate('/accounts'),
+      onClick: () => navigate("/accounts"),
     },
     {
       label: "Total Leads",
-      value: totalLeads,
-      subtitle: sourceFilter === 'database' ? "Available contacts" : "In your pipeline",
+      value: totalLeads.toLocaleString(),
+      subtitle: sourceFilter === "database" ? "Available contacts" : "In your pipeline",
       icon: Users,
-      onClick: () => navigate('/leads'),
+      onClick: () => navigate("/leads"),
     },
     {
       label: "Campaign Ready",
-      value: campaignReady,
+      value: campaignReady.toLocaleString(),
       subtitle: "Ready for outreach",
-      icon: Target,
-      onClick: () => navigate('/leads?campaign_ready=true'),
-      highlight: true,
+      icon: Rocket,
+      onClick: () => navigate("/leads?campaign_ready=true"),
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-      {metrics.map((metric) => (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {metrics.map((metric, idx) => (
         <Card
           key={metric.label}
-          className="cursor-pointer hover:bg-muted/30 transition-all duration-200 border-border/50"
+          className="cursor-pointer group relative overflow-hidden border-border/50 bg-card/80 backdrop-blur-sm hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300"
           onClick={metric.onClick}
         >
-          <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <p className="text-sm text-muted-foreground mb-1">{metric.label}</p>
-                <p className="text-3xl font-bold tracking-tight">
-                  {metric.value.toLocaleString()}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">{metric.subtitle}</p>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <metric.icon className="h-4 w-4 text-primary" />
+                  <p className="text-sm font-medium text-muted-foreground">{metric.label}</p>
+                </div>
+                <p className="text-4xl font-bold tracking-tight text-foreground">{metric.value}</p>
+                <p className="text-xs text-muted-foreground">{metric.subtitle}</p>
               </div>
-              <div className="flex flex-col items-end gap-2">
-                <metric.icon className="h-5 w-5 text-muted-foreground" />
-                {metric.highlight && metric.value > 0 && (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/20 text-primary">
-                    Ready
-                  </span>
-                )}
+              <div className="w-24 h-16">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={miniChartData} barCategoryGap="15%">
+                    <defs>
+                      <linearGradient id={`barGradient-${idx}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.9} />
+                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.2} />
+                      </linearGradient>
+                    </defs>
+                    <Bar
+                      dataKey="value"
+                      radius={[3, 3, 0, 0]}
+                    >
+                      {miniChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={`url(#barGradient-${idx})`} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
-            </div>
-            {/* Mini bar chart */}
-            <div className="h-10 mt-3">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={miniChartData} barCategoryGap="20%">
-                  <Bar
-                    dataKey="value"
-                    fill="hsl(var(--primary))"
-                    radius={[2, 2, 0, 0]}
-                    opacity={0.8}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
             </div>
           </CardContent>
+          {/* Subtle glow effect on hover */}
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none bg-gradient-to-r from-primary/5 via-transparent to-transparent" />
         </Card>
       ))}
     </div>
