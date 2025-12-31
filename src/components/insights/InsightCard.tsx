@@ -6,15 +6,19 @@ import {
   TrendingUp, 
   Zap, 
   X,
-  Loader2 
+  Loader2,
+  Users,
+  AlertCircle
 } from "lucide-react";
 
 export interface ProactiveInsight {
   id: string;
-  type: 'critical' | 'opportunity' | 'info' | 'agent_activity';
+  type: 'critical' | 'opportunity' | 'info' | 'agent_activity' | 'warning' | 'engagement';
   title: string;
   description: string;
   metric?: number;
+  priority?: 'critical' | 'high' | 'medium' | 'low';
+  category?: 'action_required' | 'opportunity' | 'warning' | 'info';
   actions: {
     label: string;
     action: string;
@@ -42,8 +46,12 @@ export function InsightCard({
     switch (type) {
       case 'critical':
         return <AlertTriangle className="h-4 w-4 text-destructive" />;
+      case 'warning':
+        return <AlertCircle className="h-4 w-4 text-amber-500" />;
       case 'opportunity':
         return <Target className="h-4 w-4 text-primary" />;
+      case 'engagement':
+        return <Users className="h-4 w-4 text-blue-500" />;
       case 'agent_activity':
         return <Zap className="h-4 w-4 text-amber-500" />;
       default:
@@ -51,12 +59,25 @@ export function InsightCard({
     }
   };
 
-  const getTypeBadge = (type: ProactiveInsight['type']) => {
+  const getTypeBadge = (type: ProactiveInsight['type'], priority?: ProactiveInsight['priority']) => {
+    // If priority is set, use priority-based badge
+    if (priority === 'critical') {
+      return <Badge variant="destructive">Critical</Badge>;
+    }
+    if (priority === 'high') {
+      return <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30">High Priority</Badge>;
+    }
+    
+    // Otherwise use type-based badge
     switch (type) {
       case 'critical':
         return <Badge variant="destructive">High Priority</Badge>;
+      case 'warning':
+        return <Badge className="bg-amber-500/10 text-amber-600">Warning</Badge>;
       case 'opportunity':
         return <Badge className="bg-primary/10 text-primary">Opportunity</Badge>;
+      case 'engagement':
+        return <Badge className="bg-blue-500/10 text-blue-600">Engagement</Badge>;
       case 'agent_activity':
         return <Badge className="bg-amber-500/10 text-amber-600">Agent Activity</Badge>;
       default:
@@ -115,9 +136,9 @@ export function InsightCard({
         <div className="flex items-start gap-2 flex-1">
           {getTypeIcon(insight.type)}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
               <span className="font-medium text-sm">{insight.title}</span>
-              {getTypeBadge(insight.type)}
+              {getTypeBadge(insight.type, insight.priority)}
               {insight.metric !== undefined && (
                 <Badge variant="outline" className="text-xs">
                   {insight.metric}
