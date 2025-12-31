@@ -6,7 +6,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
-  Sparkles, 
   TrendingUp, 
   RefreshCw,
   ChevronDown,
@@ -19,6 +18,7 @@ import { enrichmentLogger as log } from "@/lib/logger";
 import { TIMING, ENRICHMENT } from "@/lib/constants";
 import { InsightCard, type ProactiveInsight } from "./InsightCard";
 import { DataCompletenessCard } from "./DataCompletenessCard";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 
 interface EnrichmentProgress {
   jobId: string;
@@ -365,7 +365,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+              <LaunchPulseMark className="w-5 h-5 animate-pulse" />
               <CardTitle className="text-lg">AI Insights</CardTitle>
             </div>
           </div>
@@ -389,7 +389,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
           <div className="flex items-center justify-between">
             <CollapsibleTrigger asChild>
               <Button variant="ghost" className="p-0 h-auto hover:bg-transparent flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-primary" />
+                <LaunchPulseMark className="w-5 h-5" />
                 <CardTitle className="text-lg">AI Insights</CardTitle>
                 {visibleInsights.length > 0 && (
                   <Badge variant="secondary" className="ml-1">
@@ -511,7 +511,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
             {/* Insights */}
             {visibleInsights.length === 0 ? (
               <div className="text-center py-6 text-muted-foreground">
-                <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <LaunchPulseMark className="w-8 h-8 mx-auto mb-2 opacity-50" />
                 <p className="text-sm">No actionable insights right now</p>
                 <p className="text-xs mt-1">Check back later or refresh to update</p>
               </div>
@@ -536,7 +536,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
                 className="flex-1"
                 onClick={() => handleAction('enrich')}
               >
-                <Sparkles className="h-4 w-4 mr-1" />
+                <LaunchPulseMark className="w-4 h-4 mr-1" />
                 Enrich Data
               </Button>
               <Button

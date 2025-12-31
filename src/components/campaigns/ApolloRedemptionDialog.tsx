@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, Sparkles, Zap, CheckCircle, XCircle, Loader2, Eye, CheckCircle2, Shield, Database, RefreshCw } from "lucide-react";
+import { AlertCircle, Zap, CheckCircle, XCircle, Loader2, Eye, CheckCircle2, Shield, Database, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,7 @@ import { useApolloCredits } from "@/hooks/use-apollo-credits";
 import { useContactProvider, ContactProvider } from "@/hooks/use-contact-provider";
 import { toast } from "sonner";
 import { contactsLogger } from "@/lib/logger";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 
 export interface ICPCriteria {
   industries?: string[];
@@ -365,7 +366,7 @@ export function ApolloRedemptionDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <LaunchPulseMark className="w-5 h-5" />
             {usePdlFallback ? 'Import Contacts via PDL' : 'Redeem Apollo Contacts'}
             {isTamMode && (
               <Badge variant="secondary" className="ml-2">

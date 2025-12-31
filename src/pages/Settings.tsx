@@ -84,7 +84,8 @@ import { CRMSyncHistory } from "@/components/settings/CRMSyncHistory";
 import { ExportHistory } from "@/components/settings/ExportHistory";
 import { CampaignExportHistory } from "@/components/campaigns/CampaignExportHistory";
 import { ScoreRefreshPanel } from "@/components/settings/ScoreRefreshPanel";
-import { Sparkles } from "lucide-react";
+import { LaunchPulseMark } from "@/components/BrandLogo";
+
 import { supabase } from "@/integrations/supabase/client";
 import { AIProviderSettings } from "@/components/settings/AIProviderSettings";
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
@@ -653,7 +654,7 @@ export default function Settings() {
             <AccordionItem value="deep-research" className="border rounded-lg px-4">
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" />
+                  <LaunchPulseMark className="w-5 h-5" />
                   <div className="text-left">
                     <p className="font-semibold">Deep Research & Analytics</p>
                     <p className="text-sm text-muted-foreground">AI-powered enrichment and cost management</p>

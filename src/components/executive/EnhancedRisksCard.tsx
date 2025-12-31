@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, AlertCircle, Info, AlertOctagon, Sparkles, Target, Download } from "lucide-react";
+import { AlertTriangle, AlertCircle, Info, AlertOctagon, Target, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { EnrichmentModal } from "./EnrichmentModal";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 
 export type RiskSeverity = 'critical' | 'high' | 'medium' | 'low';
 
@@ -210,7 +211,7 @@ export function EnhancedRisksCard({
                 size="sm"
                 className="justify-start"
               >
-                <Sparkles className="h-4 w-4 mr-2" />
+                <LaunchPulseMark className="w-4 h-4 mr-2" />
                 View Campaign-Ready Accounts
               </Button>
             )}
@@ -223,7 +224,7 @@ export function EnhancedRisksCard({
               size="sm"
               className="justify-start"
             >
-              <Sparkles className="h-4 w-4 mr-2" />
+              <LaunchPulseMark className="w-4 h-4 mr-2" />
               Enrich Data
             </Button>
             <Button 

@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, TrendingUp, DollarSign, Zap, Wand2 } from "lucide-react";
+import { TrendingUp, DollarSign, Zap, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { calculateHybridCost, formatCost } from "@/utils/enrichment-cost-calculator";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 
 interface DataQuality {
   totalAccounts: number;
@@ -315,7 +316,7 @@ export function SmartEnrichmentPanel() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Sparkles className="h-5 w-5" />
+                <LaunchPulseMark className="w-5 h-5" />
                 Smart Enrichment Priority Queue
               </CardTitle>
               <CardDescription>
