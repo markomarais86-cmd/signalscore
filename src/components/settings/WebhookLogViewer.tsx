@@ -18,6 +18,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { webhookLogger } from "@/lib/logger";
 
 interface WebhookLog {
   id: string;
@@ -61,7 +62,7 @@ export default function WebhookLogViewer() {
 
       setLogs((data || []) as WebhookLog[]);
     } catch (error: any) {
-      console.error('Error loading webhook logs:', error);
+      webhookLogger.error('Error loading webhook logs:', error);
       toast({
         title: "Error",
         description: "Failed to load webhook logs",
@@ -89,7 +90,7 @@ export default function WebhookLogViewer() {
           filter: `org_id=eq.${userProfile.org_id}`,
         },
         (payload) => {
-          console.log('Webhook event:', payload);
+          webhookLogger.debug('Webhook event:', payload);
           
           if (payload.eventType === 'INSERT') {
             setLogs((prev) => [payload.new as WebhookLog, ...prev.slice(0, 49)]);

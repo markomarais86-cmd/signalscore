@@ -4,6 +4,7 @@ import { Target, TrendingUp, TrendingDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { MetricTooltip } from "@/components/help/MetricTooltip";
+import { dashboardLogger } from "@/lib/logger";
 
 interface FitDistributionHeroProps {
   highFitAccounts: number;
@@ -68,7 +69,7 @@ export function FitDistributionHero({
             className="relative z-10 cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-high/20 bg-fit-high/5"
             onClick={(e) => {
               e.stopPropagation();
-              console.log('[FitDistributionHero] High Fit clicked, navigating to /accounts?fit=high');
+              dashboardLogger.debug('High Fit clicked, navigating to /accounts?fit=high');
               navigate('/accounts?fit=high');
             }}
           >
@@ -110,7 +111,7 @@ export function FitDistributionHero({
             className="relative z-10 cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-medium/20 bg-fit-medium/5"
             onClick={(e) => {
               e.stopPropagation();
-              console.log('[FitDistributionHero] Medium Fit clicked, navigating to /accounts?fit=medium');
+              dashboardLogger.debug('Medium Fit clicked, navigating to /accounts?fit=medium');
               navigate('/accounts?fit=medium');
             }}
           >
@@ -152,7 +153,7 @@ export function FitDistributionHero({
             className="relative z-10 cursor-pointer hover:bg-muted/50 p-4 rounded-lg transition-colors border-2 border-fit-low/20 bg-fit-low/5"
             onClick={(e) => {
               e.stopPropagation();
-              console.log('[FitDistributionHero] Low Fit clicked, navigating to /accounts?fit=low');
+              dashboardLogger.debug('Low Fit clicked, navigating to /accounts?fit=low');
               navigate('/accounts?fit=low');
             }}
           >

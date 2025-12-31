@@ -13,6 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useApolloCredits } from "@/hooks/use-apollo-credits";
 import { useContactProvider, ContactProvider } from "@/hooks/use-contact-provider";
 import { toast } from "sonner";
+import { contactsLogger } from "@/lib/logger";
 
 export interface ICPCriteria {
   industries?: string[];
@@ -154,7 +155,7 @@ export function ApolloRedemptionDialog({
         });
       }
     } catch (err: any) {
-      console.error('Error previewing Apollo by ICP:', err);
+      contactsLogger.error('Error previewing Apollo by ICP:', err);
       toast.error('Failed to preview Apollo contacts');
     } finally {
       setIsPreviewing(false);
@@ -186,7 +187,7 @@ export function ApolloRedemptionDialog({
         });
       }
     } catch (err: any) {
-      console.error('Error previewing Apollo contacts:', err);
+      contactsLogger.error('Error previewing Apollo contacts:', err);
     } finally {
       setIsPreviewing(false);
     }
@@ -208,7 +209,7 @@ export function ApolloRedemptionDialog({
       if (error) throw error;
       setDuplicateAnalysis(data.analysis);
     } catch (err: any) {
-      console.error('Error analyzing duplicates:', err);
+      contactsLogger.error('Error analyzing duplicates:', err);
     } finally {
       setIsAnalyzing(false);
     }
@@ -231,7 +232,7 @@ export function ApolloRedemptionDialog({
       if (error) throw error;
       setDuplicateAnalysis(data.analysis);
     } catch (err: any) {
-      console.error('Error analyzing duplicates:', err);
+      contactsLogger.error('Error analyzing duplicates:', err);
       toast.error('Failed to analyze duplicates');
     } finally {
       setIsAnalyzing(false);
@@ -288,7 +289,7 @@ export function ApolloRedemptionDialog({
         });
 
         if (result.error) {
-          console.log('Apollo failed, trying PDL fallback:', result.error);
+          contactsLogger.debug('Apollo failed, trying PDL fallback:', result.error);
           // Try PDL fallback
           const pdlResult = await supabase.functions.invoke('redeem-pdl-contacts', {
             body: {
@@ -344,7 +345,7 @@ export function ApolloRedemptionDialog({
         throw new Error(data?.error || 'Redemption failed');
       }
     } catch (err: any) {
-      console.error('Redemption error:', err);
+      contactsLogger.error('Redemption error:', err);
       toast.error(err.message || 'Failed to redeem contacts');
     } finally {
       setIsRedeeming(false);

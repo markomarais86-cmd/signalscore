@@ -99,5 +99,8 @@ export const uploadLogger = logger.scope('Upload');
 export const icpLogger = logger.scope('ICP');
 export const agentLogger = logger.scope('Agent');
 export const campaignsLogger = logger.scope('Campaigns');
+export const contactsLogger = logger.scope('Contacts');
+export const dashboardLogger = logger.scope('Dashboard');
+export const webhookLogger = logger.scope('Webhook');
 
 export default logger;

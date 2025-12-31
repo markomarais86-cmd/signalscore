@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './use-auth';
+import { contactsLogger } from '@/lib/logger';
 
 export type ContactProvider = 'apollo' | 'pdl' | 'none';
 
@@ -104,7 +105,7 @@ export function useContactProvider() {
       setActiveProvider(provider);
       return provider;
     } catch (error) {
-      console.error('Error checking providers:', error);
+      contactsLogger.error('Error checking providers:', error);
       return 'none';
     } finally {
       setIsLoading(false);
@@ -148,9 +149,9 @@ export function useContactProvider() {
         }
 
         // Apollo failed with 403 or other error - try PDL
-        console.log('Apollo preview failed, trying PDL:', data?.error || error);
+        contactsLogger.debug('Apollo preview failed, trying PDL:', data?.error || error);
       } catch (e) {
-        console.log('Apollo preview error:', e);
+        contactsLogger.debug('Apollo preview error:', e);
       }
     }
 
@@ -262,9 +263,9 @@ export function useContactProvider() {
         }
 
         // Apollo failed - try PDL
-        console.log('Apollo redemption failed, trying PDL:', data?.error || error);
+        contactsLogger.debug('Apollo redemption failed, trying PDL:', data?.error || error);
       } catch (e) {
-        console.log('Apollo redemption error:', e);
+        contactsLogger.debug('Apollo redemption error:', e);
       }
     }
 

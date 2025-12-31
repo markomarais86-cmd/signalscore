@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDistanceToNow } from "date-fns";
+import { enrichmentLogger } from "@/lib/logger";
 
 interface Lead {
   id: number;
@@ -103,7 +104,7 @@ export function LeadEnrichmentPanel() {
       setPausedJob(pausedJobData);
       return { activeJobData, pausedJobData };
     } catch (error) {
-      console.error('Error loading jobs:', error);
+      enrichmentLogger.error('Error loading jobs:', error);
     }
   };
 
@@ -122,7 +123,7 @@ export function LeadEnrichmentPanel() {
         setEnrichmentRows(rows as EnrichmentRow[]);
       }
     } catch (error) {
-      console.error('Error loading enrichment rows:', error);
+      enrichmentLogger.error('Error loading enrichment rows:', error);
     }
   };
 
@@ -134,7 +135,7 @@ export function LeadEnrichmentPanel() {
   useEffect(() => {
     if (!orgId) return;
 
-    console.log('[Enrichment] Setting up real-time subscription for org:', orgId);
+    enrichmentLogger.debug('Setting up real-time subscription for org:', orgId);
 
     const channel = supabase
       .channel('enrichment-rows-updates')
@@ -144,7 +145,7 @@ export function LeadEnrichmentPanel() {
         table: 'enrichment_rows',
         filter: `org_id=eq.${orgId}`
       }, (payload) => {
-        console.log('[Enrichment] Real-time update received for rows:', payload.eventType);
+        enrichmentLogger.debug('Real-time update received for rows:', payload.eventType);
         loadEnrichmentRowsInternal();
         setLastUpdated(new Date());
       })
@@ -154,19 +155,19 @@ export function LeadEnrichmentPanel() {
         table: 'enrichment_jobs',
         filter: `org_id=eq.${orgId}`
       }, (payload) => {
-        console.log('[Enrichment] Real-time update received for jobs:', payload.eventType);
+        enrichmentLogger.debug('Real-time update received for jobs:', payload.eventType);
         loadJobsInternal();
         setLastUpdated(new Date());
       })
       .subscribe((status) => {
-        console.log('[Enrichment] Subscription status:', status);
+        enrichmentLogger.debug('Subscription status:', status);
         if (status === 'CHANNEL_ERROR') {
-          console.warn('[Enrichment] Real-time channel error, falling back to polling');
+          enrichmentLogger.warn('Real-time channel error, falling back to polling');
         }
       });
 
     return () => {
-      console.log('[Enrichment] Cleaning up real-time subscription');
+      enrichmentLogger.debug('Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
   }, [orgId]);
@@ -176,14 +177,14 @@ export function LeadEnrichmentPanel() {
     const hasActiveWork = activeJob || pausedJob || enrichmentRows.some(r => r.status === 'processing' || r.status === 'pending');
     
     if (hasActiveWork && orgId) {
-      console.log('[Enrichment] Starting polling fallback (3s interval)');
+      enrichmentLogger.debug('Starting polling fallback (3s interval)');
       pollIntervalRef.current = setInterval(() => {
-        console.log('[Enrichment] Polling for updates...');
+        enrichmentLogger.debug('Polling for updates...');
         refreshData();
       }, 3000);
     } else {
       if (pollIntervalRef.current) {
-        console.log('[Enrichment] Stopping polling - no active work');
+        enrichmentLogger.debug('Stopping polling - no active work');
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
       }
@@ -226,7 +227,7 @@ export function LeadEnrichmentPanel() {
       await loadJobs();
       await loadEnrichmentRows();
     } catch (error: any) {
-      console.error('Error loading leads:', error);
+      enrichmentLogger.error('Error loading leads:', error);
     } finally {
       setLoading(false);
     }
@@ -315,7 +316,7 @@ export function LeadEnrichmentPanel() {
       await loadJobs();
       await loadEnrichmentRows();
     } catch (error: any) {
-      console.error('Error starting enrichment:', error);
+      enrichmentLogger.error('Error starting enrichment:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to start enrichment",
@@ -345,7 +346,7 @@ export function LeadEnrichmentPanel() {
       await loadJobs();
       await loadEnrichmentRows();
     } catch (error: any) {
-      console.error('Error resuming job:', error);
+      enrichmentLogger.error('Error resuming job:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to resume job",

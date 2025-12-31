@@ -22,6 +22,7 @@ import { AICampaignAssistant } from "./AICampaignAssistant";
 import { ApolloCreditsDisplay } from "./ApolloCreditsDisplay";
 import { ApolloRedemptionDialog, ICPCriteria } from "./ApolloRedemptionDialog";
 import { useApolloCredits } from "@/hooks/use-apollo-credits";
+import { campaignsLogger } from "@/lib/logger";
 
 export interface InsightContext {
   insightTitle?: string;
@@ -205,7 +206,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
         const { count } = await query;
         setRealtimeLeadCount(count || 0);
       } catch (error) {
-        console.error('[Campaign Builder] Error counting leads:', error);
+        campaignsLogger.error('Error counting leads:', error);
       } finally {
         setIsCountingLeads(false);
       }
@@ -238,7 +239,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
         return;
       }
       
-      console.log('[Campaign Builder] Loading Apollo TAM data...');
+      campaignsLogger.debug('Loading Apollo TAM data...');
       try {
         // Fetch from external_data_sources
         const { data: externalSource, error } = await supabase
@@ -249,12 +250,12 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
           .single();
         
         if (error) {
-          console.error('[Campaign Builder] Error loading Apollo TAM:', error);
+          campaignsLogger.error('Error loading Apollo TAM:', error);
           return;
         }
         
         if (externalSource) {
-          console.log('[Campaign Builder] Apollo TAM data loaded:', {
+          campaignsLogger.debug('Apollo TAM data loaded:', {
             total_accounts: externalSource.total_accounts,
             total_contacts: externalSource.total_contacts
           });
@@ -266,7 +267,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
           setApolloTamDomains(['__apollo_tam__']); // Marker indicating TAM data is available
         }
       } catch (err) {
-        console.error('[Campaign Builder] Error loading Apollo TAM:', err);
+        campaignsLogger.error('Error loading Apollo TAM:', err);
       }
     };
     
@@ -276,7 +277,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
   // Initialize from insight context when provided
   useEffect(() => {
     if (isOpen && insightContext) {
-      console.log('[Campaign Builder] Opening from insight:', insightContext);
+      campaignsLogger.debug('Opening from insight:', insightContext);
       if (insightContext.suggestedCampaignName) {
         setCampaignName(insightContext.suggestedCampaignName);
       }
@@ -293,7 +294,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
   }, [isOpen, insightContext]);
 
   useEffect(() => {
-    console.log('[Campaign Builder] Opening with:', { icpId, source, useICP, org_id: userProfile?.org_id, insightContext: !!insightContext });
+    campaignsLogger.debug('Opening with:', { icpId, source, useICP, org_id: userProfile?.org_id, insightContext: !!insightContext });
     if (isOpen && userProfile?.org_id) {
       loadICP();
     }
@@ -301,14 +302,14 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
 
   const loadICP = async () => {
     if (!userProfile?.org_id) return;
-    console.log('[Campaign Builder] Loading ICP...', { icpId, org_id: userProfile.org_id });
+    campaignsLogger.debug('Loading ICP...', { icpId, org_id: userProfile.org_id });
     setLoadingICP(true);
     try {
       let icpToLoad = icpId;
       if (!icpToLoad) {
         const { data: activeICPs } = await supabase.from('icp_profiles').select('id').eq('org_id', userProfile.org_id).eq('status', 'active').order('created_at', { ascending: false }).limit(1);
         if (!activeICPs || activeICPs.length === 0) {
-          console.log('[Campaign Builder] No active ICP found');
+          campaignsLogger.debug('No active ICP found');
           toast({ title: "No Active ICP", description: "You can still create a campaign without an ICP" });
           setUseICP(false);
           setLoadingICP(false);
@@ -318,13 +319,13 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
       }
       const { data: icp, error } = await supabase.from('icp_profiles').select('*').eq('id', icpToLoad).single();
       if (error) throw error;
-      console.log('[Campaign Builder] ICP loaded:', icp);
+      campaignsLogger.debug('ICP loaded:', icp);
       setActiveICP(icp);
       if (icp.persona_job_titles) setSelectedTitles(icp.persona_job_titles);
       if (icp.persona_seniority_levels) setSelectedSeniority(icp.persona_seniority_levels);
       if (icp.persona_departments) setSelectedDepartments(icp.persona_departments);
     } catch (error: any) {
-      console.error('[Campaign Builder] Error loading ICP:', error);
+      campaignsLogger.error('Error loading ICP:', error);
       toast({ title: "Error", description: "Failed to load ICP profile", variant: "destructive" });
     } finally {
       setLoadingICP(false);
@@ -350,7 +351,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
       }
     }
     
-    console.log(`[Campaign Builder] Moving from step ${step} to ${step + 1}`, {
+    campaignsLogger.debug(`Moving from step ${step} to ${step + 1}`, {
       useICP,
       campaignName,
       filterCriteria,
