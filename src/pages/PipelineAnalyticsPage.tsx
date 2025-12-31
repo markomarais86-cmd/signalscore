@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { RefreshCw, Download, Calendar } from 'lucide-react';
 import { usePipelineAnalytics } from '@/hooks/use-pipeline-analytics';
 import { useState } from 'react';
+import { toast } from 'sonner';
+import { exportPipelineDataToCSV } from '@/utils/exportPipelineData';
 import {
   Select,
   SelectContent,
@@ -13,11 +15,15 @@ import {
 
 export default function PipelineAnalyticsPage() {
   const [dateRange, setDateRange] = useState('90');
-  const { refetch, isLoading } = usePipelineAnalytics();
+  const { metrics, refetch, isLoading } = usePipelineAnalytics();
 
   const handleExport = () => {
-    // TODO: Implement export functionality
-    console.log('Export pipeline data');
+    if (!metrics) {
+      toast.error('No data to export');
+      return;
+    }
+    exportPipelineDataToCSV(metrics);
+    toast.success('Pipeline data exported successfully');
   };
 
   return (
