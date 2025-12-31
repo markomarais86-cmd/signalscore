@@ -12,7 +12,8 @@ import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, Users, DollarSign, CheckCircle2, ExternalLink, AlertCircle, Loader2 } from "lucide-react";
+import { Users, DollarSign, CheckCircle2, ExternalLink, AlertCircle, Loader2 } from "lucide-react";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 import { formatNumber } from "@/utils/format-numbers";
 
 interface Account {
@@ -427,7 +428,7 @@ export function CampaignBuilder({ isOpen, onClose, filterCriteria }: CampaignBui
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <LaunchPulseMark className="h-5 w-5" />
             Campaign Builder
           </DialogTitle>
           <DialogDescription>

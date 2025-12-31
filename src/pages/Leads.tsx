@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download, Info, Linkedin, Sparkles, AlertCircle } from "lucide-react";
+import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download, Info, Linkedin, AlertCircle } from "lucide-react";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { formatNumber } from "@/utils/format-numbers";
@@ -796,7 +797,7 @@ export default function Leads() {
                       {lead.enriched_at && (
                         <div>
                           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                            <Sparkles className="h-5 w-5 text-primary" />
+                            <LaunchPulseMark className="h-5 w-5" />
                             Enrichment Data
                           </h3>
                           <div className="space-y-4">
@@ -945,7 +946,7 @@ export default function Leads() {
                         <div>
                           <h3 className="text-lg font-semibold mb-3">ICP Status</h3>
                           <div className="p-4 bg-muted rounded-lg text-center">
-                            <Sparkles className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                            <LaunchPulseMark className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                             <p className="text-sm text-muted-foreground">
                               This lead has not been enriched yet. Run lead enrichment to get ICP qualification and quality scores.
                             </p>

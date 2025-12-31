@@ -1,7 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { TrendingUp, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
+import { TrendingUp, CheckCircle2, AlertCircle } from "lucide-react";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 import { TrendIndicator } from "./TrendIndicator";
 import { useNavigate } from "react-router-dom";
 
@@ -215,7 +216,7 @@ export function ScoringDataQualityCard({
                 className="w-full mt-4"
                 onClick={() => navigate('/settings?tab=integrations&action=enrich')}
               >
-                <Sparkles className="h-4 w-4 mr-2" />
+                <LaunchPulseMark className="h-4 w-4 mr-2" />
                 Enrich Missing Data →
               </Button>
             )}

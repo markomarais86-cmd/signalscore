@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Target, Users, Building, MapPin, TrendingUp, Sparkles } from 'lucide-react';
+import { Search, Target, Users, Building, MapPin, TrendingUp } from 'lucide-react';
+import { LaunchPulseMark } from "@/components/BrandLogo";
 import { supabase } from '@/integrations/supabase/client';
 import { ICPTemplate, ICPFormData } from '@/types/icp';
 import { ICP_TEMPLATES_CATEGORIES } from '@/constants/icp';
@@ -162,7 +163,7 @@ export function ICPTemplateSelector({ onSelectTemplate, onSkip, onSelectClosedWo
           <Card className="border-2 border-primary cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-primary/5 to-transparent" onClick={onSelectClosedWon}>
             <CardContent className="flex flex-col items-center justify-center py-8 relative">
               <Badge className="absolute top-3 right-3 bg-primary">Recommended</Badge>
-              <Sparkles className="h-8 w-8 text-primary mb-2" />
+              <LaunchPulseMark className="h-8 w-8" />
               <CardTitle className="text-lg text-center">Create from Wins</CardTitle>
               <CardDescription className="text-center mt-1">
                 AI-generated ICP based on your closed won deals
@@ -183,7 +184,7 @@ export function ICPTemplateSelector({ onSelectTemplate, onSkip, onSelectClosedWo
           >
             <CardContent className="flex flex-col items-center justify-center py-8 relative">
               <Badge className="absolute top-3 right-3 bg-blue-600">Smart</Badge>
-              <Sparkles className="h-8 w-8 text-blue-600 mb-2" />
+              <LaunchPulseMark className="h-8 w-8" />
               <CardTitle className="text-lg text-center">Auto-Generate from Data</CardTitle>
               <CardDescription className="text-center mt-1 px-2">
                 Pre-fill based on your {accountInsights.totalAccounts.toLocaleString()} accounts

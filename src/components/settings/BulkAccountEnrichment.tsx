@@ -5,7 +5,8 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Building2, Users, DollarSign, Globe, PlayCircle, CheckCircle, AlertCircle, ExternalLink, UserSearch, Sparkles } from "lucide-react";
+import { Loader2, Building2, Users, DollarSign, Globe, PlayCircle, CheckCircle, AlertCircle, ExternalLink, UserSearch } from "lucide-react";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -450,7 +451,7 @@ export function BulkAccountEnrichment() {
 
               {enableContactDiscovery && highFitAccountsCount > 0 && (
                 <Alert>
-                  <Sparkles className="h-4 w-4" />
+                  <LaunchPulseMark className="h-4 w-4" />
                   <AlertDescription>
                     Will discover contacts at <strong>{highFitAccountsCount.toLocaleString()}</strong> high-fit accounts after enrichment
                   </AlertDescription>
