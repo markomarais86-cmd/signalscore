@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, ArrowRight, Target, TrendingUp, Database, Zap, Users, Shield } from "lucide-react";
+import { Check, ArrowRight, Target, BarChart3, Database, X } from "lucide-react";
 import { Link } from "react-router-dom";
 import { BrandLogo, LaunchPulseMark } from "@/components/BrandLogo";
 import { GradientBackground } from "@/components/ui/GradientBackground";
@@ -15,31 +15,29 @@ export default function Landing() {
       description: "Perfect for small teams getting started with ICP intelligence",
       features: [
         "1 ICP Profile",
-        "Up to 1,000 accounts",
         "Basic TAM analysis",
-        "CSV data import",
-        "Email support",
-        "Monthly reports"
+        "CRM Connect (1 integration)",
+        "Up to 1,000 accounts",
+        "Email support"
       ],
-      cta: "Start Free Trial",
+      cta: "Request Demo",
       popular: false
     },
     {
       name: "Professional",
       price: "$1,499",
       period: "/month",
-      description: "For growing teams serious about TAM optimization",
+      description: "For growing teams serious about GTM optimization",
       features: [
         "5 ICP Profiles",
+        "Full TAM Generator",
+        "Advanced CRM Insights",
         "Up to 10,000 accounts",
-        "Advanced TAM intelligence",
         "CRM integrations (Salesforce, HubSpot)",
         "Priority support",
-        "Weekly reports",
-        "Team collaboration (5 seats)",
-        "Custom scoring models"
+        "Team collaboration (5 seats)"
       ],
-      cta: "Start Free Trial",
+      cta: "Request Demo",
       popular: true
     },
     {
@@ -49,15 +47,13 @@ export default function Landing() {
       description: "For organizations requiring advanced features and scale",
       features: [
         "Unlimited ICP Profiles",
-        "Unlimited accounts",
         "Enterprise TAM intelligence",
+        "Full CRM Insight Layer + API",
+        "Unlimited accounts",
         "All integrations + API access",
         "Dedicated success manager",
-        "Real-time sync",
         "Unlimited team members",
-        "Custom AI agents",
-        "SLA guarantees",
-        "White-label options"
+        "SLA guarantees"
       ],
       cta: "Contact Sales",
       popular: false
@@ -67,40 +63,32 @@ export default function Landing() {
   const features = [
     {
       icon: Target,
-      title: "TAM Coverage Analysis",
-      description: "See exactly how much of your addressable market you're actually covering"
+      title: "AI ICP Builder",
+      description: "Define and validate your Ideal Customer Profile based on real CRM patterns—not guesswork. Our AI analyzes your closed-won deals to surface the attributes that actually drive revenue."
     },
     {
-      icon: TrendingUp,
-      title: "ICP Match Quality",
-      description: "Measure how well your accounts align with your ideal customer profile"
+      icon: BarChart3,
+      title: "TAM Generator",
+      description: "Build dynamic, segmentable Total Addressable Market lists aligned to your ICP. See exactly how much of your market you're covering and where the biggest whitespace opportunities are."
     },
     {
       icon: Database,
-      title: "Whitespace Mapping",
-      description: "Identify high-fit accounts you're missing in your pipeline"
-    },
-    {
-      icon: Zap,
-      title: "Automated Scoring",
-      description: "AI-powered account scoring based on fit, intent, and reachability"
-    },
-    {
-      icon: Users,
-      title: "Team Collaboration",
-      description: "Share insights and reports across your revenue operations team"
-    },
-    {
-      icon: Shield,
-      title: "Enterprise Security",
-      description: "Bank-level encryption and compliance with SOC 2, GDPR"
+      title: "CRM Insight Layer",
+      description: "Surface gaps in your data, personas, segments, and coverage. Understand where pipeline misalignment comes from and get actionable recommendations to fix it."
     }
+  ];
+
+  const painPoints = [
+    "ICP defined by opinion, not data",
+    "Incomplete or incorrect TAM lists",
+    "CRM data that hides persona and segment gaps",
+    "No visibility into where pipeline misalignment comes from"
   ];
 
   const stats = [
     { value: "34%", label: "Average TAM coverage increase" },
-    { value: "2.3x", label: "Faster pipeline growth" },
-    { value: "18%", label: "Improvement in close rates" },
+    { value: "2.3x", label: "Faster ICP validation" },
+    { value: "18%", label: "More CRM data accuracy" },
     { value: "$2.4M", label: "Avg. whitespace opportunity found" }
   ];
 
@@ -117,7 +105,7 @@ export default function Landing() {
               </Button>
             </Link>
             <Link to="/auth">
-              <Button variant="glow">Get Started</Button>
+              <Button variant="glow">Request Demo</Button>
             </Link>
           </div>
         </div>
@@ -133,19 +121,19 @@ export default function Landing() {
         </div>
         
         <h1 className="text-5xl md:text-7xl font-bold font-heading mb-6 animate-fade-in" style={{ animationDelay: '0.2s' }}>
-          <span className="gradient-text">Know Your Market</span>
+          <span className="gradient-text">AI-Driven ICP and TAM</span>
           <br />
-          <span className="text-foreground">Coverage</span>
+          <span className="text-foreground">Intelligence for Modern GTM Teams</span>
         </h1>
         
         <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-10 animate-fade-in" style={{ animationDelay: '0.3s' }}>
-          LaunchPulse shows B2B revenue teams exactly how much of their addressable market they're covering—and where the biggest whitespace opportunities are.
+          LaunchPulse reveals who your best customers are, how your CRM aligns to your ICP, and where growth is being blocked by data quality or persona gaps.
         </p>
         
         <div className="flex items-center justify-center gap-4 animate-fade-in" style={{ animationDelay: '0.4s' }}>
           <Link to="/auth">
             <Button size="xl" variant="glow" className="text-lg">
-              Start 14-Day Free Trial
+              Request Demo
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </Link>
@@ -157,6 +145,35 @@ export default function Landing() {
         <p className="text-sm text-muted-foreground mt-6 animate-fade-in" style={{ animationDelay: '0.5s' }}>
           No credit card required • Setup in 5 minutes
         </p>
+      </section>
+
+      {/* Problem Section */}
+      <section className="container mx-auto px-6 py-16">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            Sound <span className="gradient-text">Familiar</span>?
+          </h2>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Most GTM teams struggle with these challenges every day
+          </p>
+        </div>
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto">
+          {painPoints.map((point, index) => (
+            <Card 
+              key={index} 
+              variant="glass" 
+              className="animate-fade-in border-destructive/20"
+              style={{ animationDelay: `${0.1 * index}s` }}
+            >
+              <CardContent className="pt-6 flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-destructive/10 flex items-center justify-center flex-shrink-0">
+                  <X className="h-3 w-3 text-destructive" />
+                </div>
+                <span className="text-sm text-muted-foreground">{point}</span>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </section>
 
       {/* Stats Section */}
@@ -179,18 +196,18 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* Features Section */}
+      {/* Features Section - 3 Core Offerings */}
       <section className="container mx-auto px-6 py-24">
         <div className="text-center mb-16">
           <h2 className="text-4xl md:text-5xl font-bold mb-4">
-            Everything You Need for{" "}
-            <span className="gradient-text">TAM Intelligence</span>
+            Three Pillars of{" "}
+            <span className="gradient-text">GTM Intelligence</span>
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            From ICP definition to whitespace identification
+            Everything you need to align your go-to-market strategy with your best customers
           </p>
         </div>
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-3 gap-8">
           {features.map((feature, index) => (
             <Card 
               key={index} 
@@ -199,15 +216,17 @@ export default function Landing() {
               className="animate-fade-in"
               style={{ animationDelay: `${0.1 * index}s` }}
             >
-              <CardHeader>
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4 bg-primary/10 border border-primary/20">
-                  <feature.icon className="h-6 w-6 text-primary" />
+              <CardHeader className="pb-4">
+                <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-4 bg-primary/10 border border-primary/20">
+                  <feature.icon className="h-7 w-7 text-primary" />
                 </div>
-                <CardTitle className="text-lg">{feature.title}</CardTitle>
-                <CardDescription className="text-muted-foreground">
+                <CardTitle className="text-xl">{feature.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CardDescription className="text-muted-foreground text-base leading-relaxed">
                   {feature.description}
                 </CardDescription>
-              </CardHeader>
+              </CardContent>
             </Card>
           ))}
         </div>
@@ -281,19 +300,20 @@ export default function Landing() {
           
           <CardContent className="pt-16 pb-16 text-center relative z-10">
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
-              Ready to <span className="gradient-text">Unlock Your TAM</span>?
+              Unlock Your Full Potential with{" "}
+              <span className="gradient-text">LaunchPulse</span>
             </h2>
             <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
-              Join revenue teams at fast-growing B2B companies who use LaunchPulse to optimize their market coverage
+              Join revenue teams at fast-growing B2B companies who use LaunchPulse to align their GTM strategy with their best customers
             </p>
             <Link to="/auth">
               <Button size="xl" variant="glow" className="text-lg">
-                Start Your Free Trial
+                Request Demo
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
             <p className="text-sm text-muted-foreground mt-6">
-              14-day free trial • No credit card required
+              No commitment required • See it in action
             </p>
           </CardContent>
         </Card>
