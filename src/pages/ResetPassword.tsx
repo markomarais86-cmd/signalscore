@@ -9,6 +9,10 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { FormState, initialFormState, createErrorState, createFormState, getFormValue } from "@/lib/form-actions";
+import { GradientBackground } from "@/components/ui/GradientBackground";
+import { BrandLogo } from "@/components/BrandLogo";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 export default function ResetPassword() {
   const { user } = useAuth();
@@ -63,53 +67,65 @@ export default function ResetPassword() {
   const [state, formAction, isPending] = useActionState(resetAction, initialFormState);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
-          <CardDescription>Enter your new password</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form action={formAction} className="space-y-4">
-            {state.error && (
-              <p className="text-sm text-destructive">{state.error}</p>
-            )}
-            
-            <div className="space-y-2">
-              <Label htmlFor="password">New Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                required
-                minLength={6}
-                disabled={isPending}
-              />
+    <GradientBackground variant="auth" showOrbs={true}>
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card variant="glass" className="w-full max-w-md border-border/30">
+          <CardHeader className="text-center space-y-4">
+            <div className="flex justify-center mb-2">
+              <BrandLogo variant="light" />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm New Password</Label>
-              <Input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                required
-                minLength={6}
-                disabled={isPending}
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={isPending}>
-              {isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Updating password...
-                </>
-              ) : (
-                "Update Password"
+            <CardTitle className="text-2xl font-bold text-foreground">Reset Password</CardTitle>
+            <CardDescription className="text-muted-foreground">Enter your new password below</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form action={formAction} className="space-y-4">
+              {state.error && (
+                <Alert variant="destructive" className="bg-destructive/10 border-destructive/30">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{state.error}</AlertDescription>
+                </Alert>
               )}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-foreground">New Password</Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  minLength={6}
+                  disabled={isPending}
+                  className="input-glow bg-background/50 border-border/50 focus:border-primary/50"
+                  placeholder="••••••••"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword" className="text-foreground">Confirm New Password</Label>
+                <Input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type="password"
+                  required
+                  minLength={6}
+                  disabled={isPending}
+                  className="input-glow bg-background/50 border-border/50 focus:border-primary/50"
+                  placeholder="••••••••"
+                />
+              </div>
+              <Button type="submit" variant="glow" className="w-full" disabled={isPending}>
+                {isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating password...
+                  </>
+                ) : (
+                  "Update Password"
+                )}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </GradientBackground>
   );
 }
