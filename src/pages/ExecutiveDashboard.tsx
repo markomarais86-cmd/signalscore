@@ -42,6 +42,8 @@ import { calculateExternalTAMMetrics } from "@/utils/external-tam-calculator";
 import { EmptyState } from "@/components/EmptyState";
 import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
+import { SignalFeed } from "@/components/executive/SignalFeed";
+import { SignalSummaryCard } from "@/components/executive/SignalSummaryCard";
 
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
 import { CommandPalette, CommandPaletteTrigger } from "@/components/executive/CommandPalette";
@@ -793,18 +795,25 @@ export default function ExecutiveDashboard() {
               )}
             </div>
 
-            {/* Bottom Cards */}
-            <div className="grid grid-cols-1 gap-6">
+            {/* Bottom Cards - Signals + Insights */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+              {/* Account Signals Feed */}
+              <div className="lg:col-span-1">
+                <SignalFeed maxHeight="500px" />
+              </div>
+              
               {/* Unified Insights Panel - merges Risks and AI Recommendations */}
-              <UnifiedInsightsPanel
-                risks={risks}
-                insights={insights || []}
-                orgId={userProfile?.org_id}
-                onRefresh={handleRefreshInsights}
-                campaignReadyCount={campaignReadyAccounts}
-                completenessScore={dataCompleteness}
-                totalScored={totalScores}
-              />
+              <div className="lg:col-span-2">
+                <UnifiedInsightsPanel
+                  risks={risks}
+                  insights={insights || []}
+                  orgId={userProfile?.org_id}
+                  onRefresh={handleRefreshInsights}
+                  campaignReadyCount={campaignReadyAccounts}
+                  completenessScore={dataCompleteness}
+                  totalScored={totalScores}
+                />
+              </div>
             </div>
           </>
         )}

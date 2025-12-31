@@ -102,6 +102,62 @@ export type Database = {
           },
         ]
       }
+      account_signals: {
+        Row: {
+          account_external_id: string
+          account_name: string | null
+          actioned_at: string | null
+          created_at: string | null
+          description: string | null
+          dismissed_at: string | null
+          expires_at: string | null
+          id: string
+          metadata: Json | null
+          org_id: string
+          signal_priority: string
+          signal_type: string
+          title: string
+        }
+        Insert: {
+          account_external_id: string
+          account_name?: string | null
+          actioned_at?: string | null
+          created_at?: string | null
+          description?: string | null
+          dismissed_at?: string | null
+          expires_at?: string | null
+          id?: string
+          metadata?: Json | null
+          org_id: string
+          signal_priority?: string
+          signal_type: string
+          title: string
+        }
+        Update: {
+          account_external_id?: string
+          account_name?: string | null
+          actioned_at?: string | null
+          created_at?: string | null
+          description?: string | null
+          dismissed_at?: string | null
+          expires_at?: string | null
+          id?: string
+          metadata?: Json | null
+          org_id?: string
+          signal_priority?: string
+          signal_type?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_signals_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accounts: {
         Row: {
           business_model: string | null

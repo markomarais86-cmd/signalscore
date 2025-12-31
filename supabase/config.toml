@@ -1,5 +1,8 @@
 project_id = "dhyfbaptcprxxixgnpby"
 
+[functions.detect-account-signals]
+verify_jwt = false
+
 [functions.health-check]
 verify_jwt = false
 
