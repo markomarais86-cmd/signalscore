@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Play, RefreshCw, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { agentLogger } from "@/lib/logger";
 
 export default function AgentTester() {
   const { userProfile } = useAuth();
@@ -48,7 +49,7 @@ export default function AgentTester() {
     setRunningAgents(prev => new Set(prev).add(agentId));
     
     try {
-      console.log(`🤖 Running agent: ${agentId}`);
+      agentLogger.debug(`Running agent: ${agentId}`);
       
       const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
@@ -59,7 +60,7 @@ export default function AgentTester() {
 
       if (error) throw error;
 
-      console.log(`✅ Agent ${agentId} completed:`, data);
+      agentLogger.debug(`Agent ${agentId} completed:`, data);
       
       setResults(prev => ({
         ...prev,
@@ -72,7 +73,7 @@ export default function AgentTester() {
       
       toast.success(`${functionName} completed successfully!`);
     } catch (error: any) {
-      console.error(`❌ Agent ${agentId} failed:`, error);
+      agentLogger.error(`Agent ${agentId} failed:`, error);
       
       setResults(prev => ({
         ...prev,

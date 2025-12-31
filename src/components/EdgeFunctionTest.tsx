@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { apiLogger } from "@/lib/logger";
 
 export function EdgeFunctionTest() {
   const [testing, setTesting] = useState(false);
@@ -32,9 +33,9 @@ export function EdgeFunctionTest() {
       }
 
       setResult(data);
-      console.log('Edge function test result:', data);
+      apiLogger.debug('Edge function test result:', data);
     } catch (err: any) {
-      console.error('Edge function test error:', err);
+      apiLogger.error('Edge function test error:', err);
       setError(err.message || 'Unknown error occurred');
     } finally {
       setTesting(false);

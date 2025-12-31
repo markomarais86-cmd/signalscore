@@ -9,6 +9,7 @@ import { Loader2, Building2, Users, DollarSign, Globe, PlayCircle, CheckCircle, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { enrichmentLogger } from "@/lib/logger";
 
 interface EnrichmentStats {
   total: number;
@@ -116,7 +117,7 @@ export function BulkAccountEnrichment() {
         setHighFitAccountsCount(count || 0);
       }
     } catch (error: any) {
-      console.error('Error loading stats:', error);
+      enrichmentLogger.error('Error loading stats:', error);
       toast({
         title: "Error",
         description: "Failed to load enrichment statistics",
@@ -152,7 +153,7 @@ export function BulkAccountEnrichment() {
 
       setActiveJob(job);
     } catch (error) {
-      console.error('Error loading active job:', error);
+      enrichmentLogger.error('Error loading active job:', error);
     }
   };
 
@@ -187,7 +188,7 @@ export function BulkAccountEnrichment() {
 
       if (jobError) throw jobError;
 
-      console.log('Starting enrichment job:', job.id, 'with provider:', provider);
+      enrichmentLogger.debug('Starting enrichment job:', job.id, 'with provider:', provider);
 
       // Trigger enrichment edge function
       let functionName = 'enrich-accounts';
@@ -205,7 +206,7 @@ export function BulkAccountEnrichment() {
       });
 
       if (enrichError) {
-        console.error('Edge function error:', enrichError);
+        enrichmentLogger.error('Edge function error:', enrichError);
         throw enrichError;
       }
 
@@ -217,7 +218,7 @@ export function BulkAccountEnrichment() {
       setActiveJob(job);
       loadStats();
     } catch (error: any) {
-      console.error('Error starting enrichment:', error);
+      enrichmentLogger.error('Error starting enrichment:', error);
       toast({
         title: "Error",
         description: error.message || "Failed to start enrichment job",

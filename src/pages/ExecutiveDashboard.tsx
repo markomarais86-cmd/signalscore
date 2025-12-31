@@ -45,7 +45,7 @@ import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboa
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
 import { CommandPalette, CommandPaletteTrigger } from "@/components/executive/CommandPalette";
 import { StatusBar, useStatusItems } from "@/components/executive/StatusBar";
-
+import { dashboardLogger } from "@/lib/logger";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -118,18 +118,18 @@ export default function ExecutiveDashboard() {
   // Listen for significant data changes and auto-refresh
   useDataChangeListener({
     onAccountsChanged: async () => {
-      console.log('[ExecutiveDashboard] Accounts changed, refreshing dashboard...');
+      dashboardLogger.debug('Accounts changed, refreshing dashboard...');
       await refetch();
       toast.info('Dashboard updated with new account data');
     },
     onScoringCompleted: async () => {
-      console.log('[ExecutiveDashboard] Scoring completed, refreshing insights...');
+      dashboardLogger.debug('Scoring completed, refreshing insights...');
       await Promise.all([refetch(), generateInsights()]);
       setLastRefreshed(new Date());
       toast.success('Scoring complete! Dashboard and recommendations updated');
     },
     onEnrichmentCompleted: async () => {
-      console.log('[ExecutiveDashboard] Enrichment completed, refreshing dashboard...');
+      dashboardLogger.debug('Enrichment completed, refreshing dashboard...');
       await refetch();
       toast.success('Enrichment complete! Dashboard updated');
     },
@@ -141,17 +141,17 @@ export default function ExecutiveDashboard() {
       // Calculate 30-day trends
       calculateTrends(userProfile?.org_id || '', dashboardData?.metrics, '30d')
         .then(setTrendData)
-        .catch(console.error);
+        .catch((e) => dashboardLogger.error('Failed to calculate trends:', e));
       
       // Calculate 7-day (weekly) trends for fit levels
       calculateTrends(userProfile?.org_id || '', dashboardData?.metrics, '7d')
         .then(setWeeklyTrendData)
-        .catch(console.error);
+        .catch((e) => dashboardLogger.error('Failed to calculate weekly trends:', e));
 
       // Detect risks asynchronously
       detectRisks(userProfile?.org_id || '', dashboardData?.metrics)
         .then(setRisks)
-        .catch(console.error);
+        .catch((e) => dashboardLogger.error('Failed to detect risks:', e));
       
       // Generate insights if we have data
       if (totalScores > 0 && userProfile?.org_id) {
@@ -228,7 +228,7 @@ export default function ExecutiveDashboard() {
         setApolloStale(false);
       }
     } catch (error) {
-      console.error('Error checking data freshness:', error);
+      dashboardLogger.error('Error checking data freshness:', error);
     }
   };
 
@@ -272,7 +272,7 @@ export default function ExecutiveDashboard() {
       setLastRefreshed(new Date());
       toast.success("Insights refreshed successfully");
     } catch (error: any) {
-      console.error("Error refreshing insights:", error);
+      dashboardLogger.error("Error refreshing insights:", error);
       toast.error(error.message || "Failed to refresh insights");
     } finally {
       setRefreshingInsights(false);
@@ -315,7 +315,7 @@ export default function ExecutiveDashboard() {
         refetch();
       }, 1000);
     } catch (error: any) {
-      console.error('Error syncing Apollo:', error);
+      dashboardLogger.error('Error syncing Apollo:', error);
       setSyncStatus('error');
       toast.error(error.message || 'Failed to sync Apollo data');
     } finally {
@@ -339,7 +339,7 @@ export default function ExecutiveDashboard() {
   }
 
   if (queryError) {
-    console.error("React Query Error:", queryError.message);
+    dashboardLogger.error("React Query Error:", queryError.message);
     return (
       <Alert variant="destructive" className="mt-4">
         <AlertCircle className="h-4 w-4" />
@@ -378,7 +378,7 @@ export default function ExecutiveDashboard() {
   // Score accounts handler for command palette
   const handleScoreAccounts = async () => {
     try {
-      console.log('🚀 Manual scoring trigger clicked');
+      dashboardLogger.debug('Manual scoring trigger clicked');
       const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
         body: { org_id: userProfile.org_id, chunk_size: 5000 }
       });
@@ -595,7 +595,7 @@ export default function ExecutiveDashboard() {
                   trend={sourceFilter === 'crm' && trendData?.totalAccountsGrowth ? { value: trendData.totalAccountsGrowth, period: "last week" } : undefined}
                   icon={Building2}
                   onClick={() => {
-                    console.log('[ExecutiveDashboard] Total Accounts clicked');
+                    dashboardLogger.debug('Total Accounts clicked');
                     navigate('/accounts');
                   }}
                   tooltip={{
@@ -611,7 +611,7 @@ export default function ExecutiveDashboard() {
                     subtitle="Available in market database"
                     icon={Users}
                     onClick={() => {
-                      console.log('[ExecutiveDashboard] Total Contacts (database) clicked');
+                      dashboardLogger.debug('Total Contacts (database) clicked');
                       navigate('/leads');
                     }}
                     tooltip={{
@@ -629,7 +629,7 @@ export default function ExecutiveDashboard() {
                     icon={Users}
                     status={campaignReadyLeads > 0 ? 'success' : 'warning'}
                     onClick={() => {
-                      console.log('[ExecutiveDashboard] Campaign Ready clicked');
+                      dashboardLogger.debug('Campaign Ready clicked');
                       navigate('/leads?campaign_ready=true');
                     }}
                     tooltip={{

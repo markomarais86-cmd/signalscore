@@ -4,6 +4,7 @@ import { TrendingUp, TrendingDown, Minus, LucideIcon } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
 import { formatNumber } from "@/utils/format-numbers";
 import { MetricTooltip } from "@/components/help/MetricTooltip";
+import { dashboardLogger } from "@/lib/logger";
 
 interface HeroMetricProps {
   label: string;
@@ -63,7 +64,7 @@ export function HeroMetric({
 
   const handleClick = onClick ? (e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log(`[HeroMetric] "${label}" clicked`);
+    dashboardLogger.debug(`"${label}" clicked`);
     onClick();
   } : undefined;
 

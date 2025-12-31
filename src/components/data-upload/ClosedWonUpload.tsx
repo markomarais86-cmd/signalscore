@@ -213,7 +213,7 @@ export function ClosedWonUpload() {
         // Create a map of normalized domain to account_external_id
         const domainMap = createNormalizedDomainMap(accounts || []);
         uploadLogger.debug('Created normalized domain map with', domainMap.size, 'entries');
-        console.log('ClosedWonUpload: Domain map entries (first 5):', Array.from(domainMap.entries()).slice(0, 5));
+        uploadLogger.debug('Domain map entries (first 5):', Array.from(domainMap.entries()).slice(0, 5));
 
         // Helper function to derive company name from domain
         const deriveCompanyName = (domain: string): string => {
