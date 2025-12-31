@@ -1,6 +1,10 @@
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Globe, Target, TrendingUp } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Globe, TrendingUp, Settings } from "lucide-react";
 
 interface SimpleTAMCardProps {
   tamValue?: number;
@@ -10,6 +14,7 @@ interface SimpleTAMCardProps {
   averageDealSize?: number;
   conversionRate?: number;
   className?: string;
+  onSettingsChange?: (settings: { averageDealSize: number; conversionRate: number }) => void;
 }
 
 function formatCurrency(value: number): string {
@@ -33,10 +38,24 @@ export function SimpleTAMCard({
   totalAccounts,
   highFitAccounts,
   campaignReadyAccounts,
-  averageDealSize = 75000,
-  conversionRate = 0.15,
+  averageDealSize: initialDealSize = 75000,
+  conversionRate: initialConversion = 0.15,
   className,
+  onSettingsChange,
 }: SimpleTAMCardProps) {
+  const [averageDealSize, setAverageDealSize] = useState(initialDealSize);
+  const [conversionRate, setConversionRate] = useState(initialConversion);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [tempDealSize, setTempDealSize] = useState(initialDealSize);
+  const [tempConversion, setTempConversion] = useState(initialConversion * 100);
+
+  const handleSaveSettings = () => {
+    setAverageDealSize(tempDealSize);
+    setConversionRate(tempConversion / 100);
+    setIsSettingsOpen(false);
+    onSettingsChange?.({ averageDealSize: tempDealSize, conversionRate: tempConversion / 100 });
+  };
+
   // TAM: Total Addressable Market - all accounts
   const tamAccounts = totalAccounts;
   const calculatedTAM = tamValue && tamValue > 0 ? tamValue : tamAccounts * averageDealSize;
@@ -81,10 +100,61 @@ export function SimpleTAMCard({
   return (
     <Card className={`${className} border-border/50 bg-card/80 backdrop-blur-sm hover:border-primary/20 transition-colors duration-300`}>
       <CardContent className="p-6">
-        {/* Header */}
-        <div className="flex items-center gap-2 mb-5">
-          <Globe className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium text-muted-foreground">Market Sizing</span>
+        {/* Header with Settings */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2">
+            <Globe className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium text-muted-foreground">Market Sizing</span>
+          </div>
+          <Popover open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground">
+                <Settings className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-72" align="end">
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-medium text-sm mb-3">TAM/SAM/SOM Settings</h4>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Adjust these values to match your business model.
+                  </p>
+                </div>
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="dealSize" className="text-xs">Average Deal Size ($)</Label>
+                    <Input
+                      id="dealSize"
+                      type="number"
+                      value={tempDealSize}
+                      onChange={(e) => setTempDealSize(Number(e.target.value))}
+                      className="h-8"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="conversion" className="text-xs">Conversion Rate (%)</Label>
+                    <Input
+                      id="conversion"
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={tempConversion}
+                      onChange={(e) => setTempConversion(Number(e.target.value))}
+                      className="h-8"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button size="sm" variant="outline" onClick={() => setIsSettingsOpen(false)} className="flex-1">
+                    Cancel
+                  </Button>
+                  <Button size="sm" onClick={handleSaveSettings} className="flex-1">
+                    Apply
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* TAM/SAM/SOM Grid */}

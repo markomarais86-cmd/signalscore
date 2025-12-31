@@ -14,6 +14,9 @@ interface SimpleICPTableProps {
   databaseAccounts: number;
   highFitCrmAccounts: number;
   highFitDatabaseAccounts: number;
+  // Apollo/external data for database source
+  apolloAccounts?: number;
+  apolloHighFitEstimate?: number;
   className?: string;
 }
 
@@ -22,14 +25,20 @@ export function SimpleICPTable({
   databaseAccounts,
   highFitCrmAccounts,
   highFitDatabaseAccounts,
+  apolloAccounts,
+  apolloHighFitEstimate,
   className,
 }: SimpleICPTableProps) {
   const crmPercentage = crmAccounts > 0 
     ? Math.round((highFitCrmAccounts / crmAccounts) * 100) 
     : 0;
   
-  const databasePercentage = databaseAccounts > 0 
-    ? Math.round((highFitDatabaseAccounts / databaseAccounts) * 100) 
+  // Use Apollo data if provided, otherwise fall back to internal database accounts
+  const effectiveDatabaseAccounts = apolloAccounts ?? databaseAccounts;
+  const effectiveHighFitDatabase = apolloHighFitEstimate ?? highFitDatabaseAccounts;
+  
+  const databasePercentage = effectiveDatabaseAccounts > 0 
+    ? Math.round((effectiveHighFitDatabase / effectiveDatabaseAccounts) * 100) 
     : 0;
 
   const data = [
@@ -43,9 +52,10 @@ export function SimpleICPTable({
     {
       source: "Database",
       icon: Database,
-      total: databaseAccounts,
-      highFit: highFitDatabaseAccounts,
+      total: effectiveDatabaseAccounts,
+      highFit: effectiveHighFitDatabase,
       percentage: databasePercentage,
+      isExternal: !!apolloAccounts,
     },
   ];
 
@@ -74,6 +84,11 @@ export function SimpleICPTable({
                   <div className="flex items-center gap-2">
                     <row.icon className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium text-foreground">{row.source}</span>
+                    {row.isExternal && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                        Apollo
+                      </span>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell className="text-right text-foreground font-medium">
@@ -81,6 +96,9 @@ export function SimpleICPTable({
                 </TableCell>
                 <TableCell className="text-right text-foreground font-medium">
                   {row.highFit.toLocaleString()}
+                  {row.isExternal && row.highFit > 0 && (
+                    <span className="text-[10px] text-muted-foreground ml-1">est.</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
                   <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary/15 text-primary border border-primary/20">

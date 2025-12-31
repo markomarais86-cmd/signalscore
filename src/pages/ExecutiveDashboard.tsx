@@ -33,6 +33,7 @@ import { SimplifiedHeroMetrics } from "@/components/executive/SimplifiedHeroMetr
 import { ICPDonutChart } from "@/components/executive/ICPDonutChart";
 import { SimpleICPTable } from "@/components/executive/SimpleICPTable";
 import { SimpleTAMCard } from "@/components/executive/SimpleTAMCard";
+import { SimpleGeographyCard } from "@/components/executive/SimpleGeographyCard";
 
 import { CommandPalette, CommandPaletteTrigger } from "@/components/executive/CommandPalette";
 import { StatusBar, useStatusItems } from "@/components/executive/StatusBar";
@@ -591,6 +592,24 @@ export default function ExecutiveDashboard() {
                   databaseAccounts={databaseAccounts}
                   highFitCrmAccounts={highFitCrmAccounts}
                   highFitDatabaseAccounts={highFitDatabaseAccounts}
+                  apolloAccounts={tamData?.totalAccounts}
+                  apolloHighFitEstimate={
+                    tamData?.totalAccounts && tamData?.industry_breakdown
+                      ? Math.round(tamData.totalAccounts * 0.35) // Estimate 35% high-fit from Apollo industry data
+                      : undefined
+                  }
+                />
+                
+                {/* Geography Card */}
+                <SimpleGeographyCard
+                  geoData={
+                    sourceFilter === 'database' && tamData?.geography_breakdown
+                      ? Object.entries(tamData.geography_breakdown as Record<string, number>).map(([country, count]) => ({
+                          country,
+                          count,
+                        })).sort((a, b) => b.count - a.count)
+                      : geographyDistribution.map(g => ({ country: g.country, count: g.count }))
+                  }
                 />
                 
                 {/* TAM/SAM/SOM Card */}
