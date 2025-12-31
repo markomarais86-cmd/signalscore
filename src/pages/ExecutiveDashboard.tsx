@@ -46,6 +46,7 @@ import { SignalFeed } from "@/components/executive/SignalFeed";
 import { SignalSummaryCard } from "@/components/executive/SignalSummaryCard";
 import { SignalsHeroCard } from "@/components/executive/SignalsHeroCard";
 import { WeeklyReportCard } from "@/components/executive/WeeklyReportCard";
+import { IntentSignalsCard } from "@/components/executive/IntentSignalsCard";
 
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
 import { CommandPalette, CommandPaletteTrigger } from "@/components/executive/CommandPalette";
@@ -801,6 +802,12 @@ export default function ExecutiveDashboard() {
                   sourceFilter={sourceFilter}
                 />
               )}
+            </div>
+
+            {/* Intent Signals Card - Predictive Engagement Signals */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+              <IntentSignalsCard orgId={userProfile?.org_id} />
+              <WeeklyReportCard />
             </div>
 
             {/* Bottom Cards - Signals + Insights */}
