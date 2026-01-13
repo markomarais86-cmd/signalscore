@@ -73,7 +73,7 @@ serve(async (req) => {
     let enrichedCount = 0;
     const enrichedAccounts = new Set<string>();
     const sourceBreakdown = { apollo: 0, pdl: 0, ai: 0 };
-    const CONCURRENCY_LIMIT = 10;
+    const CONCURRENCY_LIMIT = 20; // Increased from 10 for faster enrichment
 
     const processInParallel = async <T, R>(
       items: T[],
