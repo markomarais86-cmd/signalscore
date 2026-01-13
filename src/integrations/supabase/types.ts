@@ -2934,6 +2934,7 @@ export type Database = {
           credits_remaining: number | null
           credits_used: number | null
           current_batch: number | null
+          cursor: string | null
           enable_contact_discovery: boolean | null
           enriched_records: number | null
           error_message: string | null
@@ -2977,6 +2978,7 @@ export type Database = {
           credits_remaining?: number | null
           credits_used?: number | null
           current_batch?: number | null
+          cursor?: string | null
           enable_contact_discovery?: boolean | null
           enriched_records?: number | null
           error_message?: string | null
@@ -3020,6 +3022,7 @@ export type Database = {
           credits_remaining?: number | null
           credits_used?: number | null
           current_batch?: number | null
+          cursor?: string | null
           enable_contact_discovery?: boolean | null
           enriched_records?: number | null
           error_message?: string | null
