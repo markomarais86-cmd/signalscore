@@ -693,7 +693,7 @@ export function UnifiedInsightsPanel({
         </CardHeader>
 
         <CollapsibleContent>
-          <CardContent className="space-y-4 pt-0">
+          <CardContent className="space-y-4 pt-0 max-h-[500px] overflow-y-auto">
             {/* Active Enrichment Progress Banner */}
             {enrichmentProgress && (
               <div className={`p-3 rounded-lg border ${

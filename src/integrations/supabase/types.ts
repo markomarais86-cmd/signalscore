@@ -6432,31 +6432,71 @@ export type Database = {
         Args: { p_deal_id: string; p_stage: string }
         Returns: number
       }
-      get_filtered_accounts: {
-        Args: {
-          p_campaign_ready?: boolean
-          p_country?: string
-          p_cursor?: string
-          p_data_source?: string
-          p_fit_max?: number
-          p_fit_min?: number
-          p_industry?: string
-          p_limit?: number
-          p_org_id: string
-          p_search_term?: string
-        }
-        Returns: {
-          country: string
-          cursor: string
-          domain: string
-          external_id: string
-          id: string
-          industry_norm: string
-          name: string
-          overall_score: number
-          total_count: number
-        }[]
-      }
+      get_filtered_accounts:
+        | {
+            Args: {
+              p_campaign_ready?: boolean
+              p_country?: string
+              p_cursor?: string
+              p_data_source?: string
+              p_fit_max?: number
+              p_fit_min?: number
+              p_industry?: string
+              p_limit?: number
+              p_org_id: string
+              p_search_term?: string
+            }
+            Returns: {
+              country: string
+              cursor: string
+              domain: string
+              external_id: string
+              id: string
+              industry_norm: string
+              name: string
+              overall_score: number
+              total_count: number
+            }[]
+          }
+        | {
+            Args: {
+              p_campaign_ready?: boolean
+              p_country?: string
+              p_cursor?: string
+              p_data_source?: string
+              p_fit_max?: number
+              p_fit_min?: number
+              p_industry?: string
+              p_limit?: number
+              p_org_id: string
+              p_search_term?: string
+              p_sort_direction?: string
+              p_sort_field?: string
+            }
+            Returns: {
+              city: string
+              country: string
+              data_source: string
+              deep_research_completed_at: string
+              deep_research_requested: boolean
+              domain: string
+              employee_count: number
+              enriched_at: string
+              enrichment_overall_score: number
+              external_id: string
+              icp_qualified: boolean
+              industry_norm: string
+              last_funding_date: string
+              last_funding_round: string
+              linkedin_url: string
+              name: string
+              revenue_range: string
+              state_province: string
+              tech_stack: string[]
+              total_raised_usd: number
+              updated_at: string
+            }[]
+          }
       get_firmographic_sync_opportunities: {
         Args: { p_org_id: string }
         Returns: Json

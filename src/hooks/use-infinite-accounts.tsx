@@ -257,6 +257,8 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
           p_fit_min: fitMin,
           p_fit_max: fitMax,
           p_campaign_ready: campaignReadyFilter || false,
+          p_sort_field: sortField || 'updated_at',
+          p_sort_direction: sortDirection || 'desc',
         });
 
         logger.debug('[useInfiniteAccounts] RPC result:', { 
@@ -428,6 +430,8 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
     campaignReadyFilter,
     mode,
     integrationConfigId,
+    sortField,
+    sortDirection,
   ]);
 
   return {
