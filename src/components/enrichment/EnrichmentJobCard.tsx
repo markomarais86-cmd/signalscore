@@ -117,11 +117,13 @@ export function EnrichmentJobCard({ job, onRefresh }: EnrichmentJobCardProps) {
       
       if (error) throw error;
 
-      // Trigger the edge function to resume processing
-      const functionName = job.provider === 'ai_free' ? 'enrich-ai-only' : 'smart-enrich';
-      await supabase.functions.invoke(functionName, {
-        body: { jobId: job.id, resumeFromCheckpoint: true }
-      });
+      // Use new orchestrator for ai_free jobs, fallback to old functions for others
+      const functionName = job.provider === 'ai_free' ? 'enrich-free-orchestrator' : 'smart-enrich';
+      const body = job.provider === 'ai_free' 
+        ? { job_id: job.id, org_id: job.org_id }
+        : { jobId: job.id, resumeFromCheckpoint: true };
+      
+      await supabase.functions.invoke(functionName, { body });
       
       toast.success('Job resumed');
       await onRefresh();
@@ -140,16 +142,20 @@ export function EnrichmentJobCard({ job, onRefresh }: EnrichmentJobCardProps) {
         .update({ 
           status: 'processing', 
           error_message: null,
-          started_at: new Date().toISOString()
+          started_at: new Date().toISOString(),
+          cursor: null // Reset cursor for fresh start
         })
         .eq('id', job.id);
       
       if (error) throw error;
 
-      const functionName = job.provider === 'ai_free' ? 'enrich-ai-only' : 'smart-enrich';
-      await supabase.functions.invoke(functionName, {
-        body: { jobId: job.id }
-      });
+      // Use new orchestrator for ai_free jobs
+      const functionName = job.provider === 'ai_free' ? 'enrich-free-orchestrator' : 'smart-enrich';
+      const body = job.provider === 'ai_free' 
+        ? { job_id: job.id, org_id: job.org_id }
+        : { jobId: job.id };
+      
+      await supabase.functions.invoke(functionName, { body });
       
       toast.success('Job restarted');
       await onRefresh();
