@@ -6,6 +6,23 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Parallel processing configuration
+const PARALLEL_BATCH_SIZE = 15; // Process 15 accounts concurrently
+
+async function processInParallel<T, R>(
+  items: T[],
+  processor: (item: T) => Promise<R>,
+  concurrency: number
+): Promise<R[]> {
+  const results: R[] = [];
+  for (let i = 0; i < items.length; i += concurrency) {
+    const batch = items.slice(i, i + concurrency);
+    const batchResults = await Promise.all(batch.map(processor));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
 interface EnrichmentDecision {
   account_id: string;
   priority: 'high' | 'medium' | 'low';
@@ -189,8 +206,8 @@ async function prioritizeEnrichmentWithAI(
     }));
   }
 
-  // INCREASED: Process up to 100 accounts in AI context for better prioritization
-  const accountsContext = accounts.slice(0, 100).map(account => ({
+  // INCREASED: Process up to 250 accounts in AI context for better prioritization
+  const accountsContext = accounts.slice(0, 250).map(account => ({
     account_id: account.id,
     external_id: account.external_id,
     name: account.name,
@@ -414,13 +431,16 @@ serve(async (req) => {
       // Process by priority
       const highPriority = decisions.filter(d => d.priority === 'high');
       const mediumPriority = decisions.filter(d => d.priority === 'medium');
+      const allToProcess = [...highPriority, ...mediumPriority];
       console.log(`[Data Enrichment Agent] Priority breakdown: ${highPriority.length} high, ${mediumPriority.length} medium`);
+      console.log(`[Data Enrichment Agent] Processing ${allToProcess.length} accounts with ${PARALLEL_BATCH_SIZE}x concurrency`);
 
-      for (const decision of [...highPriority, ...mediumPriority]) {
+      // Process accounts in parallel batches
+      const processAccount = async (decision: EnrichmentDecision) => {
         const account = accounts.find(a => a.id === decision.account_id);
         if (!account) {
           console.log(`[Data Enrichment Agent] Account ${decision.account_id} not found in list, skipping`);
-          continue;
+          return { processed: false, enriched: false, source: null };
         }
 
         try {
@@ -429,14 +449,11 @@ serve(async (req) => {
           let enrichedFields: string[] = [];
           const updateData: any = {};
 
-          console.log(`[Data Enrichment Agent] Processing: ${account.name} (${account.domain || 'no domain'}) - priority: ${decision.priority}, confidence: ${decision.confidence}%`);
+          console.log(`[Data Enrichment Agent] Processing: ${account.name} (${account.domain || 'no domain'}) - priority: ${decision.priority}`);
 
           // PRIORITY FIX: Try API enrichment FIRST for accounts with valid domains
-          // This ensures we use real data from Apollo/PDL when available
           if (account.domain && account.domain.length > 3 && !account.domain.includes('example')) {
-            console.log(`[Data Enrichment Agent] Attempting API enrichment first for: ${account.name} (${account.domain})`);
-            
-            // Try Apollo first (prioritize real data)
+            // Try Apollo first
             const apolloData = await enrichWithApollo(account.domain);
             if (apolloData && Object.keys(apolloData).length > 0) {
               if (apolloData.employee_count && !account.employee_count) {
@@ -463,7 +480,7 @@ serve(async (req) => {
               if (enrichedFields.length > 0) {
                 updateData.enriched_from = 'apollo';
                 updateData.enriched_at = new Date().toISOString();
-                updateData.enrichment_confidence = 95; // High confidence for API data
+                updateData.enrichment_confidence = 95;
                 
                 const { error: updateError } = await supabase
                   .from('accounts')
@@ -477,8 +494,7 @@ serve(async (req) => {
                   recordsAffected++;
                   enrichedThisAccount = true;
                   console.log(`[Data Enrichment Agent] ✓ Apollo enriched ${account.name}: ${enrichedFields.join(', ')}`);
-                } else {
-                  console.error(`[Data Enrichment Agent] Apollo update failed for ${account.name}:`, updateError);
+                  return { processed: true, enriched: true, source: 'apollo' };
                 }
               }
             }
@@ -514,7 +530,7 @@ serve(async (req) => {
                 if (enrichedFields.length > 0) {
                   pdlUpdateData.enriched_from = 'pdl';
                   pdlUpdateData.enriched_at = new Date().toISOString();
-                  pdlUpdateData.enrichment_confidence = 90; // High confidence for API data
+                  pdlUpdateData.enrichment_confidence = 90;
                   
                   const { error: updateError } = await supabase
                     .from('accounts')
@@ -528,17 +544,15 @@ serve(async (req) => {
                     recordsAffected++;
                     enrichedThisAccount = true;
                     console.log(`[Data Enrichment Agent] ✓ PDL enriched ${account.name}: ${enrichedFields.join(', ')}`);
-                  } else {
-                    console.error(`[Data Enrichment Agent] PDL update failed for ${account.name}:`, updateError);
+                    return { processed: true, enriched: true, source: 'pdl' };
                   }
                 }
               }
             }
           }
 
-          // FALLBACK: Use AI estimates if API enrichment didn't work and confidence >= 50%
+          // FALLBACK: Use AI estimates if API enrichment didn't work
           if (!enrichedThisAccount && decision.confidence >= 50 && decision.estimated_data && Object.keys(decision.estimated_data).length > 0) {
-            console.log(`[Data Enrichment Agent] Falling back to AI estimates for ${account.name}:`, decision.estimated_data);
             enrichedFields = [];
             const aiUpdateData: any = {};
             
@@ -568,22 +582,23 @@ serve(async (req) => {
               if (!updateError) {
                 aiEstimatesApplied++;
                 recordsAffected++;
-                enrichedThisAccount = true;
                 console.log(`[Data Enrichment Agent] ✓ AI enriched ${account.name}: ${enrichedFields.join(', ')}`);
-              } else {
-                console.error(`[Data Enrichment Agent] AI update failed for ${account.name}:`, updateError);
+                return { processed: true, enriched: true, source: 'ai' };
               }
             }
           }
 
-          if (!enrichedThisAccount) {
-            console.log(`[Data Enrichment Agent] Could not enrich ${account.name} - no domain or no data available`);
-          }
+          return { processed: true, enriched: false, source: null };
         } catch (error) {
           console.error(`[Data Enrichment Agent] Error processing account ${account.id}:`, error);
+          return { processed: true, enriched: false, source: null };
         }
-      }
+      };
+
+      // Process all accounts in parallel batches
+      await processInParallel(allToProcess, processAccount, PARALLEL_BATCH_SIZE);
     }
+
 
     console.log(`[Data Enrichment Agent] ========== RUN COMPLETE ==========`);
     console.log(`[Data Enrichment Agent] Processed: ${recordsProcessed}, Affected: ${recordsAffected}`);
