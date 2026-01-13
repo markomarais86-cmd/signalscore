@@ -16,8 +16,30 @@ serve(async (req) => {
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+
+    // Authentication check
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify user token
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+    
+    const { data: { user }, error: authError } = await authClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid authorization token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const { job_id, account_ids, provider } = await req.json();
 
@@ -25,6 +47,29 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'job_id, account_ids, and provider are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create service role client for operations
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Verify user has access to the job's org
+    const { data: job } = await supabase
+      .from('enrichment_jobs')
+      .select('org_id')
+      .eq('id', job_id)
+      .single();
+
+    const { data: profile } = await authClient
+      .from('user_profiles')
+      .select('org_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!job || !profile || job.org_id !== profile.org_id) {
+      return new Response(
+        JSON.stringify({ error: 'Access denied to this enrichment job' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
