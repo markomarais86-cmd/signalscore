@@ -776,7 +776,7 @@ serve(async (req) => {
         ? "completed_with_failures"
         : "completed";
 
-    // Complete job
+    // Complete job with source breakdown
     await supabase
       .from("enrichment_jobs")
       .update({
@@ -789,6 +789,9 @@ serve(async (req) => {
         error_message: allErrors.length > 0 
           ? `${allErrors.length} accounts had errors (${retryableErrors.length} retryable)`
           : null,
+        source_breakdown: {
+          ai: { attempted: totalProcessed, enriched: totalEnriched, failed: allErrors.length }
+        },
         agent_config: {
           ...job.agent_config,
           progress: {

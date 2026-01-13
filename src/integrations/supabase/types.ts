@@ -2955,6 +2955,7 @@ export type Database = {
           rows_completed: number | null
           rows_failed: number | null
           rows_pending: number | null
+          source_breakdown: Json | null
           source_reference: string | null
           source_type: string | null
           started_at: string | null
@@ -2997,6 +2998,7 @@ export type Database = {
           rows_completed?: number | null
           rows_failed?: number | null
           rows_pending?: number | null
+          source_breakdown?: Json | null
           source_reference?: string | null
           source_type?: string | null
           started_at?: string | null
@@ -3039,6 +3041,7 @@ export type Database = {
           rows_completed?: number | null
           rows_failed?: number | null
           rows_pending?: number | null
+          source_breakdown?: Json | null
           source_reference?: string | null
           source_type?: string | null
           started_at?: string | null

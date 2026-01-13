@@ -77,6 +77,7 @@ import { EnrichmentHistoryViewer } from "@/components/settings/EnrichmentHistory
 import { DeepResearchSettings } from "@/components/settings/DeepResearchSettings";
 import { EnrichmentAnalyticsDashboard } from "@/components/settings/EnrichmentAnalyticsDashboard";
 import { CandidateSelector } from "@/components/enrichment/CandidateSelector";
+import { UnifiedEnrichmentDashboard } from "@/components/enrichment/UnifiedEnrichmentDashboard";
 import { BulkLeadEnrichment } from "@/components/settings/BulkLeadEnrichment";
 import { LeadEnrichmentPanel } from "@/components/settings/LeadEnrichmentPanel";
 import { BulkAccountEnrichment } from "@/components/settings/BulkAccountEnrichment";
@@ -591,11 +592,8 @@ export default function Settings() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pt-4">
-                <div className="space-y-4">
-                  <EnhancedEnrichmentHealth />
-                  <EnrichmentHealthCard />
-                  <EnrichmentJobMonitor />
-                  <EnrichmentHistoryViewer />
+                <div className="space-y-6">
+                  <UnifiedEnrichmentDashboard />
                 </div>
               </AccordionContent>
             </AccordionItem>
