@@ -1,8 +1,10 @@
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, TrendingUp, Target, Users, Lightbulb } from "lucide-react";
 import { SignalScoreDisplay } from "@/components/SignalScoreDisplay";
 
@@ -11,10 +13,12 @@ interface ScoreBreakdownDialogProps {
   onClose: () => void;
   account: {
     name: string;
+    external_id?: string;
     overall: number;
     fit: number;
     intent: number;
     reachability: number;
+    leads?: number;
     reasons?: {
       fit_positives?: string[];
       fit_negatives?: string[];
@@ -31,6 +35,8 @@ const ScoreExplanation = ({ score }: { score: number }) => {
 };
 
 export function ScoreBreakdownDialog({ isOpen, onClose, account }: ScoreBreakdownDialogProps) {
+  const navigate = useNavigate();
+  
   if (!account) return null;
 
   const fitExplanation = ScoreExplanation({ score: account.fit });
@@ -235,7 +241,7 @@ export function ScoreBreakdownDialog({ isOpen, onClose, account }: ScoreBreakdow
               Recommendations
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <ul className="space-y-2 text-sm">
               {account.fit < 75 && (
                 <li className="flex items-start gap-2">
@@ -262,6 +268,20 @@ export function ScoreBreakdownDialog({ isOpen, onClose, account }: ScoreBreakdow
                 </li>
               )}
             </ul>
+            
+            {/* View Leads Button */}
+            {account.external_id && (
+              <Button 
+                className="w-full mt-4"
+                onClick={() => {
+                  onClose();
+                  navigate(`/leads?account_id=${account.external_id}`);
+                }}
+              >
+                <Users className="h-4 w-4 mr-2" />
+                View {account.leads || 0} Leads for This Account
+              </Button>
+            )}
           </CardContent>
         </Card>
       </DialogContent>

@@ -14,6 +14,8 @@ interface EnrichmentDecision {
     employee_count?: number;
     revenue_range?: string;
     industry?: string;
+    tech_stack?: string[];
+    total_raised_usd?: number;
   };
   confidence: number;
   reasoning: string;
@@ -24,6 +26,8 @@ async function enrichWithApollo(domain: string): Promise<{
   employee_count?: number;
   revenue_range?: string;
   industry?: string;
+  tech_stack?: string[];
+  total_raised_usd?: number;
 } | null> {
   const APOLLO_API_KEY = Deno.env.get('APOLLO_API_KEY');
   if (!APOLLO_API_KEY) {
@@ -56,7 +60,7 @@ async function enrichWithApollo(domain: string): Promise<{
       return null;
     }
 
-    const result: { employee_count?: number; revenue_range?: string; industry?: string } = {};
+    const result: { employee_count?: number; revenue_range?: string; industry?: string; tech_stack?: string[]; total_raised_usd?: number } = {};
     
     if (org.estimated_num_employees) {
       result.employee_count = org.estimated_num_employees;
@@ -78,6 +82,16 @@ async function enrichWithApollo(domain: string): Promise<{
     if (org.industry) {
       result.industry = org.industry;
     }
+    
+    // Extract tech stack
+    if (org.technologies || org.technology_names) {
+      result.tech_stack = org.technologies || org.technology_names;
+    }
+    
+    // Extract funding data
+    if (org.total_funding || org.total_funding_printed) {
+      result.total_raised_usd = org.total_funding || parseInt(org.total_funding_printed?.replace(/[^0-9]/g, '') || '0');
+    }
 
     console.log(`[Apollo] Enriched ${domain}:`, result);
     return Object.keys(result).length > 0 ? result : null;
@@ -92,6 +106,8 @@ async function enrichWithPDL(domain: string): Promise<{
   employee_count?: number;
   revenue_range?: string;
   industry?: string;
+  tech_stack?: string[];
+  total_raised_usd?: number;
 } | null> {
   const PDL_API_KEY = Deno.env.get('PDL_API_KEY');
   if (!PDL_API_KEY) {
@@ -120,7 +136,7 @@ async function enrichWithPDL(domain: string): Promise<{
       return null;
     }
 
-    const result: { employee_count?: number; revenue_range?: string; industry?: string } = {};
+    const result: { employee_count?: number; revenue_range?: string; industry?: string; tech_stack?: string[]; total_raised_usd?: number } = {};
     
     if (data.employee_count) {
       result.employee_count = data.employee_count;
@@ -132,6 +148,16 @@ async function enrichWithPDL(domain: string): Promise<{
     
     if (data.industry) {
       result.industry = data.industry;
+    }
+    
+    // Extract tech stack from PDL
+    if (data.technologies || data.technology_names) {
+      result.tech_stack = data.technologies || data.technology_names;
+    }
+    
+    // Extract funding data from PDL
+    if (data.total_funding_raised) {
+      result.total_raised_usd = data.total_funding_raised;
     }
 
     console.log(`[PDL] Enriched ${domain}:`, result);
@@ -163,7 +189,8 @@ async function prioritizeEnrichmentWithAI(
     }));
   }
 
-  const accountsContext = accounts.slice(0, 15).map(account => ({
+  // INCREASED: Process up to 100 accounts in AI context for better prioritization
+  const accountsContext = accounts.slice(0, 100).map(account => ({
     account_id: account.id,
     external_id: account.external_id,
     name: account.name,
@@ -171,12 +198,16 @@ async function prioritizeEnrichmentWithAI(
     current_industry: account.industry_raw,
     current_employee_count: account.employee_count,
     current_revenue_range: account.revenue_range,
+    current_tech_stack: account.tech_stack,
+    current_funding: account.total_raised_usd,
     icp_qualified: account.icp_qualified,
     propensity_score: account.propensity_score,
     missing_fields: [
       !account.employee_count && 'employee_count',
       !account.revenue_range && 'revenue_range',
-      !account.industry_raw && 'industry'
+      !account.industry_raw && 'industry',
+      (!account.tech_stack || account.tech_stack.length === 0) && 'tech_stack',
+      !account.total_raised_usd && 'funding'
     ].filter(Boolean)
   }));
 
@@ -350,19 +381,22 @@ serve(async (req) => {
       run = data;
     }
 
-    const batchSize = agent.parameters?.batch_size || 50;
+    // INCREASED: Default batch size now 500 for more efficient processing
+    const batchSize = agent.parameters?.batch_size || 500;
     let recordsProcessed = 0;
     let recordsAffected = 0;
     let aiEstimatesApplied = 0;
     let apolloEnrichments = 0;
     let pdlEnrichments = 0;
+    let techStackEnrichments = 0;
+    let fundingEnrichments = 0;
 
-    // Find accounts missing firmographic data
+    // Find accounts missing firmographic data (including tech_stack and funding)
     const { data: accounts, error: accountsError } = await supabase
       .from('accounts')
-      .select('id, external_id, name, domain, industry_raw, employee_count, revenue_range, icp_qualified, propensity_score')
+      .select('id, external_id, name, domain, industry_raw, employee_count, revenue_range, tech_stack, total_raised_usd, icp_qualified, propensity_score')
       .eq('org_id', org_id)
-      .or('industry_raw.is.null,employee_count.is.null,revenue_range.is.null')
+      .or('industry_raw.is.null,employee_count.is.null,revenue_range.is.null,tech_stack.is.null,total_raised_usd.is.null')
       .limit(batchSize);
 
     if (accountsError) {
@@ -417,6 +451,14 @@ serve(async (req) => {
                 updateData.industry_raw = apolloData.industry;
                 enrichedFields.push('industry');
               }
+              if (apolloData.tech_stack && apolloData.tech_stack.length > 0 && (!account.tech_stack || account.tech_stack.length === 0)) {
+                updateData.tech_stack = apolloData.tech_stack;
+                enrichedFields.push('tech_stack');
+              }
+              if (apolloData.total_raised_usd && !account.total_raised_usd) {
+                updateData.total_raised_usd = apolloData.total_raised_usd;
+                enrichedFields.push('funding');
+              }
               
               if (enrichedFields.length > 0) {
                 updateData.enriched_from = 'apollo';
@@ -430,6 +472,8 @@ serve(async (req) => {
                   
                 if (!updateError) {
                   apolloEnrichments++;
+                  if (enrichedFields.includes('tech_stack')) techStackEnrichments++;
+                  if (enrichedFields.includes('funding')) fundingEnrichments++;
                   recordsAffected++;
                   enrichedThisAccount = true;
                   console.log(`[Data Enrichment Agent] ✓ Apollo enriched ${account.name}: ${enrichedFields.join(', ')}`);
@@ -458,6 +502,14 @@ serve(async (req) => {
                   pdlUpdateData.industry_raw = pdlData.industry;
                   enrichedFields.push('industry');
                 }
+                if (pdlData.tech_stack && pdlData.tech_stack.length > 0 && (!account.tech_stack || account.tech_stack.length === 0)) {
+                  pdlUpdateData.tech_stack = pdlData.tech_stack;
+                  enrichedFields.push('tech_stack');
+                }
+                if (pdlData.total_raised_usd && !account.total_raised_usd) {
+                  pdlUpdateData.total_raised_usd = pdlData.total_raised_usd;
+                  enrichedFields.push('funding');
+                }
                 
                 if (enrichedFields.length > 0) {
                   pdlUpdateData.enriched_from = 'pdl';
@@ -471,6 +523,8 @@ serve(async (req) => {
                     
                   if (!updateError) {
                     pdlEnrichments++;
+                    if (enrichedFields.includes('tech_stack')) techStackEnrichments++;
+                    if (enrichedFields.includes('funding')) fundingEnrichments++;
                     recordsAffected++;
                     enrichedThisAccount = true;
                     console.log(`[Data Enrichment Agent] ✓ PDL enriched ${account.name}: ${enrichedFields.join(', ')}`);

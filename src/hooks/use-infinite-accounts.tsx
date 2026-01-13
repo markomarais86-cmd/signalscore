@@ -36,6 +36,9 @@ interface Account {
   } | null;
 }
 
+export type SortField = 'name' | 'industry_norm' | 'country' | 'score' | 'leads' | 'data_quality' | 'updated_at';
+export type SortDirection = 'asc' | 'desc';
+
 interface UseInfiniteAccountsOptions {
   orgId: string | null;
   pageSize?: number;
@@ -49,6 +52,8 @@ interface UseInfiniteAccountsOptions {
   enabled?: boolean;
   mode?: 'realtime' | 'cached';
   integrationConfigId?: string;
+  sortField?: SortField;
+  sortDirection?: SortDirection;
 }
 
 /**
@@ -68,6 +73,8 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
     enabled = true,
     mode = 'cached',
     integrationConfigId,
+    sortField = 'updated_at',
+    sortDirection = 'desc',
   } = options;
 
   const pagination = useCursorPagination<Account>({ pageSize });
