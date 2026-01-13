@@ -172,6 +172,8 @@ export function BulkAccountEnrichment() {
 
       if (!profile?.org_id) throw new Error('No organization found');
 
+      const actualBatchSize = batchSize === 'all' ? stats?.needsEnrichment || 5000 : parseInt(batchSize);
+
       // Create enrichment job
       const { data: job, error: jobError } = await supabase
         .from('enrichment_jobs')
@@ -180,9 +182,10 @@ export function BulkAccountEnrichment() {
           provider: provider,
           job_type: 'accounts',
           status: 'pending',
-          batch_size: batchSize === 'all' ? stats?.needsEnrichment || 5000 : parseInt(batchSize),
-          total_records: stats?.needsEnrichment || 0,
-          created_by: user.id
+          batch_size: actualBatchSize,
+          total_records: actualBatchSize,
+          created_by: user.id,
+          cursor: null  // For cursor-based resumption in orchestrator
         })
         .select()
         .single();
@@ -193,17 +196,26 @@ export function BulkAccountEnrichment() {
 
       // Trigger enrichment edge function
       let functionName = 'enrich-accounts';
+      let requestBody: Record<string, unknown> = { 
+        jobId: job.id,
+        batchSize: actualBatchSize
+      };
+
       if (provider === 'smart') {
         functionName = 'smart-enrich';
       } else if (provider === 'ai_free') {
-        functionName = 'enrich-ai-only';
+        // Use new orchestrator-worker architecture for better performance
+        functionName = 'enrich-free-orchestrator';
+        requestBody = {
+          org_id: profile.org_id,
+          job_id: job.id,
+          create_new: false,  // Job already created above
+          total_records: actualBatchSize
+        };
       }
-      const actualBatchSize = batchSize === 'all' ? stats?.needsEnrichment || 5000 : parseInt(batchSize);
+
       const { error: enrichError } = await supabase.functions.invoke(functionName, {
-        body: { 
-          jobId: job.id,
-          batchSize: actualBatchSize
-        }
+        body: requestBody
       });
 
       if (enrichError) {
