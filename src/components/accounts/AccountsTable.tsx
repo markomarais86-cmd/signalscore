@@ -1,4 +1,4 @@
-import { AlertCircle, TrendingUp, X } from "lucide-react";
+import { AlertCircle, TrendingUp, X, ArrowUpDown, ArrowUp, ArrowDown, Users } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { formatNumber } from "@/utils/format-numbers";
 import { getSourceLabel, getSourceBadgeVariant } from "@/utils/data-source-attribution";
 import { InfiniteScrollTrigger } from "@/components/InfiniteScrollTrigger";
 import { PredictionBadgeCompact } from "@/components/PredictionBadge";
+import { cn } from "@/lib/utils";
 
 interface Account {
   id: string;
@@ -48,6 +49,9 @@ interface PredictionData {
   confidence: number;
 }
 
+export type SortField = 'name' | 'industry_norm' | 'country' | 'score' | 'leads' | 'data_quality' | 'updated_at';
+export type SortDirection = 'asc' | 'desc';
+
 interface AccountsTableProps {
   accounts: Account[];
   totalCount: number;
@@ -61,6 +65,10 @@ interface AccountsTableProps {
   // Predictions
   predictions?: Map<string, PredictionData>;
   isPredictionsLoading?: boolean;
+  // Sorting
+  sortField?: SortField;
+  sortDirection?: SortDirection;
+  onSort?: (field: SortField) => void;
   // Infinite scroll props
   observerTarget: React.RefObject<HTMLDivElement>;
   isLoadingMore: boolean;
@@ -83,6 +91,43 @@ function calculateDataCompleteness(account: Account): number {
   return Math.round((filledFields / fields.length) * 100);
 }
 
+interface SortableHeaderProps {
+  field: SortField;
+  label: string;
+  currentField?: SortField;
+  currentDirection?: SortDirection;
+  onSort?: (field: SortField) => void;
+  className?: string;
+}
+
+function SortableHeader({ field, label, currentField, currentDirection, onSort, className }: SortableHeaderProps) {
+  const isActive = currentField === field;
+  
+  return (
+    <TableHead 
+      className={cn(
+        "cursor-pointer hover:bg-muted/50 transition-colors select-none",
+        isActive && "bg-muted/30",
+        className
+      )}
+      onClick={() => onSort?.(field)}
+    >
+      <div className="flex items-center gap-1">
+        <span>{label}</span>
+        {isActive ? (
+          currentDirection === 'asc' ? (
+            <ArrowUp className="h-3 w-3 text-primary" />
+          ) : (
+            <ArrowDown className="h-3 w-3 text-primary" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />
+        )}
+      </div>
+    </TableHead>
+  );
+}
+
 export function AccountsTable({
   accounts,
   totalCount,
@@ -95,6 +140,9 @@ export function AccountsTable({
   clearFilters,
   predictions,
   isPredictionsLoading,
+  sortField,
+  sortDirection,
+  onSort,
   observerTarget,
   isLoadingMore,
   hasMore,
@@ -107,7 +155,7 @@ export function AccountsTable({
       <CardHeader>
         <CardTitle>All Accounts ({formatNumber(totalCount)})</CardTitle>
         <CardDescription>
-          Click on any row to view detailed account information
+          Click on any row to view detailed account information. Click column headers to sort.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -126,16 +174,52 @@ export function AccountsTable({
                   }}
                 />
               </TableHead>
-              <TableHead>Company</TableHead>
-              <TableHead>Industry</TableHead>
-              <TableHead>Location</TableHead>
+              <SortableHeader 
+                field="name" 
+                label="Company" 
+                currentField={sortField} 
+                currentDirection={sortDirection} 
+                onSort={onSort} 
+              />
+              <SortableHeader 
+                field="industry_norm" 
+                label="Industry" 
+                currentField={sortField} 
+                currentDirection={sortDirection} 
+                onSort={onSort} 
+              />
+              <SortableHeader 
+                field="country" 
+                label="Location" 
+                currentField={sortField} 
+                currentDirection={sortDirection} 
+                onSort={onSort} 
+              />
               <TableHead>Source</TableHead>
               <TableHead>Enriched</TableHead>
-              <TableHead>Data Quality</TableHead>
-              <TableHead>Leads</TableHead>
+              <SortableHeader 
+                field="data_quality" 
+                label="Data Quality" 
+                currentField={sortField} 
+                currentDirection={sortDirection} 
+                onSort={onSort} 
+              />
+              <SortableHeader 
+                field="leads" 
+                label="Leads" 
+                currentField={sortField} 
+                currentDirection={sortDirection} 
+                onSort={onSort} 
+              />
               <TableHead>Campaign Ready</TableHead>
               <TableHead>Prediction</TableHead>
-              <TableHead>Score</TableHead>
+              <SortableHeader 
+                field="score" 
+                label="Score" 
+                currentField={sortField} 
+                currentDirection={sortDirection} 
+                onSort={onSort} 
+              />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -236,7 +320,7 @@ export function AccountsTable({
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Progress value={completeness} className="w-16 h-2" />
-                        <span className="text-sm">{completeness.toFixed(2)}%</span>
+                        <span className="text-sm">{completeness}%</span>
                       </div>
                     </TableCell>
                     <TableCell>

@@ -85,6 +85,10 @@ export default function Accounts() {
   const [icpFilter, setIcpFilter] = useState<string | null>(null);
   const [campaignReadyFilter, setCampaignReadyFilter] = useState<boolean>(false);
   
+  // Sorting states
+  const [sortField, setSortField] = useState<'name' | 'industry_norm' | 'country' | 'score' | 'leads' | 'data_quality' | 'updated_at'>('updated_at');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  
   // ICP-specific filter states
   const [icpIndustries, setIcpIndustries] = useState<string[]>([]);
   const [icpGeographies, setIcpGeographies] = useState<string[]>([]);
@@ -183,6 +187,16 @@ export default function Accounts() {
     return map;
   }, [predictionsData]);
 
+  // Handle sorting
+  const handleSort = (field: 'name' | 'industry_norm' | 'country' | 'score' | 'leads' | 'data_quality' | 'updated_at') => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+  
   // Infinite scroll hook
   const {
     accounts,
@@ -207,6 +221,8 @@ export default function Accounts() {
     enabled: !!userProfile?.org_id,
     mode: displayMode,
     integrationConfigId: integrationConfigId || undefined,
+    sortField,
+    sortDirection,
   });
 
   // Infinite scroll observer
@@ -549,6 +565,9 @@ export default function Accounts() {
         clearFilters={clearFilters}
         predictions={predictionsMap}
         isPredictionsLoading={isPredictionsLoading}
+        sortField={sortField}
+        sortDirection={sortDirection}
+        onSort={handleSort}
         observerTarget={observerTarget}
         isLoadingMore={isLoadingMore}
         hasMore={hasMore}
