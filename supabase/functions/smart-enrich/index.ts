@@ -331,13 +331,18 @@ ${batch.map(a => `- ${a.external_id}: ${a.name} (${a.domain})`).join('\n')}`;
       }
     }
 
-    // Mark complete
+    // Mark complete with source breakdown
     await supabase.from('enrichment_jobs').update({
       status: 'completed',
       completed_at: new Date().toISOString(),
       processed_records: accounts.length,
       enriched_records: enrichedCount,
-      failed_records: accounts.length - enrichedCount
+      failed_records: accounts.length - enrichedCount,
+      source_breakdown: {
+        apollo: { attempted: accounts.length, enriched: sourceBreakdown.apollo, failed: 0 },
+        pdl: { attempted: remaining.length, enriched: sourceBreakdown.pdl, failed: 0 },
+        ai: { attempted: stillRemaining.length, enriched: sourceBreakdown.ai, failed: 0 }
+      }
     }).eq('id', jobId);
 
     const summary = {
