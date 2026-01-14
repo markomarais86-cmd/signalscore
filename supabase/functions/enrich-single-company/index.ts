@@ -147,26 +147,40 @@ function extractJsonFromResponse(content: string): any | null {
 function extractFromText(content: string): Partial<EnrichedCompany> {
   const result: Partial<EnrichedCompany> = {};
   
-  // Employee count patterns
+  // Employee count patterns - expanded for more formats
   const empPatterns = [
     /(\d{1,3}(?:,\d{3})*)\s*(?:employees|staff|team members|people)/i,
     /(?:has|with|employs?)\s*(\d{1,3}(?:,\d{3})*)\s*(?:employees|people)/i,
     /(\d{1,3}(?:,\d{3})*)\+?\s*(?:on linkedin|linkedin employees)/i,
+    /(\d{1,3}(?:,\d{3})*)\+?\s*(?:person|member)\s*(?:team|company|organization)/i,
+    /team\s*(?:of|with)?\s*(\d{1,3}(?:,\d{3})*)\+?/i,
+    /(\d{1,3}(?:,\d{3})*)\s*to\s*(\d{1,3}(?:,\d{3})*)\s*employees/i,  // Range: 401-500 employees
+    /between\s*(\d{1,3}(?:,\d{3})*)\s*(?:and|-)\s*(\d{1,3}(?:,\d{3})*)/i,
   ];
   for (const pattern of empPatterns) {
     const match = content.match(pattern);
     if (match) {
-      result.employee_count = parseInt(match[1].replace(/,/g, ''));
+      // Handle ranges by taking average
+      if (match[2] && !isNaN(parseInt(match[2]))) {
+        const low = parseInt(match[1].replace(/,/g, ''));
+        const high = parseInt(match[2].replace(/,/g, ''));
+        result.employee_count = Math.round((low + high) / 2);
+      } else {
+        result.employee_count = parseInt(match[1].replace(/,/g, ''));
+      }
       console.log(`[Text Extract] Found employee count: ${result.employee_count}`);
       break;
     }
   }
   
-  // Revenue patterns
+  // Revenue patterns - expanded for more formats including $50M, $50 million, etc.
   const revPatterns = [
-    /\$(\d+(?:\.\d+)?)\s*(million|billion|M|B)\s*(?:revenue|ARR|annual)/i,
+    /\$(\d+(?:\.\d+)?)\s*(million|billion|M|B)\s*(?:revenue|ARR|annual)?/i,
     /revenue\s*(?:of|is|:)?\s*\$?(\d+(?:\.\d+)?)\s*(million|billion|M|B)/i,
     /estimated\s*revenue[:\s]+\$?(\d+(?:\.\d+)?)\s*(million|billion|M|B)/i,
+    /(\d+(?:\.\d+)?)\s*(million|billion|M|B)\s*(?:in\s*)?(?:revenue|sales|ARR)/i,
+    /annual\s*(?:revenue|sales)[:\s]*\$?(\d+(?:\.\d+)?)\s*(million|billion|M|B)/i,
+    /\$(\d+)([MB])\b/i,  // Shorthand like $50M, $2B
   ];
   for (const pattern of revPatterns) {
     const match = content.match(pattern);
@@ -175,7 +189,7 @@ function extractFromText(content: string): Partial<EnrichedCompany> {
       const unit = match[2].toLowerCase();
       const multiplier = unit.startsWith('b') ? 1000000000 : 1000000;
       result.revenue_range = mapRevenueToRange(num * multiplier);
-      console.log(`[Text Extract] Found revenue: ${result.revenue_range}`);
+      console.log(`[Text Extract] Found revenue: ${result.revenue_range} (from ${num}${unit})`);
       break;
     }
   }
@@ -185,6 +199,16 @@ function extractFromText(content: string): Partial<EnrichedCompany> {
   if (fundMatch) {
     result.funding_round = fundMatch[1].replace(/\s+/g, ' ').trim();
     console.log(`[Text Extract] Found funding: ${result.funding_round}`);
+  }
+  
+  // Total raised pattern
+  const raisedMatch = content.match(/raised\s*\$?(\d+(?:\.\d+)?)\s*(million|billion|M|B)/i);
+  if (raisedMatch) {
+    const num = parseFloat(raisedMatch[1]);
+    const unit = raisedMatch[2].toLowerCase();
+    const multiplier = unit.startsWith('b') ? 1000000000 : 1000000;
+    result.total_raised = num * multiplier;
+    console.log(`[Text Extract] Found total raised: $${result.total_raised}`);
   }
   
   // Domain pattern
@@ -263,26 +287,36 @@ Return ONLY valid JSON, no markdown or explanation:
 }
 
 // ============================================
-// PHASE 2: EMPLOYEE COUNT (LinkedIn/Glassdoor Focus)
+// PHASE 2: EMPLOYEE COUNT (Open Web + B2B Sources)
 // ============================================
 
 async function phaseEmployeeCount(companyName: string, domain?: string): Promise<ResearchResult> {
-  console.log('[Phase 2] Employee Count Research...');
+  console.log('[Phase 2] Employee Count Research (open web + B2B sources)...');
   
-  const prompt = `How many employees does "${companyName}" have?${domain ? ` Website: ${domain}` : ''}
+  // FIXED: Removed LinkedIn domain filter - Perplexity can't access LinkedIn directly
+  // Now searches open web including ZoomInfo, Growjo, company websites, etc.
+  const prompt = `Find the employee count for "${companyName}"${domain ? ` (website: ${domain})` : ''}.
 
-Search LinkedIn company page for employee count.
+SEARCH THESE SOURCES:
+- The company's own website (about page, team page, careers page)
+- ZoomInfo, Growjo, RocketReach for company data
+- News articles mentioning team size
+- LinkedIn company info (if available in search results)
+
+Look for patterns like:
+- "500+ employees", "team of 450", "401-500 employees"
+- "500+ Person Revenue Engine" (from about page)
 
 Return ONLY valid JSON, no markdown:
-{"employee_count":150,"source":"LinkedIn shows 150 employees","confidence":85}`;
+{"employee_count":500,"source":"Company about page shows 500+ employees","confidence":85}`;
 
-  // Keep LinkedIn/Glassdoor focus for employee data
+  // NO domain filter - search everywhere for employee data
   const result = await callPerplexity(
     [{ role: 'user', content: prompt }],
     {
       model: 'sonar-pro',
-      searchDomainFilter: ['linkedin.com', 'glassdoor.com'],
       searchRecencyFilter: 'month',
+      // REMOVED: searchDomainFilter - was blocking all results
     }
   );
 
@@ -296,7 +330,7 @@ Return ONLY valid JSON, no markdown:
       data: { employee_count: parsed.employee_count },
       confidence: parsed.confidence || 80,
       citations: result.citations,
-      source: parsed.source || 'linkedin-glassdoor',
+      source: parsed.source || 'web-search',
     };
   }
 
@@ -310,39 +344,62 @@ Return ONLY valid JSON, no markdown:
 }
 
 // ============================================
-// PHASE 3: REVENUE & FUNDING (Financial Focus)
+// PHASE 3: REVENUE & FUNDING (B2B Data Sources)
 // ============================================
 
 async function phaseFinancials(companyName: string, domain?: string): Promise<ResearchResult> {
-  console.log('[Phase 3] Revenue & Funding Research (open search)...');
+  console.log('[Phase 3] Revenue & Funding Research (B2B sources + deep research)...');
   
-  // Use OPEN search for financials - Crunchbase filter was too restrictive
-  const prompt = `What is the revenue and funding for "${companyName}"?${domain ? ` Website: ${domain}` : ''}
+  // FIXED: Use sonar-deep-research for complex financial queries
+  // Explicitly mention B2B data sources where revenue data actually exists
+  const prompt = `Find the annual revenue for "${companyName}"${domain ? ` (website: ${domain})` : ''}.
 
-Search for:
-- Annual revenue or revenue estimate
-- Latest funding round (Seed, Series A, B, C, etc.)
-- Total funding raised
+SEARCH THESE SPECIFIC B2B DATA SOURCES:
+- GetLatka.com - SaaS company revenue database
+- ZoomInfo.com - Business intelligence platform
+- Growjo.com - Company revenue estimates
+- Inc.com/inc5000 - Inc 5000 fastest growing companies list
+- Crunchbase.com - Startup funding data
+- PitchBook - Private company financials
+- OwlerMax, Dun & Bradstreet for revenue data
 
-Return ONLY valid JSON, no markdown:
-{"revenue_range":"$10M-$25M","funding_round":"Series B","total_raised":25000000,"confidence":75}
+Also look for:
+- Press releases mentioning revenue milestones
+- News articles about company growth
+- Funding announcements that mention ARR or revenue
+
+Return ONLY valid JSON, no markdown or explanation:
+{"revenue_range":"$50M-$100M","funding_round":"Series B","total_raised":25000000,"source":"GetLatka shows $50M revenue","confidence":80}
 
 Valid revenue_range values: "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M", "$50M-$100M", "$100M-$500M", "$500M-$1B", "$1B-$10B", "$10B+"`;
 
-  // NO domain filter - let it search everywhere for financials
+  // Use sonar-deep-research for better multi-step research
   const result = await callPerplexity(
     [{ role: 'user', content: prompt }],
     {
-      model: 'sonar-pro',
+      model: 'sonar-deep-research',  // UPGRADED: Deep research for financial data
       searchRecencyFilter: 'year',
-      // REMOVED: searchDomainFilter - was blocking results
+      // NO domain filter - let it search all B2B sources
     }
   );
 
   if (!result) {
-    return { data: {}, confidence: 0, citations: [], source: 'none' };
+    // Fallback to sonar-pro if deep research fails
+    console.log('[Phase 3] Deep research failed, trying sonar-pro...');
+    const fallbackResult = await callPerplexity(
+      [{ role: 'user', content: prompt }],
+      { model: 'sonar-pro', searchRecencyFilter: 'year' }
+    );
+    if (!fallbackResult) {
+      return { data: {}, confidence: 0, citations: [], source: 'none' };
+    }
+    return processFinancialResult(fallbackResult);
   }
 
+  return processFinancialResult(result);
+}
+
+function processFinancialResult(result: { content: string; citations: string[] }): ResearchResult {
   const parsed = extractJsonFromResponse(result.content);
   if (parsed) {
     return {
@@ -351,16 +408,16 @@ Valid revenue_range values: "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-
         funding_round: parsed.funding_round,
         total_raised: parsed.total_raised,
       },
-      confidence: parsed.confidence || 70,
+      confidence: parsed.confidence || 75,
       citations: result.citations,
-      source: 'perplexity-financials',
+      source: parsed.source || 'b2b-data-sources',
     };
   }
 
   // Fallback: extract from text
   const textData = extractFromText(result.content);
-  if (textData.revenue_range || textData.funding_round) {
-    return { data: textData, confidence: 55, citations: result.citations, source: 'perplexity-text' };
+  if (textData.revenue_range || textData.funding_round || textData.total_raised) {
+    return { data: textData, confidence: 60, citations: result.citations, source: 'perplexity-text' };
   }
 
   return { data: {}, confidence: 0, citations: [], source: 'none' };
