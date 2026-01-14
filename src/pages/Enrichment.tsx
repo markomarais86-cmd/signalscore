@@ -19,10 +19,8 @@ import { useRoles } from "@/hooks/use-roles";
 
 // Enrichment components
 import { UnifiedEnrichmentDashboard } from "@/components/enrichment/UnifiedEnrichmentDashboard";
-import { SmartEnrichmentPanel } from "@/components/settings/SmartEnrichmentPanel";
-import { BulkAccountEnrichment } from "@/components/settings/BulkAccountEnrichment";
-import { BulkLeadEnrichment } from "@/components/settings/BulkLeadEnrichment";
-import { LeadEnrichmentPanel } from "@/components/settings/LeadEnrichmentPanel";
+import { EnrichmentControlPanel } from "@/components/enrichment/EnrichmentControlPanel";
+import { ExportAccountsButton } from "@/components/enrichment/ExportAccountsButton";
 import { EnrichmentDiscoverySettings } from "@/components/settings/EnrichmentDiscoverySettings";
 import { DataQualityDashboard } from "@/components/settings/DataQualityDashboard";
 import { EnrichmentQualityDashboard } from "@/components/settings/EnrichmentQualityDashboard";
@@ -35,6 +33,7 @@ import { EnrichmentHistoryViewer } from "@/components/settings/EnrichmentHistory
 import { LeadsBackfill } from "@/components/settings/LeadsBackfill";
 import { LaunchPulseMark } from "@/components/BrandLogo";
 import { CreditsDisplay } from "@/components/enrichment/CreditsDisplay";
+import { Users } from "lucide-react";
 
 export default function Enrichment() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -59,6 +58,7 @@ export default function Enrichment() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <ExportAccountsButton />
           <CreditsDisplay variant="compact" />
           <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 px-3 py-1">
             <Sparkles className="h-3 w-3 mr-1" />
@@ -99,43 +99,24 @@ export default function Enrichment() {
           <UnifiedEnrichmentDashboard />
         </TabsContent>
 
-        {/* Enrich Tab - Quick Actions */}
+        {/* Enrich Tab - Simplified with 2 sections */}
         <TabsContent value="enrich" className="space-y-6">
+          {/* Section 1: Enrich Your Data */}
+          <EnrichmentControlPanel />
+
+          {/* Section 2: Contact Discovery */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5 text-primary" />
-                Quick Actions
+                <Users className="h-5 w-5 text-primary" />
+                Contact Discovery
               </CardTitle>
               <CardDescription>
-                Start enrichment jobs and discover new contacts
+                Find new decision-makers at your existing accounts by searching LinkedIn, company websites, and news sources.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Tabs defaultValue="smart" className="w-full">
-                <TabsList className="grid w-full grid-cols-5">
-                  <TabsTrigger value="smart">Smart</TabsTrigger>
-                  <TabsTrigger value="multi-agent">Multi-Agent</TabsTrigger>
-                  <TabsTrigger value="discovery">Discovery</TabsTrigger>
-                  <TabsTrigger value="accounts">Accounts</TabsTrigger>
-                  <TabsTrigger value="leads">Leads</TabsTrigger>
-                </TabsList>
-                <TabsContent value="smart" className="mt-4">
-                  <SmartEnrichmentPanel />
-                </TabsContent>
-                <TabsContent value="multi-agent" className="mt-4">
-                  <LeadEnrichmentPanel />
-                </TabsContent>
-                <TabsContent value="discovery" className="mt-4">
-                  <EnrichmentDiscoverySettings />
-                </TabsContent>
-                <TabsContent value="accounts" className="mt-4">
-                  <BulkAccountEnrichment />
-                </TabsContent>
-                <TabsContent value="leads" className="mt-4">
-                  <BulkLeadEnrichment />
-                </TabsContent>
-              </Tabs>
+              <EnrichmentDiscoverySettings />
             </CardContent>
           </Card>
         </TabsContent>
