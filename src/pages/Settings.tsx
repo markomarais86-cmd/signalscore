@@ -528,6 +528,7 @@ export default function Settings() {
                     <ServiceHealthStatus />
                     <EnrichmentProviderSetup />
                     <RateLimitSettings />
+                    <APIKeyManager />
                   </AccordionContent>
                 </AccordionItem>
 

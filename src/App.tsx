@@ -38,6 +38,7 @@ import QuickEnrich from "./pages/QuickEnrich";
 import AgentTester from "./pages/AgentTester";
 import AITest from "./pages/AITest";
 import Help from "./pages/Help";
+import APIAccess from "./pages/APIAccess";
 
 import PipelineAnalyticsPage from "./pages/PipelineAnalyticsPage";
 import AIFeedbackPage from "./pages/AIFeedbackPage";
@@ -277,6 +278,16 @@ function AppContent() {
                   element={
                     <ProtectedRoute>
                       <Help />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/api-access"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <APIAccess />
+                      </Layout>
                     </ProtectedRoute>
                   }
                 />
