@@ -408,7 +408,6 @@ serve(async (req) => {
           failed_records: totalFailed,
           source_breakdown: sourceBreakdown,
           estimated_completion_at: estimatedCompletion,
-          updated_at: new Date().toISOString(),
           error_message: workerErrors.length > 0 ? workerErrors.slice(0, 3).join("; ") : null,
         })
         .eq("id", jobId);
