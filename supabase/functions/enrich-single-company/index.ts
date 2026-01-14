@@ -101,15 +101,26 @@ serve(async (req) => {
           ? `Research the company "${searchName}" with domain ${searchDomain}`
           : `Research the company "${searchName}"`;
         
+        const systemPrompt = `You are an expert B2B company research analyst. Your job is to find accurate, verified firmographic data.
+
+CRITICAL: You MUST search these specific sources for company data:
+1. **Crunchbase** - For funding rounds, total raised, investors, founding date
+2. **LinkedIn Company Pages** - For employee count, headquarters, industry, company URL
+3. **Glassdoor** - For employee count verification, company reviews
+4. **Pitchbook** - For funding and valuation data
+5. **ZoomInfo/Apollo** - For revenue estimates, tech stack
+6. **Company website** - For official info, contact details
+7. **News articles** - For recent funding announcements, acquisitions
+
+For each data point, cite where you found it. If you cannot verify data from a reliable source, mark confidence lower.
+Always output valid JSON matching the requested schema.`;
+
         const aiResponse = await callAI('enrichment', [
-          { 
-            role: 'system', 
-            content: 'You are a B2B company research analyst. Provide accurate firmographic data based on publicly available information. Search the web for current, accurate data. Always output valid JSON.' 
-          },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: `${searchQuery}\n\n${ENRICHMENT_PROMPT}` }
         ], { 
-          maxTokens: 1500, 
-          temperature: 0.2,
+          maxTokens: 2000, 
+          temperature: 0.1,  // Lower temp for more factual responses
           search_recency_filter: 'month' // For Perplexity: get recent data
         });
 
