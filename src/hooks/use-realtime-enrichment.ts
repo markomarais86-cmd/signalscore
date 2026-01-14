@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { realtimeLogger } from '@/lib/logger';
 
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
+
 export interface EnrichmentJob {
   id: string;
   org_id: string;
@@ -43,8 +45,11 @@ export function useRealtimeEnrichment({
   onError,
 }: UseRealtimeEnrichmentOptions) {
   const [jobs, setJobs] = useState<EnrichmentJob[]>([]);
-  const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const queryClient = useQueryClient();
+  
+  // Legacy compatibility
+  const isConnected = connectionStatus === 'connected';
 
   // Fetch initial jobs
   const fetchJobs = useCallback(async () => {
@@ -110,13 +115,19 @@ export function useRealtimeEnrichment({
         }
       )
       .subscribe((status) => {
-        setIsConnected(status === 'SUBSCRIBED');
+        if (status === 'SUBSCRIBED') {
+          setConnectionStatus('connected');
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          setConnectionStatus('disconnected');
+        } else {
+          setConnectionStatus('connecting');
+        }
         realtimeLogger.debug(`Enrichment jobs subscription: ${status}`);
       });
 
     return () => {
       supabase.removeChannel(channel);
-      setIsConnected(false);
+      setConnectionStatus('disconnected');
     };
   }, [orgId, enabled, fetchJobs, onStatusChange, onComplete, onError, queryClient]);
 
@@ -133,6 +144,7 @@ export function useRealtimeEnrichment({
     activeJob,
     pausedJobs,
     isConnected,
+    connectionStatus,
     refetch: fetchJobs,
   };
 }

@@ -4,8 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Wifi, WifiOff, RefreshCw, Activity } from 'lucide-react';
-import { useRealtimeEnrichment, EnrichmentJob } from '@/hooks/use-realtime-enrichment';
+import { Wifi, WifiOff, RefreshCw, Activity, Loader2 } from 'lucide-react';
+import { useRealtimeEnrichment, EnrichmentJob, ConnectionStatus } from '@/hooks/use-realtime-enrichment';
 import { EnrichmentJobCard } from './EnrichmentJobCard';
 import { EnrichmentSourceBreakdown } from './EnrichmentSourceBreakdown';
 import { EnrichmentHistory } from './EnrichmentHistory';
@@ -48,7 +48,7 @@ export function UnifiedEnrichmentDashboard() {
   const { 
     jobs: activeJobs, 
     pausedJobs, 
-    isConnected, 
+    connectionStatus, 
     refetch 
   } = useRealtimeEnrichment({
     orgId: userProfile?.org_id || null,
@@ -180,13 +180,18 @@ export function UnifiedEnrichmentDashboard() {
             </div>
             <div className="flex items-center gap-3">
               <Badge 
-                variant={isConnected ? 'default' : 'destructive'} 
+                variant={connectionStatus === 'connected' ? 'default' : connectionStatus === 'connecting' ? 'secondary' : 'destructive'} 
                 className="flex items-center gap-1"
               >
-                {isConnected ? (
+                {connectionStatus === 'connected' ? (
                   <>
                     <Wifi className="h-3 w-3" />
                     Live
+                  </>
+                ) : connectionStatus === 'connecting' ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Connecting...
                   </>
                 ) : (
                   <>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Activity, Loader2, CheckCircle2, XCircle, AlertCircle, Pause, Play, Clock, RotateCcw, Wifi, WifiOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useRealtimeEnrichment, type EnrichmentJob } from "@/hooks/use-realtime-enrichment";
+import { useRealtimeEnrichment, type EnrichmentJob, type ConnectionStatus } from "@/hooks/use-realtime-enrichment";
 import { pauseEnrichmentJob, resumeEnrichmentJob } from "@/hooks/use-enrichment-progress";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -30,7 +30,7 @@ export function EnrichmentJobMonitor() {
   // Use realtime enrichment hook for live updates
   const { 
     jobs: realtimeJobs, 
-    isConnected,
+    connectionStatus,
     refetch 
   } = useRealtimeEnrichment({
     orgId: userProfile?.org_id || null,
@@ -275,8 +275,10 @@ export function EnrichmentJobMonitor() {
             Active Jobs
             {/* Connection status indicator */}
             <span className="flex items-center gap-1 ml-2">
-              {isConnected ? (
+              {connectionStatus === 'connected' ? (
                 <Wifi className="h-3 w-3 text-[hsl(var(--signal-high))]" />
+              ) : connectionStatus === 'connecting' ? (
+                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
               ) : (
                 <WifiOff className="h-3 w-3 text-muted-foreground" />
               )}
@@ -300,13 +302,15 @@ export function EnrichmentJobMonitor() {
               Active Enrichment Jobs
               {/* Connection status indicator */}
               <span className="flex items-center gap-1 ml-2">
-                {isConnected ? (
+                {connectionStatus === 'connected' ? (
                   <Wifi className="h-3 w-3 text-[hsl(var(--signal-high))]" />
+                ) : connectionStatus === 'connecting' ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                 ) : (
                   <WifiOff className="h-3 w-3 text-muted-foreground" />
                 )}
                 <span className="text-xs text-muted-foreground">
-                  {isConnected ? 'Live' : 'Offline'}
+                  {connectionStatus === 'connected' ? 'Live' : connectionStatus === 'connecting' ? 'Connecting...' : 'Offline'}
                 </span>
               </span>
             </CardTitle>
