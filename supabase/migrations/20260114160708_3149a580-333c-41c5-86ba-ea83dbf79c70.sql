@@ -1,0 +1,1 @@
+UPDATE sync_jobs SET status = 'failed', updated_at = NOW() WHERE status = 'processing';
