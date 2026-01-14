@@ -38,32 +38,41 @@ export function GradientBackground({
       {/* Floating Orbs - only in dark mode */}
       {showOrbs && isDark && (
         <>
-          {/* Top-left orb */}
+          {/* Top-left orb - more prominent */}
           <div 
-            className="floating-orb w-[600px] h-[600px] -top-[200px] -left-[200px] animate-float"
-            style={{ background: 'radial-gradient(circle, hsl(161 85% 60% / 0.15), transparent 70%)' }}
+            className="floating-orb w-[700px] h-[700px] -top-[250px] -left-[200px] animate-float"
+            style={{ background: 'radial-gradient(circle, hsl(161 85% 50% / 0.25), hsl(161 80% 45% / 0.1) 40%, transparent 70%)' }}
           />
           
           {/* Top-right orb */}
           <div 
-            className="floating-orb w-[500px] h-[500px] top-[10%] right-[-100px] animate-float-delayed"
-            style={{ background: 'radial-gradient(circle, hsl(161 88% 67% / 0.12), transparent 70%)' }}
+            className="floating-orb w-[600px] h-[600px] top-[5%] right-[-150px] animate-float-delayed"
+            style={{ background: 'radial-gradient(circle, hsl(161 88% 55% / 0.2), hsl(170 80% 50% / 0.08) 40%, transparent 70%)' }}
           />
           
           {/* Bottom-left orb */}
           <div 
-            className="floating-orb w-[400px] h-[400px] bottom-[10%] left-[5%] animate-float"
+            className="floating-orb w-[500px] h-[500px] bottom-[5%] left-[5%] animate-float"
             style={{ 
-              background: 'radial-gradient(circle, hsl(210 88% 50% / 0.08), transparent 70%)',
+              background: 'radial-gradient(circle, hsl(165 80% 45% / 0.18), hsl(180 70% 40% / 0.06) 40%, transparent 70%)',
               animationDelay: '1s'
             }}
           />
           
-          {/* Center glow */}
+          {/* Bottom-right accent */}
           <div 
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full opacity-20 pointer-events-none"
+            className="floating-orb w-[400px] h-[400px] bottom-[20%] right-[10%] animate-float-delayed"
             style={{ 
-              background: 'radial-gradient(circle, hsl(161 85% 60% / 0.1), transparent 60%)'
+              background: 'radial-gradient(circle, hsl(161 85% 50% / 0.12), transparent 60%)',
+              animationDelay: '2s'
+            }}
+          />
+          
+          {/* Center glow - more visible */}
+          <div 
+            className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1000px] h-[800px] rounded-full pointer-events-none"
+            style={{ 
+              background: 'radial-gradient(ellipse, hsl(161 85% 50% / 0.08), transparent 50%)'
             }}
           />
         </>
