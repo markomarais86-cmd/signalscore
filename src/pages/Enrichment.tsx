@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,9 +11,11 @@ import {
   BarChart3, 
   Target, 
   Bot,
-  Key,
   History,
-  TrendingUp
+  TrendingUp,
+  Users,
+  Search,
+  Upload
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
@@ -21,7 +24,9 @@ import { useRoles } from "@/hooks/use-roles";
 import { UnifiedEnrichmentDashboard } from "@/components/enrichment/UnifiedEnrichmentDashboard";
 import { EnrichmentControlPanel } from "@/components/enrichment/EnrichmentControlPanel";
 import { ExportAccountsButton } from "@/components/enrichment/ExportAccountsButton";
+import { ExportLeadsButton } from "@/components/enrichment/ExportLeadsButton";
 import { EnrichmentDiscoverySettings } from "@/components/settings/EnrichmentDiscoverySettings";
+import { ICPAccountDiscovery } from "@/components/enrichment/ICPAccountDiscovery";
 import { DataQualityDashboard } from "@/components/settings/DataQualityDashboard";
 import { EnrichmentQualityDashboard } from "@/components/settings/EnrichmentQualityDashboard";
 import { EnrichmentAttributionReport } from "@/components/settings/EnrichmentAttributionReport";
@@ -33,7 +38,6 @@ import { EnrichmentHistoryViewer } from "@/components/settings/EnrichmentHistory
 import { LeadsBackfill } from "@/components/settings/LeadsBackfill";
 import { LaunchPulseMark } from "@/components/BrandLogo";
 import { CreditsDisplay } from "@/components/enrichment/CreditsDisplay";
-import { Users } from "lucide-react";
 
 export default function Enrichment() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -58,12 +62,15 @@ export default function Enrichment() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <Button asChild variant="outline">
+            <Link to="/quick-enrich">
+              <Upload className="h-4 w-4 mr-2" />
+              Quick Enrich
+            </Link>
+          </Button>
           <ExportAccountsButton />
+          <ExportLeadsButton />
           <CreditsDisplay variant="compact" />
-          <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 px-3 py-1">
-            <Sparkles className="h-3 w-3 mr-1" />
-            Premium Feature
-          </Badge>
         </div>
       </div>
 
@@ -105,20 +112,10 @@ export default function Enrichment() {
           <EnrichmentControlPanel />
 
           {/* Section 2: Contact Discovery */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-primary" />
-                Contact Discovery
-              </CardTitle>
-              <CardDescription>
-                Find new decision-makers at your existing accounts by searching LinkedIn, company websites, and news sources.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <EnrichmentDiscoverySettings />
-            </CardContent>
-          </Card>
+          <EnrichmentDiscoverySettings />
+
+          {/* Section 3: ICP Account Discovery */}
+          <ICPAccountDiscovery />
         </TabsContent>
 
         {/* Quality Tab */}
