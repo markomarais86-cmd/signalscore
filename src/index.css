@@ -120,7 +120,7 @@
     --chart-4: 0 0% 50%;
     --chart-5: 0 0% 30%;
 
-    --sidebar-background: 240 10% 4%;
+    --sidebar-background: 240 10% 4% / 0.85;
     --sidebar-foreground: 0 0% 98%;
     --sidebar-primary: 161 85% 60%;
     --sidebar-primary-foreground: 240 10% 4%;

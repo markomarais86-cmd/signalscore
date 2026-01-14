@@ -8,6 +8,7 @@ import { NotificationCenter } from "@/components/notifications/NotificationCente
 import { AIChat } from "@/components/AIChat";
 import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import { useCampaignContext } from "@/hooks/use-campaign-context";
+import { GradientBackground } from "@/components/ui/GradientBackground";
 
 interface LayoutProps {
   children: ReactNode;
@@ -19,43 +20,45 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
-        <AppSidebar />
-        <main className="flex-1 flex flex-col">
-          <header className="relative z-20 border-b bg-card shadow-sm">
-            <div className="h-14 flex items-center justify-between px-6">
-              <div className="flex items-center gap-4">
-                <SidebarTrigger />
+      <GradientBackground variant="hero" showOrbs={true} className="!min-h-screen">
+        <div className="min-h-screen flex w-full">
+          <AppSidebar />
+          <main className="flex-1 flex flex-col">
+            <header className="relative z-20 border-b bg-card/80 dark:bg-card/60 backdrop-blur-sm shadow-sm">
+              <div className="h-14 flex items-center justify-between px-6">
+                <div className="flex items-center gap-4">
+                  <SidebarTrigger />
+                </div>
+                <div className="flex items-center gap-2">
+                  <NotificationCenter />
+                  <HelpPanel currentPath={location.pathname} />
+                  <ThemeToggle />
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <NotificationCenter />
-                <HelpPanel currentPath={location.pathname} />
-                <ThemeToggle />
+            </header>
+            <div className="flex-1 p-2 sm:p-3 lg:p-4 overflow-auto">
+              {children}
+            </div>
+            <footer className="border-t bg-card/80 dark:bg-card/60 backdrop-blur-sm px-6 py-3 text-xs text-muted-foreground">
+              <div className="flex items-center justify-between">
+                <span>© 2025 LaunchPulse. All rights reserved.</span>
+                <button className="hover:text-primary transition-colors font-medium">
+                  Consulting Services
+                </button>
               </div>
-            </div>
-          </header>
-          <div className="flex-1 p-2 sm:p-3 lg:p-4 overflow-auto bg-muted/20">
-            {children}
-          </div>
-          <footer className="border-t bg-card px-6 py-3 text-xs text-muted-foreground">
-            <div className="flex items-center justify-between">
-              <span>© 2025 LaunchPulse. All rights reserved.</span>
-              <button className="hover:text-primary transition-colors font-medium">
-                Consulting Services
-              </button>
-            </div>
-          </footer>
-        </main>
-        <AIChat />
-        
-        {/* Global Campaign Builder - triggered from insights */}
-        <CampaignBuilderV2
-          isOpen={isCampaignBuilderOpen}
-          onClose={closeCampaignBuilder}
-          source="insight"
-          insightContext={insightContext || undefined}
-        />
-      </div>
+            </footer>
+          </main>
+          <AIChat />
+          
+          {/* Global Campaign Builder - triggered from insights */}
+          <CampaignBuilderV2
+            isOpen={isCampaignBuilderOpen}
+            onClose={closeCampaignBuilder}
+            source="insight"
+            insightContext={insightContext || undefined}
+          />
+        </div>
+      </GradientBackground>
     </SidebarProvider>
   );
 }

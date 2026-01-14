@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 
 interface GradientBackgroundProps {
   children: React.ReactNode;
@@ -13,19 +14,20 @@ export function GradientBackground({
   variant = "hero",
   showOrbs = true 
 }: GradientBackgroundProps) {
+  const { theme, resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark" || theme === "dark";
+
   return (
     <div className={cn(
       "relative min-h-screen overflow-hidden",
-      variant === "hero" && "hero-gradient",
-      variant === "subtle" && "bg-background",
-      variant === "auth" && "bg-background",
+      isDark ? "hero-gradient" : "bg-white",
       className
     )}>
-      {/* Animated Gradient Mesh Overlay */}
-      <div className="absolute inset-0 bg-gradient-mesh pointer-events-none" />
+      {/* Animated Gradient Mesh Overlay - only in dark mode */}
+      {isDark && <div className="absolute inset-0 bg-gradient-mesh pointer-events-none" />}
       
-      {/* Floating Orbs */}
-      {showOrbs && (
+      {/* Floating Orbs - only in dark mode */}
+      {showOrbs && isDark && (
         <>
           {/* Top-left orb */}
           <div 
@@ -58,15 +60,17 @@ export function GradientBackground({
         </>
       )}
       
-      {/* Grid Pattern Overlay */}
-      <div 
-        className="absolute inset-0 opacity-[0.02] pointer-events-none"
-        style={{
-          backgroundImage: `linear-gradient(hsl(161 85% 60% / 0.3) 1px, transparent 1px),
-                           linear-gradient(90deg, hsl(161 85% 60% / 0.3) 1px, transparent 1px)`,
-          backgroundSize: '60px 60px'
-        }}
-      />
+      {/* Grid Pattern Overlay - only in dark mode */}
+      {isDark && (
+        <div 
+          className="absolute inset-0 opacity-[0.02] pointer-events-none"
+          style={{
+            backgroundImage: `linear-gradient(hsl(161 85% 60% / 0.3) 1px, transparent 1px),
+                             linear-gradient(90deg, hsl(161 85% 60% / 0.3) 1px, transparent 1px)`,
+            backgroundSize: '60px 60px'
+          }}
+        />
+      )}
       
       {/* Content */}
       <div className="relative z-10">
