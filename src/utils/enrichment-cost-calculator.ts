@@ -11,15 +11,15 @@ export interface EnrichmentCost {
 }
 
 const COST_PER_PHASE = {
-  pdl: 0.005,      // $0.005 per call
-  clearbit: 0.001, // Free tier, minimal cost
-  ai: 0.01,        // $0.01 per account
-  deep_research: 0.10 // $0.10 per account (10x more expensive)
+  pdl: 0.005,           // $0.005 per call
+  clearbit: 0.001,      // Free tier, minimal cost
+  launch_pulse: 0.01,   // $0.01 per account (Launch Pulse proprietary)
+  deep_research: 0.10   // $0.10 per account (10x more expensive)
 };
 
 export function calculateEnrichmentCost(
   accountCount: number,
-  phases: Array<'pdl' | 'clearbit' | 'ai' | 'deep_research'>
+  phases: Array<'pdl' | 'clearbit' | 'launch_pulse' | 'deep_research'>
 ): EnrichmentCost {
   const breakdown = phases.map(phase => ({
     phase,
@@ -46,7 +46,7 @@ export function estimatePhaseDistribution(totalAccounts: number) {
   // Based on typical enrichment patterns:
   // PDL enriches ~40% of accounts
   // Clearbit enriches ~30% of remaining accounts
-  // AI enriches ~80% of remaining accounts
+  // Launch Pulse enriches ~80% of remaining accounts
   // Deep research for remaining high-value accounts
   
   const pdlEnriched = Math.round(totalAccounts * 0.4);
@@ -55,13 +55,13 @@ export function estimatePhaseDistribution(totalAccounts: number) {
   const clearbitEnriched = Math.round(remainingAfterPDL * 0.3);
   const remainingAfterClearbit = remainingAfterPDL - clearbitEnriched;
   
-  const aiEnriched = Math.round(remainingAfterClearbit * 0.8);
-  const deepResearchCandidates = remainingAfterClearbit - aiEnriched;
+  const launchPulseEnriched = Math.round(remainingAfterClearbit * 0.8);
+  const deepResearchCandidates = remainingAfterClearbit - launchPulseEnriched;
 
   return {
     pdl: pdlEnriched,
     clearbit: clearbitEnriched,
-    ai: aiEnriched,
+    launch_pulse: launchPulseEnriched,
     deep_research: deepResearchCandidates
   };
 }
@@ -79,7 +79,7 @@ export function calculateHybridCost(
   const breakdown = [
     { phase: 'PDL', cost: distribution.pdl * COST_PER_PHASE.pdl, accountCount: distribution.pdl },
     { phase: 'Clearbit', cost: distribution.clearbit * COST_PER_PHASE.clearbit, accountCount: distribution.clearbit },
-    { phase: 'AI Estimation', cost: distribution.ai * COST_PER_PHASE.ai, accountCount: distribution.ai },
+    { phase: 'Launch Pulse', cost: distribution.launch_pulse * COST_PER_PHASE.launch_pulse, accountCount: distribution.launch_pulse },
     { phase: 'Deep Research', cost: deepResearchCount * COST_PER_PHASE.deep_research, accountCount: deepResearchCount }
   ];
 

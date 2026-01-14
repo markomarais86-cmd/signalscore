@@ -314,7 +314,7 @@ async function processBatchWithRetry(
       try {
         const updates: Record<string, any> = {
           enriched_at: new Date().toISOString(),
-          enriched_from: "ai_free",
+          enriched_from: "launch_pulse",
         };
 
         const fieldScores: Record<string, number> = {};

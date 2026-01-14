@@ -275,7 +275,7 @@ ${batch.map(a => `- ${a.external_id}: ${a.name} (${a.domain})`).join('\n')}`;
 
                     const updateData: any = { 
                       enriched_at: new Date().toISOString(), 
-                      enriched_from: 'ai',
+                      enriched_from: 'launch_pulse',
                       enrichment_confidence: est.confidence / 100
                     };
                     

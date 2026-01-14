@@ -229,7 +229,7 @@ serve(async (req) => {
             if (enrichment.confidence >= 70) {
               const updateData: any = {
                 enriched_at: new Date().toISOString(),
-                enriched_from: 'ai_estimate'
+                enriched_from: 'launch_pulse'
               };
 
               // Find the original account to check what needs updating

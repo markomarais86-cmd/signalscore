@@ -173,7 +173,7 @@ Provide your best estimates with confidence scores (0-100). Be realistic based o
           if (estimate.confidence >= 70) {
             const updates: any = {
               enriched_at: new Date().toISOString(),
-              enriched_from: 'ai_firmographics',
+              enriched_from: 'launch_pulse',
             };
 
             if (!account.employee_count && estimate.employee_count) {
