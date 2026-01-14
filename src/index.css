@@ -247,15 +247,20 @@
     );
   }
   
-  /* Hero Gradient Background - Premium Green/Mint Theme */
+  /* Hero Gradient Background - Premium Green/Mint Theme - Login Screen Match */
   .hero-gradient {
     @apply relative overflow-hidden;
     background: 
-      radial-gradient(ellipse 100% 80% at 50% -30%, hsl(161 85% 45% / 0.25), transparent 60%),
-      radial-gradient(ellipse 80% 60% at 90% 20%, hsl(161 88% 55% / 0.18), transparent 50%),
-      radial-gradient(ellipse 70% 50% at 10% 70%, hsl(161 90% 50% / 0.12), transparent 50%),
-      radial-gradient(ellipse 60% 40% at 50% 100%, hsl(180 70% 40% / 0.08), transparent 40%),
-      linear-gradient(180deg, hsl(240 15% 6%) 0%, hsl(240 10% 4%) 50%, hsl(220 15% 5%) 100%);
+      /* Main left-side glow - PROMINENT like login screen */
+      radial-gradient(ellipse 80% 80% at 15% 40%, hsl(161 85% 45% / 0.35), transparent 50%),
+      /* Top center glow - visible wash */
+      radial-gradient(ellipse 100% 70% at 50% -20%, hsl(161 85% 50% / 0.30), transparent 55%),
+      /* Right side accent */
+      radial-gradient(ellipse 60% 60% at 95% 30%, hsl(170 80% 50% / 0.22), transparent 50%),
+      /* Bottom accent */
+      radial-gradient(ellipse 80% 50% at 50% 100%, hsl(165 75% 40% / 0.18), transparent 45%),
+      /* Base dark gradient with slight warmth */
+      linear-gradient(180deg, hsl(200 15% 7%) 0%, hsl(210 12% 5%) 50%, hsl(220 10% 4%) 100%);
   }
   
   /* Feature Card */
@@ -315,11 +320,10 @@
   
   .bg-gradient-mesh {
     background: 
-      radial-gradient(at 40% 20%, hsl(161 85% 60% / 0.15) 0px, transparent 50%),
-      radial-gradient(at 80% 0%, hsl(161 88% 67% / 0.1) 0px, transparent 50%),
-      radial-gradient(at 0% 50%, hsl(210 88% 40% / 0.08) 0px, transparent 50%),
-      radial-gradient(at 80% 50%, hsl(161 85% 60% / 0.08) 0px, transparent 50%),
-      radial-gradient(at 0% 100%, hsl(161 88% 67% / 0.1) 0px, transparent 50%);
+      radial-gradient(at 20% 40%, hsl(161 85% 50% / 0.28) 0px, transparent 50%),
+      radial-gradient(at 80% 10%, hsl(161 88% 55% / 0.20) 0px, transparent 50%),
+      radial-gradient(at 10% 80%, hsl(170 80% 45% / 0.18) 0px, transparent 50%),
+      radial-gradient(at 90% 60%, hsl(161 85% 50% / 0.15) 0px, transparent 50%);
   }
   
   /* Grid Pattern Background */
