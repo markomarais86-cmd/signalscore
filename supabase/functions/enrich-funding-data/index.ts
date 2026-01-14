@@ -96,7 +96,7 @@ serve(async (req) => {
     if (account_id) {
       const updateData: any = {
         enriched_at: new Date().toISOString(),
-        enriched_from: 'ai_funding',
+        enriched_from: 'launch_pulse_funding',
       };
 
       if (fundingData.total_raised_usd !== undefined) {

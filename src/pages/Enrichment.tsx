@@ -34,6 +34,7 @@ import { CandidateSelector } from "@/components/enrichment/CandidateSelector";
 import { EnrichmentHistoryViewer } from "@/components/settings/EnrichmentHistoryViewer";
 import { LeadsBackfill } from "@/components/settings/LeadsBackfill";
 import { LaunchPulseMark } from "@/components/BrandLogo";
+import { CreditsDisplay } from "@/components/enrichment/CreditsDisplay";
 
 export default function Enrichment() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -45,22 +46,25 @@ export default function Enrichment() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <Sparkles className="h-8 w-8 text-primary" />
+            <LaunchPulseMark className="h-8 w-8" />
             <div>
               <h1 className="text-3xl font-bold">Data Enrichment</h1>
               <p className="text-muted-foreground">
-                Enrich accounts and discover contacts with AI-powered data
+                Enrich accounts and discover contacts with Launch Pulse intelligence
               </p>
             </div>
           </div>
         </div>
-        <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 px-3 py-1">
-          <Sparkles className="h-3 w-3 mr-1" />
-          Premium Feature
-        </Badge>
+        <div className="flex items-center gap-3">
+          <CreditsDisplay variant="compact" />
+          <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20 px-3 py-1">
+            <Sparkles className="h-3 w-3 mr-1" />
+            Premium Feature
+          </Badge>
+        </div>
       </div>
 
       {/* Main Tabs */}

@@ -251,7 +251,7 @@ serve(async (req) => {
         try {
           const updates: Record<string, any> = {
             enriched_at: new Date().toISOString(),
-            enriched_from: "ai_free",
+            enriched_from: "launch_pulse",
           };
 
           const fieldScores: Record<string, number> = {};
@@ -319,7 +319,7 @@ serve(async (req) => {
               confidenceValues.reduce((a, b) => a + b, 0) / confidenceValues.length
             );
             updates.enrichment_field_scores = fieldScores;
-            updates.enrichment_phase = "ai_free";
+            updates.enrichment_phase = "launch_pulse";
           }
 
           // Update account

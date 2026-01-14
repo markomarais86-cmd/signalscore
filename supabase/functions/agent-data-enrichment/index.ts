@@ -570,7 +570,7 @@ serve(async (req) => {
             }
 
             if (enrichedFields.length > 0) {
-              aiUpdateData.enriched_from = 'ai_estimation';
+              aiUpdateData.enriched_from = 'launch_pulse';
               aiUpdateData.enriched_at = new Date().toISOString();
               aiUpdateData.enrichment_confidence = decision.confidence;
               

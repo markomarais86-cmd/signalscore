@@ -32,6 +32,7 @@ interface AggregateStats {
     apollo: { attempted: number; enriched: number; failed: number };
     pdl: { attempted: number; enriched: number; failed: number };
     ai: { attempted: number; enriched: number; failed: number };
+    launch_pulse: { attempted: number; enriched: number; failed: number };
   };
 }
 
@@ -101,10 +102,17 @@ export function UnifiedEnrichmentDashboard() {
                 acc.sourceBreakdown.pdl.enriched += breakdown.pdl.enriched || 0;
                 acc.sourceBreakdown.pdl.failed += breakdown.pdl.failed || 0;
               }
-              if (breakdown.ai) {
-                acc.sourceBreakdown.ai.attempted += breakdown.ai.attempted || 0;
-                acc.sourceBreakdown.ai.enriched += breakdown.ai.enriched || 0;
-                acc.sourceBreakdown.ai.failed += breakdown.ai.failed || 0;
+              // Consolidate all AI/Launch Pulse sources into launch_pulse
+              if (breakdown.ai || breakdown.launch_pulse) {
+                const aiData = breakdown.ai || { attempted: 0, enriched: 0, failed: 0 };
+                const lpData = breakdown.launch_pulse || { attempted: 0, enriched: 0, failed: 0 };
+                acc.sourceBreakdown.launch_pulse.attempted += (aiData.attempted || 0) + (lpData.attempted || 0);
+                acc.sourceBreakdown.launch_pulse.enriched += (aiData.enriched || 0) + (lpData.enriched || 0);
+                acc.sourceBreakdown.launch_pulse.failed += (aiData.failed || 0) + (lpData.failed || 0);
+                // Also keep ai for backward compatibility display
+                acc.sourceBreakdown.ai.attempted += aiData.attempted || 0;
+                acc.sourceBreakdown.ai.enriched += aiData.enriched || 0;
+                acc.sourceBreakdown.ai.failed += aiData.failed || 0;
               }
             }
             
@@ -119,6 +127,7 @@ export function UnifiedEnrichmentDashboard() {
               apollo: { attempted: 0, enriched: 0, failed: 0 },
               pdl: { attempted: 0, enriched: 0, failed: 0 },
               ai: { attempted: 0, enriched: 0, failed: 0 },
+              launch_pulse: { attempted: 0, enriched: 0, failed: 0 },
             },
           }
         );

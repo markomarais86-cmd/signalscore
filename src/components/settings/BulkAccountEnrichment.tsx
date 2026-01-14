@@ -431,11 +431,11 @@ export function BulkAccountEnrichment() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="smart">Smart (PDL → Clearbit → AI)</SelectItem>
+                      <SelectItem value="smart">Smart (PDL → Clearbit → Launch Pulse)</SelectItem>
                       <SelectItem value="pdl">People Data Labs Only</SelectItem>
                       <SelectItem value="clearbit">Clearbit Only</SelectItem>
-                      <SelectItem value="ai">AI Estimation Only</SelectItem>
-                      <SelectItem value="ai_free">AI Free (No Credits - Test)</SelectItem>
+                      <SelectItem value="launch_pulse">Launch Pulse Only</SelectItem>
+                      <SelectItem value="ai_free">Launch Pulse Free (Testing)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

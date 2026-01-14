@@ -99,7 +99,7 @@ serve(async (req) => {
         .update({
           tech_stack: techStack,
           enriched_at: new Date().toISOString(),
-          enriched_from: 'ai_tech_stack',
+          enriched_from: 'launch_pulse_tech',
         })
         .eq('id', account_id)
         .eq('org_id', org_id);

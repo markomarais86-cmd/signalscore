@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Database, Sparkles, Zap } from 'lucide-react';
+import { Database, Zap } from 'lucide-react';
+import { LaunchPulseMark } from '@/components/BrandLogo';
 
 interface SourceMetrics {
   attempted: number;
@@ -15,8 +16,14 @@ interface EnrichmentSourceBreakdownProps {
     apollo: SourceMetrics;
     pdl: SourceMetrics;
     ai: SourceMetrics;
+    launch_pulse?: SourceMetrics;
   };
 }
+
+// Custom wrapper component for LaunchPulseMark to match lucide icon interface
+const LaunchPulseIcon = ({ className }: { className?: string }) => (
+  <LaunchPulseMark className={className} />
+);
 
 const sourceConfig = {
   apollo: {
@@ -34,11 +41,18 @@ const sourceConfig = {
     textColor: 'text-purple-700',
   },
   ai: {
-    label: 'AI Estimation',
-    icon: Sparkles,
-    color: 'bg-green-500',
-    lightColor: 'bg-green-100',
-    textColor: 'text-green-700',
+    label: 'Launch Pulse',
+    icon: LaunchPulseIcon,
+    color: 'bg-primary',
+    lightColor: 'bg-primary/10',
+    textColor: 'text-primary',
+  },
+  launch_pulse: {
+    label: 'Launch Pulse',
+    icon: LaunchPulseIcon,
+    color: 'bg-primary',
+    lightColor: 'bg-primary/10',
+    textColor: 'text-primary',
   },
 };
 
