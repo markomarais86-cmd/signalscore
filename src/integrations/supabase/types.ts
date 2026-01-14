@@ -5830,43 +5830,64 @@ export type Database = {
       }
       sync_jobs: {
         Row: {
+          completed_at: string | null
+          current_offset: number | null
+          direction: string | null
           finished_at: string | null
           id: string
           inserted: number | null
           job_type: string | null
           org_id: string
+          processed_records: number | null
           received: number | null
           rejected: number | null
           source_system: string | null
           started_at: string | null
           status: string | null
+          total_records: number | null
           updated: number | null
+          updated_at: string | null
+          updated_records: number | null
         }
         Insert: {
+          completed_at?: string | null
+          current_offset?: number | null
+          direction?: string | null
           finished_at?: string | null
           id?: string
           inserted?: number | null
           job_type?: string | null
           org_id: string
+          processed_records?: number | null
           received?: number | null
           rejected?: number | null
           source_system?: string | null
           started_at?: string | null
           status?: string | null
+          total_records?: number | null
           updated?: number | null
+          updated_at?: string | null
+          updated_records?: number | null
         }
         Update: {
+          completed_at?: string | null
+          current_offset?: number | null
+          direction?: string | null
           finished_at?: string | null
           id?: string
           inserted?: number | null
           job_type?: string | null
           org_id?: string
+          processed_records?: number | null
           received?: number | null
           rejected?: number | null
           source_system?: string | null
           started_at?: string | null
           status?: string | null
+          total_records?: number | null
           updated?: number | null
+          updated_at?: string | null
+          updated_records?: number | null
         }
         Relationships: [
           {
