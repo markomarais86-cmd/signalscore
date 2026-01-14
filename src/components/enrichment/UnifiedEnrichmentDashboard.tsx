@@ -4,8 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Activity, Loader2 } from 'lucide-react';
-import { useRealtimeEnrichment, EnrichmentJob, ConnectionStatus } from '@/hooks/use-realtime-enrichment';
+import { RefreshCw, Activity } from 'lucide-react';
+import { useRealtimeEnrichment, EnrichmentJob } from '@/hooks/use-realtime-enrichment';
 import { EnrichmentJobCard } from './EnrichmentJobCard';
 import { EnrichmentSourceBreakdown } from './EnrichmentSourceBreakdown';
 import { EnrichmentHistory } from './EnrichmentHistory';
@@ -48,8 +48,7 @@ export function UnifiedEnrichmentDashboard() {
 
   const { 
     jobs: activeJobs, 
-    pausedJobs, 
-    connectionStatus, 
+    pausedJobs,
     refetch 
   } = useRealtimeEnrichment({
     orgId: userProfile?.org_id || null,
@@ -179,30 +178,15 @@ export function UnifiedEnrichmentDashboard() {
                 Track your company data updates and enrichment progress
               </CardDescription>
             </div>
-            <div className="flex items-center gap-3">
-              {/* Only show status when actively syncing - hide disconnected state */}
-              {connectionStatus === 'connected' && (
-                <Badge variant="secondary" className="flex items-center gap-1 text-xs">
-                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-                  Live
-                </Badge>
-              )}
-              {connectionStatus === 'connecting' && (
-                <Badge variant="secondary" className="flex items-center gap-1 text-xs">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Syncing
-                </Badge>
-              )}
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-              >
-                <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
           </div>
         </CardHeader>
 
