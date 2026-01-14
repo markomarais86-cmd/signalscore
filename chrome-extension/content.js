@@ -1,14 +1,19 @@
 // LaunchPulse Chrome Extension - Content Script
 // Extracts data from LinkedIn company and profile pages
 
-// Listen for messages from popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "extractData") {
-    const data = extractLinkedInData();
-    sendResponse(data);
-  }
-  return true;
-});
+// Guard against multiple injections
+if (!window.launchPulseInjected) {
+  window.launchPulseInjected = true;
+
+  // Listen for messages from popup
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "extractData") {
+      const data = extractLinkedInData();
+      sendResponse(data);
+    }
+    return true;
+  });
+}
 
 function extractLinkedInData() {
   const url = window.location.href;

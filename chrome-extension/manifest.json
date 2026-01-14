@@ -5,7 +5,8 @@
   "description": "Capture company and contact data from LinkedIn and save directly to LaunchPulse",
   "permissions": [
     "activeTab",
-    "storage"
+    "storage",
+    "scripting"
   ],
   "host_permissions": [
     "https://www.linkedin.com/*",

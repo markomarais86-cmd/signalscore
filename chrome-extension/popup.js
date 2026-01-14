@@ -70,6 +70,15 @@ saveSettingsBtn.addEventListener("click", async () => {
   }
 });
 
+// Refresh page button
+document.getElementById("refresh-page-btn")?.addEventListener("click", async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (tab.id) {
+    await chrome.tabs.reload(tab.id);
+    window.close();
+  }
+});
+
 // Save company button
 saveCompanyBtn.addEventListener("click", async () => {
   if (!extractedData || pageType !== "company") return;
@@ -87,6 +96,21 @@ async function extractDataFromPage(tabId) {
   showElement(loadingEl);
 
   try {
+    // First, inject the content script programmatically (in case it wasn't loaded)
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId: tabId },
+        files: ['content.js']
+      });
+    } catch (injectionError) {
+      // Script may already be injected, that's OK
+      console.log("Script injection note:", injectionError.message);
+    }
+
+    // Small delay to ensure script is ready
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Now send the message
     const response = await chrome.tabs.sendMessage(tabId, { action: "extractData" });
     
     hideAllMessages();
@@ -101,11 +125,13 @@ async function extractDataFromPage(tabId) {
       displayPersonData(response.data);
     } else {
       showElement(notLinkedinMsg);
+      document.getElementById("detection-help").classList.remove("hidden");
     }
   } catch (error) {
     console.error("Error extracting data:", error);
     hideAllMessages();
     showElement(notLinkedinMsg);
+    document.getElementById("detection-help").classList.remove("hidden");
   }
 }
 
