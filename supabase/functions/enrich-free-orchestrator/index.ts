@@ -174,6 +174,7 @@ serve(async (req) => {
         .insert({
           org_id,
           provider: "ai_free",
+          job_type: "accounts",
           status: "processing",
           total_records,
           processed_records: 0,
