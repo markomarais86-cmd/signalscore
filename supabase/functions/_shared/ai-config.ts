@@ -1,7 +1,7 @@
 // Centralized AI Model Configuration for Multi-Provider Support
-// Supports: OpenAI, Abacus.AI, and Lovable AI Gateway
+// Supports: Perplexity, OpenAI, Abacus.AI, and Lovable AI Gateway
 
-export type AIProvider = 'openai' | 'abacus' | 'lovable';
+export type AIProvider = 'perplexity' | 'openai' | 'abacus' | 'lovable';
 export type TaskType = 'chat' | 'analysis' | 'enrichment' | 'bulk' | 'reasoning';
 
 export interface AIModelConfig {
@@ -15,6 +15,7 @@ export interface AIModelConfig {
 
 // Provider endpoints
 export const AI_ENDPOINTS = {
+  perplexity: 'https://api.perplexity.ai/chat/completions',
   openai: 'https://api.openai.com/v1/chat/completions',
   abacus: 'https://apps.abacus.ai/api/v0/getStreamingChatResponse',
   lovable: 'https://ai.gateway.lovable.dev/v1/chat/completions',
@@ -22,6 +23,13 @@ export const AI_ENDPOINTS = {
 
 // Model configurations by provider
 export const AI_MODELS = {
+  perplexity: {
+    chat: 'sonar',
+    analysis: 'sonar-pro',
+    enrichment: 'sonar-pro', // Best for real-time company research with citations
+    bulk: 'sonar',
+    reasoning: 'sonar-reasoning',
+  },
   openai: {
     chat: 'gpt-5-2025-08-07',
     analysis: 'gpt-5-2025-08-07',
@@ -49,6 +57,10 @@ export const AI_MODELS = {
 export function getAvailableProviders(): AIProvider[] {
   const providers: AIProvider[] = [];
   
+  // Check all 4 providers
+  if (Deno.env.get('PERPLEXITY_API_KEY')) {
+    providers.push('perplexity');
+  }
   if (Deno.env.get('OPENAI_API_KEY')) {
     providers.push('openai');
   }
@@ -66,19 +78,25 @@ export function getAvailableProviders(): AIProvider[] {
 export function getModelConfig(taskType: TaskType, preferredProvider?: AIProvider): AIModelConfig {
   const available = getAvailableProviders();
   
-  // Priority: preferred > openai > abacus > lovable
+  // For enrichment tasks: Perplexity first (real-time web search with citations)
+  // Priority: perplexity > openai > abacus > lovable
   let provider: AIProvider;
   
   if (preferredProvider && available.includes(preferredProvider)) {
     provider = preferredProvider;
+  } else if (taskType === 'enrichment' && available.includes('perplexity')) {
+    // Perplexity is best for enrichment due to real-time web search
+    provider = 'perplexity';
   } else if (available.includes('openai')) {
     provider = 'openai';
   } else if (available.includes('abacus')) {
     provider = 'abacus';
+  } else if (available.includes('perplexity')) {
+    provider = 'perplexity';
   } else if (available.includes('lovable')) {
     provider = 'lovable';
   } else {
-    throw new Error('No AI provider available. Please configure OPENAI_API_KEY, ABACUS_API_KEY, or LOVABLE_API_KEY.');
+    throw new Error('No AI provider available. Please configure PERPLEXITY_API_KEY, OPENAI_API_KEY, ABACUS_API_KEY, or LOVABLE_API_KEY.');
   }
   
   const model = AI_MODELS[provider][taskType];
@@ -93,13 +111,15 @@ export function getModelConfig(taskType: TaskType, preferredProvider?: AIProvide
     endpoint: AI_ENDPOINTS[provider],
     supportsStreaming: true,
     maxTokensParam: isNewerOpenAI ? 'max_completion_tokens' : 'max_tokens',
-    supportsTemperature: !isNewerOpenAI,
+    supportsTemperature: !isNewerOpenAI && provider !== 'perplexity',
   };
 }
 
 // Get API key for a provider
 export function getApiKey(provider: AIProvider): string {
   switch (provider) {
+    case 'perplexity':
+      return Deno.env.get('PERPLEXITY_API_KEY') || '';
     case 'openai':
       return Deno.env.get('OPENAI_API_KEY') || '';
     case 'abacus':
@@ -113,23 +133,10 @@ export function getApiKey(provider: AIProvider): string {
 export function buildHeaders(provider: AIProvider): Record<string, string> {
   const apiKey = getApiKey(provider);
   
-  switch (provider) {
-    case 'openai':
-      return {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      };
-    case 'abacus':
-      return {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      };
-    case 'lovable':
-      return {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      };
-  }
+  return {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+  };
 }
 
 // Build request body for a provider
@@ -143,9 +150,10 @@ export function buildRequestBody(
     temperature?: number;
     tools?: any[];
     tool_choice?: any;
+    search_recency_filter?: string;
   } = {}
 ): Record<string, any> {
-  const config = getModelConfig('chat');
+  const config = getModelConfig('chat', provider);
   
   const body: Record<string, any> = {
     model,
@@ -167,12 +175,17 @@ export function buildRequestBody(
     body.temperature = options.temperature;
   }
   
-  // Handle tools
-  if (options.tools) {
+  // Handle tools (not supported by Perplexity)
+  if (options.tools && provider !== 'perplexity') {
     body.tools = options.tools;
   }
-  if (options.tool_choice) {
+  if (options.tool_choice && provider !== 'perplexity') {
     body.tool_choice = options.tool_choice;
+  }
+  
+  // Perplexity-specific: search recency filter for fresh data
+  if (provider === 'perplexity' && options.search_recency_filter) {
+    body.search_recency_filter = options.search_recency_filter;
   }
   
   // Abacus-specific parameters
@@ -184,7 +197,7 @@ export function buildRequestBody(
   return body;
 }
 
-// Make an AI API call with automatic fallback
+// Make an AI API call with automatic fallback across ALL providers
 export async function callAI(
   taskType: TaskType,
   messages: Array<{ role: string; content: string }>,
@@ -195,14 +208,33 @@ export async function callAI(
     tools?: any[];
     tool_choice?: any;
     preferredProvider?: AIProvider;
+    search_recency_filter?: string;
   } = {}
 ): Promise<Response> {
   const providers = getAvailableProviders();
   
-  // Sort by preference
-  const orderedProviders = options.preferredProvider 
-    ? [options.preferredProvider, ...providers.filter(p => p !== options.preferredProvider)]
-    : providers;
+  if (providers.length === 0) {
+    throw new Error('No AI providers configured');
+  }
+  
+  // For enrichment, prioritize Perplexity (real-time web search)
+  let orderedProviders: AIProvider[];
+  if (taskType === 'enrichment') {
+    // Perplexity first for enrichment, then others
+    orderedProviders = [
+      ...providers.filter(p => p === 'perplexity'),
+      ...providers.filter(p => p === 'openai'),
+      ...providers.filter(p => p === 'abacus'),
+      ...providers.filter(p => p === 'lovable'),
+    ].filter(p => providers.includes(p));
+  } else if (options.preferredProvider) {
+    orderedProviders = [
+      options.preferredProvider,
+      ...providers.filter(p => p !== options.preferredProvider)
+    ];
+  } else {
+    orderedProviders = providers;
+  }
   
   let lastError: Error | null = null;
   
@@ -210,7 +242,11 @@ export async function callAI(
     try {
       const config = getModelConfig(taskType, provider);
       const headers = buildHeaders(provider);
-      const body = buildRequestBody(provider, config.model, messages, options);
+      const body = buildRequestBody(provider, config.model, messages, {
+        ...options,
+        // For Perplexity enrichment, use recent data
+        search_recency_filter: provider === 'perplexity' ? (options.search_recency_filter || 'month') : undefined,
+      });
       
       console.log(`[AI Config] Calling ${provider} with model ${config.model} for task ${taskType}`);
       
@@ -221,6 +257,7 @@ export async function callAI(
       });
       
       if (response.ok) {
+        console.log(`[AI Config] ${provider} succeeded`);
         return response;
       }
       
