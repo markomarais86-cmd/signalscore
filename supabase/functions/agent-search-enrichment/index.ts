@@ -50,7 +50,29 @@ serve(async (req) => {
   }
 
   try {
-    const { search_payload, record_type, org_id, target_titles }: SearchRequest = await req.json();
+    const body = await req.json();
+    const { search_payload, record_type, org_id, target_titles }: SearchRequest = body;
+    
+    // Validate required payload
+    if (!search_payload || typeof search_payload !== 'object') {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'search_payload is required and must be an object'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!record_type || !['account', 'lead'].includes(record_type)) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'record_type is required and must be "account" or "lead"'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
     
     const titles = target_titles || ['CEO', 'CTO', 'CFO', 'COO', 'VP', 'Director', 'President', 'Chairman'];
     
