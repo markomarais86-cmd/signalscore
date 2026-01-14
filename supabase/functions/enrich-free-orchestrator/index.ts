@@ -7,8 +7,142 @@ const MAX_EXECUTION_MS = 44000;   // Stop before edge timeout (60s)
 const BATCH_SIZE = 250;           // Accounts fetched per round
 const WORKER_CHUNK = 25;          // Accounts per worker
 const CONCURRENT_WORKERS = 5;     // Parallel worker calls
+const HIGH_FIT_THRESHOLD = 70;    // Minimum score to trigger contact discovery
 
 function nowMs() { return Date.now(); }
+
+interface ContactDiscoveryConfig {
+  enabled: boolean;
+  target_titles: string[];
+  max_contacts_per_account: number;
+  min_fit_score: number;
+}
+
+async function getContactDiscoveryConfig(supabase: any, orgId: string): Promise<ContactDiscoveryConfig | null> {
+  try {
+    const { data, error } = await supabase
+      .from("automation_settings")
+      .select("*")
+      .eq("org_id", orgId)
+      .eq("setting_key", "contact_discovery")
+      .single();
+
+    if (error || !data || !data.enabled) {
+      return null;
+    }
+
+    // Get persona config for target titles
+    const { data: personaData } = await supabase
+      .from("persona_config")
+      .select("personas")
+      .eq("org_id", orgId)
+      .single();
+
+    const targetTitles = personaData?.personas?.flatMap((p: any) => p.title_patterns || []) || [
+      "CEO", "CTO", "CFO", "VP Sales", "VP Marketing", "Director"
+    ];
+
+    return {
+      enabled: true,
+      target_titles: targetTitles,
+      max_contacts_per_account: 5,
+      min_fit_score: HIGH_FIT_THRESHOLD
+    };
+  } catch (e) {
+    console.log("[enrich-free-orchestrator] No contact discovery config found");
+    return null;
+  }
+}
+
+async function discoverContactsForAccount(
+  supabase: any,
+  supabaseUrl: string,
+  serviceKey: string,
+  account: any,
+  config: ContactDiscoveryConfig,
+  orgId: string
+): Promise<{ success: boolean; contacts_found: number }> {
+  try {
+    // Get existing leads for this account to avoid duplicates
+    const { data: existingLeads } = await supabase
+      .from("Leads")
+      .select("email")
+      .eq("account_external_id", account.external_id)
+      .eq("org_id", orgId);
+
+    const excludeEmails = (existingLeads || [])
+      .map((l: any) => l.email)
+      .filter(Boolean);
+
+    // Call agent-discover-contacts
+    const response = await fetch(`${supabaseUrl}/functions/v1/agent-discover-contacts`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        company_name: account.name,
+        company_domain: account.domain,
+        company_linkedin_url: account.linkedin_url,
+        target_titles: config.target_titles,
+        org_id: orgId,
+        max_contacts: config.max_contacts_per_account,
+        exclude_emails: excludeEmails
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`[enrich-free-orchestrator] Contact discovery failed for ${account.name}: ${response.status}`);
+      return { success: false, contacts_found: 0 };
+    }
+
+    const result = await response.json();
+    
+    if (!result.success || !result.contacts?.length) {
+      return { success: true, contacts_found: 0 };
+    }
+
+    // Insert discovered contacts into Leads table
+    const leadsToInsert = result.contacts.map((contact: any) => ({
+      org_id: orgId,
+      external_id: `discovered_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      first_name: contact.first_name,
+      last_name: contact.last_name,
+      name: `${contact.first_name} ${contact.last_name}`,
+      email: contact.email || null,
+      phone: contact.phone_number || contact.direct_phone || null,
+      mobile: contact.cell_phone || null,
+      title: contact.current_title,
+      company: account.name,
+      website: account.domain,
+      industry: account.industry_norm || account.industry_raw,
+      country: contact.country || account.country,
+      state_province: contact.state_province,
+      linkedin_url: contact.linkedin_url,
+      account_external_id: account.external_id,
+      status: "new",
+      data_source: "ai_discovered",
+      enrichment_confidence: contact.confidence === "high" ? 90 : contact.confidence === "medium" ? 70 : 50,
+      enriched_at: new Date().toISOString(),
+    }));
+
+    const { error: insertError } = await supabase
+      .from("Leads")
+      .insert(leadsToInsert);
+
+    if (insertError) {
+      console.error(`[enrich-free-orchestrator] Failed to insert discovered contacts:`, insertError);
+      return { success: false, contacts_found: 0 };
+    }
+
+    console.log(`[enrich-free-orchestrator] Discovered ${leadsToInsert.length} contacts for ${account.name}`);
+    return { success: true, contacts_found: leadsToInsert.length };
+  } catch (e) {
+    console.error(`[enrich-free-orchestrator] Contact discovery error for ${account.name}:`, e);
+    return { success: false, contacts_found: 0 };
+  }
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -23,6 +157,12 @@ serve(async (req) => {
   try {
     const { job_id, org_id, create_new = false, total_records = 0 } = await req.json();
     console.log(`[enrich-free-orchestrator] Starting job=${job_id}, org=${org_id}, create_new=${create_new}`);
+
+    // Check for contact discovery configuration
+    const contactDiscoveryConfig = await getContactDiscoveryConfig(supabase, org_id);
+    if (contactDiscoveryConfig) {
+      console.log(`[enrich-free-orchestrator] Contact discovery enabled with ${contactDiscoveryConfig.target_titles.length} target titles`);
+    }
 
     // 1) Create or load job
     let job: any;
@@ -40,7 +180,7 @@ serve(async (req) => {
           enriched_records: 0,
           failed_records: 0,
           started_at: new Date().toISOString(),
-          source_breakdown: { ai: { attempted: 0, enriched: 0, failed: 0 } },
+          source_breakdown: { ai: { attempted: 0, enriched: 0, failed: 0 }, contact_discovery: { accounts_processed: 0, contacts_found: 0 } },
         })
         .select()
         .single();
@@ -83,13 +223,15 @@ serve(async (req) => {
     let totalFailed = job.failed_records || 0;
     let lastCursor = job.cursor;
     let iterationsCompleted = 0;
+    let contactsDiscovered = 0;
+    let accountsWithContactDiscovery = 0;
 
     // Main processing loop - continues until timeout or done
     while (nowMs() - start < MAX_EXECUTION_MS) {
       // 3) Fetch next batch of accounts (cursor-based pagination)
       let query = supabase
         .from("accounts")
-        .select("id, external_id, name, domain, industry_raw, employee_count, revenue_range, country, linkedin_url")
+        .select("id, external_id, name, domain, industry_raw, industry_norm, employee_count, revenue_range, country, linkedin_url")
         .eq("org_id", jobOrgId)
         .order("id", { ascending: true })
         .limit(BATCH_SIZE);
@@ -121,10 +263,14 @@ serve(async (req) => {
             fields_enriched: totalFieldsEnriched,
             enriched_records: totalAccountsEnriched, // Legacy compat
             failed_records: totalFailed,
+            source_breakdown: {
+              launch_pulse: { attempted: totalProcessed, accounts_enriched: totalAccountsEnriched, fields_enriched: totalFieldsEnriched },
+              contact_discovery: { accounts_processed: accountsWithContactDiscovery, contacts_found: contactsDiscovered }
+            }
           })
           .eq("id", jobId);
 
-        console.log(`[enrich-free-orchestrator] Job ${jobId} completed: ${totalAccountsEnriched} accounts (${totalFieldsEnriched} fields) / ${totalProcessed} processed`);
+        console.log(`[enrich-free-orchestrator] Job ${jobId} completed: ${totalAccountsEnriched} accounts (${totalFieldsEnriched} fields), ${contactsDiscovered} contacts discovered`);
         return new Response(
           JSON.stringify({ 
             status: "completed", 
@@ -132,6 +278,7 @@ serve(async (req) => {
             accounts_enriched: totalAccountsEnriched,
             fields_enriched: totalFieldsEnriched,
             enriched: totalAccountsEnriched, // Legacy
+            contacts_discovered: contactsDiscovered,
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -181,6 +328,43 @@ serve(async (req) => {
         }
       }
 
+      // 5.5) Contact Discovery for high-fit accounts (if enabled)
+      if (contactDiscoveryConfig && nowMs() - start < MAX_EXECUTION_MS - 5000) {
+        // Get scores for accounts in this batch
+        const accountIds = accounts.map((a: any) => a.external_id);
+        const { data: scores } = await supabase
+          .from("scores")
+          .select("account_external_id, overall")
+          .eq("org_id", jobOrgId)
+          .in("account_external_id", accountIds)
+          .gte("overall", contactDiscoveryConfig.min_fit_score);
+
+        const highFitAccounts = accounts.filter((a: any) => 
+          scores?.some((s: any) => s.account_external_id === a.external_id)
+        );
+
+        // Process up to 3 high-fit accounts per batch (to avoid timeout)
+        const accountsToDiscover = highFitAccounts.slice(0, 3);
+        
+        for (const account of accountsToDiscover) {
+          if (nowMs() - start > MAX_EXECUTION_MS - 3000) break;
+
+          const result = await discoverContactsForAccount(
+            supabase,
+            supabaseUrl,
+            serviceKey,
+            account,
+            contactDiscoveryConfig,
+            jobOrgId
+          );
+
+          if (result.success) {
+            accountsWithContactDiscovery++;
+            contactsDiscovered += result.contacts_found;
+          }
+        }
+      }
+
       // 6) Update cursor and progress
       lastCursor = accounts[accounts.length - 1].id;
       totalProcessed += batchProcessed;
@@ -206,6 +390,10 @@ serve(async (req) => {
           enriched: totalAccountsEnriched, // Legacy compat
           failed: totalFailed,
         },
+        contact_discovery: {
+          accounts_processed: accountsWithContactDiscovery,
+          contacts_found: contactsDiscovered,
+        }
       };
 
       // Checkpoint update with new metrics
@@ -224,7 +412,7 @@ serve(async (req) => {
         })
         .eq("id", jobId);
 
-      console.log(`[enrich-free-orchestrator] Iteration ${iterationsCompleted}: accounts_enriched=${batchAccountsEnriched}, fields_enriched=${batchFieldsEnriched}, cursor=${lastCursor}`);
+      console.log(`[enrich-free-orchestrator] Iteration ${iterationsCompleted}: accounts_enriched=${batchAccountsEnriched}, fields_enriched=${batchFieldsEnriched}, contacts_discovered=${contactsDiscovered}, cursor=${lastCursor}`);
     }
 
     // 7) Timeout reached - pause for resumption OR auto-continue
@@ -274,6 +462,7 @@ serve(async (req) => {
         fields_enriched: totalFieldsEnriched,
         enriched: totalAccountsEnriched, // Legacy
         failed: totalFailed,
+        contacts_discovered: contactsDiscovered,
         cursor: lastCursor,
         iterations: iterationsCompleted,
         auto_continuing: timeUp && hasMoreRecords,
