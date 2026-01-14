@@ -430,16 +430,23 @@ function processFinancialResult(result: { content: string; citations: string[] }
 async function phaseTechAndContacts(companyName: string, domain?: string): Promise<ResearchResult> {
   console.log('[Phase 4] Tech Stack & Contacts...');
   
-  const prompt = `What technology does "${companyName}" use?${domain ? ` Website: ${domain}` : ''}
+  // FIXED: Removed dummy phone number from example - Perplexity was copying it!
+  const prompt = `Find the technology stack and contact information for "${companyName}"${domain ? ` (website: ${domain})` : ''}.
 
-Return ONLY valid JSON, no markdown:
-{"tech_stack":["AWS","React","Python"],"phone":"+1-555-123-4567","confidence":70}`;
+Search for:
+- Technologies used (from BuiltWith, StackShare, or job postings)
+- Company phone number (from their website contact page or footer)
+- Headquarters address and city
 
+Return ONLY valid JSON with REAL data you found (leave null if not found):
+{"tech_stack":["Salesforce","HubSpot"],"phone":null,"city":"Dallas","country":"USA","confidence":70}`;
+
+  // Search company website first for contact info, then tech sites
   const result = await callPerplexity(
     [{ role: 'user', content: prompt }],
     {
       model: 'sonar-pro',
-      searchDomainFilter: domain ? [domain, 'builtwith.com'] : ['builtwith.com', 'stackshare.io'],
+      searchDomainFilter: domain ? [domain, 'builtwith.com', 'stackshare.io'] : ['builtwith.com', 'stackshare.io'],
       searchRecencyFilter: 'year',
     }
   );
@@ -450,10 +457,17 @@ Return ONLY valid JSON, no markdown:
 
   const parsed = extractJsonFromResponse(result.content);
   if (parsed) {
+    // Only include phone if it looks real (not a placeholder)
+    const phone = parsed.phone && !parsed.phone.includes('555-') && !parsed.phone.includes('123-456') 
+      ? parsed.phone 
+      : null;
+    
     return {
       data: {
         tech_stack: parsed.tech_stack?.slice(0, 15),
-        phone: parsed.phone,
+        phone,
+        city: parsed.city,
+        country: parsed.country,
       },
       confidence: parsed.confidence || 65,
       citations: result.citations,
@@ -465,16 +479,81 @@ Return ONLY valid JSON, no markdown:
 }
 
 // ============================================
-// MERGE RESULTS WITH CONFIDENCE WEIGHTING
+// PHASE 5: COMPANY WEBSITE SCRAPE (Location/Contact)
 // ============================================
 
+async function phaseCompanyWebsite(companyName: string, domain: string): Promise<ResearchResult> {
+  console.log('[Phase 5] Company Website Scrape...');
+  
+  if (!domain) {
+    return { data: {}, confidence: 0, citations: [], source: 'none' };
+  }
+  
+  const prompt = `Go to ${domain} and find from their About, Contact, or Team pages:
+
+1. Headquarters location (city, state, country)
+2. Phone number from contact page or footer
+3. Number of employees (look for "500+ employees", "team of X", etc.)
+4. Any revenue claims or growth metrics
+
+Return ONLY valid JSON with data you actually found on their website:
+{"city":"Dallas","state":"Texas","country":"USA","phone":null,"employee_count":500,"confidence":85}`;
+
+  const result = await callPerplexity(
+    [{ role: 'user', content: prompt }],
+    {
+      model: 'sonar-pro',
+      searchDomainFilter: [domain],  // Search ONLY their website
+    }
+  );
+
+  if (!result) {
+    return { data: {}, confidence: 0, citations: [], source: 'none' };
+  }
+
+  const parsed = extractJsonFromResponse(result.content);
+  if (parsed) {
+    const phone = parsed.phone && !parsed.phone.includes('555-') ? parsed.phone : null;
+    
+    return {
+      data: {
+        city: parsed.city,
+        country: parsed.country,
+        phone,
+        employee_count: parsed.employee_count,
+      },
+      confidence: parsed.confidence || 85,  // High confidence for direct website data
+      citations: result.citations,
+      source: 'company-website',
+    };
+  }
+
+  // Try text extraction
+  const textData = extractFromText(result.content);
+  if (Object.keys(textData).length > 0) {
+    return { data: textData, confidence: 70, citations: result.citations, source: 'company-website-text' };
+  }
+
+  return { data: {}, confidence: 0, citations: [], source: 'none' };
+}
+
+// ============================================
+// MERGE RESULTS WITH SMART CONFIDENCE WEIGHTING
+// ============================================
+
+interface FieldData {
+  value: any;
+  confidence: number;
+  source: string;
+}
+
 function mergeResults(results: ResearchResult[]): EnrichedCompany {
-  const merged: Partial<EnrichedCompany> = {};
-  const fieldSources: Record<string, string> = {};
+  const fieldMap: Record<string, FieldData> = {};
   const allCitations: string[] = [];
   let totalConfidence = 0;
   let confidenceCount = 0;
 
+  // Process each result, keeping track of best value per field
   for (const result of results) {
     if (result.confidence > 0) {
       totalConfidence += result.confidence;
@@ -483,32 +562,46 @@ function mergeResults(results: ResearchResult[]): EnrichedCompany {
 
     allCitations.push(...result.citations);
 
-    // Merge each field, preferring higher confidence sources
+    // For each field, keep the one with highest confidence
     for (const [key, value] of Object.entries(result.data)) {
       if (value !== null && value !== undefined) {
-        const typedKey = key as keyof EnrichedCompany;
-        if (!(typedKey in merged) || result.confidence > 70) {
-          (merged as any)[typedKey] = value;
-          fieldSources[key] = result.source;
+        const existing = fieldMap[key];
+        
+        // Prefer higher confidence, or if same confidence prefer non-null value
+        if (!existing || result.confidence > existing.confidence) {
+          fieldMap[key] = {
+            value,
+            confidence: result.confidence,
+            source: result.source,
+          };
         }
       }
     }
   }
 
+  // Build field sources map
+  const fieldSources: Record<string, string> = {};
+  for (const [key, data] of Object.entries(fieldMap)) {
+    fieldSources[key] = data.source;
+  }
+
+  // Extract values
+  const getValue = (key: string) => fieldMap[key]?.value ?? null;
+
   return {
-    name: merged.name || '',
-    domain: merged.domain || null,
-    employee_count: merged.employee_count || null,
-    revenue_range: merged.revenue_range || null,
-    industry: merged.industry || null,
-    country: merged.country || null,
-    city: merged.city || null,
-    linkedin_url: merged.linkedin_url || null,
-    phone: merged.phone || null,
-    founded_year: merged.founded_year || null,
-    tech_stack: merged.tech_stack || null,
-    funding_round: merged.funding_round || null,
-    total_raised: merged.total_raised || null,
+    name: getValue('name') || '',
+    domain: getValue('domain'),
+    employee_count: getValue('employee_count'),
+    revenue_range: getValue('revenue_range'),
+    industry: getValue('industry'),
+    country: getValue('country'),
+    city: getValue('city'),
+    linkedin_url: getValue('linkedin_url'),
+    phone: getValue('phone'),
+    founded_year: getValue('founded_year'),
+    tech_stack: getValue('tech_stack'),
+    funding_round: getValue('funding_round'),
+    total_raised: getValue('total_raised'),
     confidence: confidenceCount > 0 ? Math.round(totalConfidence / confidenceCount) : 0,
     source: 'launchpulse-ai-multi',
     citations: [...new Set(allCitations)].slice(0, 10),
@@ -564,23 +657,24 @@ serve(async (req) => {
     // MULTI-PHASE AI RESEARCH - ALL IN PARALLEL FOR SPEED
     // ============================================
     
-    console.log('[enrich-single] Starting multi-phase AI research (ALL PARALLEL)...');
+    console.log('[enrich-single] Starting multi-phase AI research (ALL 5 PHASES PARALLEL)...');
     const startTime = Date.now();
     
-    // Run ALL 4 phases in parallel - don't wait for discovery
-    // Each phase uses the original company name/domain
-    const [discoveryResult, employeeResult, financialResult, techResult] = await Promise.all([
+    // Run ALL 5 phases in parallel - don't wait for discovery
+    // Phase 5 only runs if we have a domain
+    const [discoveryResult, employeeResult, financialResult, techResult, websiteResult] = await Promise.all([
       phaseDiscovery(searchName, searchDomain || undefined),
       phaseEmployeeCount(searchName, searchDomain || undefined),
       phaseFinancials(searchName, searchDomain || undefined),
       phaseTechAndContacts(searchName, searchDomain || undefined),
+      searchDomain ? phaseCompanyWebsite(searchName, searchDomain) : Promise.resolve({ data: {}, confidence: 0, citations: [], source: 'none' }),
     ]);
     
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[enrich-single] All 4 phases completed in ${duration}s`);
+    console.log(`[enrich-single] All 5 phases completed in ${duration}s`);
     
-    // Merge all results
-    const merged = mergeResults([discoveryResult, employeeResult, financialResult, techResult]);
+    // Merge all results - website result has highest priority for location/phone
+    const merged = mergeResults([discoveryResult, employeeResult, financialResult, techResult, websiteResult]);
     merged.name = discoveryResult.data.name || searchName;
     
     console.log(`[enrich-single] Final: ${merged.name}, employees=${merged.employee_count}, revenue=${merged.revenue_range}, confidence=${merged.confidence}%`);
