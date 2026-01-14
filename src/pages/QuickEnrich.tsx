@@ -316,7 +316,17 @@ export default function QuickEnrich() {
         <div className="flex items-center gap-3">
           <LaunchPulseMark className="h-10 w-10" />
           <div>
-            <h1 className="text-3xl font-bold">Quick Enrich</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-3xl font-bold">Quick Enrich</h1>
+              <Tooltip>
+                <TooltipTrigger>
+                  <HelpCircle className="h-5 w-5 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p>Upload a CSV with your leads or accounts. We'll automatically create accounts, match leads, and enrich company data using AI.</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <p className="text-muted-foreground">
               Upload, enrich, and download in minutes
             </p>

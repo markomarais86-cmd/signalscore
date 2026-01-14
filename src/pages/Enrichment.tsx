@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   Sparkles, 
   Zap, 
@@ -15,7 +16,8 @@ import {
   TrendingUp,
   Users,
   Search,
-  Upload
+  Upload,
+  HelpCircle
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
@@ -47,6 +49,7 @@ export default function Enrichment() {
   const isAdmin = isSuperAdmin || isOrgAdmin;
 
   return (
+    <TooltipProvider>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -54,7 +57,21 @@ export default function Enrichment() {
           <div className="flex items-center gap-3">
             <LaunchPulseMark className="h-8 w-8" />
             <div>
-              <h1 className="text-3xl font-bold">Data Enrichment</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-3xl font-bold">Data Enrichment</h1>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <HelpCircle className="h-5 w-5 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-sm">
+                    <div className="space-y-2">
+                      <p><strong>Launch Pulse</strong> - Free AI-powered enrichment using web research. Fills in missing company data.</p>
+                      <p><strong>Deep Research</strong> - Premium enrichment with 95%+ accuracy. Uses more credits but higher quality.</p>
+                      <p><strong>Contact Discovery</strong> - Find decision-makers at your accounts using LinkedIn and company websites.</p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <p className="text-muted-foreground">
                 Enrich accounts and discover contacts with Launch Pulse intelligence
               </p>
@@ -62,12 +79,19 @@ export default function Enrichment() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button asChild variant="outline">
-            <Link to="/quick-enrich">
-              <Upload className="h-4 w-4 mr-2" />
-              Quick Enrich
-            </Link>
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button asChild variant="outline">
+                <Link to="/quick-enrich">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Quick Enrich
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Upload CSV → Enrich → Download in minutes</p>
+            </TooltipContent>
+          </Tooltip>
           <ExportAccountsButton />
           <ExportLeadsButton />
           <CreditsDisplay variant="compact" />
@@ -259,5 +283,6 @@ export default function Enrichment() {
         )}
       </Tabs>
     </div>
+    </TooltipProvider>
   );
 }
