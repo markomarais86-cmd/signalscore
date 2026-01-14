@@ -1,4 +1,4 @@
-import { Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign, FileText, Users, BarChart3, Bot, HelpCircle } from "lucide-react";
+import { Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign, FileText, Users, BarChart3, Bot, HelpCircle, Sparkles } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
@@ -18,12 +18,13 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 
-// Reordered navigation: Dashboard → Accounts → ICP Manager → AI Agents → Settings → Help
+// Reordered navigation: Dashboard → Accounts → ICP Manager → AI Agents → Enrichment → Settings → Help
 const mainNavigation = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Accounts", url: "/accounts", icon: Database },
   { title: "ICP Manager", url: "/icp-manager", icon: Target },
   { title: "AI Agents", url: "/ai-agents", icon: Bot },
+  { title: "Enrichment", url: "/enrichment", icon: Sparkles },
   { title: "Settings", url: "/settings", icon: Settings },
   { title: "Help", url: "/help", icon: HelpCircle },
 ];
