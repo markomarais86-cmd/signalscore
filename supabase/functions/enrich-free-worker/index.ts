@@ -235,7 +235,8 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    let enriched = 0;
+    let accountsEnriched = 0;  // Accounts with at least 1 field enriched
+    let fieldsEnriched = 0;    // Total fields enriched across all accounts
     let failed = 0;
     const errors: string[] = [];
 
@@ -255,7 +256,7 @@ serve(async (req) => {
           };
 
           const fieldScores: Record<string, number> = {};
-          let fieldsEnriched = 0;
+          let accountFieldCount = 0;  // Fields enriched for THIS account
 
           // Apply employee_count if confident and missing
           if (result.employee_count && 
@@ -263,7 +264,7 @@ serve(async (req) => {
               !account.employee_count) {
             updates.employee_count = result.employee_count.value;
             fieldScores.employee_count = result.employee_count.confidence;
-            fieldsEnriched++;
+            accountFieldCount++;
           }
 
           // Apply revenue_range if confident and missing
@@ -272,7 +273,7 @@ serve(async (req) => {
               !account.revenue_range) {
             updates.revenue_range = result.revenue_range.value;
             fieldScores.revenue_range = result.revenue_range.confidence;
-            fieldsEnriched++;
+            accountFieldCount++;
           }
 
           // Apply industry_norm if confident and missing
@@ -282,7 +283,7 @@ serve(async (req) => {
             updates.industry_norm = result.industry_norm.value;
             updates.industry_raw = result.industry_norm.value;
             fieldScores.industry = result.industry_norm.confidence;
-            fieldsEnriched++;
+            accountFieldCount++;
           }
 
           // Apply business_model if confident
@@ -290,7 +291,7 @@ serve(async (req) => {
               result.business_model.confidence >= CONFIDENCE_THRESHOLD) {
             updates.business_model = result.business_model.value;
             fieldScores.business_model = result.business_model.confidence;
-            fieldsEnriched++;
+            accountFieldCount++;
           }
 
           // Apply country if confident and missing
@@ -299,7 +300,7 @@ serve(async (req) => {
               !account.country) {
             updates.country = result.country.value;
             fieldScores.country = result.country.confidence;
-            fieldsEnriched++;
+            accountFieldCount++;
           }
 
           // Apply linkedin_url if confident and missing
@@ -309,7 +310,7 @@ serve(async (req) => {
               result.linkedin_url.value?.includes('linkedin.com/company/')) {
             updates.linkedin_url = result.linkedin_url.value;
             fieldScores.linkedin_url = result.linkedin_url.confidence;
-            fieldsEnriched++;
+            accountFieldCount++;
           }
 
           // Calculate overall confidence
@@ -322,8 +323,8 @@ serve(async (req) => {
             updates.enrichment_phase = "launch_pulse";
           }
 
-          // Update account
-          if (fieldsEnriched > 0) {
+          // Update account if we enriched any fields
+          if (accountFieldCount > 0) {
             const { error: updateError } = await supabase
               .from("accounts")
               .update(updates)
@@ -334,7 +335,8 @@ serve(async (req) => {
               failed++;
               errors.push(`Update failed for ${result.external_id}: ${updateError.message}`);
             } else {
-              enriched++;
+              accountsEnriched++;              // +1 account enriched
+              fieldsEnriched += accountFieldCount; // +N fields enriched
             }
           }
         } catch (updateError) {
@@ -349,13 +351,15 @@ serve(async (req) => {
     }
 
     const latencyMs = Date.now() - startTime;
-    console.log(`[enrich-free-worker] Completed: ${enriched} enriched, ${failed} failed in ${latencyMs}ms`);
+    console.log(`[enrich-free-worker] Completed: ${accountsEnriched} accounts enriched (${fieldsEnriched} fields), ${failed} failed in ${latencyMs}ms`);
 
     return new Response(
       JSON.stringify({
         processed: accounts.length,
         attempted: accounts.length,
-        enriched,
+        accounts_enriched: accountsEnriched,  // NEW: Accounts with data added
+        fields_enriched: fieldsEnriched,      // NEW: Total fields added
+        enriched: accountsEnriched,           // Keep for backward compat
         failed,
         errors: errors.length > 0 ? errors.slice(0, 5) : undefined,
         latency_ms: latencyMs,

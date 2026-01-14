@@ -77,7 +77,9 @@ serve(async (req) => {
 
     // Aggregate metrics across all iterations
     let totalProcessed = job.processed_records || 0;
-    let totalEnriched = job.enriched_records || 0;
+    let totalAccountsEnriched = job.accounts_enriched || 0;
+    let totalFieldsEnriched = job.fields_enriched || 0;
+    let totalEnriched = job.enriched_records || 0; // Legacy - accounts enriched
     let totalFailed = job.failed_records || 0;
     let lastCursor = job.cursor;
     let iterationsCompleted = 0;
@@ -115,14 +117,22 @@ serve(async (req) => {
             status: "completed",
             completed_at: new Date().toISOString(),
             processed_records: totalProcessed,
-            enriched_records: totalEnriched,
+            accounts_enriched: totalAccountsEnriched,
+            fields_enriched: totalFieldsEnriched,
+            enriched_records: totalAccountsEnriched, // Legacy compat
             failed_records: totalFailed,
           })
           .eq("id", jobId);
 
-        console.log(`[enrich-free-orchestrator] Job ${jobId} completed: ${totalEnriched}/${totalProcessed} enriched`);
+        console.log(`[enrich-free-orchestrator] Job ${jobId} completed: ${totalAccountsEnriched} accounts (${totalFieldsEnriched} fields) / ${totalProcessed} processed`);
         return new Response(
-          JSON.stringify({ status: "completed", processed: totalProcessed, enriched: totalEnriched }),
+          JSON.stringify({ 
+            status: "completed", 
+            processed: totalProcessed, 
+            accounts_enriched: totalAccountsEnriched,
+            fields_enriched: totalFieldsEnriched,
+            enriched: totalAccountsEnriched, // Legacy
+          }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -135,7 +145,8 @@ serve(async (req) => {
 
       // 5) Process chunks with concurrent workers
       let batchProcessed = 0;
-      let batchEnriched = 0;
+      let batchAccountsEnriched = 0;
+      let batchFieldsEnriched = 0;
       let batchFailed = 0;
       const workerErrors: string[] = [];
 
@@ -156,7 +167,8 @@ serve(async (req) => {
         for (const r of results) {
           if (r.status === "fulfilled" && !r.value.error && r.value.data) {
             batchProcessed += r.value.data.processed || 0;
-            batchEnriched += r.value.data.enriched || 0;
+            batchAccountsEnriched += r.value.data.accounts_enriched || r.value.data.enriched || 0;
+            batchFieldsEnriched += r.value.data.fields_enriched || 0;
             batchFailed += r.value.data.failed || 0;
             if (r.value.data.errors) {
               workerErrors.push(...r.value.data.errors);
@@ -172,7 +184,9 @@ serve(async (req) => {
       // 6) Update cursor and progress
       lastCursor = accounts[accounts.length - 1].id;
       totalProcessed += batchProcessed;
-      totalEnriched += batchEnriched;
+      totalAccountsEnriched += batchAccountsEnriched;
+      totalFieldsEnriched += batchFieldsEnriched;
+      totalEnriched = totalAccountsEnriched; // Keep legacy field in sync
       totalFailed += batchFailed;
       iterationsCompleted++;
 
@@ -183,21 +197,25 @@ serve(async (req) => {
       const etrMs = remaining / ratePerMs;
       const estimatedCompletion = new Date(Date.now() + etrMs).toISOString();
 
-      // Update source breakdown
+      // Update source breakdown with correct metrics
       const sourceBreakdown = {
-        ai: {
+        launch_pulse: {
           attempted: totalProcessed,
-          enriched: totalEnriched,
+          accounts_enriched: totalAccountsEnriched,
+          fields_enriched: totalFieldsEnriched,
+          enriched: totalAccountsEnriched, // Legacy compat
           failed: totalFailed,
         },
       };
 
-      // Checkpoint update
+      // Checkpoint update with new metrics
       await supabase.from("enrichment_jobs")
         .update({
           cursor: lastCursor,
           processed_records: totalProcessed,
-          enriched_records: totalEnriched,
+          accounts_enriched: totalAccountsEnriched,
+          fields_enriched: totalFieldsEnriched,
+          enriched_records: totalAccountsEnriched, // Legacy - keep in sync
           failed_records: totalFailed,
           source_breakdown: sourceBreakdown,
           estimated_completion_at: estimatedCompletion,
@@ -206,13 +224,14 @@ serve(async (req) => {
         })
         .eq("id", jobId);
 
-      console.log(`[enrich-free-orchestrator] Iteration ${iterationsCompleted}: processed=${batchProcessed}, enriched=${batchEnriched}, cursor=${lastCursor}`);
+      console.log(`[enrich-free-orchestrator] Iteration ${iterationsCompleted}: accounts_enriched=${batchAccountsEnriched}, fields_enriched=${batchFieldsEnriched}, cursor=${lastCursor}`);
     }
 
-    // 7) Timeout reached - pause for resumption
+    // 7) Timeout reached - pause for resumption OR auto-continue
     const timeUp = nowMs() - start >= MAX_EXECUTION_MS;
+    const hasMoreRecords = totalProcessed < (job.total_records || totalProcessed + 1);
     
-    if (timeUp && totalProcessed < (job.total_records || totalProcessed + 1)) {
+    if (timeUp && hasMoreRecords) {
       await supabase.from("enrichment_jobs")
         .update({
           status: "paused",
@@ -221,6 +240,29 @@ serve(async (req) => {
         .eq("id", jobId);
 
       console.log(`[enrich-free-orchestrator] Job ${jobId} paused at cursor ${lastCursor}, processed ${totalProcessed}`);
+
+      // AUTO-CONTINUATION: Fire-and-forget call to continue the job
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        
+        fetch(`${supabaseUrl}/functions/v1/enrich-free-orchestrator`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${serviceKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ 
+            job_id: jobId, 
+            org_id: jobOrgId, 
+            create_new: false 
+          }),
+        }).catch(err => console.error("[enrich-free-orchestrator] Auto-continue failed:", err));
+        
+        console.log(`[enrich-free-orchestrator] Auto-continuation triggered for job ${jobId}`);
+      } catch (continueErr) {
+        console.error("[enrich-free-orchestrator] Failed to trigger auto-continue:", continueErr);
+      }
     }
 
     return new Response(
@@ -228,10 +270,13 @@ serve(async (req) => {
         status: timeUp ? "paused" : "processing",
         job_id: jobId,
         processed: totalProcessed,
-        enriched: totalEnriched,
+        accounts_enriched: totalAccountsEnriched,
+        fields_enriched: totalFieldsEnriched,
+        enriched: totalAccountsEnriched, // Legacy
         failed: totalFailed,
         cursor: lastCursor,
         iterations: iterationsCompleted,
+        auto_continuing: timeUp && hasMoreRecords,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
