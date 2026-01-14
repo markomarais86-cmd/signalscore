@@ -25,15 +25,23 @@ interface SyncOpportunities {
   pending_conflicts: number;
 }
 
+interface SyncProgress {
+  status: 'idle' | 'starting' | 'processing' | 'completed' | 'error';
+  phase?: string;
+  jobId?: string;
+  message?: string;
+}
+
 export function DataQualityDashboard() {
   const { userProfile } = useAuth();
   const [metrics, setMetrics] = useState<DataQualityMetrics | null>(null);
   const [syncOpportunities, setSyncOpportunities] = useState<SyncOpportunities | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [syncProgress, setSyncProgress] = useState<SyncProgress>({ status: 'idle' });
 
   const isStandardizing = actionInProgress === 'standardize';
-  const isSyncing = actionInProgress === 'sync';
+  const isSyncing = actionInProgress === 'sync' || syncProgress.status === 'processing';
   const isResolvingConflicts = actionInProgress === 'resolve';
   const isEnrichingHQ = actionInProgress === 'hq-enrich';
 
@@ -103,24 +111,91 @@ export function DataQualityDashboard() {
 
   const handleBidirectionalSync = async () => {
     setActionInProgress('sync');
+    setSyncProgress({ status: 'starting', message: 'Starting sync...' });
+    
     try {
-      const { data, error } = await supabase.rpc('bidirectional_firmographic_sync', {
-        p_org_id: userProfile?.org_id
+      // Use the new batched orchestrator instead of direct RPC
+      const { data, error } = await supabase.functions.invoke('bidirectional-sync-orchestrator', {
+        body: { org_id: userProfile?.org_id }
       });
       
       if (error) throw error;
       
-      const result = data as { leads_updated?: number; accounts_updated?: number } | null;
-      toast.success(`Sync complete: Updated ${result?.leads_updated || 0} leads and ${result?.accounts_updated || 0} accounts`);
-      
-      loadMetrics();
-      loadSyncOpportunities();
+      if (data?.status === 'completed') {
+        setSyncProgress({ status: 'completed', message: `Updated ${data.updated} records` });
+        toast.success(`Sync complete: Updated ${data.updated} records`);
+        loadMetrics();
+        loadSyncOpportunities();
+      } else if (data?.status === 'continuing') {
+        setSyncProgress({ 
+          status: 'processing', 
+          jobId: data.job_id,
+          phase: data.phase,
+          message: `Syncing ${data.phase === 'to_accounts' ? 'accounts' : 'leads'}... (${data.updated_so_far} updated so far)`
+        });
+        toast.info('Sync started - processing in background...');
+        
+        // Poll for completion
+        pollSyncJob(data.job_id);
+      } else {
+        toast.success('Sync initiated');
+      }
     } catch (error) {
       console.error('Sync error:', error);
+      setSyncProgress({ status: 'error', message: error instanceof Error ? error.message : 'Sync failed' });
       toast.error(error instanceof Error ? error.message : "Sync failed");
     } finally {
       setActionInProgress(null);
     }
+  };
+
+  const pollSyncJob = async (jobId: string) => {
+    const maxAttempts = 60; // 5 minutes max
+    let attempts = 0;
+    
+    const checkStatus = async () => {
+      // Use type assertion since sync_jobs table was just created
+      const { data: job, error } = await supabase
+        .from('sync_jobs' as any)
+        .select('*')
+        .eq('id', jobId)
+        .single();
+      
+      if (error) {
+        console.error('Poll error:', error);
+        return;
+      }
+      
+      const syncJob = job as unknown as {
+        id: string;
+        status: string;
+        direction: string;
+        updated_records: number;
+        processed_records: number;
+        total_records: number;
+      } | null;
+      
+      if (syncJob?.status === 'completed') {
+        setSyncProgress({ status: 'completed', message: `Updated ${syncJob.updated_records} records` });
+        toast.success(`Sync complete: Updated ${syncJob.updated_records} records`);
+        loadMetrics();
+        loadSyncOpportunities();
+        return;
+      }
+      
+      if (syncJob?.status === 'processing' && attempts < maxAttempts) {
+        attempts++;
+        setSyncProgress({
+          status: 'processing',
+          jobId,
+          phase: syncJob.direction,
+          message: `Syncing ${syncJob.direction === 'to_accounts' ? 'accounts' : 'leads'}... (${syncJob.updated_records || 0} updated)`
+        });
+        setTimeout(checkStatus, 5000); // Check every 5 seconds
+      }
+    };
+    
+    setTimeout(checkStatus, 3000); // Start checking after 3 seconds
   };
 
   const handleDetectConflicts = async () => {
@@ -360,6 +435,18 @@ export function DataQualityDashboard() {
             </div>
           )}
 
+          {syncProgress.status === 'processing' && (
+            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                  {syncProgress.message}
+                </span>
+              </div>
+              <Progress value={50} className="h-1" />
+            </div>
+          )}
+
           <div className="flex gap-2">
             <Button 
               onClick={handleBidirectionalSync}
@@ -369,7 +456,7 @@ export function DataQualityDashboard() {
               {isSyncing ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Syncing...
+                  {syncProgress.phase === 'to_leads' ? 'Syncing leads...' : 'Syncing accounts...'}
                 </>
               ) : (
                 <>

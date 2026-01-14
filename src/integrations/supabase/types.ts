@@ -6682,8 +6682,16 @@ export type Database = {
         Args: { p_account_external_id?: string; p_org_id: string }
         Returns: Json
       }
+      sync_firmographics_to_accounts_batch: {
+        Args: { p_batch_size?: number; p_offset?: number; p_org_id: string }
+        Returns: Json
+      }
       sync_firmographics_to_leads: {
         Args: { p_account_external_id?: string; p_org_id: string }
+        Returns: Json
+      }
+      sync_firmographics_to_leads_batch: {
+        Args: { p_batch_size?: number; p_offset?: number; p_org_id: string }
         Returns: Json
       }
       sync_industry_to_leads: { Args: { p_org_id: string }; Returns: Json }

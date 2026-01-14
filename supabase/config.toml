@@ -329,3 +329,6 @@ verify_jwt = true
 
 [functions.compute-intent-signals]
 verify_jwt = true
+
+[functions.bidirectional-sync-orchestrator]
+verify_jwt = false
