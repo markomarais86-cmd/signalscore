@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 
 interface GradientBackgroundProps {
   children: React.ReactNode;
@@ -14,8 +15,16 @@ export function GradientBackground({
   variant = "hero",
   showOrbs = true 
 }: GradientBackgroundProps) {
-  const { theme, resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark" || theme === "dark";
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // Avoid hydration mismatch by only rendering theme-dependent content after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Default to dark mode styling until mounted to prevent flash
+  const isDark = !mounted || resolvedTheme === "dark";
 
   return (
     <div className={cn(
