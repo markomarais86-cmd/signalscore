@@ -59,83 +59,229 @@ serve(async (req) => {
 
     let result: EnrichedCompany | null = null;
 
-    // Phase 1: Try Apollo
     const APOLLO_API_KEY = Deno.env.get('APOLLO_API_KEY');
-    if (!result && APOLLO_API_KEY && searchDomain) {
-      try {
-        console.log('[enrich-single] Trying Apollo...');
-        const response = await fetch('https://api.apollo.io/v1/organizations/enrich', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ api_key: APOLLO_API_KEY, domain: searchDomain })
-        });
+    const PDL_API_KEY = Deno.env.get('PDL_API_KEY');
 
-        if (response.ok) {
-          const data = await response.json();
-          const org = data.organization;
-          
-          if (org) {
-            result = {
-              name: org.name || searchName,
-              domain: org.primary_domain || searchDomain,
-              employee_count: org.estimated_num_employees,
-              revenue_range: mapRevenueToRange(org.estimated_annual_revenue),
-              industry: org.industry,
-              country: org.country,
-              city: org.city,
-              linkedin_url: org.linkedin_url,
-              phone: org.phone,
-              founded_year: org.founded_year,
-              tech_stack: org.technologies?.slice(0, 15) || null,
-              funding_round: org.latest_funding_stage,
-              total_raised: org.total_funding ? parseInt(org.total_funding) : null,
-              confidence: 95,
-              source: 'apollo'
-            };
-            console.log('[enrich-single] Apollo success');
+    // Phase 1: Try domain-based enrichment (fastest, most accurate)
+    if (!result && searchDomain) {
+      // Run Apollo and PDL domain enrichment in parallel
+      const enrichPromises: Promise<EnrichedCompany | null>[] = [];
+
+      if (APOLLO_API_KEY) {
+        enrichPromises.push(
+          (async () => {
+            try {
+              console.log('[enrich-single] Trying Apollo domain enrich...');
+              const response = await fetch('https://api.apollo.io/v1/organizations/enrich', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: APOLLO_API_KEY, domain: searchDomain })
+              });
+
+              if (response.ok) {
+                const data = await response.json();
+                const org = data.organization;
+                
+                if (org) {
+                  console.log('[enrich-single] Apollo domain enrich success');
+                  return {
+                    name: org.name || searchName,
+                    domain: org.primary_domain || searchDomain,
+                    employee_count: org.estimated_num_employees,
+                    revenue_range: mapRevenueToRange(org.estimated_annual_revenue),
+                    industry: org.industry,
+                    country: org.country,
+                    city: org.city,
+                    linkedin_url: org.linkedin_url,
+                    phone: org.phone,
+                    founded_year: org.founded_year,
+                    tech_stack: org.technologies?.slice(0, 15) || null,
+                    funding_round: org.latest_funding_stage,
+                    total_raised: org.total_funding ? parseInt(org.total_funding) : null,
+                    confidence: 95,
+                    source: 'apollo'
+                  };
+                }
+              }
+            } catch (e) {
+              console.error('[enrich-single] Apollo domain error:', e);
+            }
+            return null;
+          })()
+        );
+      }
+
+      if (PDL_API_KEY) {
+        enrichPromises.push(
+          (async () => {
+            try {
+              console.log('[enrich-single] Trying PDL domain enrich...');
+              const response = await fetch(
+                `https://api.peopledatalabs.com/v5/company/enrich?website=${encodeURIComponent(searchDomain)}`,
+                { headers: { 'X-Api-Key': PDL_API_KEY } }
+              );
+
+              if (response.ok) {
+                const data = await response.json();
+                
+                if (data.name) {
+                  console.log('[enrich-single] PDL domain enrich success');
+                  return {
+                    name: data.name || searchName,
+                    domain: data.website || searchDomain,
+                    employee_count: data.employee_count,
+                    revenue_range: data.inferred_revenue,
+                    industry: data.industry,
+                    country: data.location?.country,
+                    city: data.location?.locality,
+                    linkedin_url: data.linkedin_url,
+                    phone: data.phone,
+                    founded_year: data.founded,
+                    tech_stack: data.tags?.slice(0, 15) || null,
+                    funding_round: data.latest_funding_stage,
+                    total_raised: data.total_funding_raised,
+                    confidence: 85,
+                    source: 'pdl'
+                  };
+                }
+              }
+            } catch (e) {
+              console.error('[enrich-single] PDL domain error:', e);
+            }
+            return null;
+          })()
+        );
+      }
+
+      if (enrichPromises.length > 0) {
+        const results = await Promise.allSettled(enrichPromises);
+        for (const r of results) {
+          if (r.status === 'fulfilled' && r.value) {
+            result = r.value;
+            break;
           }
         }
-      } catch (e) {
-        console.error('[enrich-single] Apollo error:', e);
       }
     }
 
-    // Phase 2: Try PDL
-    const PDL_API_KEY = Deno.env.get('PDL_API_KEY');
-    if (!result && PDL_API_KEY && searchDomain) {
-      try {
-        console.log('[enrich-single] Trying PDL...');
-        const response = await fetch(
-          `https://api.peopledatalabs.com/v5/company/enrich?website=${encodeURIComponent(searchDomain)}`,
-          { headers: { 'X-Api-Key': PDL_API_KEY } }
-        );
+    // Phase 2: Try name-based SEARCH (when no domain provided)
+    if (!result && searchName) {
+      const searchPromises: Promise<EnrichedCompany | null>[] = [];
 
-        if (response.ok) {
-          const data = await response.json();
-          
-          if (data.name) {
-            result = {
-              name: data.name || searchName,
-              domain: data.website || searchDomain,
-              employee_count: data.employee_count,
-              revenue_range: data.inferred_revenue,
-              industry: data.industry,
-              country: data.location?.country,
-              city: data.location?.locality,
-              linkedin_url: data.linkedin_url,
-              phone: data.phone,
-              founded_year: data.founded,
-              tech_stack: data.tags?.slice(0, 15) || null,
-              funding_round: data.latest_funding_stage,
-              total_raised: data.total_funding_raised,
-              confidence: 85,
-              source: 'pdl'
-            };
-            console.log('[enrich-single] PDL success');
+      // Apollo organization search by name
+      if (APOLLO_API_KEY) {
+        searchPromises.push(
+          (async () => {
+            try {
+              console.log('[enrich-single] Trying Apollo name search...');
+              const response = await fetch('https://api.apollo.io/v1/mixed_companies/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  api_key: APOLLO_API_KEY, 
+                  q_organization_name: searchName,
+                  per_page: 3
+                })
+              });
+
+              if (response.ok) {
+                const data = await response.json();
+                const org = data.organizations?.[0];
+                
+                if (org) {
+                  console.log('[enrich-single] Apollo name search success:', org.name);
+                  return {
+                    name: org.name || searchName,
+                    domain: org.primary_domain || org.website_url || null,
+                    employee_count: org.estimated_num_employees,
+                    revenue_range: mapRevenueToRange(org.estimated_annual_revenue),
+                    industry: org.industry,
+                    country: org.country,
+                    city: org.city,
+                    linkedin_url: org.linkedin_url,
+                    phone: org.phone,
+                    founded_year: org.founded_year,
+                    tech_stack: org.technologies?.slice(0, 15) || null,
+                    funding_round: org.latest_funding_stage,
+                    total_raised: org.total_funding ? parseInt(org.total_funding) : null,
+                    confidence: 90,
+                    source: 'apollo'
+                  };
+                }
+              }
+            } catch (e) {
+              console.error('[enrich-single] Apollo name search error:', e);
+            }
+            return null;
+          })()
+        );
+      }
+
+      // PDL company search by name
+      if (PDL_API_KEY) {
+        searchPromises.push(
+          (async () => {
+            try {
+              console.log('[enrich-single] Trying PDL name search...');
+              const response = await fetch('https://api.peopledatalabs.com/v5/company/search', {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'X-Api-Key': PDL_API_KEY 
+                },
+                body: JSON.stringify({
+                  query: {
+                    bool: {
+                      must: [
+                        { term: { name: searchName } }
+                      ]
+                    }
+                  },
+                  size: 1
+                })
+              });
+
+              if (response.ok) {
+                const data = await response.json();
+                const company = data.data?.[0];
+                
+                if (company) {
+                  console.log('[enrich-single] PDL name search success:', company.name);
+                  return {
+                    name: company.name || searchName,
+                    domain: company.website || null,
+                    employee_count: company.employee_count,
+                    revenue_range: company.inferred_revenue,
+                    industry: company.industry,
+                    country: company.location?.country,
+                    city: company.location?.locality,
+                    linkedin_url: company.linkedin_url,
+                    phone: company.phone,
+                    founded_year: company.founded,
+                    tech_stack: company.tags?.slice(0, 15) || null,
+                    funding_round: company.latest_funding_stage,
+                    total_raised: company.total_funding_raised,
+                    confidence: 80,
+                    source: 'pdl'
+                  };
+                }
+              }
+            } catch (e) {
+              console.error('[enrich-single] PDL name search error:', e);
+            }
+            return null;
+          })()
+        );
+      }
+
+      if (searchPromises.length > 0) {
+        const results = await Promise.allSettled(searchPromises);
+        for (const r of results) {
+          if (r.status === 'fulfilled' && r.value) {
+            result = r.value;
+            break;
           }
         }
-      } catch (e) {
-        console.error('[enrich-single] PDL error:', e);
       }
     }
 
