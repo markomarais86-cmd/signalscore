@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download, Info, Linkedin, AlertCircle } from "lucide-react";
+import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download, Info, Linkedin, AlertCircle, HelpCircle } from "lucide-react";
 import { LaunchPulseMark } from "@/components/BrandLogo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
@@ -357,15 +357,29 @@ export default function Leads() {
   return (
     <div className="space-y-6">
       <DemoModeBanner />
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Leads</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Leads</h1>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger>
+                  <HelpCircle className="h-5 w-5 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p><strong>Leads</strong> are individual contacts at your accounts. They're automatically matched to accounts by domain or company name when uploaded.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
           <p className="text-muted-foreground mt-2">All people linked to accounts in your pipeline</p>
         </div>
-        <Button onClick={exportToCSV} variant="outline">
-          <Download className="h-4 w-4 mr-2" />
-          Export to CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={exportToCSV} variant="outline">
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       {/* Info: Leads auto-match on upload */}
