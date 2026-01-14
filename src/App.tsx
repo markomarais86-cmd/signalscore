@@ -290,7 +290,7 @@ function AppContent() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+      <ThemeProvider attribute="class" defaultTheme="dark" storageKey="launchpulse-theme">
         <AuthProvider>
           <OnboardingProvider>
             <CampaignContextProvider>
