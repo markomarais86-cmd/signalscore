@@ -137,7 +137,7 @@ export function EnrichmentHealthCard() {
             </div>
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>
-                {healthData.lastJob.enriched_records || 0} enriched / {healthData.lastJob.processed_records || 0} processed
+                {healthData.lastJob.accounts_enriched || healthData.lastJob.enriched_records || 0} enriched / {healthData.lastJob.processed_records || 0} processed
               </span>
               <span>
                 {new Date(healthData.lastJob.created_at).toLocaleDateString()}
