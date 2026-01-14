@@ -9,13 +9,14 @@ interface SourceMetrics {
   attempted: number;
   enriched: number;
   failed: number;
+  accounts_enriched?: number;
+  fields_enriched?: number;
 }
 
 interface EnrichmentSourceBreakdownProps {
   sourceBreakdown: {
-    apollo: SourceMetrics;
-    pdl: SourceMetrics;
-    ai: SourceMetrics;
+    apollo?: SourceMetrics;
+    pdl?: SourceMetrics;
     launch_pulse?: SourceMetrics;
   };
 }
@@ -40,13 +41,6 @@ const sourceConfig = {
     lightColor: 'bg-purple-100',
     textColor: 'text-purple-700',
   },
-  ai: {
-    label: 'Launch Pulse',
-    icon: LaunchPulseIcon,
-    color: 'bg-primary',
-    lightColor: 'bg-primary/10',
-    textColor: 'text-primary',
-  },
   launch_pulse: {
     label: 'Launch Pulse',
     icon: LaunchPulseIcon,
@@ -58,7 +52,9 @@ const sourceConfig = {
 
 export function EnrichmentSourceBreakdown({ sourceBreakdown }: EnrichmentSourceBreakdownProps) {
   const totalEnriched = useMemo(() => {
-    return sourceBreakdown.apollo.enriched + sourceBreakdown.pdl.enriched + sourceBreakdown.ai.enriched;
+    return (sourceBreakdown.apollo?.enriched || 0) + 
+           (sourceBreakdown.pdl?.enriched || 0) + 
+           (sourceBreakdown.launch_pulse?.enriched || 0);
   }, [sourceBreakdown]);
 
   const calculatePercentage = (value: number) => {
@@ -98,11 +94,13 @@ export function EnrichmentSourceBreakdown({ sourceBreakdown }: EnrichmentSourceB
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {(Object.entries(sourceBreakdown) as [keyof typeof sourceConfig, SourceMetrics][]).map(([key, metrics]) => {
+          {(Object.entries(sourceBreakdown) as [keyof typeof sourceConfig, SourceMetrics | undefined][])
+            .filter(([_, metrics]) => metrics && metrics.enriched > 0)
+            .map(([key, metrics]) => {
               const config = sourceConfig[key];
-              const percentage = calculatePercentage(metrics.enriched);
+              if (!config || !metrics) return null;
               
-              if (metrics.enriched === 0) return null;
+              const percentage = calculatePercentage(metrics.enriched);
               
               return (
                 <div key={key} className="space-y-1">
@@ -136,11 +134,13 @@ export function EnrichmentSourceBreakdown({ sourceBreakdown }: EnrichmentSourceB
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {(Object.entries(sourceBreakdown) as [keyof typeof sourceConfig, SourceMetrics][]).map(([key, metrics]) => {
-                const config = sourceConfig[key];
-                const successRate = calculateSuccessRate(metrics);
-                
-                if (metrics.attempted === 0) return null;
+              {(Object.entries(sourceBreakdown) as [keyof typeof sourceConfig, SourceMetrics | undefined][])
+                .filter(([_, metrics]) => metrics && metrics.attempted > 0)
+                .map(([key, metrics]) => {
+                  const config = sourceConfig[key];
+                  if (!config || !metrics) return null;
+                  
+                  const successRate = calculateSuccessRate(metrics);
                 
                 return (
                   <div 
@@ -171,9 +171,13 @@ export function EnrichmentSourceBreakdown({ sourceBreakdown }: EnrichmentSourceB
                 </div>
                 {getSuccessRateBadge(
                   calculateSuccessRate({
-                    attempted: sourceBreakdown.apollo.attempted + sourceBreakdown.pdl.attempted + sourceBreakdown.ai.attempted,
+                    attempted: (sourceBreakdown.apollo?.attempted || 0) + 
+                               (sourceBreakdown.pdl?.attempted || 0) + 
+                               (sourceBreakdown.launch_pulse?.attempted || 0),
                     enriched: totalEnriched,
-                    failed: sourceBreakdown.apollo.failed + sourceBreakdown.pdl.failed + sourceBreakdown.ai.failed,
+                    failed: (sourceBreakdown.apollo?.failed || 0) + 
+                            (sourceBreakdown.pdl?.failed || 0) + 
+                            (sourceBreakdown.launch_pulse?.failed || 0),
                   })
                 )}
               </div>

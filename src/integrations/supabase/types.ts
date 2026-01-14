@@ -2922,6 +2922,7 @@ export type Database = {
       }
       enrichment_jobs: {
         Row: {
+          accounts_enriched: number | null
           agent_config: Json | null
           batch_size: number | null
           can_pause: boolean | null
@@ -2940,6 +2941,7 @@ export type Database = {
           error_message: string | null
           estimated_completion_at: string | null
           failed_records: number | null
+          fields_enriched: number | null
           filter_criteria: Json | null
           heartbeat_interval_ms: number | null
           icp_criteria: Json | null
@@ -2966,6 +2968,7 @@ export type Database = {
           total_records: number | null
         }
         Insert: {
+          accounts_enriched?: number | null
           agent_config?: Json | null
           batch_size?: number | null
           can_pause?: boolean | null
@@ -2984,6 +2987,7 @@ export type Database = {
           error_message?: string | null
           estimated_completion_at?: string | null
           failed_records?: number | null
+          fields_enriched?: number | null
           filter_criteria?: Json | null
           heartbeat_interval_ms?: number | null
           icp_criteria?: Json | null
@@ -3010,6 +3014,7 @@ export type Database = {
           total_records?: number | null
         }
         Update: {
+          accounts_enriched?: number | null
           agent_config?: Json | null
           batch_size?: number | null
           can_pause?: boolean | null
@@ -3028,6 +3033,7 @@ export type Database = {
           error_message?: string | null
           estimated_completion_at?: string | null
           failed_records?: number | null
+          fields_enriched?: number | null
           filter_criteria?: Json | null
           heartbeat_interval_ms?: number | null
           icp_criteria?: Json | null
