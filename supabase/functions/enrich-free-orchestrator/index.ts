@@ -62,6 +62,8 @@ async function discoverContactsForAccount(
   config: ContactDiscoveryConfig,
   orgId: string
 ): Promise<{ success: boolean; contacts_found: number }> {
+  console.log(`[enrich-free-orchestrator] discoverContactsForAccount called for: ${account.name} (${account.external_id})`);
+  
   try {
     // Get existing leads for this account to avoid duplicates
     const { data: existingLeads } = await supabase
@@ -330,25 +332,44 @@ serve(async (req) => {
       }
 
       // 5.5) Contact Discovery for high-fit accounts (if enabled)
-      if (contactDiscoveryConfig && nowMs() - start < MAX_EXECUTION_MS - 5000) {
+      const timeRemaining = MAX_EXECUTION_MS - (nowMs() - start);
+      console.log(`[enrich-free-orchestrator] Contact discovery check: config=${!!contactDiscoveryConfig}, timeRemaining=${timeRemaining}ms`);
+      
+      if (contactDiscoveryConfig && timeRemaining > 10000) {
         // Get scores for accounts in this batch
         const accountIds = accounts.map((a: any) => a.external_id);
-        const { data: scores } = await supabase
+        
+        console.log(`[enrich-free-orchestrator] Contact discovery: checking ${accountIds.length} accounts for high-fit scores (min: ${contactDiscoveryConfig.min_fit_score})`);
+        
+        const { data: scores, error: scoresError } = await supabase
           .from("scores")
           .select("account_external_id, overall")
           .eq("org_id", jobOrgId)
           .in("account_external_id", accountIds)
           .gte("overall", contactDiscoveryConfig.min_fit_score);
 
+        if (scoresError) {
+          console.error(`[enrich-free-orchestrator] Contact discovery scores query failed:`, scoresError);
+        }
+
+        console.log(`[enrich-free-orchestrator] Contact discovery: found ${scores?.length || 0} high-fit scores`);
+
         const highFitAccounts = accounts.filter((a: any) => 
           scores?.some((s: any) => s.account_external_id === a.external_id)
         );
+
+        console.log(`[enrich-free-orchestrator] Contact discovery: ${highFitAccounts.length} high-fit accounts matched from batch`);
 
         // Process up to 3 high-fit accounts per batch (to avoid timeout)
         const accountsToDiscover = highFitAccounts.slice(0, 3);
         
         for (const account of accountsToDiscover) {
-          if (nowMs() - start > MAX_EXECUTION_MS - 3000) break;
+          if (nowMs() - start > MAX_EXECUTION_MS - 5000) {
+            console.log(`[enrich-free-orchestrator] Contact discovery: stopping due to time constraint`);
+            break;
+          }
+
+          console.log(`[enrich-free-orchestrator] Contact discovery: discovering contacts for ${account.name} (${account.external_id})`);
 
           const result = await discoverContactsForAccount(
             supabase,
@@ -359,11 +380,15 @@ serve(async (req) => {
             jobOrgId
           );
 
+          console.log(`[enrich-free-orchestrator] Contact discovery result for ${account.name}: success=${result.success}, found=${result.contacts_found}`);
+
           if (result.success) {
             accountsWithContactDiscovery++;
             contactsDiscovered += result.contacts_found;
           }
         }
+      } else if (contactDiscoveryConfig) {
+        console.log(`[enrich-free-orchestrator] Contact discovery: skipped - only ${timeRemaining}ms remaining (need 10000ms)`);
       }
 
       // 6) Update cursor and progress
