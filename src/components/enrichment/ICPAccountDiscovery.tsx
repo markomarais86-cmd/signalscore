@@ -219,10 +219,12 @@ export function ICPAccountDiscovery() {
             <Search className="h-5 w-5 text-primary" />
             Discover New Accounts
             <Tooltip>
-              <TooltipTrigger>
-                <HelpCircle className="h-4 w-4 text-muted-foreground" />
+              <TooltipTrigger asChild>
+                <button type="button" className="inline-flex items-center justify-center">
+                  <HelpCircle className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                </button>
               </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
+              <TooltipContent side="right" className="max-w-xs z-50">
                 <p>Search the web for NEW companies that match your Ideal Customer Profile criteria. Uses AI to find and verify real companies.</p>
               </TooltipContent>
             </Tooltip>
