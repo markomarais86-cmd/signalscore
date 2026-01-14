@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Activity, Loader2, CheckCircle2, XCircle, AlertCircle, Pause, Play, Clock, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useRealtimeEnrichment, type EnrichmentJob, type ConnectionStatus } from "@/hooks/use-realtime-enrichment";
+import { useRealtimeEnrichment, type EnrichmentJob } from "@/hooks/use-realtime-enrichment";
 import { pauseEnrichmentJob, resumeEnrichmentJob } from "@/hooks/use-enrichment-progress";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -31,7 +31,6 @@ export function EnrichmentJobMonitor() {
   // Use realtime enrichment hook for live updates
   const { 
     jobs: realtimeJobs, 
-    connectionStatus,
     refetch 
   } = useRealtimeEnrichment({
     orgId: userProfile?.org_id || null,
@@ -291,10 +290,6 @@ export function EnrichmentJobMonitor() {
             <CardTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5" />
               Data Updates
-              {/* Simple live indicator - no disconnected state shown */}
-              {connectionStatus === 'connected' && (
-                <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              )}
             </CardTitle>
             <CardDescription>
               Track your company data updates
