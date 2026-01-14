@@ -24,6 +24,7 @@ import { useRoles } from "@/hooks/use-roles";
 // Enrichment components
 import { UnifiedEnrichmentDashboard } from "@/components/enrichment/UnifiedEnrichmentDashboard";
 import { EnrichmentControlPanel } from "@/components/enrichment/EnrichmentControlPanel";
+import { InstantEnrich } from "@/components/enrichment/InstantEnrich";
 import { ExportAccountsButton } from "@/components/enrichment/ExportAccountsButton";
 import { ExportLeadsButton } from "@/components/enrichment/ExportLeadsButton";
 import { EnrichmentDiscoverySettings } from "@/components/settings/EnrichmentDiscoverySettings";
@@ -117,15 +118,18 @@ export default function Enrichment() {
           <UnifiedEnrichmentDashboard />
         </TabsContent>
 
-        {/* Enrich Tab - Simplified with 2 sections */}
+        {/* Enrich Tab - Simplified with 3 sections */}
         <TabsContent value="enrich" className="space-y-6">
-          {/* Section 1: Enrich Your Data */}
+          {/* Section 1: Instant Company Lookup */}
+          <InstantEnrich />
+
+          {/* Section 2: Bulk Enrich Your Data */}
           <EnrichmentControlPanel />
 
-          {/* Section 2: Contact Discovery */}
+          {/* Section 3: Contact Discovery */}
           <EnrichmentDiscoverySettings />
 
-          {/* Section 3: ICP Account Discovery */}
+          {/* Section 4: ICP Account Discovery */}
           <ICPAccountDiscovery />
         </TabsContent>
 
