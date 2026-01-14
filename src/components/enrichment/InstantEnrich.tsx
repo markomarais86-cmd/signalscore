@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { 
   Search, 
   Building2, 
@@ -23,7 +25,8 @@ import {
   Loader2,
   Sparkles,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Flame
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
@@ -53,6 +56,10 @@ export function InstantEnrich() {
   const [result, setResult] = useState<EnrichedCompany | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [useFirecrawl, setUseFirecrawl] = useState(true); // Default to Firecrawl for accuracy
+
+  // Detect if query looks like a domain
+  const isDomain = query.includes('.') && !query.includes(' ');
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -63,22 +70,46 @@ export function InstantEnrich() {
     setSaved(false);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke("enrich-single-company", {
-        body: { query: query.trim() }
-      });
+      // Use Firecrawl for domains when enabled, otherwise use AI search
+      if (useFirecrawl && isDomain) {
+        const { data, error: fnError } = await supabase.functions.invoke("enrich-with-firecrawl", {
+          body: { 
+            domain: query.trim().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0],
+            companyName: query.trim().split('.')[0]
+          }
+        });
 
-      if (fnError) throw fnError;
+        if (fnError) throw fnError;
 
-      if (data.error) {
-        setError(data.error);
+        if (data.error) {
+          // Fallback to AI search if Firecrawl fails
+          console.log("Firecrawl failed, falling back to AI search:", data.error);
+          return await searchWithAI();
+        } else {
+          setResult(data.company);
+        }
       } else {
-        setResult(data.company);
+        await searchWithAI();
       }
     } catch (err) {
       console.error("Enrichment error:", err);
       setError("Unable to find company information. Please try a different search.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const searchWithAI = async () => {
+    const { data, error: fnError } = await supabase.functions.invoke("enrich-single-company", {
+      body: { query: query.trim() }
+    });
+
+    if (fnError) throw fnError;
+
+    if (data.error) {
+      setError(data.error);
+    } else {
+      setResult(data.company);
     }
   };
 
@@ -189,12 +220,32 @@ LinkedIn: ${result.linkedin_url || "N/A"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Enrichment Mode Toggle */}
+        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+          <div className="flex items-center gap-2">
+            <Flame className="h-4 w-4 text-orange-500" />
+            <Label htmlFor="firecrawl-mode" className="text-sm font-medium">
+              Website Scraping {isDomain && "(Recommended)"}
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              {useFirecrawl ? "More accurate" : "AI search"}
+            </span>
+            <Switch
+              id="firecrawl-mode"
+              checked={useFirecrawl}
+              onCheckedChange={setUseFirecrawl}
+            />
+          </div>
+        </div>
+
         {/* Search Input */}
         <div className="flex gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Enter company name or website (e.g., stripe.com)"
+              placeholder="Enter company domain (e.g., thepipelinegroup.io)"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
