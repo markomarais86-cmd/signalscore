@@ -33,6 +33,7 @@ import Segmentation from "./pages/Segmentation";
 import Trends from "./pages/Trends";
 import NotFound from "./pages/NotFound";
 import AIAgents from "./pages/AIAgents";
+import Enrichment from "./pages/Enrichment";
 import AgentTester from "./pages/AgentTester";
 import AITest from "./pages/AITest";
 import Help from "./pages/Help";
@@ -217,6 +218,16 @@ function AppContent() {
                     <ProtectedRoute>
                       <Layout>
                         <AIAgents />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/enrichment"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Enrichment />
                       </Layout>
                     </ProtectedRoute>
                   }

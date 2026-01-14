@@ -55,37 +55,14 @@ import { AutomationSettings } from "@/components/settings/AutomationSettings";
 import { ZapierWebhookManager } from "@/components/settings/ZapierWebhookManager";
 import { ClayIncomingWebhooks } from "@/components/settings/ClayIncomingWebhooks";
 import { DuplicateAccountMerger } from "@/components/settings/DuplicateAccountMerger";
-import { FirmographicEnrichmentCard } from "@/components/settings/FirmographicEnrichmentCard";
-import { EnrichmentQualityDashboard } from "@/components/settings/EnrichmentQualityDashboard";
-import { EnrichmentTester } from "@/components/settings/EnrichmentTester";
-import { EnrichmentJobMonitor } from "@/components/settings/EnrichmentJobMonitor";
-import { EnrichmentAttributionReport } from "@/components/settings/EnrichmentAttributionReport";
-import { DataQualityDashboard } from "@/components/settings/DataQualityDashboard";
-import { InvitationsManager } from "@/components/settings/InvitationsManager";
-import { EnrichmentAPIKeys } from "@/components/settings/EnrichmentAPIKeys";
 import { EnrichmentProviderSetup } from "@/components/settings/EnrichmentProviderSetup";
-import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
-import { LeadsBackfill } from "@/components/settings/LeadsBackfill";
-import { LeadDiscovery } from "@/components/settings/LeadDiscovery";
-import { EnrichmentDiscoverySettings } from "@/components/settings/EnrichmentDiscoverySettings";
+import { InvitationsManager } from "@/components/settings/InvitationsManager";
 import { IntegrationCredentialManager } from "@/components/settings/IntegrationCredentialManager";
 import { IntegrationHealthDashboard } from "@/components/settings/IntegrationHealthDashboard";
-import { SmartEnrichmentPanel } from "@/components/settings/SmartEnrichmentPanel";
-import { EnrichmentHealthCard } from "@/components/settings/EnrichmentHealthCard";
-import { EnhancedEnrichmentHealth } from "@/components/settings/EnhancedEnrichmentHealth";
-import { EnrichmentHistoryViewer } from "@/components/settings/EnrichmentHistoryViewer";
-import { DeepResearchSettings } from "@/components/settings/DeepResearchSettings";
-import { EnrichmentAnalyticsDashboard } from "@/components/settings/EnrichmentAnalyticsDashboard";
-import { CandidateSelector } from "@/components/enrichment/CandidateSelector";
-import { UnifiedEnrichmentDashboard } from "@/components/enrichment/UnifiedEnrichmentDashboard";
-import { BulkLeadEnrichment } from "@/components/settings/BulkLeadEnrichment";
-import { LeadEnrichmentPanel } from "@/components/settings/LeadEnrichmentPanel";
-import { BulkAccountEnrichment } from "@/components/settings/BulkAccountEnrichment";
 import { CRMSyncHistory } from "@/components/settings/CRMSyncHistory";
 import { ExportHistory } from "@/components/settings/ExportHistory";
 import { CampaignExportHistory } from "@/components/campaigns/CampaignExportHistory";
 import { ScoreRefreshPanel } from "@/components/settings/ScoreRefreshPanel";
-import { LaunchPulseMark } from "@/components/BrandLogo";
 
 import { supabase } from "@/integrations/supabase/client";
 import { AIProviderSettings } from "@/components/settings/AIProviderSettings";
@@ -105,10 +82,7 @@ interface TeamMember {
 export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "account");
-  const [triggerEnrich, setTriggerEnrich] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showEnrichmentModal, setShowEnrichmentModal] = useState(false);
-  const [showCandidateSelector, setShowCandidateSelector] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(() => {
     const saved = localStorage.getItem('showAdvancedSettings');
     return saved === 'true';
@@ -141,26 +115,6 @@ export default function Settings() {
     loadSettings();
   }, [userProfile]);
 
-  // Handle query params for enrichment trigger
-  useEffect(() => {
-    const tab = searchParams.get("tab");
-    const action = searchParams.get("action");
-    
-    if (tab === "integrations" && action === "enrich") {
-      setActiveTab("integrations");
-      setTriggerEnrich(true);
-      // Clear query params
-      setSearchParams({});
-      
-      // Scroll to enrichment card after a short delay
-      setTimeout(() => {
-        const enrichmentCard = document.getElementById("enrichment-card");
-        if (enrichmentCard) {
-          enrichmentCard.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-      }, 300);
-    }
-  }, [searchParams, setSearchParams]);
 
   const loadSettings = async () => {
     if (!userProfile) return;
@@ -301,7 +255,7 @@ export default function Settings() {
           </TabsTrigger>
           <TabsTrigger value="integrations" className="flex items-center gap-2 flex-shrink-0">
             <Database className="h-4 w-4" />
-            <span className="hidden sm:inline">Data & Enrichment</span>
+            <span className="hidden sm:inline">Integrations</span>
           </TabsTrigger>
           {isAdmin && (
             <TabsTrigger value="automation" className="flex items-center gap-2 flex-shrink-0">
@@ -500,7 +454,7 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
-        {/* Data & Enrichment: All data sources, enrichment, integrations, API */}
+        {/* Integrations: CRM, webhooks, external providers, API */}
         <TabsContent value="integrations" className="space-y-6">
           {/* Advanced Settings Toggle - Admin Only */}
           {isAdmin && (
@@ -512,7 +466,7 @@ export default function Settings() {
                       Advanced Settings
                     </Label>
                     <p className="text-sm text-muted-foreground">
-                      Show advanced options for CRM sync, API management, analytics, and external integrations
+                      Show advanced options for CRM sync, API management, and external integrations
                     </p>
                   </div>
                   <Switch
@@ -537,172 +491,10 @@ export default function Settings() {
 
           <Accordion 
             type="multiple" 
-            defaultValue={showAdvanced ? ["quick-actions", "monitoring", "setup"] : ["quick-actions", "monitoring"]} 
+            defaultValue={["external-data"]} 
             className="space-y-4"
           >
-            
-            {/* Quick Actions Section */}
-            <AccordionItem value="quick-actions" className="border rounded-lg px-4">
-              <AccordionTrigger className="hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-5 w-5 text-primary" />
-                  <div className="text-left">
-                    <p className="font-semibold">Quick Actions</p>
-                    <p className="text-sm text-muted-foreground">Start enrichment and discover leads</p>
-                  </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="space-y-4 pt-4">
-                <Tabs defaultValue="smart" className="w-full">
-                  <TabsList className="grid w-full grid-cols-5">
-                    <TabsTrigger value="multi-agent">Multi-Agent AI</TabsTrigger>
-                    <TabsTrigger value="discovery">Contact Discovery</TabsTrigger>
-                    <TabsTrigger value="smart">Smart Enrichment</TabsTrigger>
-                    <TabsTrigger value="accounts">Accounts</TabsTrigger>
-                    <TabsTrigger value="leads">Leads</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="multi-agent" className="mt-4">
-                    <LeadEnrichmentPanel />
-                  </TabsContent>
-                  <TabsContent value="discovery" className="mt-4">
-                    <EnrichmentDiscoverySettings />
-                  </TabsContent>
-                  <TabsContent value="smart" className="mt-4">
-                    <SmartEnrichmentPanel />
-                  </TabsContent>
-                  <TabsContent value="accounts" className="mt-4">
-                    <BulkAccountEnrichment />
-                  </TabsContent>
-                  <TabsContent value="leads" className="mt-4">
-                    <BulkLeadEnrichment />
-                  </TabsContent>
-                </Tabs>
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* Active Jobs & Monitoring */}
-            <AccordionItem value="monitoring" className="border rounded-lg px-4">
-              <AccordionTrigger className="hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-primary" />
-                  <div className="text-left">
-                    <p className="font-semibold">Active Jobs & Monitoring</p>
-                    <p className="text-sm text-muted-foreground">Real-time enrichment job status</p>
-                  </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="pt-4">
-                <div className="space-y-6">
-                  <UnifiedEnrichmentDashboard />
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* Data Quality & Firmographic Sync - Always visible */}
-            <AccordionItem value="data-quality" className="border rounded-lg px-4">
-              <AccordionTrigger className="hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <Target className="h-5 w-5 text-primary" />
-                  <div className="text-left">
-                    <p className="font-semibold">Data Quality & Firmographic Sync</p>
-                    <p className="text-sm text-muted-foreground">Sync data between accounts and leads, enrich HQ addresses</p>
-                  </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="pt-4">
-                <DataQualityDashboard />
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* Advanced sections - Admin only and conditionally rendered */}
-            {isAdmin && showAdvanced && (
-              <>
-                {/* Analytics & Quality */}
-                <AccordionItem value="analytics" className="border rounded-lg px-4">
-              <AccordionTrigger className="hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <Target className="h-5 w-5 text-primary" />
-                  <div className="text-left">
-                    <p className="font-semibold">Analytics & Quality</p>
-                    <p className="text-sm text-muted-foreground">Quality metrics and attribution reports</p>
-                  </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="pt-4">
-                <Tabs defaultValue="quality" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="quality">Quality</TabsTrigger>
-                    <TabsTrigger value="attribution">Attribution</TabsTrigger>
-                    <TabsTrigger value="backfill">Backfill</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="quality" className="mt-4">
-                    <EnrichmentQualityDashboard />
-                  </TabsContent>
-                  <TabsContent value="attribution" className="mt-4">
-                    <EnrichmentAttributionReport />
-                  </TabsContent>
-                  <TabsContent value="backfill" className="mt-4">
-                    <LeadsBackfill />
-                  </TabsContent>
-                </Tabs>
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* Deep Research */}
-            <AccordionItem value="deep-research" className="border rounded-lg px-4">
-              <AccordionTrigger className="hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <LaunchPulseMark className="w-5 h-5" />
-                  <div className="text-left">
-                    <p className="font-semibold">Deep Research & Analytics</p>
-                    <p className="text-sm text-muted-foreground">AI-powered enrichment and cost management</p>
-                  </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="pt-4 space-y-4">
-                <DeepResearchSettings />
-                <Button onClick={() => setShowCandidateSelector(true)} variant="outline" className="w-full">
-                  Review Ambiguous Matches
-                </Button>
-                <EnrichmentAnalyticsDashboard />
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* Advanced Tools */}
-            <AccordionItem value="advanced" className="border rounded-lg px-4">
-              <AccordionTrigger className="hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <Bot className="h-5 w-5 text-primary" />
-                  <div className="text-left">
-                    <p className="font-semibold">Advanced Tools</p>
-                    <p className="text-sm text-muted-foreground">Manual testing and specialized enrichment</p>
-                  </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="pt-4 space-y-4">
-                <EnrichmentTester />
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* Provider Setup */}
-            <AccordionItem value="setup" className="border rounded-lg px-4">
-              <AccordionTrigger className="hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <Key className="h-5 w-5 text-primary" />
-                  <div className="text-left">
-                    <p className="font-semibold">Provider Setup</p>
-                    <p className="text-sm text-muted-foreground">Configure API keys and rate limits</p>
-                  </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="pt-4 space-y-4">
-                <ServiceHealthStatus />
-                <EnrichmentProviderSetup />
-                <RateLimitSettings />
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* External Database Connections */}
+            {/* External Database Connections - Always visible */}
             <AccordionItem value="external-data" className="border rounded-lg px-4">
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-2">
@@ -718,38 +510,53 @@ export default function Settings() {
               </AccordionContent>
             </AccordionItem>
 
-            {/* External Integrations */}
-            <AccordionItem value="integrations" className="border rounded-lg px-4">
-              <AccordionTrigger className="hover:no-underline">
-                <div className="flex items-center gap-2">
-                  <Webhook className="h-5 w-5 text-primary" />
-                  <div className="text-left">
-                    <p className="font-semibold">External Integrations</p>
-                    <p className="text-sm text-muted-foreground">CRM connectors and webhooks</p>
-                  </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="pt-4 space-y-4">
-                <AIProviderSettings />
-                <IntegrationHealthDashboard />
-                <IntegrationCredentialManager />
-                <IntegrationManager />
-                {userProfile?.org_id && <CRMSyncHistory orgId={userProfile.org_id} />}
-                <CampaignExportHistory />
-                <WebhookLogViewer />
-                <ZapierIntegration />
-                <ClayIncomingWebhooks />
-              </AccordionContent>
-            </AccordionItem>
+            {/* Advanced sections - Admin only and conditionally rendered */}
+            {isAdmin && showAdvanced && (
+              <>
+                {/* Provider Setup */}
+                <AccordionItem value="setup" className="border rounded-lg px-4">
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <Key className="h-5 w-5 text-primary" />
+                      <div className="text-left">
+                        <p className="font-semibold">Provider Setup</p>
+                        <p className="text-sm text-muted-foreground">Configure API keys and rate limits</p>
+                      </div>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="pt-4 space-y-4">
+                    <ServiceHealthStatus />
+                    <EnrichmentProviderSetup />
+                    <RateLimitSettings />
+                  </AccordionContent>
+                </AccordionItem>
+
+                {/* External Integrations */}
+                <AccordionItem value="integrations-section" className="border rounded-lg px-4">
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center gap-2">
+                      <Webhook className="h-5 w-5 text-primary" />
+                      <div className="text-left">
+                        <p className="font-semibold">CRM & External Integrations</p>
+                        <p className="text-sm text-muted-foreground">CRM connectors and webhooks</p>
+                      </div>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="pt-4 space-y-4">
+                    <AIProviderSettings />
+                    <IntegrationHealthDashboard />
+                    <IntegrationCredentialManager />
+                    <IntegrationManager />
+                    {userProfile?.org_id && <CRMSyncHistory orgId={userProfile.org_id} />}
+                    <CampaignExportHistory />
+                    <WebhookLogViewer />
+                    <ZapierIntegration />
+                    <ClayIncomingWebhooks />
+                  </AccordionContent>
+                </AccordionItem>
               </>
             )}
-
           </Accordion>
-
-          <CandidateSelector 
-            isOpen={showCandidateSelector} 
-            onClose={() => setShowCandidateSelector(false)} 
-          />
         </TabsContent>
 
         {/* Security */}
@@ -843,10 +650,6 @@ export default function Settings() {
         </TabsContent>
       </Tabs>
 
-      <EnrichmentModal
-        open={showEnrichmentModal}
-        onOpenChange={setShowEnrichmentModal}
-      />
     </div>
   );
 }
