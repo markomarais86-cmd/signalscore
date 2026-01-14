@@ -1,9 +1,9 @@
-// Single Company Enrichment - AI-First with ALL Providers
-// Uses: Perplexity → OpenAI → Abacus → Lovable (all your AI tools)
-// Optional fallback: Apollo/PDL for verified data
+// Single Company Enrichment - Multi-Phase AI Research Engine
+// Uses targeted Perplexity queries with domain filtering for each data type
+// Fallback chain: Perplexity → OpenAI → Abacus → Lovable → Apollo/PDL
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { callAI, getAvailableProviders, type AIProvider } from '../_shared/ai-config.ts';
+import { getAvailableProviders, getApiKey, type AIProvider } from '../_shared/ai-config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,31 +27,392 @@ interface EnrichedCompany {
   confidence: number;
   source: string;
   citations?: string[];
+  field_sources?: Record<string, string>;
 }
 
-const ENRICHMENT_PROMPT = `Research this company and provide detailed firmographic data.
-
-Return ONLY a JSON object with this exact structure:
-{
-  "name": "Company Name",
-  "domain": "company.com",
-  "employee_count": 1000,
-  "revenue_range": "$10M-$25M",
-  "industry": "Software",
-  "country": "United States",
-  "city": "San Francisco",
-  "linkedin_url": "https://linkedin.com/company/...",
-  "phone": "+1-555-1234",
-  "founded_year": 2015,
-  "tech_stack": ["AWS", "React", "Node.js"],
-  "funding_round": "Series B",
-  "total_raised": 25000000,
-  "confidence": 75
+interface ResearchResult {
+  data: Partial<EnrichedCompany>;
+  confidence: number;
+  citations: string[];
+  source: string;
 }
 
-Valid revenue ranges: "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M", "$50M-$100M", "$100M-$500M", "$500M-$1B", "$1B-$10B", "$10B+"
+// ============================================
+// PERPLEXITY DIRECT API CALLS WITH DOMAIN FILTERING
+// ============================================
 
-Set confidence based on how certain you are about the data (0-100). Use null for any field you cannot determine. Only output valid JSON.`;
+async function callPerplexity(
+  messages: Array<{ role: string; content: string }>,
+  options: {
+    model?: string;
+    searchDomainFilter?: string[];
+    searchRecencyFilter?: string;
+    responseFormat?: any;
+    maxTokens?: number;
+  } = {}
+): Promise<{ content: string; citations: string[] } | null> {
+  const apiKey = getApiKey('perplexity');
+  if (!apiKey) return null;
+
+  const body: Record<string, any> = {
+    model: options.model || 'sonar-pro',
+    messages,
+    max_tokens: options.maxTokens || 2000,
+    temperature: 0.1,
+  };
+
+  // Add domain filtering for focused searches
+  if (options.searchDomainFilter?.length) {
+    body.search_domain_filter = options.searchDomainFilter;
+  }
+
+  // Add recency filter
+  if (options.searchRecencyFilter) {
+    body.search_recency_filter = options.searchRecencyFilter;
+  }
+
+  // Add structured output format
+  if (options.responseFormat) {
+    body.response_format = options.responseFormat;
+  }
+
+  try {
+    console.log(`[Perplexity] Calling with domains: ${options.searchDomainFilter?.join(', ') || 'all'}`);
+    
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Perplexity] Error ${response.status}: ${errorText}`);
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    const citations = data.citations || [];
+
+    console.log(`[Perplexity] Got response with ${citations.length} citations`);
+    return { content, citations };
+  } catch (error) {
+    console.error('[Perplexity] Request failed:', error);
+    return null;
+  }
+}
+
+// ============================================
+// PHASE 1: COMPANY DISCOVERY
+// Find basic info: domain, LinkedIn, headquarters
+// ============================================
+
+async function phaseDiscovery(companyName: string, knownDomain?: string): Promise<ResearchResult> {
+  console.log('[Phase 1] Company Discovery...');
+  
+  const prompt = knownDomain
+    ? `Find official information for the company "${companyName}" (website: ${knownDomain}).
+       
+       Return JSON:
+       {
+         "name": "Official company name",
+         "domain": "primary website domain",
+         "linkedin_url": "https://linkedin.com/company/...",
+         "country": "Headquarters country",
+         "city": "Headquarters city",
+         "industry": "Primary industry",
+         "founded_year": 2015
+       }`
+    : `Find the company "${companyName}". 
+       
+       Return JSON:
+       {
+         "name": "Official company name",
+         "domain": "primary website domain",
+         "linkedin_url": "https://linkedin.com/company/...",
+         "country": "Headquarters country", 
+         "city": "Headquarters city",
+         "industry": "Primary industry",
+         "founded_year": 2015
+       }`;
+
+  const result = await callPerplexity(
+    [{ role: 'user', content: prompt }],
+    {
+      searchDomainFilter: ['linkedin.com', 'crunchbase.com', 'google.com'],
+      searchRecencyFilter: 'year',
+    }
+  );
+
+  if (!result) {
+    return { data: {}, confidence: 0, citations: [], source: 'none' };
+  }
+
+  try {
+    const jsonMatch = result.content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        data: {
+          name: parsed.name,
+          domain: parsed.domain,
+          linkedin_url: parsed.linkedin_url,
+          country: parsed.country,
+          city: parsed.city,
+          industry: parsed.industry,
+          founded_year: parsed.founded_year,
+        },
+        confidence: 80,
+        citations: result.citations,
+        source: 'perplexity-discovery',
+      };
+    }
+  } catch (e) {
+    console.error('[Phase 1] Parse error:', e);
+  }
+
+  return { data: {}, confidence: 0, citations: [], source: 'none' };
+}
+
+// ============================================
+// PHASE 2: EMPLOYEE COUNT (LinkedIn/Glassdoor Focus)
+// ============================================
+
+async function phaseEmployeeCount(companyName: string, domain?: string, linkedinUrl?: string): Promise<ResearchResult> {
+  console.log('[Phase 2] Employee Count Research...');
+  
+  const identifiers = [companyName];
+  if (domain) identifiers.push(domain);
+  if (linkedinUrl) identifiers.push(`LinkedIn: ${linkedinUrl}`);
+  
+  const prompt = `How many employees does "${companyName}" have?
+  ${domain ? `Website: ${domain}` : ''}
+  ${linkedinUrl ? `LinkedIn: ${linkedinUrl}` : ''}
+  
+  Search LinkedIn company page and Glassdoor for employee count.
+  
+  Return JSON:
+  {
+    "employee_count": 500,
+    "employee_count_source": "LinkedIn shows 450-500 employees" or "Glassdoor reports 500 employees",
+    "confidence": 85
+  }
+  
+  Be specific about where you found this number.`;
+
+  const result = await callPerplexity(
+    [{ role: 'user', content: prompt }],
+    {
+      searchDomainFilter: ['linkedin.com', 'glassdoor.com', 'indeed.com'],
+      searchRecencyFilter: 'month',
+    }
+  );
+
+  if (!result) {
+    return { data: {}, confidence: 0, citations: [], source: 'none' };
+  }
+
+  try {
+    const jsonMatch = result.content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed.employee_count && typeof parsed.employee_count === 'number') {
+        return {
+          data: { employee_count: parsed.employee_count },
+          confidence: parsed.confidence || 80,
+          citations: result.citations,
+          source: parsed.employee_count_source || 'linkedin-glassdoor',
+        };
+      }
+    }
+  } catch (e) {
+    console.error('[Phase 2] Parse error:', e);
+  }
+
+  return { data: {}, confidence: 0, citations: [], source: 'none' };
+}
+
+// ============================================
+// PHASE 3: REVENUE & FUNDING (Financial Focus)
+// ============================================
+
+async function phaseFinancials(companyName: string, domain?: string): Promise<ResearchResult> {
+  console.log('[Phase 3] Revenue & Funding Research...');
+  
+  const prompt = `What is the revenue and funding information for "${companyName}"?
+  ${domain ? `Website: ${domain}` : ''}
+  
+  Search Crunchbase, PitchBook, and news for:
+  - Annual revenue or revenue estimate
+  - Latest funding round (Seed, Series A, B, C, etc.)
+  - Total funding raised
+  - Key investors
+  
+  Return JSON:
+  {
+    "revenue_range": "$10M-$25M",
+    "funding_round": "Series B",
+    "total_raised": 25000000,
+    "investors": ["Sequoia", "Andreessen"],
+    "revenue_source": "Crunchbase shows estimated revenue of $15M",
+    "funding_source": "PitchBook reports $25M Series B in 2023",
+    "confidence": 75
+  }
+  
+  Valid revenue ranges: "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M", "$50M-$100M", "$100M-$500M", "$500M-$1B", "$1B-$10B", "$10B+"`;
+
+  const result = await callPerplexity(
+    [{ role: 'user', content: prompt }],
+    {
+      searchDomainFilter: ['crunchbase.com', 'pitchbook.com', 'techcrunch.com', 'bloomberg.com', 'forbes.com'],
+      searchRecencyFilter: 'year',
+    }
+  );
+
+  if (!result) {
+    return { data: {}, confidence: 0, citations: [], source: 'none' };
+  }
+
+  try {
+    const jsonMatch = result.content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        data: {
+          revenue_range: parsed.revenue_range,
+          funding_round: parsed.funding_round,
+          total_raised: parsed.total_raised,
+        },
+        confidence: parsed.confidence || 70,
+        citations: result.citations,
+        source: `${parsed.revenue_source || ''} | ${parsed.funding_source || ''}`.trim(),
+      };
+    }
+  } catch (e) {
+    console.error('[Phase 3] Parse error:', e);
+  }
+
+  return { data: {}, confidence: 0, citations: [], source: 'none' };
+}
+
+// ============================================
+// PHASE 4: TECH STACK & CONTACTS
+// ============================================
+
+async function phaseTechAndContacts(companyName: string, domain?: string): Promise<ResearchResult> {
+  console.log('[Phase 4] Tech Stack & Contacts Research...');
+  
+  const prompt = `What technology does "${companyName}" use and what is their contact information?
+  ${domain ? `Website: ${domain}` : ''}
+  
+  Find:
+  - Technology stack (programming languages, frameworks, cloud providers, tools)
+  - Company phone number
+  - Key executives or contacts
+  
+  Return JSON:
+  {
+    "tech_stack": ["AWS", "React", "Python", "Salesforce"],
+    "phone": "+1-555-123-4567",
+    "key_contacts": [
+      {"name": "John Smith", "title": "CEO"},
+      {"name": "Jane Doe", "title": "CTO"}
+    ],
+    "confidence": 70
+  }`;
+
+  const result = await callPerplexity(
+    [{ role: 'user', content: prompt }],
+    {
+      searchDomainFilter: domain ? [domain, 'linkedin.com', 'builtwith.com', 'stackshare.io'] : ['linkedin.com', 'builtwith.com', 'stackshare.io'],
+      searchRecencyFilter: 'year',
+    }
+  );
+
+  if (!result) {
+    return { data: {}, confidence: 0, citations: [], source: 'none' };
+  }
+
+  try {
+    const jsonMatch = result.content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        data: {
+          tech_stack: parsed.tech_stack?.slice(0, 15),
+          phone: parsed.phone,
+        },
+        confidence: parsed.confidence || 65,
+        citations: result.citations,
+        source: 'builtwith-stackshare',
+      };
+    }
+  } catch (e) {
+    console.error('[Phase 4] Parse error:', e);
+  }
+
+  return { data: {}, confidence: 0, citations: [], source: 'none' };
+}
+
+// ============================================
+// MERGE RESULTS WITH CONFIDENCE WEIGHTING
+// ============================================
+
+function mergeResults(results: ResearchResult[]): EnrichedCompany {
+  const merged: Partial<EnrichedCompany> = {};
+  const fieldSources: Record<string, string> = {};
+  const allCitations: string[] = [];
+  let totalConfidence = 0;
+  let confidenceCount = 0;
+
+  for (const result of results) {
+    if (result.confidence > 0) {
+      totalConfidence += result.confidence;
+      confidenceCount++;
+    }
+
+    allCitations.push(...result.citations);
+
+    // Merge each field, preferring higher confidence sources
+    for (const [key, value] of Object.entries(result.data)) {
+      if (value !== null && value !== undefined) {
+        const typedKey = key as keyof EnrichedCompany;
+        if (!(typedKey in merged) || result.confidence > 70) {
+          (merged as any)[typedKey] = value;
+          fieldSources[key] = result.source;
+        }
+      }
+    }
+  }
+
+  return {
+    name: merged.name || '',
+    domain: merged.domain || null,
+    employee_count: merged.employee_count || null,
+    revenue_range: merged.revenue_range || null,
+    industry: merged.industry || null,
+    country: merged.country || null,
+    city: merged.city || null,
+    linkedin_url: merged.linkedin_url || null,
+    phone: merged.phone || null,
+    founded_year: merged.founded_year || null,
+    tech_stack: merged.tech_stack || null,
+    funding_round: merged.funding_round || null,
+    total_raised: merged.total_raised || null,
+    confidence: confidenceCount > 0 ? Math.round(totalConfidence / confidenceCount) : 0,
+    source: 'launchpulse-ai-multi',
+    citations: [...new Set(allCitations)].slice(0, 10),
+    field_sources: fieldSources,
+  };
+}
+
+// ============================================
+// MAIN HANDLER
+// ============================================
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -68,11 +429,10 @@ serve(async (req) => {
       );
     }
 
-    // Extract domain if URL provided, or use as-is
+    // Extract domain if URL provided
     let searchDomain = query.trim().toLowerCase();
     let searchName = query.trim();
     
-    // Check if it looks like a domain
     if (searchDomain.includes('.') && !searchDomain.includes(' ')) {
       searchDomain = searchDomain.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
       searchName = searchDomain.split('.')[0];
@@ -80,235 +440,71 @@ serve(async (req) => {
       searchDomain = '';
     }
 
-    console.log(`[enrich-single] AI-First Search for: name="${searchName}", domain="${searchDomain}"`);
+    console.log(`[enrich-single] Multi-Phase Research for: name="${searchName}", domain="${searchDomain}"`);
     
     const providers = getAvailableProviders();
     console.log(`[enrich-single] Available AI providers: ${providers.join(', ')}`);
 
-    let result: EnrichedCompany | null = null;
-
-    // ============================================
-    // PHASE 1: AI-FIRST ENRICHMENT (YOUR TOOLS)
-    // Uses ALL configured AI providers in order:
-    // Perplexity (real-time web) → OpenAI → Abacus → Lovable
-    // ============================================
+    // Check if Perplexity is available
+    const hasPerplexity = providers.includes('perplexity');
     
-    if (providers.length > 0) {
-      try {
-        console.log('[enrich-single] Phase 1: AI-First Enrichment...');
-        
-        const searchQuery = searchDomain 
-          ? `Research the company "${searchName}" with domain ${searchDomain}`
-          : `Research the company "${searchName}"`;
-        
-        const systemPrompt = `You are an expert B2B company research analyst. Your job is to find accurate, verified firmographic data.
-
-CRITICAL: You MUST search these specific sources for company data:
-1. **Crunchbase** - For funding rounds, total raised, investors, founding date
-2. **LinkedIn Company Pages** - For employee count, headquarters, industry, company URL
-3. **Glassdoor** - For employee count verification, company reviews
-4. **Pitchbook** - For funding and valuation data
-5. **ZoomInfo/Apollo** - For revenue estimates, tech stack
-6. **Company website** - For official info, contact details
-7. **News articles** - For recent funding announcements, acquisitions
-
-For each data point, cite where you found it. If you cannot verify data from a reliable source, mark confidence lower.
-Always output valid JSON matching the requested schema.`;
-
-        const aiResponse = await callAI('enrichment', [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `${searchQuery}\n\n${ENRICHMENT_PROMPT}` }
-        ], { 
-          maxTokens: 2000, 
-          temperature: 0.1,  // Lower temp for more factual responses
-          search_recency_filter: 'month' // For Perplexity: get recent data
-        });
-
-        if (aiResponse.ok) {
-          const aiData = await aiResponse.json();
-          const content = aiData.choices?.[0]?.message?.content || '';
-          const citations = aiData.citations || []; // Perplexity provides citations
-          
-          // Extract JSON from response
-          const jsonMatch = content.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            
-            // Determine which provider actually responded
-            // We know because callAI logs which provider succeeded
-            const usedProvider = providers[0]; // First available in priority order
-            
-            result = {
-              name: parsed.name || searchName,
-              domain: parsed.domain || searchDomain || null,
-              employee_count: parsed.employee_count,
-              revenue_range: parsed.revenue_range,
-              industry: parsed.industry,
-              country: parsed.country,
-              city: parsed.city,
-              linkedin_url: parsed.linkedin_url,
-              phone: parsed.phone,
-              founded_year: parsed.founded_year,
-              tech_stack: parsed.tech_stack,
-              funding_round: parsed.funding_round,
-              total_raised: parsed.total_raised,
-              confidence: Math.min(parsed.confidence || 70, 90),
-              source: `launchpulse-ai`,
-              citations: citations.length > 0 ? citations : undefined,
-            };
-            console.log(`[enrich-single] AI enrichment success: ${result.name} (confidence: ${result.confidence})`);
-          }
-        }
-      } catch (e) {
-        console.error('[enrich-single] AI enrichment error:', e);
-      }
+    if (!hasPerplexity) {
+      console.log('[enrich-single] Perplexity not available, falling back to basic enrichment');
+      // Fall back to Apollo/PDL if no Perplexity
+      return await fallbackEnrichment(searchName, searchDomain);
     }
 
     // ============================================
-    // PHASE 2: OPTIONAL - Third-Party Verification
-    // Only used if AI couldn't find data or for verification
-    // Apollo/PDL are SECONDARY, not primary sources
+    // MULTI-PHASE AI RESEARCH
     // ============================================
     
-    const APOLLO_API_KEY = Deno.env.get('APOLLO_API_KEY');
-    const PDL_API_KEY = Deno.env.get('PDL_API_KEY');
-    const useThirdPartyFallback = !result && (APOLLO_API_KEY || PDL_API_KEY);
+    console.log('[enrich-single] Starting multi-phase AI research...');
     
-    if (useThirdPartyFallback) {
-      console.log('[enrich-single] Phase 2: Third-party fallback (AI had no results)...');
-      
-      const enrichPromises: Promise<EnrichedCompany | null>[] = [];
-
-      // Try Apollo
-      if (APOLLO_API_KEY) {
-        enrichPromises.push(
-          (async () => {
-            try {
-              // Use search if no domain, enrich if domain exists
-              const endpoint = searchDomain 
-                ? 'https://api.apollo.io/v1/organizations/enrich'
-                : 'https://api.apollo.io/v1/mixed_companies/search';
-              
-              const body = searchDomain
-                ? { api_key: APOLLO_API_KEY, domain: searchDomain }
-                : { api_key: APOLLO_API_KEY, q_organization_name: searchName, per_page: 1 };
-
-              const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-              });
-
-              if (response.ok) {
-                const data = await response.json();
-                const org = searchDomain ? data.organization : data.organizations?.[0];
-                
-                if (org) {
-                  return {
-                    name: org.name || searchName,
-                    domain: org.primary_domain || searchDomain || null,
-                    employee_count: org.estimated_num_employees,
-                    revenue_range: mapRevenueToRange(org.estimated_annual_revenue),
-                    industry: org.industry,
-                    country: org.country,
-                    city: org.city,
-                    linkedin_url: org.linkedin_url,
-                    phone: org.phone,
-                    founded_year: org.founded_year,
-                    tech_stack: org.technologies?.slice(0, 15) || null,
-                    funding_round: org.latest_funding_stage,
-                    total_raised: org.total_funding ? parseInt(org.total_funding) : null,
-                    confidence: 90,
-                    source: 'apollo'
-                  };
-                }
-              }
-            } catch (e) {
-              console.error('[enrich-single] Apollo error:', e);
-            }
-            return null;
-          })()
-        );
-      }
-
-      // Try PDL
-      if (PDL_API_KEY) {
-        enrichPromises.push(
-          (async () => {
-            try {
-              let response;
-              
-              if (searchDomain) {
-                response = await fetch(
-                  `https://api.peopledatalabs.com/v5/company/enrich?website=${encodeURIComponent(searchDomain)}`,
-                  { headers: { 'X-Api-Key': PDL_API_KEY } }
-                );
-              } else {
-                response = await fetch('https://api.peopledatalabs.com/v5/company/search', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', 'X-Api-Key': PDL_API_KEY },
-                  body: JSON.stringify({
-                    query: { bool: { must: [{ term: { name: searchName } }] } },
-                    size: 1
-                  })
-                });
-              }
-
-              if (response.ok) {
-                const data = await response.json();
-                const company = searchDomain ? data : data.data?.[0];
-                
-                if (company?.name) {
-                  return {
-                    name: company.name || searchName,
-                    domain: company.website || searchDomain || null,
-                    employee_count: company.employee_count,
-                    revenue_range: company.inferred_revenue,
-                    industry: company.industry,
-                    country: company.location?.country,
-                    city: company.location?.locality,
-                    linkedin_url: company.linkedin_url,
-                    phone: company.phone,
-                    founded_year: company.founded,
-                    tech_stack: company.tags?.slice(0, 15) || null,
-                    funding_round: company.latest_funding_stage,
-                    total_raised: company.total_funding_raised,
-                    confidence: 85,
-                    source: 'pdl'
-                  };
-                }
-              }
-            } catch (e) {
-              console.error('[enrich-single] PDL error:', e);
-            }
-            return null;
-          })()
-        );
-      }
-
-      if (enrichPromises.length > 0) {
-        const results = await Promise.allSettled(enrichPromises);
-        for (const r of results) {
-          if (r.status === 'fulfilled' && r.value) {
-            result = r.value;
-            break;
-          }
-        }
+    // Phase 1: Discovery (get domain, LinkedIn, basics)
+    const discoveryResult = await phaseDiscovery(searchName, searchDomain || undefined);
+    
+    // Use discovered domain for subsequent phases
+    const confirmedDomain = discoveryResult.data.domain || searchDomain || undefined;
+    const confirmedLinkedIn = discoveryResult.data.linkedin_url;
+    const confirmedName = discoveryResult.data.name || searchName;
+    
+    console.log(`[enrich-single] Discovered: domain=${confirmedDomain}, linkedin=${confirmedLinkedIn}`);
+    
+    // Run remaining phases in parallel for speed
+    const [employeeResult, financialResult, techResult] = await Promise.all([
+      phaseEmployeeCount(confirmedName, confirmedDomain, confirmedLinkedIn || undefined),
+      phaseFinancials(confirmedName, confirmedDomain),
+      phaseTechAndContacts(confirmedName, confirmedDomain),
+    ]);
+    
+    // Merge all results
+    const merged = mergeResults([discoveryResult, employeeResult, financialResult, techResult]);
+    merged.name = confirmedName;
+    
+    console.log(`[enrich-single] Final result: ${merged.name}, employees=${merged.employee_count}, revenue=${merged.revenue_range}, confidence=${merged.confidence}%`);
+    console.log(`[enrich-single] Field sources:`, merged.field_sources);
+    
+    // If confidence is very low, try Apollo/PDL fallback
+    if (merged.confidence < 40) {
+      console.log('[enrich-single] Low confidence, trying third-party fallback...');
+      const fallbackResult = await fallbackEnrichment(confirmedName, confirmedDomain || '');
+      if (fallbackResult.status === 200) {
+        return fallbackResult;
       }
     }
 
-    if (!result) {
+    if (!merged.name || merged.confidence === 0) {
       return new Response(
         JSON.stringify({ 
-          error: 'Could not find information for this company. Try using the company domain or a more specific name.',
-          providers_tried: providers.length > 0 ? providers : ['none - no AI providers configured']
+          error: 'Could not find information for this company. Try using the company domain.',
+          providers_tried: providers
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     return new Response(
-      JSON.stringify({ company: result }),
+      JSON.stringify({ company: merged }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
@@ -320,6 +516,145 @@ Always output valid JSON matching the requested schema.`;
     );
   }
 });
+
+// ============================================
+// FALLBACK: Apollo/PDL for verified data
+// ============================================
+
+async function fallbackEnrichment(searchName: string, searchDomain: string): Promise<Response> {
+  const APOLLO_API_KEY = Deno.env.get('APOLLO_API_KEY');
+  const PDL_API_KEY = Deno.env.get('PDL_API_KEY');
+
+  if (!APOLLO_API_KEY && !PDL_API_KEY) {
+    return new Response(
+      JSON.stringify({ error: 'No fallback providers configured' }),
+      { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const enrichPromises: Promise<EnrichedCompany | null>[] = [];
+
+  // Try Apollo
+  if (APOLLO_API_KEY) {
+    enrichPromises.push(
+      (async () => {
+        try {
+          const endpoint = searchDomain 
+            ? 'https://api.apollo.io/v1/organizations/enrich'
+            : 'https://api.apollo.io/v1/mixed_companies/search';
+          
+          const body = searchDomain
+            ? { api_key: APOLLO_API_KEY, domain: searchDomain }
+            : { api_key: APOLLO_API_KEY, q_organization_name: searchName, per_page: 1 };
+
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const org = searchDomain ? data.organization : data.organizations?.[0];
+            
+            if (org) {
+              return {
+                name: org.name || searchName,
+                domain: org.primary_domain || searchDomain || null,
+                employee_count: org.estimated_num_employees,
+                revenue_range: mapRevenueToRange(org.estimated_annual_revenue),
+                industry: org.industry,
+                country: org.country,
+                city: org.city,
+                linkedin_url: org.linkedin_url,
+                phone: org.phone,
+                founded_year: org.founded_year,
+                tech_stack: org.technologies?.slice(0, 15) || null,
+                funding_round: org.latest_funding_stage,
+                total_raised: org.total_funding ? parseInt(org.total_funding) : null,
+                confidence: 90,
+                source: 'apollo'
+              };
+            }
+          }
+        } catch (e) {
+          console.error('[fallback] Apollo error:', e);
+        }
+        return null;
+      })()
+    );
+  }
+
+  // Try PDL
+  if (PDL_API_KEY) {
+    enrichPromises.push(
+      (async () => {
+        try {
+          let response;
+          
+          if (searchDomain) {
+            response = await fetch(
+              `https://api.peopledatalabs.com/v5/company/enrich?website=${encodeURIComponent(searchDomain)}`,
+              { headers: { 'X-Api-Key': PDL_API_KEY } }
+            );
+          } else {
+            response = await fetch('https://api.peopledatalabs.com/v5/company/search', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Api-Key': PDL_API_KEY },
+              body: JSON.stringify({
+                query: { bool: { must: [{ term: { name: searchName } }] } },
+                size: 1
+              })
+            });
+          }
+
+          if (response.ok) {
+            const data = await response.json();
+            const company = searchDomain ? data : data.data?.[0];
+            
+            if (company?.name) {
+              return {
+                name: company.name || searchName,
+                domain: company.website || searchDomain || null,
+                employee_count: company.employee_count,
+                revenue_range: company.inferred_revenue,
+                industry: company.industry,
+                country: company.location?.country,
+                city: company.location?.locality,
+                linkedin_url: company.linkedin_url,
+                phone: company.phone,
+                founded_year: company.founded,
+                tech_stack: company.tags?.slice(0, 15) || null,
+                funding_round: company.latest_funding_stage,
+                total_raised: company.total_funding_raised,
+                confidence: 85,
+                source: 'pdl'
+              };
+            }
+          }
+        } catch (e) {
+          console.error('[fallback] PDL error:', e);
+        }
+        return null;
+      })()
+    );
+  }
+
+  const results = await Promise.allSettled(enrichPromises);
+  for (const r of results) {
+    if (r.status === 'fulfilled' && r.value) {
+      return new Response(
+        JSON.stringify({ company: r.value }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  }
+
+  return new Response(
+    JSON.stringify({ error: 'No data found from fallback providers' }),
+    { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
 
 function mapRevenueToRange(revenue: number | null | undefined): string | null {
   if (!revenue) return null;
