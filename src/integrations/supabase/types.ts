@@ -194,6 +194,7 @@ export type Database = {
           last_verified_at: string | null
           legal_name: string | null
           linkedin_url: string | null
+          manually_verified: Json | null
           mobile: string | null
           naics: string | null
           name: string | null
@@ -246,6 +247,7 @@ export type Database = {
           last_verified_at?: string | null
           legal_name?: string | null
           linkedin_url?: string | null
+          manually_verified?: Json | null
           mobile?: string | null
           naics?: string | null
           name?: string | null
@@ -298,6 +300,7 @@ export type Database = {
           last_verified_at?: string | null
           legal_name?: string | null
           linkedin_url?: string | null
+          manually_verified?: Json | null
           mobile?: string | null
           naics?: string | null
           name?: string | null
