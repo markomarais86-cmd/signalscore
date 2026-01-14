@@ -18,10 +18,11 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 
-// Reordered navigation: Dashboard → Accounts → ICP Manager → AI Agents → Enrichment → Settings → Help
+// Reordered navigation: Dashboard → Accounts → Leads → ICP Manager → AI Agents → Enrichment → Settings → Help
 const mainNavigation = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Accounts", url: "/accounts", icon: Database },
+  { title: "Leads", url: "/leads", icon: Users },
   { title: "ICP Manager", url: "/icp-manager", icon: Target },
   { title: "AI Agents", url: "/ai-agents", icon: Bot },
   { title: "Enrichment", url: "/enrichment", icon: Sparkles },
