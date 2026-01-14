@@ -3,13 +3,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { Activity, Loader2, CheckCircle2, XCircle, AlertCircle, Pause, Play, Clock, RotateCcw, Wifi, WifiOff } from "lucide-react";
+import { Activity, Loader2, CheckCircle2, XCircle, AlertCircle, Pause, Play, Clock, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useRealtimeEnrichment, type EnrichmentJob, type ConnectionStatus } from "@/hooks/use-realtime-enrichment";
 import { pauseEnrichmentJob, resumeEnrichmentJob } from "@/hooks/use-enrichment-progress";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
+import { friendlyErrorMessage } from "@/lib/friendly-errors";
 
 interface OrgCredits {
   total: number;
@@ -272,20 +273,10 @@ export function EnrichmentJobMonitor() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
-            Active Jobs
-            {/* Connection status indicator */}
-            <span className="flex items-center gap-1 ml-2">
-              {connectionStatus === 'connected' ? (
-                <Wifi className="h-3 w-3 text-[hsl(var(--signal-high))]" />
-              ) : connectionStatus === 'connecting' ? (
-                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-              ) : (
-                <WifiOff className="h-3 w-3 text-muted-foreground" />
-              )}
-            </span>
+            Data Updates
           </CardTitle>
           <CardDescription>
-            No enrichment jobs currently running
+            No updates currently in progress
           </CardDescription>
         </CardHeader>
       </Card>
@@ -299,49 +290,15 @@ export function EnrichmentJobMonitor() {
           <div>
             <CardTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5" />
-              Active Enrichment Jobs
-              {/* Connection status indicator */}
-              <span className="flex items-center gap-1 ml-2">
-                {connectionStatus === 'connected' ? (
-                  <Wifi className="h-3 w-3 text-[hsl(var(--signal-high))]" />
-                ) : connectionStatus === 'connecting' ? (
-                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
-                ) : (
-                  <WifiOff className="h-3 w-3 text-muted-foreground" />
-                )}
-                <span className="text-xs text-muted-foreground">
-                  {connectionStatus === 'connected' ? 'Live' : connectionStatus === 'connecting' ? 'Connecting...' : 'Offline'}
-                </span>
-              </span>
+              Data Updates
+              {/* Simple live indicator - no disconnected state shown */}
+              {connectionStatus === 'connected' && (
+                <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              )}
             </CardTitle>
             <CardDescription>
-              Real-time monitoring of enrichment progress
+              Track your company data updates
             </CardDescription>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={cleanupStuckJobs}
-              disabled={cleaningUp}
-            >
-              {cleaningUp ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Clock className="h-4 w-4 mr-2" />
-              )}
-              Clean Stuck Jobs
-            </Button>
-            {orgCredits && (
-              <div className="text-right">
-                <div className="text-sm font-medium">
-                  {orgCredits.remaining.toLocaleString()} credits
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {Math.round((orgCredits.remaining / orgCredits.total) * 100)}% remaining
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </CardHeader>

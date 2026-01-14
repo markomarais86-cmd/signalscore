@@ -24,20 +24,23 @@ interface EnrichmentJobCardProps {
   onRefresh: () => Promise<void>;
 }
 
+// Customer-friendly provider labels
 const providerLabels: Record<string, string> = {
-  apollo: 'Apollo',
-  pdl: 'PDL',
-  ai_free: 'AI Free',
-  smart_enrich: 'Smart Enrich',
-  clearbit: 'Clearbit',
+  apollo: 'Premium',
+  pdl: 'Premium',
+  ai_free: 'AI Research',
+  smart_enrich: 'AI Research',
+  clearbit: 'Premium',
+  launch_pulse: 'AI Research',
 };
 
 const providerColors: Record<string, string> = {
-  apollo: 'bg-blue-500/10 text-blue-700 border-blue-200',
-  pdl: 'bg-purple-500/10 text-purple-700 border-purple-200',
+  apollo: 'bg-primary/10 text-primary border-primary/20',
+  pdl: 'bg-primary/10 text-primary border-primary/20',
   ai_free: 'bg-green-500/10 text-green-700 border-green-200',
-  smart_enrich: 'bg-orange-500/10 text-orange-700 border-orange-200',
-  clearbit: 'bg-teal-500/10 text-teal-700 border-teal-200',
+  smart_enrich: 'bg-green-500/10 text-green-700 border-green-200',
+  clearbit: 'bg-primary/10 text-primary border-primary/20',
+  launch_pulse: 'bg-green-500/10 text-green-700 border-green-200',
 };
 
 export function EnrichmentJobCard({ job, onRefresh }: EnrichmentJobCardProps) {
@@ -166,20 +169,21 @@ export function EnrichmentJobCard({ job, onRefresh }: EnrichmentJobCardProps) {
     }
   };
 
+  // Customer-friendly status labels
   const statusBadge = () => {
     switch (job.status) {
       case 'processing':
         return (
           <Badge className="bg-blue-500/10 text-blue-700 border-blue-200 flex items-center gap-1">
             <Loader2 className="h-3 w-3 animate-spin" />
-            Processing
+            Working...
           </Badge>
         );
       case 'pending':
         return (
           <Badge variant="secondary" className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
-            Pending
+            Queued
           </Badge>
         );
       case 'paused':
@@ -193,14 +197,14 @@ export function EnrichmentJobCard({ job, onRefresh }: EnrichmentJobCardProps) {
         return (
           <Badge className="bg-green-500/10 text-green-700 border-green-200 flex items-center gap-1">
             <CheckCircle2 className="h-3 w-3" />
-            Completed
+            Done
           </Badge>
         );
       case 'failed':
         return (
-          <Badge variant="destructive" className="flex items-center gap-1">
+          <Badge variant="secondary" className="flex items-center gap-1 text-muted-foreground">
             <XCircle className="h-3 w-3" />
-            Failed
+            Could not complete
           </Badge>
         );
       default:
@@ -261,64 +265,41 @@ export function EnrichmentJobCard({ job, onRefresh }: EnrichmentJobCardProps) {
             </div>
           </div>
 
-          {/* Progress Bar */}
+          {/* Progress Bar - Simplified */}
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
-                {job.processed_records.toLocaleString()} / {job.total_records.toLocaleString()} records
+                {job.processed_records.toLocaleString()} of {job.total_records.toLocaleString()} companies
               </span>
               <span className="font-medium">{progress}%</span>
             </div>
             <Progress value={progress} className="h-2" />
           </div>
 
-          {/* Stats Row */}
+          {/* Stats Row - Simplified for customers */}
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-4">
               <span className="flex items-center gap-1 text-green-600">
                 <CheckCircle2 className="h-4 w-4" />
-                {job.enriched_records.toLocaleString()} enriched
+                {job.enriched_records.toLocaleString()} updated
               </span>
-              <span className="flex items-center gap-1 text-destructive">
-                <XCircle className="h-4 w-4" />
-                {job.failed_records.toLocaleString()} failed
-              </span>
+              {job.failed_records > 0 && (
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <XCircle className="h-4 w-4" />
+                  {job.failed_records.toLocaleString()} not found
+                </span>
+              )}
             </div>
             
             <div className="flex items-center gap-4 text-muted-foreground">
               {(job.status === 'processing' || job.status === 'pending') && (
-                <>
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-4 w-4" />
-                    ETR: {etr}
-                  </span>
-                  {processingRate && (
-                    <span className="flex items-center gap-1">
-                      <Zap className="h-4 w-4" />
-                      {processingRate}/min
-                    </span>
-                  )}
-                </>
+                <span className="flex items-center gap-1">
+                  <Clock className="h-4 w-4" />
+                  {etr}
+                </span>
               )}
-              <span className="flex items-center gap-1">
-                {successRate >= 80 ? (
-                  <TrendingUp className="h-4 w-4 text-green-600" />
-                ) : successRate >= 60 ? (
-                  <TrendingUp className="h-4 w-4 text-yellow-600" />
-                ) : (
-                  <TrendingDown className="h-4 w-4 text-destructive" />
-                )}
-                {successRate}% success
-              </span>
             </div>
           </div>
-
-          {/* Error Message */}
-          {job.error_message && (
-            <div className="p-3 rounded bg-destructive/10 text-destructive text-sm">
-              {job.error_message}
-            </div>
-          )}
         </div>
       </CardContent>
     </Card>

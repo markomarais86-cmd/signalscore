@@ -4,12 +4,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Wifi, WifiOff, RefreshCw, Activity, Loader2 } from 'lucide-react';
+import { RefreshCw, Activity, Loader2 } from 'lucide-react';
 import { useRealtimeEnrichment, EnrichmentJob, ConnectionStatus } from '@/hooks/use-realtime-enrichment';
 import { EnrichmentJobCard } from './EnrichmentJobCard';
 import { EnrichmentSourceBreakdown } from './EnrichmentSourceBreakdown';
 import { EnrichmentHistory } from './EnrichmentHistory';
 import { toast } from 'sonner';
+import { friendlyErrorMessage } from '@/lib/friendly-errors';
 
 interface HistoricalJob {
   id: string;
@@ -54,11 +55,11 @@ export function UnifiedEnrichmentDashboard() {
     orgId: userProfile?.org_id || null,
     enabled: !!userProfile?.org_id,
     onComplete: (job) => {
-      toast.success(`Enrichment completed: ${job.enriched_records} records enriched`);
+      toast.success(`Update complete! ${job.enriched_records} companies updated`);
       loadHistoricalData();
     },
     onError: (job) => {
-      toast.error(`Enrichment failed: ${job.error_message || 'Unknown error'}`);
+      toast.error(friendlyErrorMessage(job.error_message));
     },
   });
 
@@ -172,34 +173,26 @@ export function UnifiedEnrichmentDashboard() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="h-5 w-5" />
-                Unified Enrichment Dashboard
+                Data Intelligence
               </CardTitle>
               <CardDescription>
-                Real-time monitoring of all enrichment jobs with source breakdown
+                Track your company data updates and enrichment progress
               </CardDescription>
             </div>
             <div className="flex items-center gap-3">
-              <Badge 
-                variant={connectionStatus === 'connected' ? 'default' : connectionStatus === 'connecting' ? 'secondary' : 'destructive'} 
-                className="flex items-center gap-1"
-              >
-                {connectionStatus === 'connected' ? (
-                  <>
-                    <Wifi className="h-3 w-3" />
-                    Live
-                  </>
-                ) : connectionStatus === 'connecting' ? (
-                  <>
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    Connecting...
-                  </>
-                ) : (
-                  <>
-                    <WifiOff className="h-3 w-3" />
-                    Disconnected
-                  </>
-                )}
-              </Badge>
+              {/* Only show status when actively syncing - hide disconnected state */}
+              {connectionStatus === 'connected' && (
+                <Badge variant="secondary" className="flex items-center gap-1 text-xs">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                  Live
+                </Badge>
+              )}
+              {connectionStatus === 'connecting' && (
+                <Badge variant="secondary" className="flex items-center gap-1 text-xs">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Syncing
+                </Badge>
+              )}
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -214,17 +207,17 @@ export function UnifiedEnrichmentDashboard() {
         </CardHeader>
 
         <CardContent className="space-y-6">
-          {/* Overall Stats - Updated to show correct metrics */}
+          {/* Overall Stats - Customer-friendly labels */}
           {aggregateStats && (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="p-4 rounded-lg bg-muted/50 border">
-                <p className="text-sm text-muted-foreground">Accounts Enriched</p>
+                <p className="text-sm text-muted-foreground">Companies Updated</p>
                 <p className="text-2xl font-bold text-primary">
                   {aggregateStats.totalAccountsEnriched.toLocaleString()}
                 </p>
               </div>
               <div className="p-4 rounded-lg bg-muted/50 border">
-                <p className="text-sm text-muted-foreground">Data Points Added</p>
+                <p className="text-sm text-muted-foreground">Data Points Found</p>
                 <p className="text-2xl font-bold text-blue-600">
                   {aggregateStats.totalFieldsEnriched.toLocaleString()}
                 </p>
@@ -236,16 +229,10 @@ export function UnifiedEnrichmentDashboard() {
                 </p>
               </div>
               <div className="p-4 rounded-lg bg-muted/50 border">
-                <p className="text-sm text-muted-foreground">Failed Records</p>
-                <p className="text-2xl font-bold text-destructive">
-                  {aggregateStats.totalFailed.toLocaleString()}
-                </p>
-              </div>
-              <div className="p-4 rounded-lg bg-muted/50 border">
                 <p className="text-sm text-muted-foreground">Success Rate</p>
                 <p className={`text-2xl font-bold ${
                   aggregateStats.avgSuccessRate >= 80 ? 'text-green-600' : 
-                  aggregateStats.avgSuccessRate >= 60 ? 'text-yellow-600' : 'text-destructive'
+                  aggregateStats.avgSuccessRate >= 60 ? 'text-yellow-600' : 'text-muted-foreground'
                 }`}>
                   {aggregateStats.avgSuccessRate}%
                 </p>
@@ -253,10 +240,10 @@ export function UnifiedEnrichmentDashboard() {
             </div>
           )}
 
-          {/* Active Jobs */}
+          {/* Active Jobs - Customer-friendly messaging */}
           <div className="space-y-3">
             <h3 className="text-lg font-semibold flex items-center gap-2">
-              Active Jobs
+              In Progress
               {allActiveJobs.length > 0 && (
                 <Badge variant="secondary">{allActiveJobs.length}</Badge>
               )}
@@ -264,9 +251,9 @@ export function UnifiedEnrichmentDashboard() {
             
             {allActiveJobs.length === 0 ? (
               <div className="p-8 text-center border rounded-lg bg-muted/30">
-                <p className="text-muted-foreground">No active enrichment jobs</p>
+                <p className="text-muted-foreground">No updates in progress</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Start an enrichment from the Smart Enrichment panel
+                  Start updating your data from the Enrich tab
                 </p>
               </div>
             ) : (
