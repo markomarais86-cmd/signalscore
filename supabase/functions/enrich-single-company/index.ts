@@ -98,7 +98,10 @@ async function callPerplexity(
     const content = data.choices?.[0]?.message?.content || '';
     const citations = data.citations || [];
 
-    console.log(`[Perplexity] Got response with ${citations.length} citations`);
+    // DEBUG: Log raw response for troubleshooting
+    console.log(`[Perplexity] Got ${citations.length} citations`);
+    console.log(`[Perplexity] Raw response (first 800 chars): ${content.substring(0, 800)}`);
+    
     return { content, citations };
   } catch (error) {
     console.error('[Perplexity] Request failed:', error);
@@ -107,44 +110,124 @@ async function callPerplexity(
 }
 
 // ============================================
+// HELPER: Extract JSON from AI response
+// ============================================
+
+function extractJsonFromResponse(content: string): any | null {
+  if (!content) return null;
+  
+  try {
+    // Try 1: Direct JSON parse
+    if (content.trim().startsWith('{')) {
+      return JSON.parse(content.trim());
+    }
+    
+    // Try 2: JSON in markdown code block
+    const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (codeBlockMatch) {
+      return JSON.parse(codeBlockMatch[1].trim());
+    }
+    
+    // Try 3: Find JSON object anywhere in text
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+  } catch (e) {
+    console.log('[JSON Parse] Failed to parse, will try text extraction');
+  }
+  
+  return null;
+}
+
+// ============================================
+// HELPER: Extract data from plain text (fallback)
+// ============================================
+
+function extractFromText(content: string): Partial<EnrichedCompany> {
+  const result: Partial<EnrichedCompany> = {};
+  
+  // Employee count patterns
+  const empPatterns = [
+    /(\d{1,3}(?:,\d{3})*)\s*(?:employees|staff|team members|people)/i,
+    /(?:has|with|employs?)\s*(\d{1,3}(?:,\d{3})*)\s*(?:employees|people)/i,
+    /(\d{1,3}(?:,\d{3})*)\+?\s*(?:on linkedin|linkedin employees)/i,
+  ];
+  for (const pattern of empPatterns) {
+    const match = content.match(pattern);
+    if (match) {
+      result.employee_count = parseInt(match[1].replace(/,/g, ''));
+      console.log(`[Text Extract] Found employee count: ${result.employee_count}`);
+      break;
+    }
+  }
+  
+  // Revenue patterns
+  const revPatterns = [
+    /\$(\d+(?:\.\d+)?)\s*(million|billion|M|B)\s*(?:revenue|ARR|annual)/i,
+    /revenue\s*(?:of|is|:)?\s*\$?(\d+(?:\.\d+)?)\s*(million|billion|M|B)/i,
+    /estimated\s*revenue[:\s]+\$?(\d+(?:\.\d+)?)\s*(million|billion|M|B)/i,
+  ];
+  for (const pattern of revPatterns) {
+    const match = content.match(pattern);
+    if (match) {
+      const num = parseFloat(match[1]);
+      const unit = match[2].toLowerCase();
+      const multiplier = unit.startsWith('b') ? 1000000000 : 1000000;
+      result.revenue_range = mapRevenueToRange(num * multiplier);
+      console.log(`[Text Extract] Found revenue: ${result.revenue_range}`);
+      break;
+    }
+  }
+  
+  // Funding patterns
+  const fundMatch = content.match(/(?:raised|funding|round)[:\s]*(seed|pre-seed|series\s*[a-f])/i);
+  if (fundMatch) {
+    result.funding_round = fundMatch[1].replace(/\s+/g, ' ').trim();
+    console.log(`[Text Extract] Found funding: ${result.funding_round}`);
+  }
+  
+  // Domain pattern
+  const domainMatch = content.match(/(?:website|domain)[:\s]*(?:https?:\/\/)?(?:www\.)?([a-z0-9-]+\.[a-z]{2,})/i);
+  if (domainMatch) {
+    result.domain = domainMatch[1];
+  }
+  
+  // LinkedIn pattern
+  const linkedinMatch = content.match(/(https?:\/\/(?:www\.)?linkedin\.com\/company\/[a-z0-9-]+)/i);
+  if (linkedinMatch) {
+    result.linkedin_url = linkedinMatch[1];
+  }
+  
+  return result;
+}
+
+// ============================================
 // PHASE 1: COMPANY DISCOVERY
 // Find basic info: domain, LinkedIn, headquarters
 // ============================================
 
 async function phaseDiscovery(companyName: string, knownDomain?: string): Promise<ResearchResult> {
-  console.log('[Phase 1] Company Discovery...');
+  console.log('[Phase 1] Company Discovery (open web search)...');
   
+  // Use OPEN search - no domain filter to find ANY company
   const prompt = knownDomain
-    ? `Find official information for the company "${companyName}" (website: ${knownDomain}).
-       
-       Return JSON:
-       {
-         "name": "Official company name",
-         "domain": "primary website domain",
-         "linkedin_url": "https://linkedin.com/company/...",
-         "country": "Headquarters country",
-         "city": "Headquarters city",
-         "industry": "Primary industry",
-         "founded_year": 2015
-       }`
-    : `Find the company "${companyName}". 
-       
-       Return JSON:
-       {
-         "name": "Official company name",
-         "domain": "primary website domain",
-         "linkedin_url": "https://linkedin.com/company/...",
-         "country": "Headquarters country", 
-         "city": "Headquarters city",
-         "industry": "Primary industry",
-         "founded_year": 2015
-       }`;
+    ? `Find the company "${companyName}" (website: ${knownDomain}).
 
+Return ONLY valid JSON, no markdown or explanation:
+{"name":"Official Company Name","domain":"company.com","linkedin_url":"https://linkedin.com/company/...","country":"USA","city":"San Francisco","industry":"Technology","founded_year":2015}`
+    : `Find the company "${companyName}".
+
+Return ONLY valid JSON, no markdown or explanation:
+{"name":"Official Company Name","domain":"company.com","linkedin_url":"https://linkedin.com/company/...","country":"USA","city":"San Francisco","industry":"Technology","founded_year":2015}`;
+
+  // NO domain filter - let Perplexity search the entire web
   const result = await callPerplexity(
     [{ role: 'user', content: prompt }],
     {
-      searchDomainFilter: ['linkedin.com', 'crunchbase.com', 'google.com'],
+      model: 'sonar-pro',
       searchRecencyFilter: 'year',
+      // REMOVED: searchDomainFilter - this was too restrictive
     }
   );
 
@@ -152,27 +235,28 @@ async function phaseDiscovery(companyName: string, knownDomain?: string): Promis
     return { data: {}, confidence: 0, citations: [], source: 'none' };
   }
 
-  try {
-    const jsonMatch = result.content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        data: {
-          name: parsed.name,
-          domain: parsed.domain,
-          linkedin_url: parsed.linkedin_url,
-          country: parsed.country,
-          city: parsed.city,
-          industry: parsed.industry,
-          founded_year: parsed.founded_year,
-        },
-        confidence: 80,
-        citations: result.citations,
-        source: 'perplexity-discovery',
-      };
-    }
-  } catch (e) {
-    console.error('[Phase 1] Parse error:', e);
+  const parsed = extractJsonFromResponse(result.content);
+  if (parsed) {
+    return {
+      data: {
+        name: parsed.name,
+        domain: parsed.domain,
+        linkedin_url: parsed.linkedin_url,
+        country: parsed.country,
+        city: parsed.city,
+        industry: parsed.industry,
+        founded_year: parsed.founded_year,
+      },
+      confidence: 80,
+      citations: result.citations,
+      source: 'perplexity-discovery',
+    };
+  }
+
+  // Fallback: extract from text
+  const textData = extractFromText(result.content);
+  if (Object.keys(textData).length > 0) {
+    return { data: textData, confidence: 50, citations: result.citations, source: 'perplexity-text' };
   }
 
   return { data: {}, confidence: 0, citations: [], source: 'none' };
@@ -182,32 +266,22 @@ async function phaseDiscovery(companyName: string, knownDomain?: string): Promis
 // PHASE 2: EMPLOYEE COUNT (LinkedIn/Glassdoor Focus)
 // ============================================
 
-async function phaseEmployeeCount(companyName: string, domain?: string, linkedinUrl?: string): Promise<ResearchResult> {
+async function phaseEmployeeCount(companyName: string, domain?: string): Promise<ResearchResult> {
   console.log('[Phase 2] Employee Count Research...');
   
-  const identifiers = [companyName];
-  if (domain) identifiers.push(domain);
-  if (linkedinUrl) identifiers.push(`LinkedIn: ${linkedinUrl}`);
-  
-  const prompt = `How many employees does "${companyName}" have?
-  ${domain ? `Website: ${domain}` : ''}
-  ${linkedinUrl ? `LinkedIn: ${linkedinUrl}` : ''}
-  
-  Search LinkedIn company page and Glassdoor for employee count.
-  
-  Return JSON:
-  {
-    "employee_count": 500,
-    "employee_count_source": "LinkedIn shows 450-500 employees" or "Glassdoor reports 500 employees",
-    "confidence": 85
-  }
-  
-  Be specific about where you found this number.`;
+  const prompt = `How many employees does "${companyName}" have?${domain ? ` Website: ${domain}` : ''}
 
+Search LinkedIn company page for employee count.
+
+Return ONLY valid JSON, no markdown:
+{"employee_count":150,"source":"LinkedIn shows 150 employees","confidence":85}`;
+
+  // Keep LinkedIn/Glassdoor focus for employee data
   const result = await callPerplexity(
     [{ role: 'user', content: prompt }],
     {
-      searchDomainFilter: ['linkedin.com', 'glassdoor.com', 'indeed.com'],
+      model: 'sonar-pro',
+      searchDomainFilter: ['linkedin.com', 'glassdoor.com'],
       searchRecencyFilter: 'month',
     }
   );
@@ -216,21 +290,20 @@ async function phaseEmployeeCount(companyName: string, domain?: string, linkedin
     return { data: {}, confidence: 0, citations: [], source: 'none' };
   }
 
-  try {
-    const jsonMatch = result.content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (parsed.employee_count && typeof parsed.employee_count === 'number') {
-        return {
-          data: { employee_count: parsed.employee_count },
-          confidence: parsed.confidence || 80,
-          citations: result.citations,
-          source: parsed.employee_count_source || 'linkedin-glassdoor',
-        };
-      }
-    }
-  } catch (e) {
-    console.error('[Phase 2] Parse error:', e);
+  const parsed = extractJsonFromResponse(result.content);
+  if (parsed?.employee_count && typeof parsed.employee_count === 'number') {
+    return {
+      data: { employee_count: parsed.employee_count },
+      confidence: parsed.confidence || 80,
+      citations: result.citations,
+      source: parsed.source || 'linkedin-glassdoor',
+    };
+  }
+
+  // Fallback: extract from text
+  const textData = extractFromText(result.content);
+  if (textData.employee_count) {
+    return { data: textData, confidence: 60, citations: result.citations, source: 'perplexity-text' };
   }
 
   return { data: {}, confidence: 0, citations: [], source: 'none' };
@@ -241,35 +314,28 @@ async function phaseEmployeeCount(companyName: string, domain?: string, linkedin
 // ============================================
 
 async function phaseFinancials(companyName: string, domain?: string): Promise<ResearchResult> {
-  console.log('[Phase 3] Revenue & Funding Research...');
+  console.log('[Phase 3] Revenue & Funding Research (open search)...');
   
-  const prompt = `What is the revenue and funding information for "${companyName}"?
-  ${domain ? `Website: ${domain}` : ''}
-  
-  Search Crunchbase, PitchBook, and news for:
-  - Annual revenue or revenue estimate
-  - Latest funding round (Seed, Series A, B, C, etc.)
-  - Total funding raised
-  - Key investors
-  
-  Return JSON:
-  {
-    "revenue_range": "$10M-$25M",
-    "funding_round": "Series B",
-    "total_raised": 25000000,
-    "investors": ["Sequoia", "Andreessen"],
-    "revenue_source": "Crunchbase shows estimated revenue of $15M",
-    "funding_source": "PitchBook reports $25M Series B in 2023",
-    "confidence": 75
-  }
-  
-  Valid revenue ranges: "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M", "$50M-$100M", "$100M-$500M", "$500M-$1B", "$1B-$10B", "$10B+"`;
+  // Use OPEN search for financials - Crunchbase filter was too restrictive
+  const prompt = `What is the revenue and funding for "${companyName}"?${domain ? ` Website: ${domain}` : ''}
 
+Search for:
+- Annual revenue or revenue estimate
+- Latest funding round (Seed, Series A, B, C, etc.)
+- Total funding raised
+
+Return ONLY valid JSON, no markdown:
+{"revenue_range":"$10M-$25M","funding_round":"Series B","total_raised":25000000,"confidence":75}
+
+Valid revenue_range values: "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M", "$50M-$100M", "$100M-$500M", "$500M-$1B", "$1B-$10B", "$10B+"`;
+
+  // NO domain filter - let it search everywhere for financials
   const result = await callPerplexity(
     [{ role: 'user', content: prompt }],
     {
-      searchDomainFilter: ['crunchbase.com', 'pitchbook.com', 'techcrunch.com', 'bloomberg.com', 'forbes.com'],
+      model: 'sonar-pro',
       searchRecencyFilter: 'year',
+      // REMOVED: searchDomainFilter - was blocking results
     }
   );
 
@@ -277,23 +343,24 @@ async function phaseFinancials(companyName: string, domain?: string): Promise<Re
     return { data: {}, confidence: 0, citations: [], source: 'none' };
   }
 
-  try {
-    const jsonMatch = result.content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        data: {
-          revenue_range: parsed.revenue_range,
-          funding_round: parsed.funding_round,
-          total_raised: parsed.total_raised,
-        },
-        confidence: parsed.confidence || 70,
-        citations: result.citations,
-        source: `${parsed.revenue_source || ''} | ${parsed.funding_source || ''}`.trim(),
-      };
-    }
-  } catch (e) {
-    console.error('[Phase 3] Parse error:', e);
+  const parsed = extractJsonFromResponse(result.content);
+  if (parsed) {
+    return {
+      data: {
+        revenue_range: parsed.revenue_range,
+        funding_round: parsed.funding_round,
+        total_raised: parsed.total_raised,
+      },
+      confidence: parsed.confidence || 70,
+      citations: result.citations,
+      source: 'perplexity-financials',
+    };
+  }
+
+  // Fallback: extract from text
+  const textData = extractFromText(result.content);
+  if (textData.revenue_range || textData.funding_round) {
+    return { data: textData, confidence: 55, citations: result.citations, source: 'perplexity-text' };
   }
 
   return { data: {}, confidence: 0, citations: [], source: 'none' };
@@ -304,31 +371,18 @@ async function phaseFinancials(companyName: string, domain?: string): Promise<Re
 // ============================================
 
 async function phaseTechAndContacts(companyName: string, domain?: string): Promise<ResearchResult> {
-  console.log('[Phase 4] Tech Stack & Contacts Research...');
+  console.log('[Phase 4] Tech Stack & Contacts...');
   
-  const prompt = `What technology does "${companyName}" use and what is their contact information?
-  ${domain ? `Website: ${domain}` : ''}
-  
-  Find:
-  - Technology stack (programming languages, frameworks, cloud providers, tools)
-  - Company phone number
-  - Key executives or contacts
-  
-  Return JSON:
-  {
-    "tech_stack": ["AWS", "React", "Python", "Salesforce"],
-    "phone": "+1-555-123-4567",
-    "key_contacts": [
-      {"name": "John Smith", "title": "CEO"},
-      {"name": "Jane Doe", "title": "CTO"}
-    ],
-    "confidence": 70
-  }`;
+  const prompt = `What technology does "${companyName}" use?${domain ? ` Website: ${domain}` : ''}
+
+Return ONLY valid JSON, no markdown:
+{"tech_stack":["AWS","React","Python"],"phone":"+1-555-123-4567","confidence":70}`;
 
   const result = await callPerplexity(
     [{ role: 'user', content: prompt }],
     {
-      searchDomainFilter: domain ? [domain, 'linkedin.com', 'builtwith.com', 'stackshare.io'] : ['linkedin.com', 'builtwith.com', 'stackshare.io'],
+      model: 'sonar-pro',
+      searchDomainFilter: domain ? [domain, 'builtwith.com'] : ['builtwith.com', 'stackshare.io'],
       searchRecencyFilter: 'year',
     }
   );
@@ -337,22 +391,17 @@ async function phaseTechAndContacts(companyName: string, domain?: string): Promi
     return { data: {}, confidence: 0, citations: [], source: 'none' };
   }
 
-  try {
-    const jsonMatch = result.content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        data: {
-          tech_stack: parsed.tech_stack?.slice(0, 15),
-          phone: parsed.phone,
-        },
-        confidence: parsed.confidence || 65,
-        citations: result.citations,
-        source: 'builtwith-stackshare',
-      };
-    }
-  } catch (e) {
-    console.error('[Phase 4] Parse error:', e);
+  const parsed = extractJsonFromResponse(result.content);
+  if (parsed) {
+    return {
+      data: {
+        tech_stack: parsed.tech_stack?.slice(0, 15),
+        phone: parsed.phone,
+      },
+      confidence: parsed.confidence || 65,
+      citations: result.citations,
+      source: 'builtwith-stackshare',
+    };
   }
 
   return { data: {}, confidence: 0, citations: [], source: 'none' };
@@ -455,34 +504,30 @@ serve(async (req) => {
     }
 
     // ============================================
-    // MULTI-PHASE AI RESEARCH
+    // MULTI-PHASE AI RESEARCH - ALL IN PARALLEL FOR SPEED
     // ============================================
     
-    console.log('[enrich-single] Starting multi-phase AI research...');
+    console.log('[enrich-single] Starting multi-phase AI research (ALL PARALLEL)...');
+    const startTime = Date.now();
     
-    // Phase 1: Discovery (get domain, LinkedIn, basics)
-    const discoveryResult = await phaseDiscovery(searchName, searchDomain || undefined);
-    
-    // Use discovered domain for subsequent phases
-    const confirmedDomain = discoveryResult.data.domain || searchDomain || undefined;
-    const confirmedLinkedIn = discoveryResult.data.linkedin_url;
-    const confirmedName = discoveryResult.data.name || searchName;
-    
-    console.log(`[enrich-single] Discovered: domain=${confirmedDomain}, linkedin=${confirmedLinkedIn}`);
-    
-    // Run remaining phases in parallel for speed
-    const [employeeResult, financialResult, techResult] = await Promise.all([
-      phaseEmployeeCount(confirmedName, confirmedDomain, confirmedLinkedIn || undefined),
-      phaseFinancials(confirmedName, confirmedDomain),
-      phaseTechAndContacts(confirmedName, confirmedDomain),
+    // Run ALL 4 phases in parallel - don't wait for discovery
+    // Each phase uses the original company name/domain
+    const [discoveryResult, employeeResult, financialResult, techResult] = await Promise.all([
+      phaseDiscovery(searchName, searchDomain || undefined),
+      phaseEmployeeCount(searchName, searchDomain || undefined),
+      phaseFinancials(searchName, searchDomain || undefined),
+      phaseTechAndContacts(searchName, searchDomain || undefined),
     ]);
+    
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[enrich-single] All 4 phases completed in ${duration}s`);
     
     // Merge all results
     const merged = mergeResults([discoveryResult, employeeResult, financialResult, techResult]);
-    merged.name = confirmedName;
+    merged.name = discoveryResult.data.name || searchName;
     
-    console.log(`[enrich-single] Final result: ${merged.name}, employees=${merged.employee_count}, revenue=${merged.revenue_range}, confidence=${merged.confidence}%`);
-    console.log(`[enrich-single] Field sources:`, merged.field_sources);
+    console.log(`[enrich-single] Final: ${merged.name}, employees=${merged.employee_count}, revenue=${merged.revenue_range}, confidence=${merged.confidence}%`);
+    console.log(`[enrich-single] Sources:`, merged.field_sources);
     
     // If confidence is very low, try Apollo/PDL fallback
     if (merged.confidence < 40) {
