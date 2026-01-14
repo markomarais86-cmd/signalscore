@@ -66,10 +66,10 @@ export function UnifiedEnrichmentDashboard() {
     if (!userProfile?.org_id) return;
 
     try {
-      // Fetch recent completed/failed jobs with new metrics columns
+      // Fetch recent completed/failed jobs with metrics columns (accounts_enriched preferred, enriched_records fallback)
       const { data: jobs, error } = await supabase
         .from('enrichment_jobs')
-        .select('id, provider, status, enriched_records, accounts_enriched, fields_enriched, failed_records, total_records, processed_records, completed_at, started_at, source_breakdown')
+        .select('id, provider, status, accounts_enriched, fields_enriched, enriched_records, failed_records, total_records, processed_records, completed_at, started_at, source_breakdown')
         .eq('org_id', userProfile.org_id)
         .in('status', ['completed', 'completed_with_errors', 'failed'])
         .order('completed_at', { ascending: false })

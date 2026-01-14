@@ -264,13 +264,14 @@ export function SmartEnrichmentPanel() {
       const pollInterval = setInterval(async () => {
         const { data: jobStatus } = await supabase
           .from('enrichment_jobs')
-          .select('status, enriched_records, processed_records')
+          .select('status, accounts_enriched, enriched_records, processed_records')
           .eq('id', job.id)
           .single();
 
         if (jobStatus?.status === 'completed' || jobStatus?.status === 'completed_with_errors') {
           clearInterval(pollInterval);
-          toast.success(`AI enriched ${jobStatus.enriched_records} accounts!`, {
+          const enrichedCount = jobStatus.accounts_enriched || jobStatus.enriched_records || 0;
+          toast.success(`AI enriched ${enrichedCount} accounts!`, {
             description: "No API credits used"
           });
           loadDataQuality();

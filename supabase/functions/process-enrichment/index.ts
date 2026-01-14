@@ -296,14 +296,15 @@ serve(async (req) => {
       }
     }
 
-    // Update job completion
+    // Update job completion with both new and legacy columns for compatibility
     await supabase
       .from('enrichment_jobs')
       .update({
         status: 'completed',
         completed_at: new Date().toISOString(),
         processed_records: account_ids.length,
-        enriched_records: enriched,
+        accounts_enriched: enriched,
+        enriched_records: enriched, // Legacy column for backward compatibility
         failed_records: failed,
       })
       .eq('id', job_id);
