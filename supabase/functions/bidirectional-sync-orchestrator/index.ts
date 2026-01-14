@@ -9,9 +9,9 @@ const corsHeaders = {
 const SUPABASE_URL = "https://dhyfbaptcprxxixgnpby.supabase.co";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const BATCH_SIZE_ACCOUNTS = 500;
-const BATCH_SIZE_LEADS = 1000;
-const MAX_EXECUTION_MS = 45000; // 45 seconds to leave buffer
+const BATCH_SIZE_ACCOUNTS = 100; // Reduced for large datasets
+const BATCH_SIZE_LEADS = 200; // Reduced for large datasets
+const MAX_EXECUTION_MS = 25000; // 25 seconds to leave more buffer
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
