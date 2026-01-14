@@ -17,7 +17,6 @@ import {
   Globe, 
   Linkedin,
   Phone,
-  Mail,
   Copy,
   Save,
   Download,
@@ -26,7 +25,11 @@ import {
   Sparkles,
   CheckCircle2,
   AlertCircle,
-  Flame
+  Flame,
+  Pencil,
+  Lock,
+  X,
+  Check
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
@@ -49,6 +52,12 @@ interface EnrichedCompany {
   source: string;
 }
 
+type EditableField = "employee_count" | "revenue_range" | "industry" | "city" | "country";
+
+interface ManuallyVerified {
+  [key: string]: boolean;
+}
+
 export function InstantEnrich() {
   const { userProfile } = useAuth();
   const [query, setQuery] = useState("");
@@ -56,9 +65,13 @@ export function InstantEnrich() {
   const [result, setResult] = useState<EnrichedCompany | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
-  const [useFirecrawl, setUseFirecrawl] = useState(true); // Default to Firecrawl for accuracy
+  const [useFirecrawl, setUseFirecrawl] = useState(true);
+  
+  // Editing state
+  const [editingField, setEditingField] = useState<EditableField | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [manuallyVerified, setManuallyVerified] = useState<ManuallyVerified>({});
 
-  // Detect if query looks like a domain
   const isDomain = query.includes('.') && !query.includes(' ');
 
   const handleSearch = async () => {
@@ -68,9 +81,9 @@ export function InstantEnrich() {
     setError(null);
     setResult(null);
     setSaved(false);
+    setManuallyVerified({});
 
     try {
-      // Use Firecrawl for domains when enabled, otherwise use AI search
       if (useFirecrawl && isDomain) {
         const { data, error: fnError } = await supabase.functions.invoke("enrich-with-firecrawl", {
           body: { 
@@ -82,7 +95,6 @@ export function InstantEnrich() {
         if (fnError) throw fnError;
 
         if (data.error) {
-          // Fallback to AI search if Firecrawl fails
           console.log("Firecrawl failed, falling back to AI search:", data.error);
           return await searchWithAI();
         } else {
@@ -113,11 +125,38 @@ export function InstantEnrich() {
     }
   };
 
+  const startEditing = (field: EditableField, currentValue: string | number | null) => {
+    setEditingField(field);
+    setEditValue(currentValue?.toString() || "");
+  };
+
+  const cancelEditing = () => {
+    setEditingField(null);
+    setEditValue("");
+  };
+
+  const saveEdit = () => {
+    if (!result || !editingField) return;
+
+    const updatedResult = { ...result };
+    
+    if (editingField === "employee_count") {
+      updatedResult.employee_count = editValue ? parseInt(editValue, 10) : null;
+    } else {
+      (updatedResult as any)[editingField] = editValue || null;
+    }
+
+    setResult(updatedResult);
+    setManuallyVerified(prev => ({ ...prev, [editingField]: true }));
+    setEditingField(null);
+    setEditValue("");
+    toast.success(`${editingField.replace("_", " ")} updated and locked`);
+  };
+
   const handleSave = async () => {
     if (!result || !userProfile?.org_id) return;
 
     try {
-      // Generate a unique external_id
       const externalId = `instant_${result.domain?.replace(/[^a-z0-9]/gi, "_") || Date.now()}`;
 
       const { error: insertError } = await supabase
@@ -141,6 +180,7 @@ export function InstantEnrich() {
           enriched_at: new Date().toISOString(),
           enriched_from: "instant_enrich",
           enrichment_confidence: result.confidence / 100,
+          manually_verified: Object.keys(manuallyVerified).length > 0 ? manuallyVerified : null,
         }, {
           onConflict: "external_id,org_id"
         });
@@ -206,6 +246,68 @@ LinkedIn: ${result.linkedin_url || "N/A"}
       return <Badge className="bg-yellow-500/10 text-yellow-600 border-yellow-500/20">Medium Confidence</Badge>;
     }
     return <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/20">Low Confidence</Badge>;
+  };
+
+  const renderEditableField = (
+    field: EditableField,
+    label: string,
+    value: string | number | null,
+    icon: React.ReactNode,
+    formatValue?: (val: any) => string
+  ) => {
+    const isEditing = editingField === field;
+    const isVerified = manuallyVerified[field];
+    const displayValue = formatValue ? formatValue(value) : (value?.toString() || "—");
+
+    return (
+      <div className="p-3 rounded-lg border bg-background group relative">
+        <div className="flex items-center justify-between gap-2 text-muted-foreground text-sm mb-1">
+          <div className="flex items-center gap-2">
+            {icon}
+            {label}
+          </div>
+          {isVerified && (
+            <Lock className="h-3 w-3 text-primary" />
+          )}
+        </div>
+        
+        {isEditing ? (
+          <div className="flex items-center gap-2">
+            <Input
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              className="h-8 text-sm"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") saveEdit();
+                if (e.key === "Escape") cancelEditing();
+              }}
+            />
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={saveEdit}>
+              <Check className="h-4 w-4 text-green-600" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={cancelEditing}>
+              <X className="h-4 w-4 text-muted-foreground" />
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <p className={`text-xl font-semibold ${field === "industry" || field === "city" || field === "country" ? "text-base" : ""}`}>
+              {displayValue}
+            </p>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={() => startEditing(field, value)}
+              title="Edit value"
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -331,43 +433,57 @@ LinkedIn: ${result.linkedin_url || "N/A"}
 
             <Separator />
 
-            {/* Key Metrics */}
+            {/* Editable hint */}
+            {Object.keys(manuallyVerified).length === 0 && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Pencil className="h-3 w-3" />
+                Hover over any field to edit incorrect values
+              </p>
+            )}
+
+            {/* Key Metrics - Now Editable */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="p-3 rounded-lg border bg-background">
-                <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
-                  <Users className="h-3.5 w-3.5" />
-                  Employees
-                </div>
-                <p className="text-xl font-semibold">
-                  {result.employee_count?.toLocaleString() || "—"}
-                </p>
-              </div>
-              <div className="p-3 rounded-lg border bg-background">
-                <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
-                  <DollarSign className="h-3.5 w-3.5" />
-                  Revenue
-                </div>
-                <p className="text-xl font-semibold">
-                  {result.revenue_range || "—"}
-                </p>
-              </div>
-              <div className="p-3 rounded-lg border bg-background">
-                <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
-                  <Building2 className="h-3.5 w-3.5" />
-                  Industry
-                </div>
-                <p className="text-base font-medium truncate">
-                  {result.industry || "—"}
-                </p>
-              </div>
-              <div className="p-3 rounded-lg border bg-background">
-                <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
-                  <MapPin className="h-3.5 w-3.5" />
-                  Location
+              {renderEditableField(
+                "employee_count",
+                "Employees",
+                result.employee_count,
+                <Users className="h-3.5 w-3.5" />,
+                (val) => val?.toLocaleString() || "—"
+              )}
+              {renderEditableField(
+                "revenue_range",
+                "Revenue",
+                result.revenue_range,
+                <DollarSign className="h-3.5 w-3.5" />
+              )}
+              {renderEditableField(
+                "industry",
+                "Industry",
+                result.industry,
+                <Building2 className="h-3.5 w-3.5" />
+              )}
+              <div className="p-3 rounded-lg border bg-background group relative">
+                <div className="flex items-center justify-between gap-2 text-muted-foreground text-sm mb-1">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-3.5 w-3.5" />
+                    Location
+                  </div>
+                  {(manuallyVerified.city || manuallyVerified.country) && (
+                    <Lock className="h-3 w-3 text-primary" />
+                  )}
                 </div>
                 <p className="text-base font-medium truncate">
                   {[result.city, result.country].filter(Boolean).join(", ") || "—"}
                 </p>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity absolute top-3 right-3"
+                  onClick={() => startEditing("city", result.city)}
+                  title="Edit city"
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
               </div>
             </div>
 
@@ -431,6 +547,16 @@ LinkedIn: ${result.linkedin_url || "N/A"}
             )}
 
             <Separator />
+
+            {/* Verified fields indicator */}
+            {Object.keys(manuallyVerified).length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Lock className="h-3 w-3 text-primary" />
+                <span>
+                  {Object.keys(manuallyVerified).length} field(s) manually verified - these won't be overwritten during re-enrichment
+                </span>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex flex-wrap gap-2">
