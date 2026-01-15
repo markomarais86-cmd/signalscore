@@ -97,6 +97,8 @@ export default function ExecutiveDashboard() {
   const crmLeads = dashboardData?.metrics?.crm_leads || 0;
   const databaseLeads = dashboardData?.metrics?.database_leads || 0;
   const highFitLeads = dashboardData?.metrics?.high_fit_leads_total || 0;
+  const medFitLeads = (dashboardData?.metrics?.medium_fit_crm_leads || 0) + (dashboardData?.metrics?.medium_fit_database_leads || 0);
+  const lowFitLeads = (dashboardData?.metrics?.low_fit_crm_leads || 0) + (dashboardData?.metrics?.low_fit_database_leads || 0);
   const highFitCrmLeads = dashboardData?.metrics?.high_fit_crm_leads || 0;
   const highFitDatabaseLeads = dashboardData?.metrics?.high_fit_database_leads || 0;
 
@@ -590,6 +592,8 @@ export default function ExecutiveDashboard() {
               lowFitAccounts={lowFitAccounts}
               totalScored={totalScores}
               highFitLeads={highFitLeads}
+              medFitLeads={medFitLeads}
+              lowFitLeads={lowFitLeads}
               totalLeads={totalLeads}
             />
 
@@ -621,9 +625,9 @@ export default function ExecutiveDashboard() {
               <SimpleGeographyCard
                 geoData={
                   sourceFilter === 'database' && tamData?.geography_breakdown
-                    ? Object.entries(tamData.geography_breakdown as Record<string, number>).map(([country, count]) => ({
+                    ? Object.entries(tamData.geography_breakdown as Record<string, { accounts?: number }>).map(([country, data]) => ({
                         country,
-                        count,
+                        count: typeof data === 'object' ? (data.accounts || 0) : (typeof data === 'number' ? data : 0),
                       })).sort((a, b) => b.count - a.count)
                     : geographyDistribution.map(g => ({ country: g.country, count: g.count }))
                 }
