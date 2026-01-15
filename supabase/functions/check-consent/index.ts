@@ -1,17 +1,46 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { validateAuth, unauthorizedResponse, errorResponse, successResponse, handleCorsOptions } from '../_shared/auth.ts';
+import { validateUUID, validateEmail, validateNumber, ValidationError, validationErrorResponse } from '../_shared/validation.ts';
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsOptions(req);
   }
 
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   try {
+    // Validate authentication
+    const authResult = await validateAuth(req);
+    if (!authResult.success) {
+      return unauthorizedResponse(req, authResult.error);
+    }
+
+    // Parse and validate request body
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return errorResponse(req, 'Invalid JSON body', 400);
+    }
+
+    const data = body as Record<string, unknown>;
+
+    // Validate inputs
+    const org_id = validateUUID(data.org_id, 'org_id');
+    const contact_id = data.contact_id ? validateNumber(data.contact_id, 'contact_id', { integer: true, min: 1 }) : undefined;
+    const email = data.email ? validateEmail(data.email, 'email', false) : undefined;
+
+    if (!contact_id && !email) {
+      return errorResponse(req, 'Either contact_id or email is required', 400);
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const { contact_id, email, org_id } = await req.json();
 
     let checkEmail = email;
 
@@ -28,7 +57,7 @@ Deno.serve(async (req) => {
     }
 
     if (!checkEmail) {
-      throw new Error('Email required for consent check');
+      return errorResponse(req, 'Email required for consent check', 400);
     }
 
     console.log(`🔒 Checking consent for: ${checkEmail}`);
@@ -79,22 +108,20 @@ Deno.serve(async (req) => {
 
     console.log(`✅ Consent check: eligible=${eligible}, status=${consentStatus}, suppressed=${suppressed}`);
 
-    return new Response(
-      JSON.stringify({
-        eligible,
-        consent_status: consentStatus,
-        reason: !eligible ? (suppressed ? suppressionReason : 'No consent given') : undefined,
-        suppressed,
-        suppression_reason: suppressionReason
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return successResponse(req, {
+      eligible,
+      consent_status: consentStatus,
+      reason: !eligible ? (suppressed ? suppressionReason : 'No consent given') : undefined,
+      suppressed,
+      suppression_reason: suppressionReason
+    });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return validationErrorResponse(error, corsHeaders);
+    }
+    
     console.error('❌ Consent check error:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(req, error instanceof Error ? error.message : 'Unknown error', 400);
   }
 });

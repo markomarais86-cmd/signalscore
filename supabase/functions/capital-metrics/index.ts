@@ -1,10 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.0";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { validateAuth, unauthorizedResponse, errorResponse, successResponse, handleCorsOptions } from '../_shared/auth.ts';
+import { validateUUID, ValidationError, validationErrorResponse } from '../_shared/validation.ts';
 
 interface CapitalMetrics {
   totalInvestment: number;
@@ -19,25 +17,37 @@ interface CapitalMetrics {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsOptions(req);
   }
 
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   try {
+    // Validate authentication
+    const authResult = await validateAuth(req);
+    if (!authResult.success) {
+      return unauthorizedResponse(req, authResult.error);
+    }
+
+    // Parse and validate request body
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return errorResponse(req, 'Invalid JSON body', 400);
+    }
+
+    const data = body as Record<string, unknown>;
+    const orgId = validateUUID(data.orgId, 'orgId');
+
+    console.log(`[capital-metrics] Fetching metrics for org: ${orgId}`);
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-
-    const { orgId } = await req.json();
-
-    if (!orgId) {
-      return new Response(
-        JSON.stringify({ error: 'orgId is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`[capital-metrics] Fetching metrics for org: ${orgId}`);
 
     // Fetch the most recent capital tracking record
     const { data: tracking, error: trackingError } = await supabase
@@ -88,15 +98,14 @@ serve(async (req) => {
 
     console.log(`[capital-metrics] Returning metrics for org: ${orgId}`);
 
-    return new Response(
-      JSON.stringify(metrics),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  } catch (error) {
+    return successResponse(req, metrics);
+
+  } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return validationErrorResponse(error, corsHeaders);
+    }
+
     console.error('[capital-metrics] Error:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(req, error instanceof Error ? error.message : 'Unknown error', 500);
   }
 });
