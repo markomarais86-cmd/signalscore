@@ -6722,6 +6722,17 @@ export type Database = {
           with_size_count: number
         }[]
       }
+      get_leads_metrics: {
+        Args: { p_org_id: string }
+        Returns: {
+          avg_reachability: number
+          campaign_ready_count: number
+          enriched_count: number
+          icp_qualified_count: number
+          linked_to_accounts_count: number
+          total_leads: number
+        }[]
+      }
       get_org_enrichment_credits: {
         Args: { org_uuid: string }
         Returns: {
