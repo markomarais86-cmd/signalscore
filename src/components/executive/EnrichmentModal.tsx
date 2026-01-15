@@ -60,6 +60,13 @@ export function EnrichmentModal({
       fields: ["Industry", "Company Size", "Revenue", "Location", "Employee Count"]
     },
     {
+      id: "launch_pulse",
+      name: "LaunchPulse Enrichment",
+      description: "LaunchPulse proprietary data enrichment - high accuracy company data",
+      tier: "free",
+      fields: ["Industry", "Employee Count", "Revenue", "Location", "Tech Stack"]
+    },
+    {
       id: "ai_free",
       name: "Free AI Enrichment ⭐",
       description: "AI-powered estimates using domain analysis. No API credits needed!",
@@ -90,9 +97,10 @@ export function EnrichmentModal({
     try {
       const isDeepResearch = selectedProviders.includes('deep_research');
       const isAIFree = selectedProviders.includes('ai_free');
+      const isLaunchPulse = selectedProviders.includes('launch_pulse');
       
       // Determine provider type
-      const providerType = isDeepResearch ? 'deep-research' : isAIFree ? 'ai_free' : 'smart-waterfall';
+      const providerType = isDeepResearch ? 'deep-research' : isAIFree ? 'ai_free' : isLaunchPulse ? 'launch_pulse' : 'smart-waterfall';
       
       // Create enrichment job
       const { data: job, error: jobError } = await supabase
@@ -139,6 +147,17 @@ export function EnrichmentModal({
         // Call enrich-ai-only edge function
         const { error } = await supabase.functions.invoke('enrich-ai-only', {
           body: { jobId: job.id, batchSize }
+        });
+
+        if (error) throw error;
+      } else if (isLaunchPulse) {
+        toast.info("Starting LaunchPulse Enrichment...", {
+          description: "Using LaunchPulse proprietary data sources"
+        });
+
+        // Call smart-enrich with launch_pulse provider
+        const { error } = await supabase.functions.invoke('smart-enrich', {
+          body: { jobId: job.id, batchSize, provider: 'launch_pulse' }
         });
 
         if (error) throw error;
