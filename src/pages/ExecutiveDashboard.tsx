@@ -642,27 +642,16 @@ export default function ExecutiveDashboard() {
               />
             </div>
 
-            {/* Bottom Row - Insights */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* ICP Donut Chart */}
-              <ICPDonutChart
-                highFitAccounts={highFitAccounts}
-                medFitAccounts={medFitAccounts}
-                lowFitAccounts={lowFitAccounts}
-                totalScored={totalScores}
-              />
-              
-              {/* CRM Insights Panel */}
-              <UnifiedInsightsPanel
-                risks={risks}
-                insights={insights || []}
-                orgId={userProfile?.org_id}
-                onRefresh={handleRefreshInsights}
-                campaignReadyCount={campaignReadyAccounts}
-                completenessScore={dataCompleteness}
-                totalScored={totalScores}
-              />
-            </div>
+            {/* AI Insights - Full Width */}
+            <UnifiedInsightsPanel
+              risks={risks}
+              insights={insights || []}
+              orgId={userProfile?.org_id}
+              onRefresh={handleRefreshInsights}
+              campaignReadyCount={campaignReadyAccounts}
+              completenessScore={dataCompleteness}
+              totalScored={totalScores}
+            />
           </>
         )}
 
