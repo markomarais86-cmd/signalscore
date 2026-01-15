@@ -223,7 +223,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.ai-memory]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ai-health-check]
 verify_jwt = false
