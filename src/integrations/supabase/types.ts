@@ -473,6 +473,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "activities_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads_summary"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "activities_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -1599,6 +1606,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "call_recordings_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads_summary"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "call_recordings_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -2099,6 +2113,13 @@ export type Database = {
             referencedRelation: "Leads"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "consent_registry_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "leads_summary"
+            referencedColumns: ["id"]
+          },
         ]
       }
       custom_reports: {
@@ -2396,6 +2417,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deep_research_candidates_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads_summary"
             referencedColumns: ["id"]
           },
           {
@@ -2804,6 +2832,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_threads_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads_summary"
             referencedColumns: ["id"]
           },
           {
@@ -3463,6 +3498,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "firmographic_conflicts_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads_summary"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "firmographic_conflicts_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -3938,6 +3980,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "identity_registry_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "leads_summary"
             referencedColumns: ["id"]
           },
         ]
@@ -4819,6 +4868,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "next_best_actions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads_summary"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "next_best_actions_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
@@ -5056,6 +5112,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_stages_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads_summary"
             referencedColumns: ["id"]
           },
           {
@@ -6003,6 +6066,13 @@ export type Database = {
             referencedRelation: "Leads"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "verification_log_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "leads_summary"
+            referencedColumns: ["id"]
+          },
         ]
       }
       webhook_logs: {
@@ -6182,6 +6252,102 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads_summary: {
+        Row: {
+          account_external_id: string | null
+          company: string | null
+          country: string | null
+          created_at: string | null
+          data_source: string | null
+          employee_count: number | null
+          first_name: string | null
+          icp_qualified: boolean | null
+          id: number | null
+          industry: string | null
+          last_name: string | null
+          level: string | null
+          location_city: string | null
+          location_region: string | null
+          name: string | null
+          org_id: string | null
+          persona: string | null
+          pipeline_stage: string | null
+          priority_rank: number | null
+          revenue_range: string | null
+          state_province: string | null
+          status: string | null
+          title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_external_id?: string | null
+          company?: string | null
+          country?: string | null
+          created_at?: string | null
+          data_source?: string | null
+          employee_count?: number | null
+          first_name?: string | null
+          icp_qualified?: boolean | null
+          id?: number | null
+          industry?: string | null
+          last_name?: string | null
+          level?: string | null
+          location_city?: string | null
+          location_region?: string | null
+          name?: string | null
+          org_id?: string | null
+          persona?: string | null
+          pipeline_stage?: string | null
+          priority_rank?: number | null
+          revenue_range?: string | null
+          state_province?: string | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_external_id?: string | null
+          company?: string | null
+          country?: string | null
+          created_at?: string | null
+          data_source?: string | null
+          employee_count?: number | null
+          first_name?: string | null
+          icp_qualified?: boolean | null
+          id?: number | null
+          industry?: string | null
+          last_name?: string | null
+          level?: string | null
+          location_city?: string | null
+          location_region?: string | null
+          name?: string | null
+          org_id?: string | null
+          persona?: string | null
+          pipeline_stage?: string | null
+          priority_rank?: number | null
+          revenue_range?: string | null
+          state_province?: string | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_leads_account"
+            columns: ["org_id", "account_external_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["org_id", "external_id"]
+          },
+          {
+            foreignKeyName: "leads_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
