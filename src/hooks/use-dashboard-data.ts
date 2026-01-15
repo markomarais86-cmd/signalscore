@@ -254,11 +254,14 @@ export function useSourceFilterStats(orgId: string | undefined) {
         dashboardLogger.error('Source filter stats RPC error', crmResult.error);
       }
       
-      const crmMetrics = (crmResult.data as any)?.[0] ?? crmResult.data;
+      // Handle both array and direct object responses from RPC
+      const rawData = crmResult.data;
+      const crmMetrics = Array.isArray(rawData) ? rawData[0] : rawData;
       const tamAccounts = Number(tamResult.data?.total_accounts) || 0;
 
+      // Use total_crm_accounts for CRM count (accounts with data_source IN ('crm', 'both'))
       return {
-        crm: crmMetrics?.total_accounts ?? crmMetrics?.totalAccounts ?? 0,
+        crm: crmMetrics?.total_crm_accounts ?? crmMetrics?.total_accounts ?? 0,
         database: tamAccounts,
       };
     },
