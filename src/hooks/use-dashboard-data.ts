@@ -103,12 +103,11 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
         dashboardLogger.warn('TAM fetch error:', tamResult.error);
       }
       
-      // Fetch metrics separately with timeout handling
+      // Fetch metrics from cached materialized view (much faster)
       let metricsResult;
       try {
-        metricsResult = await supabase.rpc('get_dashboard_metrics_fast' as any, { 
-          p_org_id: orgId,
-          p_source_filter: sourceFilter
+        metricsResult = await supabase.rpc('get_dashboard_metrics_cached' as any, { 
+          p_org_id: orgId
         });
       } catch (err) {
         dashboardLogger.error('Metrics RPC timeout/error:', err);
@@ -234,11 +233,10 @@ export function useSourceFilterStats(orgId: string | undefined) {
     queryFn: async () => {
       if (!orgId) throw new Error('No org ID provided');
       
-      // Fetch metrics + TAM data in parallel
+      // Fetch metrics from cached view + TAM data in parallel
       const [crmResult, tamResult] = await Promise.all([
-        supabase.rpc('get_dashboard_metrics_fast' as any, { 
-          p_org_id: orgId,
-          p_source_filter: 'crm'
+        supabase.rpc('get_dashboard_metrics_cached' as any, { 
+          p_org_id: orgId
         }),
         supabase
           .from('external_data_sources')

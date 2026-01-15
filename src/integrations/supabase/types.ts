@@ -6259,6 +6259,65 @@ export type Database = {
           },
         ]
       }
+      dashboard_metrics_cache: {
+        Row: {
+          avg_score: number | null
+          high_fit_accounts: number | null
+          high_fit_crm_accounts: number | null
+          high_fit_database_accounts: number | null
+          low_fit_accounts: number | null
+          low_fit_crm_accounts: number | null
+          low_fit_database_accounts: number | null
+          medium_fit_accounts: number | null
+          medium_fit_crm_accounts: number | null
+          medium_fit_database_accounts: number | null
+          org_id: string | null
+          refreshed_at: string | null
+          scored_accounts: number | null
+          scored_crm_accounts: number | null
+          scored_database_accounts: number | null
+          total_accounts: number | null
+          total_crm_accounts: number | null
+          total_database_accounts: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads_metrics_cache: {
+        Row: {
+          campaign_ready: number | null
+          high_fit_crm_leads: number | null
+          high_fit_database_leads: number | null
+          high_fit_leads: number | null
+          low_fit_crm_leads: number | null
+          low_fit_database_leads: number | null
+          low_fit_leads: number | null
+          medium_fit_crm_leads: number | null
+          medium_fit_database_leads: number | null
+          medium_fit_leads: number | null
+          org_id: string | null
+          refreshed_at: string | null
+          total_crm_leads: number | null
+          total_database_leads: number | null
+          total_leads: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads_summary: {
         Row: {
           account_external_id: string | null
@@ -6626,6 +6685,10 @@ export type Database = {
         }[]
       }
       get_current_user_org_id: { Args: never; Returns: string }
+      get_dashboard_metrics_cached: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
       get_dashboard_metrics_fast: {
         Args: { p_org_id: string; p_source_filter?: string }
         Returns: Json
@@ -6851,6 +6914,7 @@ export type Database = {
         Returns: undefined
       }
       refresh_all_materialized_views: { Args: never; Returns: undefined }
+      refresh_dashboard_caches: { Args: never; Returns: undefined }
       refresh_reporting_views: { Args: never; Returns: undefined }
       release_processing_lock: {
         Args: { p_org_id: string; p_process_name: string }
