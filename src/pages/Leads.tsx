@@ -69,6 +69,7 @@ interface Lead {
 
 import { useInfiniteLeads } from "@/hooks/use-infinite-leads";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
+import { useLeadsMetrics } from "@/hooks/use-leads-metrics";
 import { InfiniteScrollTrigger } from "@/components/InfiniteScrollTrigger";
 import { LeadAccountMatcher } from "@/components/data-upload/LeadAccountMatcher";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -129,6 +130,9 @@ export default function Leads() {
     icpFilter: icpFilter !== 'all' ? icpFilter : undefined,
     staleDaysFilter
   });
+
+  // Fetch database-level metrics (accurate counts across all 63k+ leads)
+  const { data: metrics, isLoading: metricsLoading } = useLeadsMetrics(userProfile?.org_id);
 
   // Set up infinite scroll observer
   const { observerTarget } = useInfiniteScroll({
@@ -263,15 +267,16 @@ export default function Leads() {
     );
   }
 
-  const highSignalLeads = leads.filter(lead => (lead.score?.overall || 0) >= 70);
+  // Use database metrics for accurate totals, fall back to local counts for visible leads
+  const icpQualifiedCount = metrics?.icp_qualified_count ?? 0;
+  const campaignReadyCount = metrics?.campaign_ready_count ?? 0;
+  const enrichedCount = metrics?.enriched_count ?? 0;
+  const linkedCount = metrics?.linked_to_accounts_count ?? 0;
+  const totalLeadsCount = metrics?.total_leads ?? 0;
+
+  // Local counts from visible leads (for unlinked alert)
   const unlinkedLeads = leads.filter(lead => !lead.account_external_id);
-  const linkedLeads = leads.filter(lead => lead.account_external_id);
-  const campaignReadyLeads = leads.filter(lead => 
-    lead.email && lead.title && lead.persona && lead.persona !== 'Unknown'
-  );
-  const icpQualifiedLeads = leads.filter(lead => lead.icp_qualified === true);
-  const enrichedLeads = leads.filter(lead => lead.enriched_at);
-  const unlinkedPercentage = leads.length > 0 ? Math.round((unlinkedLeads.length / leads.length) * 100) : 0;
+  const unlinkedPercentage = totalLeadsCount > 0 ? Math.round(((totalLeadsCount - linkedCount) / totalLeadsCount) * 100) : 0;
 
   const exportToCSV = () => {
     if (leads.length === 0) {
@@ -438,24 +443,28 @@ export default function Leads() {
         </div>
       )}
 
-      {/* Hero Metric */}
-      {leads.length > 0 && (
+      {/* Hero Metrics - Using database totals */}
+      {(totalLeadsCount > 0 || metricsLoading) && (
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>ICP Qualified</CardDescription>
-              <CardTitle className="text-4xl text-[hsl(var(--signal-high))]">{icpQualifiedLeads.length}</CardTitle>
+              <CardTitle className="text-4xl text-[hsl(var(--signal-high))]">
+                {metricsLoading ? "..." : formatNumber(icpQualifiedCount)}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                {leads.length > 0 ? Math.round((icpQualifiedLeads.length / leads.length) * 100) : 0}% of visible leads
+                {totalLeadsCount > 0 ? Math.round((icpQualifiedCount / totalLeadsCount) * 100) : 0}% of {formatNumber(totalLeadsCount)} leads
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Campaign Ready</CardDescription>
-              <CardTitle className="text-4xl">{campaignReadyLeads.length}</CardTitle>
+              <CardTitle className="text-4xl">
+                {metricsLoading ? "..." : formatNumber(campaignReadyCount)}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
@@ -466,22 +475,26 @@ export default function Leads() {
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Enriched</CardDescription>
-              <CardTitle className="text-4xl">{formatNumber(enrichedLeads.length)}</CardTitle>
+              <CardTitle className="text-4xl">
+                {metricsLoading ? "..." : formatNumber(enrichedCount)}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                {leads.length > 0 ? Math.round((enrichedLeads.length / leads.length) * 100) : 0}% processed
+                {totalLeadsCount > 0 ? Math.round((enrichedCount / totalLeadsCount) * 100) : 0}% processed
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-3">
               <CardDescription>Linked to Accounts</CardDescription>
-              <CardTitle className="text-4xl">{formatNumber(linkedLeads.length)}</CardTitle>
+              <CardTitle className="text-4xl">
+                {metricsLoading ? "..." : formatNumber(linkedCount)}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-xs text-muted-foreground">
-                {leads.length > 0 ? Math.round((linkedLeads.length / leads.length) * 100) : 0}% of all leads
+                {totalLeadsCount > 0 ? Math.round((linkedCount / totalLeadsCount) * 100) : 0}% of all leads
               </div>
             </CardContent>
           </Card>
