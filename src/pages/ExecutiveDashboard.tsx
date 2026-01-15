@@ -92,6 +92,10 @@ export default function ExecutiveDashboard() {
 
   const highFitCrmAccounts = dashboardData?.metrics?.high_fit_crm_accounts || 0;
   const highFitDatabaseAccounts = dashboardData?.metrics?.high_fit_database_accounts || 0;
+  const medFitCrmAccounts = dashboardData?.metrics?.medium_fit_crm_accounts || 0;
+  const medFitDatabaseAccounts = dashboardData?.metrics?.medium_fit_database_accounts || 0;
+  const lowFitCrmAccounts = dashboardData?.metrics?.low_fit_crm_accounts || 0;
+  const lowFitDatabaseAccounts = dashboardData?.metrics?.low_fit_database_accounts || 0;
 
   const totalLeads = dashboardData?.metrics?.total_leads || 0;
   const crmLeads = dashboardData?.metrics?.crm_leads || 0;
@@ -101,6 +105,10 @@ export default function ExecutiveDashboard() {
   const lowFitLeads = dashboardData?.metrics?.low_fit_leads_total || 0;
   const highFitCrmLeads = dashboardData?.metrics?.high_fit_crm_leads || 0;
   const highFitDatabaseLeads = dashboardData?.metrics?.high_fit_database_leads || 0;
+  const medFitCrmLeads = dashboardData?.metrics?.medium_fit_crm_leads || 0;
+  const medFitDatabaseLeads = dashboardData?.metrics?.medium_fit_database_leads || 0;
+  const lowFitCrmLeads = dashboardData?.metrics?.low_fit_crm_leads || 0;
+  const lowFitDatabaseLeads = dashboardData?.metrics?.low_fit_database_leads || 0;
 
 
   const icpProfiles = dashboardData?.icpProfiles || [];
@@ -585,16 +593,16 @@ export default function ExecutiveDashboard() {
               tamProvider={tamData?.provider}
             />
 
-            {/* Central ICP Coverage Panel */}
+            {/* Central ICP Coverage Panel - Source-filtered */}
             <ICPCoveragePanel
-              highFitAccounts={highFitAccounts}
-              medFitAccounts={medFitAccounts}
-              lowFitAccounts={lowFitAccounts}
-              totalScored={totalScores}
-              highFitLeads={highFitLeads}
-              medFitLeads={medFitLeads}
-              lowFitLeads={lowFitLeads}
-              totalLeads={totalLeads}
+              highFitAccounts={sourceFilter === 'database' ? highFitDatabaseAccounts : sourceFilter === 'crm' ? highFitCrmAccounts : highFitAccounts}
+              medFitAccounts={sourceFilter === 'database' ? medFitDatabaseAccounts : sourceFilter === 'crm' ? medFitCrmAccounts : medFitAccounts}
+              lowFitAccounts={sourceFilter === 'database' ? lowFitDatabaseAccounts : sourceFilter === 'crm' ? lowFitCrmAccounts : lowFitAccounts}
+              totalScored={sourceFilter === 'database' ? databaseScoredAccounts : sourceFilter === 'crm' ? crmScoredAccounts : totalScores}
+              highFitLeads={sourceFilter === 'database' ? highFitDatabaseLeads : sourceFilter === 'crm' ? highFitCrmLeads : highFitLeads}
+              medFitLeads={sourceFilter === 'database' ? medFitDatabaseLeads : sourceFilter === 'crm' ? medFitCrmLeads : medFitLeads}
+              lowFitLeads={sourceFilter === 'database' ? lowFitDatabaseLeads : sourceFilter === 'crm' ? lowFitCrmLeads : lowFitLeads}
+              totalLeads={sourceFilter === 'database' ? databaseLeads : sourceFilter === 'crm' ? crmLeads : totalLeads}
             />
 
             {/* Main Content Grid - 3 columns for visual balance */}
