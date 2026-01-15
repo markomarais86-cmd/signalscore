@@ -6683,6 +6683,23 @@ export type Database = {
       revenue_to_numeric: { Args: { revenue_range: string }; Returns: number }
       scheduled_auto_match_all_orgs: { Args: never; Returns: undefined }
       scheduled_quality_snapshot_all_orgs: { Args: never; Returns: undefined }
+      search_embeddings: {
+        Args: {
+          filter_source_types?: string[]
+          match_count?: number
+          match_org_id: string
+          match_threshold?: number
+          query_embedding: string
+        }
+        Returns: {
+          content: string
+          id: string
+          metadata: Json
+          similarity: number
+          source_id: string
+          source_type: string
+        }[]
+      }
       seed_default_ai_agents: {
         Args: { target_org_id: string }
         Returns: undefined
@@ -6719,6 +6736,15 @@ export type Database = {
         Returns: Json
       }
       sync_industry_to_leads: { Args: { p_org_id: string }; Returns: Json }
+      update_ai_provider_health: {
+        Args: {
+          p_error_message?: string
+          p_latency_ms?: number
+          p_provider: string
+          p_success: boolean
+        }
+        Returns: undefined
+      }
       update_enrichment_job_progress: {
         Args: {
           p_current_batch?: number

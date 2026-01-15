@@ -584,6 +584,20 @@ serve(async (req) => {
             statusCode: response.status,
           });
 
+          // Track provider health on success
+          try {
+            const supabase = await import("https://esm.sh/@supabase/supabase-js@2").then(m => 
+              m.createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "")
+            );
+            await supabase.rpc("update_ai_provider_health", {
+              p_provider: provider,
+              p_success: true,
+              p_latency_ms: responseTime
+            });
+          } catch (e) {
+            console.warn(`[${requestId}] Failed to update provider health:`, e);
+          }
+
           if (testMode) {
             const totalTime = Date.now() - startTime;
             const body = await response.json();
@@ -645,6 +659,21 @@ serve(async (req) => {
           responseTime,
           error: error instanceof Error ? error.message : 'Unknown error',
         });
+
+        // Track provider health on failure
+        try {
+          const supabase = await import("https://esm.sh/@supabase/supabase-js@2").then(m => 
+            m.createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "")
+          );
+          await supabase.rpc("update_ai_provider_health", {
+            p_provider: provider,
+            p_success: false,
+            p_latency_ms: responseTime,
+            p_error_message: error instanceof Error ? error.message : 'Unknown error'
+          });
+        } catch (e) {
+          console.warn(`[${requestId}] Failed to update provider health:`, e);
+        }
       }
     }
 
