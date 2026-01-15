@@ -25,6 +25,8 @@ interface LinkedInPersonData {
   company_name?: string;
   linkedin_url?: string;
   location?: string;
+  location_city?: string;
+  location_region?: string;
 }
 
 interface RequestBody {
@@ -158,17 +160,33 @@ serve(async (req) => {
     } else if (type === "person") {
       const personData = data as LinkedInPersonData;
       
-      // For now, save person data to Leads table
+      // Parse location into city and region if provided as single string
+      let locationCity = personData.location_city;
+      let locationRegion = personData.location_region;
+      
+      if (personData.location && !locationCity) {
+        const locationParts = personData.location.split(",").map(p => p.trim());
+        if (locationParts.length >= 2) {
+          locationCity = locationParts[0];
+          locationRegion = locationParts.slice(1).join(", ");
+        } else if (locationParts.length === 1) {
+          locationCity = locationParts[0];
+        }
+      }
+
+      // Save person data to Leads table with correct column names
       const { data: savedLead, error: saveError } = await supabase
         .from("Leads")
         .insert({
           org_id: orgId,
           first_name: personData.first_name,
           last_name: personData.last_name,
+          name: `${personData.first_name} ${personData.last_name}`.trim(),
           title: personData.title,
-          company_name: personData.company_name,
+          company: personData.company_name,
           linkedin_url: personData.linkedin_url,
-          location: personData.location,
+          location_city: locationCity,
+          location_region: locationRegion,
           data_source: "linkedin_chrome_extension",
         })
         .select()
@@ -181,6 +199,12 @@ serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
+
+      // Update API key last_used_at
+      await supabase
+        .from("api_keys")
+        .update({ last_used_at: new Date().toISOString() })
+        .eq("key_prefix", api_key.substring(0, 8));
 
       return new Response(
         JSON.stringify({ 
