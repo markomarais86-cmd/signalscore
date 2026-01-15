@@ -73,28 +73,28 @@ serve(async (req) => {
 
     switch (action) {
       case 'save':
-        result = await saveMemory(supabase, user.id, profile.org_id, params);
+        result = await saveMemory(supabase, userId, profile.org_id, params);
         break;
       case 'load':
-        result = await loadMemory(supabase, user.id, profile.org_id, params);
+        result = await loadMemory(supabase, userId, profile.org_id, params);
         break;
       case 'learn_preference':
-        result = await learnPreference(supabase, user.id, profile.org_id, params);
+        result = await learnPreference(supabase, userId, profile.org_id, params);
         break;
       case 'get_preferences':
-        result = await getPreferences(supabase, user.id, profile.org_id);
+        result = await getPreferences(supabase, userId, profile.org_id);
         break;
       case 'save_template':
-        result = await saveTemplate(supabase, user.id, profile.org_id, params);
+        result = await saveTemplate(supabase, userId, profile.org_id, params);
         break;
       case 'get_templates':
         result = await getTemplates(supabase, profile.org_id, params);
         break;
       case 'get_suggestions':
-        result = await getSuggestions(supabase, user.id, profile.org_id, params);
+        result = await getSuggestions(supabase, userId, profile.org_id, params);
         break;
       case 'clear':
-        result = await clearMemory(supabase, user.id, profile.org_id, params);
+        result = await clearMemory(supabase, userId, profile.org_id, params);
         break;
       default:
         throw new Error(`Unknown action: ${action}`);
