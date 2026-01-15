@@ -6460,12 +6460,10 @@ export type Database = {
         }[]
       }
       get_current_user_org_id: { Args: never; Returns: string }
-      get_dashboard_metrics_fast:
-        | { Args: { p_org_id: string }; Returns: Json }
-        | {
-            Args: { p_org_id: string; p_source_filter?: string }
-            Returns: Json
-          }
+      get_dashboard_metrics_fast: {
+        Args: { p_org_id: string; p_source_filter?: string }
+        Returns: Json
+      }
       get_deal_stage_duration_hours: {
         Args: { p_deal_id: string; p_stage: string }
         Returns: number
