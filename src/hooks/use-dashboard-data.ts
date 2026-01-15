@@ -6,28 +6,28 @@ const dashboardLogger = logger.scope('Dashboard');
 
 interface DashboardMetrics {
   total_accounts: number;
-  total_scores: number;
+  scored_accounts: number;
   total_leads: number;
-  crm_accounts: number;
-  database_accounts: number;
-  crm_scored_accounts: number;
-  database_scored_accounts: number;
+  total_crm_accounts: number;
+  total_database_accounts: number;
+  scored_crm_accounts: number;
+  scored_database_accounts: number;
   both_accounts: number;
   linked_leads: number;
-  high_fit_scores: number;
-  med_fit_scores: number;
-  low_fit_scores: number;
+  high_fit_accounts: number;
+  medium_fit_accounts: number;
+  low_fit_accounts: number;
   high_fit_crm_accounts: number;
   high_fit_database_accounts: number;
   medium_fit_crm_accounts: number;
   medium_fit_database_accounts: number;
   low_fit_crm_accounts: number;
   low_fit_database_accounts: number;
-  crm_leads: number;
-  database_leads: number;
-  high_fit_leads_total: number;
-  medium_fit_leads_total: number;
-  low_fit_leads_total: number;
+  total_crm_leads: number;
+  total_database_leads: number;
+  high_fit_leads: number;
+  medium_fit_leads: number;
+  low_fit_leads: number;
   high_fit_crm_leads: number;
   high_fit_database_leads: number;
   medium_fit_crm_leads: number;
@@ -119,28 +119,28 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
       
       const mappedMetrics: DashboardMetrics = {
         total_accounts: rawMetrics?.total_accounts || 0,
-        total_scores: (rawMetrics?.high_fit_accounts || 0) + (rawMetrics?.medium_fit_accounts || 0) + (rawMetrics?.low_fit_accounts || 0),
+        scored_accounts: rawMetrics?.scored_accounts || 0,
         total_leads: rawMetrics?.total_leads || 0,
-        crm_accounts: rawMetrics?.crm_accounts || 0,
-        database_accounts: rawMetrics?.database_accounts || 0,
-        crm_scored_accounts: rawMetrics?.crm_scored_accounts || 0,
-        database_scored_accounts: rawMetrics?.database_scored_accounts || 0,
+        total_crm_accounts: rawMetrics?.total_crm_accounts || 0,
+        total_database_accounts: rawMetrics?.total_database_accounts || 0,
+        scored_crm_accounts: rawMetrics?.scored_crm_accounts || 0,
+        scored_database_accounts: rawMetrics?.scored_database_accounts || 0,
         both_accounts: rawMetrics?.both_accounts || 0,
         linked_leads: rawMetrics?.linked_leads || 0,
-        high_fit_scores: rawMetrics?.high_fit_accounts || 0,
-        med_fit_scores: rawMetrics?.medium_fit_accounts || 0,
-        low_fit_scores: rawMetrics?.low_fit_accounts || 0,
+        high_fit_accounts: rawMetrics?.high_fit_accounts || 0,
+        medium_fit_accounts: rawMetrics?.medium_fit_accounts || 0,
+        low_fit_accounts: rawMetrics?.low_fit_accounts || 0,
         high_fit_crm_accounts: rawMetrics?.high_fit_crm_accounts || 0,
         high_fit_database_accounts: rawMetrics?.high_fit_database_accounts || 0,
         medium_fit_crm_accounts: rawMetrics?.medium_fit_crm_accounts || 0,
         medium_fit_database_accounts: rawMetrics?.medium_fit_database_accounts || 0,
         low_fit_crm_accounts: rawMetrics?.low_fit_crm_accounts || 0,
         low_fit_database_accounts: rawMetrics?.low_fit_database_accounts || 0,
-        crm_leads: rawMetrics?.crm_leads || 0,
-        database_leads: rawMetrics?.database_leads || 0,
-        high_fit_leads_total: rawMetrics?.high_fit_leads || 0,
-        medium_fit_leads_total: rawMetrics?.medium_fit_leads || 0,
-        low_fit_leads_total: rawMetrics?.low_fit_leads || 0,
+        total_crm_leads: rawMetrics?.total_crm_leads || 0,
+        total_database_leads: rawMetrics?.total_database_leads || 0,
+        high_fit_leads: rawMetrics?.high_fit_leads || 0,
+        medium_fit_leads: rawMetrics?.medium_fit_leads || 0,
+        low_fit_leads: rawMetrics?.low_fit_leads || 0,
         high_fit_crm_leads: rawMetrics?.high_fit_crm_leads || 0,
         high_fit_database_leads: rawMetrics?.high_fit_database_leads || 0,
         medium_fit_crm_leads: rawMetrics?.medium_fit_crm_leads || 0,
