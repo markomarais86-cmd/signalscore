@@ -75,20 +75,20 @@ export default function ExecutiveDashboard() {
   
 
   const totalAccounts = dashboardData?.metrics?.total_accounts || 0;
-  const totalScores = dashboardData?.metrics?.total_scores || 0;
+  const totalScores = dashboardData?.metrics?.scored_accounts || 0;
   const campaignReadyAccounts = dashboardData?.metrics?.campaign_ready_accounts || 0;
   const campaignReadyLeads = dashboardData?.metrics?.campaign_ready_leads || 0;
   const dataCompleteness = Math.round(dashboardData?.metrics?.data_completeness || 0);
 
-  const highFitAccounts = dashboardData?.metrics?.high_fit_scores || 0;
-  const medFitAccounts = dashboardData?.metrics?.med_fit_scores || 0;
-  const lowFitAccounts = dashboardData?.metrics?.low_fit_scores || 0;
+  const highFitAccounts = dashboardData?.metrics?.high_fit_accounts || 0;
+  const medFitAccounts = dashboardData?.metrics?.medium_fit_accounts || 0;
+  const lowFitAccounts = dashboardData?.metrics?.low_fit_accounts || 0;
 
-  const crmAccounts = dashboardData?.metrics?.crm_accounts || 0;
-  const databaseAccounts = dashboardData?.metrics?.database_accounts || 0;
+  const crmAccounts = dashboardData?.metrics?.total_crm_accounts || 0;
+  const databaseAccounts = dashboardData?.metrics?.total_database_accounts || 0;
   const bothAccounts = dashboardData?.metrics?.both_accounts || 0;
-  const crmScoredAccounts = dashboardData?.metrics?.crm_scored_accounts || 0;
-  const databaseScoredAccounts = dashboardData?.metrics?.database_scored_accounts || 0;
+  const crmScoredAccounts = dashboardData?.metrics?.scored_crm_accounts || 0;
+  const databaseScoredAccounts = dashboardData?.metrics?.scored_database_accounts || 0;
 
   const highFitCrmAccounts = dashboardData?.metrics?.high_fit_crm_accounts || 0;
   const highFitDatabaseAccounts = dashboardData?.metrics?.high_fit_database_accounts || 0;
@@ -98,11 +98,11 @@ export default function ExecutiveDashboard() {
   const lowFitDatabaseAccounts = dashboardData?.metrics?.low_fit_database_accounts || 0;
 
   const totalLeads = dashboardData?.metrics?.total_leads || 0;
-  const crmLeads = dashboardData?.metrics?.crm_leads || 0;
-  const databaseLeads = dashboardData?.metrics?.database_leads || 0;
-  const highFitLeads = dashboardData?.metrics?.high_fit_leads_total || 0;
-  const medFitLeads = dashboardData?.metrics?.medium_fit_leads_total || 0;
-  const lowFitLeads = dashboardData?.metrics?.low_fit_leads_total || 0;
+  const crmLeads = dashboardData?.metrics?.total_crm_leads || 0;
+  const databaseLeads = dashboardData?.metrics?.total_database_leads || 0;
+  const highFitLeads = dashboardData?.metrics?.high_fit_leads || 0;
+  const medFitLeads = dashboardData?.metrics?.medium_fit_leads || 0;
+  const lowFitLeads = dashboardData?.metrics?.low_fit_leads || 0;
   const highFitCrmLeads = dashboardData?.metrics?.high_fit_crm_leads || 0;
   const highFitDatabaseLeads = dashboardData?.metrics?.high_fit_database_leads || 0;
   const medFitCrmLeads = dashboardData?.metrics?.medium_fit_crm_leads || 0;
