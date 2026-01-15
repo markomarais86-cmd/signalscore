@@ -1,0 +1,314 @@
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { 
+  Zap, 
+  Users, 
+  DollarSign, 
+  Building2, 
+  Linkedin, 
+  MapPin,
+  Loader2,
+  Play,
+  AlertCircle,
+  CheckCircle2
+} from "lucide-react";
+import { toast } from "sonner";
+
+interface DataGap {
+  field: string;
+  label: string;
+  icon: React.ElementType;
+  missing: number;
+  color: string;
+}
+
+interface ActiveJob {
+  id: string;
+  status: string;
+  processed_records: number;
+  accounts_enriched: number;
+  fields_enriched: number;
+  total_records: number;
+}
+
+const BATCH_OPTIONS = [
+  { value: "100", label: "100 accounts" },
+  { value: "500", label: "500 accounts" },
+  { value: "1000", label: "1,000 accounts" },
+  { value: "5000", label: "5,000 accounts" },
+  { value: "all", label: "All accounts" },
+];
+
+export function DataGapsVisualization() {
+  const { userProfile } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [totalAccounts, setTotalAccounts] = useState(0);
+  const [dataGaps, setDataGaps] = useState<DataGap[]>([]);
+  const [batchSize, setBatchSize] = useState("100");
+  const [activeJob, setActiveJob] = useState<ActiveJob | null>(null);
+
+  useEffect(() => {
+    if (userProfile?.org_id) {
+      loadDataGaps();
+      checkActiveJob();
+    }
+  }, [userProfile?.org_id]);
+
+  // Poll for active job progress
+  useEffect(() => {
+    if (!activeJob || !["processing", "paused"].includes(activeJob.status)) return;
+
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from("enrichment_jobs")
+        .select("id, status, processed_records, accounts_enriched, fields_enriched, total_records")
+        .eq("id", activeJob.id)
+        .single();
+
+      if (data) {
+        setActiveJob(data as ActiveJob);
+        if (data.status === "completed") {
+          toast.success(`Enrichment complete! ${data.accounts_enriched} accounts enriched.`);
+          loadDataGaps();
+        }
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [activeJob?.id, activeJob?.status]);
+
+  const loadDataGaps = async () => {
+    if (!userProfile?.org_id) return;
+    setLoading(true);
+
+    try {
+      const { count: total } = await supabase
+        .from("accounts")
+        .select("*", { count: "exact", head: true })
+        .eq("org_id", userProfile.org_id);
+
+      const fields = [
+        { field: "employee_count", label: "Employee Count", icon: Users, color: "hsl(var(--primary))" },
+        { field: "revenue_range", label: "Revenue", icon: DollarSign, color: "hsl(var(--signal-high))" },
+        { field: "industry_raw", label: "Industry", icon: Building2, color: "hsl(var(--signal-medium))" },
+        { field: "linkedin_url", label: "LinkedIn", icon: Linkedin, color: "hsl(210 90% 55%)" },
+        { field: "country", label: "Country", icon: MapPin, color: "hsl(var(--signal-low))" },
+      ];
+
+      const gaps: DataGap[] = [];
+
+      for (const f of fields) {
+        const { count } = await supabase
+          .from("accounts")
+          .select("*", { count: "exact", head: true })
+          .eq("org_id", userProfile.org_id)
+          .is(f.field, null);
+
+        gaps.push({
+          ...f,
+          missing: count || 0,
+        });
+      }
+
+      setTotalAccounts(total || 0);
+      setDataGaps(gaps.sort((a, b) => b.missing - a.missing));
+    } catch (error) {
+      console.error("Error loading data gaps:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkActiveJob = async () => {
+    if (!userProfile?.org_id) return;
+
+    const { data } = await supabase
+      .from("enrichment_jobs")
+      .select("id, status, processed_records, accounts_enriched, fields_enriched, total_records")
+      .eq("org_id", userProfile.org_id)
+      .in("status", ["processing", "paused", "pending"])
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data) {
+      setActiveJob(data as ActiveJob);
+    }
+  };
+
+  const accountsToEnrich = batchSize === "all" 
+    ? totalAccounts 
+    : Math.min(parseInt(batchSize), totalAccounts);
+
+  const startEnrichment = async () => {
+    if (!userProfile?.org_id) return;
+
+    try {
+      setStarting(true);
+      
+      const { error } = await supabase.functions.invoke("enrich-free-orchestrator", {
+        body: {
+          org_id: userProfile.org_id,
+          create_new: true,
+          total_records: accountsToEnrich,
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success("Enrichment started!", {
+        description: `Processing ${accountsToEnrich.toLocaleString()} accounts`,
+      });
+
+      await checkActiveJob();
+    } catch (error) {
+      console.error("Error starting enrichment:", error);
+      toast.error("Failed to start enrichment");
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card className="shadow-sm">
+        <CardContent className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const maxMissing = Math.max(...dataGaps.map(g => g.missing), 1);
+  const progressPercent = activeJob 
+    ? Math.round((activeJob.processed_records / activeJob.total_records) * 100) 
+    : 0;
+
+  return (
+    <Card className="shadow-sm hover:shadow-md transition-shadow">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" />
+              Data Gaps
+            </CardTitle>
+            <CardDescription>
+              Fields that need enrichment across {totalAccounts.toLocaleString()} accounts
+            </CardDescription>
+          </div>
+          <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">
+            Free Enrichment
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Visual Data Gaps */}
+        <div className="space-y-3">
+          {dataGaps.map(gap => {
+            const Icon = gap.icon;
+            const percentage = totalAccounts > 0 ? Math.round((gap.missing / totalAccounts) * 100) : 0;
+            
+            return (
+              <div key={gap.field} className="flex items-center gap-3">
+                <div className="flex items-center gap-2 w-28 shrink-0">
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium truncate">{gap.label}</span>
+                </div>
+                <div className="flex-1">
+                  <Progress 
+                    value={(gap.missing / maxMissing) * 100} 
+                    className="h-2"
+                  />
+                </div>
+                <div className="text-right w-24 shrink-0">
+                  <span className="text-sm font-medium">{gap.missing.toLocaleString()}</span>
+                  <span className="text-xs text-muted-foreground ml-1">({percentage}%)</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Active Job Progress */}
+        {activeJob && ["processing", "paused"].includes(activeJob.status) && (
+          <div className="p-4 rounded-lg border bg-primary/5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <span className="font-medium">Enrichment in Progress</span>
+              </div>
+              <span className="text-sm text-muted-foreground">
+                {activeJob.accounts_enriched?.toLocaleString() || 0} enriched
+              </span>
+            </div>
+            <Progress value={progressPercent} className="h-2" />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{activeJob.processed_records?.toLocaleString() || 0} / {activeJob.total_records?.toLocaleString() || 0}</span>
+              <span>{progressPercent}%</span>
+            </div>
+          </div>
+        )}
+
+        {/* Completed Job Status */}
+        {activeJob && activeJob.status === "completed" && (
+          <div className="p-3 rounded-lg border bg-green-500/5 flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+            <div>
+              <p className="font-medium text-green-700">Last job completed</p>
+              <p className="text-sm text-muted-foreground">
+                {activeJob.accounts_enriched?.toLocaleString() || 0} accounts, {activeJob.fields_enriched?.toLocaleString() || 0} fields
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Start Enrichment Controls */}
+        {(!activeJob || !["processing", "paused"].includes(activeJob.status)) && (
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+            <Select value={batchSize} onValueChange={setBatchSize}>
+              <SelectTrigger className="w-full sm:w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {BATCH_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.value === "all" 
+                      ? `All (${totalAccounts.toLocaleString()})` 
+                      : opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button
+              onClick={startEnrichment}
+              disabled={starting || accountsToEnrich === 0}
+              className="gap-2 flex-1 sm:flex-none"
+            >
+              {starting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              Fill Data Gaps ({accountsToEnrich.toLocaleString()})
+            </Button>
+          </div>
+        )}
+
+        {/* Info Note */}
+        <p className="flex items-start gap-2 text-xs text-muted-foreground pt-1">
+          <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          AI-powered enrichment runs in the background. Large jobs process in batches with auto-continuation.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}

@@ -311,7 +311,7 @@ LinkedIn: ${result.linkedin_url || "N/A"}
   };
 
   return (
-    <Card className="border-2 border-primary/20">
+    <Card className="shadow-sm hover:shadow-md transition-shadow">
       <CardHeader className="pb-4">
         <CardTitle className="flex items-center gap-2 text-xl">
           <Sparkles className="h-5 w-5 text-primary" />
