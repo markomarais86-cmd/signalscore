@@ -65,12 +65,8 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
     queryFn: async (): Promise<DashboardData> => {
       if (!orgId) throw new Error('No org ID provided');
       
-      // Parallel fetch: metrics + ICP profiles + TAM data (3 queries instead of 22+)
-      const [metricsResult, icpResult, tamResult] = await Promise.all([
-        supabase.rpc('get_dashboard_metrics_fast' as any, { 
-          p_org_id: orgId,
-          p_source_filter: sourceFilter
-        }),
+      // Parallel fetch: ICP profiles + TAM data first (fast queries)
+      const [icpResult, tamResult] = await Promise.all([
         supabase
           .from('icp_profiles')
           .select('*')
@@ -97,14 +93,32 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
           .maybeSingle()
       ]);
       
-      if (metricsResult.error) {
-        dashboardLogger.error('Metrics fetch error:', metricsResult.error);
-        throw metricsResult.error;
-      }
-      
       if (icpResult.error) {
         dashboardLogger.error('ICP fetch error:', icpResult.error);
         throw icpResult.error;
+      }
+
+      // TAM data is optional, don't throw if missing
+      if (tamResult.error) {
+        dashboardLogger.warn('TAM fetch error:', tamResult.error);
+      }
+      
+      // Fetch metrics separately with timeout handling
+      let metricsResult;
+      try {
+        metricsResult = await supabase.rpc('get_dashboard_metrics_fast' as any, { 
+          p_org_id: orgId,
+          p_source_filter: sourceFilter
+        });
+      } catch (err) {
+        dashboardLogger.error('Metrics RPC timeout/error:', err);
+        // Return empty metrics on timeout, don't block the whole page
+        metricsResult = { data: null, error: err };
+      }
+      
+      if (metricsResult.error) {
+        dashboardLogger.error('Metrics fetch error:', metricsResult.error);
+        // Don't throw - return default metrics so page loads
       }
 
       // TAM data is optional, don't throw if missing
