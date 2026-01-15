@@ -3,30 +3,45 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { validateAuth, unauthorizedResponse, errorResponse, successResponse, handleCorsOptions } from '../_shared/auth.ts';
+import { validateUUID, validateString, ValidationError, validationErrorResponse } from '../_shared/validation.ts';
 
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsOptions(req);
   }
 
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   try {
+    // Validate authentication
+    const authResult = await validateAuth(req);
+    if (!authResult.success) {
+      return unauthorizedResponse(req, authResult.error);
+    }
+
+    // Parse and validate request body
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return errorResponse(req, 'Invalid JSON body', 400);
+    }
+
+    const data = body as Record<string, unknown>;
+    const org_id = validateUUID(data.org_id, 'org_id');
+    const provider = validateString(data.provider, 'provider', { required: true, minLength: 1, maxLength: 100 });
+
+    if (!provider) {
+      return errorResponse(req, 'provider is required', 400);
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-
-    const { org_id, provider } = await req.json();
-
-    if (!org_id || !provider) {
-      return new Response(
-        JSON.stringify({ error: 'org_id and provider are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     // Get all CRM accounts for the organization
     const { data: crmAccounts, error: accountsError } = await supabase
@@ -68,19 +83,18 @@ serve(async (req) => {
 
     if (updateError) throw updateError;
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        matched: matches.filter(m => m.matched).length,
-        total: matches.length,
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  } catch (error) {
+    return successResponse(req, {
+      success: true,
+      matched: matches.filter(m => m.matched).length,
+      total: matches.length,
+    });
+
+  } catch (error: unknown) {
+    if (error instanceof ValidationError) {
+      return validationErrorResponse(error, corsHeaders);
+    }
+
     console.error('Error matching external data:', error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return errorResponse(req, error instanceof Error ? error.message : 'Unknown error', 500);
   }
 });
