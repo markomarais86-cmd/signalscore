@@ -97,8 +97,8 @@ export default function ExecutiveDashboard() {
   const crmLeads = dashboardData?.metrics?.crm_leads || 0;
   const databaseLeads = dashboardData?.metrics?.database_leads || 0;
   const highFitLeads = dashboardData?.metrics?.high_fit_leads_total || 0;
-  const medFitLeads = (dashboardData?.metrics?.medium_fit_crm_leads || 0) + (dashboardData?.metrics?.medium_fit_database_leads || 0);
-  const lowFitLeads = (dashboardData?.metrics?.low_fit_crm_leads || 0) + (dashboardData?.metrics?.low_fit_database_leads || 0);
+  const medFitLeads = dashboardData?.metrics?.medium_fit_leads_total || 0;
+  const lowFitLeads = dashboardData?.metrics?.low_fit_leads_total || 0;
   const highFitCrmLeads = dashboardData?.metrics?.high_fit_crm_leads || 0;
   const highFitDatabaseLeads = dashboardData?.metrics?.high_fit_database_leads || 0;
 
