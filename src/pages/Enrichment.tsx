@@ -34,6 +34,7 @@ import { DataQualityDashboard } from "@/components/settings/DataQualityDashboard
 import { EnrichmentQualityDashboard } from "@/components/settings/EnrichmentQualityDashboard";
 import { FlexibleLeadEnrich } from "@/components/enrichment/FlexibleLeadEnrich";
 import { EnrichmentAccuracyReport } from "@/components/enrichment/EnrichmentAccuracyReport";
+import { UnifiedEnrichmentWizard } from "@/components/enrichment/UnifiedEnrichmentWizard";
 
 interface HeroStats {
   totalAccounts: number;
@@ -154,8 +155,8 @@ export default function Enrichment() {
         />
       </div>
 
-      {/* Flexible Enrichment - New multi-source input */}
-      <FlexibleLeadEnrich />
+      {/* Unified Enrichment Wizard - Primary Action */}
+      <UnifiedEnrichmentWizard />
 
       {/* Primary Action - Instant Lookup */}
       <InstantEnrich />

@@ -1,5 +1,6 @@
 // Internal-First Enrichment - Check existing data before calling external APIs
 // Reduces API costs by leveraging already-enriched accounts and leads
+// Now includes domain discovery for company-name-only inputs
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
@@ -23,10 +24,11 @@ interface EnrichmentResult {
   matched_account?: any;
   matched_lead?: any;
   enriched_data: Record<string, any>;
-  source: 'internal' | 'apollo' | 'pdl' | 'clearbit' | 'ai';
+  source: 'internal' | 'apollo' | 'pdl' | 'clearbit' | 'ai' | 'domain_discovery';
   confidence: number;
   fields_filled: string[];
   api_calls_saved: boolean;
+  domain_discovered?: boolean;
 }
 
 // Extract domain from email
@@ -45,6 +47,64 @@ const calculateCompleteness = (account: any): number => {
   const keyFields = ['employee_count', 'revenue_range', 'industry_norm', 'country', 'linkedin_url'];
   const filled = keyFields.filter(f => account[f] != null).length;
   return (filled / keyFields.length) * 100;
+};
+
+// Discover domain for company name using AI
+const discoverDomainForCompany = async (companyName: string, supabase: any, orgId: string): Promise<string | null> => {
+  // First check internal accounts
+  const { data: existingAccounts } = await supabase
+    .from('accounts')
+    .select('domain, name')
+    .eq('org_id', orgId)
+    .not('domain', 'is', null);
+
+  // Fuzzy match against existing accounts
+  const normalized = companyName.toLowerCase().trim()
+    .replace(/\s+(inc\.?|llc|ltd\.?|corp\.?|corporation|company|co\.?)$/i, '')
+    .trim();
+
+  for (const account of existingAccounts || []) {
+    if (!account.name) continue;
+    const accountNormalized = account.name.toLowerCase().trim()
+      .replace(/\s+(inc\.?|llc|ltd\.?|corp\.?|corporation|company|co\.?)$/i, '')
+      .trim();
+    
+    if (accountNormalized === normalized || 
+        accountNormalized.includes(normalized) || 
+        normalized.includes(accountNormalized)) {
+      return account.domain;
+    }
+  }
+
+  // Try AI discovery
+  const providers = getAvailableProviders();
+  if (providers.length > 0) {
+    try {
+      const aiResponse = await callAI('research', [
+        { role: 'system', content: 'You are a business researcher. Return ONLY the domain name (e.g., "microsoft.com") for the company. No explanation, just the domain.' },
+        { role: 'user', content: `What is the official website domain for "${companyName}"?` }
+      ]);
+
+      if (aiResponse.ok) {
+        const aiData = await aiResponse.json();
+        const content = aiData.choices?.[0]?.message?.content?.trim() || '';
+        // Clean the response - should be just a domain
+        const cleanDomain = content.toLowerCase()
+          .replace(/^(https?:\/\/)?(www\.)?/, '')
+          .replace(/['"]/g, '')
+          .split('/')[0]
+          .split(' ')[0]; // Take first word if AI returned extra text
+        
+        if (cleanDomain && cleanDomain.includes('.') && !cleanDomain.includes(' ')) {
+          return cleanDomain;
+        }
+      }
+    } catch (e) {
+      console.error('[enrich-internal-first] AI domain discovery error:', e);
+    }
+  }
+
+  return null;
 };
 
 serve(async (req) => {
@@ -94,6 +154,9 @@ serve(async (req) => {
     const emailsToLookup = new Set<string>();
     const companyNamesToLookup = new Set<string>();
 
+    // Track company names that need domain discovery
+    const companyNamesToDiscover: string[] = [];
+
     for (const input of inputs as EnrichmentInput[]) {
       if (input.email) {
         emailsToLookup.add(input.email.toLowerCase());
@@ -105,7 +168,27 @@ serve(async (req) => {
       }
       if (input.company_name) {
         companyNamesToLookup.add(input.company_name.toLowerCase());
+        // If no domain or email, we'll need to discover the domain
+        if (!input.domain && !input.email) {
+          companyNamesToDiscover.push(input.company_name);
+        }
       }
+    }
+
+    // Domain discovery for company-name-only inputs
+    const discoveredDomains = new Map<string, string>();
+    if (companyNamesToDiscover.length > 0) {
+      console.log(`[enrich-internal-first] Discovering domains for ${companyNamesToDiscover.length} company names`);
+      
+      for (const companyName of companyNamesToDiscover) {
+        const domain = await discoverDomainForCompany(companyName, supabase, org_id);
+        if (domain) {
+          discoveredDomains.set(companyName.toLowerCase(), domain);
+          domainsToLookup.add(domain);
+        }
+      }
+      
+      console.log(`[enrich-internal-first] Discovered ${discoveredDomains.size} domains`);
     }
 
     // Batch fetch existing accounts by domain
@@ -158,14 +241,26 @@ serve(async (req) => {
         source: 'internal',
         confidence: 0,
         fields_filled: [],
-        api_calls_saved: false
+        api_calls_saved: false,
+        domain_discovered: false
       };
+
+      // Check if we discovered a domain for this company name
+      let discoveredDomain: string | null = null;
+      if (input.company_name && discoveredDomains.has(input.company_name.toLowerCase())) {
+        discoveredDomain = discoveredDomains.get(input.company_name.toLowerCase())!;
+        result.domain_discovered = true;
+        result.enriched_data.domain = discoveredDomain;
+      }
 
       // Try to find matching account
       let matchedAccount: any = null;
       
       if (input.domain) {
         matchedAccount = accountByDomain.get(normalizeDomain(input.domain));
+      }
+      if (!matchedAccount && discoveredDomain) {
+        matchedAccount = accountByDomain.get(normalizeDomain(discoveredDomain));
       }
       if (!matchedAccount && input.email) {
         const domain = extractDomain(input.email);
