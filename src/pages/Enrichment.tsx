@@ -32,6 +32,8 @@ import { CreditsDisplay } from "@/components/enrichment/CreditsDisplay";
 import { DeepResearchSettings } from "@/components/settings/DeepResearchSettings";
 import { DataQualityDashboard } from "@/components/settings/DataQualityDashboard";
 import { EnrichmentQualityDashboard } from "@/components/settings/EnrichmentQualityDashboard";
+import { FlexibleLeadEnrich } from "@/components/enrichment/FlexibleLeadEnrich";
+import { EnrichmentAccuracyReport } from "@/components/enrichment/EnrichmentAccuracyReport";
 
 interface HeroStats {
   totalAccounts: number;
@@ -152,6 +154,9 @@ export default function Enrichment() {
         />
       </div>
 
+      {/* Flexible Enrichment - New multi-source input */}
+      <FlexibleLeadEnrich />
+
       {/* Primary Action - Instant Lookup */}
       <InstantEnrich />
 
@@ -259,6 +264,9 @@ export default function Enrichment() {
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* Enrichment Accuracy Report */}
+                <EnrichmentAccuracyReport />
 
                 <Card className="border-muted">
                   <CardHeader className="pb-3">
