@@ -67,6 +67,7 @@ interface VerifiedData {
 }
 
 // Cross-reference employee counts - accept if within 30% of each other
+// Enhanced for 3-source validation
 function crossReferenceEmployeeCount(sources: DataSource[]): { value: number | null; confidence: number; source: string | null } {
   const validSources = sources.filter(s => s.employee_count !== null && s.employee_count > 0);
   
@@ -88,16 +89,40 @@ function crossReferenceEmployeeCount(sources: DataSource[]): { value: number | n
   const max = Math.max(...counts);
   const variance = (max - min) / min;
   
+  // 3+ sources agreeing = highest confidence
+  if (validSources.length >= 3 && variance <= 0.3) {
+    const avg = Math.round(counts.reduce((a, b) => a + b, 0) / counts.length);
+    return { 
+      value: avg, 
+      confidence: 99, // 3-source agreement = highest confidence
+      source: validSources.map(s => s.source).join('+') 
+    };
+  }
+  
   if (variance <= 0.3) {
     // Sources agree within 30% - use average, high confidence
     const avg = Math.round(counts.reduce((a, b) => a + b, 0) / counts.length);
     return { 
       value: avg, 
-      confidence: 95, 
+      confidence: validSources.length >= 3 ? 99 : 95, 
       source: validSources.map(s => s.source).join('+') 
     };
   } else if (variance <= 0.5) {
-    // Some disagreement - use source with highest confidence
+    // Some disagreement - for 3 sources, use majority vote
+    if (validSources.length >= 3) {
+      // Find two sources that agree most closely
+      const sorted = [...counts].sort((a, b) => a - b);
+      const closeVariance = (sorted[1] - sorted[0]) / sorted[0];
+      if (closeVariance <= 0.2) {
+        // First two agree - use their average
+        return { 
+          value: Math.round((sorted[0] + sorted[1]) / 2), 
+          confidence: 85,
+          source: 'verified_majority' 
+        };
+      }
+    }
+    // Use source with highest confidence
     const bestSource = validSources.reduce((a, b) => a.confidence > b.confidence ? a : b);
     return { 
       value: bestSource.employee_count, 
@@ -116,7 +141,7 @@ function crossReferenceEmployeeCount(sources: DataSource[]): { value: number | n
   }
 }
 
-// Cross-reference revenue ranges
+// Cross-reference revenue ranges - enhanced for 3-source validation
 function crossReferenceRevenue(sources: DataSource[]): { value: string | null; confidence: number; source: string | null } {
   const validSources = sources.filter(s => s.revenue_range !== null);
   
@@ -134,8 +159,29 @@ function crossReferenceRevenue(sources: DataSource[]): { value: string | null; c
   
   // Check if ranges match exactly
   const ranges = validSources.map(s => s.revenue_range);
-  if (new Set(ranges).size === 1) {
-    return { value: ranges[0], confidence: 95, source: validSources.map(s => s.source).join('+') };
+  const uniqueRanges = new Set(ranges);
+  
+  if (uniqueRanges.size === 1) {
+    // All sources agree
+    return { 
+      value: ranges[0], 
+      confidence: validSources.length >= 3 ? 99 : 95, 
+      source: validSources.map(s => s.source).join('+') 
+    };
+  }
+  
+  // For 3 sources, check if 2 agree (majority vote)
+  if (validSources.length >= 3) {
+    const rangeCount = new Map<string, number>();
+    for (const range of ranges) {
+      rangeCount.set(range!, (rangeCount.get(range!) || 0) + 1);
+    }
+    // Find majority
+    for (const [range, count] of rangeCount.entries()) {
+      if (count >= 2) {
+        return { value: range, confidence: 85, source: 'verified_majority' };
+      }
+    }
   }
   
   // Ranges differ - use Perplexity (more comprehensive search)
@@ -259,6 +305,58 @@ async function searchWithPerplexity(companyName: string, domain: string | null):
   }
 }
 
+// Search with Gemini (3rd validation source)
+async function searchWithGemini(companyName: string, domain: string | null, existingSources: DataSource[]): Promise<DataSource | null> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, serviceKey);
+  
+  // Build existing data context for Gemini to validate
+  const existingData = {
+    employee_count: existingSources.find(s => s.employee_count)?.employee_count || null,
+    revenue_range: existingSources.find(s => s.revenue_range)?.revenue_range || null,
+    industry: existingSources.find(s => s.industry)?.industry || null,
+  };
+  
+  try {
+    const { data, error } = await supabase.functions.invoke("enrich-gemini-account", {
+      body: { 
+        company: { 
+          name: companyName, 
+          domain,
+          existing_data: existingData
+        } 
+      }
+    });
+    
+    if (error || !data?.success) {
+      console.log("[enrich-verified] Gemini call failed:", error?.message || data?.error);
+      return null;
+    }
+    
+    const geminiData = data.data;
+    if (!geminiData) return null;
+    
+    return {
+      source: 'gemini',
+      employee_count: geminiData.employee_count || null,
+      revenue_range: geminiData.revenue_range || null,
+      industry: geminiData.industry || null,
+      naics_code: geminiData.naics_code || null,
+      sic_code: geminiData.sic_code || null,
+      city: geminiData.headquarters_city || null,
+      state: geminiData.headquarters_state || null,
+      country: geminiData.headquarters_country || null,
+      linkedin_url: geminiData.linkedin_url || null,
+      founded_year: geminiData.founded_year || null,
+      confidence: geminiData.confidence || 65,
+    };
+  } catch (e) {
+    console.error("[enrich-verified] Gemini error:", e);
+    return null;
+  }
+}
+
 // Extraction helpers (from enrich-with-firecrawl)
 function extractEmployeeCount(markdown: string): number | null {
   if (!markdown) return null;
@@ -365,13 +463,24 @@ async function enrichAccount(account: AccountToEnrich): Promise<VerifiedData> {
     }
   }
   
-  // Step 3: Cross-reference and validate
+  // Step 3: Research with Gemini (validates + fills gaps)
+  if (account.name) {
+    console.log(`[enrich-verified] Researching ${account.name} with Gemini...`);
+    const geminiData = await searchWithGemini(account.name, account.domain, sources);
+    if (geminiData) {
+      sources.push(geminiData);
+      console.log(`[enrich-verified] Gemini: employees=${geminiData.employee_count}, revenue=${geminiData.revenue_range}, naics=${geminiData.naics_code}`);
+    }
+  }
+  
+  // Step 4: Cross-reference and validate
   const employeeResult = crossReferenceEmployeeCount(sources);
   const revenueResult = crossReferenceRevenue(sources);
   
-  // Get best source for other fields
+  // Get best source for other fields (prefer Gemini for NAICS/tech stack)
   const perplexitySource = sources.find(s => s.source === 'perplexity');
   const firecrawlSource = sources.find(s => s.source === 'firecrawl');
+  const geminiSource = sources.find(s => s.source === 'gemini');
   
   // Determine if needs review
   const hasConflict = sources.length >= 2 && (
@@ -390,16 +499,16 @@ async function enrichAccount(account: AccountToEnrich): Promise<VerifiedData> {
     revenue_range: revenueResult.value,
     revenue_range_confidence: revenueResult.confidence,
     revenue_range_source: revenueResult.source,
-    industry: perplexitySource?.industry || null,
-    industry_confidence: perplexitySource?.industry ? 75 : 0,
-    naics_code: perplexitySource?.naics_code || null,
-    naics_source: perplexitySource?.naics_code ? 'perplexity' : null,
-    sic_code: perplexitySource?.sic_code || null,
-    city: perplexitySource?.city || null,
-    state: perplexitySource?.state || null,
-    country: perplexitySource?.country || null,
-    linkedin_url: perplexitySource?.linkedin_url || firecrawlSource?.linkedin_url || null,
-    founded_year: perplexitySource?.founded_year || null,
+    industry: perplexitySource?.industry || geminiSource?.industry || null,
+    industry_confidence: perplexitySource?.industry ? 75 : (geminiSource?.industry ? 70 : 0),
+    naics_code: perplexitySource?.naics_code || geminiSource?.naics_code || null,
+    naics_source: perplexitySource?.naics_code ? 'perplexity' : (geminiSource?.naics_code ? 'gemini' : null),
+    sic_code: perplexitySource?.sic_code || geminiSource?.sic_code || null,
+    city: perplexitySource?.city || geminiSource?.city || null,
+    state: perplexitySource?.state || geminiSource?.state || null,
+    country: perplexitySource?.country || geminiSource?.country || null,
+    linkedin_url: perplexitySource?.linkedin_url || geminiSource?.linkedin_url || firecrawlSource?.linkedin_url || null,
+    founded_year: perplexitySource?.founded_year || geminiSource?.founded_year || null,
     overall_confidence: overallConfidence,
     sources_used: sourcesUsed,
     needs_review: hasConflict,
@@ -591,11 +700,12 @@ serve(async (req) => {
     // Calculate costs (estimates based on API usage)
     const firecrawlCalls = accounts.filter(a => a.domain).length;
     const perplexityCalls = accounts.filter(a => a.name).length;
+    const geminiCalls = accounts.filter(a => a.name).length; // Gemini called for all accounts with names
     const costs = {
       firecrawl: firecrawlCalls * 0.005, // $0.005 per scrape
       perplexity: perplexityCalls * 0.005, // $0.005 per search
-      ai_fallback: 0,
-      total: (firecrawlCalls * 0.005) + (perplexityCalls * 0.005)
+      gemini: geminiCalls * 0.003, // $0.003 per account
+      total: (firecrawlCalls * 0.005) + (perplexityCalls * 0.005) + (geminiCalls * 0.003)
     };
 
     return new Response(

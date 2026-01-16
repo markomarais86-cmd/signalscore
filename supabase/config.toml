@@ -353,3 +353,6 @@ verify_jwt = true
 
 [functions.lookup-naics]
 verify_jwt = true
+
+[functions.enrich-gemini-account]
+verify_jwt = true
