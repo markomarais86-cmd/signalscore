@@ -48,7 +48,7 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
       formData.revenue_ranges.length > 0 ||
       formData.geographies.length > 0
     ),
-    staleTime: 1000 // Refresh every second for real-time feel
+    staleTime: 30000 // 30 seconds - only refetch when form data changes
   });
   
   const addToArray = (field: keyof ICPFormData, value: string | number) => {

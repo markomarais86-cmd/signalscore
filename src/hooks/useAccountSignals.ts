@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -75,7 +76,8 @@ export function useAccountSignals(options?: {
     staleTime: 30000, // 30 seconds
   });
 
-  const summary: SignalSummary = {
+  // Memoize summary calculation to prevent recalculation on every render
+  const summary: SignalSummary = useMemo(() => ({
     total: signals?.length || 0,
     critical: signals?.filter(s => s.signal_priority === 'critical').length || 0,
     high: signals?.filter(s => s.signal_priority === 'high').length || 0,
@@ -85,7 +87,7 @@ export function useAccountSignals(options?: {
       acc[s.signal_type] = (acc[s.signal_type] || 0) + 1;
       return acc;
     }, {} as Record<string, number>) || {},
-  };
+  }), [signals]);
 
   const dismissSignal = useMutation({
     mutationFn: async (signalId: string) => {
