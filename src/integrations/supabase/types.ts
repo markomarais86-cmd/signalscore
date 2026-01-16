@@ -3228,6 +3228,53 @@ export type Database = {
           },
         ]
       }
+      enrichment_source_rules: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean | null
+          max_api_cost_per_record: number | null
+          org_id: string
+          priority_fields: string[] | null
+          require_fields: string[] | null
+          skip_external_if: Json | null
+          source_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          max_api_cost_per_record?: number | null
+          org_id: string
+          priority_fields?: string[] | null
+          require_fields?: string[] | null
+          skip_external_if?: Json | null
+          source_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          max_api_cost_per_record?: number | null
+          org_id?: string
+          priority_fields?: string[] | null
+          require_fields?: string[] | null
+          skip_external_if?: Json | null
+          source_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_source_rules_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enrichment_spending: {
         Row: {
           created_at: string | null
@@ -3260,6 +3307,89 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      enrichment_validations: {
+        Row: {
+          account_external_id: string | null
+          created_at: string
+          enriched_value: string | null
+          enrichment_job_id: string | null
+          field_name: string
+          id: string
+          is_accurate: boolean | null
+          lead_id: number | null
+          notes: string | null
+          org_id: string
+          provider: string
+          validated_at: string | null
+          validated_by: string | null
+          validated_value: string | null
+          validation_source: string | null
+        }
+        Insert: {
+          account_external_id?: string | null
+          created_at?: string
+          enriched_value?: string | null
+          enrichment_job_id?: string | null
+          field_name: string
+          id?: string
+          is_accurate?: boolean | null
+          lead_id?: number | null
+          notes?: string | null
+          org_id: string
+          provider: string
+          validated_at?: string | null
+          validated_by?: string | null
+          validated_value?: string | null
+          validation_source?: string | null
+        }
+        Update: {
+          account_external_id?: string | null
+          created_at?: string
+          enriched_value?: string | null
+          enrichment_job_id?: string | null
+          field_name?: string
+          id?: string
+          is_accurate?: boolean | null
+          lead_id?: number | null
+          notes?: string | null
+          org_id?: string
+          provider?: string
+          validated_at?: string | null
+          validated_by?: string | null
+          validated_value?: string | null
+          validation_source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_validations_enrichment_job_id_fkey"
+            columns: ["enrichment_job_id"]
+            isOneToOne: false
+            referencedRelation: "enrichment_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrichment_validations_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "Leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrichment_validations_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads_summary"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrichment_validations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       external_data_sources: {
         Row: {
@@ -4353,6 +4483,7 @@ export type Database = {
           previous_title: string | null
           priority_rank: number | null
           revenue_range: string | null
+          source_type: Database["public"]["Enums"]["lead_source_type"] | null
           state_province: string | null
           status: string | null
           still_at_company: string | null
@@ -4441,6 +4572,7 @@ export type Database = {
           previous_title?: string | null
           priority_rank?: number | null
           revenue_range?: string | null
+          source_type?: Database["public"]["Enums"]["lead_source_type"] | null
           state_province?: string | null
           status?: string | null
           still_at_company?: string | null
@@ -4529,6 +4661,7 @@ export type Database = {
           previous_title?: string | null
           priority_rank?: number | null
           revenue_range?: string | null
+          source_type?: Database["public"]["Enums"]["lead_source_type"] | null
           state_province?: string | null
           status?: string | null
           still_at_company?: string | null
@@ -7035,6 +7168,17 @@ export type Database = {
     }
     Enums: {
       app_role: "super_admin" | "org_admin" | "user"
+      lead_source_type:
+        | "webinar"
+        | "website_visitor"
+        | "event_attendee"
+        | "linkedin"
+        | "manual"
+        | "csv_import"
+        | "crm_sync"
+        | "apollo"
+        | "pdl"
+        | "unknown"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -7163,6 +7307,18 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["super_admin", "org_admin", "user"],
+      lead_source_type: [
+        "webinar",
+        "website_visitor",
+        "event_attendee",
+        "linkedin",
+        "manual",
+        "csv_import",
+        "crm_sync",
+        "apollo",
+        "pdl",
+        "unknown",
+      ],
     },
   },
 } as const
