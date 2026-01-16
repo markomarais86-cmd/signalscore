@@ -20,7 +20,10 @@ import {
   ArrowRight,
   ArrowLeft,
   HelpCircle,
-  AlertCircle
+  AlertCircle,
+  BarChart3,
+  DollarSign,
+  Target
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +32,9 @@ import { parseCSV, LEADS_HEADERS, generateCSVTemplate } from "@/utils/csv-parser
 import { FieldMappingDialog, FieldMapping } from "@/components/data-upload/FieldMappingDialog";
 import { LaunchPulseMark } from "@/components/BrandLogo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { DataQualityReport } from "@/components/enrichment/DataQualityReport";
+import { EnrichmentCostTracker } from "@/components/enrichment/EnrichmentCostTracker";
+import { AccuracyBenchmark } from "@/components/enrichment/AccuracyBenchmark";
 
 type WizardStep = "upload" | "configure" | "process" | "download";
 
@@ -43,6 +49,14 @@ interface EnrichmentStats {
   enriched: number;
   total: number;
   contactsDiscovered: number;
+  fieldsEnriched?: number;
+}
+
+interface CostBreakdown {
+  firecrawl: number;
+  perplexity: number;
+  ai_fallback: number;
+  total: number;
 }
 
 export default function QuickEnrich() {
@@ -70,6 +84,8 @@ export default function QuickEnrich() {
   const [enrichmentStats, setEnrichmentStats] = useState<EnrichmentStats | null>(null);
   const [enrichedAccounts, setEnrichedAccounts] = useState<any[]>([]);
   const [enrichmentComplete, setEnrichmentComplete] = useState(false);
+  const [costBreakdown, setCostBreakdown] = useState<CostBreakdown | null>(null);
+  const [activeResultsTab, setActiveResultsTab] = useState("preview");
 
   // Poll for enrichment progress
   useEffect(() => {
@@ -247,8 +263,15 @@ export default function QuickEnrich() {
           processed: data.stats?.processed || totalToEnrich,
           enriched: data.stats?.enriched || 0,
           total: totalToEnrich,
-          contactsDiscovered: 0
+          contactsDiscovered: 0,
+          fieldsEnriched: data.stats?.fields_enriched || 0
         });
+        
+        // Set cost breakdown if available
+        if (data.costs) {
+          setCostBreakdown(data.costs);
+        }
+        
         setEnrichmentComplete(true);
         setStep("download");
         fetchEnrichedAccounts();
@@ -707,19 +730,41 @@ export default function QuickEnrich() {
                 </div>
               )}
 
-              {/* Data Source Badge Legend */}
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>Data Sources:</span>
-                <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">
-                  Verified (Multi-Source)
-                </Badge>
-                <Badge variant="outline" className="text-blue-600 border-blue-300 bg-blue-50">
-                  Web Search
-                </Badge>
-                <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50">
-                  AI Estimated
-                </Badge>
-              </div>
+              {/* Results Tabs */}
+              <Tabs value={activeResultsTab} onValueChange={setActiveResultsTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="preview" className="flex items-center gap-1">
+                    <FileSpreadsheet className="h-3 w-3" />
+                    Preview
+                  </TabsTrigger>
+                  <TabsTrigger value="quality" className="flex items-center gap-1">
+                    <BarChart3 className="h-3 w-3" />
+                    Quality
+                  </TabsTrigger>
+                  <TabsTrigger value="cost" className="flex items-center gap-1">
+                    <DollarSign className="h-3 w-3" />
+                    Cost
+                  </TabsTrigger>
+                  <TabsTrigger value="accuracy" className="flex items-center gap-1">
+                    <Target className="h-3 w-3" />
+                    Benchmark
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="preview" className="space-y-4 mt-4">
+                  {/* Data Source Badge Legend */}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <span>Data Sources:</span>
+                    <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">
+                      Verified (Multi-Source)
+                    </Badge>
+                    <Badge variant="outline" className="text-blue-600 border-blue-300 bg-blue-50">
+                      Web Search
+                    </Badge>
+                    <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50">
+                      AI Estimated
+                    </Badge>
+                  </div>
 
               {/* Data Preview Table with Confidence */}
               {enrichedAccounts.length > 0 && (
@@ -814,6 +859,25 @@ export default function QuickEnrich() {
                   )}
                 </div>
               )}
+                </TabsContent>
+
+                <TabsContent value="quality" className="mt-4">
+                  <DataQualityReport accounts={enrichedAccounts} />
+                </TabsContent>
+
+                <TabsContent value="cost" className="mt-4">
+                  <EnrichmentCostTracker
+                    totalRecords={uploadedAccountIds.length}
+                    enrichedRecords={enrichmentStats?.enriched || 0}
+                    fieldsEnriched={enrichmentStats?.fieldsEnriched || 0}
+                    costBreakdown={costBreakdown || undefined}
+                  />
+                </TabsContent>
+
+                <TabsContent value="accuracy" className="mt-4">
+                  <AccuracyBenchmark accounts={enrichedAccounts} />
+                </TabsContent>
+              </Tabs>
 
               <div className="grid grid-cols-2 gap-4">
                 <Button
@@ -846,6 +910,7 @@ export default function QuickEnrich() {
                   setEnrichmentJobId(null);
                   setEnrichedAccounts([]);
                   setUploadedAccountIds([]);
+                  setCostBreakdown(null);
                 }}>
                   Enrich Another File
                 </Button>

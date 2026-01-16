@@ -104,6 +104,14 @@ serve(async (req) => {
     let totalFieldsEnriched = 0;
     let successCount = 0;
     let failCount = 0;
+    
+    // Track costs
+    let totalCosts = {
+      firecrawl: 0,
+      perplexity: 0,
+      ai_fallback: 0,
+      total: 0
+    };
 
     // Process accounts using verified multi-source enrichment
     // Smaller chunks for verified enrichment (more API calls per account)
@@ -179,6 +187,14 @@ serve(async (req) => {
         const verifiedStats = verifiedResult?.stats || {};
         totalFieldsEnriched += verifiedStats.fields_enriched || 0;
         
+        // Accumulate costs from verified enrichment
+        if (verifiedResult?.costs) {
+          totalCosts.firecrawl += verifiedResult.costs.firecrawl || 0;
+          totalCosts.perplexity += verifiedResult.costs.perplexity || 0;
+          totalCosts.ai_fallback += verifiedResult.costs.ai_fallback || 0;
+          totalCosts.total += verifiedResult.costs.total || 0;
+        }
+        
         // Use detailed per-account results from verified enrichment
         const accountResults = verifiedResult?.results || [];
         for (const result of accountResults) {
@@ -238,6 +254,7 @@ serve(async (req) => {
           fields_enriched: totalFieldsEnriched,
           duration_ms: duration
         },
+        costs: totalCosts,
         results
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
