@@ -19,6 +19,13 @@ interface LeadInput {
   domain?: string;
 }
 
+interface PhoneEntry {
+  number: string;
+  type: 'direct' | 'mobile' | 'office' | 'main';
+  source: string;
+  confidence: number;
+}
+
 interface LeadEnrichmentResult {
   input: LeadInput;
   enriched_data: {
@@ -31,10 +38,12 @@ interface LeadEnrichmentResult {
     company?: string;
     domain?: string;
     matched_account_id?: string;
+    phones?: PhoneEntry[];
   };
-  source: 'internal' | 'apollo' | 'pdl' | 'hunter' | 'ai';
+  source: 'internal' | 'apollo' | 'pdl' | 'hunter' | 'ai' | 'gemini' | 'perplexity';
   confidence: number;
   fields_filled: string[];
+  phone_sources?: Record<string, PhoneEntry[]>;
 }
 
 // Extract domain from email

@@ -4473,9 +4473,11 @@ export type Database = {
           phone: string | null
           phone_e164: string | null
           phone_extension: string | null
+          phone_sources: Json | null
           phone_type: string | null
           phone_verification_status: string | null
           phone_verified: boolean | null
+          phones: Json | null
           pipeline_stage: string | null
           pipeline_triggered_by: string | null
           pipeline_updated_at: string | null
@@ -4562,9 +4564,11 @@ export type Database = {
           phone?: string | null
           phone_e164?: string | null
           phone_extension?: string | null
+          phone_sources?: Json | null
           phone_type?: string | null
           phone_verification_status?: string | null
           phone_verified?: boolean | null
+          phones?: Json | null
           pipeline_stage?: string | null
           pipeline_triggered_by?: string | null
           pipeline_updated_at?: string | null
@@ -4651,9 +4655,11 @@ export type Database = {
           phone?: string | null
           phone_e164?: string | null
           phone_extension?: string | null
+          phone_sources?: Json | null
           phone_type?: string | null
           phone_verification_status?: string | null
           phone_verified?: boolean | null
+          phones?: Json | null
           pipeline_stage?: string | null
           pipeline_triggered_by?: string | null
           pipeline_updated_at?: string | null
