@@ -349,7 +349,7 @@ export default function QuickEnrich() {
     
     const { data } = await supabase
       .from("accounts")
-      .select("id, name, domain, industry_norm, employee_count, revenue_range, city, state_province, country, linkedin_url, enriched_at")
+      .select("id, name, domain, industry_norm, employee_count, revenue_range, city, state_province, country, linkedin_url, enriched_at, enrichment_confidence, enriched_from, enrichment_citations, enrichment_field_scores")
       .in("id", uploadedAccountIds)
       .order("name");
     
