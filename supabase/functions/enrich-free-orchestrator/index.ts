@@ -231,13 +231,44 @@ serve(async (req) => {
 
     // Main processing loop - continues until timeout or done
     while (nowMs() - start < MAX_EXECUTION_MS) {
+      // Check if we've reached the target record count
+      const targetRecords = job.total_records || Infinity;
+      if (totalProcessed >= targetRecords) {
+        await supabase.from("enrichment_jobs")
+          .update({
+            status: "completed",
+            completed_at: new Date().toISOString(),
+            processed_records: totalProcessed,
+            accounts_enriched: totalAccountsEnriched,
+            fields_enriched: totalFieldsEnriched,
+            enriched_records: totalAccountsEnriched,
+            failed_records: totalFailed,
+          })
+          .eq("id", jobId);
+
+        console.log(`[enrich-free-orchestrator] Job ${jobId} reached target: ${totalProcessed}/${targetRecords}`);
+        return new Response(
+          JSON.stringify({ 
+            status: "completed", 
+            processed: totalProcessed,
+            accounts_enriched: totalAccountsEnriched,
+            fields_enriched: totalFieldsEnriched,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Calculate how many more records we need to reach target
+      const remainingToProcess = targetRecords - totalProcessed;
+      const batchLimit = Math.min(BATCH_SIZE, remainingToProcess);
+
       // 3) Fetch next batch of accounts (cursor-based pagination)
       let query = supabase
         .from("accounts")
         .select("id, external_id, name, domain, industry_raw, industry_norm, employee_count, revenue_range, country, linkedin_url")
         .eq("org_id", jobOrgId)
         .order("id", { ascending: true })
-        .limit(BATCH_SIZE);
+        .limit(batchLimit);
 
       // If specific account_ids provided, only fetch those
       if (account_ids && Array.isArray(account_ids) && account_ids.length > 0) {

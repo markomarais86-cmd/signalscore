@@ -223,7 +223,7 @@ export function DataGapsVisualization() {
 
   const maxMissing = Math.max(...dataGaps.map(g => g.missing), 1);
   const progressPercent = activeJob 
-    ? Math.round((activeJob.processed_records / activeJob.total_records) * 100) 
+    ? Math.min(100, Math.round((activeJob.processed_records / activeJob.total_records) * 100))
     : 0;
 
   return (
@@ -297,7 +297,7 @@ export function DataGapsVisualization() {
             </div>
             <Progress value={progressPercent} className="h-2" />
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{activeJob.processed_records?.toLocaleString() || 0} / {activeJob.total_records?.toLocaleString() || 0}</span>
+              <span>{Math.min(activeJob.processed_records || 0, activeJob.total_records || 0).toLocaleString()} / {activeJob.total_records?.toLocaleString() || 0}</span>
               <span>{progressPercent}%</span>
             </div>
           </div>
