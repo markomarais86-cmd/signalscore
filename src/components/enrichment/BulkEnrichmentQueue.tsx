@@ -6,7 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Loader2, Play, RefreshCw, DollarSign, ListTodo } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useUserProfile } from "@/hooks/use-user-profile";
+import { useAuth } from "@/hooks/use-auth";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDistanceToNow } from "date-fns";
 
@@ -32,8 +32,8 @@ export function BulkEnrichmentQueue() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<string | null>(null);
   const { toast } = useToast();
-  const { profile } = useUserProfile();
-  const orgId = profile?.org_id;
+  const { userProfile } = useAuth();
+  const orgId = userProfile?.org_id;
 
   const loadJobs = async () => {
     if (!orgId) return;

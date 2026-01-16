@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, TestTube, CheckCircle2, XCircle, Target, Upload, Beaker } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useUserProfile } from "@/hooks/use-user-profile";
+import { useAuth } from "@/hooks/use-auth";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -44,8 +44,8 @@ export function EnrichmentAccuracyTester() {
   const [testDataCount, setTestDataCount] = useState(0);
   const [importing, setImporting] = useState(false);
   const { toast } = useToast();
-  const { profile } = useUserProfile();
-  const orgId = profile?.org_id;
+  const { userProfile } = useAuth();
+  const orgId = userProfile?.org_id;
 
   const sources = [
     { id: 'gemini', label: 'Gemini', cost: '$0.003' },

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Search, Users, Building2, Phone, Mail, Linkedin, Plus, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { useUserProfile } from "@/hooks/use-user-profile";
+import { useAuth } from "@/hooks/use-auth";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface DiscoveredContact {
@@ -31,8 +31,8 @@ export function SparseDataDiscovery() {
   const [results, setResults] = useState<DiscoveredContact[]>([]);
   const [costEstimate, setCostEstimate] = useState(0);
   const { toast } = useToast();
-  const { profile } = useUserProfile();
-  const orgId = profile?.org_id;
+  const { userProfile } = useAuth();
+  const orgId = userProfile?.org_id;
 
   const addTitle = () => {
     if (newTitle && !targetTitles.includes(newTitle)) {
