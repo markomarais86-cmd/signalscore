@@ -35,6 +35,11 @@ export function FeatureToggles() {
           label: 'TAM Intelligence',
           description: 'Coverage analysis, whitespace, and TAM estimation',
         },
+        {
+          key: 'data_enrichment' as const,
+          label: 'Data Enrichment',
+          description: 'Account and contact enrichment with AI',
+        },
       ]
     },
     {

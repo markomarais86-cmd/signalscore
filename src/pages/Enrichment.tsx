@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
+import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { supabase } from "@/integrations/supabase/client";
 
 // Components
@@ -46,6 +47,7 @@ interface HeroStats {
 export default function Enrichment() {
   const { userProfile } = useAuth();
   const { isSuperAdmin, isOrgAdmin } = useRoles();
+  const { flags, isLoading: flagsLoading } = useFeatureFlags();
   const isAdmin = isSuperAdmin || isOrgAdmin;
   const [settingsExpanded, setSettingsExpanded] = useState(false);
   const [heroStats, setHeroStats] = useState<HeroStats>({
@@ -88,6 +90,23 @@ export default function Enrichment() {
       console.error("Error loading hero stats:", error);
     }
   };
+
+  // Check if feature is disabled
+  if (!flagsLoading && !flags.data_enrichment) {
+    return (
+      <div className="container mx-auto py-8">
+        <Card className="max-w-lg mx-auto">
+          <CardContent className="pt-6 text-center">
+            <Sparkles className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Data Enrichment Not Available</h2>
+            <p className="text-muted-foreground">
+              This feature is not enabled for your organization. Contact your administrator to enable it.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8 space-y-6">
