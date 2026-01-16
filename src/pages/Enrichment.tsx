@@ -62,58 +62,24 @@ export default function Enrichment() {
     if (!userProfile?.org_id) return;
 
     try {
-      // Total accounts
-      const { count: total } = await supabase
-        .from("accounts")
-        .select("*", { count: "exact", head: true })
-        .eq("org_id", userProfile.org_id);
+      // Use server-side RPC for efficient stats calculation
+      const { data, error } = await supabase.rpc('get_enrichment_stats', {
+        p_org_id: userProfile.org_id
+      });
 
-      // Enriched today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const { count: enrichedToday } = await supabase
-        .from("accounts")
-        .select("*", { count: "exact", head: true })
-        .eq("org_id", userProfile.org_id)
-        .gte("enriched_at", today.toISOString());
-
-      // Data completeness - check key fields
-      const { data: accounts } = await supabase
-        .from("accounts")
-        .select("employee_count, revenue_range, industry_norm, country, enriched_at")
-        .eq("org_id", userProfile.org_id);
-
-      let completenessSum = 0;
-      const keyFields = ["employee_count", "revenue_range", "industry_norm", "country"];
-      
-      if (accounts && accounts.length > 0) {
-        accounts.forEach(acc => {
-          let filled = 0;
-          keyFields.forEach(field => {
-            if ((acc as any)[field] !== null && (acc as any)[field] !== undefined) {
-              filled++;
-            }
-          });
-          completenessSum += (filled / keyFields.length) * 100;
-        });
-        completenessSum = Math.round(completenessSum / accounts.length);
+      if (error) {
+        console.error("Error loading enrichment stats:", error);
+        return;
       }
 
-      // Accounts with contacts
-      const { data: accountsWithLeads } = await supabase
-        .from("Leads")
-        .select("account_external_id")
-        .eq("org_id", userProfile.org_id);
-
-      const uniqueAccountsWithContacts = new Set(
-        accountsWithLeads?.map(l => l.account_external_id).filter(Boolean)
-      ).size;
+      // Handle both array and direct object responses from RPC
+      const stats = Array.isArray(data) ? data[0] : data;
 
       setHeroStats({
-        totalAccounts: total || 0,
-        dataCompleteness: completenessSum,
-        enrichedToday: enrichedToday || 0,
-        accountsWithContacts: uniqueAccountsWithContacts,
+        totalAccounts: Number(stats?.total_accounts) || 0,
+        dataCompleteness: Number(stats?.completeness_percent) || 0,
+        enrichedToday: Number(stats?.enriched_today) || 0,
+        accountsWithContacts: Number(stats?.with_contacts) || 0,
       });
     } catch (error) {
       console.error("Error loading hero stats:", error);

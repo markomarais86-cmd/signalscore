@@ -122,7 +122,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       </div>
 
       {/* Current Step */}
-      <Card className="border-2 border-primary/20">
+      <Card className="shadow-sm hover:shadow-md transition-shadow border-primary/20">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
