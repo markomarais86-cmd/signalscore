@@ -242,7 +242,7 @@ serve(async (req) => {
               results[resultIndex].source = 'apollo';
               results[resultIndex].confidence = 0.95;
               results[resultIndex].fields_filled = Object.keys(results[resultIndex].enriched_data)
-                .filter(k => results[resultIndex].enriched_data[k as keyof typeof results[resultIndex].enriched_data] != null);
+                .filter(k => (results[resultIndex].enriched_data as any)[k] != null);
               stats.apollo_enriched++;
             }
           }
@@ -292,7 +292,7 @@ serve(async (req) => {
               results[resultIndex].source = 'pdl';
               results[resultIndex].confidence = 0.85;
               results[resultIndex].fields_filled = Object.keys(results[resultIndex].enriched_data)
-                .filter(k => results[resultIndex].enriched_data[k as keyof typeof results[resultIndex].enriched_data] != null);
+                .filter(k => (results[resultIndex].enriched_data as any)[k] != null);
               stats.pdl_enriched++;
             }
           }
@@ -391,7 +391,7 @@ ${batch.map(r => {
                     results[resultIndex].source = 'ai';
                     results[resultIndex].confidence = est.confidence / 100;
                     results[resultIndex].fields_filled = Object.keys(results[resultIndex].enriched_data)
-                      .filter(k => results[resultIndex].enriched_data[k as keyof typeof results[resultIndex].enriched_data] != null);
+                      .filter(k => (results[resultIndex].enriched_data as any)[k] != null);
                     stats.ai_enriched++;
                   }
                 }
