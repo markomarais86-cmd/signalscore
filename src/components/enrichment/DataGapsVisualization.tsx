@@ -106,6 +106,7 @@ export function DataGapsVisualization() {
         { count: missingEmployees },
         { count: missingRevenue },
         { count: missingIndustry },
+        { count: missingSubIndustry },
         { count: missingLinkedin },
         { count: missingCountry }
       ] = await Promise.all([
@@ -113,6 +114,7 @@ export function DataGapsVisualization() {
         supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("employee_count", null),
         supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("revenue_range", null),
         supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("industry_raw", null),
+        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("sub_industry", null),
         supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("linkedin_url", null),
         supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("country", null),
       ]);
@@ -122,6 +124,7 @@ export function DataGapsVisualization() {
         { field: "employee_count", label: "Employee Count", icon: Users, color: "hsl(var(--primary))", missing: missingEmployees || 0 },
         { field: "revenue_range", label: "Revenue", icon: DollarSign, color: "hsl(var(--signal-high))", missing: missingRevenue || 0 },
         { field: "industry_raw", label: "Industry", icon: Building2, color: "hsl(var(--signal-medium))", missing: missingIndustry || 0 },
+        { field: "sub_industry", label: "Sub-Industry", icon: Building2, color: "hsl(280 70% 50%)", missing: missingSubIndustry || 0 },
         { field: "country", label: "Country", icon: MapPin, color: "hsl(var(--signal-low))", missing: missingCountry || 0 },
       ];
 

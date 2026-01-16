@@ -31,6 +31,7 @@ interface AIEnrichmentResult {
   employee_count?: EnrichedField;
   revenue_range?: EnrichedField;
   industry_norm?: EnrichedField;
+  sub_industry?: EnrichedField;
   country?: EnrichedField;
   business_model?: EnrichedField;
   linkedin_url?: EnrichedField;
@@ -75,6 +76,18 @@ Use these signals to estimate:
 
 Revenue ranges: $0-1M, $1M-10M, $10M-50M, $50M-100M, $100M-500M, $500M-1B, $1B+
 Business models: B2B, B2C, B2B2C, Marketplace, SaaS, Services, Manufacturing, Retail
+
+INDUSTRY AND SUB-INDUSTRY (use ZoomInfo taxonomy):
+Main industries: Software, Financial Services, Healthcare, Manufacturing, Professional Services, Retail, Technology, Energy, Telecommunications, Life Sciences, Education, Government, Media & Entertainment, Transportation, Real Estate, Hospitality
+
+Sub-industries by main industry:
+- Software: SaaS, Enterprise Software, Cybersecurity, Cloud Computing, AI/ML, DevOps, Data Analytics
+- Financial Services: Banking, FinTech, Insurance, Investment Banking, Asset Management, Payments
+- Healthcare: Hospitals, Medical Devices, Pharmaceuticals, Biotech, Healthcare IT, Telemedicine
+- Professional Services: Consulting, Legal Services, Accounting, Marketing Services, Staffing
+- Manufacturing: Industrial, Electronics, Automotive, Aerospace, Consumer Goods, Food & Beverage
+- Technology: IT Services, Hardware, Semiconductors, Telecommunications Equipment
+- Retail: E-commerce, Fashion, Consumer Goods, Food & Grocery
 
 LINKEDIN URL ESTIMATION:
 Generate the company's LinkedIn URL: https://www.linkedin.com/company/{company-slug}
@@ -145,6 +158,14 @@ Be conservative with confidence scores:
                         }
                       },
                       industry_norm: {
+                        type: "object",
+                        properties: {
+                          value: { type: "string" },
+                          confidence: { type: "number", minimum: 0, maximum: 100 },
+                          reasoning: { type: "string" }
+                        }
+                      },
+                      sub_industry: {
                         type: "object",
                         properties: {
                           value: { type: "string" },
@@ -283,6 +304,14 @@ serve(async (req) => {
             updates.industry_norm = result.industry_norm.value;
             updates.industry_raw = result.industry_norm.value;
             fieldScores.industry = result.industry_norm.confidence;
+            accountFieldCount++;
+          }
+
+          // Apply sub_industry if confident (can update even if industry exists but sub_industry is missing)
+          if (result.sub_industry && 
+              result.sub_industry.confidence >= CONFIDENCE_THRESHOLD) {
+            updates.sub_industry = result.sub_industry.value;
+            fieldScores.sub_industry = result.sub_industry.confidence;
             accountFieldCount++;
           }
 
