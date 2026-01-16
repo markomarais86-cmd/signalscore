@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -267,7 +267,31 @@ export default function Leads() {
   const unlinkedLeads = leads.filter(lead => !lead.account_external_id);
   const unlinkedPercentage = totalLeadsCount > 0 ? Math.round(((totalLeadsCount - linkedCount) / totalLeadsCount) * 100) : 0;
 
-  const exportToCSV = () => {
+  // Memoized CSV headers
+  const csvHeaders = useMemo(() => [
+    'Name',
+    'First Name',
+    'Last Name',
+    'Email',
+    'Phone',
+    'Title',
+    'Persona',
+    'Campaign Ready',
+    'Company',
+    'Website',
+    'Industry',
+    'Employee Count',
+    'Revenue Range',
+    'Country',
+    'State/Province',
+    'Status',
+    'Overall Score',
+    'Fit Score',
+    'Account Link',
+    'External ID'
+  ], []);
+
+  const exportToCSV = useCallback(() => {
     if (leads.length === 0) {
       toast({
         title: "No data to export",
@@ -276,29 +300,6 @@ export default function Leads() {
       });
       return;
     }
-
-    const headers = [
-      'Name',
-      'First Name',
-      'Last Name',
-      'Email',
-      'Phone',
-      'Title',
-      'Persona',
-      'Campaign Ready',
-      'Company',
-      'Website',
-      'Industry',
-      'Employee Count',
-      'Revenue Range',
-      'Country',
-      'State/Province',
-      'Status',
-      'Overall Score',
-      'Fit Score',
-      'Account Link',
-      'External ID'
-    ];
 
     const rows = leads.map(lead => {
       const fullName = `${lead.first_name || ''} ${lead.last_name || ''}`.trim();
@@ -328,7 +329,7 @@ export default function Leads() {
     });
 
     const csvContent = [
-      headers.join(','),
+      csvHeaders.join(','),
       ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
     ].join('\n');
 
@@ -346,7 +347,7 @@ export default function Leads() {
       title: "Export successful",
       description: `Exported ${leads.length} leads to CSV`
     });
-  };
+  }, [leads, csvHeaders, toast]);
 
   return (
     <div className="space-y-6">

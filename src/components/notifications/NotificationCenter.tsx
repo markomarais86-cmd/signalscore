@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/hooks/use-toast";
 
 const DISMISSED_KEY = "launchpulse_dismissed_notifications";
 const LAST_SEEN_KEY = "launchpulse_notifications_last_seen";
@@ -72,6 +73,8 @@ function formatProviderName(provider: string): string {
 export function NotificationCenter() {
   const { userProfile } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(getDismissedIds);
 
   // Query for AI agent runs
@@ -114,6 +117,91 @@ export function NotificationCenter() {
     enabled: !!userProfile?.org_id,
     refetchInterval: 30000,
   });
+
+  // Real-time subscription for enrichment jobs
+  useEffect(() => {
+    if (!userProfile?.org_id) return;
+
+    const channel = supabase
+      .channel('notification-enrichment-jobs')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'enrichment_jobs',
+          filter: `org_id=eq.${userProfile.org_id}`,
+        },
+        (payload) => {
+          // Invalidate query to refetch
+          queryClient.invalidateQueries({ queryKey: ["enrichment-notifications", userProfile.org_id] });
+          
+          // Show toast for completed/failed jobs
+          const newJob = payload.new as any;
+          if (payload.eventType === 'UPDATE' && newJob) {
+            if (newJob.status === 'completed') {
+              toast({
+                title: "Enrichment Complete",
+                description: `${formatProviderName(newJob.provider || 'Enrichment')} finished - ${newJob.enriched_records || 0} records enriched`,
+              });
+            } else if (newJob.status === 'failed') {
+              toast({
+                title: "Enrichment Failed",
+                description: `${formatProviderName(newJob.provider || 'Enrichment')} encountered an error`,
+                variant: "destructive",
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userProfile?.org_id, queryClient, toast]);
+
+  // Real-time subscription for AI agent runs
+  useEffect(() => {
+    if (!userProfile?.org_id) return;
+
+    const channel = supabase
+      .channel('notification-agent-runs')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ai_agent_runs',
+        },
+        (payload) => {
+          // Invalidate query to refetch
+          queryClient.invalidateQueries({ queryKey: ["agent-notifications", userProfile.org_id] });
+          
+          // Show toast for completed/failed runs
+          const newRun = payload.new as any;
+          if (payload.eventType === 'UPDATE' && newRun) {
+            if (newRun.status === 'completed') {
+              toast({
+                title: "Agent Run Complete",
+                description: `${newRun.records_affected || 0} records affected`,
+              });
+            } else if (newRun.status === 'failed') {
+              toast({
+                title: "Agent Run Failed",
+                description: newRun.error_message || "An error occurred",
+                variant: "destructive",
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userProfile?.org_id, queryClient, toast]);
 
   // Merge and normalize both sources - only show recent notifications
   const allNotifications = useMemo<UnifiedNotification[]>(() => {

@@ -5,6 +5,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { HelpPanel } from "@/components/help/HelpPanel";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
+import { ExportQueueManager } from "@/components/ExportQueueManager";
 import { AIChat } from "@/components/AIChat";
 import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import { useCampaignContext } from "@/hooks/use-campaign-context";
@@ -32,6 +33,7 @@ export function Layout({ children }: LayoutProps) {
                   <CommandPaletteTrigger />
                 </div>
                 <div className="flex items-center gap-2">
+                  <ExportQueueManager />
                   <NotificationCenter />
                   <HelpPanel currentPath={location.pathname} />
                   <ThemeToggle />
