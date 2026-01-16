@@ -9,6 +9,7 @@ import { AIChat } from "@/components/AIChat";
 import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import { useCampaignContext } from "@/hooks/use-campaign-context";
 import { GradientBackground } from "@/components/ui/GradientBackground";
+import { GlobalCommandPalette, CommandPaletteTrigger } from "@/components/GlobalCommandPalette";
 
 interface LayoutProps {
   children: ReactNode;
@@ -28,6 +29,7 @@ export function Layout({ children }: LayoutProps) {
               <div className="h-14 flex items-center justify-between px-6">
                 <div className="flex items-center gap-4">
                   <SidebarTrigger />
+                  <CommandPaletteTrigger />
                 </div>
                 <div className="flex items-center gap-2">
                   <NotificationCenter />
@@ -49,6 +51,9 @@ export function Layout({ children }: LayoutProps) {
             </footer>
           </main>
           <AIChat />
+          
+          {/* Global Command Palette - accessible from any page via Cmd+K */}
+          <GlobalCommandPalette />
           
           {/* Global Campaign Builder - triggered from insights */}
           <CampaignBuilderV2

@@ -395,8 +395,8 @@ export default function ICPManager() {
         <DemoModeBanner />
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">ICP Manager</h1>
-            <p className="text-muted-foreground mt-2">Create, manage, and activate your Ideal Customer Profiles</p>
+            <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">ICP Manager</h1>
+            <p className="text-xs lg:text-sm text-muted-foreground mt-1">Create, manage, and activate your Ideal Customer Profiles</p>
           </div>
           <div className="flex gap-2">
             <Button 

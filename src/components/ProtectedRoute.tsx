@@ -21,18 +21,19 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
       authLogger.debug('Prefetching dashboard data');
       
       // Prefetch dashboard metrics
+      // Prefetch using the same cached function as useDashboardData
       queryClient.prefetchQuery({
-        queryKey: ['dashboard-metrics', userProfile.org_id],
+        queryKey: ['dashboard-metrics', userProfile.org_id, 'crm'],
         queryFn: async () => {
           const { data, error } = await supabase.rpc(
-            'get_dashboard_metrics_fast' as any,
+            'get_dashboard_metrics_cached' as any,
             { p_org_id: userProfile.org_id }
           );
           
           if (error) throw error;
           return data;
         },
-        staleTime: 5 * 60 * 1000,
+        staleTime: 2 * 60 * 1000, // 2 minutes - aligned with useDashboardData
       });
     }
   }, [user, userProfile, location.pathname, queryClient]);
