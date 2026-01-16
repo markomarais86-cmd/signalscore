@@ -9,10 +9,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Download, Loader2, FileSpreadsheet, CheckCircle } from "lucide-react";
+import { Download, Loader2, FileSpreadsheet, CheckCircle, Database } from "lucide-react";
 import { toast } from "sonner";
 
-type ExportFilter = "all" | "enriched" | "high_score";
+type ExportFilter = "all" | "enriched" | "high_score" | "all_full";
 
 export function ExportAccountsButton() {
   const { userProfile } = useAuth();
@@ -31,33 +31,60 @@ export function ExportAccountsButton() {
           external_id,
           name,
           domain,
+          legal_name,
           industry_norm,
           industry_raw,
+          sub_industry,
+          sic_code,
+          naics,
           employee_count,
           revenue_range,
+          business_model,
           country,
           state_province,
           city,
+          hq_address,
+          hq_city,
+          hq_state,
+          hq_postal_code,
+          phone,
+          mobile,
+          company_main_phone,
           linkedin_url,
           twitter_url,
           facebook_url,
-          phone,
-          hq_address,
           founded_year,
-          business_model,
-          tech_stack,
           total_raised_usd,
           last_funding_round,
+          last_funding_date,
+          tech_stack,
+          trust_signals,
           propensity_score,
+          propensity_computed_at,
           icp_qualified,
+          icp_fail_reasons,
           enriched_at,
-          enrichment_confidence
+          enriched_from,
+          enrichment_phase,
+          enrichment_confidence,
+          enrichment_overall_score,
+          enrichment_field_scores,
+          enrichment_citations,
+          data_source,
+          external_database_match,
+          deep_research_requested,
+          deep_research_completed_at,
+          last_verified_at,
+          manually_verified,
+          updated_at
         `)
         .eq("org_id", userProfile.org_id);
 
       // Apply filter
-      if (filter === "enriched") {
-        query = query.not("enriched_at", "is", null);
+      if (filter === "enriched" || filter === "all_full") {
+        if (filter === "enriched") {
+          query = query.not("enriched_at", "is", null);
+        }
       } else if (filter === "high_score") {
         query = query.gte("propensity_score", 70);
       }
@@ -71,32 +98,57 @@ export function ExportAccountsButton() {
         return;
       }
 
-      // Convert to CSV
+      // Full headers for all fields
       const headers = [
         "External ID",
         "Name",
         "Domain",
+        "Legal Name",
         "Industry",
         "Industry Raw",
+        "Sub Industry",
+        "SIC Code",
+        "NAICS",
         "Employee Count",
         "Revenue Range",
+        "Business Model",
         "Country",
         "State/Province",
         "City",
+        "HQ Address",
+        "HQ City",
+        "HQ State",
+        "HQ Postal Code",
+        "Phone",
+        "Mobile",
+        "Company Main Phone",
         "LinkedIn URL",
         "Twitter URL",
         "Facebook URL",
-        "Phone",
-        "HQ Address",
         "Founded Year",
-        "Business Model",
-        "Tech Stack",
         "Total Raised USD",
         "Last Funding Round",
+        "Last Funding Date",
+        "Tech Stack",
+        "Trust Signals",
         "Propensity Score",
+        "Propensity Computed At",
         "ICP Qualified",
+        "ICP Fail Reasons",
         "Enriched At",
+        "Enriched From",
+        "Enrichment Phase",
         "Enrichment Confidence",
+        "Enrichment Overall Score",
+        "Enrichment Field Scores",
+        "Enrichment Citations",
+        "Data Source",
+        "External Database Match",
+        "Deep Research Requested",
+        "Deep Research Completed At",
+        "Last Verified At",
+        "Manually Verified",
+        "Updated At",
       ];
 
       const csvRows = [headers.join(",")];
@@ -106,27 +158,52 @@ export function ExportAccountsButton() {
           acc.external_id || "",
           escapeCsv(acc.name || ""),
           acc.domain || "",
+          escapeCsv(acc.legal_name || ""),
           escapeCsv(acc.industry_norm || ""),
           escapeCsv(acc.industry_raw || ""),
+          escapeCsv(acc.sub_industry || ""),
+          acc.sic_code || "",
+          acc.naics || "",
           acc.employee_count?.toString() || "",
           escapeCsv(acc.revenue_range || ""),
+          acc.business_model || "",
           acc.country || "",
           acc.state_province || "",
           acc.city || "",
+          escapeCsv(acc.hq_address || ""),
+          acc.hq_city || "",
+          acc.hq_state || "",
+          acc.hq_postal_code || "",
+          acc.phone || "",
+          acc.mobile || "",
+          acc.company_main_phone || "",
           acc.linkedin_url || "",
           acc.twitter_url || "",
           acc.facebook_url || "",
-          acc.phone || "",
-          escapeCsv(acc.hq_address || ""),
           acc.founded_year?.toString() || "",
-          acc.business_model || "",
-          Array.isArray(acc.tech_stack) ? escapeCsv(acc.tech_stack.join("; ")) : "",
           acc.total_raised_usd?.toString() || "",
           acc.last_funding_round || "",
+          acc.last_funding_date || "",
+          Array.isArray(acc.tech_stack) ? escapeCsv(acc.tech_stack.join("; ")) : "",
+          acc.trust_signals ? escapeCsv(JSON.stringify(acc.trust_signals)) : "",
           acc.propensity_score?.toString() || "",
+          acc.propensity_computed_at || "",
           acc.icp_qualified?.toString() || "",
+          Array.isArray(acc.icp_fail_reasons) ? escapeCsv(acc.icp_fail_reasons.join("; ")) : "",
           acc.enriched_at || "",
+          acc.enriched_from || "",
+          acc.enrichment_phase || "",
           acc.enrichment_confidence?.toString() || "",
+          acc.enrichment_overall_score?.toString() || "",
+          acc.enrichment_field_scores ? escapeCsv(JSON.stringify(acc.enrichment_field_scores)) : "",
+          acc.enrichment_citations ? escapeCsv(JSON.stringify(acc.enrichment_citations)) : "",
+          acc.data_source || "",
+          acc.external_database_match?.toString() || "",
+          acc.deep_research_requested?.toString() || "",
+          acc.deep_research_completed_at || "",
+          acc.last_verified_at || "",
+          acc.manually_verified ? escapeCsv(JSON.stringify(acc.manually_verified)) : "",
+          acc.updated_at || "",
         ];
         csvRows.push(row.join(","));
       }
@@ -143,7 +220,7 @@ export function ExportAccountsButton() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      toast.success(`Exported ${accounts.length} accounts!`);
+      toast.success(`Exported ${accounts.length} accounts with ${headers.length} fields!`);
     } catch (error) {
       console.error("Export error:", error);
       toast.error("Failed to export accounts");
@@ -177,6 +254,11 @@ export function ExportAccountsButton() {
         <DropdownMenuItem onClick={() => exportAccounts("high_score")}>
           <Download className="h-4 w-4 mr-2" />
           Export High-Fit (70+)
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => exportAccounts("all_full")}>
+          <Database className="h-4 w-4 mr-2" />
+          Export Full Data (50 Fields)
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
