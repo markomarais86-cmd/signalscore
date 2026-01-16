@@ -95,55 +95,54 @@ export function DataGapsVisualization() {
 
   const loadDataGaps = async () => {
     if (!userProfile?.org_id) return;
-    setLoading(true);
+    // Only show loading spinner on initial load, not refreshes
+    const isInitialLoad = dataGaps.length === 0;
+    if (isInitialLoad) setLoading(true);
 
     try {
-      const { count: total } = await supabase
-        .from("accounts")
-        .select("*", { count: "exact", head: true })
-        .eq("org_id", userProfile.org_id);
+      // Run all queries in parallel for better performance
+      const [
+        { count: total },
+        { count: missingEmployees },
+        { count: missingRevenue },
+        { count: missingIndustry },
+        { count: missingLinkedin },
+        { count: missingCountry }
+      ] = await Promise.all([
+        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id),
+        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("employee_count", null),
+        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("revenue_range", null),
+        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("industry_raw", null),
+        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("linkedin_url", null),
+        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("country", null),
+      ]);
 
-      const fields = [
-        { field: "employee_count", label: "Employee Count", icon: Users, color: "hsl(var(--primary))" },
-        { field: "revenue_range", label: "Revenue", icon: DollarSign, color: "hsl(var(--signal-high))" },
-        { field: "industry_raw", label: "Industry", icon: Building2, color: "hsl(var(--signal-medium))" },
-        { field: "linkedin_url", label: "LinkedIn", icon: Linkedin, color: "hsl(210 90% 55%)" },
-        { field: "country", label: "Country", icon: MapPin, color: "hsl(var(--signal-low))" },
+      const gaps: DataGap[] = [
+        { field: "linkedin_url", label: "LinkedIn", icon: Linkedin, color: "hsl(210 90% 55%)", missing: missingLinkedin || 0 },
+        { field: "employee_count", label: "Employee Count", icon: Users, color: "hsl(var(--primary))", missing: missingEmployees || 0 },
+        { field: "revenue_range", label: "Revenue", icon: DollarSign, color: "hsl(var(--signal-high))", missing: missingRevenue || 0 },
+        { field: "industry_raw", label: "Industry", icon: Building2, color: "hsl(var(--signal-medium))", missing: missingIndustry || 0 },
+        { field: "country", label: "Country", icon: MapPin, color: "hsl(var(--signal-low))", missing: missingCountry || 0 },
       ];
-
-      const gaps: DataGap[] = [];
-
-      for (const f of fields) {
-        const { count } = await supabase
-          .from("accounts")
-          .select("*", { count: "exact", head: true })
-          .eq("org_id", userProfile.org_id)
-          .is(f.field, null);
-
-        gaps.push({
-          ...f,
-          missing: count || 0,
-        });
-      }
 
       setTotalAccounts(total || 0);
       setDataGaps(gaps.sort((a, b) => b.missing - a.missing));
     } catch (error) {
       console.error("Error loading data gaps:", error);
     } finally {
-      setLoading(false);
+      if (isInitialLoad) setLoading(false);
     }
   };
 
   const checkActiveJob = async () => {
     if (!userProfile?.org_id) return;
 
-    // Check for active OR recently failed jobs (show failed state so user can resume)
+    // Only check for truly active jobs (not failed - those are handled separately)
     const { data } = await supabase
       .from("enrichment_jobs")
       .select("id, status, processed_records, accounts_enriched, fields_enriched, total_records, error_message")
       .eq("org_id", userProfile.org_id)
-      .in("status", ["processing", "paused", "pending", "failed"])
+      .in("status", ["processing", "paused", "pending"])
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle();
