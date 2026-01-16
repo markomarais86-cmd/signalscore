@@ -84,12 +84,16 @@ serve(async (req) => {
     const stats = {
       total: leads.length,
       internal_matches: 0,
+      gemini_enriched: 0,
+      perplexity_enriched: 0,
       apollo_enriched: 0,
       pdl_enriched: 0,
       hunter_enriched: 0,
       ai_enriched: 0,
       accounts_matched: 0,
-      failed: 0
+      phones_found: 0,
+      failed: 0,
+      cost_estimate: 0
     };
 
     // Collect all emails/domains for batch lookup
@@ -204,20 +208,156 @@ serve(async (req) => {
 
     console.log(`[enrich-lead] Internal matches: ${stats.internal_matches}, need external: ${needsExternalEnrichment.length}`);
 
-    // Phase 2: External Enrichment
+    // Phase 2: External Enrichment - COST OPTIMIZED ORDER
+    // Cheap AI first (Gemini ~$0.003, Perplexity ~$0.005), expensive data providers last (Apollo/PDL use credits)
     const APOLLO_API_KEY = Deno.env.get('APOLLO_API_KEY');
     const PDL_API_KEY = Deno.env.get('PDL_API_KEY');
     const HUNTER_API_KEY = Deno.env.get('HUNTER_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
 
-    // Apollo People Enrichment
-    if (APOLLO_API_KEY && needsExternalEnrichment.length > 0) {
-      console.log('[enrich-lead] Phase 2a: Apollo person enrichment');
+    // Track all phones from all sources for multi-source verification
+    const allPhonesByLead = new Map<string, PhoneEntry[]>();
+
+    // Phase 2a: Gemini Phone Research (CHEAP - ~$0.003 per contact)
+    if (LOVABLE_API_KEY && needsExternalEnrichment.length > 0) {
+      console.log('[enrich-lead] Phase 2a: Gemini phone research (low cost)');
       
-      for (const lead of needsExternalEnrichment) {
+      try {
+        const geminiContacts = needsExternalEnrichment.map(lead => ({
+          first_name: lead.first_name,
+          last_name: lead.last_name,
+          company: lead.company,
+          email: lead.email
+        }));
+
+        const geminiResponse = await fetch(`${supabaseUrl}/functions/v1/enrich-gemini-phones`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ contacts: geminiContacts })
+        });
+
+        if (geminiResponse.ok) {
+          const geminiData = await geminiResponse.json();
+          
+          for (const result of geminiData.results || []) {
+            const leadEmail = result.input?.email;
+            if (!leadEmail) continue;
+
+            const resultIndex = results.findIndex(r => r.input.email === leadEmail);
+            if (resultIndex === -1) continue;
+
+            // Collect phones with Gemini source
+            const geminiPhones: PhoneEntry[] = (result.phones || []).map((p: any) => ({
+              number: p.number,
+              type: p.type || 'office',
+              source: 'gemini',
+              confidence: p.confidence || 70
+            }));
+
+            if (geminiPhones.length > 0) {
+              const existing = allPhonesByLead.get(leadEmail) || [];
+              allPhonesByLead.set(leadEmail, [...existing, ...geminiPhones]);
+              
+              // Update primary phone if not set
+              if (!results[resultIndex].enriched_data.phone) {
+                results[resultIndex].enriched_data.phone = geminiPhones[0].number;
+              }
+              stats.gemini_enriched++;
+              stats.phones_found += geminiPhones.length;
+            }
+          }
+          stats.cost_estimate += geminiData.stats?.cost_estimate || 0;
+        }
+      } catch (e) {
+        console.error('[enrich-lead] Gemini error:', e);
+      }
+    }
+
+    // Phase 2b: Perplexity Contact Search (CHEAP - ~$0.005 per contact)
+    if (PERPLEXITY_API_KEY && needsExternalEnrichment.length > 0) {
+      console.log('[enrich-lead] Phase 2b: Perplexity phone search (low cost)');
+      
+      // Only search for contacts still missing phones
+      const needsPhones = needsExternalEnrichment.filter(lead => {
+        const phones = allPhonesByLead.get(lead.email || '') || [];
+        return phones.length === 0;
+      });
+
+      if (needsPhones.length > 0) {
+        try {
+          const perplexityContacts = needsPhones.map(lead => ({
+            first_name: lead.first_name,
+            last_name: lead.last_name,
+            company: lead.company,
+            email: lead.email
+          }));
+
+          const perplexityResponse = await fetch(`${supabaseUrl}/functions/v1/enrich-perplexity-contact`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${supabaseKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ contacts: perplexityContacts })
+          });
+
+          if (perplexityResponse.ok) {
+            const perplexityData = await perplexityResponse.json();
+            
+            for (const result of perplexityData.results || []) {
+              const leadEmail = result.input?.email;
+              if (!leadEmail) continue;
+
+              const resultIndex = results.findIndex(r => r.input.email === leadEmail);
+              if (resultIndex === -1) continue;
+
+              const perplexityPhones: PhoneEntry[] = (result.phones || []).map((p: any) => ({
+                number: p.number,
+                type: p.type || 'office',
+                source: 'perplexity',
+                confidence: p.confidence || 65
+              }));
+
+              if (perplexityPhones.length > 0) {
+                const existing = allPhonesByLead.get(leadEmail) || [];
+                allPhonesByLead.set(leadEmail, [...existing, ...perplexityPhones]);
+                
+                if (!results[resultIndex].enriched_data.phone) {
+                  results[resultIndex].enriched_data.phone = perplexityPhones[0].number;
+                }
+                stats.perplexity_enriched++;
+                stats.phones_found += perplexityPhones.length;
+              }
+            }
+            stats.cost_estimate += perplexityData.stats?.cost_estimate || 0;
+          }
+        } catch (e) {
+          console.error('[enrich-lead] Perplexity error:', e);
+        }
+      }
+    }
+
+    // Phase 2c: Apollo People Enrichment (EXPENSIVE - uses credits, only if still missing data)
+    if (APOLLO_API_KEY && needsExternalEnrichment.length > 0) {
+      console.log('[enrich-lead] Phase 2c: Apollo person enrichment (uses credits - last resort)');
+      
+      // Only use Apollo for contacts still missing critical data (phone or title)
+      const needsApollo = needsExternalEnrichment.filter(lead => {
+        const resultIndex = results.findIndex(r => r.input.email === lead.email);
+        if (resultIndex === -1) return false;
+        const phones = allPhonesByLead.get(lead.email || '') || [];
+        return phones.length === 0 || !results[resultIndex].enriched_data.title;
+      });
+
+      for (const lead of needsApollo) {
         if (!lead.email) continue;
 
         const resultIndex = results.findIndex(r => r.input.email === lead.email);
-        if (resultIndex === -1 || results[resultIndex].fields_filled.length > 3) continue;
+        if (resultIndex === -1) continue;
 
         try {
           const response = await withHttpRetry(
@@ -243,11 +383,25 @@ serve(async (req) => {
                 ...results[resultIndex].enriched_data,
                 email: person.email || lead.email,
                 email_verified: person.email_status === 'verified',
-                title: person.title,
-                phone: person.phone_numbers?.[0]?.number,
-                linkedin_url: person.linkedin_url,
-                company: person.organization?.name
+                title: person.title || results[resultIndex].enriched_data.title,
+                linkedin_url: person.linkedin_url || results[resultIndex].enriched_data.linkedin_url,
+                company: person.organization?.name || results[resultIndex].enriched_data.company
               };
+              
+              // Add Apollo phones to collection
+              const apolloPhones: PhoneEntry[] = (person.phone_numbers || []).map((p: any) => ({
+                number: p.number,
+                type: p.type === 'mobile' ? 'mobile' : 'office',
+                source: 'apollo',
+                confidence: 95
+              }));
+              
+              if (apolloPhones.length > 0) {
+                const existing = allPhonesByLead.get(lead.email!) || [];
+                allPhonesByLead.set(lead.email!, [...existing, ...apolloPhones]);
+                stats.phones_found += apolloPhones.length;
+              }
+              
               results[resultIndex].source = 'apollo';
               results[resultIndex].confidence = 0.95;
               results[resultIndex].fields_filled = Object.keys(results[resultIndex].enriched_data)
@@ -261,13 +415,22 @@ serve(async (req) => {
       }
     }
 
-    // PDL People Enrichment for remaining
+    // Phase 2d: PDL People Enrichment (EXPENSIVE - uses credits, absolute last resort)
     if (PDL_API_KEY) {
-      console.log('[enrich-lead] Phase 2b: PDL person enrichment');
+      console.log('[enrich-lead] Phase 2d: PDL person enrichment (uses credits - last resort)');
       
-      for (const lead of needsExternalEnrichment) {
+      // Only use PDL for contacts still missing critical data after all cheaper sources
+      const needsPDL = needsExternalEnrichment.filter(lead => {
         const resultIndex = results.findIndex(r => r.input.email === lead.email);
-        if (resultIndex === -1 || results[resultIndex].fields_filled.length > 3) continue;
+        if (resultIndex === -1) return false;
+        const phones = allPhonesByLead.get(lead.email || '') || [];
+        // Only use PDL if still missing phones AND title
+        return phones.length === 0 && !results[resultIndex].enriched_data.title;
+      });
+
+      for (const lead of needsPDL) {
+        const resultIndex = results.findIndex(r => r.input.email === lead.email);
+        if (resultIndex === -1) continue;
 
         try {
           const params = new URLSearchParams();
@@ -292,12 +455,26 @@ serve(async (req) => {
               results[resultIndex].enriched_data = {
                 ...results[resultIndex].enriched_data,
                 email: person.work_email || person.personal_emails?.[0] || lead.email,
-                title: person.job_title,
-                phone: person.phone_numbers?.[0],
-                mobile: person.mobile_phone,
-                linkedin_url: person.linkedin_url,
-                company: person.job_company_name
+                title: person.job_title || results[resultIndex].enriched_data.title,
+                linkedin_url: person.linkedin_url || results[resultIndex].enriched_data.linkedin_url,
+                company: person.job_company_name || results[resultIndex].enriched_data.company
               };
+              
+              // Add PDL phones to collection
+              const pdlPhones: PhoneEntry[] = [];
+              if (person.phone_numbers?.[0]) {
+                pdlPhones.push({ number: person.phone_numbers[0], type: 'office', source: 'pdl', confidence: 85 });
+              }
+              if (person.mobile_phone) {
+                pdlPhones.push({ number: person.mobile_phone, type: 'mobile', source: 'pdl', confidence: 85 });
+              }
+              
+              if (pdlPhones.length > 0) {
+                const existing = allPhonesByLead.get(lead.email!) || [];
+                allPhonesByLead.set(lead.email!, [...existing, ...pdlPhones]);
+                stats.phones_found += pdlPhones.length;
+              }
+              
               results[resultIndex].source = 'pdl';
               results[resultIndex].confidence = 0.85;
               results[resultIndex].fields_filled = Object.keys(results[resultIndex].enriched_data)
@@ -413,6 +590,22 @@ ${batch.map(r => {
       }
     }
 
+    // Attach collected phones to results
+    for (const result of results) {
+      const email = result.input.email;
+      if (email) {
+        const phones = allPhonesByLead.get(email) || [];
+        result.enriched_data.phones = phones;
+        result.phone_sources = {};
+        for (const phone of phones) {
+          if (!result.phone_sources[phone.source]) {
+            result.phone_sources[phone.source] = [];
+          }
+          result.phone_sources[phone.source].push(phone);
+        }
+      }
+    }
+
     // Save to database if requested
     if (save_to_db) {
       console.log('[enrich-lead] Saving enriched leads to database');
@@ -422,8 +615,18 @@ ${batch.map(r => {
         
         const lead = result.input;
         const enriched = result.enriched_data;
+        const phones = enriched.phones || [];
         
-        // Upsert lead
+        // Build phones JSONB for multi-source storage
+        const phonesJson = phones.map(p => ({
+          number: p.number,
+          type: p.type,
+          sources: [p.source],
+          confidence: p.confidence,
+          verified_at: new Date().toISOString()
+        }));
+        
+        // Upsert lead with multi-phone data
         const { error } = await supabase
           .from('Leads')
           .upsert({
@@ -432,8 +635,11 @@ ${batch.map(r => {
             first_name: lead.first_name,
             last_name: lead.last_name,
             title: enriched.title,
-            phone: enriched.phone,
-            mobile: enriched.mobile,
+            phone: phones[0]?.number || enriched.phone,
+            mobile: phones.find(p => p.type === 'mobile')?.number || enriched.mobile,
+            direct_phone: phones.find(p => p.type === 'direct')?.number,
+            phones: phonesJson,
+            phone_sources: result.phone_sources,
             linkedin_url: enriched.linkedin_url,
             company: enriched.company || lead.company,
             website: enriched.domain || lead.domain,
