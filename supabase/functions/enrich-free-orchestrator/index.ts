@@ -157,8 +157,8 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, serviceKey);
 
   try {
-    const { job_id, org_id, create_new = false, total_records = 0 } = await req.json();
-    console.log(`[enrich-free-orchestrator] Starting job=${job_id}, org=${org_id}, create_new=${create_new}`);
+    const { job_id, org_id, create_new = false, total_records = 0, account_ids = null } = await req.json();
+    console.log(`[enrich-free-orchestrator] Starting job=${job_id}, org=${org_id}, create_new=${create_new}, specific_accounts=${account_ids?.length || 'all'}`);
 
     // Check for contact discovery configuration
     const contactDiscoveryConfig = await getContactDiscoveryConfig(supabase, org_id);
@@ -238,6 +238,11 @@ serve(async (req) => {
         .eq("org_id", jobOrgId)
         .order("id", { ascending: true })
         .limit(BATCH_SIZE);
+
+      // If specific account_ids provided, only fetch those
+      if (account_ids && Array.isArray(account_ids) && account_ids.length > 0) {
+        query = query.in("id", account_ids);
+      }
 
       if (lastCursor) {
         query = query.gt("id", lastCursor);
