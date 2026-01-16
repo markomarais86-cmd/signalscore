@@ -356,3 +356,12 @@ verify_jwt = true
 
 [functions.enrich-gemini-account]
 verify_jwt = true
+
+[functions.enrich-test-accuracy]
+verify_jwt = true
+
+[functions.enrich-discover]
+verify_jwt = true
+
+[functions.process-enrichment-queue]
+verify_jwt = false
