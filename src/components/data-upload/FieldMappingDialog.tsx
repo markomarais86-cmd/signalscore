@@ -28,7 +28,7 @@ interface FieldMappingDialogProps {
 
 const SYSTEM_FIELDS = {
   accounts: [
-    { value: 'external_id', label: 'Account ID', required: true },
+    { value: 'external_id', label: 'Account ID', required: false },
     { value: 'name', label: 'Company Name', required: true },
     { value: 'domain', label: 'Website/Domain', required: false },
     { value: 'industry_raw', label: 'Industry', required: false },
@@ -40,10 +40,10 @@ const SYSTEM_FIELDS = {
     { value: 'state_province', label: 'State/Province', required: false },
   ],
   contacts: [
-    { value: 'external_id', label: 'Contact ID', required: true },
-    { value: 'account_external_id', label: 'Account ID', required: true },
-    { value: 'first_name', label: 'First Name', required: true },
-    { value: 'last_name', label: 'Last Name', required: true },
+    { value: 'external_id', label: 'Contact ID', required: false },
+    { value: 'account_external_id', label: 'Account ID', required: false },
+    { value: 'first_name', label: 'First Name', required: false },
+    { value: 'last_name', label: 'Last Name', required: false },
     { value: 'email', label: 'Email', required: false },
     { value: 'title_raw', label: 'Job Title', required: false },
     { value: 'country', label: 'Country', required: false },
@@ -52,7 +52,7 @@ const SYSTEM_FIELDS = {
     { value: 'state_province', label: 'State/Province', required: false },
   ],
   leads: [
-    { value: 'external_id', label: 'Lead ID', required: true },
+    { value: 'external_id', label: 'Lead ID', required: false },
     { value: 'first_name', label: 'First Name', required: false },
     { value: 'last_name', label: 'Last Name', required: false },
     { value: 'email', label: 'Email', required: false },
@@ -69,7 +69,7 @@ const SYSTEM_FIELDS = {
     { value: 'status', label: 'Status', required: false },
   ],
   combined: [
-    { value: 'external_id', label: 'ID', required: true },
+    { value: 'external_id', label: 'ID', required: false },
     { value: 'first_name', label: 'First Name', required: false },
     { value: 'last_name', label: 'Last Name', required: false },
     { value: 'email', label: 'Email', required: false },
