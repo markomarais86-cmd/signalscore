@@ -70,13 +70,15 @@ export function FlexibleLeadEnrich() {
 
     for (const line of lines) {
       // Check if it's an email
-      if (line.includes('@') && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(line)) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (line.includes('@') && emailRegex.test(line)) {
         const domain = line.split('@')[1];
         parsed.push({ type: 'email', value: line.toLowerCase(), domain });
       }
       // Check if it's a domain (contains dot, no spaces, no @)
       else if (line.includes('.') && !line.includes(' ') && !line.includes('@')) {
-        const cleanDomain = line.replace(/^(https?:\\/\\/)?(www\\.)?/, '').split('/')[0];
+        const domainRegex = /^(https?:\/\/)?(www\.)?/;
+        const cleanDomain = line.replace(domainRegex, '').split('/')[0];
         parsed.push({ type: 'domain', value: cleanDomain.toLowerCase() });
       }
       // Otherwise treat as company name
