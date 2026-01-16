@@ -62,6 +62,9 @@ export default function QuickEnrich() {
   // Config state
   const [enableContactDiscovery, setEnableContactDiscovery] = useState(false);
   
+  // Track uploaded account IDs for targeted enrichment
+  const [uploadedAccountIds, setUploadedAccountIds] = useState<string[]>([]);
+  
   // Enrichment state
   const [enrichmentJobId, setEnrichmentJobId] = useState<string | null>(null);
   const [enrichmentStats, setEnrichmentStats] = useState<EnrichmentStats | null>(null);
@@ -181,13 +184,19 @@ export default function QuickEnrich() {
 
       setUploadStats({
         total: rawData.length,
-        uploaded: data.insertedLeads || 0,
-        matched: data.matchedAccounts || 0
+        uploaded: data.insertedLeads || data.inserted || 0,
+        matched: data.matchedAccounts || data.matching?.accounts_created || 0
       });
+
+      // Store the created account IDs for targeted enrichment
+      if (data.created_account_ids && data.created_account_ids.length > 0) {
+        setUploadedAccountIds(data.created_account_ids);
+        console.log(`[QuickEnrich] Stored ${data.created_account_ids.length} account IDs for enrichment`);
+      }
 
       setUploadProgress(100);
       setStep("configure");
-      toast.success(`Uploaded ${data.insertedLeads} leads!`);
+      toast.success(`Uploaded ${data.insertedLeads || data.inserted} leads!`);
 
     } catch (error: any) {
       toast.error("Upload failed", { description: error.message });
@@ -204,17 +213,55 @@ export default function QuickEnrich() {
     try {
       setStep("process");
       
-      // Get count of accounts to enrich
-      const { count } = await supabase
-        .from("accounts")
-        .select("*", { count: "exact", head: true })
-        .eq("org_id", userProfile.org_id);
+      // Use ONLY the uploaded account IDs, not the entire database
+      const accountIdsToEnrich = uploadedAccountIds;
+      const totalToEnrich = accountIdsToEnrich.length;
+      
+      console.log(`[QuickEnrich] Starting enrichment for ${totalToEnrich} uploaded accounts`);
 
+      if (totalToEnrich === 0) {
+        toast.error("No accounts to enrich", { 
+          description: "Please upload a file with company data first" 
+        });
+        setStep("configure");
+        return;
+      }
+
+      // FAST PATH: For small batches (≤100), use enrich-fast for immediate results
+      if (totalToEnrich <= 100) {
+        console.log(`[QuickEnrich] Using fast path for ${totalToEnrich} accounts`);
+        
+        const { data, error } = await supabase.functions.invoke("enrich-fast", {
+          body: {
+            account_ids: accountIdsToEnrich,
+            org_id: userProfile.org_id
+          }
+        });
+
+        if (error) throw error;
+
+        // Immediate results - no polling needed
+        setEnrichmentStats({
+          processed: data.stats?.processed || totalToEnrich,
+          enriched: data.stats?.enriched || 0,
+          total: totalToEnrich,
+          contactsDiscovered: 0
+        });
+        setEnrichmentComplete(true);
+        setStep("download");
+        toast.success(`Enrichment complete! ${data.stats?.enriched || 0} accounts enriched.`);
+        return;
+      }
+
+      // BATCH PATH: For larger batches, use orchestrator with specific IDs
+      console.log(`[QuickEnrich] Using batch path for ${totalToEnrich} accounts`);
+      
       const { data, error } = await supabase.functions.invoke("enrich-free-orchestrator", {
         body: {
           org_id: userProfile.org_id,
           create_new: true,
-          total_records: count || 0,
+          total_records: totalToEnrich,
+          account_ids: accountIdsToEnrich, // Pass specific IDs
           enable_contact_discovery: enableContactDiscovery
         }
       });
@@ -225,13 +272,14 @@ export default function QuickEnrich() {
       setEnrichmentStats({
         processed: 0,
         enriched: 0,
-        total: count || 0,
+        total: totalToEnrich,
         contactsDiscovered: 0
       });
 
       toast.success("Enrichment started!");
 
     } catch (error: any) {
+      console.error("[QuickEnrich] Enrichment error:", error);
       toast.error("Failed to start enrichment", { description: error.message });
       setStep("configure");
     }

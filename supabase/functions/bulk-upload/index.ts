@@ -208,6 +208,8 @@ Deno.serve(async (req) => {
 
     // ALWAYS auto-match leads using the high-performance database function
     let matchResult = null;
+    let createdAccountIds: string[] = [];
+    
     if (insertedLeads > 0) {
       console.log('🔗 Running high-performance bulk matching...')
       const matchStart = Date.now();
@@ -236,31 +238,35 @@ Deno.serve(async (req) => {
         .limit(1)
         .single()
 
-      if (icpData?.id) {
-        console.log(`🎯 Triggering scoring for ${matchResult.accounts_created} new accounts...`)
-        
-        // Get the newly created account IDs (those with AUTO_ prefix from recent)
-        const { data: newAccounts } = await supabaseClient
-          .from('accounts')
-          .select('external_id')
-          .eq('org_id', orgId)
-          .like('external_id', 'AUTO_%')
-          .order('updated_at', { ascending: false })
-          .limit(matchResult.accounts_created)
+      // Get the newly created account IDs (those with AUTO_ prefix from recent)
+      const { data: newAccounts } = await supabaseClient
+        .from('accounts')
+        .select('id, external_id')
+        .eq('org_id', orgId)
+        .like('external_id', 'AUTO_%')
+        .order('updated_at', { ascending: false })
+        .limit(matchResult.accounts_created)
 
-        if (newAccounts && newAccounts.length > 0) {
-          const accountIds = newAccounts.map(a => a.external_id)
+      if (newAccounts && newAccounts.length > 0) {
+        // Store the created account IDs to return
+        createdAccountIds = newAccounts.map(a => a.id)
+        const accountExternalIds = newAccounts.map(a => a.external_id)
+        console.log(`📦 Created ${createdAccountIds.length} account IDs for enrichment`)
+
+        if (icpData?.id) {
+          console.log(`🎯 Triggering scoring for ${matchResult.accounts_created} new accounts...`)
+          
           const { error: scoreError } = await supabaseClient
             .rpc('bulk_score_accounts_batch', {
               p_org_id: orgId,
-              p_account_ids: accountIds,
+              p_account_ids: accountExternalIds,
               p_icp_id: icpData.id
             })
 
           if (scoreError) {
             console.error('⚠️ Scoring error:', scoreError.message)
           } else {
-            console.log(`✅ Scored ${accountIds.length} accounts`)
+            console.log(`✅ Scored ${accountExternalIds.length} accounts`)
           }
         }
       }
@@ -319,6 +325,9 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         inserted: insertedLeads,
+        insertedLeads: insertedLeads, // Alias for frontend compat
+        matchedAccounts: matchResult?.accounts_created || 0, // Alias for frontend compat
+        created_account_ids: createdAccountIds, // NEW: Return created account IDs for enrichment
         matching: matchResult ? {
           matched_to_existing: matchResult.matched_to_existing || 0,
           accounts_created: matchResult.accounts_created || 0,
