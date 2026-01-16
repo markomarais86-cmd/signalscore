@@ -450,37 +450,48 @@ serve(async (req) => {
     const hasMoreRecords = totalProcessed < (job.total_records || totalProcessed + 1);
     
     if (timeUp && hasMoreRecords) {
+      // Mark as paused first (before auto-continue)
       await supabase.from("enrichment_jobs")
         .update({
           status: "paused",
           paused_at: new Date().toISOString(),
+          last_heartbeat: new Date().toISOString(),
         })
         .eq("id", jobId);
 
       console.log(`[enrich-free-orchestrator] Job ${jobId} paused at cursor ${lastCursor}, processed ${totalProcessed}`);
 
-      // AUTO-CONTINUATION: Fire-and-forget call to continue the job
-      try {
-        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        
-        fetch(`${supabaseUrl}/functions/v1/enrich-free-orchestrator`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${serviceKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ 
-            job_id: jobId, 
-            org_id: jobOrgId, 
-            create_new: false 
-          }),
-        }).catch(err => console.error("[enrich-free-orchestrator] Auto-continue failed:", err));
-        
-        console.log(`[enrich-free-orchestrator] Auto-continuation triggered for job ${jobId}`);
-      } catch (continueErr) {
-        console.error("[enrich-free-orchestrator] Failed to trigger auto-continue:", continueErr);
-      }
+      // AUTO-CONTINUATION: Use EdgeRuntime.waitUntil for reliable background task
+      const continueJob = async () => {
+        try {
+          const response = await fetch(`${supabaseUrl}/functions/v1/enrich-free-orchestrator`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${serviceKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ 
+              job_id: jobId, 
+              org_id: jobOrgId, 
+              create_new: false 
+            }),
+          });
+          console.log(`[enrich-free-orchestrator] Auto-continue response: ${response.status}`);
+        } catch (err) {
+          console.error("[enrich-free-orchestrator] Auto-continue failed:", err);
+          // Mark job as failed if auto-continue fails so user can manually resume
+          await supabase.from("enrichment_jobs")
+            .update({
+              status: "failed",
+              error_message: "Auto-continuation failed. Click Resume to continue.",
+            })
+            .eq("id", jobId);
+        }
+      };
+
+      // Use EdgeRuntime.waitUntil to ensure continuation happens
+      EdgeRuntime.waitUntil(continueJob());
+      console.log(`[enrich-free-orchestrator] Auto-continuation scheduled via waitUntil for job ${jobId}`);
     }
 
     return new Response(
