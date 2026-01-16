@@ -15,9 +15,13 @@ import {
   Users,
   Zap,
   AlertTriangle,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface ScoringWeight {
   id: string;
@@ -65,7 +69,52 @@ export default function ScoringConfiguration() {
   const [previewAccounts, setPreviewAccounts] = useState(SAMPLE_ACCOUNTS);
   const [totalWeight, setTotalWeight] = useState(100);
   const [showPreview, setShowPreview] = useState(false);
+  const [icpThreshold, setIcpThreshold] = useState(60);
   const { toast } = useToast();
+  const { userProfile } = useAuth();
+  const queryClient = useQueryClient();
+
+  // Fetch current ICP threshold from organization settings
+  const { data: orgData, isLoading: isLoadingOrg } = useQuery({
+    queryKey: ['org-icp-threshold', userProfile?.org_id],
+    queryFn: async () => {
+      if (!userProfile?.org_id) return null;
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('icp_threshold')
+        .eq('id', userProfile.org_id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!userProfile?.org_id,
+  });
+
+  // Update local state when org data loads
+  useEffect(() => {
+    if (orgData?.icp_threshold !== undefined) {
+      setIcpThreshold(orgData.icp_threshold);
+    }
+  }, [orgData]);
+
+  // Mutation to save ICP threshold
+  const saveThresholdMutation = useMutation({
+    mutationFn: async (threshold: number) => {
+      if (!userProfile?.org_id) throw new Error('No organization');
+      const { error } = await supabase
+        .from('organizations')
+        .update({ icp_threshold: threshold })
+        .eq('id', userProfile.org_id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['org-icp-threshold'] });
+      toast({ title: "Success", description: "ICP threshold saved successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
 
   useEffect(() => {
     const total = weights.reduce((sum, weight) => sum + weight.weight, 0);
@@ -142,6 +191,65 @@ export default function ScoringConfiguration() {
           </Button>
         </div>
       </div>
+
+      {/* ICP Qualification Threshold */}
+      <Card className="border-primary/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-5 w-5 text-primary" />
+            ICP Qualification Threshold
+          </CardTitle>
+          <CardDescription>
+            Accounts with scores at or above this threshold will be marked as ICP Qualified
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Slider
+                value={[icpThreshold]}
+                onValueChange={(value) => setIcpThreshold(value[0])}
+                min={0}
+                max={100}
+                step={5}
+                className="flex-1"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                value={icpThreshold}
+                onChange={(e) => setIcpThreshold(parseInt(e.target.value) || 0)}
+                className="w-20"
+                min={0}
+                max={100}
+              />
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {icpThreshold === 60 ? (
+                <span className="text-green-600">Using default threshold (60%)</span>
+              ) : (
+                <span>Custom threshold: {icpThreshold}%</span>
+              )}
+            </p>
+            <Button
+              size="sm"
+              onClick={() => saveThresholdMutation.mutate(icpThreshold)}
+              disabled={saveThresholdMutation.isPending || (orgData?.icp_threshold === icpThreshold)}
+            >
+              {saveThresholdMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Save Threshold
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Weight Validation */}
       <Card className={totalWeight !== 100 ? "border-destructive" : "border-green-500"}>

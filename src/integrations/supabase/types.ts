@@ -4984,6 +4984,7 @@ export type Database = {
           enrichment_credits_reset_at: string | null
           enrichment_credits_total: number | null
           enrichment_credits_used: number | null
+          icp_threshold: number | null
           id: string
           name: string
           plan_id: string | null
@@ -4995,6 +4996,7 @@ export type Database = {
           enrichment_credits_reset_at?: string | null
           enrichment_credits_total?: number | null
           enrichment_credits_used?: number | null
+          icp_threshold?: number | null
           id?: string
           name: string
           plan_id?: string | null
@@ -5006,6 +5008,7 @@ export type Database = {
           enrichment_credits_reset_at?: string | null
           enrichment_credits_total?: number | null
           enrichment_credits_used?: number | null
+          icp_threshold?: number | null
           id?: string
           name?: string
           plan_id?: string | null
@@ -6813,6 +6816,13 @@ export type Database = {
           coverage_rate: number
           id: string
           name: string
+        }[]
+      }
+      get_top_lead_titles: {
+        Args: { p_limit?: number; p_org_id: string }
+        Returns: {
+          count: number
+          title: string
         }[]
       }
       get_users_with_emails: {

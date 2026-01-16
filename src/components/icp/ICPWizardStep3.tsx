@@ -28,39 +28,28 @@ export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Pro
   const [jobTitleInput, setJobTitleInput] = useState('');
   const { userProfile } = useAuth();
 
-  // Fetch top job titles from user's leads using client-side aggregation
+  // Fetch top job titles from user's leads using server-side aggregation (RPC)
   const { data: topTitles } = useQuery({
-    queryKey: ['top-lead-titles', userProfile?.org_id],
+    queryKey: ['top-lead-titles', userProfile?.org_id, formData.persona_job_titles],
     queryFn: async () => {
       if (!userProfile?.org_id) return [];
       
-      // Fetch all titles and aggregate client-side (more reliable than RPC)
-      const { data: allTitles, error } = await supabase
-        .from('Leads')
-        .select('title')
-        .eq('org_id', userProfile.org_id)
-        .not('title', 'is', null);
+      // Use server-side aggregation via RPC for better performance
+      const { data, error } = await supabase.rpc('get_top_lead_titles', {
+        p_org_id: userProfile.org_id,
+        p_limit: 10 // Fetch more to filter out already selected
+      });
       
-      if (error || !allTitles) {
+      if (error || !data) {
         console.error('Error fetching titles:', error);
         return [];
       }
       
-      // Aggregate and count titles
-      const titleCounts: Record<string, number> = {};
-      allTitles.forEach(row => {
-        if (row.title) {
-          titleCounts[row.title] = (titleCounts[row.title] || 0) + 1;
-        }
-      });
-      
-      // Return top 5 most common titles not already selected
-      return Object.entries(titleCounts)
-        .map(([title, count]) => ({ title, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 5)
+      // Filter out already selected titles
+      return (data as { title: string; count: number }[])
         .map(t => t.title)
-        .filter(title => !formData.persona_job_titles.includes(title));
+        .filter(title => !formData.persona_job_titles.includes(title))
+        .slice(0, 5);
     },
     enabled: !!userProfile?.org_id,
     staleTime: 5 * 60 * 1000 // Cache for 5 minutes
