@@ -17,6 +17,7 @@ import { OrganizationCard } from '@/components/platform-admin/OrganizationCard';
 import { OrganizationManagementDialog } from '@/components/platform-admin/OrganizationManagementDialog';
 import { usePlatformAdmin } from '@/hooks/use-platform-admin';
 import { FeatureToggles } from '@/components/settings/FeatureToggles';
+import { OrganizationFeatureFlags } from '@/components/platform-admin/OrganizationFeatureFlags';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
@@ -290,23 +291,27 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
+    <div className="container mx-auto py-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Admin Dashboard
-          </h1>
-          <p className="text-muted-foreground mt-2">Manage organizations, users, and platform settings</p>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-primary/10">
+            <Shield className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">Platform Admin</h1>
+            <p className="text-sm text-muted-foreground">
+              Manage organizations, users, and platform settings
+            </p>
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <Button onClick={() => setShowCreateOrgDialog(true)} variant="default">
             <Plus className="h-4 w-4 mr-2" />
             Create Organization
           </Button>
-          <Button onClick={loadAdminData} variant="outline">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+          <Button onClick={loadAdminData} variant="outline" size="icon">
+            <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -532,15 +537,21 @@ export default function AdminDashboard() {
         </TabsContent>
 
         <TabsContent value="feature-flags">
-          <Card>
-            <CardHeader>
-              <CardTitle>Feature Flags Management</CardTitle>
-              <CardDescription>Enable or disable features for all organizations</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FeatureToggles />
-            </CardContent>
-          </Card>
+            <div className="space-y-6">
+              {/* Per-Organization Feature Flags */}
+              <OrganizationFeatureFlags organizations={organizationMetrics} />
+              
+              {/* Current Org Feature Flags (legacy) */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Your Organization Feature Flags</CardTitle>
+                  <CardDescription>Enable or disable features for your own organization</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <FeatureToggles />
+                </CardContent>
+              </Card>
+            </div>
         </TabsContent>
 
         <TabsContent value="audit">

@@ -15,6 +15,7 @@ interface FeatureFlags {
   predictive_scoring: boolean;
   advanced_segmentation: boolean;
   trend_analysis: boolean;
+  data_enrichment: boolean;
 }
 
 interface FeatureFlagsContextType {
@@ -30,6 +31,7 @@ const defaultFlags: FeatureFlags = {
   // Phase 1 - MVP (Always enabled)
   icp_manager: true,
   icp_tam_intelligence: true,
+  data_enrichment: true,
   // Phase 2 (Enabled)
   personas_segments: true,
   // Phase 3 - OFF by default (must be enabled in database)
