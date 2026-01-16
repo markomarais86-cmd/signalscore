@@ -563,6 +563,16 @@ serve(async (req) => {
     const duration = Date.now() - startTime;
     console.log(`[enrich-verified] Complete: ${accountsEnriched} accounts, ${fieldsEnriched} fields, ${failed} failed in ${duration}ms`);
 
+    // Calculate costs (estimates based on API usage)
+    const firecrawlCalls = accounts.filter(a => a.domain).length;
+    const perplexityCalls = accounts.filter(a => a.name).length;
+    const costs = {
+      firecrawl: firecrawlCalls * 0.005, // $0.005 per scrape
+      perplexity: perplexityCalls * 0.005, // $0.005 per search
+      ai_fallback: 0,
+      total: (firecrawlCalls * 0.005) + (perplexityCalls * 0.005)
+    };
+
     return new Response(
       JSON.stringify({
         success: true,
@@ -574,6 +584,7 @@ serve(async (req) => {
           failed,
           duration_ms: duration
         },
+        costs,
         results
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
