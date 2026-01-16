@@ -1,15 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
@@ -40,35 +38,36 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
 import { useToast } from "@/hooks/use-toast";
-import IntegrationManager from "@/components/settings/IntegrationManager";
-import WebhookLogViewer from "@/components/settings/WebhookLogViewer";
-import DataMapping from "@/components/settings/DataMapping";
-import ScoringConfiguration from "@/components/settings/ScoringConfiguration";
-import BenchmarkSettings from "@/components/settings/BenchmarkSettings";
-import AIAgentSettings from "@/components/settings/AIAgentSettings";
-import { AccountExclusions } from "@/components/settings/AccountExclusions";
-import { ZapierIntegration } from "@/components/settings/ZapierIntegration";
-import { APIKeyManager } from "@/components/settings/APIKeyManager";
-import { ExternalDataProviders } from "@/components/settings/ExternalDataProviders";
-import { RateLimitSettings } from "@/components/settings/RateLimitSettings";
-import { AutomationSettings } from "@/components/settings/AutomationSettings";
-import { ZapierWebhookManager } from "@/components/settings/ZapierWebhookManager";
-import { ClayIncomingWebhooks } from "@/components/settings/ClayIncomingWebhooks";
-import { DuplicateAccountMerger } from "@/components/settings/DuplicateAccountMerger";
-import { EnrichmentProviderSetup } from "@/components/settings/EnrichmentProviderSetup";
-import { InvitationsManager } from "@/components/settings/InvitationsManager";
-import { IntegrationCredentialManager } from "@/components/settings/IntegrationCredentialManager";
-import { IntegrationHealthDashboard } from "@/components/settings/IntegrationHealthDashboard";
-import { CRMSyncHistory } from "@/components/settings/CRMSyncHistory";
-import { ExportHistory } from "@/components/settings/ExportHistory";
-import { CampaignExportHistory } from "@/components/campaigns/CampaignExportHistory";
-import { ScoreRefreshPanel } from "@/components/settings/ScoreRefreshPanel";
-
 import { supabase } from "@/integrations/supabase/client";
-import { AIProviderSettings } from "@/components/settings/AIProviderSettings";
 import { SettingsSkeleton } from "@/components/SettingsSkeleton";
-import DataUploadContent from "@/components/settings/DataUploadContent";
-import { ServiceHealthStatus } from "@/components/settings/ServiceHealthStatus";
+
+// Lazy-loaded components for better performance
+const IntegrationManager = lazy(() => import("@/components/settings/IntegrationManager"));
+const WebhookLogViewer = lazy(() => import("@/components/settings/WebhookLogViewer"));
+const DataMapping = lazy(() => import("@/components/settings/DataMapping"));
+const ScoringConfiguration = lazy(() => import("@/components/settings/ScoringConfiguration"));
+const BenchmarkSettings = lazy(() => import("@/components/settings/BenchmarkSettings"));
+const AIAgentSettings = lazy(() => import("@/components/settings/AIAgentSettings"));
+const AccountExclusions = lazy(() => import("@/components/settings/AccountExclusions").then(m => ({ default: m.AccountExclusions })));
+const ZapierIntegration = lazy(() => import("@/components/settings/ZapierIntegration").then(m => ({ default: m.ZapierIntegration })));
+const APIKeyManager = lazy(() => import("@/components/settings/APIKeyManager").then(m => ({ default: m.APIKeyManager })));
+const ExternalDataProviders = lazy(() => import("@/components/settings/ExternalDataProviders").then(m => ({ default: m.ExternalDataProviders })));
+const RateLimitSettings = lazy(() => import("@/components/settings/RateLimitSettings").then(m => ({ default: m.RateLimitSettings })));
+const AutomationSettings = lazy(() => import("@/components/settings/AutomationSettings").then(m => ({ default: m.AutomationSettings })));
+const ZapierWebhookManager = lazy(() => import("@/components/settings/ZapierWebhookManager").then(m => ({ default: m.ZapierWebhookManager })));
+const ClayIncomingWebhooks = lazy(() => import("@/components/settings/ClayIncomingWebhooks").then(m => ({ default: m.ClayIncomingWebhooks })));
+const DuplicateAccountMerger = lazy(() => import("@/components/settings/DuplicateAccountMerger").then(m => ({ default: m.DuplicateAccountMerger })));
+const EnrichmentProviderSetup = lazy(() => import("@/components/settings/EnrichmentProviderSetup").then(m => ({ default: m.EnrichmentProviderSetup })));
+const InvitationsManager = lazy(() => import("@/components/settings/InvitationsManager").then(m => ({ default: m.InvitationsManager })));
+const IntegrationCredentialManager = lazy(() => import("@/components/settings/IntegrationCredentialManager").then(m => ({ default: m.IntegrationCredentialManager })));
+const IntegrationHealthDashboard = lazy(() => import("@/components/settings/IntegrationHealthDashboard").then(m => ({ default: m.IntegrationHealthDashboard })));
+const CRMSyncHistory = lazy(() => import("@/components/settings/CRMSyncHistory").then(m => ({ default: m.CRMSyncHistory })));
+const ExportHistory = lazy(() => import("@/components/settings/ExportHistory").then(m => ({ default: m.ExportHistory })));
+const CampaignExportHistory = lazy(() => import("@/components/campaigns/CampaignExportHistory").then(m => ({ default: m.CampaignExportHistory })));
+const ScoreRefreshPanel = lazy(() => import("@/components/settings/ScoreRefreshPanel").then(m => ({ default: m.ScoreRefreshPanel })));
+const AIProviderSettings = lazy(() => import("@/components/settings/AIProviderSettings").then(m => ({ default: m.AIProviderSettings })));
+const DataUploadContent = lazy(() => import("@/components/settings/DataUploadContent"));
+const ServiceHealthStatus = lazy(() => import("@/components/settings/ServiceHealthStatus").then(m => ({ default: m.ServiceHealthStatus })));
 
 interface TeamMember {
   id: string;
@@ -365,7 +364,9 @@ export default function Settings() {
 
         {/* Data Upload Tab */}
         <TabsContent value="data-upload" className="space-y-6">
-          <DataUploadContent />
+          <Suspense fallback={<SettingsSkeleton />}>
+            <DataUploadContent />
+          </Suspense>
         </TabsContent>
 
         {/* Configuration: Scoring, Benchmarks, Data Mapping, Exclusions */}
@@ -376,18 +377,22 @@ export default function Settings() {
               <CardDescription>Configure ICP scoring and account matching</CardDescription>
             </CardHeader>
           </Card>
-          <ScoringConfiguration />
-          <BenchmarkSettings />
-          <ScoreRefreshPanel />
+          <Suspense fallback={<SettingsSkeleton />}>
+            <ScoringConfiguration />
+            <BenchmarkSettings />
+            <ScoreRefreshPanel />
+          </Suspense>
           <Card>
             <CardHeader>
               <CardTitle>Data Management</CardTitle>
               <CardDescription>Manage data quality and mappings</CardDescription>
             </CardHeader>
           </Card>
-          <DuplicateAccountMerger />
-          <DataMapping />
-          <AccountExclusions />
+          <Suspense fallback={<SettingsSkeleton />}>
+            <DuplicateAccountMerger />
+            <DataMapping />
+            <AccountExclusions />
+          </Suspense>
         </TabsContent>
 
         {/* Automation & AI: Automation, AI Agents - Admin Only */}
@@ -399,14 +404,18 @@ export default function Settings() {
                 <CardDescription>Configure automated workflows and AI agent behavior</CardDescription>
               </CardHeader>
             </Card>
-            <AutomationSettings />
-            <AIAgentSettings />
+            <Suspense fallback={<SettingsSkeleton />}>
+              <AutomationSettings />
+              <AIAgentSettings />
+            </Suspense>
           </TabsContent>
         )}
 
         {/* Team Management */}
         <TabsContent value="team" className="space-y-6">
-          <InvitationsManager />
+          <Suspense fallback={<SettingsSkeleton />}>
+            <InvitationsManager />
+          </Suspense>
           
           <Card>
             <CardHeader>
@@ -506,7 +515,9 @@ export default function Settings() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="pt-4 space-y-4">
-                <ExternalDataProviders />
+                <Suspense fallback={<SettingsSkeleton />}>
+                  <ExternalDataProviders />
+                </Suspense>
               </AccordionContent>
             </AccordionItem>
 
@@ -524,12 +535,14 @@ export default function Settings() {
                       </div>
                     </div>
                   </AccordionTrigger>
-                  <AccordionContent className="pt-4 space-y-4">
-                    <ServiceHealthStatus />
-                    <EnrichmentProviderSetup />
-                    <RateLimitSettings />
-                    <APIKeyManager />
-                  </AccordionContent>
+              <AccordionContent className="pt-4 space-y-4">
+                <Suspense fallback={<SettingsSkeleton />}>
+                  <ServiceHealthStatus />
+                  <EnrichmentProviderSetup />
+                  <RateLimitSettings />
+                  <APIKeyManager />
+                </Suspense>
+              </AccordionContent>
                 </AccordionItem>
 
                 {/* External Integrations */}
@@ -544,15 +557,17 @@ export default function Settings() {
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="pt-4 space-y-4">
-                    <AIProviderSettings />
-                    <IntegrationHealthDashboard />
-                    <IntegrationCredentialManager />
-                    <IntegrationManager />
-                    {userProfile?.org_id && <CRMSyncHistory orgId={userProfile.org_id} />}
-                    <CampaignExportHistory />
-                    <WebhookLogViewer />
-                    <ZapierIntegration />
-                    <ClayIncomingWebhooks />
+                    <Suspense fallback={<SettingsSkeleton />}>
+                      <AIProviderSettings />
+                      <IntegrationHealthDashboard />
+                      <IntegrationCredentialManager />
+                      <IntegrationManager />
+                      {userProfile?.org_id && <CRMSyncHistory orgId={userProfile.org_id} />}
+                      <CampaignExportHistory />
+                      <WebhookLogViewer />
+                      <ZapierIntegration />
+                      <ClayIncomingWebhooks />
+                    </Suspense>
                   </AccordionContent>
                 </AccordionItem>
               </>
@@ -647,7 +662,9 @@ export default function Settings() {
 
         {/* Export History */}
         <TabsContent value="export-history" className="space-y-6">
-          <ExportHistory />
+          <Suspense fallback={<SettingsSkeleton />}>
+            <ExportHistory />
+          </Suspense>
         </TabsContent>
       </Tabs>
 

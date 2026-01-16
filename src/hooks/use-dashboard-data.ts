@@ -226,41 +226,47 @@ export function useGeographyData(orgId: string | undefined, enabled: boolean = t
   });
 }
 
-// Hook for source filter toggle stats (always fetches unfiltered data)
+// Hook for source filter toggle stats - reads from useDashboardData cache to avoid duplicate RPC calls
 export function useSourceFilterStats(orgId: string | undefined) {
+  // Derive stats from the dashboard cache instead of making a duplicate RPC call
+  const { data: dashboardData } = useDashboardData(orgId, 'crm');
+  
   return useQuery({
     queryKey: ['source-filter-stats', orgId],
     queryFn: async () => {
       if (!orgId) throw new Error('No org ID provided');
       
-      // Fetch metrics from cached view + TAM data in parallel
-      const [crmResult, tamResult] = await Promise.all([
-        supabase.rpc('get_dashboard_metrics_cached' as any, { 
-          p_org_id: orgId
-        }),
-        supabase
+      // If dashboard data is already cached, derive values from it
+      if (dashboardData?.metrics) {
+        // Fetch only TAM data - the metrics are already in cache
+        const { data: tamData } = await supabase
           .from('external_data_sources')
           .select('total_accounts')
           .eq('org_id', orgId)
           .eq('is_active', true)
           .order('last_synced_at', { ascending: false })
           .limit(1)
-          .maybeSingle()
-      ]);
-      
-      if (crmResult.error) {
-        dashboardLogger.error('Source filter stats RPC error', crmResult.error);
+          .maybeSingle();
+        
+        return {
+          crm: dashboardData.metrics.total_crm_accounts ?? dashboardData.metrics.total_accounts ?? 0,
+          database: Number(tamData?.total_accounts) || 0,
+        };
       }
       
-      // Handle both array and direct object responses from RPC
-      const rawData = crmResult.data;
-      const crmMetrics = Array.isArray(rawData) ? rawData[0] : rawData;
-      const tamAccounts = Number(tamResult.data?.total_accounts) || 0;
-
-      // Use total_crm_accounts for CRM count (accounts with data_source IN ('crm', 'both'))
+      // Fallback: fetch TAM data only, use 0 for CRM until dashboard loads
+      const { data: tamData } = await supabase
+        .from('external_data_sources')
+        .select('total_accounts')
+        .eq('org_id', orgId)
+        .eq('is_active', true)
+        .order('last_synced_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
       return {
-        crm: crmMetrics?.total_crm_accounts ?? crmMetrics?.total_accounts ?? 0,
-        database: tamAccounts,
+        crm: 0,
+        database: Number(tamData?.total_accounts) || 0,
       };
     },
     enabled: !!orgId,

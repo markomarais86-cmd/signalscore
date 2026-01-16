@@ -6700,6 +6700,15 @@ export type Database = {
         Args: { p_deal_id: string; p_stage: string }
         Returns: number
       }
+      get_enrichment_stats: {
+        Args: { p_org_id: string }
+        Returns: {
+          completeness_percent: number
+          enriched_today: number
+          total_accounts: number
+          with_contacts: number
+        }[]
+      }
       get_filtered_accounts:
         | {
             Args: {
