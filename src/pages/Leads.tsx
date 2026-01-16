@@ -201,38 +201,33 @@ export default function Leads() {
   };
 
   const handleRescore = async (lead: Lead) => {
+    if (!lead.account_external_id) {
+      toast({
+        title: "Cannot rescore",
+        description: "Lead must be linked to an account first",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
-      // Call scoring API (this would be implemented later)
-      const response = await fetch('/api/score/account', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('score-accounts', {
+        body: {
           org_id: userProfile?.org_id,
-          account_external_id: lead.external_id,
-          features: {
-            industry: lead.industry,
-            employee_count: lead.employee_count,
-            revenue_range: lead.revenue_range,
-            country: lead.country
-          },
-          version_hint: 'v1'
-        })
+          account_ids: [lead.account_external_id]
+        }
       });
 
-      if (response.ok) {
-        toast({ title: "Success", description: "Account rescored successfully" });
-        refresh();
-      } else {
-        throw new Error('Scoring API not available');
-      }
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Account rescored successfully" });
+      refresh();
     } catch (error) {
       leadsLogger.error('Error rescoring account:', error);
       toast({
-        title: "Info",
-        description: "Scoring API will be implemented soon",
-        variant: "default"
+        title: "Scoring failed",
+        description: error instanceof Error ? error.message : "Could not rescore account",
+        variant: "destructive"
       });
     }
   };
