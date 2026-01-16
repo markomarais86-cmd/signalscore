@@ -68,6 +68,7 @@ export default function QuickEnrich() {
   // Enrichment state
   const [enrichmentJobId, setEnrichmentJobId] = useState<string | null>(null);
   const [enrichmentStats, setEnrichmentStats] = useState<EnrichmentStats | null>(null);
+  const [enrichedAccounts, setEnrichedAccounts] = useState<any[]>([]);
   const [enrichmentComplete, setEnrichmentComplete] = useState(false);
 
   // Poll for enrichment progress
@@ -92,6 +93,7 @@ export default function QuickEnrich() {
         if (data.status === "completed") {
           setEnrichmentComplete(true);
           setStep("download");
+          fetchEnrichedAccounts();
           toast.success("Enrichment complete!");
         }
       }
@@ -249,6 +251,7 @@ export default function QuickEnrich() {
         });
         setEnrichmentComplete(true);
         setStep("download");
+        fetchEnrichedAccounts();
         toast.success(`Enrichment complete! ${data.stats?.enriched || 0} accounts enriched.`);
         return;
       }
@@ -292,11 +295,16 @@ export default function QuickEnrich() {
       toast.info(`Preparing ${type} export...`);
 
       if (type === "accounts") {
+        // Export ONLY the uploaded accounts, not all enriched accounts
+        if (uploadedAccountIds.length === 0) {
+          toast.warning("No accounts to export");
+          return;
+        }
+        
         const { data: accounts, error } = await supabase
           .from("accounts")
           .select("*")
-          .eq("org_id", userProfile.org_id)
-          .not("enriched_at", "is", null)
+          .in("id", uploadedAccountIds)
           .order("name");
 
         if (error) throw error;
@@ -304,10 +312,25 @@ export default function QuickEnrich() {
         downloadCSV(accounts, `enriched_accounts_${new Date().toISOString().split("T")[0]}.csv`);
         toast.success(`Exported ${accounts?.length || 0} accounts!`);
       } else {
+        // Export leads from the uploaded accounts only
+        if (uploadedAccountIds.length === 0) {
+          toast.warning("No leads to export");
+          return;
+        }
+        
+        // Get external_ids for the uploaded accounts
+        const { data: accountData } = await supabase
+          .from("accounts")
+          .select("external_id")
+          .in("id", uploadedAccountIds);
+        
+        const externalIds = accountData?.map(a => a.external_id) || [];
+        
         const { data: leads, error } = await supabase
           .from("Leads")
           .select("*")
           .eq("org_id", userProfile.org_id)
+          .in("account_external_id", externalIds)
           .order("company");
 
         if (error) throw error;
@@ -318,6 +341,19 @@ export default function QuickEnrich() {
     } catch (error: any) {
       toast.error("Export failed", { description: error.message });
     }
+  };
+  
+  // Fetch enriched accounts for preview
+  const fetchEnrichedAccounts = async () => {
+    if (uploadedAccountIds.length === 0) return;
+    
+    const { data } = await supabase
+      .from("accounts")
+      .select("id, name, domain, industry_norm, employee_count, revenue_range, city, state_province, country, linkedin_url, enriched_at")
+      .in("id", uploadedAccountIds)
+      .order("name");
+    
+    setEnrichedAccounts(data || []);
   };
 
   const downloadCSV = (data: any[], filename: string) => {
@@ -648,7 +684,7 @@ export default function QuickEnrich() {
                 Step 4: Download Your Data
               </CardTitle>
               <CardDescription>
-                Enrichment complete! Download your enriched data.
+                Enrichment complete! Preview and download your enriched data.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -659,9 +695,57 @@ export default function QuickEnrich() {
                     <p className="text-sm text-muted-foreground">Accounts Enriched</p>
                   </div>
                   <div className="text-center p-6 rounded-lg border bg-primary/10">
-                    <p className="text-3xl font-bold text-primary">{enrichmentStats.contactsDiscovered.toLocaleString()}</p>
-                    <p className="text-sm text-muted-foreground">Contacts Discovered</p>
+                    <p className="text-3xl font-bold text-primary">{uploadedAccountIds.length.toLocaleString()}</p>
+                    <p className="text-sm text-muted-foreground">Total Uploaded</p>
                   </div>
+                </div>
+              )}
+
+              {/* Data Preview Table */}
+              {enrichedAccounts.length > 0 && (
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="bg-muted/50 px-4 py-2 border-b">
+                    <p className="font-medium text-sm">Enriched Accounts Preview</p>
+                  </div>
+                  <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/30 sticky top-0">
+                        <tr>
+                          <th className="text-left px-3 py-2 font-medium">Company</th>
+                          <th className="text-left px-3 py-2 font-medium">Domain</th>
+                          <th className="text-left px-3 py-2 font-medium">Industry</th>
+                          <th className="text-left px-3 py-2 font-medium">Employees</th>
+                          <th className="text-left px-3 py-2 font-medium">Revenue</th>
+                          <th className="text-left px-3 py-2 font-medium">Location</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {enrichedAccounts.slice(0, 50).map((account) => (
+                          <tr key={account.id} className="hover:bg-muted/20">
+                            <td className="px-3 py-2 font-medium">{account.name || "-"}</td>
+                            <td className="px-3 py-2 text-muted-foreground">{account.domain || "-"}</td>
+                            <td className="px-3 py-2">
+                              {account.industry_norm ? (
+                                <Badge variant="secondary" className="text-xs">{account.industry_norm}</Badge>
+                              ) : "-"}
+                            </td>
+                            <td className="px-3 py-2">
+                              {account.employee_count ? account.employee_count.toLocaleString() : "-"}
+                            </td>
+                            <td className="px-3 py-2">{account.revenue_range || "-"}</td>
+                            <td className="px-3 py-2 text-muted-foreground">
+                              {[account.city, account.state_province, account.country].filter(Boolean).join(", ") || "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {enrichedAccounts.length > 50 && (
+                    <div className="bg-muted/30 px-4 py-2 border-t text-center text-sm text-muted-foreground">
+                      Showing 50 of {enrichedAccounts.length} accounts. Download to see all.
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -672,7 +756,7 @@ export default function QuickEnrich() {
                   onClick={() => exportData("accounts")}
                 >
                   <Building2 className="h-6 w-6" />
-                  <span>Download Accounts</span>
+                  <span>Download Accounts ({uploadedAccountIds.length})</span>
                 </Button>
                 <Button
                   variant="outline"
@@ -694,6 +778,8 @@ export default function QuickEnrich() {
                   setEnrichmentStats(null);
                   setEnrichmentComplete(false);
                   setEnrichmentJobId(null);
+                  setEnrichedAccounts([]);
+                  setUploadedAccountIds([]);
                 }}>
                   Enrich Another File
                 </Button>
