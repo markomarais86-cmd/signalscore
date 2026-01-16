@@ -2850,6 +2850,159 @@ export type Database = {
           },
         ]
       }
+      enrichment_accuracy_results: {
+        Row: {
+          cost_usd: number | null
+          created_at: string | null
+          employee_count_match: boolean | null
+          employee_count_variance: number | null
+          enriched_employee_count: number | null
+          enriched_industry: string | null
+          enriched_naics: string | null
+          enriched_phone: string | null
+          enriched_revenue_range: string | null
+          enrichment_duration_ms: number | null
+          id: string
+          industry_match: boolean | null
+          linkedin_match: boolean | null
+          mobile_match: boolean | null
+          naics_match: boolean | null
+          org_id: string | null
+          phone_match: boolean | null
+          revenue_match: boolean | null
+          source: string
+          test_data_id: string | null
+          test_run_id: string | null
+        }
+        Insert: {
+          cost_usd?: number | null
+          created_at?: string | null
+          employee_count_match?: boolean | null
+          employee_count_variance?: number | null
+          enriched_employee_count?: number | null
+          enriched_industry?: string | null
+          enriched_naics?: string | null
+          enriched_phone?: string | null
+          enriched_revenue_range?: string | null
+          enrichment_duration_ms?: number | null
+          id?: string
+          industry_match?: boolean | null
+          linkedin_match?: boolean | null
+          mobile_match?: boolean | null
+          naics_match?: boolean | null
+          org_id?: string | null
+          phone_match?: boolean | null
+          revenue_match?: boolean | null
+          source: string
+          test_data_id?: string | null
+          test_run_id?: string | null
+        }
+        Update: {
+          cost_usd?: number | null
+          created_at?: string | null
+          employee_count_match?: boolean | null
+          employee_count_variance?: number | null
+          enriched_employee_count?: number | null
+          enriched_industry?: string | null
+          enriched_naics?: string | null
+          enriched_phone?: string | null
+          enriched_revenue_range?: string | null
+          enrichment_duration_ms?: number | null
+          id?: string
+          industry_match?: boolean | null
+          linkedin_match?: boolean | null
+          mobile_match?: boolean | null
+          naics_match?: boolean | null
+          org_id?: string | null
+          phone_match?: boolean | null
+          revenue_match?: boolean | null
+          source?: string
+          test_data_id?: string | null
+          test_run_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_accuracy_results_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrichment_accuracy_results_test_data_id_fkey"
+            columns: ["test_data_id"]
+            isOneToOne: false
+            referencedRelation: "enrichment_test_data"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      enrichment_costs: {
+        Row: {
+          api_credits_used: number | null
+          cost_usd: number | null
+          created_at: string | null
+          error_message: string | null
+          fields_enriched: string[] | null
+          id: string
+          input_tokens: number | null
+          org_id: string | null
+          output_tokens: number | null
+          queue_job_id: string | null
+          record_id: string | null
+          record_type: string
+          source: string
+          success: boolean | null
+        }
+        Insert: {
+          api_credits_used?: number | null
+          cost_usd?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          fields_enriched?: string[] | null
+          id?: string
+          input_tokens?: number | null
+          org_id?: string | null
+          output_tokens?: number | null
+          queue_job_id?: string | null
+          record_id?: string | null
+          record_type: string
+          source: string
+          success?: boolean | null
+        }
+        Update: {
+          api_credits_used?: number | null
+          cost_usd?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          fields_enriched?: string[] | null
+          id?: string
+          input_tokens?: number | null
+          org_id?: string | null
+          output_tokens?: number | null
+          queue_job_id?: string | null
+          record_id?: string | null
+          record_type?: string
+          source?: string
+          success?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_costs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrichment_costs_queue_job_id_fkey"
+            columns: ["queue_job_id"]
+            isOneToOne: false
+            referencedRelation: "enrichment_queue"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enrichment_field_coverage: {
         Row: {
           coverage_percentage: number | null
@@ -3114,6 +3267,92 @@ export type Database = {
           },
         ]
       }
+      enrichment_queue: {
+        Row: {
+          actual_cost: number | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          error_details: Json | null
+          error_message: string | null
+          estimated_cost: number | null
+          failed_records: number | null
+          id: string
+          input_data: Json | null
+          job_type: string
+          last_processed_at: string | null
+          max_cost_per_record: number | null
+          org_id: string | null
+          priority: number | null
+          processed_records: number | null
+          record_ids: string[] | null
+          skip_expensive_sources: boolean | null
+          sources_enabled: string[] | null
+          started_at: string | null
+          status: string | null
+          successful_records: number | null
+          total_records: number | null
+        }
+        Insert: {
+          actual_cost?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          error_details?: Json | null
+          error_message?: string | null
+          estimated_cost?: number | null
+          failed_records?: number | null
+          id?: string
+          input_data?: Json | null
+          job_type: string
+          last_processed_at?: string | null
+          max_cost_per_record?: number | null
+          org_id?: string | null
+          priority?: number | null
+          processed_records?: number | null
+          record_ids?: string[] | null
+          skip_expensive_sources?: boolean | null
+          sources_enabled?: string[] | null
+          started_at?: string | null
+          status?: string | null
+          successful_records?: number | null
+          total_records?: number | null
+        }
+        Update: {
+          actual_cost?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          error_details?: Json | null
+          error_message?: string | null
+          estimated_cost?: number | null
+          failed_records?: number | null
+          id?: string
+          input_data?: Json | null
+          job_type?: string
+          last_processed_at?: string | null
+          max_cost_per_record?: number | null
+          org_id?: string | null
+          priority?: number | null
+          processed_records?: number | null
+          record_ids?: string[] | null
+          skip_expensive_sources?: boolean | null
+          sources_enabled?: string[] | null
+          started_at?: string | null
+          status?: string | null
+          successful_records?: number | null
+          total_records?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_queue_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       enrichment_rows: {
         Row: {
           confidence: string | null
@@ -3307,6 +3546,92 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      enrichment_test_data: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          expected_employee_count: number | null
+          expected_founded_year: number | null
+          expected_headquarters: string | null
+          expected_industry: string | null
+          expected_linkedin_url: string | null
+          expected_mobile: string | null
+          expected_naics: string | null
+          expected_phone: string | null
+          expected_revenue_range: string | null
+          expected_sic_code: string | null
+          id: string
+          input_company: string | null
+          input_domain: string | null
+          input_email: string | null
+          input_name: string | null
+          input_title: string | null
+          notes: string | null
+          org_id: string | null
+          source: string | null
+          test_type: string
+          verified_date: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          expected_employee_count?: number | null
+          expected_founded_year?: number | null
+          expected_headquarters?: string | null
+          expected_industry?: string | null
+          expected_linkedin_url?: string | null
+          expected_mobile?: string | null
+          expected_naics?: string | null
+          expected_phone?: string | null
+          expected_revenue_range?: string | null
+          expected_sic_code?: string | null
+          id?: string
+          input_company?: string | null
+          input_domain?: string | null
+          input_email?: string | null
+          input_name?: string | null
+          input_title?: string | null
+          notes?: string | null
+          org_id?: string | null
+          source?: string | null
+          test_type: string
+          verified_date?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          expected_employee_count?: number | null
+          expected_founded_year?: number | null
+          expected_headquarters?: string | null
+          expected_industry?: string | null
+          expected_linkedin_url?: string | null
+          expected_mobile?: string | null
+          expected_naics?: string | null
+          expected_phone?: string | null
+          expected_revenue_range?: string | null
+          expected_sic_code?: string | null
+          id?: string
+          input_company?: string | null
+          input_domain?: string | null
+          input_email?: string | null
+          input_name?: string | null
+          input_title?: string | null
+          notes?: string | null
+          org_id?: string | null
+          source?: string | null
+          test_type?: string
+          verified_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_test_data_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       enrichment_validations: {
         Row: {
@@ -6425,6 +6750,27 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      enrichment_cost_summary: {
+        Row: {
+          avg_cost_per_record: number | null
+          date: string | null
+          org_id: string | null
+          record_type: string | null
+          records_processed: number | null
+          source: string | null
+          successful: number | null
+          total_cost: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_costs_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
