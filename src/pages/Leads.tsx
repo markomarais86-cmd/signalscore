@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download, Info, Linkedin, AlertCircle, HelpCircle } from "lucide-react";
+import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download, Info, Linkedin, AlertCircle, HelpCircle, Target } from "lucide-react";
 import { LaunchPulseMark } from "@/components/BrandLogo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
@@ -248,21 +248,10 @@ export default function Leads() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Leads</h1>
-          <p className="text-muted-foreground mt-2">All people linked to accounts in your pipeline</p>
+          <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">Leads</h1>
+          <p className="text-xs lg:text-sm text-muted-foreground mt-1">All people linked to accounts in your pipeline</p>
         </div>
-        <Card>
-          <CardContent className="flex items-center justify-center py-12">
-            <div className="space-y-4 text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              {isMatching && (
-                <p className="text-sm text-muted-foreground">
-                  Linking leads to accounts... This may take a moment.
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <TableSkeleton />
       </div>
     );
   }
@@ -365,7 +354,7 @@ export default function Leads() {
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Leads</h1>
+            <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">Leads</h1>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger>
@@ -377,7 +366,7 @@ export default function Leads() {
               </Tooltip>
             </TooltipProvider>
           </div>
-          <p className="text-muted-foreground mt-2">All people linked to accounts in your pipeline</p>
+          <p className="text-xs lg:text-sm text-muted-foreground mt-1">All people linked to accounts in your pipeline</p>
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={exportToCSV} variant="outline">
@@ -443,61 +432,34 @@ export default function Leads() {
         </div>
       )}
 
-      {/* Hero Metrics - Using database totals */}
+      {/* Hero Metrics - Using database totals with HeroMetric for consistency */}
       {(totalLeadsCount > 0 || metricsLoading) && (
         <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>ICP Qualified</CardDescription>
-              <CardTitle className="text-4xl text-[hsl(var(--signal-high))]">
-                {metricsLoading ? "..." : formatNumber(icpQualifiedCount)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xs text-muted-foreground">
-                {totalLeadsCount > 0 ? Math.round((icpQualifiedCount / totalLeadsCount) * 100) : 0}% of {formatNumber(totalLeadsCount)} leads
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Campaign Ready</CardDescription>
-              <CardTitle className="text-4xl">
-                {metricsLoading ? "..." : formatNumber(campaignReadyCount)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xs text-muted-foreground">
-                Has email, title & persona
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Enriched</CardDescription>
-              <CardTitle className="text-4xl">
-                {metricsLoading ? "..." : formatNumber(enrichedCount)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xs text-muted-foreground">
-                {totalLeadsCount > 0 ? Math.round((enrichedCount / totalLeadsCount) * 100) : 0}% processed
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-3">
-              <CardDescription>Linked to Accounts</CardDescription>
-              <CardTitle className="text-4xl">
-                {metricsLoading ? "..." : formatNumber(linkedCount)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xs text-muted-foreground">
-                {totalLeadsCount > 0 ? Math.round((linkedCount / totalLeadsCount) * 100) : 0}% of all leads
-              </div>
-            </CardContent>
-          </Card>
+          <HeroMetric
+            label="ICP Qualified"
+            value={metricsLoading ? "..." : formatNumber(icpQualifiedCount)}
+            subtitle={`${totalLeadsCount > 0 ? Math.round((icpQualifiedCount / totalLeadsCount) * 100) : 0}% of ${formatNumber(totalLeadsCount)} leads`}
+            icon={CheckCircle}
+            status="success"
+          />
+          <HeroMetric
+            label="Campaign Ready"
+            value={metricsLoading ? "..." : formatNumber(campaignReadyCount)}
+            subtitle="Has email, title & persona"
+            icon={Target}
+          />
+          <HeroMetric
+            label="Enriched"
+            value={metricsLoading ? "..." : formatNumber(enrichedCount)}
+            subtitle={`${totalLeadsCount > 0 ? Math.round((enrichedCount / totalLeadsCount) * 100) : 0}% processed`}
+            icon={TrendingUp}
+          />
+          <HeroMetric
+            label="Linked to Accounts"
+            value={metricsLoading ? "..." : formatNumber(linkedCount)}
+            subtitle={`${totalLeadsCount > 0 ? Math.round((linkedCount / totalLeadsCount) * 100) : 0}% of all leads`}
+            icon={ExternalLink}
+          />
         </div>
       )}
 

@@ -198,9 +198,9 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
       };
     },
     enabled: !!orgId,
-    staleTime: 0, // Always fetch fresh data to see TAM updates immediately
+    staleTime: 2 * 60 * 1000, // 2 minutes - reduces constant refetches
     gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false, // Don't refetch on every tab switch
     retry: 2,
   });
 }

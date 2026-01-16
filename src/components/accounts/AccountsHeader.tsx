@@ -68,8 +68,8 @@ export function AccountsHeader({
 
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Accounts</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">Accounts</h1>
+          <p className="text-xs lg:text-sm text-muted-foreground mt-1">
             {icpContext ? 'Build targeted campaigns from high-fit accounts' : 'Complete account database view'}
           </p>
         </div>
