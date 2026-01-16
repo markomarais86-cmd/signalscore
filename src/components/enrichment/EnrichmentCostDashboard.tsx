@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { DollarSign, TrendingUp, BarChart3, PieChart } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useUserProfile } from "@/hooks/use-user-profile";
+import { useAuth } from "@/hooks/use-auth";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, Legend } from "recharts";
 
 interface CostSummary {
@@ -27,8 +27,8 @@ const SOURCE_COLORS: Record<string, string> = {
 export function EnrichmentCostDashboard() {
   const [costData, setCostData] = useState<CostSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const { profile } = useUserProfile();
-  const orgId = profile?.org_id;
+  const { userProfile } = useAuth();
+  const orgId = userProfile?.org_id;
 
   useEffect(() => {
     if (!orgId) return;
