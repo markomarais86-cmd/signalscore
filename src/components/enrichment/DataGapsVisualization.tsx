@@ -16,7 +16,9 @@ import {
   Loader2,
   Play,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  RefreshCw,
+  RotateCcw
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,6 +37,7 @@ interface ActiveJob {
   accounts_enriched: number;
   fields_enriched: number;
   total_records: number;
+  error_message?: string | null;
 }
 
 const BATCH_OPTIONS = [
@@ -63,12 +66,13 @@ export function DataGapsVisualization() {
 
   // Poll for active job progress
   useEffect(() => {
-    if (!activeJob || !["processing", "paused"].includes(activeJob.status)) return;
+    // Poll while job is in progress (including paused for brief window)
+    if (!activeJob || ["completed", "cancelled"].includes(activeJob.status)) return;
 
     const interval = setInterval(async () => {
       const { data } = await supabase
         .from("enrichment_jobs")
-        .select("id, status, processed_records, accounts_enriched, fields_enriched, total_records")
+        .select("id, status, processed_records, accounts_enriched, fields_enriched, total_records, error_message")
         .eq("id", activeJob.id)
         .single();
 
@@ -77,6 +81,11 @@ export function DataGapsVisualization() {
         if (data.status === "completed") {
           toast.success(`Enrichment complete! ${data.accounts_enriched} accounts enriched.`);
           loadDataGaps();
+          // Clear active job after brief display
+          setTimeout(() => setActiveJob(null), 5000);
+        } else if (data.status === "failed") {
+          toast.error(`Enrichment interrupted after ${data.accounts_enriched || 0} accounts.`);
+          loadDataGaps(); // Refresh gaps even on failure
         }
       }
     }, 3000);
@@ -129,17 +138,43 @@ export function DataGapsVisualization() {
   const checkActiveJob = async () => {
     if (!userProfile?.org_id) return;
 
+    // Check for active OR recently failed jobs (show failed state so user can resume)
     const { data } = await supabase
       .from("enrichment_jobs")
-      .select("id, status, processed_records, accounts_enriched, fields_enriched, total_records")
+      .select("id, status, processed_records, accounts_enriched, fields_enriched, total_records, error_message")
       .eq("org_id", userProfile.org_id)
-      .in("status", ["processing", "paused", "pending"])
+      .in("status", ["processing", "paused", "pending", "failed"])
       .order("started_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (data) {
       setActiveJob(data as ActiveJob);
+    }
+  };
+
+  const resumeJob = async () => {
+    if (!activeJob || !userProfile?.org_id) return;
+
+    try {
+      setStarting(true);
+      const { error } = await supabase.functions.invoke("enrich-free-orchestrator", {
+        body: {
+          job_id: activeJob.id,
+          org_id: userProfile.org_id,
+          create_new: false,
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success("Resuming enrichment job...");
+      await checkActiveJob();
+    } catch (error) {
+      console.error("Error resuming job:", error);
+      toast.error("Failed to resume job");
+    } finally {
+      setStarting(false);
     }
   };
 
@@ -204,9 +239,20 @@ export function DataGapsVisualization() {
               Fields that need enrichment across {totalAccounts.toLocaleString()} accounts
             </CardDescription>
           </div>
-          <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">
-            Free Enrichment
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={loadDataGaps} 
+              disabled={loading}
+              className="h-8 w-8"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+            <Badge variant="secondary" className="bg-green-500/10 text-green-600 border-green-500/20">
+              Free Enrichment
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -270,8 +316,35 @@ export function DataGapsVisualization() {
           </div>
         )}
 
+        {/* Failed Job Status with Resume Button */}
+        {activeJob && activeJob.status === "failed" && (
+          <div className="p-3 rounded-lg border bg-destructive/5 flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-destructive shrink-0" />
+            <div className="flex-1">
+              <p className="font-medium text-destructive">Enrichment interrupted</p>
+              <p className="text-sm text-muted-foreground">
+                {activeJob.accounts_enriched?.toLocaleString() || 0} accounts enriched before stopping
+              </p>
+            </div>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={resumeJob}
+              disabled={starting}
+              className="gap-1"
+            >
+              {starting ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3 w-3" />
+              )}
+              Resume
+            </Button>
+          </div>
+        )}
+
         {/* Start Enrichment Controls */}
-        {(!activeJob || !["processing", "paused"].includes(activeJob.status)) && (
+        {(!activeJob || !["processing", "paused", "failed"].includes(activeJob.status)) && (
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
             <Select value={batchSize} onValueChange={setBatchSize}>
               <SelectTrigger className="w-full sm:w-44">
