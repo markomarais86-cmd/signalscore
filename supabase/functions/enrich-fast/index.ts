@@ -105,8 +105,9 @@ serve(async (req) => {
     let successCount = 0;
     let failCount = 0;
 
-    // Split into chunks and call worker
-    const CHUNK_SIZE = 25;
+    // Process accounts using verified multi-source enrichment
+    // Smaller chunks for verified enrichment (more API calls per account)
+    const CHUNK_SIZE = 10;
     const chunks: any[][] = [];
     for (let i = 0; i < accounts.length; i += CHUNK_SIZE) {
       chunks.push(accounts.slice(i, i + CHUNK_SIZE));
@@ -114,53 +115,99 @@ serve(async (req) => {
 
     for (const chunk of chunks) {
       try {
-        const { data: workerResult, error: workerError } = await supabase.functions.invoke(
-          "enrich-free-worker",
+        // Try verified enrichment first (uses Firecrawl + Perplexity)
+        const { data: verifiedResult, error: verifiedError } = await supabase.functions.invoke(
+          "enrich-verified",
           {
             body: {
               org_id,
-              job_id: null, // No job tracking for fast enrichment
               accounts: chunk
             }
           }
         );
 
-        if (workerError) {
-          console.error("[enrich-fast] Worker error:", workerError);
-          // Mark chunk as failed
+        if (verifiedError) {
+          console.log("[enrich-fast] Verified enrichment error, falling back to AI:", verifiedError.message);
+          
+          // Fallback to AI-only enrichment
+          const { data: workerResult, error: workerError } = await supabase.functions.invoke(
+            "enrich-free-worker",
+            {
+              body: {
+                org_id,
+                job_id: null,
+                accounts: chunk
+              }
+            }
+          );
+
+          if (workerError) {
+            console.error("[enrich-fast] Fallback worker also failed:", workerError);
+            for (const account of chunk) {
+              results.push({
+                account_id: account.id,
+                name: account.name || "Unknown",
+                success: false,
+                fields_enriched: 0,
+                source: "error",
+                error: workerError.message || "All enrichment methods failed"
+              });
+              failCount++;
+            }
+            continue;
+          }
+
+          // Process fallback results
+          const fieldsEnriched = workerResult?.fields_enriched || 0;
+          totalFieldsEnriched += fieldsEnriched;
+          
           for (const account of chunk) {
             results.push({
               account_id: account.id,
               name: account.name || "Unknown",
-              success: false,
-              fields_enriched: 0,
-              source: "error",
-              error: workerError.message || "Worker failed"
+              success: true,
+              fields_enriched: Math.floor(fieldsEnriched / chunk.length),
+              source: "ai_fallback",
+              confidence: "low"
             });
-            failCount++;
+            successCount++;
           }
           continue;
         }
 
-        // Process worker results
-        const fieldsEnriched = workerResult?.fields_enriched || 0;
-        const accountsEnriched = workerResult?.accounts_enriched || workerResult?.enriched || 0;
+        // Process verified results
+        const verifiedStats = verifiedResult?.stats || {};
+        totalFieldsEnriched += verifiedStats.fields_enriched || 0;
         
-        totalFieldsEnriched += fieldsEnriched;
-        
-        // Add results for each account in chunk
-        for (const account of chunk) {
-          results.push({
-            account_id: account.id,
-            name: account.name || "Unknown",
-            success: true,
-            fields_enriched: Math.floor(fieldsEnriched / chunk.length), // Approximate per-account
-            source: "launch_pulse"
-          });
-          successCount++;
+        // Use detailed per-account results from verified enrichment
+        const accountResults = verifiedResult?.results || [];
+        for (const result of accountResults) {
+          if (result.success) {
+            successCount++;
+            results.push({
+              account_id: result.account_id,
+              name: result.name,
+              success: true,
+              fields_enriched: result.fields_enriched || 0,
+              source: "verified",
+              confidence: result.confidence || 0,
+              sources_used: result.sources || [],
+              needs_review: result.needs_review || false
+            });
+          } else {
+            failCount++;
+            results.push({
+              account_id: result.account_id,
+              name: result.name,
+              success: false,
+              fields_enriched: 0,
+              source: "error",
+              error: result.error
+            });
+          }
         }
 
-        console.log(`[enrich-fast] Chunk complete: ${accountsEnriched} accounts, ${fieldsEnriched} fields`);
+        console.log(`[enrich-fast] Chunk complete: ${verifiedStats.accounts_enriched || 0} accounts, ${verifiedStats.fields_enriched || 0} fields via verified enrichment`);
 
       } catch (chunkError) {
         console.error("[enrich-fast] Chunk error:", chunkError);
