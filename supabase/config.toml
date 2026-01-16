@@ -332,3 +332,21 @@ verify_jwt = true
 
 [functions.bidirectional-sync-orchestrator]
 verify_jwt = false
+
+[functions.enrich-lead]
+verify_jwt = true
+
+[functions.enrich-verified]
+verify_jwt = true
+
+[functions.enrich-fast]
+verify_jwt = true
+
+[functions.enrich-gemini-phones]
+verify_jwt = true
+
+[functions.enrich-perplexity-contact]
+verify_jwt = true
+
+[functions.verify-phones]
+verify_jwt = true
