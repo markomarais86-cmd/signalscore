@@ -684,12 +684,12 @@ export default function QuickEnrich() {
                 Step 4: Download Your Data
               </CardTitle>
               <CardDescription>
-                Enrichment complete! Preview and download your enriched data.
+                Enrichment complete! Preview and download your enriched data with verified sources.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {enrichmentStats && (
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="text-center p-6 rounded-lg border bg-green-500/10">
                     <p className="text-3xl font-bold text-green-600">{enrichmentStats.enriched.toLocaleString()}</p>
                     <p className="text-sm text-muted-foreground">Accounts Enriched</p>
@@ -698,16 +698,39 @@ export default function QuickEnrich() {
                     <p className="text-3xl font-bold text-primary">{uploadedAccountIds.length.toLocaleString()}</p>
                     <p className="text-sm text-muted-foreground">Total Uploaded</p>
                   </div>
+                  <div className="text-center p-6 rounded-lg border bg-blue-500/10">
+                    <p className="text-3xl font-bold text-blue-600">
+                      {enrichedAccounts.filter(a => a.enrichment_confidence && a.enrichment_confidence >= 80).length}
+                    </p>
+                    <p className="text-sm text-muted-foreground">High Confidence</p>
+                  </div>
                 </div>
               )}
 
-              {/* Data Preview Table */}
+              {/* Data Source Badge Legend */}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Data Sources:</span>
+                <Badge variant="outline" className="text-green-600 border-green-300 bg-green-50">
+                  Verified (Multi-Source)
+                </Badge>
+                <Badge variant="outline" className="text-blue-600 border-blue-300 bg-blue-50">
+                  Web Search
+                </Badge>
+                <Badge variant="outline" className="text-amber-600 border-amber-300 bg-amber-50">
+                  AI Estimated
+                </Badge>
+              </div>
+
+              {/* Data Preview Table with Confidence */}
               {enrichedAccounts.length > 0 && (
                 <div className="border rounded-lg overflow-hidden">
-                  <div className="bg-muted/50 px-4 py-2 border-b">
+                  <div className="bg-muted/50 px-4 py-2 border-b flex items-center justify-between">
                     <p className="font-medium text-sm">Enriched Accounts Preview</p>
+                    <span className="text-xs text-muted-foreground">
+                      Confidence scores indicate data reliability
+                    </span>
                   </div>
-                  <div className="overflow-x-auto max-h-64 overflow-y-auto">
+                  <div className="overflow-x-auto max-h-80 overflow-y-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-muted/30 sticky top-0">
                         <tr>
@@ -717,27 +740,70 @@ export default function QuickEnrich() {
                           <th className="text-left px-3 py-2 font-medium">Employees</th>
                           <th className="text-left px-3 py-2 font-medium">Revenue</th>
                           <th className="text-left px-3 py-2 font-medium">Location</th>
+                          <th className="text-left px-3 py-2 font-medium">Confidence</th>
+                          <th className="text-left px-3 py-2 font-medium">Source</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {enrichedAccounts.slice(0, 50).map((account) => (
-                          <tr key={account.id} className="hover:bg-muted/20">
-                            <td className="px-3 py-2 font-medium">{account.name || "-"}</td>
-                            <td className="px-3 py-2 text-muted-foreground">{account.domain || "-"}</td>
-                            <td className="px-3 py-2">
-                              {account.industry_norm ? (
-                                <Badge variant="secondary" className="text-xs">{account.industry_norm}</Badge>
-                              ) : "-"}
-                            </td>
-                            <td className="px-3 py-2">
-                              {account.employee_count ? account.employee_count.toLocaleString() : "-"}
-                            </td>
-                            <td className="px-3 py-2">{account.revenue_range || "-"}</td>
-                            <td className="px-3 py-2 text-muted-foreground">
-                              {[account.city, account.state_province, account.country].filter(Boolean).join(", ") || "-"}
-                            </td>
-                          </tr>
-                        ))}
+                        {enrichedAccounts.slice(0, 50).map((account) => {
+                          const confidence = account.enrichment_confidence || 0;
+                          const source = account.enriched_from || 'unknown';
+                          
+                          // Determine confidence color
+                          const confidenceColor = confidence >= 80 
+                            ? 'text-green-600 bg-green-50' 
+                            : confidence >= 60 
+                              ? 'text-blue-600 bg-blue-50'
+                              : 'text-amber-600 bg-amber-50';
+                          
+                          // Determine source badge
+                          const sourceLabel = source === 'verified_multi_source' 
+                            ? 'Verified' 
+                            : source === 'perplexity' 
+                              ? 'Web Search'
+                              : source === 'firecrawl-website'
+                                ? 'Website'
+                                : source === 'launch_pulse'
+                                  ? 'AI Est.'
+                                  : source;
+                          
+                          const sourceBadgeClass = source === 'verified_multi_source'
+                            ? 'text-green-600 border-green-300 bg-green-50'
+                            : source === 'perplexity' || source === 'firecrawl-website'
+                              ? 'text-blue-600 border-blue-300 bg-blue-50'
+                              : 'text-amber-600 border-amber-300 bg-amber-50';
+                          
+                          return (
+                            <tr key={account.id} className="hover:bg-muted/20">
+                              <td className="px-3 py-2 font-medium">{account.name || "-"}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{account.domain || "-"}</td>
+                              <td className="px-3 py-2">
+                                {account.industry_norm ? (
+                                  <Badge variant="secondary" className="text-xs">{account.industry_norm}</Badge>
+                                ) : "-"}
+                              </td>
+                              <td className="px-3 py-2">
+                                {account.employee_count ? account.employee_count.toLocaleString() : "-"}
+                              </td>
+                              <td className="px-3 py-2">{account.revenue_range || "-"}</td>
+                              <td className="px-3 py-2 text-muted-foreground">
+                                {[account.city, account.state_province, account.country].filter(Boolean).join(", ") || "-"}
+                              </td>
+                              <td className="px-3 py-2">
+                                {confidence > 0 ? (
+                                  <Badge variant="outline" className={`text-xs ${confidenceColor}`}>
+                                    {confidence}%
+                                  </Badge>
+                                ) : "-"}
+                              </td>
+                              <td className="px-3 py-2">
+                                <Badge variant="outline" className={`text-xs ${sourceBadgeClass}`}>
+                                  {sourceLabel}
+                                </Badge>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
