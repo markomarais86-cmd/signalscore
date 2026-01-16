@@ -350,3 +350,6 @@ verify_jwt = true
 
 [functions.verify-phones]
 verify_jwt = true
+
+[functions.lookup-naics]
+verify_jwt = true

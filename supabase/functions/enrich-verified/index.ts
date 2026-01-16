@@ -32,6 +32,8 @@ interface DataSource {
   employee_count: number | null;
   revenue_range: string | null;
   industry: string | null;
+  naics_code: string | null;
+  sic_code: string | null;
   city: string | null;
   state: string | null;
   country: string | null;
@@ -50,6 +52,9 @@ interface VerifiedData {
   revenue_range_source: string | null;
   industry: string | null;
   industry_confidence: number;
+  naics_code: string | null;
+  naics_source: string | null;
+  sic_code: string | null;
   city: string | null;
   state: string | null;
   country: string | null;
@@ -204,6 +209,8 @@ async function scrapeWithFirecrawl(domain: string): Promise<DataSource | null> {
     employee_count: employeeCount,
     revenue_range: revenueRange,
     industry: null,
+    naics_code: null,
+    sic_code: null,
     city: null,
     state: null,
     country: null,
@@ -236,6 +243,8 @@ async function searchWithPerplexity(companyName: string, domain: string | null):
       employee_count: data.data?.employee_count || null,
       revenue_range: data.revenue_range || null,
       industry: data.data?.industry || null,
+      naics_code: data.data?.naics_code || null,
+      sic_code: data.data?.sic_code || null,
       city: data.data?.headquarters_city || null,
       state: data.data?.headquarters_state || null,
       country: data.data?.headquarters_country || null,
@@ -383,6 +392,9 @@ async function enrichAccount(account: AccountToEnrich): Promise<VerifiedData> {
     revenue_range_source: revenueResult.source,
     industry: perplexitySource?.industry || null,
     industry_confidence: perplexitySource?.industry ? 75 : 0,
+    naics_code: perplexitySource?.naics_code || null,
+    naics_source: perplexitySource?.naics_code ? 'perplexity' : null,
+    sic_code: perplexitySource?.sic_code || null,
     city: perplexitySource?.city || null,
     state: perplexitySource?.state || null,
     country: perplexitySource?.country || null,
@@ -461,6 +473,19 @@ serve(async (req) => {
           updates.industry_norm = verified.industry;
           updates.industry_raw = verified.industry;
           fieldScores.industry = verified.industry_confidence;
+          accountFieldCount++;
+        }
+        
+        // Apply NAICS code if available
+        if (verified.naics_code) {
+          updates.naics = verified.naics_code;
+          fieldScores.naics = 80;
+          accountFieldCount++;
+        }
+        
+        // Apply SIC code if available
+        if (verified.sic_code) {
+          updates.sic_code = verified.sic_code;
           accountFieldCount++;
         }
         
