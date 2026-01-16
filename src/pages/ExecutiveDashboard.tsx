@@ -35,6 +35,7 @@ import { ICPCoveragePanel } from "@/components/executive/ICPCoveragePanel";
 import { SimpleICPTable } from "@/components/executive/SimpleICPTable";
 import { SimpleTAMCard } from "@/components/executive/SimpleTAMCard";
 import { SimpleGeographyCard } from "@/components/executive/SimpleGeographyCard";
+import { DataHealthWidget } from "@/components/executive/DataHealthWidget";
 
 import { CommandPalette, CommandPaletteTrigger } from "@/components/executive/CommandPalette";
 import { StatusBar, useStatusItems } from "@/components/executive/StatusBar";
@@ -642,16 +643,24 @@ export default function ExecutiveDashboard() {
               />
             </div>
 
-            {/* AI Insights - Full Width */}
-            <UnifiedInsightsPanel
-              risks={risks}
-              insights={insights || []}
-              orgId={userProfile?.org_id}
-              onRefresh={handleRefreshInsights}
-              campaignReadyCount={campaignReadyAccounts}
-              completenessScore={dataCompleteness}
-              totalScored={totalScores}
-            />
+            {/* Data Health & AI Insights - 2 column layout */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Data Health Widget - 1 column */}
+              <DataHealthWidget />
+              
+              {/* AI Insights - 2 columns */}
+              <div className="lg:col-span-2">
+                <UnifiedInsightsPanel
+                  risks={risks}
+                  insights={insights || []}
+                  orgId={userProfile?.org_id}
+                  onRefresh={handleRefreshInsights}
+                  campaignReadyCount={campaignReadyAccounts}
+                  completenessScore={dataCompleteness}
+                  totalScored={totalScores}
+                />
+              </div>
+            </div>
           </>
         )}
 

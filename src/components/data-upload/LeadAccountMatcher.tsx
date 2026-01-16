@@ -43,8 +43,6 @@ export function LeadAccountMatcher({ onComplete }: LeadAccountMatcherProps) {
 
       if (!profile) throw new Error('User profile not found');
 
-      console.log('Starting lead-to-account matching...');
-
       const { data, error } = await supabase.functions.invoke('match-leads-to-accounts', {
         body: { org_id: profile.org_id }
       });

@@ -16,7 +16,6 @@ serve(async (req) => {
 
   try {
     const { targetPersona, marketSegment, avgDealSize, accountCount } = await req.json();
-    console.log('[optimize-sequence] Request:', { targetPersona, marketSegment, avgDealSize, accountCount });
 
     const providers = getAvailableProviders();
     if (providers.length === 0) {
