@@ -22,6 +22,8 @@ interface PerplexityResult {
   headquarters_state: string | null;
   headquarters_country: string | null;
   industry: string | null;
+  naics_code: string | null;
+  sic_code: string | null;
   founded_year: number | null;
   linkedin_url: string | null;
   confidence: number;
@@ -115,8 +117,10 @@ Find:
 2. Annual revenue or revenue estimate
 3. Headquarters location (city, state, country)
 4. Industry/sector
-5. Year founded
-6. LinkedIn company URL
+5. NAICS code (6-digit North American Industry Classification System code)
+6. SIC code (4-digit Standard Industrial Classification code)
+7. Year founded
+8. LinkedIn company URL
 
 Only include data you can verify from reliable sources.`
           }
@@ -148,6 +152,14 @@ Only include data you can verify from reliable sources.`
                 headquarters_state: { type: ["string", "null"] },
                 headquarters_country: { type: ["string", "null"] },
                 industry: { type: ["string", "null"] },
+                naics_code: { 
+                  type: ["string", "null"],
+                  description: "6-digit NAICS code, e.g., '541511' for Custom Computer Programming"
+                },
+                sic_code: {
+                  type: ["string", "null"],
+                  description: "4-digit SIC code, e.g., '7371' for Computer Programming Services"
+                },
                 founded_year: { type: ["number", "null"] },
                 linkedin_url: { 
                   type: ["string", "null"],
@@ -200,6 +212,8 @@ Only include data you can verify from reliable sources.`
       headquarters_state: parsed.headquarters_state || null,
       headquarters_country: parsed.headquarters_country || null,
       industry: parsed.industry || null,
+      naics_code: parsed.naics_code || null,
+      sic_code: parsed.sic_code || null,
       founded_year: parsed.founded_year || null,
       linkedin_url: parsed.linkedin_url || null,
       confidence: parsed.data_confidence || 50,

@@ -174,7 +174,7 @@ serve(async (req) => {
               type: 'function',
               function: {
                 name: 'enrich_firmographics',
-                description: 'Enrich company firmographic data with employee count and revenue range estimates',
+                description: 'Enrich company firmographic data with employee count, revenue range, and NAICS code estimates',
                 parameters: {
                   type: 'object',
                   properties: {
@@ -189,6 +189,14 @@ serve(async (req) => {
                             type: 'string',
                             enum: ['<$1M', '$1M-$5M', '$5M-$10M', '$10M-$50M', '$50M-$100M', '$100M-$500M', '$500M+'],
                             description: 'Estimated annual revenue range'
+                          },
+                          naics_code: {
+                            type: 'string',
+                            description: '6-digit NAICS code based on industry, e.g., 541511 for software'
+                          },
+                          sic_code: {
+                            type: 'string',
+                            description: '4-digit SIC code, e.g., 7371 for computer programming'
                           },
                           confidence: {
                             type: 'integer',
@@ -241,6 +249,14 @@ serve(async (req) => {
               
               if (originalAccount?.needs_revenue_range && enrichment.revenue_range) {
                 updateData.revenue_range = enrichment.revenue_range;
+              }
+              
+              // Add NAICS/SIC if available
+              if (enrichment.naics_code) {
+                updateData.naics = enrichment.naics_code;
+              }
+              if (enrichment.sic_code) {
+                updateData.sic_code = enrichment.sic_code;
               }
 
               const { error: updateError } = await supabase
