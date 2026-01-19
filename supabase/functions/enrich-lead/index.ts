@@ -15,9 +15,26 @@ interface LeadInput {
   email?: string;
   first_name?: string;
   last_name?: string;
+  title?: string;        // From input CSV
+  phone?: string;        // From input CSV
+  linkedin_url?: string; // From input CSV
   company?: string;
   domain?: string;
 }
+
+// Sanitize phone - reject boolean strings and invalid formats
+const sanitizePhone = (phone: any): string | null => {
+  if (!phone) return null;
+  if (typeof phone === 'boolean') return null;
+  if (phone === 'true' || phone === 'false' || phone === true || phone === false) return null;
+  const str = String(phone);
+  // Must contain at least 7 digits
+  const digits = str.replace(/\D/g, '');
+  if (digits.length < 7) return null;
+  // Skip placeholder numbers
+  if (digits.includes('555') || digits.includes('0000000')) return null;
+  return str.trim();
+};
 
 interface PhoneEntry {
   number: string;
@@ -146,13 +163,21 @@ serve(async (req) => {
       }
     }
 
-    // Process each lead
+    // Process each lead - PRESERVE INPUT DATA AS BASELINE
     const needsExternalEnrichment: LeadInput[] = [];
 
     for (const lead of leads as LeadInput[]) {
+      // Initialize enriched_data with input values as baseline
       const result: LeadEnrichmentResult = {
         input: lead,
-        enriched_data: {},
+        enriched_data: {
+          // Preserve input fields as baseline
+          title: lead.title,
+          phone: sanitizePhone(lead.phone) || undefined,
+          linkedin_url: lead.linkedin_url,
+          company: lead.company,
+          domain: lead.domain,
+        },
         source: 'internal',
         confidence: 0,
         fields_filled: []
@@ -166,11 +191,12 @@ serve(async (req) => {
           result.enriched_data = {
             email: existingLead.email,
             email_verified: true,
-            title: existingLead.title,
-            phone: existingLead.phone,
-            mobile: existingLead.mobile,
-            linkedin_url: existingLead.linkedin_url,
-            company: existingLead.company
+            // Prefer enriched values but fallback to input
+            title: existingLead.title || lead.title,
+            phone: sanitizePhone(existingLead.phone) || sanitizePhone(lead.phone) || undefined,
+            mobile: sanitizePhone(existingLead.mobile) || undefined,
+            linkedin_url: existingLead.linkedin_url || lead.linkedin_url,
+            company: existingLead.company || lead.company
           };
           result.source = 'internal';
           result.confidence = 0.95;
@@ -198,7 +224,7 @@ serve(async (req) => {
         if (matchedAccount) {
           result.enriched_data.matched_account_id = matchedAccount.external_id;
           result.enriched_data.domain = matchedAccount.domain;
-          result.enriched_data.company = matchedAccount.name;
+          result.enriched_data.company = matchedAccount.name || lead.company;
           stats.accounts_matched++;
         }
       }
@@ -766,25 +792,64 @@ ${batch.map(r => {
             .eq('email', leadEmail)
             .maybeSingle();
           
+          // Sanitize all phone values before saving
+          const sanitizedPhone = sanitizePhone(phones[0]?.number) || sanitizePhone(enriched.phone) || sanitizePhone(lead.phone);
+          const sanitizedMobile = sanitizePhone(phones.find(p => p.type === 'mobile')?.number) || sanitizePhone(enriched.mobile);
+          const sanitizedDirectPhone = sanitizePhone(phones.find(p => p.type === 'direct')?.number);
+          
+          // Fetch account firmographics if we have a matched account
+          let accountFirmographics: any = {};
+          if (enriched.matched_account_id) {
+            const { data: accountData } = await supabase
+              .from('accounts')
+              .select('employee_count, revenue_range, industry_norm, industry_raw, sub_industry, city, state_province, country, hq_address, hq_city, hq_state, hq_postal_code, sic_code, naics, company_main_phone')
+              .eq('external_id', enriched.matched_account_id)
+              .eq('org_id', org_id)
+              .maybeSingle();
+            
+            if (accountData) {
+              accountFirmographics = {
+                employee_count: accountData.employee_count,
+                revenue_range: accountData.revenue_range,
+                industry: accountData.industry_norm || accountData.industry_raw,
+                sub_industry: accountData.sub_industry,
+                location_city: accountData.city || accountData.hq_city,
+                state_province: accountData.state_province || accountData.hq_state,
+                country: accountData.country,
+                company_hq_address: accountData.hq_address,
+                company_hq_city: accountData.hq_city,
+                company_hq_state: accountData.hq_state,
+                company_hq_postal_code: accountData.hq_postal_code,
+                company_sic_code: accountData.sic_code,
+                company_naics_code: accountData.naics,
+                company_main_phone: sanitizePhone(accountData.company_main_phone),
+              };
+            }
+          }
+          
           const leadData = {
             org_id,
             external_id: existingLead?.external_id || externalId,
             email: leadEmail,
-            first_name: lead.first_name,
-            last_name: lead.last_name,
-            title: enriched.title,
-            phone: phones[0]?.number || enriched.phone,
-            mobile: phones.find(p => p.type === 'mobile')?.number || enriched.mobile,
-            direct_phone: phones.find(p => p.type === 'direct')?.number,
+            // CRITICAL: Preserve input first_name/last_name, use enriched as fallback
+            first_name: lead.first_name || enriched.first_name,
+            last_name: lead.last_name || enriched.last_name,
+            // For other fields, prefer enriched values but fallback to input
+            title: enriched.title || lead.title,
+            phone: sanitizedPhone || undefined,
+            mobile: sanitizedMobile || undefined,
+            direct_phone: sanitizedDirectPhone || undefined,
             phones: phonesJson,
             phone_sources: result.phone_sources,
-            linkedin_url: enriched.linkedin_url,
+            linkedin_url: enriched.linkedin_url || lead.linkedin_url,
             company: enriched.company || lead.company,
             website: enriched.domain || lead.domain,
             account_external_id: enriched.matched_account_id,
             enrichment_source: result.source,
             enrichment_confidence: result.confidence,
-            enriched_at: new Date().toISOString()
+            enriched_at: new Date().toISOString(),
+            // Add firmographics from matched account
+            ...accountFirmographics
           };
           
           // Use the existing unique constraint on (org_id, external_id)
