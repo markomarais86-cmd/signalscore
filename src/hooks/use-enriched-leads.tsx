@@ -13,6 +13,7 @@ export interface EnrichedLead {
   mobile: string | null;
   direct_phone: string | null;
   title: string | null;
+  level: string | null;
   seniority_level: string | null;
   department_category: string | null;
   persona: string | null;
