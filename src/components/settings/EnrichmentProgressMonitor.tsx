@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useEnrichmentProgress, pauseEnrichmentJob, resumeEnrichmentJob } from '@/hooks/use-enrichment-progress';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -11,12 +11,29 @@ import { toast } from 'sonner';
 interface EnrichmentProgressMonitorProps {
   jobId: string;
   onClose?: () => void;
+  onComplete?: (job: any) => void;
 }
 
-export function EnrichmentProgressMonitor({ jobId, onClose }: EnrichmentProgressMonitorProps) {
+export function EnrichmentProgressMonitor({ jobId, onClose, onComplete }: EnrichmentProgressMonitorProps) {
   const { data: progress, isLoading } = useEnrichmentProgress(jobId, true);
   const [isPausing, setIsPausing] = useState(false);
   const [isResuming, setIsResuming] = useState(false);
+  const completedRef = useRef(false);
+
+  // Call onComplete when job finishes
+  useEffect(() => {
+    if (progress && !completedRef.current) {
+      if (progress.status === 'completed') {
+        completedRef.current = true;
+        toast.success(`Enrichment completed: ${progress.enriched_records} records enriched`);
+        onComplete?.(progress);
+      } else if (progress.status === 'failed') {
+        completedRef.current = true;
+        toast.error(`Enrichment failed: ${progress.error_message || 'Unknown error'}`);
+        onComplete?.(progress);
+      }
+    }
+  }, [progress, onComplete]);
 
   const handlePause = async () => {
     setIsPausing(true);
@@ -49,6 +66,7 @@ export function EnrichmentProgressMonitor({ jobId, onClose }: EnrichmentProgress
       <Card>
         <CardContent className="flex items-center justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-sm text-muted-foreground">Loading job progress...</span>
         </CardContent>
       </Card>
     );

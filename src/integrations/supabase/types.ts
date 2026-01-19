@@ -3137,6 +3137,7 @@ export type Database = {
           heartbeat_interval_ms: number | null
           icp_criteria: Json | null
           id: string
+          input_data: Json | null
           job_type: string
           last_heartbeat: string | null
           last_progress_update: string | null
@@ -3183,6 +3184,7 @@ export type Database = {
           heartbeat_interval_ms?: number | null
           icp_criteria?: Json | null
           id?: string
+          input_data?: Json | null
           job_type: string
           last_heartbeat?: string | null
           last_progress_update?: string | null
@@ -3229,6 +3231,7 @@ export type Database = {
           heartbeat_interval_ms?: number | null
           icp_criteria?: Json | null
           id?: string
+          input_data?: Json | null
           job_type?: string
           last_heartbeat?: string | null
           last_progress_update?: string | null
