@@ -191,13 +191,25 @@ export default function EnrichedLeads() {
                 <SheetTitle>{detailLead.first_name} {detailLead.last_name}</SheetTitle>
               </SheetHeader>
               <div className="mt-6 space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Title</p>
-                  <p className="font-medium">{detailLead.title || '-'}</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Title</p>
+                    <p className="font-medium">{detailLead.title || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Level</p>
+                    <p className="font-medium">{detailLead.level || '-'}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Company</p>
-                  <p className="font-medium">{detailLead.company || '-'}</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Persona</p>
+                    <p className="font-medium">{detailLead.persona || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Company</p>
+                    <p className="font-medium">{detailLead.company || '-'}</p>
+                  </div>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Email</p>
@@ -210,13 +222,15 @@ export default function EnrichedLeads() {
                   <p className="text-sm text-muted-foreground mb-2">Phone Numbers</p>
                   <MultiPhoneDisplay phones={getPhonesList(detailLead)} />
                 </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Enrichment Confidence</p>
-                  <p className="font-medium">{detailLead.enrichment_confidence ? `${(detailLead.enrichment_confidence * 100).toFixed(0)}%` : '-'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Enrichment Source</p>
-                  <p className="font-medium capitalize">{detailLead.enrichment_source || detailLead.enriched_from || '-'}</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Enrichment Confidence</p>
+                    <p className="font-medium">{detailLead.enrichment_confidence ? `${(detailLead.enrichment_confidence * 100).toFixed(0)}%` : '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Enrichment Source</p>
+                    <p className="font-medium capitalize">{detailLead.enrichment_source || detailLead.enriched_from || '-'}</p>
+                  </div>
                 </div>
               </div>
             </>

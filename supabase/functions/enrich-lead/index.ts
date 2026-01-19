@@ -238,14 +238,39 @@ serve(async (req) => {
     const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
     const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
 
-    const { 
-      leads, 
-      org_id, 
-      save_to_db = false, 
-      async_mode = false,
-      job_id = null, // If provided, this is a background job continuation
-      target_titles = ['CEO', 'President', 'Owner', 'Founder', 'VP', 'Director', 'Head of', 'Manager'] 
-    } = await req.json();
+const { 
+  leads, 
+  org_id, 
+  save_to_db = false, 
+  async_mode = false,
+  force_external = false, // NEW: Skip internal DB matching, always use external sources
+  job_id = null, // If provided, this is a background job continuation
+  target_titles = ['CEO', 'President', 'Owner', 'Founder', 'VP', 'Director', 'Head of', 'Manager'] 
+} = await req.json();
+
+// Title classification for Level and Persona
+const classifyTitle = (title: string): { level: string; persona: string } => {
+  const t = (title || '').toLowerCase();
+  if (/\b(ceo|chief executive|president|owner|founder|co-founder|managing partner|principal)\b/.test(t)) 
+    return { level: 'C-Level', persona: 'Executive' };
+  if (/\b(cfo|cto|coo|cmo|cio|ciso|chief)\b/.test(t)) 
+    return { level: 'C-Level', persona: 'Executive' };
+  if (/\b(evp|svp|vp|vice president)\b/.test(t)) 
+    return { level: 'VP', persona: 'Senior Leadership' };
+  if (/\b(director|head of|general manager)\b/.test(t)) 
+    return { level: 'Director', persona: 'Decision Maker' };
+  if (/\b(manager|supervisor|team lead|lead)\b/.test(t)) 
+    return { level: 'Manager', persona: 'Influencer' };
+  if (/\b(senior|sr\.|principal|staff)\b/.test(t)) 
+    return { level: 'Senior', persona: 'Individual Contributor' };
+  if (/\b(operations|ops)\b/.test(t)) 
+    return { level: 'Manager', persona: 'Operations' };
+  if (/\b(sales|account executive|ae|bdr|sdr)\b/.test(t)) 
+    return { level: 'Individual Contributor', persona: 'Sales' };
+  if (/\b(marketing|growth)\b/.test(t)) 
+    return { level: 'Individual Contributor', persona: 'Marketing' };
+  return { level: 'Individual Contributor', persona: 'End User' };
+};
 
     if (!leads || !Array.isArray(leads) || leads.length === 0) {
       return new Response(JSON.stringify({ error: 'leads array required' }), {
@@ -591,9 +616,9 @@ Only include results where you're confident about the name. If unknown, omit tha
     }
 
     // =========================================
-    // PHASE 1: Internal Database Matching
+    // PHASE 1: Internal Database Matching (SKIP if force_external=true)
     // =========================================
-    console.log('[enrich-lead] Phase 1: Internal database matching');
+    console.log(`[enrich-lead] Phase 1: Internal database matching${force_external ? ' (SKIPPED - force_external=true)' : ''}`);
     
     // Process each lead - PRESERVE INPUT DATA AS BASELINE
     let needsExternalEnrichment: LeadInput[] = [];
@@ -617,7 +642,26 @@ Only include results where you're confident about the name. If unknown, omit tha
         fields_filled: []
       };
 
-      // Check for existing lead by email
+      // SKIP internal matching if force_external is true - go straight to external sources
+      if (force_external) {
+        // Try to match account even when skipping internal lead matching
+        const domain = lead.domain || (lead.email ? extractDomain(lead.email) : null);
+        if (domain) {
+          const matchedAccount = accountByDomain.get(domain);
+          if (matchedAccount) {
+            result.enriched_data.matched_account_id = matchedAccount.external_id;
+            result.enriched_data.domain = matchedAccount.domain;
+            result.enriched_data.company = matchedAccount.name || lead.company;
+            stats.accounts_matched++;
+          }
+        }
+        result.fields_filled = Object.keys(result.enriched_data).filter(k => result.enriched_data[k as keyof typeof result.enriched_data] != null);
+        needsExternalEnrichment.push(lead);
+        results.push(result);
+        continue;
+      }
+
+      // Check for existing lead by email (only when NOT force_external)
       if (lead.email) {
         const existingLead = leadByEmail.get(lead.email.toLowerCase());
         
@@ -1305,6 +1349,30 @@ ${batch.map(r => {
             }
           }
           
+          // Classify title for level and persona
+          const finalTitle = enriched.title || lead.title || '';
+          const { level, persona } = classifyTitle(finalTitle);
+          
+          // Determine the ACTUAL source that provided enrichment data
+          // Only use 'internal' if we truly got data from internal DB
+          let actualSource = result.source;
+          if (force_external && actualSource === 'internal') {
+            // If force_external was used, determine source from where data came
+            const phones = enriched.phones || [];
+            if (phones.length > 0) {
+              // Use the source of the first discovered phone
+              actualSource = phones[0].source as any || 'ai';
+            } else if (stats.gemini_enriched > 0) {
+              actualSource = 'gemini';
+            } else if (stats.perplexity_enriched > 0) {
+              actualSource = 'perplexity';
+            } else if (stats.firecrawl_enriched > 0) {
+              actualSource = 'firecrawl';
+            } else {
+              actualSource = 'ai';
+            }
+          }
+          
           const leadData = {
             org_id,
             external_id: existingLead?.external_id || externalId,
@@ -1313,7 +1381,9 @@ ${batch.map(r => {
             first_name: lead.first_name || enriched.first_name,
             last_name: lead.last_name || enriched.last_name,
             // For other fields, prefer enriched values but fallback to input
-            title: enriched.title || lead.title,
+            title: finalTitle || undefined,
+            level: level || undefined,
+            persona: persona || undefined,
             phone: sanitizedPhone || undefined,
             mobile: sanitizedMobile || undefined,
             direct_phone: sanitizedDirectPhone || undefined,
@@ -1323,7 +1393,7 @@ ${batch.map(r => {
             company: enriched.company || lead.company,
             website: enriched.domain || lead.domain,
             account_external_id: enriched.matched_account_id,
-            enrichment_source: result.source,
+            enrichment_source: actualSource,
             enrichment_confidence: result.confidence,
             enriched_at: new Date().toISOString(),
             // Add firmographics from matched account
