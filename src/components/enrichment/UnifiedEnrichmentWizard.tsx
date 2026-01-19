@@ -233,23 +233,78 @@ export function UnifiedEnrichmentWizard() {
     }
   };
 
-  // Export results to CSV
+  // Export results to CSV - Full data export
   const exportResults = () => {
     if (results.length === 0) return;
     
-    const headers = ['Input', 'Source', 'Confidence', 'Domain', 'Employee Count', 'Revenue', 'Industry', 'Country'];
-    const rows = results.map(r => [
-      r.input.email || r.input.domain || r.input.company_name || '',
-      r.source,
-      Math.round(r.confidence * 100) + '%',
-      r.enriched_data.domain || '',
-      r.enriched_data.employee_count || '',
-      r.enriched_data.revenue_range || '',
-      r.enriched_data.industry_norm || r.enriched_data.industry || '',
-      r.enriched_data.country || ''
-    ]);
+    // Different headers based on enrichment type
+    const headers = enrichmentType === 'leads' 
+      ? [
+          'Email', 'First Name', 'Last Name', 'Title', 'Company', 'Domain',
+          'Phone', 'Mobile', 'Direct Phone', 'All Phones',
+          'LinkedIn URL', 'Email Verified',
+          'Source', 'Confidence', 'Fields Filled',
+          'Matched Account ID'
+        ]
+      : [
+          'Input', 'Domain', 'Company Name',
+          'Employee Count', 'Revenue Range', 'Industry', 'Sub Industry',
+          'Country', 'State', 'City', 'HQ Address',
+          'LinkedIn URL', 'Founded Year', 'Business Model',
+          'Source', 'Confidence', 'Fields Filled'
+        ];
     
-    const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
+    const rows = results.map(r => {
+      const d = r.enriched_data;
+      
+      if (enrichmentType === 'leads') {
+        // Format all phones as semicolon-separated list
+        const allPhones = (d.phones || [])
+          .map((p: any) => `${p.number} (${p.type}, ${p.source})`)
+          .join('; ');
+        
+        return [
+          d.email || r.input.email || '',
+          r.input.first_name || '',
+          r.input.last_name || '',
+          d.title || '',
+          d.company || r.input.company || '',
+          d.domain || r.input.domain || '',
+          d.phone || '',
+          d.mobile || '',
+          (d.phones || []).find((p: any) => p.type === 'direct')?.number || '',
+          allPhones,
+          d.linkedin_url || '',
+          d.email_verified ? 'Yes' : '',
+          r.source,
+          Math.round(r.confidence * 100) + '%',
+          r.fields_filled.join(', '),
+          d.matched_account_id || ''
+        ];
+      } else {
+        return [
+          r.input.email || r.input.domain || r.input.company_name || '',
+          d.domain || '',
+          d.name || d.company || '',
+          d.employee_count || '',
+          d.revenue_range || '',
+          d.industry_norm || d.industry || '',
+          d.sub_industry || '',
+          d.country || '',
+          d.state_province || '',
+          d.city || '',
+          d.hq_address || '',
+          d.linkedin_url || '',
+          d.founded_year || '',
+          d.business_model || '',
+          r.source,
+          Math.round(r.confidence * 100) + '%',
+          r.fields_filled.join(', ')
+        ];
+      }
+    });
+    
+    const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -258,7 +313,7 @@ export function UnifiedEnrichmentWizard() {
     a.click();
     URL.revokeObjectURL(url);
     
-    toast.success("Exported to CSV");
+    toast.success(`Exported ${results.length} records to CSV`);
   };
 
   // Reset wizard
