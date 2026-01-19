@@ -22,6 +22,7 @@ export interface EnrichedLead {
   // Enrichment fields
   enriched_at: string | null;
   enriched_from: string | null;
+  enrichment_source: string | null;
   enrichment_confidence: number | null;
   enrichment_overall_score: number | null;
   enrichment_citations: any | null;

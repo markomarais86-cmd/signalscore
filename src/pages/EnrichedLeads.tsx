@@ -212,11 +212,11 @@ export default function EnrichedLeads() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Enrichment Confidence</p>
-                  <p className="font-medium">{detailLead.enrichment_confidence || 0}%</p>
+                  <p className="font-medium">{detailLead.enrichment_confidence ? `${(detailLead.enrichment_confidence * 100).toFixed(0)}%` : '-'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Enrichment Source</p>
-                  <p className="font-medium">{detailLead.enriched_from || '-'}</p>
+                  <p className="font-medium capitalize">{detailLead.enrichment_source || detailLead.enriched_from || '-'}</p>
                 </div>
               </div>
             </>
