@@ -619,7 +619,10 @@ ${batch.map(r => {
         const lead = result.input;
         const enriched = result.enriched_data;
         const phones = enriched.phones || [];
-        const leadEmail = enriched.email || lead.email;
+        
+        // Validate leadEmail is a string before using string methods
+        const rawLeadEmail = enriched.email || lead.email;
+        const leadEmail = typeof rawLeadEmail === 'string' ? rawLeadEmail : null;
         
         // Build phones JSONB for multi-source storage
         const phonesJson = phones.map(p => ({
