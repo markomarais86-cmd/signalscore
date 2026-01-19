@@ -116,6 +116,14 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // ALL API KEYS - DECLARED ONCE HERE AT TOP
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const APOLLO_API_KEY = Deno.env.get('APOLLO_API_KEY');
+    const PDL_API_KEY = Deno.env.get('PDL_API_KEY');
+    const HUNTER_API_KEY = Deno.env.get('HUNTER_API_KEY');
+    const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
+    const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+
     const { leads, org_id, save_to_db = false, target_titles = ['CEO', 'President', 'Owner', 'Founder', 'VP', 'Director', 'Head of', 'Manager'] } = await req.json();
 
     if (!leads || !Array.isArray(leads) || leads.length === 0) {
@@ -209,7 +217,6 @@ serve(async (req) => {
     // =========================================
     console.log('[enrich-lead] Phase 0: Pre-processing leads');
     
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const processedLeads: LeadInput[] = [];
     
     for (const lead of leads as LeadInput[]) {
@@ -486,11 +493,6 @@ Only include results where you're confident about the name. If unknown, omit tha
 
     // Phase 2: External Enrichment - COST OPTIMIZED ORDER
     // Cheap AI first (Gemini ~$0.003, Perplexity ~$0.005), expensive data providers last (Apollo/PDL use credits)
-    const APOLLO_API_KEY = Deno.env.get('APOLLO_API_KEY');
-    const PDL_API_KEY = Deno.env.get('PDL_API_KEY');
-    const HUNTER_API_KEY = Deno.env.get('HUNTER_API_KEY');
-    // Note: LOVABLE_API_KEY already declared in Phase 0
-    const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
 
     // Track all phones from all sources for multi-source verification
     const allPhonesByLead = new Map<string, PhoneEntry[]>();
@@ -618,7 +620,6 @@ Only include results where you're confident about the name. If unknown, omit tha
     }
 
     // Phase 2c: Firecrawl Contact Page Scraping (CHEAP - ~$0.002 per page)
-    const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
     if (FIRECRAWL_API_KEY && needsExternalEnrichment.length > 0) {
       console.log('[enrich-lead] Phase 2c: Firecrawl contact page scraping (low cost)');
       
