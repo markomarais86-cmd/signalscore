@@ -625,6 +625,7 @@ Only include results where you're confident about the name. If unknown, omit tha
 
     for (const lead of processedLeads) {
       // Initialize enriched_data with input values as baseline
+      // CRITICAL: Set source to 'pending' initially - will be updated when external data is found
       const result: LeadEnrichmentResult = {
         input: lead,
         enriched_data: {
@@ -637,22 +638,27 @@ Only include results where you're confident about the name. If unknown, omit tha
           company: lead.company,
           domain: lead.domain,
         },
-        source: lead._discovered ? 'discovered' : 'internal',
+        source: lead._discovered ? 'discovered' : (force_external ? 'ai' : 'internal'),
         confidence: lead._discovered ? 0.75 : 0,
         fields_filled: []
       };
 
       // SKIP internal matching if force_external is true - go straight to external sources
       if (force_external) {
+        console.log(`[enrich-lead] force_external=true: Skipping internal DB for ${lead.email}, using external sources`);
         // Try to match account even when skipping internal lead matching
         const domain = lead.domain || (lead.email ? extractDomain(lead.email) : null);
         if (domain) {
-          const matchedAccount = accountByDomain.get(domain);
+          const normalizedDomain = domain.toLowerCase().replace(/^(www\.|https?:\/\/)/, '').split('/')[0];
+          const matchedAccount = accountByDomain.get(normalizedDomain);
           if (matchedAccount) {
             result.enriched_data.matched_account_id = matchedAccount.external_id;
             result.enriched_data.domain = matchedAccount.domain;
             result.enriched_data.company = matchedAccount.name || lead.company;
             stats.accounts_matched++;
+            console.log(`[enrich-lead] Matched account ${matchedAccount.external_id} for domain ${domain}`);
+          } else {
+            console.log(`[enrich-lead] No account found for domain ${normalizedDomain} - will auto-create if enrichment succeeds`);
           }
         }
         result.fields_filled = Object.keys(result.enriched_data).filter(k => result.enriched_data[k as keyof typeof result.enriched_data] != null);
@@ -1250,9 +1256,11 @@ ${batch.map(r => {
       }
     }
 
-    // Attach collected phones to results
+    // Attach collected phones to results AND add level/persona for export
     for (const result of results) {
       const email = result.input.email;
+      const lead = result.input;
+      
       if (email) {
         const phones = allPhonesByLead.get(email) || [];
         result.enriched_data.phones = phones;
@@ -1262,6 +1270,18 @@ ${batch.map(r => {
             result.phone_sources[phone.source] = [];
           }
           result.phone_sources[phone.source].push(phone);
+        }
+        
+        // CRITICAL: Also add level/persona to enriched_data for export
+        const finalTitle = result.enriched_data.title || lead.title || '';
+        const { level, persona } = classifyTitle(finalTitle);
+        result.enriched_data.level = level;
+        result.enriched_data.persona = persona;
+        
+        // Determine actual source for the response as well
+        if (phones.length > 0) {
+          const sortedPhones = [...phones].sort((a, b) => b.confidence - a.confidence);
+          result.source = sortedPhones[0].source as any;
         }
       }
     }
@@ -1349,29 +1369,47 @@ ${batch.map(r => {
             }
           }
           
-          // Classify title for level and persona
+          // Classify title for level and persona - ALWAYS apply this
           const finalTitle = enriched.title || lead.title || '';
           const { level, persona } = classifyTitle(finalTitle);
           
+          console.log(`[enrich-lead] Title classification for ${leadEmail}: title="${finalTitle}" => level="${level}", persona="${persona}"`);
+          
           // Determine the ACTUAL source that provided enrichment data
-          // Only use 'internal' if we truly got data from internal DB
+          // CRITICAL: Never show 'internal' if force_external was used
           let actualSource = result.source;
-          if (force_external && actualSource === 'internal') {
-            // If force_external was used, determine source from where data came
-            const phones = enriched.phones || [];
-            if (phones.length > 0) {
-              // Use the source of the first discovered phone
-              actualSource = phones[0].source as any || 'ai';
+          
+          // Check what sources actually provided data for THIS specific lead
+          const leadPhones = allPhonesByLead.get(leadEmail || '') || [];
+          
+          if (leadPhones.length > 0) {
+            // Use the highest-confidence phone's source
+            const sortedPhones = [...leadPhones].sort((a, b) => b.confidence - a.confidence);
+            actualSource = sortedPhones[0].source as any;
+            console.log(`[enrich-lead] Source from phones: ${actualSource} (${leadPhones.length} phones found)`);
+          } else if (force_external || actualSource === 'internal') {
+            // If no phones but force_external was used, check stats for this lead
+            // Try to be more specific about source
+            if (enriched.title && enriched.title !== lead.title) {
+              // Title was enriched - likely from Gemini or Perplexity
+              actualSource = stats.gemini_enriched > 0 ? 'gemini' : 
+                             stats.perplexity_enriched > 0 ? 'perplexity' : 'ai';
             } else if (stats.gemini_enriched > 0) {
               actualSource = 'gemini';
             } else if (stats.perplexity_enriched > 0) {
               actualSource = 'perplexity';
             } else if (stats.firecrawl_enriched > 0) {
               actualSource = 'firecrawl';
+            } else if (stats.apollo_enriched > 0) {
+              actualSource = 'apollo';
+            } else if (stats.pdl_enriched > 0) {
+              actualSource = 'pdl';
             } else {
               actualSource = 'ai';
             }
           }
+          
+          console.log(`[enrich-lead] Final source for ${leadEmail}: ${actualSource}`);
           
           const leadData = {
             org_id,
@@ -1400,22 +1438,35 @@ ${batch.map(r => {
             ...accountFirmographics
           };
           
+          console.log(`[enrich-lead] SAVING lead ${leadEmail}:`, JSON.stringify({
+            level: leadData.level,
+            persona: leadData.persona,
+            phone: leadData.phone,
+            mobile: leadData.mobile,
+            direct_phone: leadData.direct_phone,
+            phones_count: phonesJson.length,
+            enrichment_source: leadData.enrichment_source,
+            account_firmographics: Object.keys(accountFirmographics)
+          }));
+          
           // Use the existing unique constraint on (org_id, external_id)
-          const { error } = await supabase
+          const { data: savedData, error } = await supabase
             .from('Leads')
             .upsert(leadData, {
               onConflict: 'org_id,external_id',
               ignoreDuplicates: false
-            });
+            })
+            .select('id, email, level, persona, phone, mobile, enrichment_source');
             
           if (error) {
-            console.error('[enrich-lead] Save error for', leadEmail, ':', error.message);
+            console.error('[enrich-lead] SAVE FAILED for', leadEmail, ':', error.message, error.code, error.details);
             saveErrors++;
           } else {
+            console.log(`[enrich-lead] SAVED ${leadEmail}:`, savedData);
             savedCount++;
           }
         } catch (e: any) {
-          console.error('[enrich-lead] Save exception for', leadEmail, ':', e.message);
+          console.error('[enrich-lead] Save exception for', leadEmail, ':', e.message, e.stack);
           saveErrors++;
         }
       }
