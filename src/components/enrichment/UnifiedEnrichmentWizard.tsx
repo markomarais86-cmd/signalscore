@@ -72,7 +72,8 @@ export function UnifiedEnrichmentWizard() {
   const [sourceType, setSourceType] = useState("manual");
   
   // Options
-  const [checkInternalFirst, setCheckInternalFirst] = useState(true);
+  // Default to FALSE - always force external enrichment for fresh data
+  const [checkInternalFirst, setCheckInternalFirst] = useState(false);
   const [discoverDomains, setDiscoverDomains] = useState(true);
   const [saveToDatabase, setSaveToDatabase] = useState(true);
   
