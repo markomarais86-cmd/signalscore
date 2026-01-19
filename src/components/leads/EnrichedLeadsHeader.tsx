@@ -162,7 +162,8 @@ export function EnrichedLeadsHeader({
       const { data, error } = await supabase.functions.invoke('enrich-lead', {
         body: { 
           org_id: orgId, 
-          emails,
+          leads: emails.map(email => ({ email })),
+          save_to_db: true,
           force_refresh: true
         }
       });

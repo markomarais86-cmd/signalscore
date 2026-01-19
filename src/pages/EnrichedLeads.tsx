@@ -70,7 +70,11 @@ export default function EnrichedLeads() {
     
     try {
       await supabase.functions.invoke('enrich-lead', {
-        body: { org_id: orgId, emails: [lead.email], force_refresh: true }
+        body: { 
+          org_id: orgId, 
+          leads: [{ email: lead.email, first_name: lead.first_name, last_name: lead.last_name, company: lead.company }],
+          save_to_db: true
+        }
       });
       toast({ title: "Re-enrichment started", description: `Processing ${lead.email}...` });
       setTimeout(refresh, 2000);
