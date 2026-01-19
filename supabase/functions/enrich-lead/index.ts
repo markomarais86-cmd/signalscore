@@ -40,7 +40,7 @@ interface LeadEnrichmentResult {
     matched_account_id?: string;
     phones?: PhoneEntry[];
   };
-  source: 'internal' | 'apollo' | 'pdl' | 'hunter' | 'ai' | 'gemini' | 'perplexity';
+  source: 'internal' | 'apollo' | 'pdl' | 'hunter' | 'ai' | 'gemini' | 'perplexity' | 'firecrawl';
   confidence: number;
   fields_filled: string[];
   phone_sources?: Record<string, PhoneEntry[]>;
@@ -86,6 +86,7 @@ serve(async (req) => {
       internal_matches: 0,
       gemini_enriched: 0,
       perplexity_enriched: 0,
+      firecrawl_enriched: 0,
       apollo_enriched: 0,
       pdl_enriched: 0,
       hunter_enriched: 0,
@@ -341,9 +342,128 @@ serve(async (req) => {
       }
     }
 
-    // Phase 2c: Apollo People Enrichment (EXPENSIVE - uses credits, only if still missing data)
+    // Phase 2c: Firecrawl Contact Page Scraping (CHEAP - ~$0.002 per page)
+    const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
+    if (FIRECRAWL_API_KEY && needsExternalEnrichment.length > 0) {
+      console.log('[enrich-lead] Phase 2c: Firecrawl contact page scraping (low cost)');
+      
+      // Only scrape for contacts still missing phones
+      const needsFirecrawl = needsExternalEnrichment.filter(lead => {
+        const phones = allPhonesByLead.get(lead.email || '') || [];
+        return phones.length === 0;
+      });
+
+      // Group by domain to avoid duplicate scrapes
+      const domainLeadsMap = new Map<string, LeadInput[]>();
+      for (const lead of needsFirecrawl) {
+        const domain = lead.domain || (lead.email ? extractDomain(lead.email) : null);
+        if (domain) {
+          const existing = domainLeadsMap.get(domain) || [];
+          domainLeadsMap.set(domain, [...existing, lead]);
+        }
+      }
+
+      // Scrape contact/about pages for each unique domain
+      const contactPaths = ['/contact', '/contact-us', '/about', '/about-us', '/team', '/leadership'];
+      const phonePatterns = [
+        /(?:\+1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}/g, // US/CA
+        /\+44\s?[0-9]{10,11}/g, // UK
+        /\+[1-9]\d{6,14}/g, // E.164 international
+        /\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}/g, // Local US format
+      ];
+
+      for (const [domain, leads] of domainLeadsMap) {
+        let allMarkdown = '';
+        let pagesScraped = 0;
+
+        // Try scraping up to 2 contact pages per domain
+        for (const path of contactPaths) {
+          if (pagesScraped >= 2) break;
+          
+          const pageUrl = `https://${domain}${path}`;
+          try {
+            const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                url: pageUrl,
+                formats: ['markdown'],
+                onlyMainContent: true,
+                waitFor: 2000,
+              }),
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              const markdown = data.data?.markdown || '';
+              if (markdown.length > 100) {
+                allMarkdown += '\n\n' + markdown;
+                pagesScraped++;
+                console.log(`[enrich-lead] Firecrawl: Got ${markdown.length} chars from ${pageUrl}`);
+              }
+            }
+            stats.cost_estimate += 0.002; // ~$0.002 per page
+          } catch (e) {
+            console.log(`[enrich-lead] Firecrawl error on ${pageUrl}:`, e);
+          }
+        }
+
+        if (!allMarkdown) continue;
+
+        // Extract phones from scraped content
+        const foundPhones: Set<string> = new Set();
+        for (const pattern of phonePatterns) {
+          const matches = allMarkdown.matchAll(pattern);
+          for (const match of matches) {
+            const phone = match[0];
+            // Skip fake/placeholder numbers
+            if (!phone.includes('555') && !phone.includes('000-0000') && phone.length >= 10) {
+              foundPhones.add(phone);
+            }
+          }
+        }
+
+        if (foundPhones.size > 0) {
+          console.log(`[enrich-lead] Firecrawl found ${foundPhones.size} phones for ${domain}`);
+          
+          // Extract context around phones for role attribution (Phase 3 prep)
+          const phoneArray = Array.from(foundPhones);
+          
+          // Assign phones to all leads at this domain
+          for (const lead of leads) {
+            const leadEmail = lead.email;
+            if (!leadEmail) continue;
+
+            const resultIndex = results.findIndex(r => r.input.email === leadEmail);
+            if (resultIndex === -1) continue;
+
+            // Create phone entries with firecrawl source
+            const firecrawlPhones: PhoneEntry[] = phoneArray.map((p, idx) => ({
+              number: p,
+              type: idx === 0 ? 'main' : 'office' as 'main' | 'office',
+              source: 'firecrawl',
+              confidence: 75
+            }));
+
+            const existing = allPhonesByLead.get(leadEmail) || [];
+            allPhonesByLead.set(leadEmail, [...existing, ...firecrawlPhones]);
+            
+            if (!results[resultIndex].enriched_data.phone) {
+              results[resultIndex].enriched_data.phone = firecrawlPhones[0].number;
+            }
+            stats.firecrawl_enriched++;
+            stats.phones_found += firecrawlPhones.length;
+          }
+        }
+      }
+    }
+
+    // Phase 2d: Apollo People Enrichment (EXPENSIVE - uses credits, only if still missing data)
     if (APOLLO_API_KEY && needsExternalEnrichment.length > 0) {
-      console.log('[enrich-lead] Phase 2c: Apollo person enrichment (uses credits - last resort)');
+      console.log('[enrich-lead] Phase 2d: Apollo person enrichment (uses credits - last resort)');
       
       // Only use Apollo for contacts still missing critical data (phone or title)
       const needsApollo = needsExternalEnrichment.filter(lead => {
@@ -415,7 +535,7 @@ serve(async (req) => {
       }
     }
 
-    // Phase 2d: PDL People Enrichment (EXPENSIVE - uses credits, absolute last resort)
+    // Phase 2e: PDL People Enrichment (EXPENSIVE - uses credits, absolute last resort)
     if (PDL_API_KEY) {
       console.log('[enrich-lead] Phase 2d: PDL person enrichment (uses credits - last resort)');
       
@@ -490,7 +610,7 @@ serve(async (req) => {
 
     // Hunter.io for email verification/finding
     if (HUNTER_API_KEY) {
-      console.log('[enrich-lead] Phase 2c: Hunter.io verification');
+      console.log('[enrich-lead] Phase 2f: Hunter.io verification');
       
       for (const lead of needsExternalEnrichment) {
         const resultIndex = results.findIndex(r => r.input.email === lead.email);
@@ -527,7 +647,7 @@ serve(async (req) => {
       const stillNeedsEnrichment = results.filter(r => r.fields_filled.length < 2);
       
       if (stillNeedsEnrichment.length > 0) {
-        console.log(`[enrich-lead] Phase 2d: AI enrichment (${stillNeedsEnrichment.length} remaining)`);
+        console.log(`[enrich-lead] Phase 2g: AI enrichment (${stillNeedsEnrichment.length} remaining)`);
         
         // Batch AI requests
         const batchSize = 10;
