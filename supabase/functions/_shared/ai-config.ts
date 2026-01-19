@@ -2,7 +2,7 @@
 // Supports: Perplexity, OpenAI, Abacus.AI, and Lovable AI Gateway
 
 export type AIProvider = 'perplexity' | 'openai' | 'abacus' | 'lovable';
-export type TaskType = 'chat' | 'analysis' | 'enrichment' | 'bulk' | 'reasoning';
+export type TaskType = 'chat' | 'analysis' | 'enrichment' | 'bulk' | 'reasoning' | 'research';
 
 export interface AIModelConfig {
   provider: AIProvider;
@@ -29,6 +29,7 @@ export const AI_MODELS = {
     enrichment: 'sonar-pro', // Best for real-time company research with citations
     bulk: 'sonar',
     reasoning: 'sonar-reasoning',
+    research: 'sonar-pro', // Real-time web search for contact/phone research
   },
   openai: {
     chat: 'gpt-5-2025-08-07',
@@ -36,6 +37,7 @@ export const AI_MODELS = {
     enrichment: 'gpt-5-mini-2025-08-07',
     bulk: 'gpt-5-nano-2025-08-07',
     reasoning: 'o4-mini-2025-04-16',
+    research: 'gpt-5-mini-2025-08-07', // Fallback for contact research
   },
   abacus: {
     chat: 'RouteLLM',
@@ -43,6 +45,7 @@ export const AI_MODELS = {
     enrichment: 'gpt-5.1',
     bulk: 'gpt-5.1',
     reasoning: 'o4-mini',
+    research: 'gpt-5.1', // Fallback for contact research
   },
   lovable: {
     chat: 'google/gemini-2.5-flash',
@@ -50,6 +53,7 @@ export const AI_MODELS = {
     enrichment: 'google/gemini-2.5-flash',
     bulk: 'google/gemini-2.5-flash-lite',
     reasoning: 'google/gemini-2.5-pro',
+    research: 'google/gemini-2.5-flash', // Fast AI research fallback
   },
 };
 
