@@ -106,6 +106,120 @@ const extractDomain = (email: string): string => {
   return match ? match[1].toLowerCase() : '';
 };
 
+// Background processing function for async enrichment jobs
+async function processEnrichmentJobBackground(
+  supabase: any,
+  jobId: string,
+  leads: LeadInput[],
+  org_id: string,
+  save_to_db: boolean,
+  target_titles: string[]
+) {
+  console.log(`[enrich-lead-bg] Starting background processing for job ${jobId} with ${leads.length} leads`);
+  
+  try {
+    // Update job status to processing
+    await supabase
+      .from('enrichment_jobs')
+      .update({ 
+        status: 'processing', 
+        started_at: new Date().toISOString(),
+        last_heartbeat: new Date().toISOString()
+      })
+      .eq('id', jobId);
+    
+    // Process leads in smaller batches to update progress
+    const BATCH_SIZE = 25;
+    let processedCount = 0;
+    let enrichedCount = 0;
+    let failedCount = 0;
+    
+    for (let i = 0; i < leads.length; i += BATCH_SIZE) {
+      const batch = leads.slice(i, i + BATCH_SIZE);
+      
+      // Check if job was paused/cancelled
+      const { data: jobStatus } = await supabase
+        .from('enrichment_jobs')
+        .select('status')
+        .eq('id', jobId)
+        .single();
+      
+      if (jobStatus?.status === 'cancelled' || jobStatus?.status === 'paused') {
+        console.log(`[enrich-lead-bg] Job ${jobId} was ${jobStatus.status}, stopping`);
+        return;
+      }
+      
+      // Invoke synchronous enrich-lead for this batch (without async_mode)
+      const { data, error } = await supabase.functions.invoke('enrich-lead', {
+        body: { 
+          leads: batch, 
+          org_id, 
+          save_to_db,
+          target_titles,
+          async_mode: false // Process synchronously
+        }
+      });
+      
+      if (error) {
+        console.error(`[enrich-lead-bg] Batch error:`, error);
+        failedCount += batch.length;
+      } else {
+        processedCount += batch.length;
+        enrichedCount += data?.results?.filter((r: any) => r.fields_filled?.length > 0).length || 0;
+        failedCount += data?.stats?.failed || 0;
+      }
+      
+      // Update job progress
+      const progressPercent = Math.round((processedCount / leads.length) * 100);
+      const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(leads.length / BATCH_SIZE);
+      
+      await supabase
+        .from('enrichment_jobs')
+        .update({
+          processed_records: processedCount,
+          enriched_records: enrichedCount,
+          failed_records: failedCount,
+          progress_percentage: progressPercent,
+          current_batch: currentBatch,
+          total_batches: totalBatches,
+          last_heartbeat: new Date().toISOString(),
+          last_progress_update: new Date().toISOString()
+        })
+        .eq('id', jobId);
+      
+      console.log(`[enrich-lead-bg] Job ${jobId}: ${processedCount}/${leads.length} processed (${progressPercent}%)`);
+    }
+    
+    // Mark job as completed
+    await supabase
+      .from('enrichment_jobs')
+      .update({
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        processed_records: processedCount,
+        enriched_records: enrichedCount,
+        failed_records: failedCount,
+        progress_percentage: 100
+      })
+      .eq('id', jobId);
+    
+    console.log(`[enrich-lead-bg] Job ${jobId} completed: ${enrichedCount} enriched, ${failedCount} failed`);
+    
+  } catch (error: any) {
+    console.error(`[enrich-lead-bg] Job ${jobId} failed:`, error);
+    
+    await supabase
+      .from('enrichment_jobs')
+      .update({
+        status: 'failed',
+        error_message: error.message || 'Unknown error during background processing',
+        completed_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -124,7 +238,14 @@ serve(async (req) => {
     const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
     const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
 
-    const { leads, org_id, save_to_db = false, target_titles = ['CEO', 'President', 'Owner', 'Founder', 'VP', 'Director', 'Head of', 'Manager'] } = await req.json();
+    const { 
+      leads, 
+      org_id, 
+      save_to_db = false, 
+      async_mode = false,
+      job_id = null, // If provided, this is a background job continuation
+      target_titles = ['CEO', 'President', 'Owner', 'Founder', 'VP', 'Director', 'Head of', 'Manager'] 
+    } = await req.json();
 
     if (!leads || !Array.isArray(leads) || leads.length === 0) {
       return new Response(JSON.stringify({ error: 'leads array required' }), {
@@ -140,7 +261,75 @@ serve(async (req) => {
       });
     }
 
-    console.log(`[enrich-lead] Processing ${leads.length} leads for org ${org_id}`);
+    // ASYNC MODE: For large batches, create job and process in background
+    const ASYNC_THRESHOLD = 10; // Use async for 10+ leads
+    const isLargeBatch = leads.length >= ASYNC_THRESHOLD;
+    
+    if (async_mode && isLargeBatch && !job_id) {
+      console.log(`[enrich-lead] Async mode: Creating job for ${leads.length} leads`);
+      
+      // Create enrichment job
+      const { data: newJob, error: jobError } = await supabase
+        .from('enrichment_jobs')
+        .insert({
+          org_id,
+          provider: 'ai',
+          job_type: 'contacts',
+          status: 'pending',
+          total_records: leads.length,
+          processed_records: 0,
+          enriched_records: 0,
+          failed_records: 0,
+          can_pause: true,
+          input_data: { leads, save_to_db, target_titles }
+        })
+        .select('id')
+        .single();
+      
+      if (jobError || !newJob) {
+        console.error('[enrich-lead] Failed to create job:', jobError);
+        return new Response(JSON.stringify({ error: 'Failed to create enrichment job' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      
+      const createdJobId = newJob.id;
+      console.log(`[enrich-lead] Created job ${createdJobId}, starting background processing`);
+      
+      // Start background processing using EdgeRuntime.waitUntil
+      // @ts-ignore - EdgeRuntime is available in Deno Deploy
+      if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+        // @ts-ignore
+        EdgeRuntime.waitUntil(processEnrichmentJobBackground(supabase, createdJobId, leads, org_id, save_to_db, target_titles));
+      } else {
+        // Fallback: invoke self with job_id (for local testing)
+        supabase.functions.invoke('enrich-lead', {
+          body: { leads, org_id, save_to_db, job_id: createdJobId, target_titles }
+        }).catch(err => console.error('[enrich-lead] Background invoke failed:', err));
+      }
+      
+      // Return immediately with job_id
+      return new Response(JSON.stringify({
+        success: true,
+        async: true,
+        job_id: createdJobId,
+        message: `Enrichment job started for ${leads.length} leads`,
+        total_records: leads.length
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // If this is a background job, update status to processing
+    if (job_id) {
+      await supabase
+        .from('enrichment_jobs')
+        .update({ status: 'processing', started_at: new Date().toISOString() })
+        .eq('id', job_id);
+    }
+
+    console.log(`[enrich-lead] Processing ${leads.length} leads for org ${org_id}${job_id ? ` (job ${job_id})` : ''}`);
 
     const results: LeadEnrichmentResult[] = [];
     const stats = {

@@ -28,10 +28,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parseCSV } from "@/utils/csv-parser";
+import { EnrichmentProgressMonitor } from "@/components/settings/EnrichmentProgressMonitor";
 
 type EnrichmentType = "accounts" | "leads";
 type InputMethod = "paste" | "upload" | "existing";
-type WizardStep = "type" | "input" | "preview" | "process" | "results";
+type WizardStep = "type" | "input" | "preview" | "process" | "processing" | "results";
 
 interface ParsedInput {
   type: "email" | "domain" | "company_name";
@@ -82,6 +83,7 @@ export function UnifiedEnrichmentWizard() {
   const [progress, setProgress] = useState(0);
   const [results, setResults] = useState<EnrichmentResult[]>([]);
   const [stats, setStats] = useState<any>(null);
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   // Parse pasted input
   const parseInput = useCallback(() => {
@@ -263,6 +265,9 @@ export function UnifiedEnrichmentWizard() {
         domain: i.type === 'domain' ? i.value : (i.domain || undefined)
       })) : undefined;
       
+      // Use async mode for large lead batches (10+ leads)
+      const isLargeBatch = enrichmentType === 'leads' && parsedInputs.length >= 10;
+      
       const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
           inputs: enrichmentType === 'accounts' ? inputs : undefined,
@@ -270,14 +275,26 @@ export function UnifiedEnrichmentWizard() {
           org_id: userProfile.org_id,
           source_type: sourceType,
           force_external: !checkInternalFirst,
-          save_to_db: saveToDatabase
+          save_to_db: saveToDatabase,
+          async_mode: isLargeBatch
         }
       });
       
-      setProgress(80);
-      
       if (error) throw error;
       
+      // Handle async job response
+      if (data?.async && data?.job_id) {
+        setActiveJobId(data.job_id);
+        setStep("processing");
+        setIsProcessing(false);
+        toast.success(`Enrichment started for ${data.total_records} records`, {
+          description: "Processing in background - you can navigate away"
+        });
+        return;
+      }
+      
+      // Handle synchronous response
+      setProgress(80);
       setResults(data.results || []);
       setStats(data.stats || {});
       setProgress(100);
@@ -831,7 +848,7 @@ export function UnifiedEnrichmentWizard() {
           </div>
         )}
 
-        {/* Step 4: Processing */}
+        {/* Step 4: Processing (sync) */}
         {step === "process" && (
           <div className="space-y-6 py-8">
             <div className="text-center">
@@ -844,6 +861,36 @@ export function UnifiedEnrichmentWizard() {
               </p>
             </div>
             <Progress value={progress} className="h-2" />
+          </div>
+        )}
+
+        {/* Step 4b: Processing (async with job monitor) */}
+        {step === "processing" && activeJobId && (
+          <div className="space-y-4">
+            <EnrichmentProgressMonitor 
+              jobId={activeJobId}
+              onComplete={(job) => {
+                if (job.status === 'completed') {
+                  setStep("results");
+                  setStats({
+                    total: job.total_records,
+                    enriched: job.enriched_records,
+                    failed: job.failed_records
+                  });
+                } else {
+                  setStep("preview");
+                }
+                setActiveJobId(null);
+              }}
+              onClose={() => {
+                // Allow user to dismiss and continue later
+                setStep("type");
+                setActiveJobId(null);
+              }}
+            />
+            <p className="text-center text-sm text-muted-foreground">
+              You can close this wizard - enrichment will continue in the background
+            </p>
           </div>
         )}
 
