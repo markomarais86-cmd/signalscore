@@ -86,13 +86,36 @@ interface LeadEnrichmentResult {
     first_name?: string;
     last_name?: string;
     title?: string;
+    level?: string;
+    persona?: string;
     phone?: string;
     mobile?: string;
+    direct_phone?: string;
     linkedin_url?: string;
     company?: string;
     domain?: string;
+    website?: string;
     matched_account_id?: string;
     phones?: PhoneEntry[];
+    enrichment_source?: string;
+    enrichment_confidence?: number;
+    // Firmographic fields from account
+    employee_count?: number;
+    revenue_range?: string;
+    industry?: string;
+    sub_industry?: string;
+    location_city?: string;
+    state_province?: string;
+    country?: string;
+    company_hq_address?: string;
+    company_hq_city?: string;
+    company_hq_state?: string;
+    company_hq_postal_code?: string;
+    company_sic_code?: string;
+    company_naics_code?: string;
+    company_main_phone?: string;
+    company_linkedin_url?: string;
+    founded_year?: number;
   };
   source: 'internal' | 'apollo' | 'pdl' | 'hunter' | 'ai' | 'gemini' | 'perplexity' | 'firecrawl' | 'discovered';
   confidence: number;
@@ -650,15 +673,105 @@ Only include results where you're confident about the name. If unknown, omit tha
         const domain = lead.domain || (lead.email ? extractDomain(lead.email) : null);
         if (domain) {
           const normalizedDomain = domain.toLowerCase().replace(/^(www\.|https?:\/\/)/, '').split('/')[0];
-          const matchedAccount = accountByDomain.get(normalizedDomain);
+          let matchedAccount = accountByDomain.get(normalizedDomain);
           if (matchedAccount) {
             result.enriched_data.matched_account_id = matchedAccount.external_id;
             result.enriched_data.domain = matchedAccount.domain;
             result.enriched_data.company = matchedAccount.name || lead.company;
             stats.accounts_matched++;
-            console.log(`[enrich-lead] Matched account ${matchedAccount.external_id} for domain ${domain}`);
+            console.log(`[enrich-lead] Matched account ${matchedAccount.external_id} for domain ${normalizedDomain}`);
           } else {
-            console.log(`[enrich-lead] No account found for domain ${normalizedDomain} - will auto-create if enrichment succeeds`);
+            // AUTO-CREATE AND ENRICH MISSING ACCOUNTS (same as non-force_external path)
+            console.log(`[enrich-lead] No account for ${normalizedDomain} - auto-creating stub with enrichment`);
+            
+            const stubExternalId = `AUTO_${normalizedDomain.replace(/[^a-z0-9]/gi, '_').toUpperCase()}`;
+            
+            try {
+              // Create stub account
+              const { data: newAccount, error: createErr } = await supabase
+                .from('accounts')
+                .upsert({
+                  org_id,
+                  external_id: stubExternalId,
+                  domain: normalizedDomain,
+                  name: lead.company || normalizedDomain.split('.')[0].charAt(0).toUpperCase() + normalizedDomain.split('.')[0].slice(1),
+                  enrichment_phase: 'pending',
+                  updated_at: new Date().toISOString()
+                }, { onConflict: 'org_id,external_id' })
+                .select()
+                .single();
+              
+              if (newAccount && !createErr) {
+                console.log(`[enrich-lead] Created stub account: ${stubExternalId}`);
+                stats.accounts_created = (stats.accounts_created || 0) + 1;
+                
+                // Immediately enrich the account with Firecrawl (cheap, fast)
+                try {
+                  const enrichResponse = await fetch(`${supabaseUrl}/functions/v1/enrich-with-firecrawl`, {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${supabaseKey}`,
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ domain: normalizedDomain, companyName: lead.company })
+                  });
+                  
+                  if (enrichResponse.ok) {
+                    const enrichData = await enrichResponse.json();
+                    console.log(`[enrich-lead] Firecrawl enrichment for ${normalizedDomain}:`, JSON.stringify(enrichData).slice(0, 300));
+                    
+                    // Update account with enriched data
+                    if (enrichData.company) {
+                      const accountUpdate = {
+                        employee_count: enrichData.company.employee_count,
+                        revenue_range: enrichData.company.revenue_range,
+                        industry_raw: enrichData.company.industry,
+                        city: enrichData.company.city,
+                        hq_city: enrichData.company.city,
+                        hq_state: enrichData.company.state,
+                        country: enrichData.company.country,
+                        company_main_phone: enrichData.company.phone,
+                        linkedin_url: enrichData.company.linkedin_url,
+                        founded_year: enrichData.company.founded_year,
+                        enrichment_phase: 'completed',
+                        enriched_at: new Date().toISOString(),
+                        enriched_from: 'firecrawl'
+                      };
+                      
+                      await supabase
+                        .from('accounts')
+                        .update(accountUpdate)
+                        .eq('id', newAccount.id);
+                      
+                      // Add to accountByDomain map so lead can use it
+                      const enrichedAccount = {
+                        ...newAccount,
+                        ...accountUpdate,
+                        external_id: stubExternalId
+                      };
+                      accountByDomain.set(normalizedDomain, enrichedAccount);
+                      matchedAccount = enrichedAccount;
+                      
+                      console.log(`[enrich-lead] Enriched account ${normalizedDomain}: emp=${enrichData.company.employee_count}, rev=${enrichData.company.revenue_range}, ind=${enrichData.company.industry}`);
+                    }
+                  } else {
+                    console.error(`[enrich-lead] Firecrawl failed for ${normalizedDomain}: ${enrichResponse.status}`);
+                  }
+                } catch (e: any) {
+                  console.error(`[enrich-lead] Firecrawl enrichment failed for ${normalizedDomain}:`, e.message);
+                }
+                
+                // Set matched account info even if enrichment failed
+                result.enriched_data.matched_account_id = stubExternalId;
+                result.enriched_data.domain = normalizedDomain;
+                result.enriched_data.company = lead.company || normalizedDomain.split('.')[0];
+                stats.accounts_matched++;
+              } else if (createErr) {
+                console.error(`[enrich-lead] Account creation failed for ${normalizedDomain}:`, createErr.message);
+              }
+            } catch (e: any) {
+              console.error(`[enrich-lead] Auto-create exception for ${normalizedDomain}:`, e.message);
+            }
           }
         }
         result.fields_filled = Object.keys(result.enriched_data).filter(k => result.enriched_data[k as keyof typeof result.enriched_data] != null);
@@ -1564,6 +1677,37 @@ ${batch.map(r => {
           } else {
             console.log(`[enrich-lead] SAVED ${leadEmail}:`, savedData);
             savedCount++;
+            
+            // CRITICAL: Update result.enriched_data with ALL saved values for export
+            // This ensures the CSV export gets ALL the data including firmographics
+            result.enriched_data = {
+              ...result.enriched_data,
+              // Personal fields
+              first_name: leadData.first_name,
+              last_name: leadData.last_name,
+              title: leadData.title,
+              level,
+              persona,
+              // Contact fields
+              phone: sanitizedPhone || undefined,
+              mobile: sanitizedMobile || undefined,
+              direct_phone: sanitizedDirectPhone || undefined,
+              phones: phonesJson,
+              linkedin_url: leadData.linkedin_url,
+              // Company fields
+              company: leadData.company,
+              website: leadData.website,
+              domain: enriched.domain || lead.domain,
+              matched_account_id: leadData.account_external_id,
+              enrichment_source: actualSource,
+              enrichment_confidence: result.confidence,
+              // ALL firmographics from account
+              ...accountFirmographics
+            };
+            result.source = actualSource;
+            result.fields_filled = Object.keys(result.enriched_data).filter(
+              k => result.enriched_data[k as keyof typeof result.enriched_data] != null
+            );
           }
         } catch (e: any) {
           console.error('[enrich-lead] Save exception for', leadEmail, ':', e.message, e.stack);
