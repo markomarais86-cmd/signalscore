@@ -87,36 +87,45 @@ serve(async (req) => {
             };
           }
 
+          // FIX PHASE 4: Updated prompt to prioritize MOBILE/DIRECT phone discovery
           const prompt = `You are a professional researcher finding phone numbers for business contacts.
 
-Find phone numbers for this professional:
+Find phone numbers for this professional, PRIORITIZING mobile/cell and direct lines:
 - Name: ${fullName || 'Unknown'}
 - Company: ${contact.company || 'Unknown'}
 - Title: ${contact.title || 'Unknown'}
 - Email: ${contact.email || 'Not provided'}
 - LinkedIn: ${contact.linkedin_url || 'Not provided'}
 
-Search for their phone numbers using:
-1. Company website contact pages
-2. LinkedIn profile (if available)
-3. Business directories
-4. Press releases or news articles
-5. Corporate directories
+PRIORITY ORDER for phone types:
+1. MOBILE/CELL phone (HIGHEST VALUE - direct personal contact)
+2. DIRECT LINE (desk phone, bypasses receptionist)
+3. OFFICE phone (main switchboard, lowest value)
+
+Search these sources for phones:
+1. LinkedIn profile (often has mobile for premium contacts)
+2. Company website "team" or "leadership" pages  
+3. Company contact/about pages
+4. Business directories (ZoomInfo, RocketReach, etc.)
+5. Conference speaker bios (often include mobile)
+6. Press releases with author contact info
 
 Return ONLY valid JSON in this exact format (no markdown, no code blocks):
 {
   "phones": [
-    {"number": "+1XXXXXXXXXX", "type": "direct", "confidence": 85},
-    {"number": "+1XXXXXXXXXX", "type": "mobile", "confidence": 70}
+    {"number": "+1XXXXXXXXXX", "type": "mobile", "confidence": 85},
+    {"number": "+1XXXXXXXXXX", "type": "direct", "confidence": 70}
   ],
-  "sources_searched": ["company_website", "linkedin", "press_releases"],
-  "reasoning": "Found direct line on company website contact page. Mobile number mentioned in a conference speaker bio."
+  "sources_searched": ["linkedin", "company_website", "speaker_bio"],
+  "reasoning": "Found mobile on conference speaker bio. Direct line from company leadership page."
 }
 
-IMPORTANT:
+CRITICAL RULES:
 - Phone numbers must be in E.164 format (+1XXXXXXXXXX for US numbers)
 - Confidence should be 0-100 based on source reliability
-- Type must be one of: direct, mobile, office, main
+- Type must be: mobile (cell phone), direct (desk line), office (main switchboard), or main (company main)
+- ALWAYS try to find mobile/cell first - it's the most valuable
+- If you find the main office number, label it as 'main' or 'office', NOT 'direct'
 - If no phones found, return empty phones array
 - Be conservative - only include numbers you're confident about`;
 

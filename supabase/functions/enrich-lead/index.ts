@@ -186,10 +186,10 @@ serve(async (req) => {
         Array.from(emails).map(e => `email.ilike.${e}`).join(',') || 'email.is.null'
       );
 
-    // Batch fetch accounts for matching
+    // Batch fetch accounts for matching - include company_main_phone for phone discovery
     const { data: existingAccounts } = await supabase
       .from('accounts')
-      .select('external_id, name, domain')
+      .select('external_id, name, domain, company_main_phone')
       .eq('org_id', org_id)
       .or(
         Array.from(domains).map(d => `domain.ilike.%${d}%`).join(',') || 'domain.is.null'
@@ -463,6 +463,13 @@ Only include results where you're confident about the name. If unknown, omit tha
               stats.accounts_matched++;
             }
 
+            // FIX PHASE 1: Even for internal matches, still run phone discovery if missing mobile/direct
+            const hasMobileOrDirect = existingLead.mobile || existingLead.direct_phone;
+            if (!hasMobileOrDirect) {
+              console.log(`[enrich-lead] Internal match ${lead.email} missing mobile/direct - adding to phone discovery`);
+              needsExternalEnrichment.push(lead);
+            }
+
             results.push(result);
             continue;
           }
@@ -477,6 +484,12 @@ Only include results where you're confident about the name. If unknown, omit tha
           result.enriched_data.matched_account_id = matchedAccount.external_id;
           result.enriched_data.domain = matchedAccount.domain;
           result.enriched_data.company = matchedAccount.name || lead.company;
+          
+          // FIX PHASE 5: Pull company_main_phone from matched account early
+          if (matchedAccount.company_main_phone) {
+            console.log(`[enrich-lead] Adding company main phone from account: ${matchedAccount.company_main_phone}`);
+          }
+          
           stats.accounts_matched++;
         }
       }
@@ -559,10 +572,11 @@ Only include results where you're confident about the name. If unknown, omit tha
     if (PERPLEXITY_API_KEY && needsExternalEnrichment.length > 0) {
       console.log('[enrich-lead] Phase 2b: Perplexity phone search (low cost)');
       
-      // Only search for contacts still missing phones
+      // FIX PHASE 2: Search for contacts missing MOBILE phones, not just any phone
       const needsPhones = needsExternalEnrichment.filter(lead => {
         const phones = allPhonesByLead.get(lead.email || '') || [];
-        return phones.length === 0;
+        const hasMobile = phones.some(p => p.type === 'mobile' || p.type === 'direct');
+        return !hasMobile; // Run even if we have an office number
       });
 
       if (needsPhones.length > 0) {
@@ -623,10 +637,11 @@ Only include results where you're confident about the name. If unknown, omit tha
     if (FIRECRAWL_API_KEY && needsExternalEnrichment.length > 0) {
       console.log('[enrich-lead] Phase 2c: Firecrawl contact page scraping (low cost)');
       
-      // Only scrape for contacts still missing phones
+      // FIX PHASE 2: Scrape for contacts missing MOBILE phones, not just any phone
       const needsFirecrawl = needsExternalEnrichment.filter(lead => {
         const phones = allPhonesByLead.get(lead.email || '') || [];
-        return phones.length === 0;
+        const hasMobile = phones.some(p => p.type === 'mobile' || p.type === 'direct');
+        return !hasMobile; // Run even if we have an office number
       });
 
       // Group by domain to avoid duplicate scrapes
@@ -705,8 +720,24 @@ Only include results where you're confident about the name. If unknown, omit tha
         if (foundPhones.size > 0) {
           console.log(`[enrich-lead] Firecrawl found ${foundPhones.size} phones for ${domain}`);
           
-          // Extract context around phones for role attribution (Phase 3 prep)
           const phoneArray = Array.from(foundPhones);
+          
+          // FIX PHASE 3: Get company main phone for classification
+          const matchedAccount = accountByDomain.get(domain);
+          const companyMainPhone = matchedAccount?.company_main_phone?.replace(/\D/g, '') || '';
+          
+          // FIX PHASE 3: Classify phones as main/direct/office based on context
+          const classifyPhone = (phone: string, index: number): 'main' | 'direct' | 'office' => {
+            const cleaned = phone.replace(/\D/g, '');
+            // If it matches company main phone (last 7 digits), it's main
+            if (companyMainPhone && cleaned.endsWith(companyMainPhone.slice(-7))) {
+              return 'main';
+            }
+            // First non-main phone is likely direct line
+            if (index === 0) return 'direct';
+            // Additional phones are likely direct or office lines
+            return index < 3 ? 'direct' : 'office';
+          };
           
           // Assign phones to all leads at this domain
           for (const lead of leads) {
@@ -716,10 +747,10 @@ Only include results where you're confident about the name. If unknown, omit tha
             const resultIndex = results.findIndex(r => r.input.email === leadEmail);
             if (resultIndex === -1) continue;
 
-            // Create phone entries with firecrawl source
+            // FIX PHASE 3: Create phone entries with proper type classification
             const firecrawlPhones: PhoneEntry[] = phoneArray.map((p, idx) => ({
               number: p,
-              type: idx === 0 ? 'main' : 'office' as 'main' | 'office',
+              type: classifyPhone(p, idx),
               source: 'firecrawl',
               confidence: 75
             }));
@@ -1042,10 +1073,18 @@ ${batch.map(r => {
             .eq('email', leadEmail)
             .maybeSingle();
           
-          // Sanitize all phone values before saving
-          const sanitizedPhone = sanitizePhone(phones[0]?.number) || sanitizePhone(enriched.phone) || sanitizePhone(lead.phone);
-          const sanitizedMobile = sanitizePhone(phones.find(p => p.type === 'mobile')?.number) || sanitizePhone(enriched.mobile);
-          const sanitizedDirectPhone = sanitizePhone(phones.find(p => p.type === 'direct')?.number);
+          // FIX PHASE 6: Better phone type prioritization for mobile/direct assignment
+          // Priority: mobile > direct > office > main for the primary phone field
+          const mobilePhone = phones.find(p => p.type === 'mobile')?.number;
+          const directPhone = phones.find(p => p.type === 'direct')?.number;
+          const officePhone = phones.find(p => p.type === 'office' || p.type === 'main')?.number;
+          
+          // Use best available for primary phone (mobile preferred)
+          const sanitizedPhone = sanitizePhone(mobilePhone) || sanitizePhone(directPhone) || sanitizePhone(officePhone) || sanitizePhone(enriched.phone) || sanitizePhone(lead.phone);
+          const sanitizedMobile = sanitizePhone(mobilePhone) || sanitizePhone(enriched.mobile);
+          const sanitizedDirectPhone = sanitizePhone(directPhone);
+          
+          console.log(`[enrich-lead] Phone assignment for ${leadEmail}: mobile=${sanitizedMobile}, direct=${sanitizedDirectPhone}, phone=${sanitizedPhone}`);
           
           // Fetch account firmographics if we have a matched account
           let accountFirmographics: any = {};
