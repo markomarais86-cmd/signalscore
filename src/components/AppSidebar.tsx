@@ -1,4 +1,4 @@
-import { Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign, FileText, Users, BarChart3, Bot, HelpCircle, Sparkles } from "lucide-react";
+import { Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign, FileText, Users, BarChart3, Bot, HelpCircle, Sparkles, UserCheck } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
@@ -26,6 +26,7 @@ const mainNavigation = [
   { title: "ICP Manager", url: "/icp-manager", icon: Target },
   { title: "AI Agents", url: "/ai-agents", icon: Bot },
   { title: "Enrichment", url: "/enrichment", icon: Sparkles },
+  { title: "Enriched Leads", url: "/enriched-leads", icon: UserCheck },
   { title: "Settings", url: "/settings", icon: Settings },
   { title: "Help", url: "/help", icon: HelpCircle },
 ];
