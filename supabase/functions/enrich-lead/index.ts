@@ -1185,14 +1185,28 @@ Only include results where you're confident about the name. If unknown, omit tha
         let phoneFound = false;
         const discoveredPhones: PhoneEntry[] = [];
         
-        // ===== STEP 1: PERPLEXITY (Real-time web search for phones) =====
-        if (PERPLEXITY_API_KEY && !phoneFound) {
+        // ===== STEP 1: PERPLEXITY (Real-time web search for full contact info) =====
+        // Expanded to also discover: title, LinkedIn, last name, email status
+        if (PERPLEXITY_API_KEY) {
           try {
-            const phoneQuery = `Find direct phone number or mobile number for ${personName}${companyName ? ` at ${companyName}` : ''}.
-Return ONLY valid JSON: {"phone":"...","phone_type":"mobile|direct|office","confidence":0-100}
-Only include real, verified phone numbers found on the web. Do not guess.`;
+            const needsLastName = !lead.last_name;
+            const needsTitle = !results[resultIndex].enriched_data.title && !lead.title;
+            const needsLinkedIn = !results[resultIndex].enriched_data.linkedin_url && !lead.linkedin_url;
             
-            console.log(`[enrich-lead] AI Waterfall 1/3 Perplexity phone search: ${personName} at ${companyName}`);
+            const discoveryQuery = `Find professional information for ${personName}${companyName ? ` at ${companyName}` : ''}${lead.email ? ` (email: ${lead.email})` : ''}.
+Return ONLY valid JSON with ALL available data:
+{
+  "phone":"direct or mobile number if found",
+  "phone_type":"mobile|direct|office",
+  "title":"job title or role",
+  "linkedin_url":"LinkedIn profile URL",
+  "last_name":"last name if not provided",
+  "email_valid":true if email appears current/valid,
+  "confidence":0-100
+}
+Only include REAL data found on the web. Do not guess. Include null for fields not found.`;
+            
+            console.log(`[enrich-lead] AI Waterfall 1/3 Perplexity FULL discovery: ${personName} at ${companyName}`);
             
             const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
               method: 'POST',
@@ -1203,8 +1217,8 @@ Only include real, verified phone numbers found on the web. Do not guess.`;
               body: JSON.stringify({
                 model: 'sonar-pro',
                 messages: [
-                  { role: 'system', content: 'You are a contact researcher. Find real phone numbers from public web sources. Return ONLY valid JSON.' },
-                  { role: 'user', content: phoneQuery }
+                  { role: 'system', content: 'You are a professional contact researcher. Find real contact information from public web sources. Return ONLY valid JSON with ALL fields.' },
+                  { role: 'user', content: discoveryQuery }
                 ],
                 temperature: 0.1
               })
@@ -1213,26 +1227,53 @@ Only include real, verified phone numbers found on the web. Do not guess.`;
             if (perplexityResponse.ok) {
               const data = await perplexityResponse.json();
               const content = data.choices?.[0]?.message?.content || '';
-              console.log(`[enrich-lead] Perplexity phone response: ${content.substring(0, 150)}`);
+              console.log(`[enrich-lead] Perplexity response: ${content.substring(0, 250)}`);
               
               const jsonMatch = content.match(/\{[\s\S]*?\}/);
               if (jsonMatch) {
                 try {
-                  const phoneData = JSON.parse(jsonMatch[0]);
-                  if (phoneData.phone && phoneData.confidence >= 50) {
-                    const sanitized = sanitizePhone(phoneData.phone);
+                  const contactData = JSON.parse(jsonMatch[0]);
+                  
+                  // Phone
+                  if (contactData.phone && contactData.confidence >= 50 && !phoneFound) {
+                    const sanitized = sanitizePhone(contactData.phone);
                     if (sanitized) {
                       discoveredPhones.push({
                         number: sanitized,
-                        type: phoneData.phone_type || 'direct',
+                        type: contactData.phone_type || 'direct',
                         source: 'perplexity',
-                        confidence: phoneData.confidence || 70
+                        confidence: contactData.confidence || 70
                       });
                       phoneFound = true;
                       stats.perplexity_enriched++;
                       console.log(`[enrich-lead] Perplexity found phone: ${sanitized}`);
                     }
                   }
+                  
+                  // Title (if not already set)
+                  if (contactData.title && needsTitle) {
+                    results[resultIndex].enriched_data.title = contactData.title;
+                    console.log(`[enrich-lead] Perplexity found title: ${contactData.title}`);
+                  }
+                  
+                  // LinkedIn URL
+                  if (contactData.linkedin_url && needsLinkedIn && contactData.linkedin_url.includes('linkedin.com')) {
+                    results[resultIndex].enriched_data.linkedin_url = contactData.linkedin_url;
+                    console.log(`[enrich-lead] Perplexity found LinkedIn: ${contactData.linkedin_url}`);
+                  }
+                  
+                  // Last name (if missing)
+                  if (contactData.last_name && needsLastName) {
+                    results[resultIndex].enriched_data.last_name = contactData.last_name;
+                    console.log(`[enrich-lead] Perplexity found last name: ${contactData.last_name}`);
+                  }
+                  
+                  // Email status
+                  if (contactData.email_valid !== null && contactData.email_valid !== undefined) {
+                    results[resultIndex].enriched_data.email_status = contactData.email_valid ? 'valid' : 'uncertain';
+                    results[resultIndex].enriched_data.email_verified = contactData.email_valid;
+                  }
+                  
                 } catch (e) {
                   console.log(`[enrich-lead] Perplexity JSON parse error:`, e);
                 }
@@ -1240,17 +1281,29 @@ Only include real, verified phone numbers found on the web. Do not guess.`;
             }
             stats.cost_estimate += 0.005;
           } catch (e) {
-            console.error(`[enrich-lead] Perplexity phone error:`, e);
+            console.error(`[enrich-lead] Perplexity discovery error:`, e);
           }
         }
         
-        // ===== STEP 2: CLAUDE (Deep reasoning for phone discovery) =====
-        if (ANTHROPIC_API_KEY && !phoneFound) {
+        // ===== STEP 2: CLAUDE (Deep reasoning for missing fields) =====
+        // Only call Claude if we still need data after Perplexity
+        const stillNeedsTitle = !results[resultIndex].enriched_data.title && !lead.title;
+        const stillNeedsLinkedIn = !results[resultIndex].enriched_data.linkedin_url && !lead.linkedin_url;
+        const stillNeedsPhone = !phoneFound;
+        
+        if (ANTHROPIC_API_KEY && (stillNeedsPhone || stillNeedsTitle || stillNeedsLinkedIn)) {
           try {
-            const claudePrompt = `Find the direct phone number or mobile for ${personName}${companyName ? ` who works at ${companyName}` : ''}.
-Return ONLY valid JSON: {"phone":"...","phone_type":"mobile|direct|office","confidence":0-100}`;
+            const claudePrompt = `Find professional contact information for ${personName}${companyName ? ` who works at ${companyName}` : ''}.
+Return ONLY valid JSON with all available data:
+{
+  "phone":"phone number if found",
+  "phone_type":"mobile|direct|office",
+  "title":"job title/role",
+  "linkedin_url":"LinkedIn profile URL",
+  "confidence":0-100
+}`;
             
-            console.log(`[enrich-lead] AI Waterfall 2/3 Claude phone search: ${personName}`);
+            console.log(`[enrich-lead] AI Waterfall 2/3 Claude discovery: ${personName}`);
             
             const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
               method: 'POST',
@@ -1262,7 +1315,7 @@ Return ONLY valid JSON: {"phone":"...","phone_type":"mobile|direct|office","conf
               body: JSON.stringify({
                 model: 'claude-sonnet-4-20250514',
                 max_tokens: 512,
-                system: 'You are a contact researcher. Find real phone numbers. Return ONLY valid JSON.',
+                system: 'You are a contact researcher. Find real contact information. Return ONLY valid JSON.',
                 messages: [{ role: 'user', content: claudePrompt }]
               })
             });
@@ -1270,25 +1323,40 @@ Return ONLY valid JSON: {"phone":"...","phone_type":"mobile|direct|office","conf
             if (claudeResponse.ok) {
               const data = await claudeResponse.json();
               const content = data.content?.[0]?.text || '';
-              console.log(`[enrich-lead] Claude phone response: ${content.substring(0, 150)}`);
+              console.log(`[enrich-lead] Claude response: ${content.substring(0, 200)}`);
               
               const jsonMatch = content.match(/\{[\s\S]*?\}/);
               if (jsonMatch) {
                 try {
-                  const phoneData = JSON.parse(jsonMatch[0]);
-                  if (phoneData.phone && phoneData.confidence >= 50) {
-                    const sanitized = sanitizePhone(phoneData.phone);
+                  const contactData = JSON.parse(jsonMatch[0]);
+                  
+                  // Phone
+                  if (contactData.phone && contactData.confidence >= 50 && !phoneFound) {
+                    const sanitized = sanitizePhone(contactData.phone);
                     if (sanitized) {
                       discoveredPhones.push({
                         number: sanitized,
-                        type: phoneData.phone_type || 'direct',
+                        type: contactData.phone_type || 'direct',
                         source: 'claude',
-                        confidence: phoneData.confidence || 65
+                        confidence: contactData.confidence || 65
                       });
                       phoneFound = true;
                       console.log(`[enrich-lead] Claude found phone: ${sanitized}`);
                     }
                   }
+                  
+                  // Title
+                  if (contactData.title && stillNeedsTitle) {
+                    results[resultIndex].enriched_data.title = contactData.title;
+                    console.log(`[enrich-lead] Claude found title: ${contactData.title}`);
+                  }
+                  
+                  // LinkedIn URL
+                  if (contactData.linkedin_url && stillNeedsLinkedIn && contactData.linkedin_url.includes('linkedin.com')) {
+                    results[resultIndex].enriched_data.linkedin_url = contactData.linkedin_url;
+                    console.log(`[enrich-lead] Claude found LinkedIn: ${contactData.linkedin_url}`);
+                  }
+                  
                 } catch (e) {
                   console.log(`[enrich-lead] Claude JSON parse error:`, e);
                 }
@@ -1296,7 +1364,7 @@ Return ONLY valid JSON: {"phone":"...","phone_type":"mobile|direct|office","conf
             }
             stats.cost_estimate += 0.003;
           } catch (e) {
-            console.error(`[enrich-lead] Claude phone error:`, e);
+            console.error(`[enrich-lead] Claude discovery error:`, e);
           }
         }
         
@@ -1885,7 +1953,8 @@ ${batch.map(r => {
       }
     }
 
-    // Attach collected phones to results AND add level/persona for export
+    // Attach collected phones, level/persona, AND FIRMOGRAPHICS to results for export
+    // This ensures ALL data is in the response even when save_to_db=false
     for (const result of results) {
       const email = result.input.email;
       const lead = result.input;
@@ -1907,11 +1976,70 @@ ${batch.map(r => {
         result.enriched_data.level = level;
         result.enriched_data.persona = persona;
         
-        // Determine actual source for the response as well
+        // CRITICAL FIX: Add phone to enriched_data from collected phones
         if (phones.length > 0) {
           const sortedPhones = [...phones].sort((a, b) => b.confidence - a.confidence);
+          const mobilePhone = phones.find(p => p.type === 'mobile');
+          const directPhone = phones.find(p => p.type === 'direct');
+          
+          // Set mobile/direct/phone fields based on discovered phones
+          if (mobilePhone) {
+            result.enriched_data.mobile = sanitizePhone(mobilePhone.number) || undefined;
+          }
+          if (directPhone) {
+            result.enriched_data.direct_phone = sanitizePhone(directPhone.number) || undefined;
+          }
+          if (!result.enriched_data.phone) {
+            result.enriched_data.phone = sanitizePhone(sortedPhones[0]?.number) || undefined;
+          }
+          
           result.source = sortedPhones[0].source as any;
         }
+        
+        // CRITICAL FIX: Fetch and attach firmographics for EVERY lead, not just save_to_db
+        if (result.enriched_data.matched_account_id) {
+          try {
+            const { data: accountData } = await supabase
+              .from('accounts')
+              .select('employee_count, revenue_range, industry_norm, industry_raw, sub_industry, city, state_province, country, hq_address, hq_city, hq_state, hq_postal_code, sic_code, naics, company_main_phone, linkedin_url, founded_year, enriched_from')
+              .eq('external_id', result.enriched_data.matched_account_id)
+              .eq('org_id', org_id)
+              .maybeSingle();
+            
+            if (accountData) {
+              // Merge firmographics into enriched_data
+              result.enriched_data.employee_count = accountData.employee_count;
+              result.enriched_data.revenue_range = accountData.revenue_range;
+              result.enriched_data.industry = accountData.industry_norm || accountData.industry_raw;
+              result.enriched_data.sub_industry = accountData.sub_industry;
+              result.enriched_data.location_city = accountData.city || accountData.hq_city;
+              result.enriched_data.state_province = accountData.state_province || accountData.hq_state;
+              result.enriched_data.country = accountData.country;
+              result.enriched_data.company_hq_address = accountData.hq_address;
+              result.enriched_data.company_hq_city = accountData.hq_city;
+              result.enriched_data.company_hq_state = accountData.hq_state;
+              result.enriched_data.company_hq_postal_code = accountData.hq_postal_code;
+              result.enriched_data.company_sic_code = accountData.sic_code;
+              result.enriched_data.company_naics_code = accountData.naics;
+              result.enriched_data.company_main_phone = sanitizePhone(accountData.company_main_phone) || undefined;
+              result.enriched_data.company_linkedin_url = accountData.linkedin_url;
+              result.enriched_data.founded_year = accountData.founded_year;
+              
+              console.log(`[enrich-lead] FIRMOGRAPHICS attached for ${email}: emp=${accountData.employee_count}, rev=${accountData.revenue_range}, ind=${accountData.industry_norm || accountData.industry_raw}, city=${accountData.hq_city || accountData.city}`);
+            } else {
+              console.log(`[enrich-lead] No account data found for ${result.enriched_data.matched_account_id}`);
+            }
+          } catch (e: any) {
+            console.error(`[enrich-lead] Firmographics fetch error for ${email}:`, e.message);
+          }
+        } else {
+          console.log(`[enrich-lead] No matched_account_id for ${email} - firmographics will be empty`);
+        }
+        
+        // Update fields_filled after all enrichment
+        result.fields_filled = Object.keys(result.enriched_data).filter(
+          k => result.enriched_data[k as keyof typeof result.enriched_data] != null
+        );
         
         // DIAGNOSTIC LOGGING: Track waterfall status for each lead
         console.log(`[enrich-lead] WATERFALL RESULT for ${email}:`, {
@@ -1920,6 +2048,7 @@ ${batch.map(r => {
           hasTitle: !!result.enriched_data.title,
           hasLevel: !!level,
           hasAccount: !!result.enriched_data.matched_account_id,
+          hasFirmographics: !!result.enriched_data.employee_count || !!result.enriched_data.industry,
           fieldsFilled: result.fields_filled.length,
           source: result.source
         });
