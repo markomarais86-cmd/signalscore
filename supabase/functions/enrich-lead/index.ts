@@ -1,5 +1,6 @@
 // Lead/Contact Enrichment - Person-focused data enrichment
 // Enriches email, title, phone, LinkedIn for individual people
+// NOW WITH: Name extraction from email, AI discovery for sparse leads
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
@@ -20,6 +21,7 @@ interface LeadInput {
   linkedin_url?: string; // From input CSV
   company?: string;
   domain?: string;
+  _discovered?: boolean; // Flag for discovered contacts
 }
 
 // Sanitize phone - reject boolean strings and invalid formats
@@ -36,6 +38,39 @@ const sanitizePhone = (phone: any): string | null => {
   return str.trim();
 };
 
+// Extract name from email address (e.g., john.smith@company.com -> John Smith)
+const extractNameFromEmail = (email: string): { firstName?: string; lastName?: string } => {
+  if (!email) return {};
+  const localPart = email.split('@')[0].toLowerCase();
+  
+  // Pattern: firstname.lastname@domain or firstname_lastname@domain
+  if (localPart.includes('.') || localPart.includes('_')) {
+    const separator = localPart.includes('.') ? '.' : '_';
+    const parts = localPart.split(separator);
+    if (parts.length >= 2) {
+      const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+      return {
+        firstName: capitalize(parts[0]),
+        lastName: capitalize(parts[parts.length - 1])
+      };
+    }
+  }
+  
+  // Pattern: firstnamelastname@domain - try common first name patterns
+  // Skip generic emails like info@, admin@, contact@
+  const genericPrefixes = ['info', 'admin', 'contact', 'support', 'sales', 'hello', 'team', 'office', 'mail', 'no-reply', 'noreply'];
+  if (genericPrefixes.includes(localPart)) {
+    return {};
+  }
+  
+  // If it looks like a name (4-15 chars, only letters), return as first name
+  if (/^[a-z]{4,15}$/.test(localPart)) {
+    return { firstName: localPart.charAt(0).toUpperCase() + localPart.slice(1) };
+  }
+  
+  return {};
+};
+
 interface PhoneEntry {
   number: string;
   type: 'direct' | 'mobile' | 'office' | 'main';
@@ -48,6 +83,8 @@ interface LeadEnrichmentResult {
   enriched_data: {
     email?: string;
     email_verified?: boolean;
+    first_name?: string;
+    last_name?: string;
     title?: string;
     phone?: string;
     mobile?: string;
@@ -57,7 +94,7 @@ interface LeadEnrichmentResult {
     matched_account_id?: string;
     phones?: PhoneEntry[];
   };
-  source: 'internal' | 'apollo' | 'pdl' | 'hunter' | 'ai' | 'gemini' | 'perplexity' | 'firecrawl';
+  source: 'internal' | 'apollo' | 'pdl' | 'hunter' | 'ai' | 'gemini' | 'perplexity' | 'firecrawl' | 'discovered';
   confidence: number;
   fields_filled: string[];
   phone_sources?: Record<string, PhoneEntry[]>;
@@ -79,7 +116,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { leads, org_id, save_to_db = false } = await req.json();
+    const { leads, org_id, save_to_db = false, target_titles = ['CEO', 'President', 'Owner', 'Founder', 'VP', 'Director', 'Head of', 'Manager'] } = await req.json();
 
     if (!leads || !Array.isArray(leads) || leads.length === 0) {
       return new Response(JSON.stringify({ error: 'leads array required' }), {
@@ -101,6 +138,10 @@ serve(async (req) => {
     const stats = {
       total: leads.length,
       internal_matches: 0,
+      names_extracted_from_email: 0,
+      names_discovered_by_ai: 0,
+      contacts_discovered: 0,
+      sparse_leads_processed: 0,
       gemini_enriched: 0,
       perplexity_enriched: 0,
       firecrawl_enriched: 0,
@@ -163,23 +204,220 @@ serve(async (req) => {
       }
     }
 
-    // Process each lead - PRESERVE INPUT DATA AS BASELINE
-    const needsExternalEnrichment: LeadInput[] = [];
-
+    // =========================================
+    // PHASE 0: Pre-process leads - Extract names from emails, identify sparse leads
+    // =========================================
+    console.log('[enrich-lead] Phase 0: Pre-processing leads');
+    
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const processedLeads: LeadInput[] = [];
+    
     for (const lead of leads as LeadInput[]) {
+      const processedLead = { ...lead };
+      
+      // Phase 0a: Extract names from email if missing
+      if (lead.email && !lead.first_name && !lead.last_name) {
+        const extracted = extractNameFromEmail(lead.email);
+        if (extracted.firstName) {
+          processedLead.first_name = extracted.firstName;
+          stats.names_extracted_from_email++;
+          console.log(`[enrich-lead] Extracted name from email: ${lead.email} -> ${extracted.firstName} ${extracted.lastName || ''}`);
+        }
+        if (extracted.lastName) {
+          processedLead.last_name = extracted.lastName;
+        }
+      }
+      
+      processedLeads.push(processedLead);
+    }
+    
+    // Phase 0b: Identify sparse leads (company/domain but NO identifying info)
+    const sparseLeads = processedLeads.filter(lead => {
+      const hasCompany = lead.company || lead.domain;
+      const hasIdentity = lead.email || lead.first_name || lead.linkedin_url;
+      return hasCompany && !hasIdentity;
+    });
+    
+    console.log(`[enrich-lead] Found ${sparseLeads.length} sparse leads (company-only, need discovery)`);
+    
+    // Phase 0c: Discover contacts for sparse leads using AI
+    if (sparseLeads.length > 0 && LOVABLE_API_KEY) {
+      console.log('[enrich-lead] Phase 0c: AI Contact Discovery for sparse leads');
+      stats.sparse_leads_processed = sparseLeads.length;
+      
+      // Group by company/domain to avoid duplicate searches
+      const uniqueCompanies = new Map<string, LeadInput>();
+      for (const lead of sparseLeads) {
+        const key = lead.domain || lead.company || '';
+        if (key && !uniqueCompanies.has(key)) {
+          uniqueCompanies.set(key, lead);
+        }
+      }
+      
+      // Discover contacts at each company
+      for (const [companyKey, originalLead] of uniqueCompanies) {
+        try {
+          const discoveryPrompt = `Find current executives at ${originalLead.company || companyKey}${originalLead.domain ? ` (website: ${originalLead.domain})` : ''}.
+
+Target roles: ${target_titles.join(', ')}
+
+For EACH person found, provide:
+- Full name (first and last)
+- Current job title
+- LinkedIn URL if findable
+- Work email (try to find real one, or guess pattern: firstname.lastname@${originalLead.domain || 'company.com'})
+- Direct phone number if publicly available
+
+Return ONLY valid JSON array (no other text):
+[{
+  "first_name": "John",
+  "last_name": "Smith",
+  "title": "CEO",
+  "email": "john.smith@company.com",
+  "phone": "+1-555-123-4567",
+  "linkedin_url": "https://linkedin.com/in/johnsmith",
+  "confidence": 85
+}]
+
+Maximum 3 people. Only include people you're confident currently work there. If you can't find anyone, return empty array [].`;
+
+          const discoveryResponse = await callAI('research', [
+            { role: 'system', content: 'You are a business researcher specializing in finding executive contacts. Return ONLY valid JSON arrays.' },
+            { role: 'user', content: discoveryPrompt }
+          ]);
+
+          if (discoveryResponse.ok) {
+            const aiData = await discoveryResponse.json();
+            const content = aiData.choices?.[0]?.message?.content || '';
+            const jsonMatch = content.match(/\[[\s\S]*?\]/);
+            
+            if (jsonMatch) {
+              try {
+                const discoveredContacts = JSON.parse(jsonMatch[0]);
+                console.log(`[enrich-lead] Discovered ${discoveredContacts.length} contacts at ${companyKey}`);
+                
+                for (const contact of discoveredContacts) {
+                  if (contact.confidence < 50) continue;
+                  
+                  // Add discovered contact as a new lead to process
+                  processedLeads.push({
+                    first_name: contact.first_name,
+                    last_name: contact.last_name,
+                    email: contact.email,
+                    title: contact.title,
+                    linkedin_url: contact.linkedin_url,
+                    phone: sanitizePhone(contact.phone) || undefined,
+                    company: originalLead.company,
+                    domain: originalLead.domain,
+                    _discovered: true
+                  });
+                  stats.contacts_discovered++;
+                }
+              } catch (parseErr) {
+                console.log(`[enrich-lead] Discovery parse error for ${companyKey}:`, parseErr);
+              }
+            }
+          }
+          
+          stats.cost_estimate += 0.003; // ~$0.003 per Gemini call
+        } catch (e) {
+          console.error(`[enrich-lead] Discovery error for ${companyKey}:`, e);
+        }
+      }
+      
+      // Remove original sparse leads that have been replaced by discovered contacts
+      const sparseKeys = new Set(sparseLeads.map(l => l.domain || l.company));
+      const filteredLeads = processedLeads.filter(l => !sparseKeys.has(l.domain || l.company) || l._discovered);
+      processedLeads.length = 0;
+      processedLeads.push(...filteredLeads);
+      
+      console.log(`[enrich-lead] After discovery: ${processedLeads.length} leads to process`);
+    }
+    
+    // Phase 0d: AI Name Discovery for leads with email but still no name
+    const needsNameDiscovery = processedLeads.filter(lead => 
+      lead.email && !lead.first_name && !lead.last_name && !lead._discovered
+    );
+    
+    if (needsNameDiscovery.length > 0 && LOVABLE_API_KEY) {
+      console.log(`[enrich-lead] Phase 0d: AI name discovery for ${needsNameDiscovery.length} email-only leads`);
+      
+      // Batch into groups of 10
+      const batchSize = 10;
+      for (let i = 0; i < needsNameDiscovery.length; i += batchSize) {
+        const batch = needsNameDiscovery.slice(i, i + batchSize);
+        
+        const namePrompt = `Find the real names for these business email addresses:
+
+${batch.map(l => `- ${l.email}${l.company ? ` (works at ${l.company})` : ''}`).join('\n')}
+
+Return ONLY valid JSON array with the person's actual name:
+[{"email": "john@company.com", "first_name": "John", "last_name": "Doe", "title": "CEO", "confidence": 85}]
+
+Only include results where you're confident about the name. If unknown, omit that email.`;
+
+        try {
+          const nameResponse = await callAI('research', [
+            { role: 'system', content: 'You are a business researcher. Find real names for email addresses. Return ONLY valid JSON.' },
+            { role: 'user', content: namePrompt }
+          ]);
+          
+          if (nameResponse.ok) {
+            const aiData = await nameResponse.json();
+            const content = aiData.choices?.[0]?.message?.content || '';
+            const jsonMatch = content.match(/\[[\s\S]*?\]/);
+            
+            if (jsonMatch) {
+              const names = JSON.parse(jsonMatch[0]);
+              
+              for (const found of names) {
+                if (found.confidence < 50) continue;
+                
+                const leadIndex = processedLeads.findIndex(l => l.email?.toLowerCase() === found.email?.toLowerCase());
+                if (leadIndex !== -1) {
+                  processedLeads[leadIndex].first_name = found.first_name || processedLeads[leadIndex].first_name;
+                  processedLeads[leadIndex].last_name = found.last_name || processedLeads[leadIndex].last_name;
+                  if (found.title && !processedLeads[leadIndex].title) {
+                    processedLeads[leadIndex].title = found.title;
+                  }
+                  stats.names_discovered_by_ai++;
+                  console.log(`[enrich-lead] AI discovered name: ${found.email} -> ${found.first_name} ${found.last_name}`);
+                }
+              }
+            }
+          }
+          
+          stats.cost_estimate += 0.003;
+        } catch (e) {
+          console.error('[enrich-lead] AI name discovery error:', e);
+        }
+      }
+    }
+
+    // =========================================
+    // PHASE 1: Internal Database Matching
+    // =========================================
+    console.log('[enrich-lead] Phase 1: Internal database matching');
+    
+    // Process each lead - PRESERVE INPUT DATA AS BASELINE
+    let needsExternalEnrichment: LeadInput[] = [];
+
+    for (const lead of processedLeads) {
       // Initialize enriched_data with input values as baseline
       const result: LeadEnrichmentResult = {
         input: lead,
         enriched_data: {
           // Preserve input fields as baseline
+          first_name: lead.first_name,
+          last_name: lead.last_name,
           title: lead.title,
           phone: sanitizePhone(lead.phone) || undefined,
           linkedin_url: lead.linkedin_url,
           company: lead.company,
           domain: lead.domain,
         },
-        source: 'internal',
-        confidence: 0,
+        source: lead._discovered ? 'discovered' : 'internal',
+        confidence: lead._discovered ? 0.75 : 0,
         fields_filled: []
       };
 
@@ -187,33 +425,40 @@ serve(async (req) => {
       if (lead.email) {
         const existingLead = leadByEmail.get(lead.email.toLowerCase());
         
-        if (existingLead && existingLead.title) {
-          result.enriched_data = {
-            email: existingLead.email,
-            email_verified: true,
-            // Prefer enriched values but fallback to input
-            title: existingLead.title || lead.title,
-            phone: sanitizePhone(existingLead.phone) || sanitizePhone(lead.phone) || undefined,
-            mobile: sanitizePhone(existingLead.mobile) || undefined,
-            linkedin_url: existingLead.linkedin_url || lead.linkedin_url,
-            company: existingLead.company || lead.company
-          };
-          result.source = 'internal';
-          result.confidence = 0.95;
-          result.fields_filled = Object.keys(result.enriched_data).filter(k => result.enriched_data[k as keyof typeof result.enriched_data] != null);
-          stats.internal_matches++;
+        // FIX: Only count as internal match if it actually has enriched data
+        if (existingLead) {
+          const hasEnrichmentData = existingLead.title || existingLead.phone || existingLead.linkedin_url;
+          
+          if (hasEnrichmentData) {
+            result.enriched_data = {
+              email: existingLead.email,
+              email_verified: true,
+              first_name: lead.first_name || existingLead.first_name,
+              last_name: lead.last_name || existingLead.last_name,
+              // Prefer enriched values but fallback to input
+              title: existingLead.title || lead.title,
+              phone: sanitizePhone(existingLead.phone) || sanitizePhone(lead.phone) || undefined,
+              mobile: sanitizePhone(existingLead.mobile) || undefined,
+              linkedin_url: existingLead.linkedin_url || lead.linkedin_url,
+              company: existingLead.company || lead.company
+            };
+            result.source = 'internal';
+            result.confidence = 0.95;
+            result.fields_filled = Object.keys(result.enriched_data).filter(k => result.enriched_data[k as keyof typeof result.enriched_data] != null);
+            stats.internal_matches++;
 
-          // Try to match to account
-          const domain = extractDomain(lead.email);
-          const matchedAccount = accountByDomain.get(domain);
-          if (matchedAccount) {
-            result.enriched_data.matched_account_id = matchedAccount.external_id;
-            result.enriched_data.domain = matchedAccount.domain;
-            stats.accounts_matched++;
+            // Try to match to account
+            const domain = extractDomain(lead.email);
+            const matchedAccount = accountByDomain.get(domain);
+            if (matchedAccount) {
+              result.enriched_data.matched_account_id = matchedAccount.external_id;
+              result.enriched_data.domain = matchedAccount.domain;
+              stats.accounts_matched++;
+            }
+
+            results.push(result);
+            continue;
           }
-
-          results.push(result);
-          continue;
         }
       }
 
@@ -229,10 +474,14 @@ serve(async (req) => {
         }
       }
 
+      // Calculate initial fields_filled
+      result.fields_filled = Object.keys(result.enriched_data).filter(k => result.enriched_data[k as keyof typeof result.enriched_data] != null);
+      
       needsExternalEnrichment.push(lead);
       results.push(result);
     }
 
+    console.log(`[enrich-lead] Phase 0 stats: names_from_email=${stats.names_extracted_from_email}, names_from_ai=${stats.names_discovered_by_ai}, discovered=${stats.contacts_discovered}`);
     console.log(`[enrich-lead] Internal matches: ${stats.internal_matches}, need external: ${needsExternalEnrichment.length}`);
 
     // Phase 2: External Enrichment - COST OPTIMIZED ORDER
@@ -240,7 +489,7 @@ serve(async (req) => {
     const APOLLO_API_KEY = Deno.env.get('APOLLO_API_KEY');
     const PDL_API_KEY = Deno.env.get('PDL_API_KEY');
     const HUNTER_API_KEY = Deno.env.get('HUNTER_API_KEY');
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    // Note: LOVABLE_API_KEY already declared in Phase 0
     const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
 
     // Track all phones from all sources for multi-source verification
