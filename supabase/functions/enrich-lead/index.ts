@@ -891,9 +891,9 @@ Only include results where you're confident about the name. If unknown, omit tha
                 .select()
                 .single();
               
-              if (newAccount && !createErr) {
-                console.log(`[enrich-lead] Created stub account: ${stubExternalId}`);
-                stats.accounts_created = (stats.accounts_created || 0) + 1;
+            if (newAccount && !createErr) {
+              console.log(`[enrich-lead] Created stub account: ${stubExternalId} (id=${newAccount.id})`);
+              stats.accounts_created = (stats.accounts_created || 0) + 1;
                 
                 // Immediately enrich the account with Firecrawl (cheap, fast)
                 try {
@@ -957,7 +957,12 @@ Only include results where you're confident about the name. If unknown, omit tha
                 result.enriched_data.company = lead.company || normalizedDomain.split('.')[0];
                 stats.accounts_matched++;
               } else if (createErr) {
-                console.error(`[enrich-lead] Account creation failed for ${normalizedDomain}:`, createErr.message);
+                console.error(`[enrich-lead] Account creation failed for ${normalizedDomain}:`, {
+                  code: createErr.code,
+                  message: createErr.message,
+                  details: createErr.details,
+                  hint: createErr.hint
+                });
               }
             } catch (e: any) {
               console.error(`[enrich-lead] Auto-create exception for ${normalizedDomain}:`, e.message);
@@ -1121,7 +1126,12 @@ Only include results where you're confident about the name. If unknown, omit tha
               result.enriched_data.domain = domain;
               result.enriched_data.company = lead.company || domain.split('.')[0];
             } else if (createErr) {
-              console.error(`[enrich-lead] Account creation failed for ${domain}:`, createErr.message);
+              console.error(`[enrich-lead] Account creation failed for ${domain}:`, {
+                code: createErr.code,
+                message: createErr.message,
+                details: createErr.details,
+                hint: createErr.hint
+              });
             }
           } catch (e: any) {
             console.error(`[enrich-lead] Auto-create exception for ${domain}:`, e.message);
@@ -1145,9 +1155,232 @@ Only include results where you're confident about the name. If unknown, omit tha
     // Track all phones from all sources for multi-source verification
     const allPhonesByLead = new Map<string, PhoneEntry[]>();
 
-    // Phase 2a: Gemini Phone Research (CHEAP - ~$0.003 per contact)
+    // Phase 2a: AI-First Phone Discovery Waterfall (Perplexity → Claude → Grok)
+    // Run for ALL leads missing phones/mobiles, not just sparse leads
+    const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+    const XAI_API_KEY = Deno.env.get('XAI_API_KEY');
+    
+    if (needsExternalEnrichment.length > 0 && (PERPLEXITY_API_KEY || ANTHROPIC_API_KEY || XAI_API_KEY)) {
+      console.log('[enrich-lead] Phase 2a: AI-First Phone Discovery Waterfall (Perplexity → Claude → Grok)');
+      
+      // Find leads that need phone discovery (missing any phone)
+      const needsPhoneDiscovery = needsExternalEnrichment.filter(lead => {
+        const resultIndex = results.findIndex(r => r.input.email === lead.email);
+        if (resultIndex === -1) return true;
+        const enriched = results[resultIndex].enriched_data;
+        return !enriched.phone && !enriched.mobile && !enriched.direct_phone;
+      });
+      
+      console.log(`[enrich-lead] ${needsPhoneDiscovery.length}/${needsExternalEnrichment.length} leads need phone discovery`);
+      
+      for (const lead of needsPhoneDiscovery) {
+        const resultIndex = results.findIndex(r => r.input.email === lead.email);
+        if (resultIndex === -1) continue;
+        
+        const personName = [lead.first_name, lead.last_name].filter(Boolean).join(' ');
+        const companyName = lead.company || lead.domain || '';
+        
+        if (!personName && !companyName) continue;
+        
+        let phoneFound = false;
+        const discoveredPhones: PhoneEntry[] = [];
+        
+        // ===== STEP 1: PERPLEXITY (Real-time web search for phones) =====
+        if (PERPLEXITY_API_KEY && !phoneFound) {
+          try {
+            const phoneQuery = `Find direct phone number or mobile number for ${personName}${companyName ? ` at ${companyName}` : ''}.
+Return ONLY valid JSON: {"phone":"...","phone_type":"mobile|direct|office","confidence":0-100}
+Only include real, verified phone numbers found on the web. Do not guess.`;
+            
+            console.log(`[enrich-lead] AI Waterfall 1/3 Perplexity phone search: ${personName} at ${companyName}`);
+            
+            const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'sonar-pro',
+                messages: [
+                  { role: 'system', content: 'You are a contact researcher. Find real phone numbers from public web sources. Return ONLY valid JSON.' },
+                  { role: 'user', content: phoneQuery }
+                ],
+                temperature: 0.1
+              })
+            });
+            
+            if (perplexityResponse.ok) {
+              const data = await perplexityResponse.json();
+              const content = data.choices?.[0]?.message?.content || '';
+              console.log(`[enrich-lead] Perplexity phone response: ${content.substring(0, 150)}`);
+              
+              const jsonMatch = content.match(/\{[\s\S]*?\}/);
+              if (jsonMatch) {
+                try {
+                  const phoneData = JSON.parse(jsonMatch[0]);
+                  if (phoneData.phone && phoneData.confidence >= 50) {
+                    const sanitized = sanitizePhone(phoneData.phone);
+                    if (sanitized) {
+                      discoveredPhones.push({
+                        number: sanitized,
+                        type: phoneData.phone_type || 'direct',
+                        source: 'perplexity',
+                        confidence: phoneData.confidence || 70
+                      });
+                      phoneFound = true;
+                      stats.perplexity_enriched++;
+                      console.log(`[enrich-lead] Perplexity found phone: ${sanitized}`);
+                    }
+                  }
+                } catch (e) {
+                  console.log(`[enrich-lead] Perplexity JSON parse error:`, e);
+                }
+              }
+            }
+            stats.cost_estimate += 0.005;
+          } catch (e) {
+            console.error(`[enrich-lead] Perplexity phone error:`, e);
+          }
+        }
+        
+        // ===== STEP 2: CLAUDE (Deep reasoning for phone discovery) =====
+        if (ANTHROPIC_API_KEY && !phoneFound) {
+          try {
+            const claudePrompt = `Find the direct phone number or mobile for ${personName}${companyName ? ` who works at ${companyName}` : ''}.
+Return ONLY valid JSON: {"phone":"...","phone_type":"mobile|direct|office","confidence":0-100}`;
+            
+            console.log(`[enrich-lead] AI Waterfall 2/3 Claude phone search: ${personName}`);
+            
+            const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: {
+                'x-api-key': ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 512,
+                system: 'You are a contact researcher. Find real phone numbers. Return ONLY valid JSON.',
+                messages: [{ role: 'user', content: claudePrompt }]
+              })
+            });
+            
+            if (claudeResponse.ok) {
+              const data = await claudeResponse.json();
+              const content = data.content?.[0]?.text || '';
+              console.log(`[enrich-lead] Claude phone response: ${content.substring(0, 150)}`);
+              
+              const jsonMatch = content.match(/\{[\s\S]*?\}/);
+              if (jsonMatch) {
+                try {
+                  const phoneData = JSON.parse(jsonMatch[0]);
+                  if (phoneData.phone && phoneData.confidence >= 50) {
+                    const sanitized = sanitizePhone(phoneData.phone);
+                    if (sanitized) {
+                      discoveredPhones.push({
+                        number: sanitized,
+                        type: phoneData.phone_type || 'direct',
+                        source: 'claude',
+                        confidence: phoneData.confidence || 65
+                      });
+                      phoneFound = true;
+                      console.log(`[enrich-lead] Claude found phone: ${sanitized}`);
+                    }
+                  }
+                } catch (e) {
+                  console.log(`[enrich-lead] Claude JSON parse error:`, e);
+                }
+              }
+            }
+            stats.cost_estimate += 0.003;
+          } catch (e) {
+            console.error(`[enrich-lead] Claude phone error:`, e);
+          }
+        }
+        
+        // ===== STEP 3: GROK (X/Twitter social data) =====
+        if (XAI_API_KEY && !phoneFound) {
+          try {
+            const grokPrompt = `Find phone number for ${personName}${companyName ? ` at ${companyName}` : ''} from X/Twitter or public sources.
+Return ONLY valid JSON: {"phone":"...","phone_type":"mobile|direct|office","confidence":0-100}`;
+            
+            console.log(`[enrich-lead] AI Waterfall 3/3 Grok phone search: ${personName}`);
+            
+            const grokResponse = await fetch('https://api.x.ai/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${XAI_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'grok-3',
+                messages: [
+                  { role: 'system', content: 'You are a social media researcher. Find phone numbers from X/Twitter bios and public sources. Return ONLY valid JSON.' },
+                  { role: 'user', content: grokPrompt }
+                ],
+                temperature: 0.1
+              })
+            });
+            
+            if (grokResponse.ok) {
+              const data = await grokResponse.json();
+              const content = data.choices?.[0]?.message?.content || '';
+              console.log(`[enrich-lead] Grok phone response: ${content.substring(0, 150)}`);
+              
+              const jsonMatch = content.match(/\{[\s\S]*?\}/);
+              if (jsonMatch) {
+                try {
+                  const phoneData = JSON.parse(jsonMatch[0]);
+                  if (phoneData.phone && phoneData.confidence >= 50) {
+                    const sanitized = sanitizePhone(phoneData.phone);
+                    if (sanitized) {
+                      discoveredPhones.push({
+                        number: sanitized,
+                        type: phoneData.phone_type || 'direct',
+                        source: 'grok',
+                        confidence: phoneData.confidence || 60
+                      });
+                      phoneFound = true;
+                      console.log(`[enrich-lead] Grok found phone: ${sanitized}`);
+                    }
+                  }
+                } catch (e) {
+                  console.log(`[enrich-lead] Grok JSON parse error:`, e);
+                }
+              }
+            }
+            stats.cost_estimate += 0.005;
+          } catch (e) {
+            console.error(`[enrich-lead] Grok phone error:`, e);
+          }
+        }
+        
+        // Add discovered phones to the collection
+        if (discoveredPhones.length > 0) {
+          const existing = allPhonesByLead.get(lead.email || '') || [];
+          allPhonesByLead.set(lead.email || '', [...existing, ...discoveredPhones]);
+          stats.phones_found += discoveredPhones.length;
+          
+          // Update result with first discovered phone
+          const bestPhone = discoveredPhones[0];
+          if (bestPhone.type === 'mobile') {
+            results[resultIndex].enriched_data.mobile = bestPhone.number;
+          } else if (bestPhone.type === 'direct') {
+            results[resultIndex].enriched_data.direct_phone = bestPhone.number;
+          } else {
+            results[resultIndex].enriched_data.phone = bestPhone.number;
+          }
+        }
+        
+        console.log(`[enrich-lead] AI Waterfall complete for ${personName}: ${discoveredPhones.length} phones found`);
+      }
+    }
+    
+    // Phase 2b: Gemini Phone Research (CHEAP - ~$0.003 per contact)
     if (LOVABLE_API_KEY && needsExternalEnrichment.length > 0) {
-      console.log('[enrich-lead] Phase 2a: Gemini phone research (low cost)');
+      console.log('[enrich-lead] Phase 2b: Gemini phone research (low cost)');
       
       try {
         const geminiContacts = needsExternalEnrichment.map(lead => ({
@@ -1203,9 +1436,9 @@ Only include results where you're confident about the name. If unknown, omit tha
       }
     }
 
-    // Phase 2b: Perplexity Contact Search (CHEAP - ~$0.005 per contact)
+    // Phase 2c: Perplexity Contact Search (CHEAP - ~$0.005 per contact)
     if (PERPLEXITY_API_KEY && needsExternalEnrichment.length > 0) {
-      console.log('[enrich-lead] Phase 2b: Perplexity phone search (low cost)');
+      console.log('[enrich-lead] Phase 2c: Perplexity phone search (low cost)');
       
       // FIX PHASE 2: Search for contacts missing MOBILE phones, not just any phone
       const needsPhones = needsExternalEnrichment.filter(lead => {
@@ -1268,9 +1501,9 @@ Only include results where you're confident about the name. If unknown, omit tha
       }
     }
 
-    // Phase 2c: Firecrawl Contact Page Scraping (CHEAP - ~$0.002 per page)
+    // Phase 2d: Firecrawl Contact Page Scraping (CHEAP - ~$0.002 per page)
     if (FIRECRAWL_API_KEY && needsExternalEnrichment.length > 0) {
-      console.log('[enrich-lead] Phase 2c: Firecrawl contact page scraping (low cost)');
+      console.log('[enrich-lead] Phase 2d: Firecrawl contact page scraping (low cost)');
       
       // FIX PHASE 2: Scrape for contacts missing MOBILE phones, not just any phone
       const needsFirecrawl = needsExternalEnrichment.filter(lead => {
@@ -1679,6 +1912,17 @@ ${batch.map(r => {
           const sortedPhones = [...phones].sort((a, b) => b.confidence - a.confidence);
           result.source = sortedPhones[0].source as any;
         }
+        
+        // DIAGNOSTIC LOGGING: Track waterfall status for each lead
+        console.log(`[enrich-lead] WATERFALL RESULT for ${email}:`, {
+          phonesFound: phones.length,
+          phoneSources: [...new Set(phones.map(p => p.source))],
+          hasTitle: !!result.enriched_data.title,
+          hasLevel: !!level,
+          hasAccount: !!result.enriched_data.matched_account_id,
+          fieldsFilled: result.fields_filled.length,
+          source: result.source
+        });
       }
     }
 
