@@ -610,12 +610,16 @@ ${batch.map(r => {
     if (save_to_db) {
       console.log('[enrich-lead] Saving enriched leads to database');
       
+      let savedCount = 0;
+      let saveErrors = 0;
+      
       for (const result of results) {
         if (result.fields_filled.length === 0) continue;
         
         const lead = result.input;
         const enriched = result.enriched_data;
         const phones = enriched.phones || [];
+        const leadEmail = enriched.email || lead.email;
         
         // Build phones JSONB for multi-source storage
         const phonesJson = phones.map(p => ({
@@ -626,12 +630,23 @@ ${batch.map(r => {
           verified_at: new Date().toISOString()
         }));
         
-        // Upsert lead with multi-phone data
-        const { error } = await supabase
-          .from('Leads')
-          .upsert({
+        // Use external_id-based upsert for reliability (org_id, external_id has a proper unique constraint)
+        // Generate external_id from email if not present
+        const externalId = leadEmail ? `EMAIL_${leadEmail.toLowerCase().replace(/[^a-z0-9]/g, '_')}` : `LEAD_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        try {
+          // First, check if lead with this email exists
+          const { data: existingLead } = await supabase
+            .from('Leads')
+            .select('id, external_id')
+            .eq('org_id', org_id)
+            .eq('email', leadEmail)
+            .maybeSingle();
+          
+          const leadData = {
             org_id,
-            email: enriched.email || lead.email,
+            external_id: existingLead?.external_id || externalId,
+            email: leadEmail,
             first_name: lead.first_name,
             last_name: lead.last_name,
             title: enriched.title,
@@ -647,15 +662,29 @@ ${batch.map(r => {
             enrichment_source: result.source,
             enrichment_confidence: result.confidence,
             enriched_at: new Date().toISOString()
-          }, {
-            onConflict: 'org_id,email',
-            ignoreDuplicates: false
-          });
+          };
           
-        if (error) {
-          console.error('[enrich-lead] Save error:', error);
+          // Use the existing unique constraint on (org_id, external_id)
+          const { error } = await supabase
+            .from('Leads')
+            .upsert(leadData, {
+              onConflict: 'org_id,external_id',
+              ignoreDuplicates: false
+            });
+            
+          if (error) {
+            console.error('[enrich-lead] Save error for', leadEmail, ':', error.message);
+            saveErrors++;
+          } else {
+            savedCount++;
+          }
+        } catch (e: any) {
+          console.error('[enrich-lead] Save exception for', leadEmail, ':', e.message);
+          saveErrors++;
         }
       }
+      
+      console.log(`[enrich-lead] Saved ${savedCount} leads, ${saveErrors} errors`);
     }
 
     stats.failed = results.filter(r => r.fields_filled.length === 0).length;
