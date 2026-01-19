@@ -498,43 +498,42 @@ const classifyTitle = (title: string): { level: string; persona: string } => {
         }
       }
       
-      // Discover contacts at each company - TRY PERPLEXITY FIRST, THEN GEMINI
+      // Discover contacts at each company - MULTI-AI WATERFALL
+      // Priority: Perplexity → Claude → Grok → Gemini (AI-first approach)
       for (const [companyKey, originalLead] of uniqueCompanies) {
         let discoverySucceeded = false;
+        let discoveredContacts: any[] = [];
         
-        // STEP 1: Try Perplexity web search first (more accurate, real web data)
-        const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
-        if (PERPLEXITY_API_KEY && !discoverySucceeded) {
+        const personName = [originalLead.first_name, originalLead.last_name].filter(Boolean).join(' ');
+        const companyName = originalLead.company || companyKey;
+        
+        // ===== STEP 1: PERPLEXITY (Real-time web search) =====
+        const PERPLEXITY_API_KEY_LOCAL = Deno.env.get('PERPLEXITY_API_KEY');
+        if (PERPLEXITY_API_KEY_LOCAL && !discoverySucceeded) {
           try {
-            const personName = [originalLead.first_name, originalLead.last_name].filter(Boolean).join(' ');
-            const companyName = originalLead.company || companyKey;
-            
-            // Different prompts based on whether we have a person name
             let searchQuery: string;
             if (personName) {
-              // Specific person search
               searchQuery = `Find contact information for ${personName} at ${companyName}. 
 I need: email address, phone number, LinkedIn profile URL, job title.
 Return ONLY valid JSON: {"email":"...","phone":"...","linkedin_url":"...","title":"...","first_name":"...","last_name":"..."}
 If you can't find specific info, leave that field empty. Do not guess emails.`;
             } else {
-              // Company executive search
               searchQuery = `Who is the owner, CEO, president, or key decision-maker at ${companyName}?
 Find their: full name, email, phone number, LinkedIn URL, job title.
 Return ONLY valid JSON array: [{"first_name":"...","last_name":"...","email":"...","phone":"...","linkedin_url":"...","title":"..."}]
 Maximum 3 people. Only include real, verified information from web sources.`;
             }
             
-            console.log(`[enrich-lead] Perplexity discovery for: ${personName || 'executives'} at ${companyName}`);
+            console.log(`[enrich-lead] 1/4 Perplexity discovery for: ${personName || 'executives'} at ${companyName}`);
             
             const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
               method: 'POST',
               headers: {
-                'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+                'Authorization': `Bearer ${PERPLEXITY_API_KEY_LOCAL}`,
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                model: 'sonar',
+                model: 'sonar-pro',
                 messages: [
                   { role: 'system', content: 'You are a business contact researcher. Return ONLY valid JSON with real, verified contact information found on the web. Never guess or fabricate data.' },
                   { role: 'user', content: searchQuery }
@@ -546,60 +545,150 @@ Maximum 3 people. Only include real, verified information from web sources.`;
             if (perplexityResponse.ok) {
               const perplexityData = await perplexityResponse.json();
               const content = perplexityData.choices?.[0]?.message?.content || '';
-              const citations = perplexityData.citations || [];
               
               console.log(`[enrich-lead] Perplexity response for ${companyKey}:`, content.substring(0, 200));
               
-              // Try to parse JSON from response
               const jsonMatch = content.match(/\[[\s\S]*?\]/) || content.match(/\{[\s\S]*?\}/);
               if (jsonMatch) {
                 try {
                   let contacts = JSON.parse(jsonMatch[0]);
-                  // Normalize to array
-                  if (!Array.isArray(contacts)) {
-                    contacts = [contacts];
-                  }
+                  if (!Array.isArray(contacts)) contacts = [contacts];
                   
                   for (const contact of contacts) {
-                    // Only add if we got useful data
                     if (contact.email || contact.phone || contact.linkedin_url) {
-                      processedLeads.push({
-                        first_name: contact.first_name || originalLead.first_name,
-                        last_name: contact.last_name || originalLead.last_name,
-                        email: contact.email || undefined,
-                        title: contact.title || originalLead.title,
-                        linkedin_url: contact.linkedin_url || undefined,
-                        phone: sanitizePhone(contact.phone) || undefined,
-                        company: originalLead.company,
-                        domain: originalLead.domain,
-                        _discovered: true,
-                        _source: 'perplexity'
-                      });
-                      stats.contacts_discovered++;
+                      discoveredContacts.push({ ...contact, _source: 'perplexity' });
                       discoverySucceeded = true;
-                      console.log(`[enrich-lead] Perplexity discovered: ${contact.first_name} ${contact.last_name} at ${companyName} - email: ${contact.email}, phone: ${contact.phone}`);
                     }
                   }
-                  
-                  if (discoverySucceeded) {
-                    stats.cost_estimate += 0.005; // ~$0.005 per Perplexity call
-                  }
+                  stats.cost_estimate += 0.005;
+                  if (discoverySucceeded) stats.perplexity_enriched++;
                 } catch (parseErr) {
-                  console.log(`[enrich-lead] Perplexity JSON parse error for ${companyKey}:`, parseErr);
+                  console.log(`[enrich-lead] Perplexity JSON parse error:`, parseErr);
                 }
               }
-            } else {
-              console.log(`[enrich-lead] Perplexity API error:`, perplexityResponse.status, await perplexityResponse.text());
             }
           } catch (e) {
             console.error(`[enrich-lead] Perplexity discovery error for ${companyKey}:`, e);
           }
         }
         
-        // STEP 2: Fall back to Gemini/AI if Perplexity didn't find anything
+        // ===== STEP 2: CLAUDE (Deep reasoning/verification) =====
+        const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
+        if (ANTHROPIC_API_KEY && !discoverySucceeded) {
+          try {
+            console.log(`[enrich-lead] 2/4 Claude discovery for: ${personName || 'executives'} at ${companyName}`);
+            
+            const claudePrompt = personName 
+              ? `Find contact details for ${personName} at ${companyName}. Return JSON: {"first_name":"...","last_name":"...","email":"...","phone":"...","linkedin_url":"...","title":"..."}`
+              : `Find executives at ${companyName}. Return JSON array: [{"first_name":"...","last_name":"...","email":"...","phone":"...","linkedin_url":"...","title":"..."}] Max 3 people.`;
+            
+            const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: {
+                'x-api-key': ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'claude-sonnet-4-20250514',
+                max_tokens: 2048,
+                system: 'You are a business contact researcher. Return ONLY valid JSON with real contact information. Never fabricate data.',
+                messages: [{ role: 'user', content: claudePrompt }]
+              })
+            });
+            
+            if (claudeResponse.ok) {
+              const claudeData = await claudeResponse.json();
+              const content = claudeData.content?.[0]?.text || '';
+              
+              console.log(`[enrich-lead] Claude response for ${companyKey}:`, content.substring(0, 200));
+              
+              const jsonMatch = content.match(/\[[\s\S]*?\]/) || content.match(/\{[\s\S]*?\}/);
+              if (jsonMatch) {
+                try {
+                  let contacts = JSON.parse(jsonMatch[0]);
+                  if (!Array.isArray(contacts)) contacts = [contacts];
+                  
+                  for (const contact of contacts) {
+                    if (contact.email || contact.phone || contact.linkedin_url) {
+                      discoveredContacts.push({ ...contact, _source: 'claude' });
+                      discoverySucceeded = true;
+                    }
+                  }
+                  stats.cost_estimate += 0.003;
+                  if (discoverySucceeded) console.log(`[enrich-lead] Claude found ${discoveredContacts.length} contacts`);
+                } catch (parseErr) {
+                  console.log(`[enrich-lead] Claude JSON parse error:`, parseErr);
+                }
+              }
+            }
+          } catch (e) {
+            console.error(`[enrich-lead] Claude discovery error for ${companyKey}:`, e);
+          }
+        }
+        
+        // ===== STEP 3: GROK (X/Twitter social data) =====
+        const XAI_API_KEY = Deno.env.get('XAI_API_KEY');
+        if (XAI_API_KEY && !discoverySucceeded) {
+          try {
+            console.log(`[enrich-lead] 3/4 Grok discovery for: ${personName || 'executives'} at ${companyName}`);
+            
+            const grokPrompt = personName
+              ? `Search for ${personName} who works at ${companyName}. Find their: email, phone, LinkedIn, Twitter/X handle, job title. Return JSON: {"first_name":"...","last_name":"...","email":"...","phone":"...","linkedin_url":"...","twitter_url":"...","title":"..."}`
+              : `Who runs ${companyName}? Find executives: name, email, phone, LinkedIn, Twitter. Return JSON array: [{"first_name":"...","last_name":"...","email":"...","phone":"...","linkedin_url":"...","twitter_url":"...","title":"..."}]`;
+            
+            const grokResponse = await fetch('https://api.x.ai/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${XAI_API_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'grok-3',
+                messages: [
+                  { role: 'system', content: 'You are a social media researcher. Find real contact info from X/Twitter and public sources. Return ONLY valid JSON.' },
+                  { role: 'user', content: grokPrompt }
+                ],
+                temperature: 0.1
+              })
+            });
+            
+            if (grokResponse.ok) {
+              const grokData = await grokResponse.json();
+              const content = grokData.choices?.[0]?.message?.content || '';
+              
+              console.log(`[enrich-lead] Grok response for ${companyKey}:`, content.substring(0, 200));
+              
+              const jsonMatch = content.match(/\[[\s\S]*?\]/) || content.match(/\{[\s\S]*?\}/);
+              if (jsonMatch) {
+                try {
+                  let contacts = JSON.parse(jsonMatch[0]);
+                  if (!Array.isArray(contacts)) contacts = [contacts];
+                  
+                  for (const contact of contacts) {
+                    if (contact.email || contact.phone || contact.linkedin_url || contact.twitter_url) {
+                      discoveredContacts.push({ ...contact, _source: 'grok' });
+                      discoverySucceeded = true;
+                    }
+                  }
+                  stats.cost_estimate += 0.005;
+                  if (discoverySucceeded) console.log(`[enrich-lead] Grok found ${discoveredContacts.length} contacts`);
+                } catch (parseErr) {
+                  console.log(`[enrich-lead] Grok JSON parse error:`, parseErr);
+                }
+              }
+            }
+          } catch (e) {
+            console.error(`[enrich-lead] Grok discovery error for ${companyKey}:`, e);
+          }
+        }
+        
+        // ===== STEP 4: GEMINI (Fast fallback via callAI) =====
         if (!discoverySucceeded) {
           try {
-            const discoveryPrompt = `Find current executives at ${originalLead.company || companyKey}${originalLead.domain ? ` (website: ${originalLead.domain})` : ''}.
+            console.log(`[enrich-lead] 4/4 Gemini/AI fallback for: ${companyName}`);
+            
+            const discoveryPrompt = `Find current executives at ${companyName}${originalLead.domain ? ` (website: ${originalLead.domain})` : ''}.
 
 Target roles: ${target_titles.join(', ')}
 
@@ -610,18 +699,10 @@ For EACH person found, provide:
 - Work email (try to find real one, or guess pattern: firstname.lastname@${originalLead.domain || 'company.com'})
 - Direct phone number if publicly available
 
-Return ONLY valid JSON array (no other text):
-[{
-  "first_name": "John",
-  "last_name": "Smith",
-  "title": "CEO",
-  "email": "john.smith@company.com",
-  "phone": "+1-555-123-4567",
-  "linkedin_url": "https://linkedin.com/in/johnsmith",
-  "confidence": 85
-}]
+Return ONLY valid JSON array:
+[{"first_name": "John", "last_name": "Smith", "title": "CEO", "email": "john.smith@company.com", "phone": "+1-555-123-4567", "linkedin_url": "https://linkedin.com/in/johnsmith", "confidence": 85}]
 
-Maximum 3 people. Only include people you're confident currently work there. If you can't find anyone, return empty array [].`;
+Maximum 3 people. If you can't find anyone, return empty array [].`;
 
             const discoveryResponse = await callAI('research', [
               { role: 'system', content: 'You are a business researcher specializing in finding executive contacts. Return ONLY valid JSON arrays.' },
@@ -630,42 +711,51 @@ Maximum 3 people. Only include people you're confident currently work there. If 
 
             if (discoveryResponse.ok) {
               const aiData = await discoveryResponse.json();
-              const content = aiData.choices?.[0]?.message?.content || '';
+              // Handle both OpenAI-style and Anthropic-style responses
+              const content = aiData.choices?.[0]?.message?.content || aiData.content?.[0]?.text || '';
               const jsonMatch = content.match(/\[[\s\S]*?\]/);
               
               if (jsonMatch) {
                 try {
-                  const discoveredContacts = JSON.parse(jsonMatch[0]);
-                  console.log(`[enrich-lead] Gemini discovered ${discoveredContacts.length} contacts at ${companyKey}`);
+                  const contacts = JSON.parse(jsonMatch[0]);
+                  console.log(`[enrich-lead] Gemini/AI discovered ${contacts.length} contacts at ${companyKey}`);
                   
-                  for (const contact of discoveredContacts) {
-                    if (contact.confidence < 50) continue;
-                    
-                    // Add discovered contact as a new lead to process
-                    processedLeads.push({
-                      first_name: contact.first_name,
-                      last_name: contact.last_name,
-                      email: contact.email,
-                      title: contact.title,
-                      linkedin_url: contact.linkedin_url,
-                      phone: sanitizePhone(contact.phone) || undefined,
-                      company: originalLead.company,
-                      domain: originalLead.domain,
-                      _discovered: true,
-                      _source: 'gemini'
-                    });
-                    stats.contacts_discovered++;
+                  for (const contact of contacts) {
+                    if (contact.confidence && contact.confidence < 50) continue;
+                    discoveredContacts.push({ ...contact, _source: 'gemini' });
+                  }
+                  if (discoveredContacts.length > 0) {
+                    discoverySucceeded = true;
+                    stats.gemini_enriched++;
                   }
                 } catch (parseErr) {
-                  console.log(`[enrich-lead] Gemini discovery parse error for ${companyKey}:`, parseErr);
+                  console.log(`[enrich-lead] Gemini discovery parse error:`, parseErr);
                 }
               }
             }
             
-            stats.cost_estimate += 0.003; // ~$0.003 per Gemini call
+            stats.cost_estimate += 0.003;
           } catch (e) {
             console.error(`[enrich-lead] Gemini discovery error for ${companyKey}:`, e);
           }
+        }
+        
+        // ===== ADD DISCOVERED CONTACTS TO PROCESSING QUEUE =====
+        for (const contact of discoveredContacts) {
+          processedLeads.push({
+            first_name: contact.first_name || originalLead.first_name,
+            last_name: contact.last_name || originalLead.last_name,
+            email: contact.email || undefined,
+            title: contact.title || originalLead.title,
+            linkedin_url: contact.linkedin_url || undefined,
+            phone: sanitizePhone(contact.phone) || undefined,
+            company: originalLead.company,
+            domain: originalLead.domain,
+            _discovered: true,
+            _source: contact._source
+          });
+          stats.contacts_discovered++;
+          console.log(`[enrich-lead] ${contact._source.toUpperCase()} discovered: ${contact.first_name} ${contact.last_name} at ${companyName}`);
         }
       }
       
