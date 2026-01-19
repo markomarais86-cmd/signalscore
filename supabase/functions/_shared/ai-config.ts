@@ -1,7 +1,7 @@
 // Centralized AI Model Configuration for Multi-Provider Support
-// Supports: Perplexity, OpenAI, Abacus.AI, and Lovable AI Gateway
+// Supports: Perplexity, OpenAI, Abacus.AI, Lovable AI Gateway, Anthropic Claude, xAI Grok
 
-export type AIProvider = 'perplexity' | 'openai' | 'abacus' | 'lovable';
+export type AIProvider = 'perplexity' | 'openai' | 'abacus' | 'lovable' | 'anthropic' | 'xai';
 export type TaskType = 'chat' | 'analysis' | 'enrichment' | 'bulk' | 'reasoning' | 'research';
 
 export interface AIModelConfig {
@@ -19,6 +19,8 @@ export const AI_ENDPOINTS = {
   openai: 'https://api.openai.com/v1/chat/completions',
   abacus: 'https://apps.abacus.ai/api/v0/getStreamingChatResponse',
   lovable: 'https://ai.gateway.lovable.dev/v1/chat/completions',
+  anthropic: 'https://api.anthropic.com/v1/messages',
+  xai: 'https://api.x.ai/v1/chat/completions',
 };
 
 // Model configurations by provider
@@ -55,13 +57,29 @@ export const AI_MODELS = {
     reasoning: 'google/gemini-2.5-pro',
     research: 'google/gemini-2.5-flash', // Fast AI research fallback
   },
+  anthropic: {
+    chat: 'claude-sonnet-4-20250514',
+    analysis: 'claude-sonnet-4-20250514',
+    enrichment: 'claude-sonnet-4-20250514',
+    bulk: 'claude-sonnet-4-20250514',
+    reasoning: 'claude-sonnet-4-20250514',
+    research: 'claude-sonnet-4-20250514', // Deep reasoning for structured extraction
+  },
+  xai: {
+    chat: 'grok-3',
+    analysis: 'grok-3',
+    enrichment: 'grok-3',
+    bulk: 'grok-3',
+    reasoning: 'grok-3',
+    research: 'grok-3', // Real-time X/Twitter social data
+  },
 };
 
 // Check which providers are available based on API keys
 export function getAvailableProviders(): AIProvider[] {
   const providers: AIProvider[] = [];
   
-  // Check all 4 providers
+  // Check all 6 providers
   if (Deno.env.get('PERPLEXITY_API_KEY')) {
     providers.push('perplexity');
   }
@@ -73,6 +91,12 @@ export function getAvailableProviders(): AIProvider[] {
   }
   if (Deno.env.get('LOVABLE_API_KEY')) {
     providers.push('lovable');
+  }
+  if (Deno.env.get('ANTHROPIC_API_KEY')) {
+    providers.push('anthropic');
+  }
+  if (Deno.env.get('XAI_API_KEY')) {
+    providers.push('xai');
   }
   
   return providers;
@@ -140,12 +164,25 @@ export function getApiKey(provider: AIProvider): string {
       return Deno.env.get('ABACUS_API_KEY') || '';
     case 'lovable':
       return Deno.env.get('LOVABLE_API_KEY') || '';
+    case 'anthropic':
+      return Deno.env.get('ANTHROPIC_API_KEY') || '';
+    case 'xai':
+      return Deno.env.get('XAI_API_KEY') || '';
   }
 }
 
 // Build request headers for a provider
 export function buildHeaders(provider: AIProvider): Record<string, string> {
   const apiKey = getApiKey(provider);
+  
+  // Anthropic uses a different header format
+  if (provider === 'anthropic') {
+    return {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    };
+  }
   
   return {
     'Authorization': `Bearer ${apiKey}`,
@@ -168,6 +205,36 @@ export function buildRequestBody(
   } = {}
 ): Record<string, any> {
   const config = getModelConfig('chat', provider);
+  
+  // Anthropic uses a different request format
+  if (provider === 'anthropic') {
+    // Convert OpenAI-style messages to Anthropic format
+    const systemMessage = messages.find(m => m.role === 'system')?.content || '';
+    const nonSystemMessages = messages.filter(m => m.role !== 'system').map(m => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: m.content
+    }));
+    
+    const body: Record<string, any> = {
+      model,
+      max_tokens: options.maxTokens || 4096,
+      messages: nonSystemMessages,
+    };
+    
+    if (systemMessage) {
+      body.system = systemMessage;
+    }
+    
+    if (options.stream !== undefined) {
+      body.stream = options.stream;
+    }
+    
+    if (options.temperature !== undefined) {
+      body.temperature = options.temperature;
+    }
+    
+    return body;
+  }
   
   const body: Record<string, any> = {
     model,
@@ -231,16 +298,19 @@ export async function callAI(
     throw new Error('No AI providers configured');
   }
   
-  // For enrichment, prioritize Perplexity (real-time web search)
+  // For enrichment/research, use AI-first waterfall: Perplexity → Claude → Grok → Gemini
   let orderedProviders: AIProvider[];
-  if (taskType === 'enrichment') {
-    // Perplexity first for enrichment, then others
+  if (taskType === 'enrichment' || taskType === 'research') {
+    // AI-First Waterfall: Prioritize real-time search and reasoning providers
     orderedProviders = [
-      ...providers.filter(p => p === 'perplexity'),
-      ...providers.filter(p => p === 'openai'),
-      ...providers.filter(p => p === 'abacus'),
-      ...providers.filter(p => p === 'lovable'),
+      ...providers.filter(p => p === 'perplexity'),  // Best for real-time web search
+      ...providers.filter(p => p === 'anthropic'),   // Claude for deep reasoning/extraction
+      ...providers.filter(p => p === 'xai'),         // Grok for social/X data
+      ...providers.filter(p => p === 'lovable'),     // Gemini as fast fallback
+      ...providers.filter(p => p === 'openai'),      // GPT as backup
+      ...providers.filter(p => p === 'abacus'),      // Abacus last
     ].filter(p => providers.includes(p));
+    console.log(`[AI Config] Using AI-first waterfall for ${taskType}: ${orderedProviders.join(' → ')}`);
   } else if (options.preferredProvider) {
     orderedProviders = [
       options.preferredProvider,
