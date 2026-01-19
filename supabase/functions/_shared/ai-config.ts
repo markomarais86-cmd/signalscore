@@ -78,6 +78,11 @@ export function getAvailableProviders(): AIProvider[] {
 export function getModelConfig(taskType: TaskType, preferredProvider?: AIProvider): AIModelConfig {
   const available = getAvailableProviders();
   
+  // Handle no providers case early
+  if (available.length === 0) {
+    throw new Error('No AI provider available. Please configure PERPLEXITY_API_KEY, OPENAI_API_KEY, ABACUS_API_KEY, or LOVABLE_API_KEY.');
+  }
+  
   // For enrichment tasks: Perplexity first (real-time web search with citations)
   // Priority: perplexity > openai > abacus > lovable
   let provider: AIProvider;
@@ -96,10 +101,15 @@ export function getModelConfig(taskType: TaskType, preferredProvider?: AIProvide
   } else if (available.includes('lovable')) {
     provider = 'lovable';
   } else {
-    throw new Error('No AI provider available. Please configure PERPLEXITY_API_KEY, OPENAI_API_KEY, ABACUS_API_KEY, or LOVABLE_API_KEY.');
+    // Fallback to first available - shouldn't reach here given earlier check
+    provider = available[0];
   }
   
-  const model = AI_MODELS[provider][taskType];
+  const model = AI_MODELS[provider]?.[taskType];
+  
+  if (!model) {
+    throw new Error(`No model configured for provider ${provider} and task ${taskType}`);
+  }
   
   // Determine API parameter compatibility
   const isNewerOpenAI = provider === 'openai' && 
