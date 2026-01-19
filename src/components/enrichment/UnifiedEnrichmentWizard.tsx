@@ -37,6 +37,13 @@ interface ParsedInput {
   type: "email" | "domain" | "company_name";
   value: string;
   domain?: string;
+  // Preserve all input fields from CSV
+  first_name?: string;
+  last_name?: string;
+  title?: string;
+  phone?: string;
+  linkedin_url?: string;
+  company?: string;
 }
 
 interface EnrichmentResult {
@@ -119,7 +126,7 @@ export function UnifiedEnrichmentWizard() {
     }
   }, [pasteInput]);
 
-  // Handle file upload
+  // Handle file upload - PRESERVE ALL INPUT FIELDS
   const handleFileUpload = async (file: File) => {
     try {
       const text = await file.text();
@@ -130,31 +137,72 @@ export function UnifiedEnrichmentWizard() {
         return;
       }
       
-      // Extract relevant fields
+      // Extract relevant fields - preserve ALL input data
       const parsed: ParsedInput[] = [];
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       
+      // Helper to find column by multiple possible names
+      const findColumn = (row: Record<string, any>, ...names: string[]): string | undefined => {
+        for (const name of names) {
+          const entry = Object.entries(row).find(([k]) => 
+            k.toLowerCase().replace(/[_\s]/g, '') === name.toLowerCase().replace(/[_\s]/g, '')
+          );
+          if (entry && entry[1]) return String(entry[1]);
+        }
+        return undefined;
+      };
+      
       for (const row of rows) {
-        // Try to find email, domain, or company name
+        // Extract ALL possible fields from CSV
         const email = Object.entries(row).find(([k, v]) => 
           k.toLowerCase().includes('email') && typeof v === 'string' && emailRegex.test(v)
         )?.[1] as string;
         
-        const domain = Object.entries(row).find(([k]) => 
-          k.toLowerCase().includes('domain') || k.toLowerCase().includes('website')
-        )?.[1] as string;
+        const domain = findColumn(row, 'domain', 'website', 'company_domain', 'companydomain');
+        const company = findColumn(row, 'company', 'account', 'company_name', 'companyname', 'organization');
         
-        const company = Object.entries(row).find(([k]) => 
-          k.toLowerCase().includes('company') || k.toLowerCase().includes('account') || k.toLowerCase() === 'name'
-        )?.[1] as string;
+        // CRITICAL: Preserve personal contact fields
+        const firstName = findColumn(row, 'first_name', 'firstname', 'first', 'executive_first_name', 'executivefirstname');
+        const lastName = findColumn(row, 'last_name', 'lastname', 'last', 'executive_last_name', 'executivelastname');
+        const title = findColumn(row, 'title', 'job_title', 'jobtitle', 'executive_title', 'executivetitle', 'position', 'role');
+        const phone = findColumn(row, 'phone', 'phone_number', 'phonenumber', 'phone_1', 'phone1', 'direct_phone', 'directphone', 'mobile', 'cell');
+        const linkedinUrl = findColumn(row, 'linkedin', 'linkedin_url', 'linkedinurl', 'executive_linkedin', 'executivelinkedin', 'linkedin_profile');
         
         if (email) {
-          parsed.push({ type: 'email', value: email.toLowerCase(), domain: email.split('@')[1] });
+          parsed.push({ 
+            type: 'email', 
+            value: email.toLowerCase(), 
+            domain: email.split('@')[1],
+            first_name: firstName,
+            last_name: lastName,
+            title,
+            phone,
+            linkedin_url: linkedinUrl,
+            company
+          });
         } else if (domain) {
           const cleanDomain = domain.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0];
-          parsed.push({ type: 'domain', value: cleanDomain });
+          parsed.push({ 
+            type: 'domain', 
+            value: cleanDomain,
+            first_name: firstName,
+            last_name: lastName,
+            title,
+            phone,
+            linkedin_url: linkedinUrl,
+            company
+          });
         } else if (company) {
-          parsed.push({ type: 'company_name', value: company });
+          parsed.push({ 
+            type: 'company_name', 
+            value: company,
+            first_name: firstName,
+            last_name: lastName,
+            title,
+            phone,
+            linkedin_url: linkedinUrl,
+            company
+          });
         }
       }
       
@@ -166,9 +214,13 @@ export function UnifiedEnrichmentWizard() {
         company_name_only: parsed.filter(p => p.type === 'company_name').length
       });
       
+      const fieldsPreserved = parsed.filter(p => p.first_name || p.last_name || p.title || p.phone).length;
+      
       if (parsed.length > 0) {
         setStep("preview");
-        toast.success(`Parsed ${parsed.length} records from CSV`);
+        toast.success(`Parsed ${parsed.length} records from CSV`, {
+          description: fieldsPreserved > 0 ? `${fieldsPreserved} with personal details preserved` : undefined
+        });
       } else {
         toast.error("No valid entries found in CSV");
       }
@@ -199,14 +251,22 @@ export function UnifiedEnrichmentWizard() {
       // Choose function based on enrichment type
       const functionName = enrichmentType === 'accounts' ? 'enrich-internal-first' : 'enrich-lead';
       
+      // Pass ALL input fields to edge function for lead enrichment
+      const leadInputs = enrichmentType === 'leads' ? parsedInputs.map(i => ({
+        email: i.type === 'email' ? i.value : undefined,
+        first_name: i.first_name,
+        last_name: i.last_name,
+        title: i.title,
+        phone: i.phone,
+        linkedin_url: i.linkedin_url,
+        company: i.company || (i.type === 'company_name' ? i.value : undefined),
+        domain: i.type === 'domain' ? i.value : (i.domain || undefined)
+      })) : undefined;
+      
       const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
           inputs: enrichmentType === 'accounts' ? inputs : undefined,
-          leads: enrichmentType === 'leads' ? inputs.map(i => ({
-            email: i.email,
-            company: i.company_name,
-            domain: i.domain
-          })) : undefined,
+          leads: leadInputs,
           org_id: userProfile.org_id,
           source_type: sourceType,
           force_external: !checkInternalFirst,
