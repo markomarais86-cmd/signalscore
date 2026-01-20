@@ -835,6 +835,7 @@ serve(async (req) => {
           rows_completed: 0,
           rows_failed: 0,
           job_type: 'leads',
+          provider: 'internal',
           source_type: 'edge_function',
           source_reference: 'enrich-internal-first',
           last_heartbeat: new Date().toISOString(),
