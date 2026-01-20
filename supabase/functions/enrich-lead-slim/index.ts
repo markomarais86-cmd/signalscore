@@ -1,90 +1,59 @@
-// Slim Lead Enrichment - Lightweight lead/contact enrichment
-// Under 500 lines for reliable deployment
-
+// Slim Lead Enrichment v3 - Lightweight lead enrichment
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
-console.log('[enrich-lead-slim] === LOADED ===');
+console.log('[enrich-lead-slim] === LOADED v3 ===');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface LeadInput {
-  email?: string;
-  first_name?: string;
-  last_name?: string;
-  title?: string;
-  phone?: string;
-  linkedin_url?: string;
-  company?: string;
-  domain?: string;
-}
-
-// Sanitize phone
 const sanitizePhone = (phone: any): string | null => {
-  if (!phone) return null;
-  if (typeof phone === 'boolean' || phone === 'true' || phone === 'false') return null;
+  if (!phone || typeof phone === 'boolean') return null;
   const str = String(phone);
   const digits = str.replace(/\D/g, '');
-  if (digits.length < 7 || digits.includes('555')) return null;
+  if (digits.length < 7) return null;
   return str.trim();
 };
 
-// Extract domain from email
 const extractDomain = (email: string): string => {
   const match = email?.match(/@([^@]+)$/);
   return match ? match[1].toLowerCase() : '';
 };
 
-// Extract name from email
 const extractNameFromEmail = (email: string): { firstName?: string; lastName?: string } => {
   if (!email) return {};
   const localPart = email.split('@')[0].toLowerCase();
-  const genericPrefixes = ['info', 'admin', 'contact', 'support', 'sales', 'hello', 'team'];
-  if (genericPrefixes.some(p => localPart.startsWith(p))) return {};
+  if (['info', 'admin', 'contact', 'support', 'sales', 'hello'].includes(localPart.split('.')[0])) return {};
   
-  if (localPart.includes('.') || localPart.includes('_')) {
-    const sep = localPart.includes('.') ? '.' : '_';
-    const parts = localPart.split(sep);
-    if (parts.length >= 2) {
-      const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-      return { firstName: cap(parts[0]), lastName: cap(parts[parts.length - 1]) };
-    }
+  if (localPart.includes('.')) {
+    const parts = localPart.split('.');
+    const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+    return { firstName: cap(parts[0]), lastName: cap(parts[1]) };
   }
   return {};
 };
 
-// Classify title to Level and Persona
 const classifyTitle = (title: string): { level: string; persona: string } => {
   const t = (title || '').toLowerCase();
-  if (/\b(ceo|chief executive|president|owner|founder|managing partner)\b/.test(t)) 
+  if (/\b(ceo|cfo|cto|coo|cmo|chief|president|founder)\b/.test(t)) 
     return { level: 'C-Level', persona: 'Executive' };
-  if (/\b(cfo|cto|coo|cmo|cio|ciso|chief)\b/.test(t)) 
-    return { level: 'C-Level', persona: 'Executive' };
-  if (/\b(evp|svp|vp|vice president)\b/.test(t)) 
+  if (/\b(vp|vice president)\b/.test(t)) 
     return { level: 'VP', persona: 'Senior Leadership' };
   if (/\b(director|head of)\b/.test(t)) 
     return { level: 'Director', persona: 'Decision Maker' };
-  if (/\b(manager|supervisor|team lead|lead)\b/.test(t)) 
+  if (/\b(manager)\b/.test(t)) 
     return { level: 'Manager', persona: 'Influencer' };
-  if (/\b(senior|sr\.|principal|staff)\b/.test(t)) 
-    return { level: 'Senior', persona: 'Individual Contributor' };
   return { level: 'Individual Contributor', persona: 'End User' };
 };
 
 serve(async (req) => {
-  console.log('[enrich-lead-slim] Request:', req.method);
-
-  // Health check
   const url = new URL(req.url);
   if (url.searchParams.get('health') === 'true') {
-    return new Response(JSON.stringify({ 
-      status: 'healthy', 
-      timestamp: new Date().toISOString(),
-      function: 'enrich-lead-slim'
-    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ status: 'healthy', version: 'v3' }), { 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    });
   }
 
   if (req.method === 'OPTIONS') {
@@ -92,32 +61,31 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
     
     const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
     const HUNTER_API_KEY = Deno.env.get('HUNTER_API_KEY');
+    const FIRECRAWL_API_KEY = Deno.env.get('FIRECRAWL_API_KEY');
 
     const { leads, org_id, save_to_db = true } = await req.json();
     
-    if (!leads || !Array.isArray(leads)) {
-      throw new Error('leads array is required');
-    }
-    if (!org_id) {
-      throw new Error('org_id is required');
+    if (!leads?.length || !org_id) {
+      throw new Error('leads array and org_id required');
     }
 
-    console.log(`[enrich-lead-slim] Processing ${leads.length} leads for org ${org_id}`);
+    console.log(`[enrich-lead-slim] Processing ${leads.length} leads`);
     
     const results: any[] = [];
+    let totalCost = 0;
     
-    for (const lead of leads as LeadInput[]) {
+    for (const lead of leads) {
       const email = lead.email?.toLowerCase().trim();
       const domain = lead.domain || extractDomain(email || '');
       
-      // Start with input data
-      let enrichedData: any = {
+      let data: any = {
         email,
         first_name: lead.first_name,
         last_name: lead.last_name,
@@ -128,53 +96,91 @@ serve(async (req) => {
         domain,
       };
 
-      // Extract name from email if not provided
-      if (!enrichedData.first_name && email) {
+      // Extract name from email
+      if (!data.first_name && email) {
         const extracted = extractNameFromEmail(email);
-        enrichedData.first_name = extracted.firstName;
-        enrichedData.last_name = enrichedData.last_name || extracted.lastName;
+        data.first_name = extracted.firstName;
+        data.last_name = data.last_name || extracted.lastName;
       }
 
       // Classify title
-      if (enrichedData.title) {
-        const { level, persona } = classifyTitle(enrichedData.title);
-        enrichedData.level = level;
-        enrichedData.persona = persona;
+      if (data.title) {
+        const { level, persona } = classifyTitle(data.title);
+        data.level = level;
+        data.persona = persona;
       }
 
-      // Try to find matching account for firmographics
+      // Find matching account
       let matchedAccount: any = null;
       if (domain) {
         const { data: accounts } = await supabase
           .from('accounts')
           .select('*')
           .eq('org_id', org_id)
-          .or(`domain.ilike.%${domain}%,domain_normalized.ilike.%${domain}%`)
+          .ilike('domain', `%${domain}%`)
           .limit(1);
         
-        if (accounts?.[0]) {
-          matchedAccount = accounts[0];
-          console.log(`[enrich-lead-slim] Found account match: ${matchedAccount.name}`);
+        matchedAccount = accounts?.[0];
+      }
+
+      // Create account from Firecrawl if none exists
+      if (!matchedAccount && domain && FIRECRAWL_API_KEY) {
+        try {
+          const scrapeResp = await fetch('https://api.firecrawl.dev/v1/scrape', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ url: `https://${domain}`, formats: ['markdown'], onlyMainContent: true }),
+          });
           
-          // Add firmographics from account
-          enrichedData.company = enrichedData.company || matchedAccount.name;
-          enrichedData.industry = matchedAccount.industry_norm;
-          enrichedData.employee_count = matchedAccount.employee_count;
-          enrichedData.revenue_range = matchedAccount.revenue_range;
-          enrichedData.hq_city = matchedAccount.hq_city || matchedAccount.city;
-          enrichedData.hq_state = matchedAccount.hq_state || matchedAccount.state_province;
-          enrichedData.country = matchedAccount.country;
-          enrichedData.linkedin_company = matchedAccount.linkedin_url;
+          if (scrapeResp.ok) {
+            totalCost += 0.02;
+            const scraped = await scrapeResp.json();
+            const markdown = scraped.data?.markdown || '';
+            
+            // Extract company name from markdown
+            const titleMatch = markdown.match(/^#\s+(.+)/m);
+            const companyName = titleMatch?.[1] || domain.split('.')[0];
+            
+            // Create stub account
+            const { data: newAccount } = await supabase
+              .from('accounts')
+              .insert({
+                org_id,
+                external_id: `auto_${domain.replace(/\./g, '_')}_${Date.now()}`,
+                name: companyName,
+                domain,
+                data_source: 'firecrawl_auto',
+                enriched_at: new Date().toISOString(),
+              })
+              .select()
+              .single();
+            
+            matchedAccount = newAccount;
+          }
+        } catch (e) {
+          console.error('[Firecrawl] Error:', e);
         }
       }
 
-      // AI enrichment for missing contact data
-      if (PERPLEXITY_API_KEY && email && (!enrichedData.title || !enrichedData.mobile)) {
+      // Add firmographics from account
+      if (matchedAccount) {
+        data.company = data.company || matchedAccount.name;
+        data.industry = matchedAccount.industry_norm;
+        data.employee_count = matchedAccount.employee_count;
+        data.revenue_range = matchedAccount.revenue_range;
+        data.hq_city = matchedAccount.hq_city || matchedAccount.city;
+        data.hq_state = matchedAccount.hq_state || matchedAccount.state_province;
+        data.country = matchedAccount.country;
+      }
+
+      // AI enrichment for missing data
+      if (PERPLEXITY_API_KEY && email && (!data.title || !data.mobile)) {
         try {
-          console.log(`[enrich-lead-slim] AI enrichment for ${email}`);
-          const personName = [enrichedData.first_name, enrichedData.last_name].filter(Boolean).join(' ');
-          
-          const aiResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+          const personName = [data.first_name, data.last_name].filter(Boolean).join(' ');
+          const aiResp = await fetch('https://api.perplexity.ai/chat/completions', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
@@ -184,117 +190,86 @@ serve(async (req) => {
               model: 'sonar-pro',
               messages: [{
                 role: 'user',
-                content: `Find contact information for: ${personName || email} at ${enrichedData.company || domain}.
-                
-Return ONLY valid JSON (no markdown):
-{
-  "title": "job title if found",
-  "phone": "direct phone number if found", 
-  "linkedin_url": "LinkedIn profile URL if found"
-}
-
-Return null for any field not found with high confidence. Phone must be real business number.`
+                content: `Find for ${personName || email} at ${data.company || domain}. Return JSON only: {"title":"","phone":"","linkedin_url":""}`
               }],
-              max_tokens: 200,
+              max_tokens: 150,
             }),
           });
 
-          if (aiResponse.ok) {
-            const aiData = await aiResponse.json();
+          if (aiResp.ok) {
+            totalCost += 0.01;
+            const aiData = await aiResp.json();
             const content = aiData.choices?.[0]?.message?.content || '';
-            
-            // Parse JSON from response
             const jsonMatch = content.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               const parsed = JSON.parse(jsonMatch[0]);
-              if (parsed.title && !enrichedData.title) {
-                enrichedData.title = parsed.title;
+              if (parsed.title && !data.title) {
+                data.title = parsed.title;
                 const { level, persona } = classifyTitle(parsed.title);
-                enrichedData.level = level;
-                enrichedData.persona = persona;
+                data.level = level;
+                data.persona = persona;
               }
-              if (parsed.phone && !enrichedData.mobile) {
-                enrichedData.mobile = sanitizePhone(parsed.phone);
-              }
-              if (parsed.linkedin_url && !enrichedData.linkedin_url) {
-                enrichedData.linkedin_url = parsed.linkedin_url;
-              }
-              console.log(`[enrich-lead-slim] AI found: title=${parsed.title}, phone=${parsed.phone ? 'yes' : 'no'}`);
+              if (parsed.phone && !data.mobile) data.mobile = sanitizePhone(parsed.phone);
+              if (parsed.linkedin_url && !data.linkedin_url) data.linkedin_url = parsed.linkedin_url;
             }
-          }
-        } catch (aiError) {
-          console.error('[enrich-lead-slim] AI error:', aiError);
-        }
-      }
-
-      // Email verification with Hunter
-      if (HUNTER_API_KEY && email) {
-        try {
-          const hunterUrl = `https://api.hunter.io/v2/email-verifier?email=${encodeURIComponent(email)}&api_key=${HUNTER_API_KEY}`;
-          const hunterResp = await fetch(hunterUrl);
-          if (hunterResp.ok) {
-            const hunterData = await hunterResp.json();
-            enrichedData.email_status = hunterData.data?.status || 'unknown';
-            enrichedData.email_verified = hunterData.data?.status === 'valid';
           }
         } catch (e) {
-          console.error('[enrich-lead-slim] Hunter error:', e);
+          console.error('[Perplexity] Error:', e);
         }
       }
 
-      // Save to database if requested
-      if (save_to_db) {
+      // Email verification
+      if (HUNTER_API_KEY && email) {
         try {
-          const leadRecord: any = {
-            org_id,
-            email: enrichedData.email,
-            first_name: enrichedData.first_name,
-            last_name: enrichedData.last_name,
-            title: enrichedData.title,
-            level: enrichedData.level,
-            persona: enrichedData.persona,
-            mobile: enrichedData.mobile,
-            linkedin_url: enrichedData.linkedin_url,
-            company: enrichedData.company,
-            industry: enrichedData.industry,
-            employee_count: enrichedData.employee_count,
-            revenue_range: enrichedData.revenue_range,
-            hq_city: enrichedData.hq_city,
-            hq_state: enrichedData.hq_state,
-            country: enrichedData.country,
-            domain: enrichedData.domain,
-            data_source: 'enrichment_wizard',
-            enrichment_status: 'enriched',
-            enriched_at: new Date().toISOString(),
-          };
-
-          // Link to account if found
-          if (matchedAccount) {
-            leadRecord.account_external_id = matchedAccount.external_id;
+          const hunterResp = await fetch(`https://api.hunter.io/v2/email-verifier?email=${encodeURIComponent(email)}&api_key=${HUNTER_API_KEY}`);
+          if (hunterResp.ok) {
+            totalCost += 0.003;
+            const hunterData = await hunterResp.json();
+            data.email_status = hunterData.data?.status || 'unknown';
           }
-
-          // Upsert by email
-          if (email) {
-            const { data: savedLead, error: saveError } = await supabase
-              .from('Leads')
-              .upsert(leadRecord, { onConflict: 'email,org_id' })
-              .select()
-              .single();
-            
-            if (saveError) {
-              console.error('[enrich-lead-slim] Save error:', saveError);
-            } else {
-              console.log('[enrich-lead-slim] Saved lead:', savedLead?.id);
-            }
-          }
-        } catch (saveError) {
-          console.error('[enrich-lead-slim] DB save error:', saveError);
+        } catch (e) {
+          console.error('[Hunter] Error:', e);
         }
+      }
+
+      // Save to database
+      if (save_to_db && email) {
+        const record = {
+          org_id,
+          email: data.email,
+          first_name: data.first_name,
+          last_name: data.last_name,
+          title: data.title,
+          level: data.level,
+          persona: data.persona,
+          mobile: data.mobile,
+          linkedin_url: data.linkedin_url,
+          company: data.company,
+          industry: data.industry,
+          employee_count: data.employee_count,
+          revenue_range: data.revenue_range,
+          hq_city: data.hq_city,
+          hq_state: data.hq_state,
+          country: data.country,
+          domain: data.domain,
+          data_source: 'enrichment_wizard',
+          enrichment_status: 'enriched',
+          enriched_at: new Date().toISOString(),
+          account_external_id: matchedAccount?.external_id,
+        };
+
+        const { data: saved } = await supabase
+          .from('Leads')
+          .upsert(record, { onConflict: 'email,org_id' })
+          .select()
+          .single();
+        
+        if (saved) data.id = saved.id;
       }
 
       results.push({
         input: lead,
-        enriched_data: enrichedData,
+        enriched_data: data,
         account_matched: !!matchedAccount,
         account_name: matchedAccount?.name,
       });
@@ -308,24 +283,23 @@ Return null for any field not found with high confidence. Phone must be real bus
       with_firmographics: results.filter(r => r.account_matched).length,
     };
 
-    console.log('[enrich-lead-slim] Complete:', stats);
+    console.log('[enrich-lead-slim] Done:', stats);
 
     return new Response(JSON.stringify({
       success: true,
       results,
       stats,
-    }), { 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-    });
+      cost_summary: {
+        total_cost: totalCost,
+        per_lead: leads.length > 0 ? totalCost / leads.length : 0,
+      }
+    }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
   } catch (error: any) {
     console.error('[enrich-lead-slim] Error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message || 'Unknown error',
-    }), { 
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-    });
+      error: error.message,
+    }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 });

@@ -251,7 +251,7 @@ export function UnifiedEnrichmentWizard() {
       
       setProgress(20);
       
-      // Use enrich-internal-first for both - it handles emails and accounts
+      // Use enrich-internal-first for both - it handles accounts and can be extended for leads
       const functionName = 'enrich-internal-first';
       
       // Pass ALL input fields to edge function for lead enrichment
