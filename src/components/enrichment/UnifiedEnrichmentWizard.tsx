@@ -386,8 +386,9 @@ export function UnifiedEnrichmentWizard() {
     if (results.length === 0) return;
     
     if (enrichmentType === 'leads') {
-      // Full 85-field headers matching ExportLeadsButton.tsx
+      // Full 86-field headers with DATA QUALITY column for visibility
       const headers = [
+        "Data Quality", // NEW: Shows what's missing or Complete
         "External ID", "Contact External ID", "Account External ID", "Name",
         "First Name", "Last Name", "Title", "Title Raw", "Level", "Persona",
         "Email", "Email Status", "Email Verified", "Email Verified At", "Email Verification Status",
@@ -411,6 +412,19 @@ export function UnifiedEnrichmentWizard() {
         "Still At Company", "Title As Of", "Last Exported At", "Deep Research Completed At",
         "Created At", "Updated At", "Fields Filled"
       ];
+      
+      // Helper to calculate data quality
+      const getDataQuality = (d: any): string => {
+        const missing: string[] = [];
+        if (!d.employee_count) missing.push('Employee Count');
+        if (!d.industry && !d.industry_norm && !d.industry_raw) missing.push('Industry');
+        if (!d.revenue_range) missing.push('Revenue');
+        if (!d.phone && !d.mobile && !d.direct_phone) missing.push('Phone');
+        if (!d.title && !d.level) missing.push('Title');
+        
+        if (missing.length === 0) return 'Complete';
+        return `Missing: ${missing.join(', ')}`;
+      };
 
       const rows = results.map(r => {
         const d = r.enriched_data;
@@ -428,6 +442,7 @@ export function UnifiedEnrichmentWizard() {
         const company = d.company || input.company || input.company_name || '';
         
         return [
+          escapeCsv(getDataQuality(d)), // NEW: Data Quality column first
           escapeCsv(d.external_id || input.external_id || ''),
           escapeCsv(d.contact_external_id || ''),
           escapeCsv(d.account_external_id || d.matched_account_id || ''),
@@ -525,7 +540,7 @@ export function UnifiedEnrichmentWizard() {
       a.click();
       URL.revokeObjectURL(url);
       
-      toast.success(`Exported ${results.length} leads with 85 fields to CSV`);
+      toast.success(`Exported ${results.length} leads with 86 fields including Data Quality indicator`);
     } else {
       // Account export - 17 fields
       const headers = [
