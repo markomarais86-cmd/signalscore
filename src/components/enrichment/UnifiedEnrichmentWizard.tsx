@@ -269,10 +269,13 @@ export function UnifiedEnrichmentWizard() {
       // Use async mode for large lead batches (10+ leads)
       const isLargeBatch = enrichmentType === 'leads' && parsedInputs.length >= 10;
       
+      // Always send inputs array - use leadInputs for leads, regular inputs for accounts
+      const enrichmentInputs = enrichmentType === 'leads' ? leadInputs : inputs;
+      
       const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
-          inputs: enrichmentType === 'accounts' ? inputs : undefined,
-          leads: leadInputs,
+          inputs: enrichmentInputs,
+          enrichment_type: enrichmentType,
           org_id: userProfile.org_id,
           source_type: sourceType,
           force_external: !checkInternalFirst,
