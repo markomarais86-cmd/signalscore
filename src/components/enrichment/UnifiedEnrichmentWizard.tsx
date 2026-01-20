@@ -429,15 +429,23 @@ export function UnifiedEnrichmentWizard() {
         return `Missing: ${missing.join(', ')}`;
       };
 
-      const rows = results.map(r => {
+      // DEBUG: Log immediately before mapping
+      console.log('[CSV Export] Starting export, total results:', results.length);
+      if (results.length > 0) {
+        console.log('[CSV Export] First result keys:', Object.keys(results[0]));
+        console.log('[CSV Export] First enriched_data:', JSON.stringify(results[0].enriched_data, null, 2));
+      }
+      
+      const rows = results.map((r, idx) => {
         const d = r.enriched_data || {};
         const input = r.input || {};
         
-        // DEBUG: Log exactly what we're getting
-        console.log('[Export Debug] Full result object:', JSON.stringify(r, null, 2));
-        console.log('[Export Debug] enriched_data:', d);
-        console.log('[Export Debug] industry_norm:', d.industry_norm, 'industry:', d.industry);
-        console.log('[Export Debug] company_name:', d.company_name, 'company:', d.company);
+        // DEBUG: Log each row's key data fields
+        if (idx === 0) {
+          console.log('[CSV Export] Row 0 - company_name:', d.company_name, '| company:', d.company);
+          console.log('[CSV Export] Row 0 - industry_norm:', d.industry_norm, '| industry:', d.industry);
+          console.log('[CSV Export] Row 0 - All d keys:', Object.keys(d));
+        }
         
         // Format all discovered phones as semicolon-separated list
         const allPhones = (d.phones || [])
