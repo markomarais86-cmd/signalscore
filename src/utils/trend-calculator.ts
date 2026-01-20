@@ -20,6 +20,24 @@ export interface WeeklyTrendData extends TrendData {
 }
 
 export async function calculateTrends(orgId: string, currentMetrics: any, period: '7d' | '30d' = '30d'): Promise<TrendData> {
+  // Early return if no metrics provided
+  if (!currentMetrics) {
+    return {
+      scoringProgress: 0,
+      completeness: 0,
+      highFitAccounts: 0,
+      campaignReady: 0,
+      mediumFitAccounts: 0,
+      lowFitAccounts: 0,
+      highFitPercentage: 0,
+      mediumFitPercentage: 0,
+      lowFitPercentage: 0,
+      totalAccountsGrowth: 0,
+      totalLeadsGrowth: 0,
+      highFitAccountsGrowth: 0,
+    };
+  }
+
   try {
     const daysAgo = period === '7d' ? 7 : 30;
     const historicalDate = new Date();
