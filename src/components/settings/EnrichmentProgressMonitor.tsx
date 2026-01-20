@@ -78,6 +78,7 @@ export function EnrichmentProgressMonitor({ jobId, onClose, onComplete }: Enrich
         return <CheckCircle2 className="h-4 w-4 text-green-500" />;
       case 'failed':
         return <XCircle className="h-4 w-4 text-destructive" />;
+      case 'processing':
       case 'running':
         return <Loader2 className="h-4 w-4 animate-spin text-primary" />;
       case 'paused':
@@ -93,6 +94,7 @@ export function EnrichmentProgressMonitor({ jobId, onClose, onComplete }: Enrich
         return 'default' as const;
       case 'failed':
         return 'destructive' as const;
+      case 'processing':
       case 'running':
         return 'secondary' as const;
       case 'paused':
@@ -179,7 +181,7 @@ export function EnrichmentProgressMonitor({ jobId, onClose, onComplete }: Enrich
         )}
 
         {/* Action Buttons */}
-        {progress.can_pause && progress.status === 'running' && (
+        {progress.can_pause && (progress.status === 'running' || progress.status === 'processing') && (
           <Button
             onClick={handlePause}
             disabled={isPausing}
