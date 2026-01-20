@@ -1,5 +1,17 @@
 project_id = "dhyfbaptcprxxixgnpby"
 
+[functions.enrich-lead-orchestrator]
+verify_jwt = false
+
+[functions.enrich-person]
+verify_jwt = false
+
+[functions.enrich-contact-info]
+verify_jwt = false
+
+[functions.enrich-firmographics]
+verify_jwt = false
+
 [functions.enrich-lead-test]
 verify_jwt = false
 
@@ -337,7 +349,7 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.enrich-lead]
-verify_jwt = true
+verify_jwt = false
 
 [functions.enrich-verified]
 verify_jwt = true
