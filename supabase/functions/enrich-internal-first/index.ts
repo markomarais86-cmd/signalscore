@@ -433,6 +433,8 @@ async function processLeadsInBackground(
         processed_records: processed,
         rows_completed: completed,
         rows_failed: failed,
+        enriched_records: completed,
+        failed_records: failed,
         last_progress_update: new Date().toISOString()
       }).eq('id', jobId);
     } catch (e) {
@@ -514,6 +516,8 @@ async function processLeadsInBackground(
         processed_records: processed,
         rows_completed: completed,
         rows_failed: failed,
+        enriched_records: completed,
+        failed_records: failed,
         last_heartbeat: new Date().toISOString(),
         last_progress_update: new Date().toISOString()
       }).eq('id', jobId);
@@ -526,6 +530,8 @@ async function processLeadsInBackground(
       processed_records: processed,
       rows_completed: completed,
       rows_failed: failed,
+      enriched_records: completed,
+      failed_records: failed,
       total_records: inputs.length
     }).eq('id', jobId);
     
@@ -538,7 +544,9 @@ async function processLeadsInBackground(
       error_message: (error as Error).message,
       processed_records: processed,
       rows_completed: completed,
-      rows_failed: failed
+      rows_failed: failed,
+      enriched_records: completed,
+      failed_records: failed
     }).eq('id', jobId);
   } finally {
     clearInterval(heartbeatInterval);

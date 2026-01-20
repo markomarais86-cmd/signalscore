@@ -957,9 +957,9 @@ export function UnifiedEnrichmentWizard() {
                 if (job.status === 'completed') {
                   setStep("results");
                   setStats({
-                    total: job.total_records,
-                    enriched: job.enriched_records,
-                    failed: job.failed_records
+                    total: job.total_records || 0,
+                    enriched: job.enriched_records || job.rows_completed || 0,
+                    failed: job.failed_records || job.rows_failed || 0
                   });
                 } else {
                   setStep("preview");
@@ -984,7 +984,7 @@ export function UnifiedEnrichmentWizard() {
             <Alert className="bg-green-500/10 border-green-500/20">
               <CheckCircle2 className="h-4 w-4 text-green-600" />
               <AlertDescription className="text-green-700">
-                Enrichment complete! {results.filter(r => r.fields_filled.length > 0).length} of {results.length} records enriched.
+                Enrichment complete! {stats.enriched || results.filter(r => r.fields_filled.length > 0).length} of {stats.total || results.length} records enriched.
               </AlertDescription>
             </Alert>
             
