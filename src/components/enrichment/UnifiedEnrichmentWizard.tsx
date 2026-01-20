@@ -430,8 +430,14 @@ export function UnifiedEnrichmentWizard() {
       };
 
       const rows = results.map(r => {
-        const d = r.enriched_data;
+        const d = r.enriched_data || {};
         const input = r.input || {};
+        
+        // DEBUG: Log exactly what we're getting
+        console.log('[Export Debug] Full result object:', JSON.stringify(r, null, 2));
+        console.log('[Export Debug] enriched_data:', d);
+        console.log('[Export Debug] industry_norm:', d.industry_norm, 'industry:', d.industry);
+        console.log('[Export Debug] company_name:', d.company_name, 'company:', d.company);
         
         // Format all discovered phones as semicolon-separated list
         const allPhones = (d.phones || [])
