@@ -369,10 +369,42 @@ const discoverDomainForCompany = async (companyName: string, supabase: any, orgI
 
 // Threshold for async processing
 const ASYNC_THRESHOLD = 10;
-const CHUNK_SIZE = 5;
+const CHUNK_SIZE = 20; // Increased from 5 for better throughput
+const CONCURRENCY_LIMIT = 10; // Max parallel API calls per chunk
 const HEARTBEAT_INTERVAL_MS = 15000;
 
-// Background processing function for large batches
+// Simple concurrency limiter (p-limit pattern)
+function createLimiter(concurrency: number) {
+  let running = 0;
+  const queue: (() => void)[] = [];
+  
+  const next = () => {
+    if (queue.length > 0 && running < concurrency) {
+      running++;
+      const fn = queue.shift()!;
+      fn();
+    }
+  };
+  
+  return async <T>(fn: () => Promise<T>): Promise<T> => {
+    return new Promise((resolve, reject) => {
+      queue.push(async () => {
+        try {
+          const result = await fn();
+          resolve(result);
+        } catch (e) {
+          reject(e);
+        } finally {
+          running--;
+          next();
+        }
+      });
+      next();
+    });
+  };
+}
+
+// Background processing function for large batches - PARALLELIZED
 async function processLeadsInBackground(
   jobId: string,
   inputs: EnrichmentInput[],
@@ -383,12 +415,15 @@ async function processLeadsInBackground(
   saveToDb: boolean,
   sourceType: string
 ): Promise<void> {
-  console.log(`[enrich-internal-first] Background processing started for job ${jobId} with ${inputs.length} inputs`);
+  console.log(`[enrich-internal-first] Background processing started for job ${jobId} with ${inputs.length} inputs (parallel mode)`);
   
   let processed = 0;
   let completed = 0;
   let failed = 0;
   const results: EnrichmentResult[] = [];
+  
+  // Domain cache to avoid redundant API calls for same company
+  const domainCache = new Map<string, any>();
   
   // Set up heartbeat interval
   const heartbeatInterval = setInterval(async () => {
@@ -405,37 +440,74 @@ async function processLeadsInBackground(
     }
   }, HEARTBEAT_INTERVAL_MS);
   
+  // Create concurrency limiter
+  const limit = createLimiter(CONCURRENCY_LIMIT);
+  
   try {
     // Process in chunks
     for (let i = 0; i < inputs.length; i += CHUNK_SIZE) {
       const chunk = inputs.slice(i, i + CHUNK_SIZE);
+      const chunkStartTime = Date.now();
       
-      // Process each input in the chunk
-      for (const input of chunk) {
-        try {
-          const result = await processSingleInput(input, supabase, orgId, forceExternal, skipAi);
-          results.push(result);
-          
-          // Save to database if requested
-          if (saveToDb && result.enriched_data) {
-            await saveEnrichmentResult(result, supabase, orgId, sourceType);
+      // Process entire chunk in parallel using Promise.allSettled
+      const chunkPromises = chunk.map((input) => 
+        limit(async () => {
+          try {
+            const result = await processSingleInputWithCache(
+              input, supabase, orgId, forceExternal, skipAi, domainCache
+            );
+            
+            // Save to database if requested
+            if (saveToDb && result.enriched_data) {
+              await saveEnrichmentResult(result, supabase, orgId, sourceType);
+            }
+            
+            return { success: true, result };
+          } catch (e) {
+            console.error(`[enrich-internal-first] Error processing input:`, e);
+            return {
+              success: false,
+              result: {
+                input,
+                enriched_data: { error: (e as Error).message },
+                source: 'internal' as const,
+                confidence: 0,
+                fields_filled: [],
+                api_calls_saved: false
+              }
+            };
           }
-          
-          completed++;
-        } catch (e) {
-          console.error(`[enrich-internal-first] Error processing input:`, e);
+        })
+      );
+      
+      const chunkResults = await Promise.allSettled(chunkPromises);
+      
+      // Process chunk results
+      for (const settledResult of chunkResults) {
+        processed++;
+        if (settledResult.status === 'fulfilled') {
+          const { success, result } = settledResult.value;
+          results.push(result);
+          if (success) {
+            completed++;
+          } else {
+            failed++;
+          }
+        } else {
           failed++;
           results.push({
-            input,
-            enriched_data: { error: (e as Error).message },
+            input: chunk[chunkResults.indexOf(settledResult)],
+            enriched_data: { error: settledResult.reason?.message || 'Unknown error' },
             source: 'internal',
             confidence: 0,
             fields_filled: [],
             api_calls_saved: false
           });
         }
-        processed++;
       }
+      
+      const chunkTime = ((Date.now() - chunkStartTime) / 1000).toFixed(1);
+      console.log(`[enrich-internal-first] Job ${jobId}: processed ${processed}/${inputs.length} (chunk took ${chunkTime}s, cache size: ${domainCache.size})`);
       
       // Update progress after each chunk
       await supabase.from('enrichment_jobs').update({
@@ -445,8 +517,6 @@ async function processLeadsInBackground(
         last_heartbeat: new Date().toISOString(),
         last_progress_update: new Date().toISOString()
       }).eq('id', jobId);
-      
-      console.log(`[enrich-internal-first] Job ${jobId}: processed ${processed}/${inputs.length}`);
     }
     
     // Mark job as completed
@@ -459,7 +529,7 @@ async function processLeadsInBackground(
       total_records: inputs.length
     }).eq('id', jobId);
     
-    console.log(`[enrich-internal-first] Job ${jobId} completed: ${completed} success, ${failed} failed`);
+    console.log(`[enrich-internal-first] Job ${jobId} completed: ${completed} success, ${failed} failed (domain cache hits: ${domainCache.size} domains)`);
     
   } catch (error) {
     console.error(`[enrich-internal-first] Job ${jobId} failed:`, error);
@@ -473,6 +543,68 @@ async function processLeadsInBackground(
   } finally {
     clearInterval(heartbeatInterval);
   }
+}
+
+// Wrapper for processSingleInput with domain caching
+async function processSingleInputWithCache(
+  input: EnrichmentInput,
+  supabase: any,
+  orgId: string,
+  forceExternal: boolean,
+  skipAi: boolean,
+  domainCache: Map<string, any>
+): Promise<EnrichmentResult> {
+  const domain = input.domain || extractDomain(input.email || '');
+  
+  // Check cache for company data
+  if (domain && domainCache.has(domain)) {
+    const cachedCompanyData = domainCache.get(domain);
+    console.log(`[enrich-internal-first] Cache hit for domain: ${domain}`);
+    
+    // Start with cached company data, then enrich person-specific fields
+    const result = await processSingleInput(input, supabase, orgId, forceExternal, skipAi);
+    
+    // Merge cached company data
+    if (cachedCompanyData) {
+      result.enriched_data = {
+        ...cachedCompanyData,
+        ...result.enriched_data,
+        // Preserve person-specific fields from result
+        email: result.enriched_data.email,
+        first_name: result.enriched_data.first_name,
+        last_name: result.enriched_data.last_name,
+        title: result.enriched_data.title,
+        phone: result.enriched_data.phone,
+        mobile: result.enriched_data.mobile,
+        level: result.enriched_data.level,
+        persona: result.enriched_data.persona,
+        linkedin_url: result.enriched_data.linkedin_url
+      };
+    }
+    
+    return result;
+  }
+  
+  // Process normally
+  const result = await processSingleInput(input, supabase, orgId, forceExternal, skipAi);
+  
+  // Cache company data for this domain
+  if (domain && result.enriched_data) {
+    const companyData = {
+      company_name: result.enriched_data.company_name,
+      employee_count: result.enriched_data.employee_count,
+      revenue_range: result.enriched_data.revenue_range,
+      industry_norm: result.enriched_data.industry_norm,
+      sub_industry: result.enriched_data.sub_industry,
+      country: result.enriched_data.country,
+      hq_city: result.enriched_data.hq_city,
+      hq_state: result.enriched_data.hq_state,
+      company_main_phone: result.enriched_data.company_main_phone
+    };
+    domainCache.set(domain, companyData);
+  }
+  
+  return result;
 }
 
 // Save enrichment result to database
