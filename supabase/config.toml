@@ -1,5 +1,8 @@
 project_id = "dhyfbaptcprxxixgnpby"
 
+[functions.enrich-lead-slim]
+verify_jwt = false
+
 [functions.enrich-lead-orchestrator]
 verify_jwt = false
 

@@ -251,8 +251,8 @@ export function UnifiedEnrichmentWizard() {
       
       setProgress(20);
       
-      // Choose function based on enrichment type - use new orchestrator for leads
-      const functionName = enrichmentType === 'accounts' ? 'enrich-internal-first' : 'enrich-lead-orchestrator';
+      // Use enrich-internal-first for both - it handles emails and accounts
+      const functionName = 'enrich-internal-first';
       
       // Pass ALL input fields to edge function for lead enrichment
       const leadInputs = enrichmentType === 'leads' ? parsedInputs.map(i => ({
