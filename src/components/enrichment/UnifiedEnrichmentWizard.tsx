@@ -442,7 +442,7 @@ export function UnifiedEnrichmentWizard() {
         const firstName = input.first_name || d.first_name || '';
         const lastName = input.last_name || d.last_name || '';
         const email = safeEmail(d.email, input.email);
-        const company = d.company || input.company || input.company_name || '';
+        const company = d.company || d.company_name || input.company || input.company_name || '';
         
         return [
           escapeCsv(getDataQuality(d)), // NEW: Data Quality column first
@@ -474,9 +474,9 @@ export function UnifiedEnrichmentWizard() {
           escapeCsv(allPhones),
           escapeCsv(company),
           escapeCsv(d.website || d.domain || input.domain || ''),
-          escapeCsv(d.industry || ''),
-          escapeCsv(d.sub_industry || ''),
-          escapeCsv(d.country || ''),
+          escapeCsv(d.industry || d.industry_norm || d.industry_raw || ''),
+          escapeCsv(d.sub_industry || d.sub_industry_norm || ''),
+          escapeCsv(d.country || d.hq_country || ''),
           escapeCsv(d.state_province || ''),
           escapeCsv(d.location_city || d.city || ''),
           escapeCsv(d.location_region || ''),
