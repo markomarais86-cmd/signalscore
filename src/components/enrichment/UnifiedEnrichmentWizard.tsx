@@ -377,59 +377,123 @@ export function UnifiedEnrichmentWizard() {
   };
 
   // Validate phone format - filter out corrupted values
+  // Validate phone number - filter out coordinates and garbage data
+  const isValidPhoneNumber = (value: any): boolean => {
+    if (!value) return false;
+    const str = String(value).trim();
+    const digits = str.replace(/\D/g, '');
+    // Must be 7-15 digits
+    if (digits.length < 7 || digits.length > 15) return false;
+    // Reject decimals (coordinates like 117.3601186)
+    if (str.includes('.') && /^\d+\.\d+$/.test(str)) return false;
+    // Reject all same digit (1111111)
+    if (/^(\d)\1+$/.test(digits)) return false;
+    return true;
+  };
+
   const safePhone = (value: any): string => {
+    if (!value) return '';
+    if (!isValidPhoneNumber(value)) return '';
     if (typeof value === 'string' && /[\d\-\+\(\)]/.test(value) && value.length >= 7) {
       return value;
     }
     return '';
   };
 
+  // STREAMLINED 25-field essential headers (FIX #4)
+  const ESSENTIAL_HEADERS = [
+    "Data Quality", "Email", "First Name", "Last Name", "Title", 
+    "Level", "Persona", "Phone", "Mobile", "Direct Phone",
+    "Company", "Website", "Industry", "Employee Count", "Revenue Range",
+    "Country", "State", "City", "LinkedIn URL", "Email Verified",
+    "Enrichment Source", "Confidence", "ICP Qualified", "Created At", "Updated At"
+  ];
+
   // Helper function to export leads to CSV (reusable for both local and DB results)
-  const exportLeadsToCSV = (leadsResults: EnrichmentResult[]) => {
-    // Full 86-field headers with DATA QUALITY column for visibility
-    const headers = [
-      "Data Quality",
-      "External ID", "Contact External ID", "Account External ID", "Name",
-      "First Name", "Last Name", "Title", "Title Raw", "Level", "Persona",
-      "Email", "Email Status", "Email Verified", "Email Verified At", "Email Verification Status",
-      "Phone", "Mobile", "Cell Phone", "Direct Phone", "Phone Extension",
-      "Phone Type", "Phone Verified", "Phone Verification Status",
-      "Verified Phone", "Verified Email", "All Discovered Phones",
-      "Company", "Website", "Industry", "Sub Industry",
-      "Country", "State/Province", "Location City", "Location Region", "Timezone",
-      "Employee Count", "Revenue Range", "Company HQ Address", "Company HQ City",
-      "Company HQ State", "Company HQ Country", "Company HQ Postal Code",
-      "Company Main Phone", "Company SIC Code", "Company NAICS Code",
-      "LinkedIn URL", "Twitter URL", "Facebook URL", "Company Facebook URL",
-      "Status", "Pipeline Stage", "Pipeline Updated At", "Pipeline Triggered By",
-      "ICP Qualified", "ICP Fail Reasons", "Priority Rank", "Export Eligible",
-      "Enrichment Source", "Enriched At", "Enriched From", "Enrichment Pass",
-      "Enrichment Confidence", "Enrichment Overall Score", "Enrichment Field Scores",
-      "Enrichment Total Score", "Enrichment Max Score", "Enrichment Citations",
-      "Data Source", "Source Type", "Discovered At", "Discovered From Account",
-      "External Database Match", "Match Confidence", "Match Reasoning",
-      "Consent Status", "Suppression Reason", "Previous Company", "Previous Title",
-      "Still At Company", "Title As Of", "Last Exported At", "Deep Research Completed At",
-      "Created At", "Updated At", "Fields Filled"
-    ];
-    
+  const exportLeadsToCSV = (leadsResults: EnrichmentResult[], essentialOnly: boolean = false) => {
     const getDataQuality = (d: any): string => {
       const missing: string[] = [];
-      if (!d.employee_count) missing.push('Employee Count');
+      if (!d.employee_count) missing.push('Employees');
       if (!d.industry && !d.industry_norm && !d.industry_raw) missing.push('Industry');
       if (!d.revenue_range) missing.push('Revenue');
-      if (!d.phone && !d.mobile && !d.direct_phone) missing.push('Phone');
+      if (!safePhone(d.phone) && !safePhone(d.mobile) && !safePhone(d.direct_phone)) missing.push('Phone');
       if (!d.title && !d.level) missing.push('Title');
       if (missing.length === 0) return 'Complete';
       return `Missing: ${missing.join(', ')}`;
     };
 
+    // Build rows based on export type
+    if (essentialOnly) {
+      const rows = leadsResults.map((r) => {
+        const d = r.enriched_data || {};
+        const input = r.input || {};
+        const email = safeEmail(d.email, input.email);
+        const firstName = d.first_name || input.first_name || '';
+        const lastName = d.last_name || input.last_name || '';
+        const company = d.company || d.company_name || input.company || '';
+        const title = d.title || d.title_raw || input.title || '';
+        
+        return [
+          escapeCsv(getDataQuality(d)),
+          escapeCsv(email),
+          escapeCsv(firstName),
+          escapeCsv(lastName),
+          escapeCsv(title),
+          escapeCsv(d.level || ''),
+          escapeCsv(d.persona || ''),
+          escapeCsv(safePhone(d.phone) || safePhone(input.phone) || ''),
+          escapeCsv(safePhone(d.mobile) || ''),
+          escapeCsv(safePhone(d.direct_phone) || ''),
+          escapeCsv(company),
+          escapeCsv(d.website || d.domain || input.domain || ''),
+          escapeCsv(d.industry || d.industry_norm || ''),
+          d.employee_count?.toString() || '',
+          escapeCsv(d.revenue_range || ''),
+          escapeCsv(d.country || ''),
+          escapeCsv(d.state_province || d.hq_state || ''),
+          escapeCsv(d.location_city || d.hq_city || ''),
+          escapeCsv(d.linkedin_url || input.linkedin_url || ''),
+          d.email_verified ? 'true' : '',
+          escapeCsv(r.source || d.enriched_from || ''),
+          (r.confidence ? Math.round(r.confidence * 100) : d.enrichment_confidence || '')?.toString() + '%',
+          d.icp_qualified ? 'true' : '',
+          d.created_at || '',
+          d.updated_at || ''
+        ];
+      });
+      
+      const csv = [ESSENTIAL_HEADERS.join(','), ...rows.map(row => row.join(','))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `enriched_leads_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      toast.success(`Exported ${leadsResults.length} leads with 25 essential fields`);
+      return;
+    }
+
+    // Full 40-field export (reduced from 86, removed always-empty columns)
+    const headers = [
+      "Data Quality", "Email", "First Name", "Last Name", "Name",
+      "Title", "Level", "Persona",
+      "Phone", "Mobile", "Direct Phone",
+      "Company", "Website", "Industry", "Sub Industry",
+      "Employee Count", "Revenue Range",
+      "Country", "State", "City", "HQ Address",
+      "LinkedIn URL",
+      "Email Verified", "Email Status",
+      "ICP Qualified", "ICP Fail Reasons",
+      "Status", "Pipeline Stage",
+      "Enrichment Source", "Enriched At", "Enrichment Confidence",
+      "Data Source", "Created At", "Updated At"
+    ];
+
     const rows = leadsResults.map((r) => {
       const d = r.enriched_data || {};
       const input = r.input || {};
-      const allPhones = (d.phones || [])
-        .map((p: any) => `${p.number} (${p.type || 'unknown'}, ${p.source || 'unknown'})`)
-        .join('; ');
       const firstName = d.first_name || input.first_name || '';
       const lastName = d.last_name || input.last_name || '';
       const email = safeEmail(d.email, input.email);
@@ -438,69 +502,36 @@ export function UnifiedEnrichmentWizard() {
       const level = d.level || '';
       const persona = d.persona || '';
       const primaryPhone = safePhone(d.phone) || safePhone(d.direct_phone) || safePhone(input.phone) || '';
-      const mobilePhone = safePhone(d.mobile) || safePhone(d.cell_phone) || safePhone(d.mobile_phone) || '';
-      const directPhone = safePhone(d.direct_phone) || (d.phones || []).find((p: any) => p.type === 'direct')?.number || '';
-      const hqCity = d.hq_city || d.company_hq_city || d.location_city || d.city || '';
-      const hqState = d.hq_state || d.company_hq_state || d.state_province || '';
-      const hqAddress = d.hq_address || d.company_hq_address || '';
-      const hqPostalCode = d.hq_postal_code || d.company_hq_postal_code || '';
-      const sicCode = d.sic_code || d.company_sic_code || '';
-      const naicsCode = d.naics || d.naics_code || d.company_naics_code || '';
+      const mobilePhone = safePhone(d.mobile) || safePhone(d.cell_phone) || '';
+      const directPhone = safePhone(d.direct_phone) || '';
+      const hqCity = d.hq_city || d.location_city || d.city || '';
+      const hqState = d.hq_state || d.state_province || '';
+      const hqAddress = d.hq_address || '';
       
       return [
         escapeCsv(getDataQuality(d)),
-        escapeCsv(d.external_id || input.external_id || ''),
-        escapeCsv(d.contact_external_id || ''),
-        escapeCsv(d.account_external_id || d.matched_account_id || ''),
-        escapeCsv(d.name || `${firstName} ${lastName}`.trim() || ''),
+        escapeCsv(email),
         escapeCsv(firstName), escapeCsv(lastName),
-        escapeCsv(title), escapeCsv(d.title_raw || ''),
-        escapeCsv(level), escapeCsv(persona),
-        escapeCsv(email), escapeCsv(d.email_status || ''),
-        d.email_verified ? 'true' : '', d.email_verified_at || '',
-        escapeCsv(d.email_verification_status || ''),
-        escapeCsv(primaryPhone), escapeCsv(mobilePhone),
-        escapeCsv(safePhone(d.cell_phone) || ''), escapeCsv(directPhone),
-        escapeCsv(d.phone_extension || ''), escapeCsv(d.phone_type || ''),
-        d.phone_verified ? 'true' : '', escapeCsv(d.phone_verification_status || ''),
-        escapeCsv(safePhone(d.verified_phone) || ''), escapeCsv(d.verified_email || ''),
-        escapeCsv(allPhones), escapeCsv(company),
+        escapeCsv(d.name || `${firstName} ${lastName}`.trim() || ''),
+        escapeCsv(title), escapeCsv(level), escapeCsv(persona),
+        escapeCsv(primaryPhone), escapeCsv(mobilePhone), escapeCsv(directPhone),
+        escapeCsv(company),
         escapeCsv(d.website || d.domain || input.domain || ''),
         escapeCsv(d.industry || d.industry_norm || d.industry_raw || ''),
-        escapeCsv(d.sub_industry || d.sub_industry_norm || ''),
-        escapeCsv(d.country || d.hq_country || ''),
-        escapeCsv(hqState), escapeCsv(hqCity),
-        escapeCsv(d.location_region || ''), escapeCsv(d.timezone || ''),
+        escapeCsv(d.sub_industry || ''),
         d.employee_count?.toString() || '', escapeCsv(d.revenue_range || ''),
-        escapeCsv(hqAddress), escapeCsv(hqCity), escapeCsv(hqState),
-        escapeCsv(d.company_hq_country || d.country || ''), escapeCsv(hqPostalCode),
-        escapeCsv(safePhone(d.company_main_phone) || ''),
-        escapeCsv(sicCode), escapeCsv(naicsCode),
+        escapeCsv(d.country || ''), escapeCsv(hqState), escapeCsv(hqCity),
+        escapeCsv(hqAddress),
         escapeCsv(d.linkedin_url || input.linkedin_url || ''),
-        escapeCsv(d.twitter_url || ''), escapeCsv(d.facebook_url || ''),
-        escapeCsv(d.company_facebook_url || ''),
-        escapeCsv(d.status || ''), escapeCsv(d.pipeline_stage || ''),
-        d.pipeline_updated_at || '', escapeCsv(d.pipeline_triggered_by || ''),
+        d.email_verified ? 'true' : '', escapeCsv(d.email_status || ''),
         d.icp_qualified ? 'true' : '',
         Array.isArray(d.icp_fail_reasons) ? escapeCsv(d.icp_fail_reasons.join('; ')) : '',
-        d.priority_rank?.toString() || '', d.export_eligible ? 'true' : '',
+        escapeCsv(d.status || ''), escapeCsv(d.pipeline_stage || ''),
         escapeCsv(r.source || d.enrichment_source || d.enriched_from || ''),
-        d.enriched_at || '', escapeCsv(d.enriched_from || ''),
-        d.enrichment_pass ? 'true' : '',
-        (r.confidence ? Math.round(r.confidence * 100) : d.enrichment_confidence || '')?.toString() || '',
-        d.enrichment_overall_score?.toString() || '',
-        d.enrichment_field_scores ? escapeCsv(JSON.stringify(d.enrichment_field_scores)) : '',
-        d.enrichment_total_score?.toString() || '', d.enrichment_max_score?.toString() || '',
-        d.enrichment_citations ? escapeCsv(JSON.stringify(d.enrichment_citations)) : '',
-        escapeCsv(d.data_source || ''), escapeCsv(d.source_type || ''),
-        d.discovered_at || '', d.discovered_from_account?.toString() || '',
-        d.external_database_match?.toString() || '', d.match_confidence?.toString() || '',
-        escapeCsv(d.match_reasoning || ''), escapeCsv(d.consent_status || ''),
-        escapeCsv(d.suppression_reason || ''), escapeCsv(d.previous_company || ''),
-        escapeCsv(d.previous_title || ''), d.still_at_company?.toString() || '',
-        d.title_as_of || '', d.last_exported_at || '', d.deep_research_completed_at || '',
-        d.created_at || new Date().toISOString(), d.updated_at || new Date().toISOString(),
-        r.fields_filled?.join(', ') || ''
+        d.enriched_at || '',
+        (r.confidence ? Math.round(r.confidence * 100) : d.enrichment_confidence || '')?.toString() + '%',
+        escapeCsv(d.data_source || ''),
+        d.created_at || new Date().toISOString(), d.updated_at || new Date().toISOString()
       ];
     });
     
@@ -513,11 +544,11 @@ export function UnifiedEnrichmentWizard() {
     a.click();
     URL.revokeObjectURL(url);
     
-    toast.success(`Exported ${leadsResults.length} leads with 86 fields including Data Quality indicator`);
+    toast.success(`Exported ${leadsResults.length} leads with ${headers.length} fields`);
   };
 
-  // Export results to CSV - Full 85-field data export for leads
-  const exportResults = async () => {
+  // Export results to CSV - supports essential (25 fields) or full (34 fields)
+  const exportResults = async (essentialOnly: boolean = false) => {
     // For background jobs with no local results, fetch from database
     if (results.length === 0) {
       if (!userProfile?.org_id) {
@@ -555,13 +586,12 @@ export function UnifiedEnrichmentWizard() {
         fields_filled: Object.keys(lead).filter(k => lead[k] != null)
       }));
       
-      exportLeadsToCSV(dbResults);
-      toast.success(`Exported ${leads.length} enriched leads to CSV`);
+      exportLeadsToCSV(dbResults, essentialOnly);
       return;
     }
     
     if (enrichmentType === 'leads') {
-      exportLeadsToCSV(results);
+      exportLeadsToCSV(results, essentialOnly);
     } else {
       // Account export - 17 fields
       const headers = [
@@ -1043,15 +1073,19 @@ export function UnifiedEnrichmentWizard() {
             </div>
             
             <div className="flex gap-3">
-              <Button variant="outline" onClick={exportResults} className="flex-1 gap-2">
+              <Button variant="outline" onClick={() => exportResults(true)} className="flex-1 gap-2">
                 <Download className="h-4 w-4" />
-                Export CSV
+                Essential CSV (25 fields)
               </Button>
-              <Button onClick={reset} className="flex-1 gap-2">
-                <Sparkles className="h-4 w-4" />
-                Enrich More
+              <Button variant="outline" onClick={() => exportResults(false)} className="flex-1 gap-2">
+                <FileSpreadsheet className="h-4 w-4" />
+                Full CSV (34 fields)
               </Button>
             </div>
+            <Button onClick={reset} className="w-full gap-2">
+              <Sparkles className="h-4 w-4" />
+              Enrich More
+            </Button>
           </div>
         )}
       </CardContent>

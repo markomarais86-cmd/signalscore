@@ -133,9 +133,38 @@ const classifyTitle = (title: string): { level: string; persona: string } => {
   return { level, persona };
 };
 
+// Generic email domains to skip for company enrichment
+const GENERIC_EMAIL_DOMAINS = [
+  'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 
+  'aol.com', 'icloud.com', 'protonmail.com', 'mail.com',
+  'sbcglobal.net', 'comcast.net', 'att.net', 'verizon.net',
+  'live.com', 'msn.com', 'me.com', 'mac.com', 'ymail.com',
+  'rocketmail.com', 'cox.net', 'charter.net', 'earthlink.net'
+];
+
+const isGenericEmailDomain = (domain: string): boolean => {
+  return GENERIC_EMAIL_DOMAINS.includes(domain.toLowerCase());
+};
+
+// Validate phone number - filter out coordinates and garbage data
+const isValidPhone = (phone: string): boolean => {
+  if (!phone) return false;
+  const digits = String(phone).replace(/\D/g, '');
+  // Must be 7-15 digits
+  if (digits.length < 7 || digits.length > 15) return false;
+  // Reject decimals (coordinates like 117.3601186)
+  if (String(phone).includes('.') && /^\d+\.\d+$/.test(String(phone).trim())) return false;
+  // Reject all same digit (1111111)
+  if (/^(\d)\1+$/.test(digits)) return false;
+  // Reject if looks like a year or small number
+  if (digits.length <= 4) return false;
+  return true;
+};
+
 // Sanitize phone number to E.164 format
 const sanitizePhone = (phone: any): string | null => {
   if (!phone) return null;
+  if (!isValidPhone(String(phone))) return null;
   const digits = String(phone).replace(/\D/g, '');
   if (digits.length < 7) return null;
   if (digits.length === 10) return `+1${digits}`;
@@ -654,29 +683,45 @@ async function saveEnrichmentResult(
   const email = result.input.email;
   const domain = data.domain || result.input.domain;
   
+  // Skip company enrichment for generic email domains
+  const isGenericDomain = domain && isGenericEmailDomain(domain);
+  
   if (!email && !domain) return;
   
   // Save lead if we have email - use update/insert pattern since no matching unique constraint
   if (email) {
-    const leadData = {
+    // For generic domains, don't save firmographic data (it's wrong)
+    const leadData: Record<string, any> = {
       org_id: orgId,
       email: email.toLowerCase(),
       first_name: data.first_name,
       last_name: data.last_name,
       title: data.title,
-      phone: data.phone,
-      mobile: data.mobile,
-      direct_phone: data.direct_phone,
+      phone: isValidPhone(data.phone) ? data.phone : null,
+      mobile: isValidPhone(data.mobile) ? data.mobile : null,
+      direct_phone: isValidPhone(data.direct_phone) ? data.direct_phone : null,
       linkedin_url: data.linkedin_url,
       level: data.level,
       persona: data.persona,
-      company: data.company_name,
-      website: domain,
+      company: data.company_name || result.input.company_name,
+      website: isGenericDomain ? null : domain,
       enriched_at: new Date().toISOString(),
       enriched_from: result.source,
       enrichment_confidence: result.confidence,
-      data_source: sourceType
+      data_source: sourceType,
+      updated_at: new Date().toISOString()
     };
+    
+    // CRITICAL: Add firmographic data to leads (FIX #1)
+    // Only if NOT a generic email domain
+    if (!isGenericDomain) {
+      leadData.industry = data.industry_norm || data.industry;
+      leadData.employee_count = data.employee_count;
+      leadData.revenue_range = data.revenue_range;
+      leadData.country = data.country;
+      leadData.state_province = data.hq_state;
+      leadData.location_city = data.hq_city;
+    }
     
     // Check if lead exists first (upsert doesn't work with functional unique index)
     const { data: existing } = await supabase
@@ -691,7 +736,7 @@ async function saveEnrichmentResult(
       if (error) {
         console.error(`[enrich-internal-first] Lead update failed for ${email}:`, error);
       } else {
-        console.log(`[enrich-internal-first] Updated lead: ${email}`);
+        console.log(`[enrich-internal-first] Updated lead: ${email} (generic domain: ${isGenericDomain})`);
       }
     } else {
       const { error } = await supabase.from('Leads').insert(leadData);
@@ -703,8 +748,8 @@ async function saveEnrichmentResult(
     }
   }
   
-  // Upsert account if we have domain
-  if (domain && data.company_name) {
+  // Upsert account if we have domain AND it's not a generic domain
+  if (domain && data.company_name && !isGenericDomain) {
     const accountData = {
       org_id: orgId,
       domain: domain.toLowerCase(),
@@ -720,7 +765,7 @@ async function saveEnrichmentResult(
       hq_postal_code: data.hq_postal_code,
       sic_code: data.sic_code,
       naics: data.naics,
-      company_main_phone: data.company_main_phone,
+      company_main_phone: isValidPhone(data.company_main_phone) ? data.company_main_phone : null,
       linkedin_url: data.linkedin_url,
       enriched_at: new Date().toISOString(),
       enriched_from: result.source,
