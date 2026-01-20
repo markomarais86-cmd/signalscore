@@ -303,8 +303,12 @@ export function UnifiedEnrichmentWizard() {
       
       toast.success(`Enriched ${data.results?.length || 0} records`);
     } catch (error: any) {
-      console.error("Enrichment error:", error);
-      toast.error("Enrichment failed", { description: error.message });
+      // Show actual error message, not just Sentry ID
+      const errorMessage = error?.message || error?.error_message || 
+        (typeof error === 'object' ? JSON.stringify(error) : String(error));
+      console.error("[Enrichment] Full error object:", error);
+      console.error("[Enrichment] Error message:", errorMessage);
+      toast.error(`Enrichment failed: ${errorMessage}`);
       setStep("preview");
     } finally {
       setIsProcessing(false);
