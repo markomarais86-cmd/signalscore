@@ -835,7 +835,7 @@ serve(async (req) => {
           processed_records: 0,
           rows_completed: 0,
           rows_failed: 0,
-          job_type: 'leads',
+          job_type: 'contacts',
           provider: 'internal',
           source_type: 'edge_function',
           source_reference: 'enrich-internal-first',
