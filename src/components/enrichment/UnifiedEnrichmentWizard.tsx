@@ -306,16 +306,36 @@ export function UnifiedEnrichmentWizard() {
       // Extract error from all possible Supabase error structures
       let errorMessage = 'Unknown error occurred';
       
+      // Log EVERYTHING for debugging FIRST
+      console.error("[Enrichment] === ERROR DEBUG ===");
+      console.error("[Enrichment] Raw error:", error);
+      console.error("[Enrichment] Error name:", error?.name);
+      console.error("[Enrichment] Error type:", typeof error);
+      console.error("[Enrichment] Error keys:", error ? Object.keys(error) : 'null');
+      console.error("[Enrichment] Error context:", error?.context);
+      console.error("[Enrichment] Error status:", error?.status);
+      
       if (error) {
+        // Check for FunctionsHttpError (404, 500, etc.) - shows as hex ID in error.name
+        const isHexId = error.name && /^[a-f0-9]{32}$/i.test(error.name);
+        const isFunctionsError = error.name === 'FunctionsHttpError' || 
+                                  error.name === 'FunctionsRelayError' ||
+                                  isHexId;
+        
+        if (isFunctionsError || error.status === 404) {
+          errorMessage = 'Enrichment service is temporarily unavailable. Please try again in a few minutes.';
+        } else if (error.status === 500 || error.status >= 500) {
+          errorMessage = 'Enrichment service encountered an error. Our team has been notified.';
+        }
         // Supabase function error structure - check context.body first
-        if (error.context?.body) {
+        else if (error.context?.body) {
           try {
             const body = JSON.parse(error.context.body);
             errorMessage = body.error || body.message || body.error_description || JSON.stringify(body);
           } catch {
             errorMessage = error.context.body;
           }
-        } else if (error.message) {
+        } else if (error.message && !isHexId) {
           errorMessage = error.message;
         } else if (error.error_message) {
           errorMessage = error.error_message;
@@ -323,19 +343,10 @@ export function UnifiedEnrichmentWizard() {
           errorMessage = typeof error.error === 'string' ? error.error : JSON.stringify(error.error);
         } else if (typeof error === 'string') {
           errorMessage = error;
-        } else {
-          errorMessage = JSON.stringify(error, null, 2);
         }
       }
       
-      // Log EVERYTHING for debugging
-      console.error("[Enrichment] === ERROR DEBUG ===");
-      console.error("[Enrichment] Raw error:", error);
-      console.error("[Enrichment] Error type:", typeof error);
-      console.error("[Enrichment] Error keys:", error ? Object.keys(error) : 'null');
       console.error("[Enrichment] Error message extracted:", errorMessage);
-      console.error("[Enrichment] Error context:", error?.context);
-      console.error("[Enrichment] Error data:", error?.data);
       
       toast.error(`Enrichment failed: ${errorMessage}`);
       setStep("preview");
