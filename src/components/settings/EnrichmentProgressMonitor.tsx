@@ -25,7 +25,8 @@ export function EnrichmentProgressMonitor({ jobId, onClose, onComplete }: Enrich
     if (progress && !completedRef.current) {
       if (progress.status === 'completed') {
         completedRef.current = true;
-        toast.success(`Enrichment completed: ${progress.enriched_records} records enriched`);
+        const enrichedCount = progress.enriched_records || progress.processed_records || 0;
+        toast.success(`Enrichment completed: ${enrichedCount} records enriched`);
         onComplete?.(progress);
       } else if (progress.status === 'failed') {
         completedRef.current = true;
