@@ -2,6 +2,7 @@
 // Reduces API costs by leveraging already-enriched accounts and leads
 // Now includes domain discovery for company-name-only inputs
 // UPDATED: Includes full person enrichment (name, title, phone, email verification)
+// v2.1 - Fixed async job creation with provider field
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
