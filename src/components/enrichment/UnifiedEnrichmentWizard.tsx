@@ -303,11 +303,40 @@ export function UnifiedEnrichmentWizard() {
       
       toast.success(`Enriched ${data.results?.length || 0} records`);
     } catch (error: any) {
-      // Show actual error message, not just Sentry ID
-      const errorMessage = error?.message || error?.error_message || 
-        (typeof error === 'object' ? JSON.stringify(error) : String(error));
-      console.error("[Enrichment] Full error object:", error);
-      console.error("[Enrichment] Error message:", errorMessage);
+      // Extract error from all possible Supabase error structures
+      let errorMessage = 'Unknown error occurred';
+      
+      if (error) {
+        // Supabase function error structure - check context.body first
+        if (error.context?.body) {
+          try {
+            const body = JSON.parse(error.context.body);
+            errorMessage = body.error || body.message || body.error_description || JSON.stringify(body);
+          } catch {
+            errorMessage = error.context.body;
+          }
+        } else if (error.message) {
+          errorMessage = error.message;
+        } else if (error.error_message) {
+          errorMessage = error.error_message;
+        } else if (error.error) {
+          errorMessage = typeof error.error === 'string' ? error.error : JSON.stringify(error.error);
+        } else if (typeof error === 'string') {
+          errorMessage = error;
+        } else {
+          errorMessage = JSON.stringify(error, null, 2);
+        }
+      }
+      
+      // Log EVERYTHING for debugging
+      console.error("[Enrichment] === ERROR DEBUG ===");
+      console.error("[Enrichment] Raw error:", error);
+      console.error("[Enrichment] Error type:", typeof error);
+      console.error("[Enrichment] Error keys:", error ? Object.keys(error) : 'null');
+      console.error("[Enrichment] Error message extracted:", errorMessage);
+      console.error("[Enrichment] Error context:", error?.context);
+      console.error("[Enrichment] Error data:", error?.data);
+      
       toast.error(`Enrichment failed: ${errorMessage}`);
       setStep("preview");
     } finally {
