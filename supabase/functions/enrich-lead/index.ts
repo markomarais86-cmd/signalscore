@@ -61,7 +61,7 @@ const extractNameFromEmail = (email: string): { firstName?: string; lastName?: s
   
   // Pattern: firstnamelastname@domain - try common first name patterns
   // Skip generic emails like info@, admin@, contact@
-  const genericPrefixes = ['info', 'admin', 'contact', 'support', 'sales', 'hello', 'team', 'office', 'mail', 'no-reply', 'noreply'];
+  const genericPrefixes = ['info', 'admin', 'contact', 'support', 'sales', 'hello', 'team', 'office', 'mail', 'no-reply', 'noreply', 'general', 'enquiry', 'enquiries', 'help', 'hr', 'jobs', 'careers', 'press', 'media', 'marketing', 'webmaster'];
   if (genericPrefixes.includes(localPart)) {
     return {};
   }
@@ -72,6 +72,14 @@ const extractNameFromEmail = (email: string): { firstName?: string; lastName?: s
   }
   
   return {};
+};
+
+// Check if email is a generic/role-based address (not a real person)
+const isGenericEmail = (email: string): boolean => {
+  if (!email) return false;
+  const localPart = email.split('@')[0].toLowerCase();
+  const genericPrefixes = ['info', 'admin', 'contact', 'support', 'sales', 'hello', 'team', 'office', 'mail', 'no-reply', 'noreply', 'general', 'enquiry', 'enquiries', 'help', 'hr', 'jobs', 'careers', 'press', 'media', 'marketing', 'webmaster', 'billing', 'accounts', 'service', 'feedback'];
+  return genericPrefixes.some(prefix => localPart === prefix || localPart.startsWith(prefix + '.') || localPart.startsWith(prefix + '_'));
 };
 
 interface PhoneEntry {
@@ -1204,6 +1212,15 @@ Only include results where you're confident about the name. If unknown, omit tha
         const resultIndex = results.findIndex(r => r.input.email === lead.email);
         if (resultIndex === -1) continue;
         
+        // FIX: Skip expensive AI phone lookup for generic emails (contact@, info@, etc.)
+        if (lead.email && isGenericEmail(lead.email)) {
+          console.log(`[enrich-lead] Skipping AI phone lookup for generic email: ${lead.email}`);
+          // Set default level/persona for generic emails
+          results[resultIndex].enriched_data.level = 'Individual Contributor';
+          results[resultIndex].enriched_data.persona = 'General Inquiry';
+          continue;
+        }
+        
         const personName = [lead.first_name, lead.last_name].filter(Boolean).join(' ');
         const companyName = lead.company || lead.domain || '';
         
@@ -2149,7 +2166,16 @@ ${batch.map(r => {
       let saveErrors = 0;
       
       for (const result of results) {
-        if (result.fields_filled.length === 0) continue;
+        // FIX: Save if we have ANY meaningful data - email, phone, company, or enriched fields
+        // Previously this skipped records when fields_filled was empty, losing input data
+        const hasInputData = result.input?.email || result.input?.first_name || result.input?.company;
+        const hasEnrichedData = result.enriched_data?.email || result.enriched_data?.phone || 
+                                 result.enriched_data?.company || result.enriched_data?.title;
+        
+        if (!hasInputData && !hasEnrichedData && result.fields_filled.length === 0) {
+          console.log(`[enrich-lead] Skipping save - no data: ${JSON.stringify(result.input)}`);
+          continue;
+        }
         
         const lead = result.input;
         const enriched = result.enriched_data;
