@@ -1028,10 +1028,13 @@ Only include results where you're confident about the name. If unknown, omit tha
       let matchedAccount = null;
       
       if (domain) {
-        matchedAccount = accountByDomain.get(domain);
+        // Normalize domain for lookup
+        const normalizedDomain = domain.toLowerCase().replace(/^(www\.|https?:\/\/)/, '').split('/')[0];
+        matchedAccount = accountByDomain.get(normalizedDomain);
         if (matchedAccount) {
           result.enriched_data.matched_account_id = matchedAccount.external_id;
-          result.enriched_data.domain = matchedAccount.domain;
+          result.enriched_data.account_external_id = matchedAccount.external_id; // ALSO SET THIS FOR CONSISTENCY
+          result.enriched_data.domain = matchedAccount.domain || domain;
           result.enriched_data.company = matchedAccount.name || lead.company;
           
           // FIX PHASE 5: Pull company_main_phone from matched account early
@@ -1123,6 +1126,7 @@ Only include results where you're confident about the name. If unknown, omit tha
               
               // Set matched account info even if enrichment failed
               result.enriched_data.matched_account_id = stubExternalId;
+              result.enriched_data.account_external_id = stubExternalId; // ALSO SET FOR CONSISTENCY
               result.enriched_data.domain = domain;
               result.enriched_data.company = lead.company || domain.split('.')[0];
             } else if (createErr) {
@@ -1997,14 +2001,22 @@ ${batch.map(r => {
         }
         
         // CRITICAL FIX: Fetch and attach firmographics for EVERY lead, not just save_to_db
-        if (result.enriched_data.matched_account_id) {
+        const email = result.input.email;
+        const accountId = result.enriched_data.matched_account_id || result.enriched_data.account_external_id;
+        
+        if (accountId) {
           try {
-            const { data: accountData } = await supabase
+            console.log(`[enrich-lead] Fetching firmographics for account: ${accountId}`);
+            const { data: accountData, error: accountError } = await supabase
               .from('accounts')
               .select('employee_count, revenue_range, industry_norm, industry_raw, sub_industry, city, state_province, country, hq_address, hq_city, hq_state, hq_postal_code, sic_code, naics, company_main_phone, linkedin_url, founded_year, enriched_from')
-              .eq('external_id', result.enriched_data.matched_account_id)
+              .eq('external_id', accountId)
               .eq('org_id', org_id)
               .maybeSingle();
+            
+            if (accountError) {
+              console.error(`[enrich-lead] Firmographics query error:`, accountError);
+            }
             
             if (accountData) {
               // Merge firmographics into enriched_data
@@ -2027,13 +2039,64 @@ ${batch.map(r => {
               
               console.log(`[enrich-lead] FIRMOGRAPHICS attached for ${email}: emp=${accountData.employee_count}, rev=${accountData.revenue_range}, ind=${accountData.industry_norm || accountData.industry_raw}, city=${accountData.hq_city || accountData.city}`);
             } else {
-              console.log(`[enrich-lead] No account data found for ${result.enriched_data.matched_account_id}`);
+              console.log(`[enrich-lead] No account data found for account_id=${accountId}`);
             }
           } catch (e: any) {
             console.error(`[enrich-lead] Firmographics fetch error for ${email}:`, e.message);
           }
         } else {
-          console.log(`[enrich-lead] No matched_account_id for ${email} - firmographics will be empty`);
+          // No account link - try to create one now based on domain
+          const leadDomain = result.enriched_data.domain || (result.input.email ? extractDomain(result.input.email) : null);
+          if (leadDomain) {
+            console.log(`[enrich-lead] No account link for ${email} - attempting to create stub for ${leadDomain}`);
+            const normalizedDomain = leadDomain.toLowerCase().replace(/^(www\.|https?:\/\/)/, '').split('/')[0];
+            const stubExternalId = `stub_${normalizedDomain.replace(/[^a-z0-9]/gi, '_')}`;
+            
+            try {
+              // Upsert stub account
+              const { data: stubAccount, error: stubError } = await supabase
+                .from('accounts')
+                .upsert({
+                  org_id,
+                  external_id: stubExternalId,
+                  domain: normalizedDomain,
+                  name: result.enriched_data.company || normalizedDomain.split('.')[0],
+                  enrichment_phase: 'pending',
+                  updated_at: new Date().toISOString()
+                }, { onConflict: 'org_id,external_id' })
+                .select('external_id, employee_count, revenue_range, industry_norm, industry_raw, sub_industry, hq_city, hq_state, country, naics')
+                .single();
+              
+              if (stubAccount && !stubError) {
+                result.enriched_data.matched_account_id = stubAccount.external_id;
+                result.enriched_data.account_external_id = stubAccount.external_id;
+                
+                // If stub has firmographics (from previous enrichment), attach them
+                if (stubAccount.employee_count || stubAccount.industry_norm) {
+                  result.enriched_data.employee_count = stubAccount.employee_count;
+                  result.enriched_data.industry = stubAccount.industry_norm || stubAccount.industry_raw;
+                  result.enriched_data.sub_industry = stubAccount.sub_industry;
+                  result.enriched_data.company_hq_city = stubAccount.hq_city;
+                  result.enriched_data.company_hq_state = stubAccount.hq_state;
+                  result.enriched_data.country = stubAccount.country;
+                  result.enriched_data.company_naics_code = stubAccount.naics;
+                  console.log(`[enrich-lead] Created & attached stub account ${stubExternalId} with existing firmographics`);
+                } else {
+                  console.log(`[enrich-lead] Created stub account ${stubExternalId} - needs enrichment`);
+                  // Trigger async account enrichment
+                  supabase.functions.invoke('enrich-with-firecrawl', {
+                    body: { domain: normalizedDomain, companyName: result.enriched_data.company }
+                  }).catch(e => console.log(`[enrich-lead] Async firecrawl for ${normalizedDomain} failed:`, e.message));
+                }
+              } else if (stubError) {
+                console.error(`[enrich-lead] Stub account creation failed:`, stubError.message);
+              }
+            } catch (e: any) {
+              console.error(`[enrich-lead] Stub account exception for ${leadDomain}:`, e.message);
+            }
+          } else {
+            console.log(`[enrich-lead] No domain for ${email} - cannot create account link`);
+          }
         }
         
         // Update fields_filled after all enrichment
