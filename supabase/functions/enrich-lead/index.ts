@@ -927,6 +927,8 @@ Only include results where you're confident about the name. If unknown, omit tha
                 stats.accounts_created = (stats.accounts_created || 0) + 1;
                 
                 // Immediately enrich the account with Firecrawl (cheap, fast)
+                // FIX: Add Perplexity fallback when Firecrawl returns empty data
+                let accountEnriched = false;
                 try {
                   const enrichResponse = await fetch(`${supabaseUrl}/functions/v1/enrich-with-firecrawl`, {
                     method: 'POST',
@@ -941,8 +943,14 @@ Only include results where you're confident about the name. If unknown, omit tha
                     const enrichData = await enrichResponse.json();
                     console.log(`[enrich-lead] Firecrawl enrichment for ${normalizedDomain}:`, JSON.stringify(enrichData).slice(0, 300));
                     
-                    // Update account with enriched data
-                    if (enrichData.company) {
+                    // FIX: VALIDATE that Firecrawl returned USEFUL data before marking as completed
+                    const hasUsefulData = enrichData.company && (
+                      enrichData.company.employee_count || 
+                      enrichData.company.revenue_range || 
+                      enrichData.company.industry
+                    );
+                    
+                    if (hasUsefulData) {
                       const accountUpdate = {
                         employee_count: enrichData.company.employee_count,
                         revenue_range: enrichData.company.revenue_range,
@@ -972,14 +980,86 @@ Only include results where you're confident about the name. If unknown, omit tha
                       };
                       accountByDomain.set(normalizedDomain, enrichedAccount);
                       matchedAccount = enrichedAccount;
+                      accountEnriched = true;
                       
-                      console.log(`[enrich-lead] Enriched account ${normalizedDomain}: emp=${enrichData.company.employee_count}, rev=${enrichData.company.revenue_range}, ind=${enrichData.company.industry}`);
+                      console.log(`[enrich-lead] ✅ Enriched account ${normalizedDomain}: emp=${enrichData.company.employee_count}, rev=${enrichData.company.revenue_range}, ind=${enrichData.company.industry}`);
+                    } else {
+                      console.log(`[enrich-lead] ⚠️ Firecrawl returned EMPTY for ${normalizedDomain} - will try Perplexity fallback`);
                     }
                   } else {
                     console.error(`[enrich-lead] Firecrawl failed for ${normalizedDomain}: ${enrichResponse.status}`);
                   }
                 } catch (e: any) {
                   console.error(`[enrich-lead] Firecrawl enrichment failed for ${normalizedDomain}:`, e.message);
+                }
+                
+                // FIX: PERPLEXITY FALLBACK when Firecrawl returns empty
+                if (!accountEnriched && PERPLEXITY_API_KEY) {
+                  console.log(`[enrich-lead] 🔄 Trying Perplexity fallback for ${normalizedDomain}`);
+                  try {
+                    const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+                      method: 'POST',
+                      headers: {
+                        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+                        'Content-Type': 'application/json'
+                      },
+                      body: JSON.stringify({
+                        model: 'sonar',
+                        messages: [{
+                          role: 'user',
+                          content: `What company is ${normalizedDomain}? Return ONLY valid JSON with no explanation: {"employee_count": number or null, "revenue_range": "$XM-$YM" format or null, "industry": string or null, "city": string or null, "state": string or null, "country": string or null, "description": string or null}`
+                        }],
+                        temperature: 0.1
+                      })
+                    });
+                    
+                    if (perplexityResponse.ok) {
+                      const perplexityData = await perplexityResponse.json();
+                      const content = perplexityData.choices?.[0]?.message?.content || '';
+                      console.log(`[enrich-lead] Perplexity raw response for ${normalizedDomain}:`, content.slice(0, 500));
+                      
+                      // Extract JSON from response
+                      const jsonMatch = content.match(/\{[\s\S]*\}/);
+                      if (jsonMatch) {
+                        const parsed = JSON.parse(jsonMatch[0]);
+                        const hasPerplexityData = parsed.employee_count || parsed.revenue_range || parsed.industry;
+                        
+                        if (hasPerplexityData) {
+                          const accountUpdate = {
+                            employee_count: parsed.employee_count,
+                            revenue_range: parsed.revenue_range,
+                            industry_raw: parsed.industry,
+                            hq_city: parsed.city,
+                            hq_state: parsed.state,
+                            country: parsed.country,
+                            enrichment_phase: 'completed',
+                            enriched_at: new Date().toISOString(),
+                            enriched_from: 'perplexity'
+                          };
+                          
+                          await supabase
+                            .from('accounts')
+                            .update(accountUpdate)
+                            .eq('id', newAccount.id);
+                          
+                          const enrichedAccount = {
+                            ...newAccount,
+                            ...accountUpdate,
+                            external_id: stubExternalId
+                          };
+                          accountByDomain.set(normalizedDomain, enrichedAccount);
+                          matchedAccount = enrichedAccount;
+                          accountEnriched = true;
+                          
+                          console.log(`[enrich-lead] ✅ Perplexity enriched account ${normalizedDomain}: emp=${parsed.employee_count}, rev=${parsed.revenue_range}, ind=${parsed.industry}`);
+                        }
+                      }
+                    } else {
+                      console.error(`[enrich-lead] Perplexity fallback failed for ${normalizedDomain}: ${perplexityResponse.status}`);
+                    }
+                  } catch (e: any) {
+                    console.error(`[enrich-lead] Perplexity fallback error for ${normalizedDomain}:`, e.message);
+                  }
                 }
                 
                 // Set matched account info even if enrichment failed
@@ -1100,6 +1180,8 @@ Only include results where you're confident about the name. If unknown, omit tha
               stats.accounts_created = (stats.accounts_created || 0) + 1;
               
               // Immediately enrich the account with Firecrawl (cheap, fast)
+              // FIX: Add validation + Perplexity fallback when Firecrawl returns empty
+              let accountEnriched = false;
               try {
                 const enrichResponse = await fetch(`${supabaseUrl}/functions/v1/enrich-with-firecrawl`, {
                   method: 'POST',
@@ -1114,8 +1196,14 @@ Only include results where you're confident about the name. If unknown, omit tha
                   const enrichData = await enrichResponse.json();
                   console.log(`[enrich-lead] Firecrawl enrichment for ${domain}:`, JSON.stringify(enrichData).slice(0, 300));
                   
-                  // Update account with enriched data
-                  if (enrichData.company) {
+                  // FIX: VALIDATE that Firecrawl returned USEFUL data before marking as completed
+                  const hasUsefulData = enrichData.company && (
+                    enrichData.company.employee_count || 
+                    enrichData.company.revenue_range || 
+                    enrichData.company.industry
+                  );
+                  
+                  if (hasUsefulData) {
                     const accountUpdate = {
                       employee_count: enrichData.company.employee_count,
                       revenue_range: enrichData.company.revenue_range,
@@ -1145,14 +1233,86 @@ Only include results where you're confident about the name. If unknown, omit tha
                     };
                     accountByDomain.set(domain, enrichedAccount);
                     matchedAccount = enrichedAccount;
+                    accountEnriched = true;
                     
-                    console.log(`[enrich-lead] Enriched account ${domain}: emp=${enrichData.company.employee_count}, rev=${enrichData.company.revenue_range}, ind=${enrichData.company.industry}`);
+                    console.log(`[enrich-lead] ✅ Enriched account ${domain}: emp=${enrichData.company.employee_count}, rev=${enrichData.company.revenue_range}, ind=${enrichData.company.industry}`);
+                  } else {
+                    console.log(`[enrich-lead] ⚠️ Firecrawl returned EMPTY for ${domain} - will try Perplexity fallback`);
                   }
                 } else {
                   console.error(`[enrich-lead] Firecrawl failed for ${domain}: ${enrichResponse.status}`);
                 }
               } catch (e: any) {
                 console.error(`[enrich-lead] Firecrawl enrichment failed for ${domain}:`, e.message);
+              }
+              
+              // FIX: PERPLEXITY FALLBACK when Firecrawl returns empty
+              if (!accountEnriched && PERPLEXITY_API_KEY) {
+                console.log(`[enrich-lead] 🔄 Trying Perplexity fallback for ${domain}`);
+                try {
+                  const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+                      'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                      model: 'sonar',
+                      messages: [{
+                        role: 'user',
+                        content: `What company is ${domain}? Return ONLY valid JSON with no explanation: {"employee_count": number or null, "revenue_range": "$XM-$YM" format or null, "industry": string or null, "city": string or null, "state": string or null, "country": string or null, "description": string or null}`
+                      }],
+                      temperature: 0.1
+                    })
+                  });
+                  
+                  if (perplexityResponse.ok) {
+                    const perplexityData = await perplexityResponse.json();
+                    const content = perplexityData.choices?.[0]?.message?.content || '';
+                    console.log(`[enrich-lead] Perplexity raw response for ${domain}:`, content.slice(0, 500));
+                    
+                    // Extract JSON from response
+                    const jsonMatch = content.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                      const parsed = JSON.parse(jsonMatch[0]);
+                      const hasPerplexityData = parsed.employee_count || parsed.revenue_range || parsed.industry;
+                      
+                      if (hasPerplexityData) {
+                        const accountUpdate = {
+                          employee_count: parsed.employee_count,
+                          revenue_range: parsed.revenue_range,
+                          industry_raw: parsed.industry,
+                          hq_city: parsed.city,
+                          hq_state: parsed.state,
+                          country: parsed.country,
+                          enrichment_phase: 'completed',
+                          enriched_at: new Date().toISOString(),
+                          enriched_from: 'perplexity'
+                        };
+                        
+                        await supabase
+                          .from('accounts')
+                          .update(accountUpdate)
+                          .eq('id', newAccount.id);
+                        
+                        const enrichedAccount = {
+                          ...newAccount,
+                          ...accountUpdate,
+                          external_id: stubExternalId
+                        };
+                        accountByDomain.set(domain, enrichedAccount);
+                        matchedAccount = enrichedAccount;
+                        accountEnriched = true;
+                        
+                        console.log(`[enrich-lead] ✅ Perplexity enriched account ${domain}: emp=${parsed.employee_count}, rev=${parsed.revenue_range}, ind=${parsed.industry}`);
+                      }
+                    }
+                  } else {
+                    console.error(`[enrich-lead] Perplexity fallback failed for ${domain}: ${perplexityResponse.status}`);
+                  }
+                } catch (e: any) {
+                  console.error(`[enrich-lead] Perplexity fallback error for ${domain}:`, e.message);
+                }
               }
               
               // Set matched account info even if enrichment failed
