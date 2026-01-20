@@ -252,6 +252,19 @@ serve(async (req) => {
   console.log('[enrich-lead] Timestamp:', new Date().toISOString());
   console.log('[enrich-lead] URL:', req.url);
 
+  // Health check endpoint for debugging deployment
+  const url = new URL(req.url);
+  if (url.searchParams.get('health') === 'true') {
+    console.log('[enrich-lead] Health check requested');
+    return new Response(JSON.stringify({ 
+      status: 'healthy', 
+      timestamp: new Date().toISOString(),
+      message: 'enrich-lead function is running'
+    }), { 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    });
+  }
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
