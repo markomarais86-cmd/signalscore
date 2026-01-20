@@ -820,18 +820,40 @@ ${batch.map(({ input }) => `- ${input.email || input.domain || input.company_nam
 
     // Phase 2d: Firecrawl Website Scraping Fallback for small/local businesses
     const firecrawlKey = Deno.env.get('FIRECRAWL_API_KEY');
+    
+    // Fix: Trigger if EITHER employee_count OR industry_norm is missing (not requiring both)
     const stillMissingFirmographics = needsExternalEnrichment.filter(
-      ({ resultIndex }) => !results[resultIndex].enriched_data.employee_count && 
-                           !results[resultIndex].enriched_data.industry_norm &&
-                           results[resultIndex].enriched_data.domain
+      ({ resultIndex }) => {
+        const data = results[resultIndex].enriched_data;
+        const hasEmployeeCount = data.employee_count && data.employee_count > 0;
+        const hasIndustry = data.industry_norm && String(data.industry_norm).trim() !== '';
+        const hasDomain = !!data.domain;
+        
+        // Trigger Firecrawl if missing key firmographics (employee count OR industry) AND we have a domain
+        return (!hasEmployeeCount || !hasIndustry) && hasDomain;
+      }
     );
     
+    // Debug logging for Phase 2d
+    console.log('[enrich-internal-first] Phase 2d check:', {
+      firecrawlKeyExists: !!firecrawlKey,
+      needsExternalCount: needsExternalEnrichment.length,
+      stillMissingCount: stillMissingFirmographics.length,
+      firstResult: needsExternalEnrichment[0] ? {
+        employee_count: results[needsExternalEnrichment[0].resultIndex].enriched_data.employee_count,
+        industry_norm: results[needsExternalEnrichment[0].resultIndex].enriched_data.industry_norm,
+        domain: results[needsExternalEnrichment[0].resultIndex].enriched_data.domain
+      } : null
+    });
+    
     if (firecrawlKey && stillMissingFirmographics.length > 0) {
-      console.log(`[enrich-internal-first] Phase 2d: Firecrawl website scraping (${stillMissingFirmographics.length} remaining)`);
+      console.log(`[enrich-internal-first] Phase 2d: Firecrawl website scraping STARTING for ${stillMissingFirmographics.length} leads`);
       
       for (const { resultIndex } of stillMissingFirmographics) {
         const domain = results[resultIndex].enriched_data.domain;
         if (!domain) continue;
+        
+        console.log(`[enrich-internal-first] Phase 2d: Scraping ${domain}...`);
         
         try {
           // Scrape the website
@@ -848,40 +870,47 @@ ${batch.map(({ input }) => `- ${input.email || input.domain || input.company_nam
             }),
           });
           
-          if (scrapeResponse.ok) {
-            const scrapeData = await scrapeResponse.json();
-            const markdown = scrapeData.data?.markdown || scrapeData.markdown || '';
+          if (!scrapeResponse.ok) {
+            console.error(`[enrich-internal-first] Firecrawl scrape failed for ${domain}:`, {
+              status: scrapeResponse.status,
+              statusText: scrapeResponse.statusText
+            });
+            continue;
+          }
+          
+          const scrapeData = await scrapeResponse.json();
+          const markdown = scrapeData.data?.markdown || scrapeData.markdown || '';
+          
+          if (markdown && markdown.length > 100) {
+            console.log(`[enrich-internal-first] Phase 2d: Scraped ${domain} successfully (${markdown.length} chars)`);
             
-            if (markdown && markdown.length > 100) {
-              console.log(`[enrich-internal-first] Scraped ${domain}: ${markdown.length} chars`);
-              
-              // Also try to scrape /about page for better info
-              let aboutMarkdown = '';
-              try {
-                const aboutResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
-                  method: 'POST',
-                  headers: {
-                    'Authorization': `Bearer ${firecrawlKey}`,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    url: `https://${domain}/about`,
-                    formats: ['markdown'],
-                    onlyMainContent: true
-                  }),
-                });
-                if (aboutResponse.ok) {
-                  const aboutData = await aboutResponse.json();
-                  aboutMarkdown = aboutData.data?.markdown || aboutData.markdown || '';
-                }
-              } catch (e) {
-                // About page might not exist, that's ok
+            // Also try to scrape /about page for better info
+            let aboutMarkdown = '';
+            try {
+              const aboutResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${firecrawlKey}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  url: `https://${domain}/about`,
+                  formats: ['markdown'],
+                  onlyMainContent: true
+                }),
+              });
+              if (aboutResponse.ok) {
+                const aboutData = await aboutResponse.json();
+                aboutMarkdown = aboutData.data?.markdown || aboutData.markdown || '';
               }
-              
-              const combinedContent = (markdown + '\n\n' + aboutMarkdown).substring(0, 6000);
-              
-              // Use AI to extract company info from scraped content
-              const extractPrompt = `Extract company information from this website content. Return ONLY valid JSON:
+            } catch (e) {
+              // About page might not exist, that's ok
+            }
+            
+            const combinedContent = (markdown + '\n\n' + aboutMarkdown).substring(0, 6000);
+            
+            // Use AI to extract company info from scraped content
+            const extractPrompt = `Extract company information from this website content. Return ONLY valid JSON:
 
 {
   "company_name": "Official company name",
@@ -900,61 +929,69 @@ ${batch.map(({ input }) => `- ${input.email || input.domain || input.company_nam
 Website (${domain}):
 ${combinedContent}`;
 
-              try {
-                const extractResponse = await callAI('enrichment', [
-                  { role: 'system', content: 'Extract business information from website content. Be thorough - look for address in footer, phone numbers, industry keywords.' },
-                  { role: 'user', content: extractPrompt }
-                ]);
+            try {
+              const extractResponse = await callAI('enrichment', [
+                { role: 'system', content: 'Extract business information from website content. Be thorough - look for address in footer, phone numbers, industry keywords.' },
+                { role: 'user', content: extractPrompt }
+              ]);
+              
+              if (extractResponse.ok) {
+                const extractData = await extractResponse.json();
+                const extractContent = extractData.choices?.[0]?.message?.content || '';
                 
-                if (extractResponse.ok) {
-                  const extractData = await extractResponse.json();
-                  const extractContent = extractData.choices?.[0]?.message?.content || '';
+                console.log(`[enrich-internal-first] Firecrawl extract for ${domain}:`, extractContent.substring(0, 300));
+                
+                const jsonMatch = extractContent.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  const extracted = JSON.parse(jsonMatch[0]);
                   
-                  console.log(`[enrich-internal-first] Firecrawl extract for ${domain}:`, extractContent.substring(0, 300));
+                  // Map employee estimate to count
+                  const employeeMap: Record<string, number> = {
+                    '1-10': 5,
+                    '11-50': 25,
+                    '51-200': 100,
+                    '201-500': 350,
+                    '500+': 750
+                  };
                   
-                  const jsonMatch = extractContent.match(/\{[\s\S]*\}/);
-                  if (jsonMatch) {
-                    const extracted = JSON.parse(jsonMatch[0]);
-                    
-                    // Map employee estimate to count
-                    const employeeMap: Record<string, number> = {
-                      '1-10': 5,
-                      '11-50': 25,
-                      '51-200': 100,
-                      '201-500': 350,
-                      '500+': 750
-                    };
-                    
-                    const existing = results[resultIndex].enriched_data;
-                    results[resultIndex].enriched_data = {
-                      ...existing,
-                      company_name: existing.company_name || extracted.company_name,
-                      industry_norm: existing.industry_norm || extracted.industry,
-                      sub_industry: existing.sub_industry || extracted.sub_industry,
-                      hq_city: existing.hq_city || extracted.city,
-                      hq_state: existing.hq_state || extracted.state,
-                      hq_address: existing.hq_address || extracted.address,
-                      phone: existing.phone || sanitizePhone(extracted.phone),
-                      company_main_phone: existing.company_main_phone || sanitizePhone(extracted.phone),
-                      employee_count: existing.employee_count || employeeMap[extracted.employee_estimate] || null,
-                      sic_code: existing.sic_code || extracted.sic_code,
-                      naics: existing.naics || extracted.naics,
-                      services: extracted.services || []
-                    };
-                    results[resultIndex].source = 'ai';
-                    results[resultIndex].confidence = 0.7;
-                    
-                    console.log(`[enrich-internal-first] Firecrawl enriched ${domain}:`, {
-                      company: extracted.company_name,
-                      industry: extracted.industry,
-                      city: extracted.city,
-                      phone: extracted.phone
-                    });
-                  }
+                  const existing = results[resultIndex].enriched_data;
+                  
+                  // Fallback: derive company name from domain if not extracted
+                  const derivedCompanyName = domain
+                    .replace(/\.(com|biz|net|org|io|co|us|info)$/i, '')
+                    .replace(/[-_]/g, ' ')
+                    .split(' ')
+                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' ');
+                  
+                  results[resultIndex].enriched_data = {
+                    ...existing,
+                    company_name: existing.company_name || extracted.company_name || derivedCompanyName,
+                    industry_norm: existing.industry_norm || extracted.industry,
+                    sub_industry: existing.sub_industry || extracted.sub_industry,
+                    hq_city: existing.hq_city || extracted.city,
+                    hq_state: existing.hq_state || extracted.state,
+                    hq_address: existing.hq_address || extracted.address,
+                    phone: existing.phone || sanitizePhone(extracted.phone),
+                    company_main_phone: existing.company_main_phone || sanitizePhone(extracted.phone),
+                    employee_count: existing.employee_count || employeeMap[extracted.employee_estimate] || null,
+                    sic_code: existing.sic_code || extracted.sic_code,
+                    naics: existing.naics || extracted.naics,
+                    services: extracted.services || []
+                  };
+                  results[resultIndex].source = 'firecrawl';
+                  results[resultIndex].confidence = 0.75;
+                  
+                  console.log(`[enrich-internal-first] Firecrawl enriched ${domain}:`, {
+                    company: extracted.company_name,
+                    industry: extracted.industry,
+                    city: extracted.city,
+                    phone: extracted.phone
+                  });
                 }
-              } catch (extractError) {
-                console.error(`[enrich-internal-first] AI extraction error for ${domain}:`, extractError);
               }
+            } catch (extractError) {
+              console.error(`[enrich-internal-first] AI extraction error for ${domain}:`, extractError);
             }
           }
         } catch (scrapeError) {
