@@ -1,5 +1,8 @@
 project_id = "dhyfbaptcprxxixgnpby"
 
+[functions.enrich-lead-test]
+verify_jwt = false
+
 [functions.detect-account-signals]
 verify_jwt = false
 
