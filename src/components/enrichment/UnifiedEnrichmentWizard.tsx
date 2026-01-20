@@ -429,56 +429,64 @@ export function UnifiedEnrichmentWizard() {
         return `Missing: ${missing.join(', ')}`;
       };
 
-      // DEBUG: Log immediately before mapping
-      console.log('[CSV Export] Starting export, total results:', results.length);
-      if (results.length > 0) {
-        console.log('[CSV Export] First result keys:', Object.keys(results[0]));
-        console.log('[CSV Export] First enriched_data:', JSON.stringify(results[0].enriched_data, null, 2));
-      }
-      
-      const rows = results.map((r, idx) => {
+      const rows = results.map((r) => {
         const d = r.enriched_data || {};
         const input = r.input || {};
-        
-        // DEBUG: Log each row's key data fields
-        if (idx === 0) {
-          console.log('[CSV Export] Row 0 - company_name:', d.company_name, '| company:', d.company);
-          console.log('[CSV Export] Row 0 - industry_norm:', d.industry_norm, '| industry:', d.industry);
-          console.log('[CSV Export] Row 0 - All d keys:', Object.keys(d));
-        }
         
         // Format all discovered phones as semicolon-separated list
         const allPhones = (d.phones || [])
           .map((p: any) => `${p.number} (${p.type || 'unknown'}, ${p.source || 'unknown'})`)
           .join('; ');
         
-        // Safe value extraction with input fallbacks
-        const firstName = input.first_name || d.first_name || '';
-        const lastName = input.last_name || d.last_name || '';
+        // Safe value extraction with comprehensive fallback chains
+        const firstName = d.first_name || input.first_name || '';
+        const lastName = d.last_name || input.last_name || '';
         const email = safeEmail(d.email, input.email);
         const company = d.company || d.company_name || input.company || input.company_name || '';
         
+        // Title with multiple fallbacks
+        const title = d.title || d.title_raw || d.job_title || input.title || '';
+        
+        // Level and persona - classify from title if missing
+        const level = d.level || '';
+        const persona = d.persona || '';
+        
+        // Phone fallbacks - check all possible phone fields
+        const primaryPhone = safePhone(d.phone) || safePhone(d.direct_phone) || safePhone(input.phone) || '';
+        const mobilePhone = safePhone(d.mobile) || safePhone(d.cell_phone) || safePhone(d.mobile_phone) || '';
+        const directPhone = safePhone(d.direct_phone) || (d.phones || []).find((p: any) => p.type === 'direct')?.number || '';
+        
+        // HQ Address fallbacks
+        const hqCity = d.hq_city || d.company_hq_city || d.location_city || d.city || '';
+        const hqState = d.hq_state || d.company_hq_state || d.state_province || '';
+        const hqAddress = d.hq_address || d.company_hq_address || '';
+        const hqPostalCode = d.hq_postal_code || d.company_hq_postal_code || '';
+        
+        // Industry code fallbacks
+        const sicCode = d.sic_code || d.company_sic_code || '';
+        const naicsCode = d.naics || d.naics_code || d.company_naics_code || '';
+        
         return [
-          escapeCsv(getDataQuality(d)), // NEW: Data Quality column first
+          escapeCsv(getDataQuality(d)), // Data Quality column first
           escapeCsv(d.external_id || input.external_id || ''),
           escapeCsv(d.contact_external_id || ''),
           escapeCsv(d.account_external_id || d.matched_account_id || ''),
           escapeCsv(d.name || `${firstName} ${lastName}`.trim() || ''),
           escapeCsv(firstName),
           escapeCsv(lastName),
-          escapeCsv(d.title || input.title || ''),
+          escapeCsv(title),
           escapeCsv(d.title_raw || ''),
-          escapeCsv(d.level || ''),
-          escapeCsv(d.persona || ''),
+          escapeCsv(level),
+          escapeCsv(persona),
           escapeCsv(email),
           escapeCsv(d.email_status || ''),
           d.email_verified ? 'true' : '',
           d.email_verified_at || '',
           escapeCsv(d.email_verification_status || ''),
-          escapeCsv(safePhone(d.phone) || safePhone(input.phone) || ''),
-          escapeCsv(safePhone(d.mobile) || ''),
+          escapeCsv(primaryPhone),
+          escapeCsv(mobilePhone),
           escapeCsv(safePhone(d.cell_phone) || ''),
-          escapeCsv(safePhone(d.direct_phone) || (d.phones || []).find((p: any) => p.type === 'direct')?.number || ''),
+          escapeCsv(directPhone),
           escapeCsv(d.phone_extension || ''),
           escapeCsv(d.phone_type || ''),
           d.phone_verified ? 'true' : '',
@@ -491,20 +499,20 @@ export function UnifiedEnrichmentWizard() {
           escapeCsv(d.industry || d.industry_norm || d.industry_raw || ''),
           escapeCsv(d.sub_industry || d.sub_industry_norm || ''),
           escapeCsv(d.country || d.hq_country || ''),
-          escapeCsv(d.state_province || ''),
-          escapeCsv(d.location_city || d.city || ''),
+          escapeCsv(hqState),
+          escapeCsv(hqCity),
           escapeCsv(d.location_region || ''),
           escapeCsv(d.timezone || ''),
           d.employee_count?.toString() || '',
           escapeCsv(d.revenue_range || ''),
-          escapeCsv(d.company_hq_address || d.hq_address || ''),
-          escapeCsv(d.company_hq_city || d.hq_city || ''),
-          escapeCsv(d.company_hq_state || d.hq_state || ''),
-          escapeCsv(d.company_hq_country || ''),
-          escapeCsv(d.company_hq_postal_code || d.hq_postal_code || ''),
+          escapeCsv(hqAddress),
+          escapeCsv(hqCity),
+          escapeCsv(hqState),
+          escapeCsv(d.company_hq_country || d.country || ''),
+          escapeCsv(hqPostalCode),
           escapeCsv(safePhone(d.company_main_phone) || ''),
-          escapeCsv(d.company_sic_code || d.sic_code || ''),
-          escapeCsv(d.company_naics_code || d.naics || ''),
+          escapeCsv(sicCode),
+          escapeCsv(naicsCode),
           escapeCsv(d.linkedin_url || input.linkedin_url || ''),
           escapeCsv(d.twitter_url || ''),
           escapeCsv(d.facebook_url || ''),

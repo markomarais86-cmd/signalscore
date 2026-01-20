@@ -168,13 +168,88 @@ const verifyEmailWithHunter = async (email: string): Promise<{ status: string; s
   return null;
 };
 
+// Use Perplexity for phone discovery with web search
+const discoverPhoneWithPerplexity = async (
+  personName: string,
+  companyName: string,
+  domain: string
+): Promise<{ phone?: string; mobile?: string; direct_phone?: string; phones?: any[]; citations?: string[] } | null> => {
+  const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
+  if (!perplexityKey) return null;
+  
+  const prompt = `Find phone numbers for ${personName} at ${companyName} (${domain}).
+
+Search for:
+1. Direct business phone/extension
+2. Mobile/cell phone number
+3. Company main line
+
+Return ONLY valid JSON:
+{
+  "phone": "main direct phone or null",
+  "mobile": "mobile/cell phone or null", 
+  "direct_phone": "direct line with extension or null",
+  "all_phones": [
+    {"number": "+1...", "type": "mobile|direct|office", "confidence": 0-100}
+  ]
+}`;
+
+  try {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${perplexityKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'sonar-pro',
+        messages: [
+          { role: 'system', content: 'You are a B2B contact researcher. Find verified phone numbers. Return only JSON.' },
+          { role: 'user', content: prompt }
+        ],
+        search_recency_filter: 'year'
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content || '';
+      const citations = data.citations || [];
+      
+      console.log('[enrich-internal-first] Perplexity phone response:', content.substring(0, 200));
+      
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        return {
+          phone: sanitizePhone(parsed.phone) || undefined,
+          mobile: sanitizePhone(parsed.mobile) || undefined,
+          direct_phone: sanitizePhone(parsed.direct_phone) || undefined,
+          phones: (parsed.all_phones || []).map((p: any) => ({
+            number: sanitizePhone(p.number),
+            type: p.type,
+            confidence: p.confidence,
+            source: 'perplexity'
+          })).filter((p: any) => p.number),
+          citations
+        };
+      }
+    }
+  } catch (e) {
+    console.error('[enrich-internal-first] Perplexity phone discovery error:', e);
+  }
+  
+  return null;
+};
+
 // Use AI to discover person details (title, phone, linkedin)
 const discoverPersonWithAI = async (
   email: string, 
   domain: string, 
   firstName?: string, 
-  lastName?: string
-): Promise<{ title?: string; phone?: string; mobile?: string; linkedin_url?: string } | null> => {
+  lastName?: string,
+  companyName?: string
+): Promise<{ title?: string; phone?: string; mobile?: string; linkedin_url?: string; level?: string; persona?: string } | null> => {
   const providers = getAvailableProviders();
   if (providers.length === 0) return null;
   
@@ -184,6 +259,7 @@ const discoverPersonWithAI = async (
 
 Person: ${personName}
 Email: ${email}
+Company: ${companyName || 'Unknown'}
 Company Domain: ${domain}
 
 Return JSON format:
@@ -206,15 +282,22 @@ If you cannot find reliable information for a field, use null. Be conservative -
       const aiData = await aiResponse.json();
       const content = aiData.choices?.[0]?.message?.content || '';
       
+      console.log('[enrich-internal-first] AI person response:', content.substring(0, 200));
+      
       // Extract JSON from response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
+        const title = parsed.title || undefined;
+        const classification = title ? classifyTitle(title) : { level: undefined, persona: undefined };
+        
         return {
-          title: parsed.title || undefined,
+          title,
           phone: sanitizePhone(parsed.phone) || undefined,
           mobile: sanitizePhone(parsed.mobile) || undefined,
-          linkedin_url: parsed.linkedin_url || undefined
+          linkedin_url: parsed.linkedin_url || undefined,
+          level: classification.level,
+          persona: classification.persona
         };
       }
     }
@@ -636,7 +719,7 @@ serve(async (req) => {
         }
       }
 
-      // AI firmographic enrichment for remaining
+      // AI firmographic enrichment for remaining - ENHANCED with HQ address and SIC/NAICS
       const providers = getAvailableProviders();
       if (!skip_ai && providers.length > 0) {
         const stillNeedsCompanyData = needsExternalEnrichment.filter(
@@ -644,51 +727,81 @@ serve(async (req) => {
         );
         
         if (stillNeedsCompanyData.length > 0) {
-          console.log(`[enrich-internal-first] Phase 2c: AI firmographic enrichment (${stillNeedsCompanyData.length} remaining)`);
+          console.log(`[enrich-internal-first] Phase 2c: AI firmographic enrichment with HQ/SIC/NAICS (${stillNeedsCompanyData.length} remaining)`);
           
-          const batchSize = 20;
+          const batchSize = 10; // Smaller batch for more detailed responses
           for (let i = 0; i < stillNeedsCompanyData.length; i += batchSize) {
             const batch = stillNeedsCompanyData.slice(i, i + batchSize);
             
-            const prompt = `Estimate firmographic data for these companies. Return ONLY valid JSON array.
-Format: [{"identifier": "email or domain", "company_name": "name", "employee_count": number, "revenue_range": "range", "industry": "industry", "country": "country", "confidence": 0-100}]
+            const prompt = `Research these companies and provide firmographic data. Return ONLY valid JSON array.
+
+Format: [{
+  "identifier": "email or domain used to identify",
+  "company_name": "Official company name",
+  "employee_count": number or null,
+  "revenue_range": "range string",
+  "industry": "Primary industry",
+  "sub_industry": "Sub-industry or null",
+  "country": "HQ country",
+  "hq_city": "Headquarters city or null",
+  "hq_state": "Headquarters state/province or null",
+  "hq_address": "Full HQ street address or null",
+  "hq_postal_code": "Postal/ZIP code or null",
+  "sic_code": "4-digit SIC code or null",
+  "naics": "6-digit NAICS code or null",
+  "company_main_phone": "Main company phone or null",
+  "confidence": 0-100
+}]
 
 Valid revenue ranges: "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M", "$50M-$100M", "$100M-$500M", "$500M-$1B", "$1B-$10B", "$10B+"
 
-Companies:
+Companies to research:
 ${batch.map(({ input }) => `- ${input.email || input.domain || input.company_name}`).join('\n')}`;
 
             try {
               const aiResponse = await callAI('enrichment', [
-                { role: 'system', content: 'You are a B2B data analyst. Provide realistic firmographic estimates. Output only valid JSON.' },
+                { role: 'system', content: 'You are a B2B data analyst. Research companies and provide accurate firmographic data including headquarters address and industry codes. Output only valid JSON.' },
                 { role: 'user', content: prompt }
               ]);
 
               if (aiResponse.ok) {
                 const aiData = await aiResponse.json();
                 const content = aiData.choices?.[0]?.message?.content || '';
+                
+                console.log('[enrich-internal-first] AI firmographic response sample:', content.substring(0, 300));
+                
                 const jsonMatch = content.match(/\[[\s\S]*\]/);
                 
                 if (jsonMatch) {
                   const estimates = JSON.parse(jsonMatch[0]);
                   
                   for (const est of estimates) {
-                    if (est.confidence < 50) continue;
+                    if (est.confidence < 40) continue; // Lower threshold for partial data
                     
                     const matchedItem = batch.find(({ input }) => 
                       input.email === est.identifier ||
                       input.domain === est.identifier ||
-                      extractDomain(input.email || '') === est.identifier
+                      extractDomain(input.email || '') === est.identifier ||
+                      input.company_name?.toLowerCase() === est.company_name?.toLowerCase()
                     );
                     
-                    if (matchedItem && !results[matchedItem.resultIndex].enriched_data.employee_count) {
+                    if (matchedItem) {
+                      const existing = results[matchedItem.resultIndex].enriched_data;
                       results[matchedItem.resultIndex].enriched_data = {
-                        ...results[matchedItem.resultIndex].enriched_data,
-                        employee_count: est.employee_count,
-                        revenue_range: est.revenue_range,
-                        industry_norm: est.industry,
-                        country: est.country,
-                        company_name: est.company_name || results[matchedItem.resultIndex].enriched_data.company_name
+                        ...existing,
+                        employee_count: existing.employee_count || est.employee_count,
+                        revenue_range: existing.revenue_range || est.revenue_range,
+                        industry_norm: existing.industry_norm || est.industry,
+                        sub_industry: existing.sub_industry || est.sub_industry,
+                        country: existing.country || est.country,
+                        hq_city: existing.hq_city || est.hq_city,
+                        hq_state: existing.hq_state || est.hq_state,
+                        hq_address: existing.hq_address || est.hq_address,
+                        hq_postal_code: existing.hq_postal_code || est.hq_postal_code,
+                        sic_code: existing.sic_code || est.sic_code,
+                        naics: existing.naics || est.naics,
+                        company_main_phone: existing.company_main_phone || sanitizePhone(est.company_main_phone),
+                        company_name: existing.company_name || est.company_name
                       };
                       results[matchedItem.resultIndex].source = 'ai';
                       results[matchedItem.resultIndex].confidence = est.confidence / 100;
@@ -705,33 +818,38 @@ ${batch.map(({ input }) => `- ${input.email || input.domain || input.company_nam
       }
     }
 
-    // Phase 3: Person Enrichment (title, phone discovery)
-    console.log('[enrich-internal-first] Phase 3: Person enrichment');
+    // Phase 3: Person Enrichment (title, phone discovery) - ENHANCED with Perplexity
+    console.log('[enrich-internal-first] Phase 3: Person enrichment with Perplexity phone discovery');
     
     const needsPersonEnrichment = results.filter(r => 
-      r.input.email && (!r.enriched_data.title || !r.enriched_data.phone)
+      r.input.email && (!r.enriched_data.title || !r.enriched_data.phone || !r.enriched_data.mobile)
     );
     
     if (needsPersonEnrichment.length > 0 && !skip_ai) {
-      console.log(`[enrich-internal-first] Enriching ${needsPersonEnrichment.length} persons with AI`);
+      console.log(`[enrich-internal-first] Enriching ${needsPersonEnrichment.length} persons with AI + Perplexity`);
       
       for (const result of needsPersonEnrichment) {
         if (!result.input.email) continue;
         
         const domain = result.enriched_data.domain || extractDomain(result.input.email);
+        const personName = [result.enriched_data.first_name, result.enriched_data.last_name].filter(Boolean).join(' ') 
+          || result.input.email.split('@')[0];
+        const companyName = result.enriched_data.company_name || '';
+        
+        // First try general AI for title discovery
         const personData = await discoverPersonWithAI(
           result.input.email,
           domain,
           result.enriched_data.first_name,
-          result.enriched_data.last_name
+          result.enriched_data.last_name,
+          companyName
         );
         
         if (personData) {
           if (personData.title && !result.enriched_data.title) {
             result.enriched_data.title = personData.title;
-            const classification = classifyTitle(personData.title);
-            result.enriched_data.level = classification.level;
-            result.enriched_data.persona = classification.persona;
+            result.enriched_data.level = personData.level || classifyTitle(personData.title).level;
+            result.enriched_data.persona = personData.persona || classifyTitle(personData.title).persona;
           }
           if (personData.phone && !result.enriched_data.phone) {
             result.enriched_data.phone = personData.phone;
@@ -743,6 +861,39 @@ ${batch.map(({ input }) => `- ${input.email || input.domain || input.company_nam
             result.enriched_data.linkedin_url = personData.linkedin_url;
           }
           stats.person_enriched++;
+        }
+        
+        // If still missing phone, try Perplexity web search specifically for phones
+        if (!result.enriched_data.phone && !result.enriched_data.mobile) {
+          console.log(`[enrich-internal-first] Trying Perplexity phone discovery for ${personName}`);
+          
+          const phoneData = await discoverPhoneWithPerplexity(
+            personName,
+            companyName || domain,
+            domain
+          );
+          
+          if (phoneData) {
+            if (phoneData.phone && !result.enriched_data.phone) {
+              result.enriched_data.phone = phoneData.phone;
+            }
+            if (phoneData.mobile && !result.enriched_data.mobile) {
+              result.enriched_data.mobile = phoneData.mobile;
+            }
+            if (phoneData.direct_phone && !result.enriched_data.direct_phone) {
+              result.enriched_data.direct_phone = phoneData.direct_phone;
+            }
+            if (phoneData.phones && phoneData.phones.length > 0) {
+              result.enriched_data.phones = [
+                ...(result.enriched_data.phones || []),
+                ...phoneData.phones
+              ];
+            }
+            if (phoneData.citations) {
+              result.enriched_data.phone_citations = phoneData.citations;
+            }
+            console.log(`[enrich-internal-first] Perplexity found phones:`, phoneData);
+          }
         }
       }
     }
