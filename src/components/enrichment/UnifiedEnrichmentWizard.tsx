@@ -384,188 +384,179 @@ export function UnifiedEnrichmentWizard() {
     return '';
   };
 
+  // Helper function to export leads to CSV (reusable for both local and DB results)
+  const exportLeadsToCSV = (leadsResults: EnrichmentResult[]) => {
+    // Full 86-field headers with DATA QUALITY column for visibility
+    const headers = [
+      "Data Quality",
+      "External ID", "Contact External ID", "Account External ID", "Name",
+      "First Name", "Last Name", "Title", "Title Raw", "Level", "Persona",
+      "Email", "Email Status", "Email Verified", "Email Verified At", "Email Verification Status",
+      "Phone", "Mobile", "Cell Phone", "Direct Phone", "Phone Extension",
+      "Phone Type", "Phone Verified", "Phone Verification Status",
+      "Verified Phone", "Verified Email", "All Discovered Phones",
+      "Company", "Website", "Industry", "Sub Industry",
+      "Country", "State/Province", "Location City", "Location Region", "Timezone",
+      "Employee Count", "Revenue Range", "Company HQ Address", "Company HQ City",
+      "Company HQ State", "Company HQ Country", "Company HQ Postal Code",
+      "Company Main Phone", "Company SIC Code", "Company NAICS Code",
+      "LinkedIn URL", "Twitter URL", "Facebook URL", "Company Facebook URL",
+      "Status", "Pipeline Stage", "Pipeline Updated At", "Pipeline Triggered By",
+      "ICP Qualified", "ICP Fail Reasons", "Priority Rank", "Export Eligible",
+      "Enrichment Source", "Enriched At", "Enriched From", "Enrichment Pass",
+      "Enrichment Confidence", "Enrichment Overall Score", "Enrichment Field Scores",
+      "Enrichment Total Score", "Enrichment Max Score", "Enrichment Citations",
+      "Data Source", "Source Type", "Discovered At", "Discovered From Account",
+      "External Database Match", "Match Confidence", "Match Reasoning",
+      "Consent Status", "Suppression Reason", "Previous Company", "Previous Title",
+      "Still At Company", "Title As Of", "Last Exported At", "Deep Research Completed At",
+      "Created At", "Updated At", "Fields Filled"
+    ];
+    
+    const getDataQuality = (d: any): string => {
+      const missing: string[] = [];
+      if (!d.employee_count) missing.push('Employee Count');
+      if (!d.industry && !d.industry_norm && !d.industry_raw) missing.push('Industry');
+      if (!d.revenue_range) missing.push('Revenue');
+      if (!d.phone && !d.mobile && !d.direct_phone) missing.push('Phone');
+      if (!d.title && !d.level) missing.push('Title');
+      if (missing.length === 0) return 'Complete';
+      return `Missing: ${missing.join(', ')}`;
+    };
+
+    const rows = leadsResults.map((r) => {
+      const d = r.enriched_data || {};
+      const input = r.input || {};
+      const allPhones = (d.phones || [])
+        .map((p: any) => `${p.number} (${p.type || 'unknown'}, ${p.source || 'unknown'})`)
+        .join('; ');
+      const firstName = d.first_name || input.first_name || '';
+      const lastName = d.last_name || input.last_name || '';
+      const email = safeEmail(d.email, input.email);
+      const company = d.company || d.company_name || input.company || input.company_name || '';
+      const title = d.title || d.title_raw || d.job_title || input.title || '';
+      const level = d.level || '';
+      const persona = d.persona || '';
+      const primaryPhone = safePhone(d.phone) || safePhone(d.direct_phone) || safePhone(input.phone) || '';
+      const mobilePhone = safePhone(d.mobile) || safePhone(d.cell_phone) || safePhone(d.mobile_phone) || '';
+      const directPhone = safePhone(d.direct_phone) || (d.phones || []).find((p: any) => p.type === 'direct')?.number || '';
+      const hqCity = d.hq_city || d.company_hq_city || d.location_city || d.city || '';
+      const hqState = d.hq_state || d.company_hq_state || d.state_province || '';
+      const hqAddress = d.hq_address || d.company_hq_address || '';
+      const hqPostalCode = d.hq_postal_code || d.company_hq_postal_code || '';
+      const sicCode = d.sic_code || d.company_sic_code || '';
+      const naicsCode = d.naics || d.naics_code || d.company_naics_code || '';
+      
+      return [
+        escapeCsv(getDataQuality(d)),
+        escapeCsv(d.external_id || input.external_id || ''),
+        escapeCsv(d.contact_external_id || ''),
+        escapeCsv(d.account_external_id || d.matched_account_id || ''),
+        escapeCsv(d.name || `${firstName} ${lastName}`.trim() || ''),
+        escapeCsv(firstName), escapeCsv(lastName),
+        escapeCsv(title), escapeCsv(d.title_raw || ''),
+        escapeCsv(level), escapeCsv(persona),
+        escapeCsv(email), escapeCsv(d.email_status || ''),
+        d.email_verified ? 'true' : '', d.email_verified_at || '',
+        escapeCsv(d.email_verification_status || ''),
+        escapeCsv(primaryPhone), escapeCsv(mobilePhone),
+        escapeCsv(safePhone(d.cell_phone) || ''), escapeCsv(directPhone),
+        escapeCsv(d.phone_extension || ''), escapeCsv(d.phone_type || ''),
+        d.phone_verified ? 'true' : '', escapeCsv(d.phone_verification_status || ''),
+        escapeCsv(safePhone(d.verified_phone) || ''), escapeCsv(d.verified_email || ''),
+        escapeCsv(allPhones), escapeCsv(company),
+        escapeCsv(d.website || d.domain || input.domain || ''),
+        escapeCsv(d.industry || d.industry_norm || d.industry_raw || ''),
+        escapeCsv(d.sub_industry || d.sub_industry_norm || ''),
+        escapeCsv(d.country || d.hq_country || ''),
+        escapeCsv(hqState), escapeCsv(hqCity),
+        escapeCsv(d.location_region || ''), escapeCsv(d.timezone || ''),
+        d.employee_count?.toString() || '', escapeCsv(d.revenue_range || ''),
+        escapeCsv(hqAddress), escapeCsv(hqCity), escapeCsv(hqState),
+        escapeCsv(d.company_hq_country || d.country || ''), escapeCsv(hqPostalCode),
+        escapeCsv(safePhone(d.company_main_phone) || ''),
+        escapeCsv(sicCode), escapeCsv(naicsCode),
+        escapeCsv(d.linkedin_url || input.linkedin_url || ''),
+        escapeCsv(d.twitter_url || ''), escapeCsv(d.facebook_url || ''),
+        escapeCsv(d.company_facebook_url || ''),
+        escapeCsv(d.status || ''), escapeCsv(d.pipeline_stage || ''),
+        d.pipeline_updated_at || '', escapeCsv(d.pipeline_triggered_by || ''),
+        d.icp_qualified ? 'true' : '',
+        Array.isArray(d.icp_fail_reasons) ? escapeCsv(d.icp_fail_reasons.join('; ')) : '',
+        d.priority_rank?.toString() || '', d.export_eligible ? 'true' : '',
+        escapeCsv(r.source || d.enrichment_source || d.enriched_from || ''),
+        d.enriched_at || '', escapeCsv(d.enriched_from || ''),
+        d.enrichment_pass ? 'true' : '',
+        (r.confidence ? Math.round(r.confidence * 100) : d.enrichment_confidence || '')?.toString() || '',
+        d.enrichment_overall_score?.toString() || '',
+        d.enrichment_field_scores ? escapeCsv(JSON.stringify(d.enrichment_field_scores)) : '',
+        d.enrichment_total_score?.toString() || '', d.enrichment_max_score?.toString() || '',
+        d.enrichment_citations ? escapeCsv(JSON.stringify(d.enrichment_citations)) : '',
+        escapeCsv(d.data_source || ''), escapeCsv(d.source_type || ''),
+        d.discovered_at || '', d.discovered_from_account?.toString() || '',
+        d.external_database_match?.toString() || '', d.match_confidence?.toString() || '',
+        escapeCsv(d.match_reasoning || ''), escapeCsv(d.consent_status || ''),
+        escapeCsv(d.suppression_reason || ''), escapeCsv(d.previous_company || ''),
+        escapeCsv(d.previous_title || ''), d.still_at_company?.toString() || '',
+        d.title_as_of || '', d.last_exported_at || '', d.deep_research_completed_at || '',
+        d.created_at || new Date().toISOString(), d.updated_at || new Date().toISOString(),
+        r.fields_filled?.join(', ') || ''
+      ];
+    });
+    
+    const csv = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `enriched_leads_full_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    toast.success(`Exported ${leadsResults.length} leads with 86 fields including Data Quality indicator`);
+  };
+
   // Export results to CSV - Full 85-field data export for leads
-  const exportResults = () => {
-    if (results.length === 0) return;
+  const exportResults = async () => {
+    // For background jobs with no local results, fetch from database
+    if (results.length === 0) {
+      if (!userProfile?.org_id) {
+        toast.error("Unable to export - no organization found");
+        return;
+      }
+      
+      // Fetch recently enriched leads (within last 30 mins to catch job window)
+      const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      
+      const { data: leads, error } = await supabase
+        .from('Leads')
+        .select('*')
+        .eq('org_id', userProfile.org_id)
+        .not('enriched_at', 'is', null)
+        .gte('enriched_at', thirtyMinsAgo)
+        .order('enriched_at', { ascending: false })
+        .limit(stats?.total || 1000);
+      
+      if (error || !leads?.length) {
+        toast.error("No enriched leads found to export");
+        return;
+      }
+      
+      // Convert DB leads to results format and export
+      const dbResults: EnrichmentResult[] = leads.map(lead => ({
+        input: { email: lead.email },
+        enriched_data: lead,
+        source: lead.enriched_from || 'database',
+        confidence: lead.enrichment_confidence || 0,
+        fields_filled: Object.keys(lead).filter(k => lead[k] != null)
+      }));
+      
+      exportLeadsToCSV(dbResults);
+      return;
+    }
     
     if (enrichmentType === 'leads') {
-      // Full 86-field headers with DATA QUALITY column for visibility
-      const headers = [
-        "Data Quality", // NEW: Shows what's missing or Complete
-        "External ID", "Contact External ID", "Account External ID", "Name",
-        "First Name", "Last Name", "Title", "Title Raw", "Level", "Persona",
-        "Email", "Email Status", "Email Verified", "Email Verified At", "Email Verification Status",
-        "Phone", "Mobile", "Cell Phone", "Direct Phone", "Phone Extension",
-        "Phone Type", "Phone Verified", "Phone Verification Status",
-        "Verified Phone", "Verified Email", "All Discovered Phones",
-        "Company", "Website", "Industry", "Sub Industry",
-        "Country", "State/Province", "Location City", "Location Region", "Timezone",
-        "Employee Count", "Revenue Range", "Company HQ Address", "Company HQ City",
-        "Company HQ State", "Company HQ Country", "Company HQ Postal Code",
-        "Company Main Phone", "Company SIC Code", "Company NAICS Code",
-        "LinkedIn URL", "Twitter URL", "Facebook URL", "Company Facebook URL",
-        "Status", "Pipeline Stage", "Pipeline Updated At", "Pipeline Triggered By",
-        "ICP Qualified", "ICP Fail Reasons", "Priority Rank", "Export Eligible",
-        "Enrichment Source", "Enriched At", "Enriched From", "Enrichment Pass",
-        "Enrichment Confidence", "Enrichment Overall Score", "Enrichment Field Scores",
-        "Enrichment Total Score", "Enrichment Max Score", "Enrichment Citations",
-        "Data Source", "Source Type", "Discovered At", "Discovered From Account",
-        "External Database Match", "Match Confidence", "Match Reasoning",
-        "Consent Status", "Suppression Reason", "Previous Company", "Previous Title",
-        "Still At Company", "Title As Of", "Last Exported At", "Deep Research Completed At",
-        "Created At", "Updated At", "Fields Filled"
-      ];
-      
-      // Helper to calculate data quality
-      const getDataQuality = (d: any): string => {
-        const missing: string[] = [];
-        if (!d.employee_count) missing.push('Employee Count');
-        if (!d.industry && !d.industry_norm && !d.industry_raw) missing.push('Industry');
-        if (!d.revenue_range) missing.push('Revenue');
-        if (!d.phone && !d.mobile && !d.direct_phone) missing.push('Phone');
-        if (!d.title && !d.level) missing.push('Title');
-        
-        if (missing.length === 0) return 'Complete';
-        return `Missing: ${missing.join(', ')}`;
-      };
-
-      const rows = results.map((r) => {
-        const d = r.enriched_data || {};
-        const input = r.input || {};
-        
-        // Format all discovered phones as semicolon-separated list
-        const allPhones = (d.phones || [])
-          .map((p: any) => `${p.number} (${p.type || 'unknown'}, ${p.source || 'unknown'})`)
-          .join('; ');
-        
-        // Safe value extraction with comprehensive fallback chains
-        const firstName = d.first_name || input.first_name || '';
-        const lastName = d.last_name || input.last_name || '';
-        const email = safeEmail(d.email, input.email);
-        const company = d.company || d.company_name || input.company || input.company_name || '';
-        
-        // Title with multiple fallbacks
-        const title = d.title || d.title_raw || d.job_title || input.title || '';
-        
-        // Level and persona - classify from title if missing
-        const level = d.level || '';
-        const persona = d.persona || '';
-        
-        // Phone fallbacks - check all possible phone fields
-        const primaryPhone = safePhone(d.phone) || safePhone(d.direct_phone) || safePhone(input.phone) || '';
-        const mobilePhone = safePhone(d.mobile) || safePhone(d.cell_phone) || safePhone(d.mobile_phone) || '';
-        const directPhone = safePhone(d.direct_phone) || (d.phones || []).find((p: any) => p.type === 'direct')?.number || '';
-        
-        // HQ Address fallbacks
-        const hqCity = d.hq_city || d.company_hq_city || d.location_city || d.city || '';
-        const hqState = d.hq_state || d.company_hq_state || d.state_province || '';
-        const hqAddress = d.hq_address || d.company_hq_address || '';
-        const hqPostalCode = d.hq_postal_code || d.company_hq_postal_code || '';
-        
-        // Industry code fallbacks
-        const sicCode = d.sic_code || d.company_sic_code || '';
-        const naicsCode = d.naics || d.naics_code || d.company_naics_code || '';
-        
-        return [
-          escapeCsv(getDataQuality(d)), // Data Quality column first
-          escapeCsv(d.external_id || input.external_id || ''),
-          escapeCsv(d.contact_external_id || ''),
-          escapeCsv(d.account_external_id || d.matched_account_id || ''),
-          escapeCsv(d.name || `${firstName} ${lastName}`.trim() || ''),
-          escapeCsv(firstName),
-          escapeCsv(lastName),
-          escapeCsv(title),
-          escapeCsv(d.title_raw || ''),
-          escapeCsv(level),
-          escapeCsv(persona),
-          escapeCsv(email),
-          escapeCsv(d.email_status || ''),
-          d.email_verified ? 'true' : '',
-          d.email_verified_at || '',
-          escapeCsv(d.email_verification_status || ''),
-          escapeCsv(primaryPhone),
-          escapeCsv(mobilePhone),
-          escapeCsv(safePhone(d.cell_phone) || ''),
-          escapeCsv(directPhone),
-          escapeCsv(d.phone_extension || ''),
-          escapeCsv(d.phone_type || ''),
-          d.phone_verified ? 'true' : '',
-          escapeCsv(d.phone_verification_status || ''),
-          escapeCsv(safePhone(d.verified_phone) || ''),
-          escapeCsv(d.verified_email || ''),
-          escapeCsv(allPhones),
-          escapeCsv(company),
-          escapeCsv(d.website || d.domain || input.domain || ''),
-          escapeCsv(d.industry || d.industry_norm || d.industry_raw || ''),
-          escapeCsv(d.sub_industry || d.sub_industry_norm || ''),
-          escapeCsv(d.country || d.hq_country || ''),
-          escapeCsv(hqState),
-          escapeCsv(hqCity),
-          escapeCsv(d.location_region || ''),
-          escapeCsv(d.timezone || ''),
-          d.employee_count?.toString() || '',
-          escapeCsv(d.revenue_range || ''),
-          escapeCsv(hqAddress),
-          escapeCsv(hqCity),
-          escapeCsv(hqState),
-          escapeCsv(d.company_hq_country || d.country || ''),
-          escapeCsv(hqPostalCode),
-          escapeCsv(safePhone(d.company_main_phone) || ''),
-          escapeCsv(sicCode),
-          escapeCsv(naicsCode),
-          escapeCsv(d.linkedin_url || input.linkedin_url || ''),
-          escapeCsv(d.twitter_url || ''),
-          escapeCsv(d.facebook_url || ''),
-          escapeCsv(d.company_facebook_url || ''),
-          escapeCsv(d.status || ''),
-          escapeCsv(d.pipeline_stage || ''),
-          d.pipeline_updated_at || '',
-          escapeCsv(d.pipeline_triggered_by || ''),
-          d.icp_qualified ? 'true' : '',
-          Array.isArray(d.icp_fail_reasons) ? escapeCsv(d.icp_fail_reasons.join('; ')) : '',
-          d.priority_rank?.toString() || '',
-          d.export_eligible ? 'true' : '',
-          escapeCsv(r.source || d.enrichment_source || ''),
-          d.enriched_at || '',
-          escapeCsv(d.enriched_from || ''),
-          d.enrichment_pass ? 'true' : '',
-          (r.confidence ? Math.round(r.confidence * 100) : d.enrichment_confidence || '')?.toString() || '',
-          d.enrichment_overall_score?.toString() || '',
-          d.enrichment_field_scores ? escapeCsv(JSON.stringify(d.enrichment_field_scores)) : '',
-          d.enrichment_total_score?.toString() || '',
-          d.enrichment_max_score?.toString() || '',
-          d.enrichment_citations ? escapeCsv(JSON.stringify(d.enrichment_citations)) : '',
-          escapeCsv(d.data_source || ''),
-          escapeCsv(d.source_type || ''),
-          d.discovered_at || '',
-          d.discovered_from_account?.toString() || '',
-          d.external_database_match?.toString() || '',
-          d.match_confidence?.toString() || '',
-          escapeCsv(d.match_reasoning || ''),
-          escapeCsv(d.consent_status || ''),
-          escapeCsv(d.suppression_reason || ''),
-          escapeCsv(d.previous_company || ''),
-          escapeCsv(d.previous_title || ''),
-          d.still_at_company?.toString() || '',
-          d.title_as_of || '',
-          d.last_exported_at || '',
-          d.deep_research_completed_at || '',
-          d.created_at || new Date().toISOString(),
-          d.updated_at || new Date().toISOString(),
-          r.fields_filled?.join(', ') || ''
-        ];
-      });
-      
-      const csv = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `enriched_leads_full_${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
-      
-      toast.success(`Exported ${results.length} leads with 86 fields including Data Quality indicator`);
+      exportLeadsToCSV(results);
     } else {
       // Account export - 17 fields
       const headers = [
@@ -956,10 +947,16 @@ export function UnifiedEnrichmentWizard() {
               onComplete={(job) => {
                 if (job.status === 'completed') {
                   setStep("results");
+                  // Read source breakdown from job metadata
+                  const meta = (job as any).metadata || {};
                   setStats({
                     total: job.total_records || 0,
                     enriched: job.enriched_records || job.rows_completed || 0,
-                    failed: job.failed_records || job.rows_failed || 0
+                    failed: job.failed_records || job.rows_failed || 0,
+                    internal_matches: meta.internal_matches || 0,
+                    apollo_enriched: meta.apollo_enriched || 0,
+                    pdl_enriched: meta.pdl_enriched || 0,
+                    ai_enriched: meta.ai_enriched || 0
                   });
                 } else {
                   setStep("preview");

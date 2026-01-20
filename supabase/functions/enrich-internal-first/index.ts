@@ -422,6 +422,12 @@ async function processLeadsInBackground(
   let failed = 0;
   const results: EnrichmentResult[] = [];
   
+  // Track enrichment sources for stats breakdown
+  let internalMatches = 0;
+  let apolloEnriched = 0;
+  let pdlEnriched = 0;
+  let aiEnriched = 0;
+  
   // Domain cache to avoid redundant API calls for same company
   const domainCache = new Map<string, any>();
   
@@ -492,6 +498,20 @@ async function processLeadsInBackground(
           results.push(result);
           if (success) {
             completed++;
+            // Track source for stats breakdown
+            const source = result.source?.toLowerCase() || '';
+            if (source === 'internal' || source === 'domain_discovery') {
+              internalMatches++;
+            } else if (source === 'apollo' || source === 'hunter') {
+              apolloEnriched++;
+            } else if (source === 'pdl' || source === 'clearbit') {
+              pdlEnriched++;
+            } else if (source === 'ai' || source.includes('perplexity') || source.includes('openai')) {
+              aiEnriched++;
+            } else {
+              // Default to internal if unknown but successful
+              internalMatches++;
+            }
           } else {
             failed++;
           }
@@ -523,7 +543,14 @@ async function processLeadsInBackground(
       }).eq('id', jobId);
     }
     
-    // Mark job as completed
+    // Mark job as completed with source breakdown in metadata
+    const sourceBreakdown = {
+      internal_matches: internalMatches,
+      apollo_enriched: apolloEnriched,
+      pdl_enriched: pdlEnriched,
+      ai_enriched: aiEnriched
+    };
+    
     await supabase.from('enrichment_jobs').update({
       status: 'completed',
       completed_at: new Date().toISOString(),
@@ -532,10 +559,11 @@ async function processLeadsInBackground(
       rows_failed: failed,
       enriched_records: completed,
       failed_records: failed,
-      total_records: inputs.length
+      total_records: inputs.length,
+      metadata: sourceBreakdown
     }).eq('id', jobId);
     
-    console.log(`[enrich-internal-first] Job ${jobId} completed: ${completed} success, ${failed} failed (domain cache hits: ${domainCache.size} domains)`);
+    console.log(`[enrich-internal-first] Job ${jobId} completed: ${completed} success, ${failed} failed (internal: ${internalMatches}, apollo: ${apolloEnriched}, pdl: ${pdlEnriched}, ai: ${aiEnriched}, domain cache: ${domainCache.size})`);
     
   } catch (error) {
     console.error(`[enrich-internal-first] Job ${jobId} failed:`, error);
