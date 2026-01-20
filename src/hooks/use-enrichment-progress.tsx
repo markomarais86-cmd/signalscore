@@ -1,6 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+export interface SourceBreakdown {
+  internal_matches?: number;
+  apollo_enriched?: number;
+  pdl_enriched?: number;
+  ai_enriched?: number;
+  multi_agent_enriched?: number;
+  failed?: number;
+}
+
 export interface EnrichmentProgress {
   id: string;
   status: string;
@@ -17,6 +26,7 @@ export interface EnrichmentProgress {
   paused_at: string | null;
   error_message: string | null;
   last_heartbeat: string | null;
+  source_breakdown: SourceBreakdown | null;
 }
 
 export function useEnrichmentProgress(jobId: string | null, enabled: boolean = true) {
@@ -57,7 +67,8 @@ export function useEnrichmentProgress(jobId: string | null, enabled: boolean = t
         can_pause: data.status === 'processing',
         paused_at: data.paused_at,
         error_message: data.error_message,
-        last_heartbeat: data.last_heartbeat
+        last_heartbeat: data.last_heartbeat,
+        source_breakdown: (data.source_breakdown as SourceBreakdown) || null
       };
     },
     enabled: enabled && !!jobId,
