@@ -14,8 +14,47 @@ const COST_PER_PHASE = {
   pdl: 0.005,           // $0.005 per call
   clearbit: 0.001,      // Free tier, minimal cost
   launch_pulse: 0.01,   // $0.01 per account (Launch Pulse proprietary)
-  deep_research: 0.10   // $0.10 per account (10x more expensive)
+  deep_research: 0.10,  // $0.10 per account (10x more expensive)
+  // Lead enrichment costs
+  perplexity: 0.01,     // $0.01 per Perplexity call
+  claude: 0.008,        // $0.008 per Claude call
+  gemini: 0.002,        // $0.002 per Gemini call
+  firecrawl: 0.02,      // $0.02 per Firecrawl scrape
+  hunter: 0.003,        // $0.003 per Hunter verification
 };
+
+// Estimate cost for 1,000 leads
+export function estimateLeadEnrichmentCost(leadCount: number): {
+  totalCost: number;
+  perLeadCost: number;
+  breakdown: Array<{ provider: string; estimatedCalls: number; cost: number }>;
+} {
+  // Based on typical enrichment patterns:
+  // - 85% need Perplexity (AI research)
+  // - 15% fallback to Claude
+  // - 30% new domains need Firecrawl scraping
+  // - 100% get Hunter email verification
+  
+  const perplexityCalls = Math.round(leadCount * 0.85);
+  const claudeCalls = Math.round(leadCount * 0.15);
+  const firecrawlCalls = Math.round(leadCount * 0.30);
+  const hunterCalls = leadCount;
+  
+  const breakdown = [
+    { provider: 'Perplexity (AI Research)', estimatedCalls: perplexityCalls, cost: perplexityCalls * COST_PER_PHASE.perplexity },
+    { provider: 'Claude (Fallback)', estimatedCalls: claudeCalls, cost: claudeCalls * COST_PER_PHASE.claude },
+    { provider: 'Firecrawl (Scraping)', estimatedCalls: firecrawlCalls, cost: firecrawlCalls * COST_PER_PHASE.firecrawl },
+    { provider: 'Hunter (Verification)', estimatedCalls: hunterCalls, cost: hunterCalls * COST_PER_PHASE.hunter },
+  ];
+  
+  const totalCost = breakdown.reduce((sum, b) => sum + b.cost, 0);
+  
+  return {
+    totalCost,
+    perLeadCost: leadCount > 0 ? totalCost / leadCount : 0,
+    breakdown,
+  };
+}
 
 export function calculateEnrichmentCost(
   accountCount: number,
