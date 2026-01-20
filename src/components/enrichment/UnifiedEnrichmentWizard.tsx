@@ -400,27 +400,16 @@ export function UnifiedEnrichmentWizard() {
     return '';
   };
 
-  // STREAMLINED 25-field essential headers (FIX #4)
+  // Clean 20-field essential headers (no internal metadata)
   const ESSENTIAL_HEADERS = [
-    "Data Quality", "Email", "First Name", "Last Name", "Title", 
+    "Email", "First Name", "Last Name", "Title", 
     "Level", "Persona", "Phone", "Mobile", "Direct Phone",
     "Company", "Website", "Industry", "Employee Count", "Revenue Range",
-    "Country", "State", "City", "LinkedIn URL", "Email Verified",
-    "Enrichment Source", "Confidence", "ICP Qualified", "Created At", "Updated At"
+    "Country", "State", "City", "LinkedIn URL", "Email Verified", "ICP Qualified"
   ];
 
   // Helper function to export leads to CSV (reusable for both local and DB results)
   const exportLeadsToCSV = (leadsResults: EnrichmentResult[], essentialOnly: boolean = false) => {
-    const getDataQuality = (d: any): string => {
-      const missing: string[] = [];
-      if (!d.employee_count) missing.push('Employees');
-      if (!d.industry && !d.industry_norm && !d.industry_raw) missing.push('Industry');
-      if (!d.revenue_range) missing.push('Revenue');
-      if (!safePhone(d.phone) && !safePhone(d.mobile) && !safePhone(d.direct_phone)) missing.push('Phone');
-      if (!d.title && !d.level) missing.push('Title');
-      if (missing.length === 0) return 'Complete';
-      return `Missing: ${missing.join(', ')}`;
-    };
 
     // Build rows based on export type
     if (essentialOnly) {
@@ -434,7 +423,6 @@ export function UnifiedEnrichmentWizard() {
         const title = d.title || d.title_raw || input.title || '';
         
         return [
-          escapeCsv(getDataQuality(d)),
           escapeCsv(email),
           escapeCsv(firstName),
           escapeCsv(lastName),
@@ -454,11 +442,7 @@ export function UnifiedEnrichmentWizard() {
           escapeCsv(d.location_city || d.hq_city || ''),
           escapeCsv(d.linkedin_url || input.linkedin_url || ''),
           d.email_verified ? 'true' : '',
-          escapeCsv(r.source || d.enriched_from || ''),
-          (r.confidence ? Math.round(r.confidence * 100) : d.enrichment_confidence || '')?.toString() + '%',
-          d.icp_qualified ? 'true' : '',
-          d.created_at || '',
-          d.updated_at || ''
+          d.icp_qualified ? 'true' : ''
         ];
       });
       
@@ -471,13 +455,13 @@ export function UnifiedEnrichmentWizard() {
       a.click();
       URL.revokeObjectURL(url);
       
-      toast.success(`Exported ${leadsResults.length} leads with 25 essential fields`);
+      toast.success(`Exported ${leadsResults.length} leads with 20 fields`);
       return;
     }
 
-    // Full 40-field export (reduced from 86, removed always-empty columns)
+    // Full 27-field export (no internal metadata)
     const headers = [
-      "Data Quality", "Email", "First Name", "Last Name", "Name",
+      "Email", "First Name", "Last Name", "Name",
       "Title", "Level", "Persona",
       "Phone", "Mobile", "Direct Phone",
       "Company", "Website", "Industry", "Sub Industry",
@@ -486,9 +470,7 @@ export function UnifiedEnrichmentWizard() {
       "LinkedIn URL",
       "Email Verified", "Email Status",
       "ICP Qualified", "ICP Fail Reasons",
-      "Status", "Pipeline Stage",
-      "Enrichment Source", "Enriched At", "Enrichment Confidence",
-      "Data Source", "Created At", "Updated At"
+      "Status", "Pipeline Stage"
     ];
 
     const rows = leadsResults.map((r) => {
@@ -509,7 +491,6 @@ export function UnifiedEnrichmentWizard() {
       const hqAddress = d.hq_address || '';
       
       return [
-        escapeCsv(getDataQuality(d)),
         escapeCsv(email),
         escapeCsv(firstName), escapeCsv(lastName),
         escapeCsv(d.name || `${firstName} ${lastName}`.trim() || ''),
@@ -526,12 +507,7 @@ export function UnifiedEnrichmentWizard() {
         d.email_verified ? 'true' : '', escapeCsv(d.email_status || ''),
         d.icp_qualified ? 'true' : '',
         Array.isArray(d.icp_fail_reasons) ? escapeCsv(d.icp_fail_reasons.join('; ')) : '',
-        escapeCsv(d.status || ''), escapeCsv(d.pipeline_stage || ''),
-        escapeCsv(r.source || d.enrichment_source || d.enriched_from || ''),
-        d.enriched_at || '',
-        (r.confidence ? Math.round(r.confidence * 100) : d.enrichment_confidence || '')?.toString() + '%',
-        escapeCsv(d.data_source || ''),
-        d.created_at || new Date().toISOString(), d.updated_at || new Date().toISOString()
+        escapeCsv(d.status || ''), escapeCsv(d.pipeline_stage || '')
       ];
     });
     
