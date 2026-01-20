@@ -528,6 +528,8 @@ export function UnifiedEnrichmentWizard() {
       // Fetch recently enriched leads (within last 30 mins to catch job window)
       const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
       
+      toast.info("Fetching enriched leads from database...");
+      
       const { data: leads, error } = await supabase
         .from('Leads')
         .select('*')
@@ -537,8 +539,14 @@ export function UnifiedEnrichmentWizard() {
         .order('enriched_at', { ascending: false })
         .limit(stats?.total || 1000);
       
-      if (error || !leads?.length) {
-        toast.error("No enriched leads found to export");
+      if (error) {
+        console.error('Export fetch error:', error);
+        toast.error("Failed to fetch leads from database");
+        return;
+      }
+      
+      if (!leads?.length) {
+        toast.error("No recently enriched leads found. Try running enrichment first.");
         return;
       }
       
@@ -552,6 +560,7 @@ export function UnifiedEnrichmentWizard() {
       }));
       
       exportLeadsToCSV(dbResults);
+      toast.success(`Exported ${leads.length} enriched leads to CSV`);
       return;
     }
     

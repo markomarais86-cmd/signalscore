@@ -110,6 +110,12 @@ serve(async (req) => {
 
     const finalStatus = pendingCount > 0 ? 'paused' : 'completed';
 
+    // Track source breakdown (since multi-agent is the only source for this function)
+    const sourceBreakdown = {
+      multi_agent_enriched: completedCount,
+      failed: failedCount
+    };
+
     await supabase
       .from('enrichment_jobs')
       .update({
@@ -120,6 +126,7 @@ serve(async (req) => {
         rows_failed: failedCount,
         rows_pending: pendingCount,
         enriched_records: completedCount,
+        source_breakdown: sourceBreakdown,
         last_heartbeat: new Date().toISOString(),
         error_message: timedOut ? 'Job paused due to timeout. Will auto-resume.' : null
       })
@@ -461,6 +468,8 @@ async function updateSourceRecord(
         enrichment_overall_score: overallScore,
         icp_qualified: icpPass,
         icp_fail_reasons: icpFailReasons.length > 0 ? icpFailReasons : null,
+        enriched_at: new Date().toISOString(),
+        enriched_from: 'multi_agent',
         updated_at: new Date().toISOString()
       })
       .eq('org_id', row.org_id)
