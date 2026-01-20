@@ -560,7 +560,7 @@ async function processLeadsInBackground(
       enriched_records: completed,
       failed_records: failed,
       total_records: inputs.length,
-      metadata: sourceBreakdown
+      source_breakdown: sourceBreakdown
     }).eq('id', jobId);
     
     console.log(`[enrich-internal-first] Job ${jobId} completed: ${completed} success, ${failed} failed (internal: ${internalMatches}, apollo: ${apolloEnriched}, pdl: ${pdlEnriched}, ai: ${aiEnriched}, domain cache: ${domainCache.size})`);
@@ -656,7 +656,7 @@ async function saveEnrichmentResult(
   
   if (!email && !domain) return;
   
-  // Upsert lead if we have email
+  // Save lead if we have email - use update/insert pattern since no matching unique constraint
   if (email) {
     const leadData = {
       org_id: orgId,
@@ -678,10 +678,29 @@ async function saveEnrichmentResult(
       data_source: sourceType
     };
     
-    await supabase.from('Leads').upsert(leadData, {
-      onConflict: 'email,org_id',
-      ignoreDuplicates: false
-    });
+    // Check if lead exists first (upsert doesn't work with functional unique index)
+    const { data: existing } = await supabase
+      .from('Leads')
+      .select('id')
+      .eq('org_id', orgId)
+      .eq('email', email.toLowerCase())
+      .maybeSingle();
+    
+    if (existing?.id) {
+      const { error } = await supabase.from('Leads').update(leadData).eq('id', existing.id);
+      if (error) {
+        console.error(`[enrich-internal-first] Lead update failed for ${email}:`, error);
+      } else {
+        console.log(`[enrich-internal-first] Updated lead: ${email}`);
+      }
+    } else {
+      const { error } = await supabase.from('Leads').insert(leadData);
+      if (error) {
+        console.error(`[enrich-internal-first] Lead insert failed for ${email}:`, error);
+      } else {
+        console.log(`[enrich-internal-first] Created lead: ${email}`);
+      }
+    }
   }
   
   // Upsert account if we have domain

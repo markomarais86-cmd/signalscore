@@ -947,16 +947,16 @@ export function UnifiedEnrichmentWizard() {
               onComplete={(job) => {
                 if (job.status === 'completed') {
                   setStep("results");
-                  // Read source breakdown from job metadata
-                  const meta = (job as any).metadata || {};
+                  // Read source breakdown from job source_breakdown column (not metadata)
+                  const breakdown = (job as any).source_breakdown || {};
                   setStats({
                     total: job.total_records || 0,
                     enriched: job.enriched_records || job.rows_completed || 0,
                     failed: job.failed_records || job.rows_failed || 0,
-                    internal_matches: meta.internal_matches || 0,
-                    apollo_enriched: meta.apollo_enriched || 0,
-                    pdl_enriched: meta.pdl_enriched || 0,
-                    ai_enriched: meta.ai_enriched || 0
+                    internal_matches: breakdown.internal_matches || 0,
+                    apollo_enriched: breakdown.apollo_enriched || 0,
+                    pdl_enriched: breakdown.pdl_enriched || 0,
+                    ai_enriched: breakdown.ai_enriched || 0
                   });
                 } else {
                   setStep("preview");
