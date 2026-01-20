@@ -7191,10 +7191,11 @@ export type Database = {
       get_enrichment_stats: {
         Args: { p_org_id: string }
         Returns: {
-          completeness_percent: number
-          enriched_today: number
-          total_accounts: number
-          with_contacts: number
+          enriched_leads: number
+          leads_with_email: number
+          leads_with_phone: number
+          leads_with_title: number
+          total_leads: number
         }[]
       }
       get_filtered_accounts:

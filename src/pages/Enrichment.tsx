@@ -81,10 +81,10 @@ export default function Enrichment() {
       const stats = Array.isArray(data) ? data[0] : data;
 
       setHeroStats({
-        totalAccounts: Number(stats?.total_accounts) || 0,
-        dataCompleteness: Number(stats?.completeness_percent) || 0,
-        enrichedToday: Number(stats?.enriched_today) || 0,
-        accountsWithContacts: Number(stats?.with_contacts) || 0,
+        totalAccounts: Number(stats?.total_leads) || 0,
+        dataCompleteness: stats?.total_leads ? Math.round((Number(stats?.enriched_leads) / Number(stats?.total_leads)) * 100) : 0,
+        enrichedToday: Number(stats?.enriched_leads) || 0,
+        accountsWithContacts: Number(stats?.leads_with_email) || 0,
       });
     } catch (error) {
       console.error("Error loading hero stats:", error);

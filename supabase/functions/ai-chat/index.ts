@@ -1,9 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { validateAuth, unauthorizedResponse, errorResponse, successResponse, handleCorsOptions } from '../_shared/auth.ts';
+import { validateArray, validateString, validateEnum, ValidationError, validationErrorResponse } from '../_shared/validation.ts';
 
 const SYSTEM_PROMPT = `You are LaunchPulse AI, an intelligent, goal-driven sales intelligence assistant. You are PROACTIVE, PRECISE, and ACTIONABLE.
 
@@ -475,18 +474,94 @@ async function callProvider(
 }
 
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsOptions(req);
   }
 
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   try {
-    const { messages, context, preferredProvider, testMode } = await req.json();
+    // Validate authentication
+    const authResult = await validateAuth(req);
+    if (!authResult.success) {
+      console.error('[ai-chat] Auth failed:', authResult.error);
+      return unauthorizedResponse(req, authResult.error);
+    }
+
+    const { user, supabaseClient } = authResult;
+    console.log(`[ai-chat] Authenticated user: ${user!.id}`);
+
+    // Get user's org_id
+    const { data: profile, error: profileError } = await supabaseClient!
+      .from('user_profiles')
+      .select('org_id')
+      .eq('user_id', user!.id)
+      .single();
+
+    if (profileError || !profile?.org_id) {
+      console.error('[ai-chat] Failed to get user org_id:', profileError?.message);
+      return errorResponse(req, 'User profile not found');
+    }
+
+    const orgId = profile.org_id;
+    console.log(`[ai-chat] User org_id: ${orgId}`);
+
+    // Parse and validate input
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return errorResponse(req, 'Invalid JSON body');
+    }
+
+    const { messages: rawMessages, context, preferredProvider, testMode } = body;
+
+    // Validate messages array
+    try {
+      const validatedMessages = validateArray(rawMessages, 'messages', {
+        minLength: 1,
+        maxLength: 50,
+        required: true,
+        itemValidator: (msg: any, index: number) => {
+          if (!msg || typeof msg !== 'object') {
+            throw new ValidationError(`messages[${index}] must be an object`, `messages[${index}]`, 'INVALID_TYPE');
+          }
+          const role = validateEnum(msg.role, `messages[${index}].role`, ['user', 'assistant', 'system'] as const);
+          const content = validateString(msg.content, `messages[${index}].content`, { maxLength: 50000, required: true });
+          return { role, content };
+        }
+      });
+      // Reassign validated messages
+      body.messages = validatedMessages;
+    } catch (validationError) {
+      if (validationError instanceof ValidationError) {
+        return validationErrorResponse(validationError, corsHeaders);
+      }
+      throw validationError;
+    }
+
+    // Validate preferredProvider if provided
+    if (preferredProvider) {
+      try {
+        validateEnum(preferredProvider, 'preferredProvider', ['openai', 'abacus', 'lovable'] as const, false);
+      } catch (validationError) {
+        if (validationError instanceof ValidationError) {
+          return validationErrorResponse(validationError, corsHeaders);
+        }
+        throw validationError;
+      }
+    }
+
+    const messages = body.messages;
     
     const requestId = crypto.randomUUID().slice(0, 8);
     const startTime = Date.now();
     
     console.log(`[${requestId}] ========== AI CHAT REQUEST ==========`);
     console.log(`[${requestId}] Timestamp: ${new Date().toISOString()}`);
+    console.log(`[${requestId}] User: ${user!.id}, Org: ${orgId}`);
     console.log(`[${requestId}] Test Mode: ${testMode || false}`);
     console.log(`[${requestId}] Preferred Provider: ${preferredProvider || 'none'}`);
     console.log(`[${requestId}] Message Count: ${messages?.length || 0}`);
