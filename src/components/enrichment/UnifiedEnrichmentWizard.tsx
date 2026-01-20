@@ -954,10 +954,13 @@ export function UnifiedEnrichmentWizard() {
             <EnrichmentProgressMonitor 
               jobId={activeJobId}
               onComplete={(job) => {
+                console.log('[EnrichmentWizard] Job completed, full job data:', JSON.stringify(job, null, 2));
+                console.log('[EnrichmentWizard] source_breakdown value:', job.source_breakdown);
                 if (job.status === 'completed') {
                   setStep("results");
                   // Read source breakdown from job source_breakdown column (not metadata)
-                  const breakdown = (job as any).source_breakdown || {};
+                  const breakdown = job.source_breakdown || {};
+                  console.log('[EnrichmentWizard] Using breakdown:', breakdown);
                   setStats({
                     total: job.total_records || 0,
                     enriched: job.enriched_records || job.rows_completed || 0,

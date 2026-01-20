@@ -51,6 +51,12 @@ export function useEnrichmentProgress(jobId: string | null, enabled: boolean = t
         ? Math.round((processedRecords / totalRecords) * 100) 
         : 0;
       
+      console.log('[useEnrichmentProgress] Raw data from DB:', {
+        id: data.id,
+        status: data.status,
+        source_breakdown: data.source_breakdown
+      });
+      
       return {
         id: data.id,
         status: data.status || 'pending',
