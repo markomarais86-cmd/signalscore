@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-interface EnrichmentProgress {
+export interface EnrichmentProgress {
   id: string;
   status: string;
   progress_percentage: number;
@@ -15,12 +15,14 @@ interface EnrichmentProgress {
   started_at: string | null;
   can_pause: boolean;
   paused_at: string | null;
+  error_message: string | null;
+  last_heartbeat: string | null;
 }
 
 export function useEnrichmentProgress(jobId: string | null, enabled: boolean = true) {
   return useQuery({
     queryKey: ['enrichment-progress', jobId],
-    queryFn: async () => {
+    queryFn: async (): Promise<EnrichmentProgress | null> => {
       if (!jobId) return null;
 
       const { data, error } = await supabase
@@ -30,7 +32,33 @@ export function useEnrichmentProgress(jobId: string | null, enabled: boolean = t
         .single();
 
       if (error) throw error;
-      return data;
+      if (!data) return null;
+      
+      // Map database fields to EnrichmentProgress interface
+      const totalRecords = data.total_records || 0;
+      const processedRecords = data.processed_records || 0;
+      const progressPercentage = totalRecords > 0 
+        ? Math.round((processedRecords / totalRecords) * 100) 
+        : 0;
+      
+      return {
+        id: data.id,
+        status: data.status || 'pending',
+        progress_percentage: progressPercentage,
+        processed_records: processedRecords,
+        total_records: totalRecords,
+        // Use rows_completed/rows_failed which the edge function updates
+        enriched_records: data.rows_completed || data.enriched_records || 0,
+        failed_records: data.rows_failed || data.failed_records || 0,
+        current_batch: data.current_batch || 0,
+        total_batches: data.total_batches || 0,
+        estimated_completion_at: null, // Calculated on the fly if needed
+        started_at: data.started_at,
+        can_pause: data.status === 'processing',
+        paused_at: data.paused_at,
+        error_message: data.error_message,
+        last_heartbeat: data.last_heartbeat
+      };
     },
     enabled: enabled && !!jobId,
     refetchInterval: (query) => {
@@ -46,19 +74,40 @@ export function useEnrichmentProgress(jobId: string | null, enabled: boolean = t
 }
 
 export async function pauseEnrichmentJob(jobId: string) {
-  const { data, error } = await supabase.rpc('pause_enrichment_job', {
-    p_job_id: jobId,
-  });
+  // Direct update since we may not have the RPC
+  const { error } = await supabase
+    .from('enrichment_jobs')
+    .update({
+      status: 'paused',
+      paused_at: new Date().toISOString()
+    })
+    .eq('id', jobId);
 
   if (error) throw error;
-  return data;
+  return true;
 }
 
 export async function resumeEnrichmentJob(jobId: string) {
-  const { data, error } = await supabase.rpc('resume_enrichment_job', {
-    p_job_id: jobId,
-  });
+  // Update job status and invoke resume function
+  const { error: updateError } = await supabase
+    .from('enrichment_jobs')
+    .update({
+      status: 'processing',
+      paused_at: null,
+      last_heartbeat: new Date().toISOString()
+    })
+    .eq('id', jobId);
 
-  if (error) throw error;
-  return data;
+  if (updateError) throw updateError;
+
+  // Try to invoke the resume function to restart processing
+  try {
+    await supabase.functions.invoke('resume-enrichment-job', {
+      body: { job_id: jobId }
+    });
+  } catch (e) {
+    console.warn('Resume function not available, job status updated:', e);
+  }
+  
+  return true;
 }

@@ -366,6 +366,432 @@ const discoverDomainForCompany = async (companyName: string, supabase: any, orgI
   return null;
 };
 
+// Threshold for async processing
+const ASYNC_THRESHOLD = 10;
+const CHUNK_SIZE = 5;
+const HEARTBEAT_INTERVAL_MS = 15000;
+
+// Background processing function for large batches
+async function processLeadsInBackground(
+  jobId: string,
+  inputs: EnrichmentInput[],
+  supabase: any,
+  orgId: string,
+  forceExternal: boolean,
+  skipAi: boolean,
+  saveToDb: boolean,
+  sourceType: string
+): Promise<void> {
+  console.log(`[enrich-internal-first] Background processing started for job ${jobId} with ${inputs.length} inputs`);
+  
+  let processed = 0;
+  let completed = 0;
+  let failed = 0;
+  const results: EnrichmentResult[] = [];
+  
+  // Set up heartbeat interval
+  const heartbeatInterval = setInterval(async () => {
+    try {
+      await supabase.from('enrichment_jobs').update({
+        last_heartbeat: new Date().toISOString(),
+        processed_records: processed,
+        rows_completed: completed,
+        rows_failed: failed,
+        last_progress_update: new Date().toISOString()
+      }).eq('id', jobId);
+    } catch (e) {
+      console.warn(`[enrich-internal-first] Heartbeat update failed:`, e);
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+  
+  try {
+    // Process in chunks
+    for (let i = 0; i < inputs.length; i += CHUNK_SIZE) {
+      const chunk = inputs.slice(i, i + CHUNK_SIZE);
+      
+      // Process each input in the chunk
+      for (const input of chunk) {
+        try {
+          const result = await processSingleInput(input, supabase, orgId, forceExternal, skipAi);
+          results.push(result);
+          
+          // Save to database if requested
+          if (saveToDb && result.enriched_data) {
+            await saveEnrichmentResult(result, supabase, orgId, sourceType);
+          }
+          
+          completed++;
+        } catch (e) {
+          console.error(`[enrich-internal-first] Error processing input:`, e);
+          failed++;
+          results.push({
+            input,
+            enriched_data: { error: (e as Error).message },
+            source: 'internal',
+            confidence: 0,
+            fields_filled: [],
+            api_calls_saved: false
+          });
+        }
+        processed++;
+      }
+      
+      // Update progress after each chunk
+      await supabase.from('enrichment_jobs').update({
+        processed_records: processed,
+        rows_completed: completed,
+        rows_failed: failed,
+        last_heartbeat: new Date().toISOString(),
+        last_progress_update: new Date().toISOString()
+      }).eq('id', jobId);
+      
+      console.log(`[enrich-internal-first] Job ${jobId}: processed ${processed}/${inputs.length}`);
+    }
+    
+    // Mark job as completed
+    await supabase.from('enrichment_jobs').update({
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      processed_records: processed,
+      rows_completed: completed,
+      rows_failed: failed,
+      total_records: inputs.length
+    }).eq('id', jobId);
+    
+    console.log(`[enrich-internal-first] Job ${jobId} completed: ${completed} success, ${failed} failed`);
+    
+  } catch (error) {
+    console.error(`[enrich-internal-first] Job ${jobId} failed:`, error);
+    await supabase.from('enrichment_jobs').update({
+      status: 'failed',
+      error_message: (error as Error).message,
+      processed_records: processed,
+      rows_completed: completed,
+      rows_failed: failed
+    }).eq('id', jobId);
+  } finally {
+    clearInterval(heartbeatInterval);
+  }
+}
+
+// Save enrichment result to database
+async function saveEnrichmentResult(
+  result: EnrichmentResult,
+  supabase: any,
+  orgId: string,
+  sourceType: string
+): Promise<void> {
+  const data = result.enriched_data;
+  const email = result.input.email;
+  const domain = data.domain || result.input.domain;
+  
+  if (!email && !domain) return;
+  
+  // Upsert lead if we have email
+  if (email) {
+    const leadData = {
+      org_id: orgId,
+      email: email.toLowerCase(),
+      first_name: data.first_name,
+      last_name: data.last_name,
+      title: data.title,
+      phone: data.phone,
+      mobile: data.mobile,
+      direct_phone: data.direct_phone,
+      linkedin_url: data.linkedin_url,
+      level: data.level,
+      persona: data.persona,
+      company: data.company_name,
+      website: domain,
+      enriched_at: new Date().toISOString(),
+      enriched_from: result.source,
+      enrichment_confidence: result.confidence,
+      data_source: sourceType
+    };
+    
+    await supabase.from('Leads').upsert(leadData, {
+      onConflict: 'email,org_id',
+      ignoreDuplicates: false
+    });
+  }
+  
+  // Upsert account if we have domain
+  if (domain && data.company_name) {
+    const accountData = {
+      org_id: orgId,
+      domain: domain.toLowerCase(),
+      name: data.company_name,
+      employee_count: data.employee_count,
+      revenue_range: data.revenue_range,
+      industry_norm: data.industry_norm,
+      sub_industry: data.sub_industry,
+      country: data.country,
+      hq_city: data.hq_city,
+      hq_state: data.hq_state,
+      hq_address: data.hq_address,
+      hq_postal_code: data.hq_postal_code,
+      sic_code: data.sic_code,
+      naics: data.naics,
+      company_main_phone: data.company_main_phone,
+      linkedin_url: data.linkedin_url,
+      enriched_at: new Date().toISOString(),
+      enriched_from: result.source,
+      enrichment_confidence: result.confidence,
+      data_source: sourceType
+    };
+    
+    await supabase.from('accounts').upsert(accountData, {
+      onConflict: 'domain,org_id',
+      ignoreDuplicates: false
+    });
+  }
+}
+
+// Process a single input through all enrichment phases
+async function processSingleInput(
+  input: EnrichmentInput,
+  supabase: any,
+  orgId: string,
+  forceExternal: boolean,
+  skipAi: boolean
+): Promise<EnrichmentResult> {
+  const result: EnrichmentResult = {
+    input,
+    enriched_data: {},
+    source: 'internal',
+    confidence: 0,
+    fields_filled: [],
+    api_calls_saved: false,
+    domain_discovered: false
+  };
+
+  // Extract basic data from input
+  const domain = input.domain || extractDomain(input.email || '');
+  const extractedName = extractNameFromEmail(input.email || '');
+  
+  result.enriched_data.email = input.email;
+  result.enriched_data.domain = domain || undefined;
+  result.enriched_data.first_name = input.first_name || extractedName.first_name;
+  result.enriched_data.last_name = input.last_name || extractedName.last_name;
+  result.enriched_data.title = input.title;
+  
+  if (input.title) {
+    const classification = classifyTitle(input.title);
+    result.enriched_data.level = classification.level;
+    result.enriched_data.persona = classification.persona;
+  }
+
+  // Try internal lookup first (unless force_external)
+  if (!forceExternal && domain) {
+    const { data: existingAccount } = await supabase
+      .from('accounts')
+      .select('*')
+      .eq('org_id', orgId)
+      .ilike('domain', `%${domain}%`)
+      .limit(1)
+      .single();
+    
+    if (existingAccount && calculateCompleteness(existingAccount) >= 60) {
+      result.enriched_data = {
+        ...result.enriched_data,
+        employee_count: existingAccount.employee_count,
+        revenue_range: existingAccount.revenue_range,
+        industry_norm: existingAccount.industry_norm,
+        country: existingAccount.country,
+        linkedin_url: result.enriched_data.linkedin_url || existingAccount.linkedin_url,
+        company_name: existingAccount.name,
+        hq_city: existingAccount.hq_city,
+        hq_state: existingAccount.hq_state
+      };
+      result.source = 'internal';
+      result.confidence = existingAccount.enrichment_confidence || 0.8;
+      result.api_calls_saved = true;
+    }
+  }
+
+  // External enrichment if needed
+  const hasCompanyData = result.enriched_data.employee_count || result.enriched_data.industry_norm;
+  
+  if (!hasCompanyData && domain) {
+    // Try Apollo
+    const APOLLO_API_KEY = Deno.env.get('APOLLO_API_KEY');
+    if (APOLLO_API_KEY) {
+      try {
+        const response = await withHttpRetry(
+          () => fetch('https://api.apollo.io/v1/organizations/enrich', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: APOLLO_API_KEY, domain })
+          }),
+          { ...DEFAULT_RETRY_CONFIG, maxRetries: 2 }
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          const org = data.organization;
+          if (org) {
+            result.enriched_data.employee_count = org.estimated_num_employees;
+            result.enriched_data.revenue_range = mapRevenueToRange(org.estimated_annual_revenue);
+            result.enriched_data.industry_norm = org.industry;
+            result.enriched_data.country = org.country;
+            result.enriched_data.company_name = org.name;
+            result.source = 'apollo';
+            result.confidence = 0.95;
+          }
+        }
+      } catch (e) {
+        console.error('[processSingleInput] Apollo error:', e);
+      }
+    }
+    
+    // Try PDL if still missing
+    if (!result.enriched_data.employee_count) {
+      const PDL_API_KEY = Deno.env.get('PDL_API_KEY');
+      if (PDL_API_KEY) {
+        try {
+          const response = await withHttpRetry(
+            () => fetch(`https://api.peopledatalabs.com/v5/company/enrich?website=${encodeURIComponent(domain)}`, {
+              method: 'GET',
+              headers: { 'X-Api-Key': PDL_API_KEY }
+            }),
+            { ...DEFAULT_RETRY_CONFIG, maxRetries: 2 }
+          );
+          
+          if (response.ok) {
+            const data = await response.json();
+            if (data.name) {
+              result.enriched_data.employee_count = data.size;
+              result.enriched_data.revenue_range = mapRevenueToRange(data.estimated_annual_revenue);
+              result.enriched_data.industry_norm = data.industry;
+              result.enriched_data.country = data.location?.country;
+              result.enriched_data.company_name = data.name;
+              result.source = 'pdl';
+              result.confidence = 0.85;
+            }
+          }
+        } catch (e) {
+          console.error('[processSingleInput] PDL error:', e);
+        }
+      }
+    }
+    
+    // Try Firecrawl if still missing key data
+    if (!result.enriched_data.employee_count || !result.enriched_data.industry_norm) {
+      const firecrawlKey = Deno.env.get('FIRECRAWL_API_KEY');
+      if (firecrawlKey) {
+        try {
+          const scrapeResponse = await fetch('https://api.firecrawl.dev/v1/scrape', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${firecrawlKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              url: `https://${domain}`,
+              formats: ['markdown'],
+              onlyMainContent: false
+            }),
+          });
+          
+          if (scrapeResponse.ok) {
+            const scrapeData = await scrapeResponse.json();
+            const markdown = scrapeData.data?.markdown || '';
+            
+            if (markdown.length > 100 && !skipAi) {
+              const extractPrompt = `Extract company info from website. Return ONLY valid JSON:
+{
+  "company_name": "name",
+  "industry": "industry",
+  "city": "city or null",
+  "state": "state or null",
+  "phone": "phone or null",
+  "employee_estimate": "1-10 | 11-50 | 51-200 | 201-500 | 500+ | null"
+}
+
+Website (${domain}):
+${markdown.substring(0, 4000)}`;
+
+              const extractResponse = await callAI('enrichment', [
+                { role: 'system', content: 'Extract business information from website. Return only JSON.' },
+                { role: 'user', content: extractPrompt }
+              ]);
+              
+              if (extractResponse.ok) {
+                const extractData = await extractResponse.json();
+                const content = extractData.choices?.[0]?.message?.content || '';
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                
+                if (jsonMatch) {
+                  const extracted = JSON.parse(jsonMatch[0]);
+                  const employeeMap: Record<string, number> = {
+                    '1-10': 5, '11-50': 25, '51-200': 100, '201-500': 350, '500+': 750
+                  };
+                  
+                  result.enriched_data.company_name = result.enriched_data.company_name || extracted.company_name;
+                  result.enriched_data.industry_norm = result.enriched_data.industry_norm || extracted.industry;
+                  result.enriched_data.hq_city = result.enriched_data.hq_city || extracted.city;
+                  result.enriched_data.hq_state = result.enriched_data.hq_state || extracted.state;
+                  result.enriched_data.employee_count = result.enriched_data.employee_count || employeeMap[extracted.employee_estimate];
+                  result.enriched_data.phone = result.enriched_data.phone || sanitizePhone(extracted.phone);
+                  result.source = 'firecrawl';
+                  result.confidence = 0.75;
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[processSingleInput] Firecrawl error:', e);
+        }
+      }
+    }
+  }
+
+  // Person enrichment
+  if (input.email && (!result.enriched_data.title || !result.enriched_data.phone) && !skipAi) {
+    const personData = await discoverPersonWithAI(
+      input.email,
+      domain,
+      result.enriched_data.first_name,
+      result.enriched_data.last_name,
+      result.enriched_data.company_name
+    );
+    
+    if (personData) {
+      if (personData.title && !result.enriched_data.title) {
+        result.enriched_data.title = personData.title;
+        result.enriched_data.level = personData.level;
+        result.enriched_data.persona = personData.persona;
+      }
+      if (personData.phone && !result.enriched_data.phone) {
+        result.enriched_data.phone = personData.phone;
+      }
+      if (personData.mobile && !result.enriched_data.mobile) {
+        result.enriched_data.mobile = personData.mobile;
+      }
+      if (personData.linkedin_url && !result.enriched_data.linkedin_url) {
+        result.enriched_data.linkedin_url = personData.linkedin_url;
+      }
+    }
+  }
+
+  // Email verification
+  const hunterKey = Deno.env.get('HUNTER_API_KEY');
+  if (hunterKey && input.email && !result.enriched_data.email_status) {
+    const verification = await verifyEmailWithHunter(input.email);
+    if (verification) {
+      result.enriched_data.email_status = verification.status;
+      result.enriched_data.email_score = verification.score;
+    }
+  }
+
+  // Calculate fields filled
+  result.fields_filled = Object.keys(result.enriched_data).filter(k => 
+    result.enriched_data[k] != null && result.enriched_data[k] !== ''
+  );
+
+  return result;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -376,7 +802,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { inputs, org_id, source_type, force_external = false, skip_ai = false, save_to_db = false } = await req.json();
+    const { inputs, org_id, source_type, force_external = false, skip_ai = false, save_to_db = false, async_mode = false } = await req.json();
 
     if (!inputs || !Array.isArray(inputs) || inputs.length === 0) {
       return new Response(JSON.stringify({ error: 'inputs array required' }), {
@@ -392,6 +818,63 @@ serve(async (req) => {
       });
     }
 
+    // Check if we should use async processing
+    const shouldUseAsync = async_mode || inputs.length >= ASYNC_THRESHOLD;
+    
+    if (shouldUseAsync) {
+      console.log(`[enrich-internal-first] Large batch (${inputs.length} inputs) - using async processing`);
+      
+      // Create job record immediately
+      const { data: job, error: jobError } = await supabase
+        .from('enrichment_jobs')
+        .insert({
+          org_id,
+          status: 'processing',
+          total_records: inputs.length,
+          processed_records: 0,
+          rows_completed: 0,
+          rows_failed: 0,
+          job_type: 'leads',
+          source: 'enrich-internal-first',
+          last_heartbeat: new Date().toISOString(),
+          started_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      if (jobError) {
+        console.error('[enrich-internal-first] Failed to create job:', jobError);
+        throw new Error(`Failed to create enrichment job: ${jobError.message}`);
+      }
+      
+      console.log(`[enrich-internal-first] Created job ${job.id}, starting background processing`);
+      
+      // Start background processing with EdgeRuntime.waitUntil
+      EdgeRuntime.waitUntil(
+        processLeadsInBackground(
+          job.id,
+          inputs as EnrichmentInput[],
+          supabase,
+          org_id,
+          force_external,
+          skip_ai,
+          save_to_db,
+          source_type
+        )
+      );
+      
+      // Return immediately with job info
+      return new Response(JSON.stringify({
+        async: true,
+        job_id: job.id,
+        total_records: inputs.length,
+        message: `Enrichment job started. Processing ${inputs.length} records in background.`
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Synchronous processing for small batches
     console.log(`[enrich-internal-first] Processing ${inputs.length} inputs for org ${org_id}, force_external=${force_external}`);
 
     const results: EnrichmentResult[] = [];
