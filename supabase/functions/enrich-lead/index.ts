@@ -7,6 +7,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { withHttpRetry, DEFAULT_RETRY_CONFIG } from '../_shared/retry-helper.ts';
 import { callAI, getAvailableProviders } from '../_shared/ai-config.ts';
 
+console.log('[enrich-lead] === EDGE FUNCTION LOADED ===');
+console.log('[enrich-lead] Load timestamp:', new Date().toISOString());
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -244,14 +247,21 @@ async function processEnrichmentJobBackground(
 }
 
 serve(async (req) => {
+  console.log('[enrich-lead] === REQUEST RECEIVED ===');
+  console.log('[enrich-lead] Method:', req.method);
+  console.log('[enrich-lead] Timestamp:', new Date().toISOString());
+  console.log('[enrich-lead] URL:', req.url);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    console.log('[enrich-lead] Starting main try block...');
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+    console.log('[enrich-lead] Supabase client created');
 
     // ALL API KEYS - DECLARED ONCE HERE AT TOP
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
