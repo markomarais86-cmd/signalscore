@@ -1,10 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 import { applyRateLimit } from '../_shared/rate-limit.ts'
+import { validateAuth, unauthorizedResponse, errorResponse, handleCorsOptions } from '../_shared/auth.ts'
+import { validateUUID, ValidationError, validationErrorResponse } from '../_shared/validation.ts'
 
 interface InsightsRequest {
-  org_id: string;
+  org_id?: string;  // Now optional - will use authenticated user's org if not provided
   icp_id?: string;
 }
 
@@ -25,6 +27,14 @@ interface Insight {
   }>;
   nextAction?: 'build_campaign' | 'export_csv' | 'view_accounts' | 'enrich_data' | 'score_accounts' | 'contact_leads' | 'review_accounts';
   revenue_opportunity?: number;
+}
+
+interface LeadCoverageStats {
+  totalLeads: number;
+  accountsWithLeads: number;
+  highFitAccountsWithLeads: number;
+  highFitMissingLeads: number;
+  leadCoveragePercent: string;
 }
 
 interface LeadCoverageStats {
@@ -170,20 +180,82 @@ async function callAIWithToolCalling(
 }
 
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return handleCorsOptions(req);
   }
 
-  try {
-    const { org_id, icp_id }: InsightsRequest = await req.json();
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
 
-    if (!org_id) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required field: org_id' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      );
+  try {
+    // Validate authentication
+    const authResult = await validateAuth(req);
+    if (!authResult.success) {
+      console.error('[generate-icp-insights] Auth failed:', authResult.error);
+      return unauthorizedResponse(req, authResult.error);
     }
 
+    const { user, supabaseClient } = authResult;
+    console.log(`[generate-icp-insights] Authenticated user: ${user!.id}`);
+
+    // Get user's org_id
+    const { data: profile, error: profileError } = await supabaseClient!
+      .from('user_profiles')
+      .select('org_id')
+      .eq('user_id', user!.id)
+      .single();
+
+    if (profileError || !profile?.org_id) {
+      console.error('[generate-icp-insights] Failed to get user org_id:', profileError?.message);
+      return errorResponse(req, 'User profile not found');
+    }
+
+    const userOrgId = profile.org_id;
+    
+    // Parse request body
+    let requestBody: InsightsRequest = {};
+    try {
+      requestBody = await req.json();
+    } catch {
+      // Empty body is ok - we'll use the user's org
+    }
+
+    // Validate org_id if provided, otherwise use user's org
+    let org_id: string;
+    if (requestBody.org_id) {
+      try {
+        org_id = validateUUID(requestBody.org_id, 'org_id');
+      } catch (validationError) {
+        if (validationError instanceof ValidationError) {
+          return validationErrorResponse(validationError, corsHeaders);
+        }
+        throw validationError;
+      }
+      
+      // Verify user has access to requested org_id
+      if (org_id !== userOrgId) {
+        console.warn(`[generate-icp-insights] User ${user!.id} attempted to access org ${org_id} but belongs to ${userOrgId}`);
+        return errorResponse(req, 'Access denied to this organization', 403);
+      }
+    } else {
+      org_id = userOrgId;
+    }
+
+    // Validate icp_id if provided
+    let icp_id: string | undefined;
+    if (requestBody.icp_id) {
+      try {
+        icp_id = validateUUID(requestBody.icp_id, 'icp_id');
+      } catch (validationError) {
+        if (validationError instanceof ValidationError) {
+          return validationErrorResponse(validationError, corsHeaders);
+        }
+        throw validationError;
+      }
+    }
+
+    // Create service role client for data access (RLS will be applied via queries)
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''

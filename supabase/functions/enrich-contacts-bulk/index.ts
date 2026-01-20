@@ -1,6 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0'
-import { corsHeaders } from '../_shared/cors.ts'
+import { getCorsHeaders } from '../_shared/cors.ts'
 import { applyRateLimit } from '../_shared/rate-limit.ts'
+import { validateAuth, unauthorizedResponse, errorResponse, handleCorsOptions } from '../_shared/auth.ts'
+import { validateUUID, validateNumber, validateArray, validateEnum, ValidationError, validationErrorResponse } from '../_shared/validation.ts'
 
 // Function to enrich existing leads with missing data
 async function enrichExistingLeads(supabaseClient: any, jobId: string, batchSize: number, provider: string) {
@@ -225,11 +227,40 @@ async function getJobOrgId(supabase: any, jobId: string): Promise<string | null>
 }
 
 Deno.serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return handleCorsOptions(req);
   }
 
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   try {
+    // Validate authentication
+    const authResult = await validateAuth(req);
+    if (!authResult.success) {
+      console.error('[enrich-contacts-bulk] Auth failed:', authResult.error);
+      return unauthorizedResponse(req, authResult.error);
+    }
+
+    const { user, supabaseClient: authClient } = authResult;
+    console.log(`[enrich-contacts-bulk] Authenticated user: ${user!.id}`);
+
+    // Get user's org_id
+    const { data: profile, error: profileError } = await authClient!
+      .from('user_profiles')
+      .select('org_id')
+      .eq('user_id', user!.id)
+      .single();
+
+    if (profileError || !profile?.org_id) {
+      console.error('[enrich-contacts-bulk] Failed to get user org_id:', profileError?.message);
+      return errorResponse(req, 'User profile not found');
+    }
+
+    const userOrgId = profile.org_id;
+
+    // Create service role client for operations
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -240,13 +271,115 @@ Deno.serve(async (req) => {
       }
     )
 
-    const { jobId, orgId, accountExternalIds, batchSize = 100, provider = 'pdl' }: EnrichRequest = await req.json()
+    // Parse and validate input
+    let rawBody: any;
+    try {
+      rawBody = await req.json();
+    } catch {
+      return errorResponse(req, 'Invalid JSON body');
+    }
+
+    // Validate jobId if provided
+    let jobId: string | undefined;
+    if (rawBody.jobId) {
+      try {
+        jobId = validateUUID(rawBody.jobId, 'jobId');
+      } catch (validationError) {
+        if (validationError instanceof ValidationError) {
+          return validationErrorResponse(validationError, corsHeaders);
+        }
+        throw validationError;
+      }
+    }
+
+    // Validate and determine orgId
+    let orgId: string | undefined;
+    if (rawBody.orgId) {
+      try {
+        orgId = validateUUID(rawBody.orgId, 'orgId');
+      } catch (validationError) {
+        if (validationError instanceof ValidationError) {
+          return validationErrorResponse(validationError, corsHeaders);
+        }
+        throw validationError;
+      }
+      
+      // Verify user has access to requested org
+      if (orgId !== userOrgId) {
+        console.warn(`[enrich-contacts-bulk] User ${user!.id} attempted to access org ${orgId} but belongs to ${userOrgId}`);
+        return errorResponse(req, 'Access denied to this organization', 403);
+      }
+    } else if (!jobId) {
+      // If no jobId and no orgId, use user's org
+      orgId = userOrgId;
+    }
+
+    // Validate accountExternalIds array with bounds
+    let accountExternalIds: string[] | undefined;
+    if (rawBody.accountExternalIds) {
+      try {
+        accountExternalIds = validateArray<string>(rawBody.accountExternalIds, 'accountExternalIds', {
+          maxLength: 1000,
+          itemValidator: (item, index) => {
+            if (typeof item !== 'string' || item.length > 255) {
+              throw new ValidationError(`accountExternalIds[${index}] must be a string under 255 chars`, `accountExternalIds[${index}]`, 'INVALID_TYPE');
+            }
+            return item;
+          }
+        });
+      } catch (validationError) {
+        if (validationError instanceof ValidationError) {
+          return validationErrorResponse(validationError, corsHeaders);
+        }
+        throw validationError;
+      }
+    }
+
+    // Validate batchSize with bounds
+    let batchSize: number = 100;
+    try {
+      const validated = validateNumber(rawBody.batchSize, 'batchSize', {
+        min: 1,
+        max: 1000,
+        integer: true
+      });
+      if (validated !== undefined) {
+        batchSize = validated;
+      }
+    } catch (validationError) {
+      if (validationError instanceof ValidationError) {
+        return validationErrorResponse(validationError, corsHeaders);
+      }
+      throw validationError;
+    }
+
+    // Validate provider enum
+    let provider: string = 'pdl';
+    if (rawBody.provider) {
+      try {
+        const validated = validateEnum(rawBody.provider, 'provider', ['pdl', 'clearbit', 'ai'] as const, false);
+        if (validated) {
+          provider = validated;
+        }
+      } catch (validationError) {
+        if (validationError instanceof ValidationError) {
+          return validationErrorResponse(validationError, corsHeaders);
+        }
+        throw validationError;
+      }
+    }
     
     console.log('🚀 Starting bulk contact enrichment');
     console.log(`📋 Request params: jobId=${jobId}, orgId=${orgId}, batchSize=${batchSize}, provider=${provider}`);
     
     // Get effective org ID for rate limiting
     const effectiveOrgId = orgId || (jobId ? await getJobOrgId(supabaseClient, jobId) : null);
+    
+    // Verify job belongs to user's org if jobId provided
+    if (jobId && effectiveOrgId && effectiveOrgId !== userOrgId) {
+      console.warn(`[enrich-contacts-bulk] User ${user!.id} attempted to access job in org ${effectiveOrgId} but belongs to ${userOrgId}`);
+      return errorResponse(req, 'Access denied to this enrichment job', 403);
+    }
     
     // Apply rate limiting if we have an org ID
     if (effectiveOrgId) {
