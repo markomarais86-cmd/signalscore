@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download, Info, Linkedin, AlertCircle, HelpCircle, Target, Sparkles } from "lucide-react";
+import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download, Info, Linkedin, AlertCircle, HelpCircle, Target, Sparkles, Phone, Mail } from "lucide-react";
 import { LaunchPulseMark } from "@/components/BrandLogo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +24,7 @@ import { EnrichedLeadsFilters } from "@/components/leads/EnrichedLeadsFilters";
 import { EnrichedLeadsTable } from "@/components/leads/EnrichedLeadsTable";
 import { EnrichedLeadsHeader } from "@/components/leads/EnrichedLeadsHeader";
 import { useEnrichedLeads, useEnrichedLeadsMetrics, EnrichedLead } from "@/hooks/use-enriched-leads";
+import { MultiPhoneDisplay } from "@/components/leads/MultiPhoneDisplay";
 
 interface Lead {
   id: string;
@@ -78,7 +79,7 @@ import { useLeadsMetrics } from "@/hooks/use-leads-metrics";
 import { InfiniteScrollTrigger } from "@/components/InfiniteScrollTrigger";
 import { LeadAccountMatcher } from "@/components/data-upload/LeadAccountMatcher";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Link2, AlertTriangle } from "lucide-react";
+import { Link2, AlertTriangle, Users } from "lucide-react";
 import { TableSkeleton } from "@/components/TableSkeleton";
 
 export default function Leads() {
@@ -98,6 +99,18 @@ export default function Leads() {
   const { toast } = useToast();
   const { flags } = useFeatureFlags();
 
+  // Enriched view state
+  const [enrichedSearchTerm, setEnrichedSearchTerm] = useState("");
+  const [enrichmentSource, setEnrichmentSource] = useState("all");
+  const [confidenceLevel, setConfidenceLevel] = useState<'high' | 'medium' | 'low' | 'all'>('all');
+  const [dateRange, setDateRange] = useState<'day' | 'week' | 'month' | 'all'>('all');
+  const [hasPhone, setHasPhone] = useState<boolean | null>(null);
+  const [icpQualified, setIcpQualified] = useState<boolean | null>(null);
+  const [sortField, setSortField] = useState<'name' | 'enriched_at' | 'enrichment_confidence'>('enriched_at');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [selectedEnrichedIds, setSelectedEnrichedIds] = useState<Set<number>>(new Set());
+  const [detailLead, setDetailLead] = useState<EnrichedLead | null>(null);
+
   // Sync URL params to sidebar filters on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -106,12 +119,14 @@ export default function Leads() {
     const status = params.get('status');
     const icp = params.get('icp');
     const staleDays = params.get('stale_days');
+    const view = params.get('view');
     
     if (campaignReady === 'true') setCampaignReadyFilter('ready');
     if (source) setLinkFilter(source === 'crm' ? 'linked' : source);
     if (status) setStatusFilter(status);
     if (icp === 'qualified') setIcpFilter('qualified');
     if (staleDays) setStaleDaysFilter(parseInt(staleDays, 10));
+    if (view === 'enriched') setActiveView('enriched');
   }, []);
 
   // Use infinite scroll hook
@@ -140,12 +155,74 @@ export default function Leads() {
   // Fetch database-level metrics (accurate counts across all 63k+ leads)
   const { data: metrics, isLoading: metricsLoading } = useLeadsMetrics(userProfile?.org_id);
 
+  // Enriched leads data (for enriched tab)
+  const {
+    leads: enrichedLeads,
+    isLoading: enrichedLoading,
+    isLoadingMore: enrichedLoadingMore,
+    hasMore: enrichedHasMore,
+    totalCount: enrichedTotalCount,
+    loadMore: enrichedLoadMore,
+    refresh: enrichedRefresh
+  } = useEnrichedLeads({
+    orgId: userProfile?.org_id || null,
+    searchTerm: enrichedSearchTerm,
+    enrichmentSource,
+    confidenceLevel,
+    dateRange,
+    hasPhone,
+    icpQualified,
+    sortField,
+    sortDirection
+  });
+
+  const enrichedMetrics = useEnrichedLeadsMetrics(userProfile?.org_id || null);
+
   // Set up infinite scroll observer
   const { observerTarget } = useInfiniteScroll({
-    onLoadMore: loadMore,
-    hasMore,
-    isLoading: isLoadingMore
+    onLoadMore: activeView === 'all' ? loadMore : enrichedLoadMore,
+    hasMore: activeView === 'all' ? hasMore : enrichedHasMore,
+    isLoading: activeView === 'all' ? isLoadingMore : enrichedLoadingMore
   });
+
+  // Enriched view handlers
+  const handleEnrichedSort = (field: 'name' | 'enriched_at' | 'enrichment_confidence') => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+
+  const clearEnrichedFilters = () => {
+    setEnrichedSearchTerm("");
+    setEnrichmentSource("all");
+    setConfidenceLevel("all");
+    setDateRange("all");
+    setHasPhone(null);
+    setIcpQualified(null);
+  };
+
+  const handleReEnrich = async (lead: EnrichedLead) => {
+    if (!lead.email || !userProfile?.org_id) return;
+    
+    try {
+      await supabase.functions.invoke('enrich-unified', {
+        body: { 
+          org_id: userProfile.org_id, 
+          leads: [{ email: lead.email, first_name: lead.first_name, last_name: lead.last_name, company: lead.company }],
+          save_to_db: true
+        }
+      });
+      toast({ title: "Re-enrichment started", description: `Processing ${lead.email}...` });
+      setTimeout(enrichedRefresh, 2000);
+    } catch (error) {
+      toast({ title: "Failed", description: "Could not start re-enrichment", variant: "destructive" });
+    }
+  };
+
+  const selectedEnrichedLeads = enrichedLeads.filter(l => selectedEnrichedIds.has(l.id));
 
   // Removed auto-match on page load - it causes timeouts and poor UX
 
@@ -350,6 +427,21 @@ export default function Leads() {
     });
   }, [leads, csvHeaders, toast]);
 
+  // Parse phones for detail view
+  const getPhonesList = (lead: EnrichedLead) => {
+    const phones: any[] = [];
+    if (lead.direct_phone) phones.push({ number: lead.direct_phone, type: 'direct', sources: ['enrichment'], confidence: 90 });
+    if (lead.phone) phones.push({ number: lead.phone, type: 'office', sources: ['import'], confidence: 70 });
+    if (lead.mobile) phones.push({ number: lead.mobile, type: 'mobile', sources: ['import'], confidence: 70 });
+    if (lead.phones) {
+      try {
+        const data = typeof lead.phones === 'string' ? JSON.parse(lead.phones) : lead.phones;
+        if (Array.isArray(data)) phones.push(...data);
+      } catch {}
+    }
+    return phones;
+  };
+
   return (
     <div className="space-y-6">
       <DemoModeBanner />
@@ -371,99 +463,120 @@ export default function Leads() {
           <p className="text-xs lg:text-sm text-muted-foreground mt-1">All people linked to accounts in your pipeline</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={exportToCSV} variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
+          {activeView === 'all' && (
+            <Button onClick={exportToCSV} variant="outline">
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Info: Leads auto-match on upload */}
-      {!flags.demo_mode && unlinkedLeads.length > 0 && (
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription className="space-y-3">
+      {/* View Tabs */}
+      <Tabs value={activeView} onValueChange={(v) => setActiveView(v as 'all' | 'enriched')} className="w-full">
+        <TabsList>
+          <TabsTrigger value="all" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            All Leads
+            <Badge variant="secondary" className="ml-1">{formatNumber(totalCount)}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="enriched" className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4" />
+            Enriched
+            <Badge variant="secondary" className="ml-1">{formatNumber(enrichedTotalCount)}</Badge>
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {/* All Leads View */}
+      {activeView === 'all' && (
+        <>
+          {/* Info: Leads auto-match on upload */}
+          {!flags.demo_mode && unlinkedLeads.length > 0 && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="space-y-3">
+                <div>
+                  <strong>Note:</strong> You have {formatNumber(unlinkedLeads.length)} leads without account links.
+                </div>
+                <div className="text-sm">
+                  <p>Leads are automatically matched to accounts when uploaded via CSV. These unlinked leads may be from older uploads.</p>
+                </div>
+                <Button
+                  onClick={handleAutoMatch}
+                  disabled={isMatching}
+                  size="sm"
+                >
+                  {isMatching ? (
+                    <>
+                      <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current"></div>
+                      Matching...
+                    </>
+                  ) : (
+                    'Link to Accounts'
+                  )}
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Unlinked Leads Alert */}
+          {!flags.demo_mode && unlinkedLeads.length > 0 && unlinkedPercentage >= 10 && hasAttemptedMatch && (
+            <Alert className="border-warning">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="flex items-center justify-between">
+                <div>
+                  <strong>{formatNumber(unlinkedLeads.length)} leads still unlinked after auto-matching.</strong>
+                  <p className="text-sm mt-1">These leads may be missing email/website data needed for account matching.</p>
+                </div>
+                <Button onClick={handleAutoMatch} size="sm" className="ml-4" disabled={isMatching}>
+                  <Link2 className="h-4 w-4 mr-2" />
+                  Retry Matching
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Lead Account Matcher */}
+          {showMatcher && (
             <div>
-              <strong>Note:</strong> You have {formatNumber(unlinkedLeads.length)} leads without account links.
+              <LeadAccountMatcher />
+              <Button variant="ghost" onClick={() => setShowMatcher(false)} className="mt-2">
+                Hide Matcher
+              </Button>
             </div>
-            <div className="text-sm">
-              <p>Leads are automatically matched to accounts when uploaded via CSV. These unlinked leads may be from older uploads.</p>
+          )}
+
+          {/* Hero Metrics - Using database totals with HeroMetric for consistency */}
+          {(totalLeadsCount > 0 || metricsLoading) && (
+            <div className="grid gap-4 md:grid-cols-4">
+              <HeroMetric
+                label="ICP Qualified"
+                value={metricsLoading ? "..." : formatNumber(icpQualifiedCount)}
+                subtitle={`${totalLeadsCount > 0 ? Math.round((icpQualifiedCount / totalLeadsCount) * 100) : 0}% of ${formatNumber(totalLeadsCount)} leads`}
+                icon={CheckCircle}
+                status="success"
+              />
+              <HeroMetric
+                label="Campaign Ready"
+                value={metricsLoading ? "..." : formatNumber(campaignReadyCount)}
+                subtitle="Has email, title & persona"
+                icon={Target}
+              />
+              <HeroMetric
+                label="Enriched"
+                value={metricsLoading ? "..." : formatNumber(enrichedCount)}
+                subtitle={`${totalLeadsCount > 0 ? Math.round((enrichedCount / totalLeadsCount) * 100) : 0}% processed`}
+                icon={TrendingUp}
+              />
+              <HeroMetric
+                label="Linked to Accounts"
+                value={metricsLoading ? "..." : formatNumber(linkedCount)}
+                subtitle={`${totalLeadsCount > 0 ? Math.round((linkedCount / totalLeadsCount) * 100) : 0}% of all leads`}
+                icon={ExternalLink}
+              />
             </div>
-            <Button
-              onClick={handleAutoMatch}
-              disabled={isMatching}
-              size="sm"
-            >
-              {isMatching ? (
-                <>
-                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-current"></div>
-                  Matching...
-                </>
-              ) : (
-                'Link to Accounts'
-              )}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Unlinked Leads Alert */}
-      {!flags.demo_mode && unlinkedLeads.length > 0 && unlinkedPercentage >= 10 && hasAttemptedMatch && (
-        <Alert className="border-warning">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between">
-            <div>
-              <strong>{formatNumber(unlinkedLeads.length)} leads still unlinked after auto-matching.</strong>
-              <p className="text-sm mt-1">These leads may be missing email/website data needed for account matching.</p>
-            </div>
-            <Button onClick={handleAutoMatch} size="sm" className="ml-4" disabled={isMatching}>
-              <Link2 className="h-4 w-4 mr-2" />
-              Retry Matching
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Lead Account Matcher */}
-      {showMatcher && (
-        <div>
-          <LeadAccountMatcher />
-          <Button variant="ghost" onClick={() => setShowMatcher(false)} className="mt-2">
-            Hide Matcher
-          </Button>
-        </div>
-      )}
-
-      {/* Hero Metrics - Using database totals with HeroMetric for consistency */}
-      {(totalLeadsCount > 0 || metricsLoading) && (
-        <div className="grid gap-4 md:grid-cols-4">
-          <HeroMetric
-            label="ICP Qualified"
-            value={metricsLoading ? "..." : formatNumber(icpQualifiedCount)}
-            subtitle={`${totalLeadsCount > 0 ? Math.round((icpQualifiedCount / totalLeadsCount) * 100) : 0}% of ${formatNumber(totalLeadsCount)} leads`}
-            icon={CheckCircle}
-            status="success"
-          />
-          <HeroMetric
-            label="Campaign Ready"
-            value={metricsLoading ? "..." : formatNumber(campaignReadyCount)}
-            subtitle="Has email, title & persona"
-            icon={Target}
-          />
-          <HeroMetric
-            label="Enriched"
-            value={metricsLoading ? "..." : formatNumber(enrichedCount)}
-            subtitle={`${totalLeadsCount > 0 ? Math.round((enrichedCount / totalLeadsCount) * 100) : 0}% processed`}
-            icon={TrendingUp}
-          />
-          <HeroMetric
-            label="Linked to Accounts"
-            value={metricsLoading ? "..." : formatNumber(linkedCount)}
-            subtitle={`${totalLeadsCount > 0 ? Math.round((linkedCount / totalLeadsCount) * 100) : 0}% of all leads`}
-            icon={ExternalLink}
-          />
-        </div>
-      )}
+          )}
 
       {/* Search and Filters */}
       <Card>
@@ -992,6 +1105,138 @@ export default function Leads() {
           )}
         </CardContent>
       </Card>
+        </>
+      )}
+
+      {/* Enriched Leads View */}
+      {activeView === 'enriched' && (
+        <>
+          {/* Enriched Hero Metrics */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <HeroMetric
+              label="Total Enriched"
+              value={enrichedMetrics.isLoading ? "..." : formatNumber(enrichedMetrics.totalEnriched)}
+              icon={Sparkles}
+            />
+            <HeroMetric
+              label="High Confidence"
+              value={enrichedMetrics.isLoading ? "..." : formatNumber(enrichedMetrics.highConfidence)}
+              subtitle="80%+ confidence score"
+              icon={TrendingUp}
+              status="success"
+            />
+            <HeroMetric
+              label="Phone Discovered"
+              value={enrichedMetrics.isLoading ? "..." : formatNumber(enrichedMetrics.phoneDiscovered)}
+              icon={Phone}
+            />
+            <HeroMetric
+              label="Email Verified"
+              value={enrichedMetrics.isLoading ? "..." : formatNumber(enrichedMetrics.emailVerified)}
+              icon={Mail}
+              status="success"
+            />
+          </div>
+
+          {/* Enriched Filters */}
+          <EnrichedLeadsFilters
+            searchTerm={enrichedSearchTerm}
+            onSearchChange={setEnrichedSearchTerm}
+            enrichmentSource={enrichmentSource}
+            onEnrichmentSourceChange={setEnrichmentSource}
+            confidenceLevel={confidenceLevel}
+            onConfidenceLevelChange={setConfidenceLevel}
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            hasPhone={hasPhone}
+            onHasPhoneChange={setHasPhone}
+            icpQualified={icpQualified}
+            onIcpQualifiedChange={setIcpQualified}
+            onClearFilters={clearEnrichedFilters}
+          />
+
+          {/* Enriched Header with bulk actions */}
+          <EnrichedLeadsHeader
+            selectedLeads={selectedEnrichedLeads}
+            allLeads={enrichedLeads}
+            orgId={userProfile?.org_id || null}
+            onRefresh={enrichedRefresh}
+            onClearSelection={() => setSelectedEnrichedIds(new Set())}
+          />
+
+          {/* Enriched Table */}
+          <EnrichedLeadsTable
+            leads={enrichedLeads}
+            selectedIds={selectedEnrichedIds}
+            onSelectionChange={setSelectedEnrichedIds}
+            sortField={sortField}
+            sortDirection={sortDirection}
+            onSort={handleEnrichedSort}
+            isLoading={enrichedLoading}
+            isLoadingMore={enrichedLoadingMore}
+            hasMore={enrichedHasMore}
+            onLoadMore={enrichedLoadMore}
+            onReEnrich={handleReEnrich}
+            onViewDetails={setDetailLead}
+          />
+
+          {/* Enriched Lead Detail Sheet */}
+          <Sheet open={!!detailLead} onOpenChange={(open) => !open && setDetailLead(null)}>
+            <SheetContent className="w-[400px] sm:w-[540px]">
+              {detailLead && (
+                <>
+                  <SheetHeader>
+                    <SheetTitle>{detailLead.first_name} {detailLead.last_name}</SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-6 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Title</p>
+                        <p className="font-medium">{detailLead.title || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Level</p>
+                        <p className="font-medium">{detailLead.level || '-'}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Persona</p>
+                        <p className="font-medium">{detailLead.persona || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Company</p>
+                        <p className="font-medium">{detailLead.company || '-'}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Email</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{detailLead.email || '-'}</p>
+                        {detailLead.email_verified && <Badge variant="secondary">Verified</Badge>}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-2">Phone Numbers</p>
+                      <MultiPhoneDisplay phones={getPhonesList(detailLead)} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">Enrichment Confidence</p>
+                        <p className="font-medium">{detailLead.enrichment_confidence ? `${(detailLead.enrichment_confidence * 100).toFixed(0)}%` : '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Enrichment Source</p>
+                        <p className="font-medium capitalize">{detailLead.enrichment_source || detailLead.enriched_from || '-'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </SheetContent>
+          </Sheet>
+        </>
+      )}
     </div>
   );
 }
