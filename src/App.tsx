@@ -35,7 +35,6 @@ import NotFound from "./pages/NotFound";
 import AIAgents from "./pages/AIAgents";
 import Enrichment from "./pages/Enrichment";
 import QuickEnrich from "./pages/QuickEnrich";
-import EnrichedLeads from "./pages/EnrichedLeads";
 import AgentTester from "./pages/AgentTester";
 import AITest from "./pages/AITest";
 import Help from "./pages/Help";
@@ -241,16 +240,6 @@ function AppContent() {
                     <ProtectedRoute>
                       <Layout>
                       <QuickEnrich />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/enriched-leads"
-                element={
-                  <ProtectedRoute>
-                    <Layout>
-                      <EnrichedLeads />
                     </Layout>
                   </ProtectedRoute>
                 }
