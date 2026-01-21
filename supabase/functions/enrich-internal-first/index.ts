@@ -145,6 +145,47 @@ const detectSMBFromContent = (markdown: string): { isSMB: boolean; employeeEstim
   return { isSMB: false };
 };
 
+// Detect if a company is likely an SMB based on name and domain
+const isLikelySMB = (companyName?: string, domain?: string): boolean => {
+  if (!companyName && !domain) return false;
+  const combined = `${companyName || ''} ${domain || ''}`.toLowerCase();
+  
+  // Check for SMB industry keywords
+  for (const keywords of Object.values(SMB_INDUSTRY_KEYWORDS)) {
+    if (keywords.some(kw => combined.includes(kw.replace(/\s/g, '')))) {
+      return true;
+    }
+  }
+  
+  // Check for local business patterns
+  const smbPatterns = [
+    'towing', 'repair', 'service', 'local', 'plumbing', 'lawn', 'roofing',
+    'cleaning', 'moving', 'painting', 'flooring', 'fencing', 'landscaping',
+    'electric', 'heating', 'cooling', 'hvac', 'pest', 'garage', 'locksmith'
+  ];
+  
+  return smbPatterns.some(pattern => combined.includes(pattern));
+};
+
+// Validate employee count - reject hallucinated/unrealistic data
+const validateEmployeeCount = (count: number | null | undefined, domain?: string, companyName?: string): number | null => {
+  if (!count || count <= 0) return null;
+  
+  // Any count > 100,000 is suspicious for most companies
+  if (count > 100000) {
+    console.warn(`[validation] Rejecting unrealistic employee count: ${count} for ${domain || companyName}`);
+    return null;
+  }
+  
+  // For detected SMBs, reject counts > 500
+  if (isLikelySMB(companyName, domain) && count > 500) {
+    console.warn(`[validation] Rejecting suspicious SMB employee count: ${count} for ${domain || companyName}`);
+    return null;
+  }
+  
+  return count;
+};
+
 // Classify job title into Level and Persona - FIXED: Owner always C-Level
 const classifyTitle = (title: string): { level: string; persona: string } => {
   if (!title) return { level: 'Unknown', persona: 'Unknown' };
@@ -250,6 +291,9 @@ interface FailureTracking {
   not_in_database: number;
   api_error: number;
   no_data_found: number;
+  validation_rejected: number;
+  smb_apollo_skip: number;
+  smb_pdl_skip: number;
 }
 
 // Validate phone number - filter out coordinates and garbage data
@@ -1386,7 +1430,10 @@ serve(async (req) => {
       personal_domain: 0,
       not_in_database: 0,
       api_error: 0,
-      no_data_found: 0
+      no_data_found: 0,
+      validation_rejected: 0,
+      smb_apollo_skip: 0,
+      smb_pdl_skip: 0
     };
 
     // Phase 1: Internal Lookup (skip if force_external)
@@ -1634,6 +1681,14 @@ serve(async (req) => {
 
           const domain = input.domain || (input.email ? extractDomain(input.email) : null);
           if (!domain) continue;
+          
+          // Skip Apollo for likely SMBs - they won't be in Apollo's B2B database
+          const companyName = input.company_name || results[resultIndex].enriched_data.company_name || '';
+          if (isLikelySMB(companyName, domain)) {
+            console.log(`[enrich-internal-first] Skipping Apollo for SMB: ${domain} (${companyName})`);
+            failureReasons.smb_apollo_skip++;
+            continue;
+          }
 
           try {
             const response = await withHttpRetry(
@@ -1650,9 +1705,12 @@ serve(async (req) => {
               const org = data.organization;
               
               if (org) {
+                // Validate employee count before accepting
+                const validatedEmployeeCount = validateEmployeeCount(org.estimated_num_employees, domain, org.name);
+                
                 results[resultIndex].enriched_data = {
                   ...results[resultIndex].enriched_data,
-                  employee_count: org.estimated_num_employees,
+                  employee_count: validatedEmployeeCount,
                   revenue_range: mapRevenueToRange(org.estimated_annual_revenue),
                   industry_norm: org.industry,
                   country: org.country,
@@ -1663,10 +1721,31 @@ serve(async (req) => {
                 results[resultIndex].source = 'apollo';
                 results[resultIndex].confidence = 0.95;
                 stats.apollo_enriched++;
+                console.log(`[enrich-internal-first] Apollo enriched: ${domain} -> ${org.name}, employees: ${validatedEmployeeCount}`);
+              } else {
+                console.log(`[enrich-internal-first] Apollo 200 OK but no organization data for ${domain}`);
+                failureReasons.not_in_database++;
+              }
+            } else {
+              // Log non-OK responses with details
+              const status = response.status;
+              let errorBody = '';
+              try { errorBody = await response.text(); } catch {}
+              console.log(`[enrich-internal-first] Apollo ${status} for ${domain}: ${errorBody.slice(0, 200)}`);
+              
+              if (status === 404) {
+                failureReasons.not_in_database++;
+              } else if (status === 422) {
+                failureReasons.not_in_database++; // Small business not in database
+              } else if (status === 429) {
+                failureReasons.rate_limited++;
+              } else {
+                failureReasons.api_error++;
               }
             }
           } catch (e) {
-            console.error(`[enrich-internal-first] Apollo error:`, e);
+            console.error(`[enrich-internal-first] Apollo error for ${domain}:`, e);
+            failureReasons.api_error++;
           }
         }
       }
@@ -1683,6 +1762,14 @@ serve(async (req) => {
 
           const domain = input.domain || (input.email ? extractDomain(input.email) : null);
           if (!domain) continue;
+          
+          // Skip PDL for likely SMBs - they won't be in PDL's B2B database
+          const companyName = input.company_name || results[resultIndex].enriched_data.company_name || '';
+          if (isLikelySMB(companyName, domain)) {
+            console.log(`[enrich-internal-first] Skipping PDL for SMB: ${domain} (${companyName})`);
+            failureReasons.smb_pdl_skip++;
+            continue;
+          }
 
           try {
             const response = await withHttpRetry(
@@ -1697,9 +1784,12 @@ serve(async (req) => {
               const data = await response.json();
               
               if (data.name) {
+                // Validate employee count before accepting
+                const validatedEmployeeCount = validateEmployeeCount(data.size, domain, data.name);
+                
                 results[resultIndex].enriched_data = {
                   ...results[resultIndex].enriched_data,
-                  employee_count: data.size,
+                  employee_count: validatedEmployeeCount,
                   revenue_range: mapRevenueToRange(data.estimated_annual_revenue),
                   industry_norm: data.industry,
                   country: data.location?.country,
@@ -1710,10 +1800,32 @@ serve(async (req) => {
                 results[resultIndex].source = 'pdl';
                 results[resultIndex].confidence = 0.85;
                 stats.pdl_enriched++;
+                console.log(`[enrich-internal-first] PDL enriched: ${domain} -> ${data.name}, employees: ${validatedEmployeeCount}`);
+              } else {
+                console.log(`[enrich-internal-first] PDL 200 OK but no company data for ${domain}`);
+                failureReasons.not_in_database++;
+              }
+            } else {
+              // Log non-OK responses with details
+              const status = response.status;
+              let errorBody = '';
+              try { errorBody = await response.text(); } catch {}
+              console.log(`[enrich-internal-first] PDL ${status} for ${domain}: ${errorBody.slice(0, 200)}`);
+              
+              if (status === 404) {
+                failureReasons.not_in_database++;
+              } else if (status === 402) {
+                console.warn(`[enrich-internal-first] PDL 402 Payment Required - check account credits`);
+                failureReasons.api_error++;
+              } else if (status === 429) {
+                failureReasons.rate_limited++;
+              } else {
+                failureReasons.api_error++;
               }
             }
           } catch (e) {
-            console.error(`[enrich-internal-first] PDL error:`, e);
+            console.error(`[enrich-internal-first] PDL error for ${domain}:`, e);
+            failureReasons.api_error++;
           }
         }
       }
@@ -1854,9 +1966,23 @@ ${batch.map(({ input }) => `- ${input.email || input.domain || input.company_nam
                     
                     if (matchedItem) {
                       const existing = results[matchedItem.resultIndex].enriched_data;
+                      const domain = existing.domain || matchedItem.input.domain || extractDomain(matchedItem.input.email || '');
+                      
+                      // Validate employee count to reject hallucinated data
+                      const validatedEmployeeCount = validateEmployeeCount(
+                        est.employee_count, 
+                        domain, 
+                        est.company_name || existing.company_name
+                      );
+                      
+                      if (est.employee_count && !validatedEmployeeCount) {
+                        console.log(`[enrich-internal-first] AI employee count ${est.employee_count} rejected for ${domain}`);
+                        failureReasons.validation_rejected++;
+                      }
+                      
                       results[matchedItem.resultIndex].enriched_data = {
                         ...existing,
-                        employee_count: existing.employee_count || est.employee_count,
+                        employee_count: existing.employee_count || validatedEmployeeCount,
                         revenue_range: existing.revenue_range || est.revenue_range,
                         industry_norm: existing.industry_norm || est.industry,
                         sub_industry: existing.sub_industry || est.sub_industry,
@@ -2216,10 +2342,11 @@ ${combinedContent}`;
       email_verified: stats.email_verified
     };
     
-    // Enhanced failure tracking
+    // Enhanced failure tracking with SMB skip info
     const failureBreakdown = {
       ...failureReasons,
-      no_data_found: actualFailed - failureReasons.rate_limited - failureReasons.api_error
+      no_data_found: Math.max(0, actualFailed - failureReasons.rate_limited - failureReasons.api_error),
+      smb_routed_to_ai: failureReasons.smb_apollo_skip + failureReasons.smb_pdl_skip
     };
 
     console.log(`[enrich-internal-first] Complete (recalculated):`, finalStats);
@@ -2230,6 +2357,7 @@ ${combinedContent}`;
       ai: finalStats.ai_enriched,
       failed: finalStats.failed,
       skipped_personal: finalStats.skipped_personal,
+      smb_routed_to_ai: failureBreakdown.smb_routed_to_ai,
       total: results.length
     });
     console.log(`[enrich-internal-first] Failure breakdown:`, failureBreakdown);
