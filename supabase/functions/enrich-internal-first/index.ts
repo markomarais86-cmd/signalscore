@@ -684,8 +684,8 @@ async function processLeadsInBackground(
           if (success) {
             completed++;
             // Track source for stats breakdown
-            const source = result.source?.toLowerCase() || '';
-            console.log(`[enrich-internal-first] Source tracking: ${source} for ${result.enriched_data?.domain || result.input?.email || 'unknown'}`);
+            const source = result.source?.toLowerCase() || 'none';
+            console.log(`[enrich-internal-first] Source tracking: "${source}" for ${result.enriched_data?.domain || result.input?.email || 'unknown'}`);
             
             if (source === 'internal' || source === 'domain_discovery') {
               internalMatches++;
@@ -697,6 +697,11 @@ async function processLeadsInBackground(
                        source.includes('perplexity') || source.includes('openai') || 
                        source.includes('anthropic') || source.includes('firecrawl')) {
               aiEnriched++;
+            } else if (source === 'none') {
+              // No enrichment source found - APIs failed or returned empty
+              console.log(`[enrich-internal-first] No enrichment source for ${result.enriched_data?.domain || result.input?.email} - all APIs failed or returned empty`);
+              // Don't count as internal since nothing was actually matched
+              failed++;
             } else {
               // Log unknown sources for debugging
               console.log(`[enrich-internal-first] Unknown source: "${source}", counting as internal`);
@@ -958,12 +963,14 @@ async function processSingleInput(
   const result: EnrichmentResult = {
     input,
     enriched_data: {},
-    source: 'internal',
+    source: 'none', // Start with 'none', will be set when data is actually found
     confidence: 0,
     fields_filled: [],
     api_calls_saved: false,
     domain_discovered: false
   };
+  
+  console.log(`[processSingleInput] Starting for ${input.email || input.domain || 'unknown'}, forceExternal=${forceExternal}`);
 
   // Extract basic data from input
   const domain = input.domain || extractDomain(input.email || '');
@@ -1013,9 +1020,12 @@ async function processSingleInput(
   const hasCompanyData = result.enriched_data.employee_count || result.enriched_data.industry_norm;
   
   if (!hasCompanyData && domain) {
+    console.log(`[processSingleInput] No company data yet for ${domain}, trying external APIs...`);
+    
     // Try Apollo
     const APOLLO_API_KEY = Deno.env.get('APOLLO_API_KEY');
     if (APOLLO_API_KEY) {
+      console.log(`[processSingleInput] Trying Apollo for ${domain}...`);
       try {
         const response = await withHttpRetry(
           () => fetch('https://api.apollo.io/v1/organizations/enrich', {
@@ -1026,10 +1036,12 @@ async function processSingleInput(
           { ...DEFAULT_RETRY_CONFIG, maxRetries: 2 }
         );
         
+        console.log(`[processSingleInput] Apollo response status: ${response.status} for ${domain}`);
+        
         if (response.ok) {
           const data = await response.json();
           const org = data.organization;
-          if (org) {
+          if (org && (org.estimated_num_employees || org.industry)) {
             result.enriched_data.employee_count = org.estimated_num_employees;
             result.enriched_data.revenue_range = mapRevenueToRange(org.estimated_annual_revenue);
             result.enriched_data.industry_norm = org.industry;
@@ -1037,17 +1049,25 @@ async function processSingleInput(
             result.enriched_data.company_name = org.name;
             result.source = 'apollo';
             result.confidence = 0.95;
+            console.log(`[processSingleInput] Apollo SUCCESS for ${domain}: emp=${org.estimated_num_employees}, industry=${org.industry}`);
+          } else {
+            console.log(`[processSingleInput] Apollo returned no org data for ${domain}`);
           }
+        } else {
+          console.log(`[processSingleInput] Apollo failed with status ${response.status} for ${domain}`);
         }
       } catch (e) {
         console.error('[processSingleInput] Apollo error:', e);
       }
+    } else {
+      console.log(`[processSingleInput] No APOLLO_API_KEY configured`);
     }
     
     // Try PDL if still missing
     if (!result.enriched_data.employee_count) {
       const PDL_API_KEY = Deno.env.get('PDL_API_KEY');
       if (PDL_API_KEY) {
+        console.log(`[processSingleInput] Trying PDL for ${domain}...`);
         try {
           const response = await withHttpRetry(
             () => fetch(`https://api.peopledatalabs.com/v5/company/enrich?website=${encodeURIComponent(domain)}`, {
@@ -1057,9 +1077,11 @@ async function processSingleInput(
             { ...DEFAULT_RETRY_CONFIG, maxRetries: 2 }
           );
           
+          console.log(`[processSingleInput] PDL response status: ${response.status} for ${domain}`);
+          
           if (response.ok) {
             const data = await response.json();
-            if (data.name) {
+            if (data.name && (data.size || data.industry)) {
               result.enriched_data.employee_count = data.size;
               result.enriched_data.revenue_range = mapRevenueToRange(data.estimated_annual_revenue);
               result.enriched_data.industry_norm = data.industry;
@@ -1067,11 +1089,18 @@ async function processSingleInput(
               result.enriched_data.company_name = data.name;
               result.source = 'pdl';
               result.confidence = 0.85;
+              console.log(`[processSingleInput] PDL SUCCESS for ${domain}: emp=${data.size}, industry=${data.industry}`);
+            } else {
+              console.log(`[processSingleInput] PDL returned no useful data for ${domain}`);
             }
+          } else {
+            console.log(`[processSingleInput] PDL failed with status ${response.status} for ${domain}`);
           }
         } catch (e) {
           console.error('[processSingleInput] PDL error:', e);
         }
+      } else {
+        console.log(`[processSingleInput] No PDL_API_KEY configured`);
       }
     }
     
