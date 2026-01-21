@@ -113,7 +113,7 @@ export function FlexibleLeadEnrich() {
         source_type: sourceType
       }));
 
-      const { data, error } = await supabase.functions.invoke('enrich-internal-first', {
+      const { data, error } = await supabase.functions.invoke('enrich-v4', {
         body: {
           inputs,
           org_id: userProfile.org_id,

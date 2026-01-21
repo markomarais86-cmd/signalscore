@@ -384,5 +384,5 @@ verify_jwt = true
 [functions.process-enrichment-queue]
 verify_jwt = false
 
-[functions.enrich-internal-first]
+[functions.enrich-v4]
 verify_jwt = false
