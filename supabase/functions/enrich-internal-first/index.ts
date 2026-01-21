@@ -685,16 +685,21 @@ async function processLeadsInBackground(
             completed++;
             // Track source for stats breakdown
             const source = result.source?.toLowerCase() || '';
+            console.log(`[enrich-internal-first] Source tracking: ${source} for ${result.enriched_data?.domain || result.input?.email || 'unknown'}`);
+            
             if (source === 'internal' || source === 'domain_discovery') {
               internalMatches++;
             } else if (source === 'apollo' || source === 'hunter') {
               apolloEnriched++;
             } else if (source === 'pdl' || source === 'clearbit') {
               pdlEnriched++;
-            } else if (source === 'ai' || source.includes('perplexity') || source.includes('openai')) {
+            } else if (source === 'ai' || source === 'firecrawl' || source === 'perplexity' ||
+                       source.includes('perplexity') || source.includes('openai') || 
+                       source.includes('anthropic') || source.includes('firecrawl')) {
               aiEnriched++;
             } else {
-              // Default to internal if unknown but successful
+              // Log unknown sources for debugging
+              console.log(`[enrich-internal-first] Unknown source: "${source}", counting as internal`);
               internalMatches++;
             }
           } else {
@@ -809,8 +814,13 @@ async function processSingleInputWithCache(
   // Process normally
   const result = await processSingleInput(input, supabase, orgId, forceExternal, skipAi);
   
-  // Cache company data for this domain
-  if (domain && result.enriched_data) {
+  // Only cache company data if we got REAL external data (not internal lookup)
+  // This prevents caching empty/incomplete data that blocks future external calls
+  const hasRealExternalData = result.source !== 'internal' && 
+                               result.source !== 'domain_discovery' &&
+                               (result.enriched_data.employee_count || result.enriched_data.industry_norm);
+  
+  if (domain && result.enriched_data && hasRealExternalData) {
     const companyData = {
       company_name: result.enriched_data.company_name,
       employee_count: result.enriched_data.employee_count,
@@ -823,6 +833,7 @@ async function processSingleInputWithCache(
       company_main_phone: result.enriched_data.company_main_phone
     };
     domainCache.set(domain, companyData);
+    console.log(`[enrich-internal-first] Caching external data for ${domain} from source: ${result.source}`);
   }
   
   return result;
@@ -1135,7 +1146,7 @@ ${markdown.substring(0, 4000)}`;
     }
   }
 
-  // Person enrichment
+  // Person enrichment - track if AI was used
   if (input.email && (!result.enriched_data.title || !result.enriched_data.phone) && !skipAi) {
     const personData = await discoverPersonWithAI(
       input.email,
@@ -1159,6 +1170,12 @@ ${markdown.substring(0, 4000)}`;
       }
       if (personData.linkedin_url && !result.enriched_data.linkedin_url) {
         result.enriched_data.linkedin_url = personData.linkedin_url;
+      }
+      // If we got person data from AI and source was internal, upgrade to 'ai' for tracking
+      if (result.source === 'internal' || !result.source) {
+        result.source = 'ai';
+        result.confidence = Math.max(result.confidence || 0, 0.7);
+        console.log(`[processSingleInput] Person data from AI for ${input.email}, upgrading source to 'ai'`);
       }
     }
   }
