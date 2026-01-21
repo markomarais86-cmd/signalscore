@@ -225,7 +225,7 @@ export function AuthSystem() {
 
   return (
     <GradientBackground variant="auth" showOrbs>
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <main className="min-h-screen flex items-center justify-center p-4">
         <div className="w-full max-w-md animate-fade-in">
           {/* Logo */}
           <div className="text-center mb-8">
@@ -453,7 +453,7 @@ export function AuthSystem() {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </main>
     </GradientBackground>
   );
 }
