@@ -1,4 +1,4 @@
-import { corsHeaders } from './cors.ts';
+import { getCorsHeaders } from './cors.ts';
 
 /**
  * Standard API response format for all edge functions
@@ -14,9 +14,9 @@ export interface ApiResponse<T = unknown> {
 }
 
 /**
- * Create a successful JSON response
+ * Create a successful JSON response with proper CORS headers
  */
-export function successResponse<T>(data: T, status = 200): Response {
+export function successResponse<T>(data: T, status = 200, origin: string | null = null): Response {
   const body: ApiResponse<T> = {
     success: true,
     data,
@@ -25,20 +25,21 @@ export function successResponse<T>(data: T, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...getCorsHeaders(origin),
       'Content-Type': 'application/json',
     },
   });
 }
 
 /**
- * Create an error JSON response
+ * Create an error JSON response with proper CORS headers
  */
 export function errorResponse(
   code: string,
   message: string,
   status = 400,
-  details?: unknown
+  details?: unknown,
+  origin: string | null = null
 ): Response {
   const body: ApiResponse = {
     success: false,
@@ -52,20 +53,21 @@ export function errorResponse(
   return new Response(JSON.stringify(body), {
     status,
     headers: {
-      ...corsHeaders,
+      ...getCorsHeaders(origin),
       'Content-Type': 'application/json',
     },
   });
 }
 
 /**
- * Handle CORS preflight requests
+ * Handle CORS preflight requests with proper origin validation
  */
 export function handleCors(req: Request): Response | null {
   if (req.method === 'OPTIONS') {
+    const origin = req.headers.get('origin');
     return new Response(null, {
       status: 204,
-      headers: corsHeaders,
+      headers: getCorsHeaders(origin),
     });
   }
   return null;
