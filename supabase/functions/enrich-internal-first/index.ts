@@ -256,10 +256,11 @@ const isGenericEmailDomain = (domain: string): boolean => {
 };
 
 // Retry wrapper with exponential backoff for rate-limited APIs
+// UPDATED: Increased retries and backoff for better rate limit handling
 const callWithRetry = async <T>(
   operation: () => Promise<T>,
-  maxRetries: number = 3,
-  baseDelayMs: number = 1000,
+  maxRetries: number = 5,  // Increased from 3
+  baseDelayMs: number = 2000,  // Increased from 1000
   operationName: string = 'API call'
 ): Promise<T | null> => {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -271,8 +272,9 @@ const callWithRetry = async <T>(
                             error.message?.toLowerCase().includes('limit');
       
       if (isRateLimited && attempt < maxRetries - 1) {
-        const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 500;
-        console.log(`[enrich-internal-first] ${operationName} rate limited, waiting ${Math.round(delay)}ms before retry ${attempt + 1}/${maxRetries}`);
+        // Exponential backoff with factor of 3: 2s, 6s, 18s, 54s
+        const delay = baseDelayMs * Math.pow(3, attempt) + Math.random() * 1000;
+        console.log(`[enrich-internal-first] ${operationName} rate limited, waiting ${Math.round(delay/1000)}s before retry ${attempt + 1}/${maxRetries}`);
         await new Promise(r => setTimeout(r, delay));
         continue;
       }
@@ -348,15 +350,13 @@ const verifyEmailWithHunter = async (email: string): Promise<{ status: string; s
   return null;
 };
 
-// Use Perplexity for phone discovery with web search
-const discoverPhoneWithPerplexity = async (
+// Use AI for phone discovery with multi-provider fallback
+// REFACTORED: Uses callAI() with automatic fallback across all providers
+const discoverPhoneWithAI = async (
   personName: string,
   companyName: string,
   domain: string
-): Promise<{ phone?: string; mobile?: string; direct_phone?: string; phones?: any[]; citations?: string[] } | null> => {
-  const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
-  if (!perplexityKey) return null;
-  
+): Promise<{ phone?: string; mobile?: string; direct_phone?: string; phones?: any[]; citations?: string[]; provider?: string } | null> => {
   const prompt = `Find phone numbers for ${personName} at ${companyName} (${domain}).
 
 Search for:
@@ -374,37 +374,36 @@ Return ONLY valid JSON:
   ]
 }`;
 
-  // Use retry wrapper for rate limit handling
-  const result = await callWithRetry(async () => {
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${perplexityKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'sonar-pro',
-        messages: [
-          { role: 'system', content: 'You are a B2B contact researcher. Find verified phone numbers. Return only JSON.' },
-          { role: 'user', content: prompt }
-        ],
-        search_recency_filter: 'year'
-      }),
+  try {
+    // Use callAI which falls back: Perplexity → Claude → Grok → Gemini → GPT
+    const response = await callAI('research', [
+      { role: 'system', content: 'You are a B2B contact researcher. Find verified phone numbers from web sources. Return only JSON.' },
+      { role: 'user', content: prompt }
+    ], {
+      maxTokens: 500,
+      search_recency_filter: 'year'
     });
 
-    if (response.status === 429) {
-      throw new Error('429 rate limit exceeded');
-    }
-    
     if (!response.ok) {
-      throw new Error(`Perplexity API error: ${response.status}`);
+      console.error(`[enrich-internal-first] All AI providers failed for phone discovery`);
+      return null;
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
+    
+    // Handle different response formats (Anthropic vs OpenAI-style)
+    let content = '';
+    if (data.content && Array.isArray(data.content)) {
+      // Anthropic format
+      content = data.content.find((c: any) => c.type === 'text')?.text || '';
+    } else {
+      // OpenAI format
+      content = data.choices?.[0]?.message?.content || '';
+    }
+    
     const citations = data.citations || [];
     
-    console.log('[enrich-internal-first] Perplexity phone response:', content.substring(0, 200));
+    console.log('[enrich-internal-first] AI phone response:', content.substring(0, 200));
     
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -417,20 +416,23 @@ Return ONLY valid JSON:
           number: sanitizePhone(p.number),
           type: p.type,
           confidence: p.confidence,
-          source: 'perplexity'
+          source: 'ai-fallback'
         })).filter((p: any) => p.number),
-        citations
+        citations,
+        provider: 'ai-fallback'
       };
     }
     
     return null;
-  }, 3, 1500, `Perplexity phone for ${personName}`);
-  
-  return result;
+  } catch (error: any) {
+    console.error('[enrich-internal-first] AI phone discovery error:', error.message);
+    return null;
+  }
 };
 
-// NEW: Use Perplexity for SMB firmographic discovery when Apollo/PDL fail
-const discoverFirmographicsWithPerplexity = async (
+// Use AI for SMB firmographic discovery with multi-provider fallback
+// REFACTORED: Uses callAI() with automatic fallback across all providers
+const discoverFirmographicsWithAI = async (
   companyName: string,
   domain: string
 ): Promise<{ 
@@ -441,11 +443,9 @@ const discoverFirmographicsWithPerplexity = async (
   phone?: string;
   address?: string;
   citations?: string[];
+  provider?: string;
 } | null> => {
-  const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
-  if (!perplexityKey) return null;
-  
-  console.log(`[enrich-internal-first] Perplexity firmographic discovery for ${companyName} (${domain})`);
+  console.log(`[enrich-internal-first] AI firmographic discovery for ${companyName} (${domain})`);
   
   const prompt = `Find business information for ${companyName} (${domain}).
 
@@ -467,37 +467,36 @@ Return ONLY valid JSON:
   "business_type": "local_service | retail | restaurant | professional_service | other"
 }`;
 
-  // Use retry wrapper for rate limit handling
-  const result = await callWithRetry(async () => {
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${perplexityKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'sonar-pro',
-        messages: [
-          { role: 'system', content: 'You are a business researcher. Find company information from public sources. Return only JSON.' },
-          { role: 'user', content: prompt }
-        ],
-        search_recency_filter: 'year'
-      }),
+  try {
+    // Use callAI which falls back: Perplexity → Claude → Grok → Gemini → GPT
+    const response = await callAI('research', [
+      { role: 'system', content: 'You are a business researcher. Find company information from public sources. Return only JSON.' },
+      { role: 'user', content: prompt }
+    ], {
+      maxTokens: 600,
+      search_recency_filter: 'year'
     });
 
-    if (response.status === 429) {
-      throw new Error('429 rate limit exceeded');
-    }
-    
     if (!response.ok) {
-      throw new Error(`Perplexity API error: ${response.status}`);
+      console.error(`[enrich-internal-first] All AI providers failed for firmographic discovery`);
+      return null;
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
+    
+    // Handle different response formats (Anthropic vs OpenAI-style)
+    let content = '';
+    if (data.content && Array.isArray(data.content)) {
+      // Anthropic format
+      content = data.content.find((c: any) => c.type === 'text')?.text || '';
+    } else {
+      // OpenAI format
+      content = data.choices?.[0]?.message?.content || '';
+    }
+    
     const citations = data.citations || [];
     
-    console.log('[enrich-internal-first] Perplexity firmographic response:', content.substring(0, 300));
+    console.log('[enrich-internal-first] AI firmographic response:', content.substring(0, 300));
     
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -515,14 +514,16 @@ Return ONLY valid JSON:
         state: parsed.state || undefined,
         phone: sanitizePhone(parsed.phone) || undefined,
         address: parsed.address || undefined,
-        citations
+        citations,
+        provider: 'ai-fallback'
       };
     }
     
     return null;
-  }, 3, 1500, `Perplexity firmographics for ${companyName}`);
-  
-  return result;
+  } catch (error: any) {
+    console.error('[enrich-internal-first] AI firmographic discovery error:', error.message);
+    return null;
+  }
 };
 
 // Use AI to discover person details (title, phone, linkedin)
@@ -652,8 +653,9 @@ const discoverDomainForCompany = async (companyName: string, supabase: any, orgI
 // Threshold for async processing
 const ASYNC_THRESHOLD = 10;
 const CHUNK_SIZE = 20; // Increased from 5 for better throughput
-const CONCURRENCY_LIMIT = 10; // Max parallel API calls per chunk
+const CONCURRENCY_LIMIT = 3; // Reduced from 10 to prevent rate limits across providers
 const HEARTBEAT_INTERVAL_MS = 15000;
+const INTER_CHUNK_DELAY_MS = 500; // Delay between chunks to prevent rate limits
 
 // Simple concurrency limiter (p-limit pattern)
 function createLimiter(concurrency: number) {
@@ -843,6 +845,11 @@ async function processLeadsInBackground(
         last_heartbeat: new Date().toISOString(),
         last_progress_update: new Date().toISOString()
       }).eq('id', jobId);
+      
+      // Add inter-chunk delay to prevent rate limits across providers
+      if (i + CHUNK_SIZE < inputs.length) {
+        await new Promise(r => setTimeout(r, INTER_CHUNK_DELAY_MS));
+      }
     }
     
     // Mark job as completed with source breakdown in metadata
@@ -1860,9 +1867,8 @@ serve(async (req) => {
         } // End pdlAvailable check
       }
 
-      // Phase 2b.5: Domain-based industry detection + Perplexity SMB enrichment
+      // Phase 2b.5: Domain-based industry detection + AI SMB enrichment (multi-provider fallback)
       // This runs BEFORE batch AI for SMBs that Apollo/PDL don't cover
-      const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
       const stillNeedsSMBEnrichment = needsExternalEnrichment.filter(
         ({ resultIndex }) => {
           const data = results[resultIndex].enriched_data;
@@ -1872,7 +1878,7 @@ serve(async (req) => {
       );
       
       if (stillNeedsSMBEnrichment.length > 0) {
-        console.log(`[enrich-internal-first] Phase 2b.5: SMB enrichment (${stillNeedsSMBEnrichment.length} leads)`);
+        console.log(`[enrich-internal-first] Phase 2b.5: SMB enrichment with AI fallback (${stillNeedsSMBEnrichment.length} leads)`);
         
         for (const { input, resultIndex } of stillNeedsSMBEnrichment) {
           const domain = results[resultIndex].enriched_data.domain || input.domain || extractDomain(input.email || '');
@@ -1889,10 +1895,11 @@ serve(async (req) => {
             }
           }
           
-          // Step 2: Perplexity web search for SMB firmographics (if still missing data)
-          if (perplexityKey && (!existing.employee_count || !existing.hq_city)) {
+          // Step 2: AI web search for SMB firmographics with multi-provider fallback
+          if (!existing.employee_count || !existing.hq_city) {
             const companyName = existing.company_name || domain.split('.')[0];
-            const firmographics = await discoverFirmographicsWithPerplexity(companyName, domain);
+            // Uses callAI() which falls back: Perplexity → Claude → Grok → Gemini → GPT
+            const firmographics = await discoverFirmographicsWithAI(companyName, domain);
             
             if (firmographics) {
               if (firmographics.employee_estimate && !existing.employee_count) {
@@ -1915,14 +1922,14 @@ serve(async (req) => {
               }
               
               if (firmographics.employee_estimate || firmographics.industry) {
-                results[resultIndex].source = 'perplexity';
+                results[resultIndex].source = 'ai';
                 results[resultIndex].confidence = 0.80;
                 stats.ai_enriched++;
-                console.log(`[enrich-internal-first] Perplexity SMB enriched: ${domain}`, firmographics);
+                console.log(`[enrich-internal-first] AI SMB enriched: ${domain}`, firmographics);
               }
             }
             
-            // Add small delay between Perplexity calls to avoid rate limiting
+            // Add small delay between AI calls to avoid rate limiting
             await new Promise(r => setTimeout(r, 300));
           }
         }
