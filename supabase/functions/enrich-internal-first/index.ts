@@ -326,33 +326,73 @@ const sanitizePhone = (phone: any): string | null => {
 
 // ============= NEW: Direct regex extraction from markdown =============
 
-// Extract phone number directly from markdown (regex-based, before AI)
+// Extract phone number directly from markdown (context-aware regex)
 const extractPhoneFromMarkdown = (markdown: string): string | null => {
   if (!markdown) return null;
   
-  const phonePatterns = [
-    // Standard US formats: (918) 438-0288, 918-438-0288, 918.438.0288
-    /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
-    // With country code: +1 918 438 0288, +1-918-438-0288
-    /\+1[-.\s]?\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/g,
-    // Toll-free: 1-800-123-4567
-    /1[-.\s]?8\d{2}[-.\s]?\d{3}[-.\s]?\d{4}/g
+  // PRIORITY 1: Look for phone numbers near contextual labels (most reliable)
+  const contextPatterns = [
+    // "Phone: (208) 342-2541" or "Phone: 208-342-2541"
+    /(?:phone|call|tel|telephone|main|office|business)[:\s]*\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/gi,
+    // "Call us: 208-342-2541"
+    /(?:call us|call now|reach us|contact us)[:\s]*\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/gi,
+    // "+1 (208) 342-2541" (formatted with country code)
+    /\+1[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
   ];
   
-  for (const pattern of phonePatterns) {
+  for (const pattern of contextPatterns) {
     const matches = markdown.match(pattern);
     if (matches && matches.length > 0) {
-      // Filter out fake numbers (555-xxxx)
-      const validMatch = matches.find(m => !m.includes('555'));
-      if (validMatch) {
-        const sanitized = sanitizePhone(validMatch);
-        if (sanitized) {
-          console.log(`[extractPhoneFromMarkdown] Found phone via regex: ${sanitized}`);
+      for (const match of matches) {
+        // Extract just the phone digits from the contextual match
+        const phoneOnly = match.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+        if (phoneOnly) {
+          const sanitized = sanitizePhone(phoneOnly[0]);
+          // Filter out fake numbers (555-xxxx) and common test patterns
+          if (sanitized && !phoneOnly[0].includes('555') && !sanitized.includes('0000')) {
+            console.log(`[extractPhoneFromMarkdown] Found phone via context pattern: ${sanitized}`);
+            return sanitized;
+          }
+        }
+      }
+    }
+  }
+  
+  // PRIORITY 2: Look in footer/contact section (more reliable than body)
+  const footerSection = markdown.match(/(?:footer|contact|reach us|call us|get in touch)[\s\S]{0,500}/gi);
+  if (footerSection) {
+    for (const section of footerSection) {
+      const phoneMatch = section.match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+      if (phoneMatch) {
+        const sanitized = sanitizePhone(phoneMatch[0]);
+        if (sanitized && !phoneMatch[0].includes('555') && !sanitized.includes('0000')) {
+          console.log(`[extractPhoneFromMarkdown] Found phone in footer section: ${sanitized}`);
           return sanitized;
         }
       }
     }
   }
+  
+  // PRIORITY 3: General phone patterns (less reliable, last resort)
+  const generalPatterns = [
+    /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/g,
+    /1[-.\s]?8\d{2}[-.\s]?\d{3}[-.\s]?\d{4}/g // Toll-free
+  ];
+  
+  for (const pattern of generalPatterns) {
+    const matches = markdown.match(pattern);
+    if (matches && matches.length > 0) {
+      // Take only the first few matches (more likely to be main business phone)
+      for (const match of matches.slice(0, 3)) {
+        const sanitized = sanitizePhone(match);
+        if (sanitized && !match.includes('555') && !sanitized.includes('0000')) {
+          console.log(`[extractPhoneFromMarkdown] Found phone via general pattern: ${sanitized}`);
+          return sanitized;
+        }
+      }
+    }
+  }
+  
   return null;
 };
 
@@ -442,21 +482,19 @@ const scrapeMultiplePagesWithFirecrawl = async (domain: string): Promise<string>
   const firecrawlKey = Deno.env.get('FIRECRAWL_API_KEY');
   if (!firecrawlKey) return '';
   
+  const startTime = Date.now();
+  
+  // Parallel scraping: only homepage + contact for speed (skip about pages for SMBs)
   const pagesToScrape = [
     `https://${domain}`,
-    `https://${domain}/contact`,
-    `https://${domain}/about`,
-    `https://${domain}/about-us`
+    `https://${domain}/contact`
   ];
   
-  let combinedMarkdown = '';
-  let successCount = 0;
+  console.log(`[scrapeMultiplePagesWithFirecrawl] Parallel scraping ${pagesToScrape.length} pages for ${domain}`);
   
-  for (const url of pagesToScrape) {
-    if (successCount >= 2) break; // Stop after 2 successful pages
-    
+  // Scrape all pages in parallel
+  const scrapePromises = pagesToScrape.map(async (url) => {
     try {
-      console.log(`[scrapeMultiplePagesWithFirecrawl] Scraping: ${url}`);
       const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
         method: 'POST',
         headers: {
@@ -467,7 +505,7 @@ const scrapeMultiplePagesWithFirecrawl = async (domain: string): Promise<string>
           url,
           formats: ['markdown'],
           onlyMainContent: false,
-          waitFor: 2000
+          waitFor: 1500 // Reduced from 2000 for speed
         }),
       });
       
@@ -475,15 +513,31 @@ const scrapeMultiplePagesWithFirecrawl = async (domain: string): Promise<string>
         const data = await response.json();
         const markdown = data.data?.markdown || data.markdown || '';
         if (markdown && markdown.length > 100) {
-          combinedMarkdown += `\n\n--- ${url} ---\n${markdown}`;
-          successCount++;
           console.log(`[scrapeMultiplePagesWithFirecrawl] Got ${markdown.length} chars from ${url}`);
+          return { url, markdown, success: true };
         }
       }
+      return { url, markdown: '', success: false };
     } catch (e) {
       console.log(`[scrapeMultiplePagesWithFirecrawl] Error on ${url}:`, e);
+      return { url, markdown: '', success: false };
+    }
+  });
+  
+  const results = await Promise.allSettled(scrapePromises);
+  
+  let combinedMarkdown = '';
+  let successCount = 0;
+  
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value.success) {
+      combinedMarkdown += `\n\n--- ${result.value.url} ---\n${result.value.markdown}`;
+      successCount++;
     }
   }
+  
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  console.log(`[scrapeMultiplePagesWithFirecrawl] Completed in ${elapsed}s: ${successCount}/${pagesToScrape.length} pages successful`);
   
   return combinedMarkdown;
 };
@@ -1397,11 +1451,15 @@ async function processLeadsInBackground(
   saveToDb: boolean,
   sourceType: string
 ): Promise<void> {
-  console.log(`[enrich-internal-first] Background processing started for job ${jobId} with ${inputs.length} inputs`);
+  const startTime = Date.now();
+  console.log(`[enrich-internal-first] ========== JOB ${jobId} STARTED ==========`);
+  console.log(`[enrich-internal-first] Config: inputs=${inputs.length}, saveToDb=${saveToDb}, forceExternal=${forceExternal}, skipAi=${skipAi}, sourceType=${sourceType}`);
   
   let processed = 0;
   let completed = 0;
   let failed = 0;
+  let savedToDb = 0;
+  let saveErrors = 0;
   const results: EnrichmentResult[] = [];
   
   // Track enrichment sources for stats breakdown
@@ -1440,16 +1498,26 @@ async function processLeadsInBackground(
       
       const chunkPromises = chunk.map((input) => 
         limit(async () => {
+          const inputEmail = input.email || input.domain || 'unknown';
           try {
             const result = await processSingleInput(input, supabase, orgId, forceExternal, skipAi);
             
+            // Save to database if requested
             if (saveToDb && result.enriched_data) {
-              await saveEnrichmentResult(result, supabase, orgId, sourceType);
+              try {
+                console.log(`[enrich-internal-first] Saving to DB: ${inputEmail}`);
+                await saveEnrichmentResult(result, supabase, orgId, sourceType);
+                savedToDb++;
+                console.log(`[enrich-internal-first] ✓ Saved successfully: ${inputEmail} (total saved: ${savedToDb})`);
+              } catch (saveError) {
+                saveErrors++;
+                console.error(`[enrich-internal-first] ✗ SAVE FAILED for ${inputEmail}:`, saveError);
+              }
             }
             
             return { success: true, result };
           } catch (e) {
-            console.error(`[enrich-internal-first] Error processing input:`, e);
+            console.error(`[enrich-internal-first] Error processing ${inputEmail}:`, e);
             return {
               success: false,
               result: {
@@ -1515,7 +1583,9 @@ async function processLeadsInBackground(
       }
       
       const chunkTime = ((Date.now() - chunkStartTime) / 1000).toFixed(1);
-      console.log(`[enrich-internal-first] Job ${jobId}: processed ${processed}/${inputs.length} (chunk took ${chunkTime}s)`);
+      const avgTimePerRecord = (parseFloat(chunkTime) / chunk.length).toFixed(1);
+      console.log(`[enrich-internal-first] Job ${jobId}: processed ${processed}/${inputs.length} (chunk took ${chunkTime}s, ~${avgTimePerRecord}s/record)`);
+      console.log(`[enrich-internal-first] Stats: completed=${completed}, failed=${failed}, savedToDb=${savedToDb}, saveErrors=${saveErrors}`);
       
       await supabase.from('enrichment_jobs').update({
         processed_records: processed,
@@ -1552,7 +1622,12 @@ async function processLeadsInBackground(
       source_breakdown: sourceBreakdown
     }).eq('id', jobId);
     
-    console.log(`[enrich-internal-first] Job ${jobId} completed: ${completed} success, ${failed} failed (internal: ${internalMatches}, apollo: ${apolloEnriched}, pdl: ${pdlEnriched}, ai: ${aiEnriched}, firecrawl: ${firecrawlEnriched})`);
+    const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+    const avgTime = inputs.length > 0 ? (parseFloat(totalTime) / inputs.length).toFixed(1) : '0';
+    console.log(`[enrich-internal-first] ========== JOB ${jobId} COMPLETED ==========`);
+    console.log(`[enrich-internal-first] Total time: ${totalTime}s (avg ${avgTime}s/record)`);
+    console.log(`[enrich-internal-first] Results: ${completed} success, ${failed} failed, ${savedToDb} saved to DB, ${saveErrors} save errors`);
+    console.log(`[enrich-internal-first] Sources: internal=${internalMatches}, apollo=${apolloEnriched}, pdl=${pdlEnriched}, ai=${aiEnriched}, firecrawl=${firecrawlEnriched}`);
     
   } catch (error) {
     console.error(`[enrich-internal-first] Job ${jobId} failed:`, error);
