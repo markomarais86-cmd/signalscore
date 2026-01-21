@@ -155,20 +155,31 @@ export function EnrichmentModal({
           description: "Using LaunchPulse proprietary data sources"
         });
 
-        // Call smart-enrich with launch_pulse provider
-        const { error } = await supabase.functions.invoke('smart-enrich', {
-          body: { jobId: job.id, batchSize, provider: 'launch_pulse' }
+        // Use unified enrichment
+        const { error } = await supabase.functions.invoke('enrich-unified', {
+          body: { 
+            job_id: job.id, 
+            org_id: userProfile?.org_id,
+            record_type: 'account',
+            records: [],
+            config: { skipPaidProviders: false }
+          }
         });
 
         if (error) throw error;
       } else {
         toast.info("Starting enrichment...", {
-          description: "Enrichment waterfall: PDL → Clearbit → AI"
+          description: "Enrichment waterfall: Perplexity → Firecrawl → AI → PDL → Apollo"
         });
 
-        // Call smart-enrich edge function
-        const { error } = await supabase.functions.invoke('smart-enrich', {
-          body: { jobId: job.id, batchSize }
+        // Use unified enrichment
+        const { error } = await supabase.functions.invoke('enrich-unified', {
+          body: { 
+            job_id: job.id, 
+            org_id: userProfile?.org_id,
+            record_type: 'account',
+            records: []
+          }
         });
 
         if (error) throw error;

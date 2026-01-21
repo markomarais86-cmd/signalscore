@@ -194,28 +194,17 @@ export function BulkAccountEnrichment() {
 
       enrichmentLogger.debug('Starting enrichment job:', job.id, 'with provider:', provider);
 
-      // Trigger enrichment edge function
-      let functionName = 'enrich-accounts';
-      let requestBody: Record<string, unknown> = { 
-        jobId: job.id,
-        batchSize: actualBatchSize
-      };
-
-      if (provider === 'smart') {
-        functionName = 'smart-enrich';
-      } else if (provider === 'ai_free') {
-        // Use new orchestrator-worker architecture for better performance
-        functionName = 'enrich-free-orchestrator';
-        requestBody = {
+      // Trigger unified enrichment function
+      const { error: enrichError } = await supabase.functions.invoke('enrich-unified', {
+        body: {
           org_id: profile.org_id,
+          record_type: 'account',
           job_id: job.id,
-          create_new: false,  // Job already created above
-          total_records: actualBatchSize
-        };
-      }
-
-      const { error: enrichError } = await supabase.functions.invoke(functionName, {
-        body: requestBody
+          records: [], // Will fetch from DB based on job
+          config: {
+            skipPaidProviders: provider === 'ai_free',
+          }
+        }
       });
 
       if (enrichError) {

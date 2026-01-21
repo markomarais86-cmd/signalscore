@@ -66,12 +66,12 @@ export function EnrichmentHistoryViewer() {
     try {
       toast.info('Retrying enrichment...');
       
-      const { error } = await supabase.functions.invoke('process-enrichment', {
+      const { error } = await supabase.functions.invoke('enrich-unified', {
         body: {
           org_id: userProfile?.org_id,
           job_id: historyRecord.job_id,
-          account_ids: [historyRecord.account_external_id],
-          provider: historyRecord.provider,
+          record_type: 'account',
+          records: [{ external_id: historyRecord.account_external_id }],
         }
       });
 

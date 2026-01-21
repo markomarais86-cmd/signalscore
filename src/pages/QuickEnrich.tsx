@@ -245,64 +245,68 @@ export default function QuickEnrich() {
         return;
       }
 
-      // FAST PATH: For small batches (≤100), use enrich-fast for immediate results
-      if (totalToEnrich <= 100) {
-        console.log(`[QuickEnrich] Using fast path for ${totalToEnrich} accounts`);
-        
-        const { data, error } = await supabase.functions.invoke("enrich-fast", {
-          body: {
-            account_ids: accountIdsToEnrich,
-            org_id: userProfile.org_id
-          }
-        });
-
-        if (error) throw error;
-
-        // Immediate results - no polling needed
-        setEnrichmentStats({
-          processed: data.stats?.processed || totalToEnrich,
-          enriched: data.stats?.enriched || 0,
-          total: totalToEnrich,
-          contactsDiscovered: 0,
-          fieldsEnriched: data.stats?.fields_enriched || 0
-        });
-        
-        // Set cost breakdown if available
-        if (data.costs) {
-          setCostBreakdown(data.costs);
-        }
-        
-        setEnrichmentComplete(true);
-        setStep("download");
-        fetchEnrichedAccounts();
-        toast.success(`Enrichment complete! ${data.stats?.enriched || 0} accounts enriched.`);
-        return;
-      }
-
-      // BATCH PATH: For larger batches, use orchestrator with specific IDs
-      console.log(`[QuickEnrich] Using batch path for ${totalToEnrich} accounts`);
+      // Use unified enrichment for all batch sizes
+      console.log(`[QuickEnrich] Using unified enrichment for ${totalToEnrich} accounts`);
       
-      const { data, error } = await supabase.functions.invoke("enrich-free-orchestrator", {
+      // Build records from account IDs
+      const { data: accounts, error: fetchError } = await supabase
+        .from('accounts')
+        .select('id, external_id, name, domain')
+        .in('id', accountIdsToEnrich);
+      
+      if (fetchError) throw fetchError;
+      
+      const records = (accounts || []).map(a => ({
+        id: a.id,
+        external_id: a.external_id,
+        name: a.name,
+        domain: a.domain
+      }));
+
+      const { data, error } = await supabase.functions.invoke("enrich-unified", {
         body: {
           org_id: userProfile.org_id,
-          create_new: true,
-          total_records: totalToEnrich,
-          account_ids: accountIdsToEnrich, // Pass specific IDs
-          enable_contact_discovery: enableContactDiscovery
+          record_type: 'account',
+          records,
+          config: {
+            skipPaidProviders: true, // Free enrichment by default
+          }
         }
       });
 
       if (error) throw error;
 
-      setEnrichmentJobId(data.job_id);
+      // Handle async job response
+      if (data?.job_id) {
+        setEnrichmentJobId(data.job_id);
+      }
+      
       setEnrichmentStats({
-        processed: 0,
-        enriched: 0,
+        processed: data.summary?.processed || 0,
+        enriched: data.summary?.enriched || 0,
         total: totalToEnrich,
-        contactsDiscovered: 0
+        contactsDiscovered: 0,
+        fieldsEnriched: 0
       });
-
-      toast.success("Enrichment started!");
+      
+      // Set cost breakdown if available
+      if (data.summary?.totalCost) {
+        setCostBreakdown({ 
+          total: data.summary.totalCost,
+          firecrawl: data.source_breakdown?.firecrawl?.cost || 0,
+          perplexity: data.source_breakdown?.perplexity?.cost || 0,
+          ai_fallback: data.source_breakdown?.ai?.cost || 0
+        });
+      }
+      
+      if (data.status === 'completed') {
+        setEnrichmentComplete(true);
+        setStep("download");
+        fetchEnrichedAccounts();
+        toast.success(`Enrichment complete! ${data.summary?.enriched || 0} accounts enriched.`);
+      } else {
+        toast.success("Enrichment started!");
+      }
 
     } catch (error: any) {
       console.error("[QuickEnrich] Enrichment error:", error);
