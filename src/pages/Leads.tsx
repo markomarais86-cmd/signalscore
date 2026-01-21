@@ -1223,7 +1223,7 @@ export default function Leads() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm text-muted-foreground">Enrichment Confidence</p>
-                        <p className="font-medium">{detailLead.enrichment_confidence ? `${(detailLead.enrichment_confidence * 100).toFixed(0)}%` : '-'}</p>
+                        <p className="font-medium">{detailLead.enrichment_confidence !== null && detailLead.enrichment_confidence !== undefined ? `${Math.round(detailLead.enrichment_confidence)}%` : '-'}</p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Enrichment Source</p>
