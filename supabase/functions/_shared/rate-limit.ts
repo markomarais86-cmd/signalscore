@@ -14,7 +14,7 @@ export const RATE_LIMIT_CONFIG: Record<string, { maxRequests: number; windowSeco
   'enrich-ai-only': { maxRequests: 20, windowSeconds: 60 },
   'generate-icp-insights': { maxRequests: 30, windowSeconds: 60 },
   'ai-chat': { maxRequests: 30, windowSeconds: 60 },
-  'ai-actions': { maxRequests: 30, windowSeconds: 60 },
+  'ai-actions-router': { maxRequests: 30, windowSeconds: 60 },
   
   // External API endpoints (paid per call)
   'enrich-contacts-bulk': { maxRequests: 50, windowSeconds: 60 },

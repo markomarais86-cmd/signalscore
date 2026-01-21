@@ -216,7 +216,7 @@ async function executeAction(
 ): Promise<{ success: boolean; result?: any; error?: string }> {
   try {
     const response = await fetch(
-      `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-actions`,
+      `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-actions-router`,
       {
         method: "POST",
         headers: {

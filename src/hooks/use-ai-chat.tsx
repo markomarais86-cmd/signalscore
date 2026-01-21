@@ -231,7 +231,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         return null;
       }
 
-      const response = await supabase.functions.invoke('ai-actions', {
+      const response = await supabase.functions.invoke('ai-actions-router', {
         body: {
           action: actionData.action,
           parameters: actionData.parameters,
