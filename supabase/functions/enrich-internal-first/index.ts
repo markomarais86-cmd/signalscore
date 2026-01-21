@@ -84,16 +84,79 @@ const extractNameFromEmail = (email: string): { first_name?: string; last_name?:
   return {};
 };
 
-// Classify job title into Level and Persona
+// SMB Industry Keywords for domain-based detection
+const SMB_INDUSTRY_KEYWORDS: Record<string, string[]> = {
+  'Towing & Recovery': ['towing', 'tow', 'wrecker', 'recovery', 'roadside'],
+  'Auto Repair & Service': ['auto', 'automotive', 'mechanic', 'tire', 'brake', 'muffler', 'transmission', 'carcare'],
+  'Trucking & Transport': ['trucking', 'freight', 'hauling', 'transport', 'logistics', 'moving'],
+  'HVAC': ['heating', 'cooling', 'hvac', 'airconditioning', 'furnace'],
+  'Plumbing': ['plumbing', 'plumber', 'drain', 'pipe', 'sewer'],
+  'Electrical Services': ['electric', 'electrical', 'electrician', 'wiring'],
+  'Construction': ['construction', 'contractor', 'building', 'roofing', 'siding', 'remodeling'],
+  'Landscaping': ['landscap', 'lawn', 'garden', 'tree', 'mowing', 'irrigation'],
+  'Cleaning Services': ['cleaning', 'janitorial', 'maid', 'housekeep'],
+  'Pest Control': ['pest', 'exterminator', 'termite'],
+  'Garage Door Services': ['garagedoor', 'overhead', 'doorrepair'],
+  'Locksmith': ['locksmith', 'lock', 'key', 'security'],
+  'Restaurant & Food Service': ['restaurant', 'cafe', 'diner', 'grill', 'pizza', 'food', 'catering', 'bbq'],
+  'Real Estate': ['realty', 'realtor', 'realestate', 'properties', 'homes'],
+  'Insurance': ['insurance', 'insure'],
+  'Legal Services': ['law', 'legal', 'attorney', 'lawyer'],
+  'Dental': ['dental', 'dentist', 'orthodont'],
+  'Medical': ['medical', 'clinic', 'health', 'doctor', 'physician', 'chiro'],
+  'Veterinary': ['vet', 'animal', 'pet'],
+  'Salon & Spa': ['salon', 'spa', 'beauty', 'hair', 'nail'],
+  'Fitness': ['fitness', 'gym', 'crossfit', 'yoga', 'training'],
+  'Photography': ['photo', 'photography', 'photographer', 'studio'],
+  'Printing': ['print', 'printing', 'signs', 'graphics'],
+};
+
+// SMB indicators that suggest small business
+const SMB_INDICATORS = [
+  'family owned', 'family-owned', 'locally owned', 'locally-owned', 
+  'small business', 'family business', 'local business',
+  'owner operated', 'owner-operated', 'since 19', 'since 20',
+  'serving the', 'proudly serving', 'family run', 'mom and pop'
+];
+
+// Detect industry from domain keywords
+const detectIndustryFromDomain = (domain: string): string | null => {
+  if (!domain) return null;
+  const domainLower = domain.toLowerCase().replace(/\./g, '').replace(/-/g, '');
+  
+  for (const [industry, keywords] of Object.entries(SMB_INDUSTRY_KEYWORDS)) {
+    if (keywords.some(kw => domainLower.includes(kw.replace(/\s/g, '')))) {
+      return industry;
+    }
+  }
+  return null;
+};
+
+// Detect SMB indicators from website content
+const detectSMBFromContent = (markdown: string): { isSMB: boolean; employeeEstimate?: number } => {
+  if (!markdown) return { isSMB: false };
+  const lower = markdown.toLowerCase();
+  
+  for (const indicator of SMB_INDICATORS) {
+    if (lower.includes(indicator)) {
+      return { isSMB: true, employeeEstimate: 10 }; // Conservative SMB estimate
+    }
+  }
+  return { isSMB: false };
+};
+
+// Classify job title into Level and Persona - FIXED: Owner always C-Level
 const classifyTitle = (title: string): { level: string; persona: string } => {
   if (!title) return { level: 'Unknown', persona: 'Unknown' };
   
   const t = title.toLowerCase();
   
-  // Level classification
+  // Level classification - FIXED: Owner/Partner always C-Level for SMBs
   let level = 'Individual Contributor';
-  if (/\b(ceo|cfo|cto|coo|cmo|cio|ciso|chief|founder|owner|president)\b/.test(t)) {
-    level = 'C-Suite';
+  
+  // C-Level first - includes Owner/Partner/Principal for SMBs
+  if (/\b(ceo|cfo|cto|coo|cmo|cio|ciso|chief|founder|co-founder|cofounder|owner|co-owner|president|partner|principal|proprietor)\b/.test(t)) {
+    level = 'C-Level';
   } else if (/\b(vp|vice president|evp|svp)\b/.test(t)) {
     level = 'VP';
   } else if (/\b(director|head of)\b/.test(t)) {
@@ -104,9 +167,13 @@ const classifyTitle = (title: string): { level: string; persona: string } => {
     level = 'Senior';
   }
   
-  // Persona classification
+  // Persona classification - FIXED: Owner -> Executive persona
   let persona = 'Other';
-  if (/\b(sales|account executive|ae|business development|bdr|sdr|revenue)\b/.test(t)) {
+  
+  // Check Executive first (owner/founder roles)
+  if (/\b(ceo|cto|cfo|coo|cmo|founder|co-founder|cofounder|owner|co-owner|president|partner|principal|proprietor|managing)\b/.test(t)) {
+    persona = 'Executive';
+  } else if (/\b(sales|account executive|ae|business development|bdr|sdr|revenue)\b/.test(t)) {
     persona = 'Sales';
   } else if (/\b(marketing|growth|demand gen|content|brand|pr|communications)\b/.test(t)) {
     persona = 'Marketing';
@@ -116,9 +183,9 @@ const classifyTitle = (title: string): { level: string; persona: string } => {
     persona = 'Product';
   } else if (/\b(hr|human resources|people|talent|recruiting|recruiter)\b/.test(t)) {
     persona = 'HR';
-  } else if (/\b(finance|accounting|controller|treasurer|cfo)\b/.test(t)) {
+  } else if (/\b(finance|accounting|controller|treasurer|bookkeeper)\b/.test(t)) {
     persona = 'Finance';
-  } else if (/\b(operations|ops|logistics|supply chain|procurement)\b/.test(t)) {
+  } else if (/\b(operations|ops|logistics|supply chain|procurement|dispatch)\b/.test(t)) {
     persona = 'Operations';
   } else if (/\b(legal|counsel|compliance|attorney|lawyer)\b/.test(t)) {
     persona = 'Legal';
@@ -126,8 +193,6 @@ const classifyTitle = (title: string): { level: string; persona: string } => {
     persona = 'IT';
   } else if (/\b(customer success|cs|support|service|client)\b/.test(t)) {
     persona = 'Customer Success';
-  } else if (/\b(ceo|cto|cfo|coo|founder|owner|president|partner)\b/.test(t)) {
-    persona = 'Executive';
   }
   
   return { level, persona };
@@ -267,6 +332,97 @@ Return ONLY valid JSON:
     }
   } catch (e) {
     console.error('[enrich-internal-first] Perplexity phone discovery error:', e);
+  }
+  
+  return null;
+};
+
+// NEW: Use Perplexity for SMB firmographic discovery when Apollo/PDL fail
+const discoverFirmographicsWithPerplexity = async (
+  companyName: string,
+  domain: string
+): Promise<{ 
+  industry?: string; 
+  employee_estimate?: number; 
+  city?: string; 
+  state?: string;
+  phone?: string;
+  address?: string;
+  citations?: string[];
+} | null> => {
+  const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
+  if (!perplexityKey) return null;
+  
+  console.log(`[enrich-internal-first] Perplexity firmographic discovery for ${companyName} (${domain})`);
+  
+  const prompt = `Find business information for ${companyName} (${domain}).
+
+Search Google, Yelp, LinkedIn, BBB, Yellow Pages, and company website for:
+1. Industry/business type
+2. Company size (employees)
+3. Location (city, state, address)
+4. Phone number
+
+Return ONLY valid JSON:
+{
+  "industry": "Primary industry (e.g., Towing & Recovery, Auto Repair, Restaurant)",
+  "employee_count": number or null,
+  "employee_range": "1-10 | 11-50 | 51-200 | 201-500 | 500+",
+  "city": "headquarters city or null",
+  "state": "headquarters state (2-letter code) or null",
+  "address": "full street address or null",
+  "phone": "main business phone or null",
+  "business_type": "local_service | retail | restaurant | professional_service | other"
+}`;
+
+  try {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${perplexityKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'sonar-pro',
+        messages: [
+          { role: 'system', content: 'You are a business researcher. Find company information from public sources. Return only JSON.' },
+          { role: 'user', content: prompt }
+        ],
+        search_recency_filter: 'year'
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      const content = data.choices?.[0]?.message?.content || '';
+      const citations = data.citations || [];
+      
+      console.log('[enrich-internal-first] Perplexity firmographic response:', content.substring(0, 300));
+      
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        
+        // Map employee range to estimate
+        const employeeMap: Record<string, number> = {
+          '1-10': 5, '11-50': 25, '51-200': 100, '201-500': 350, '500+': 750
+        };
+        
+        return {
+          industry: parsed.industry || undefined,
+          employee_estimate: parsed.employee_count || employeeMap[parsed.employee_range] || undefined,
+          city: parsed.city || undefined,
+          state: parsed.state || undefined,
+          phone: sanitizePhone(parsed.phone) || undefined,
+          address: parsed.address || undefined,
+          citations
+        };
+      }
+    } else if (response.status === 429) {
+      console.warn('[enrich-internal-first] Perplexity rate limited, will fallback to AI');
+    }
+  } catch (e) {
+    console.error('[enrich-internal-first] Perplexity firmographic discovery error:', e);
   }
   
   return null;
@@ -1437,11 +1593,76 @@ serve(async (req) => {
         }
       }
 
+      // Phase 2b.5: Domain-based industry detection + Perplexity SMB enrichment
+      // This runs BEFORE batch AI for SMBs that Apollo/PDL don't cover
+      const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
+      const stillNeedsSMBEnrichment = needsExternalEnrichment.filter(
+        ({ resultIndex }) => {
+          const data = results[resultIndex].enriched_data;
+          // Needs enrichment if missing employee count OR industry
+          return !data.employee_count || !data.industry_norm;
+        }
+      );
+      
+      if (stillNeedsSMBEnrichment.length > 0) {
+        console.log(`[enrich-internal-first] Phase 2b.5: SMB enrichment (${stillNeedsSMBEnrichment.length} leads)`);
+        
+        for (const { input, resultIndex } of stillNeedsSMBEnrichment) {
+          const domain = results[resultIndex].enriched_data.domain || input.domain || extractDomain(input.email || '');
+          if (!domain || isGenericEmailDomain(domain)) continue;
+          
+          const existing = results[resultIndex].enriched_data;
+          
+          // Step 1: Fast domain-based industry detection (no API call)
+          if (!existing.industry_norm) {
+            const detectedIndustry = detectIndustryFromDomain(domain);
+            if (detectedIndustry) {
+              existing.industry_norm = detectedIndustry;
+              console.log(`[enrich-internal-first] Domain industry detected: ${domain} -> ${detectedIndustry}`);
+            }
+          }
+          
+          // Step 2: Perplexity web search for SMB firmographics (if still missing data)
+          if (perplexityKey && (!existing.employee_count || !existing.hq_city)) {
+            const companyName = existing.company_name || domain.split('.')[0];
+            const firmographics = await discoverFirmographicsWithPerplexity(companyName, domain);
+            
+            if (firmographics) {
+              if (firmographics.employee_estimate && !existing.employee_count) {
+                existing.employee_count = firmographics.employee_estimate;
+              }
+              if (firmographics.industry && !existing.industry_norm) {
+                existing.industry_norm = firmographics.industry;
+              }
+              if (firmographics.city && !existing.hq_city) {
+                existing.hq_city = firmographics.city;
+              }
+              if (firmographics.state && !existing.hq_state) {
+                existing.hq_state = firmographics.state;
+              }
+              if (firmographics.phone && !existing.phone && !existing.company_main_phone) {
+                existing.company_main_phone = firmographics.phone;
+              }
+              if (firmographics.address && !existing.hq_address) {
+                existing.hq_address = firmographics.address;
+              }
+              
+              if (firmographics.employee_estimate || firmographics.industry) {
+                results[resultIndex].source = 'perplexity';
+                results[resultIndex].confidence = 0.80;
+                stats.ai_enriched++;
+                console.log(`[enrich-internal-first] Perplexity SMB enriched: ${domain}`, firmographics);
+              }
+            }
+          }
+        }
+      }
+
       // AI firmographic enrichment for remaining - ENHANCED with HQ address and SIC/NAICS
       const providers = getAvailableProviders();
       if (!skip_ai && providers.length > 0) {
         const stillNeedsCompanyData = needsExternalEnrichment.filter(
-          ({ resultIndex }) => !results[resultIndex].enriched_data.employee_count
+          ({ resultIndex }) => !results[resultIndex].enriched_data.employee_count && !results[resultIndex].enriched_data.industry_norm
         );
         
         if (stillNeedsCompanyData.length > 0) {
@@ -1602,6 +1823,15 @@ ${batch.map(({ input }) => `- ${input.email || input.domain || input.company_nam
           if (markdown && markdown.length > 100) {
             console.log(`[enrich-internal-first] Phase 2d: Scraped ${domain} successfully (${markdown.length} chars)`);
             
+            // Check for SMB indicators in the scraped content
+            const smbDetection = detectSMBFromContent(markdown);
+            if (smbDetection.isSMB) {
+              console.log(`[enrich-internal-first] SMB indicators detected for ${domain}`);
+            }
+            
+            // Try domain-based industry detection as fast fallback
+            const domainIndustry = detectIndustryFromDomain(domain);
+            
             // Also try to scrape /about page for better info
             let aboutMarkdown = '';
             try {
@@ -1626,6 +1856,10 @@ ${batch.map(({ input }) => `- ${input.email || input.domain || input.company_nam
             }
             
             const combinedContent = (markdown + '\n\n' + aboutMarkdown).substring(0, 6000);
+            
+            // Also check about page for SMB indicators
+            const aboutSmbDetection = detectSMBFromContent(aboutMarkdown);
+            const isSMB = smbDetection.isSMB || aboutSmbDetection.isSMB;
             
             // Use AI to extract company info from scraped content
             const extractPrompt = `Extract company information from this website content. Return ONLY valid JSON:
@@ -1682,17 +1916,27 @@ ${combinedContent}`;
                     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
                     .join(' ');
                   
+                  // Use SMB detection for employee estimate if AI couldn't determine
+                  let employeeCount = employeeMap[extracted.employee_estimate] || null;
+                  if (!employeeCount && isSMB) {
+                    employeeCount = 10; // Conservative SMB estimate
+                    console.log(`[enrich-internal-first] Using SMB indicator for employee estimate: ${domain} -> 10`);
+                  }
+                  
+                  // Use domain-based industry if AI couldn't determine
+                  const finalIndustry = extracted.industry || domainIndustry;
+                  
                   results[resultIndex].enriched_data = {
                     ...existing,
                     company_name: existing.company_name || extracted.company_name || derivedCompanyName,
-                    industry_norm: existing.industry_norm || extracted.industry,
+                    industry_norm: existing.industry_norm || finalIndustry,
                     sub_industry: existing.sub_industry || extracted.sub_industry,
                     hq_city: existing.hq_city || extracted.city,
                     hq_state: existing.hq_state || extracted.state,
                     hq_address: existing.hq_address || extracted.address,
                     phone: existing.phone || sanitizePhone(extracted.phone),
                     company_main_phone: existing.company_main_phone || sanitizePhone(extracted.phone),
-                    employee_count: existing.employee_count || employeeMap[extracted.employee_estimate] || null,
+                    employee_count: existing.employee_count || employeeCount,
                     sic_code: existing.sic_code || extracted.sic_code,
                     naics: existing.naics || extracted.naics,
                     services: extracted.services || []
@@ -1702,9 +1946,11 @@ ${combinedContent}`;
                   
                   console.log(`[enrich-internal-first] Firecrawl enriched ${domain}:`, {
                     company: extracted.company_name,
-                    industry: extracted.industry,
+                    industry: finalIndustry,
                     city: extracted.city,
-                    phone: extracted.phone
+                    phone: extracted.phone,
+                    employee_count: employeeCount,
+                    smb_detected: isSMB
                   });
                 }
               }
