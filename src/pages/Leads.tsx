@@ -322,30 +322,7 @@ export default function Leads() {
     return <Badge variant="destructive">Low ({score})</Badge>;
   };
 
-  if ((isLoading && leads.length === 0) || isMatching) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">Leads</h1>
-          <p className="text-xs lg:text-sm text-muted-foreground mt-1">All people linked to accounts in your pipeline</p>
-        </div>
-        <TableSkeleton />
-      </div>
-    );
-  }
-
-  // Use database metrics for accurate totals, fall back to local counts for visible leads
-  const icpQualifiedCount = metrics?.icp_qualified_count ?? 0;
-  const campaignReadyCount = metrics?.campaign_ready_count ?? 0;
-  const enrichedCount = metrics?.enriched_count ?? 0;
-  const linkedCount = metrics?.linked_to_accounts_count ?? 0;
-  const totalLeadsCount = metrics?.total_leads ?? 0;
-
-  // Local counts from visible leads (for unlinked alert)
-  const unlinkedLeads = leads.filter(lead => !lead.account_external_id);
-  const unlinkedPercentage = totalLeadsCount > 0 ? Math.round(((totalLeadsCount - linkedCount) / totalLeadsCount) * 100) : 0;
-
-  // Memoized CSV headers
+  // Memoized CSV headers - must be before early return to maintain hook order
   const csvHeaders = useMemo(() => [
     'Name',
     'First Name',
@@ -441,6 +418,29 @@ export default function Leads() {
     }
     return phones;
   };
+
+  if ((isLoading && leads.length === 0) || isMatching) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">Leads</h1>
+          <p className="text-xs lg:text-sm text-muted-foreground mt-1">All people linked to accounts in your pipeline</p>
+        </div>
+        <TableSkeleton />
+      </div>
+    );
+  }
+
+  // Use database metrics for accurate totals, fall back to local counts for visible leads
+  const icpQualifiedCount = metrics?.icp_qualified_count ?? 0;
+  const campaignReadyCount = metrics?.campaign_ready_count ?? 0;
+  const enrichedCount = metrics?.enriched_count ?? 0;
+  const linkedCount = metrics?.linked_to_accounts_count ?? 0;
+  const totalLeadsCount = metrics?.total_leads ?? 0;
+
+  // Local counts from visible leads (for unlinked alert)
+  const unlinkedLeads = leads.filter(lead => !lead.account_external_id);
+  const unlinkedPercentage = totalLeadsCount > 0 ? Math.round(((totalLeadsCount - linkedCount) / totalLeadsCount) * 100) : 0;
 
   return (
     <div className="space-y-6">
