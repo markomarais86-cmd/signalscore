@@ -1427,7 +1427,7 @@ serve(async (req) => {
       const result: EnrichmentResult = {
         input,
         enriched_data: {},
-        source: 'internal',
+        source: 'none' as any,  // Will be set when actual match is found
         confidence: 0,
         fields_filled: [],
         api_calls_saved: false,
@@ -1552,8 +1552,10 @@ serve(async (req) => {
         console.log('[enrich-internal-first] Phase 2a: Apollo enrichment');
         
         for (const { input, resultIndex } of needsExternalEnrichment) {
-          // Skip if already has company data
-          if (results[resultIndex].enriched_data.employee_count) continue;
+          // Skip if already has company data from external source (not internal)
+          const currentSource = results[resultIndex].source;
+          const hasExternalData = currentSource && !['internal', 'none', 'domain_discovery'].includes(currentSource);
+          if (!force_external && hasExternalData && results[resultIndex].enriched_data.employee_count) continue;
 
           const domain = input.domain || (input.email ? extractDomain(input.email) : null);
           if (!domain) continue;
@@ -1599,8 +1601,10 @@ serve(async (req) => {
         console.log('[enrich-internal-first] Phase 2b: PDL enrichment');
         
         for (const { input, resultIndex } of needsExternalEnrichment) {
-          // Skip if already has company data
-          if (results[resultIndex].enriched_data.employee_count) continue;
+          // Skip if already enriched from Apollo or another external source
+          const currentSource = results[resultIndex].source;
+          if (currentSource === 'apollo') continue;
+          if (!force_external && results[resultIndex].enriched_data.employee_count) continue;
 
           const domain = input.domain || (input.email ? extractDomain(input.email) : null);
           if (!domain) continue;
@@ -2115,10 +2119,27 @@ ${combinedContent}`;
       );
     }
 
-    // Count failures
-    stats.failed = results.filter(r => r.fields_filled.length <= 2).length; // Only email and domain
+    // FINAL: Recalculate stats from actual results to ensure accuracy
+    // This overrides any incremental counting that may have been incorrect
+    const finalStats = {
+      internal_matches: results.filter(r => r.source === 'internal').length,
+      apollo_enriched: results.filter(r => r.source === 'apollo').length,
+      pdl_enriched: results.filter(r => r.source === 'pdl').length,
+      ai_enriched: results.filter(r => ['ai', 'firecrawl', 'perplexity'].includes(r.source)).length,
+      failed: results.filter(r => r.source === 'none' || r.fields_filled.length <= 2).length,
+      person_enriched: stats.person_enriched, // Keep from incremental
+      email_verified: stats.email_verified // Keep from incremental
+    };
 
-    console.log(`[enrich-internal-first] Complete:`, stats);
+    console.log(`[enrich-internal-first] Complete (recalculated):`, finalStats);
+    console.log(`[enrich-internal-first] Source distribution:`, {
+      internal: finalStats.internal_matches,
+      apollo: finalStats.apollo_enriched,
+      pdl: finalStats.pdl_enriched,
+      ai: finalStats.ai_enriched,
+      failed: finalStats.failed,
+      total: results.length
+    });
 
     return new Response(JSON.stringify({
       success: true,
