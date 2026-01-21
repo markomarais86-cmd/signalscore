@@ -772,13 +772,27 @@ async function processLeadsInBackground(
       
       const chunkResults = await Promise.allSettled(chunkPromises);
       
-      // Process chunk results
+      // Process chunk results with RELAXED success criteria
       for (const settledResult of chunkResults) {
         processed++;
         if (settledResult.status === 'fulfilled') {
           const { success, result } = settledResult.value;
           results.push(result);
-          if (success) {
+          
+          // RELAXED CRITERIA: Consider it a success if we got any meaningful business data
+          const isActualSuccess = success && (
+            // Got employee count OR industry (key firmographic data)
+            result.enriched_data?.employee_count || 
+            result.enriched_data?.industry_norm ||
+            // Got 3+ fields
+            (result.fields_filled?.length || 0) >= 3 ||
+            // Got company name + at least one useful field
+            (result.enriched_data?.company_name && (result.fields_filled?.length || 0) >= 2) ||
+            // Has a valid source (not 'none')
+            (result.source && result.source !== 'none')
+          );
+          
+          if (isActualSuccess) {
             completed++;
             // Track source for stats breakdown
             const source = result.source?.toLowerCase() || 'none';
@@ -794,11 +808,6 @@ async function processLeadsInBackground(
                        source.includes('perplexity') || source.includes('openai') || 
                        source.includes('anthropic') || source.includes('firecrawl')) {
               aiEnriched++;
-            } else if (source === 'none') {
-              // No enrichment source found - APIs failed or returned empty
-              console.log(`[enrich-internal-first] No enrichment source for ${result.enriched_data?.domain || result.input?.email} - all APIs failed or returned empty`);
-              // Don't count as internal since nothing was actually matched
-              failed++;
             } else {
               // Log unknown sources for debugging
               console.log(`[enrich-internal-first] Unknown source: "${source}", counting as internal`);
@@ -806,6 +815,7 @@ async function processLeadsInBackground(
             }
           } else {
             failed++;
+            console.log(`[enrich-internal-first] Failed enrichment for ${result.enriched_data?.domain || result.input?.email}: source=${result.source}, fields=${result.fields_filled?.length || 0}`);
           }
         } else {
           failed++;
@@ -1750,9 +1760,28 @@ serve(async (req) => {
         }
       }
 
-      // PDL enrichment for remaining
+      // PDL enrichment for remaining - with credit pre-check
+      let pdlAvailable = true;
+      
       if (PDL_API_KEY) {
-        console.log('[enrich-internal-first] Phase 2b: PDL enrichment');
+        // Quick pre-check to see if PDL has credits
+        try {
+          const testResponse = await fetch('https://api.peopledatalabs.com/v5/company/enrich?website=google.com', {
+            method: 'GET',
+            headers: { 'X-Api-Key': PDL_API_KEY }
+          });
+          
+          if (testResponse.status === 402) {
+            console.warn('[enrich-internal-first] PDL account out of credits (402) - skipping PDL for this job');
+            pdlAvailable = false;
+            failureReasons.api_error++;
+          }
+        } catch (e) {
+          console.warn('[enrich-internal-first] PDL pre-check failed:', e);
+        }
+        
+        if (pdlAvailable) {
+          console.log('[enrich-internal-first] Phase 2b: PDL enrichment');
         
         for (const { input, resultIndex } of needsExternalEnrichment) {
           // Skip if already enriched from Apollo or another external source
@@ -1828,6 +1857,7 @@ serve(async (req) => {
             failureReasons.api_error++;
           }
         }
+        } // End pdlAvailable check
       }
 
       // Phase 2b.5: Domain-based industry detection + Perplexity SMB enrichment
@@ -2323,12 +2353,40 @@ ${combinedContent}`;
       );
     }
 
-    // FINAL: Recalculate stats from actual results to ensure accuracy
-    // This overrides any incremental counting that may have been incorrect
+    // FINAL: Recalculate stats with RELAXED success criteria
+    // A record is successful if it has ANY useful data (not just 3+ fields)
     const skippedPersonal = results.filter(r => r.source === 'skipped_personal').length;
+    
+    // RELAXED CRITERIA: Consider it a success if we got any meaningful business data
+    const isEnrichmentSuccess = (r: EnrichmentResult): boolean => {
+      // Always failed if source is 'none' and we got nothing useful
+      if (r.source === 'none' && r.fields_filled.length <= 1) return false;
+      
+      // Success if we got employee count OR industry (key firmographic data)
+      if (r.enriched_data.employee_count || r.enriched_data.industry_norm) return true;
+      
+      // Success if we got 3+ fields (original stricter criteria)
+      if (r.fields_filled.length >= 3) return true;
+      
+      // Partial success: got company name + at least one useful field
+      if (r.enriched_data.company_name && r.fields_filled.length >= 2) return true;
+      
+      return false;
+    };
+    
+    const fullyEnriched = results.filter(r => 
+      r.source !== 'skipped_personal' && r.fields_filled.length >= 5
+    ).length;
+    
+    const partiallyEnriched = results.filter(r => 
+      r.source !== 'skipped_personal' && 
+      isEnrichmentSuccess(r) && 
+      r.fields_filled.length < 5 &&
+      r.fields_filled.length >= 1
+    ).length;
+    
     const actualFailed = results.filter(r => 
-      (r.source === 'none' || r.fields_filled.length <= 2) && 
-      r.source !== 'skipped_personal'
+      r.source !== 'skipped_personal' && !isEnrichmentSuccess(r)
     ).length;
     
     const finalStats = {
@@ -2336,6 +2394,8 @@ ${combinedContent}`;
       apollo_enriched: results.filter(r => r.source === 'apollo').length,
       pdl_enriched: results.filter(r => r.source === 'pdl').length,
       ai_enriched: results.filter(r => ['ai', 'firecrawl', 'perplexity'].includes(r.source)).length,
+      fully_enriched: fullyEnriched,
+      partially_enriched: partiallyEnriched,
       failed: actualFailed,
       skipped_personal: skippedPersonal,
       person_enriched: stats.person_enriched,
@@ -2355,6 +2415,8 @@ ${combinedContent}`;
       apollo: finalStats.apollo_enriched,
       pdl: finalStats.pdl_enriched,
       ai: finalStats.ai_enriched,
+      fully_enriched: finalStats.fully_enriched,
+      partially_enriched: finalStats.partially_enriched,
       failed: finalStats.failed,
       skipped_personal: finalStats.skipped_personal,
       smb_routed_to_ai: failureBreakdown.smb_routed_to_ai,
