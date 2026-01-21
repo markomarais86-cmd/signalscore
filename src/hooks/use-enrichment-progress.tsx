@@ -57,18 +57,21 @@ export function useEnrichmentProgress(jobId: string | null, enabled: boolean = t
         source_breakdown: data.source_breakdown
       });
       
+      // Cast to handle potential extra fields from different edge functions
+      const jobData = data as Record<string, any>;
+      
       return {
         id: data.id,
         status: data.status || 'pending',
         progress_percentage: progressPercentage,
         processed_records: processedRecords,
         total_records: totalRecords,
-        // Use rows_completed/rows_failed which the edge function updates
-        enriched_records: data.rows_completed || data.enriched_records || 0,
-        failed_records: data.rows_failed || data.failed_records || 0,
+        // Handle all possible field names from different enrichment functions
+        enriched_records: data.enriched_records || jobData.rows_completed || jobData.successful_records || 0,
+        failed_records: data.failed_records || jobData.rows_failed || 0,
         current_batch: data.current_batch || 0,
         total_batches: data.total_batches || 0,
-        estimated_completion_at: null, // Calculated on the fly if needed
+        estimated_completion_at: null,
         started_at: data.started_at,
         can_pause: data.status === 'processing',
         paused_at: data.paused_at,
