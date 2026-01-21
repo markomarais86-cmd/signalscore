@@ -372,51 +372,6 @@ export function EnrichmentTester() {
           </div>
         )}
 
-        {/* Legacy Provider Tests */}
-        <div className="border-t pt-4">
-          <h4 className="font-semibold text-sm mb-3">Legacy Provider Tests</h4>
-          <p className="text-xs text-muted-foreground mb-3">
-            Test domain: <code className="bg-muted px-2 py-1 rounded">{testDomain}</code>
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            <Button
-              variant="outline"
-              onClick={() => runTest("clearbit_free")}
-              disabled={testing}
-              size="sm"
-            >
-              {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Test Clearbit Free
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => runTest("ai")}
-              disabled={testing}
-              size="sm"
-            >
-              {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Test AI Enrichment
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => runTest("pdl")}
-              disabled={testing}
-              size="sm"
-            >
-              {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Test PDL
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => runTest("smart_sequential")}
-              disabled={testing}
-              size="sm"
-            >
-              {testing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
-              Test Smart Enrich
-            </Button>
-          </div>
-        </div>
 
         {/* Legacy Results */}
         {results.length > 0 && (
