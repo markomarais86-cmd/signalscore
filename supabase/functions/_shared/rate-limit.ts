@@ -1,5 +1,5 @@
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from './cors.ts';
+import { getCorsHeaders } from './cors.ts';
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -76,14 +76,16 @@ export async function checkRateLimit(
 }
 
 /**
- * Generate a 429 rate limit response
+ * Generate a 429 rate limit response with proper CORS headers
  */
 export function rateLimitResponse(
   result: RateLimitResult,
-  endpoint: string
+  endpoint: string,
+  origin: string | null = null
 ): Response {
   const resetMs = new Date(result.reset_at).getTime() - Date.now();
   const retryAfterSeconds = Math.max(1, Math.ceil(resetMs / 1000));
+  const corsHeaders = getCorsHeaders(origin);
 
   console.warn(`[rate-limit] Rate limit exceeded for ${endpoint}: ${result.current_count}/${result.max_requests}`);
 
@@ -122,12 +124,13 @@ export function rateLimitResponse(
 export async function applyRateLimit(
   supabase: SupabaseClient,
   orgId: string,
-  endpoint: string
+  endpoint: string,
+  origin: string | null = null
 ): Promise<Response | null> {
   const result = await checkRateLimit(supabase, orgId, endpoint);
   
   if (!result.allowed) {
-    return rateLimitResponse(result, endpoint);
+    return rateLimitResponse(result, endpoint, origin);
   }
   
   return null;
