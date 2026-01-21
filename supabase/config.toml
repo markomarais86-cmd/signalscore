@@ -364,8 +364,6 @@ verify_jwt = true
 [functions.bidirectional-sync-orchestrator]
 verify_jwt = false
 
-[functions.enrich-lead]
-verify_jwt = false
 
 [functions.enrich-verified]
 verify_jwt = true
