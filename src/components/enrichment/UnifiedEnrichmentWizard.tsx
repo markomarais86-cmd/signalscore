@@ -241,46 +241,42 @@ export function UnifiedEnrichmentWizard() {
     setStep("process");
     
     try {
-      // Build inputs for the enrichment function
-      const inputs = parsedInputs.map(p => ({
-        email: p.type === 'email' ? p.value : undefined,
-        domain: p.type === 'domain' ? p.value : (p.domain || undefined),
-        company_name: p.type === 'company_name' ? p.value : undefined,
-        source_type: sourceType
-      }));
-      
       setProgress(20);
       
-      // Use enrich-internal-first for both - it handles accounts and can be extended for leads
-      const functionName = 'enrich-v4';
+      // Transform inputs to enrich-unified format
+      const records = parsedInputs.map((p, idx) => {
+        if (enrichmentType === 'leads') {
+          return {
+            id: idx, // Temporary ID for tracking
+            email: p.type === 'email' ? p.value : undefined,
+            first_name: p.first_name,
+            last_name: p.last_name,
+            name: p.first_name && p.last_name ? `${p.first_name} ${p.last_name}` : undefined,
+            title: p.title,
+            phone: p.phone,
+            linkedin_url: p.linkedin_url,
+            company: p.company || (p.type === 'company_name' ? p.value : undefined),
+            domain: p.type === 'domain' ? p.value : (p.domain || undefined),
+          };
+        } else {
+          return {
+            external_id: `wizard-${idx}-${Date.now()}`,
+            name: p.type === 'company_name' ? p.value : p.company,
+            domain: p.type === 'domain' ? p.value : (p.domain || undefined),
+          };
+        }
+      });
       
-      // Pass ALL input fields to edge function for lead enrichment
-      const leadInputs = enrichmentType === 'leads' ? parsedInputs.map(i => ({
-        email: i.type === 'email' ? i.value : undefined,
-        first_name: i.first_name,
-        last_name: i.last_name,
-        title: i.title,
-        phone: i.phone,
-        linkedin_url: i.linkedin_url,
-        company: i.company || (i.type === 'company_name' ? i.value : undefined),
-        domain: i.type === 'domain' ? i.value : (i.domain || undefined)
-      })) : undefined;
-      
-      // Use async mode for large lead batches (10+ leads)
-      const isLargeBatch = enrichmentType === 'leads' && parsedInputs.length >= 10;
-      
-      // Always send inputs array - use leadInputs for leads, regular inputs for accounts
-      const enrichmentInputs = enrichmentType === 'leads' ? leadInputs : inputs;
-      
-      const { data, error } = await supabase.functions.invoke(functionName, {
+      const { data, error } = await supabase.functions.invoke('enrich-unified', {
         body: {
-          inputs: enrichmentInputs,
-          enrichment_type: enrichmentType,
           org_id: userProfile.org_id,
-          source_type: sourceType,
-          force_external: !checkInternalFirst,
-          save_to_db: saveToDatabase,
-          async_mode: isLargeBatch
+          record_type: enrichmentType === 'leads' ? 'lead' : 'account',
+          records,
+          config: {
+            skipPaidProviders: !checkInternalFirst,
+            verifyEmail: true,
+            includeWebScrape: discoverDomains
+          }
         }
       });
       
