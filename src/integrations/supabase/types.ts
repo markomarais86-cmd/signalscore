@@ -7188,6 +7188,15 @@ export type Database = {
         Args: { p_deal_id: string; p_stage: string }
         Returns: number
       }
+      get_enriched_leads_metrics: {
+        Args: { p_org_id: string }
+        Returns: {
+          email_verified: number
+          high_confidence: number
+          phone_discovered: number
+          total_enriched: number
+        }[]
+      }
       get_enrichment_stats: {
         Args: { p_org_id: string }
         Returns: {

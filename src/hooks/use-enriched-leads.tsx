@@ -238,7 +238,7 @@ export function useEnrichedLeads(options: UseEnrichedLeadsOptions) {
   };
 }
 
-// Hook for enriched leads metrics
+// Hook for enriched leads metrics - optimized with single RPC call
 export function useEnrichedLeadsMetrics(orgId: string | null) {
   const [metrics, setMetrics] = useState({
     totalEnriched: 0,
@@ -253,42 +253,21 @@ export function useEnrichedLeadsMetrics(orgId: string | null) {
 
     async function loadMetrics() {
       try {
-        // Total enriched
-        const { count: totalEnriched } = await supabase
-          .from('Leads')
-          .select('*', { count: 'exact', head: true })
-          .eq('org_id', orgId)
-          .not('enriched_at', 'is', null);
+        // Single optimized RPC call instead of 4 separate queries
+        const { data, error } = await supabase.rpc('get_enriched_leads_metrics', {
+          p_org_id: orgId
+        });
 
-        // High confidence (80%+)
-        const { count: highConfidence } = await supabase
-          .from('Leads')
-          .select('*', { count: 'exact', head: true })
-          .eq('org_id', orgId)
-          .not('enriched_at', 'is', null)
-          .gte('enrichment_confidence', 80);
+        if (error) throw error;
 
-        // Phone discovered
-        const { count: phoneDiscovered } = await supabase
-          .from('Leads')
-          .select('*', { count: 'exact', head: true })
-          .eq('org_id', orgId)
-          .not('enriched_at', 'is', null)
-          .or('direct_phone.not.is.null,phone.not.is.null,mobile.not.is.null');
-
-        // Email verified
-        const { count: emailVerified } = await supabase
-          .from('Leads')
-          .select('*', { count: 'exact', head: true })
-          .eq('org_id', orgId)
-          .not('enriched_at', 'is', null)
-          .eq('email_verified', true);
-
+        // RPC returns array with single row
+        const row = Array.isArray(data) ? data[0] : data;
+        
         setMetrics({
-          totalEnriched: totalEnriched || 0,
-          highConfidence: highConfidence || 0,
-          phoneDiscovered: phoneDiscovered || 0,
-          emailVerified: emailVerified || 0,
+          totalEnriched: Number(row?.total_enriched ?? 0),
+          highConfidence: Number(row?.high_confidence ?? 0),
+          phoneDiscovered: Number(row?.phone_discovered ?? 0),
+          emailVerified: Number(row?.email_verified ?? 0),
           isLoading: false
         });
       } catch (error) {
