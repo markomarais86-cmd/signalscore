@@ -397,3 +397,66 @@ verify_jwt = false
 
 [functions.enrich-v4]
 verify_jwt = false
+
+[functions.enrich-unified]
+verify_jwt = false
+
+[functions.enrich-free-worker]
+verify_jwt = false
+
+[functions.enrich-free-orchestrator]
+verify_jwt = false
+
+[functions.enrich-perplexity]
+verify_jwt = false
+
+[functions.enrich-single-company]
+verify_jwt = false
+
+[functions.firecrawl-scrape]
+verify_jwt = false
+
+[functions.resume-enrichment-cron]
+verify_jwt = false
+
+[functions.discover-domain]
+verify_jwt = false
+
+[functions.standardize-industry]
+verify_jwt = false
+
+[functions.find-campaign-contacts]
+verify_jwt = true
+
+[functions.push-campaign-to-crm]
+verify_jwt = true
+
+[functions.fetch-crm-accounts]
+verify_jwt = true
+
+[functions.retry-crm-sync]
+verify_jwt = true
+
+[functions.generate-scheduled-report]
+verify_jwt = false
+
+[functions.chrome-extension-enrich]
+verify_jwt = false
+
+[functions.generate-embedding]
+verify_jwt = true
+
+[functions.bulk-generate-embeddings]
+verify_jwt = true
+
+[functions.semantic-search]
+verify_jwt = true
+
+[functions.send-invitation]
+verify_jwt = true
+
+[functions.train-propensity-model]
+verify_jwt = true
+
+[functions.rate-limit-helper]
+verify_jwt = false
