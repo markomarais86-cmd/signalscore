@@ -237,6 +237,21 @@ verify_jwt = true
 [functions.ai-actions]
 verify_jwt = true
 
+[functions.ai-actions-router]
+verify_jwt = true
+
+[functions.ai-actions-search]
+verify_jwt = true
+
+[functions.ai-actions-analytics]
+verify_jwt = true
+
+[functions.ai-actions-icp]
+verify_jwt = true
+
+[functions.ai-actions-agents]
+verify_jwt = true
+
 [functions.ai-orchestrator]
 verify_jwt = true
 
