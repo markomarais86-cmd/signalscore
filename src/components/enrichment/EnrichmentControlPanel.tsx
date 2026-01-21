@@ -168,11 +168,12 @@ export function EnrichmentControlPanel() {
     try {
       setStarting(true);
       
-      const { data: result, error } = await supabase.functions.invoke("enrich-free-orchestrator", {
+      const { data: result, error } = await supabase.functions.invoke("enrich-unified", {
         body: {
           org_id: userProfile.org_id,
-          create_new: true,
-          total_records: accountsToEnrich,
+          record_type: 'account',
+          records: [],
+          config: { skipPaidProviders: true }
         },
       });
 

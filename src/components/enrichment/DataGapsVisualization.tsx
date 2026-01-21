@@ -160,11 +160,13 @@ export function DataGapsVisualization() {
 
     try {
       setStarting(true);
-      const { error } = await supabase.functions.invoke("enrich-free-orchestrator", {
+      const { error } = await supabase.functions.invoke("enrich-unified", {
         body: {
           job_id: activeJob.id,
           org_id: userProfile.org_id,
-          create_new: false,
+          record_type: 'account',
+          records: [],
+          config: { skipPaidProviders: true }
         },
       });
 
@@ -190,11 +192,12 @@ export function DataGapsVisualization() {
     try {
       setStarting(true);
       
-      const { error } = await supabase.functions.invoke("enrich-free-orchestrator", {
+      const { error } = await supabase.functions.invoke("enrich-unified", {
         body: {
           org_id: userProfile.org_id,
-          create_new: true,
-          total_records: accountsToEnrich,
+          record_type: 'account',
+          records: [],
+          config: { skipPaidProviders: true }
         },
       });
 

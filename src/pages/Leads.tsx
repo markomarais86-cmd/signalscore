@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download, Info, Linkedin, AlertCircle, HelpCircle, Target } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Search, Filter, CheckCircle, XCircle, RotateCcw, ExternalLink, TrendingUp, Download, Info, Linkedin, AlertCircle, HelpCircle, Target, Sparkles } from "lucide-react";
 import { LaunchPulseMark } from "@/components/BrandLogo";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +20,10 @@ import { HeroMetric } from "@/components/executive/HeroMetric";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { DEMO_ACCOUNTS } from "@/data/mockData";
 import { DemoModeBanner } from "@/components/DemoModeBanner";
+import { EnrichedLeadsFilters } from "@/components/leads/EnrichedLeadsFilters";
+import { EnrichedLeadsTable } from "@/components/leads/EnrichedLeadsTable";
+import { EnrichedLeadsHeader } from "@/components/leads/EnrichedLeadsHeader";
+import { useEnrichedLeads, useEnrichedLeadsMetrics, EnrichedLead } from "@/hooks/use-enriched-leads";
 
 interface Lead {
   id: string;
@@ -88,6 +93,7 @@ export default function Leads() {
   const [showMatcher, setShowMatcher] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
   const [hasAttemptedMatch, setHasAttemptedMatch] = useState(false);
+  const [activeView, setActiveView] = useState<'all' | 'enriched'>('all');
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { flags } = useFeatureFlags();

@@ -96,8 +96,31 @@ export function FirmographicEnrichmentCard() {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('bulk-enrich-all-accounts', {
-        body: { org_id: userProfile.org_id }
+      // Fetch accounts needing enrichment
+      const { data: accounts, error: fetchError } = await supabase
+        .from('accounts')
+        .select('id, external_id, name, domain')
+        .eq('org_id', userProfile.org_id)
+        .is('employee_count', null)
+        .not('domain', 'is', null)
+        .limit(500);
+      
+      if (fetchError) throw fetchError;
+      
+      const records = (accounts || []).map(a => ({
+        id: a.id,
+        external_id: a.external_id,
+        name: a.name,
+        domain: a.domain
+      }));
+
+      const { data, error } = await supabase.functions.invoke('enrich-unified', {
+        body: { 
+          org_id: userProfile.org_id,
+          record_type: 'account',
+          records,
+          config: { skipPaidProviders: true }
+        }
       });
 
       if (error) throw error;

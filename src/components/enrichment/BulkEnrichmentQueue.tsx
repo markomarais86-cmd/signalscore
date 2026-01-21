@@ -65,8 +65,8 @@ export function BulkEnrichmentQueue() {
     setProcessing(jobId || 'all');
 
     try {
-      const { data, error } = await supabase.functions.invoke('process-enrichment-queue', {
-        body: jobId ? { job_id: jobId } : {}
+      const { data, error } = await supabase.functions.invoke('enrich-unified', {
+        body: jobId ? { job_id: jobId, record_type: 'account', records: [] } : { record_type: 'account', records: [] }
       });
 
       if (error) throw error;

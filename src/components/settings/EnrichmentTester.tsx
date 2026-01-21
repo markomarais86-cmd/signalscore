@@ -34,7 +34,7 @@ export function EnrichmentTester() {
   const [aiSearchResult, setAiSearchResult] = useState<AISearchResult | null>(null);
   const [aiSearchTesting, setAiSearchTesting] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
 
   // Test inputs for AI Search
   const [testName, setTestName] = useState("Elon Musk");
@@ -69,15 +69,19 @@ export function EnrichmentTester() {
 
       if (jobError) throw jobError;
 
-      // Call the appropriate enrichment function
+      // Call the appropriate enrichment function - use unified for smart testing
       let functionName = "";
       if (provider === "clearbit_free") functionName = "enrich-clearbit-free";
       else if (provider === "ai") functionName = "enrich-firmographics";
       else if (provider === "pdl") functionName = "enrich-pdl";
-      else if (provider === "smart_sequential") functionName = "smart-enrich";
+      else if (provider === "smart_sequential") functionName = "enrich-unified";
+
+      const body = provider === "smart_sequential" 
+        ? { job_id: job.id, record_type: 'account', records: [], org_id: userProfile?.org_id }
+        : { jobId: job.id };
 
       const { data, error } = await supabase.functions.invoke(functionName, {
-        body: { jobId: job.id }
+        body
       });
 
       const duration = Date.now() - startTime;

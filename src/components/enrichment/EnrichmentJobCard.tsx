@@ -120,13 +120,16 @@ export function EnrichmentJobCard({ job, onRefresh }: EnrichmentJobCardProps) {
       
       if (error) throw error;
 
-      // Use new orchestrator for ai_free jobs, fallback to old functions for others
-      const functionName = job.provider === 'ai_free' ? 'enrich-free-orchestrator' : 'smart-enrich';
-      const body = job.provider === 'ai_free' 
-        ? { job_id: job.id, org_id: job.org_id }
-        : { jobId: job.id, resumeFromCheckpoint: true };
-      
-      await supabase.functions.invoke(functionName, { body });
+      // Use unified enrichment for all job types
+      await supabase.functions.invoke('enrich-unified', { 
+        body: {
+          org_id: job.org_id,
+          job_id: job.id,
+          record_type: job.job_type === 'leads' ? 'lead' : 'account',
+          records: [],
+          config: { skipPaidProviders: job.provider === 'ai_free' }
+        }
+      });
       
       toast.success('Job resumed');
       await onRefresh();
@@ -152,13 +155,16 @@ export function EnrichmentJobCard({ job, onRefresh }: EnrichmentJobCardProps) {
       
       if (error) throw error;
 
-      // Use new orchestrator for ai_free jobs
-      const functionName = job.provider === 'ai_free' ? 'enrich-free-orchestrator' : 'smart-enrich';
-      const body = job.provider === 'ai_free' 
-        ? { job_id: job.id, org_id: job.org_id }
-        : { jobId: job.id };
-      
-      await supabase.functions.invoke(functionName, { body });
+      // Use unified enrichment for all job types
+      await supabase.functions.invoke('enrich-unified', { 
+        body: {
+          org_id: job.org_id,
+          job_id: job.id,
+          record_type: job.job_type === 'leads' ? 'lead' : 'account',
+          records: [],
+          config: { skipPaidProviders: job.provider === 'ai_free' }
+        }
+      });
       
       toast.success('Job restarted');
       await onRefresh();
