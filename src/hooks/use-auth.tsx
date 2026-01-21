@@ -81,11 +81,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           authLogger.info('User profile loaded:', profile);
           setUserProfile(profile as UserProfile);
           // Cache the profile with 60 second expiry for instant login
-          localStorage.setItem('user_profile_cache', JSON.stringify({
+          // Using sessionStorage for security - clears on browser close
+          sessionStorage.setItem('user_profile_cache', JSON.stringify({
             profile,
             timestamp: Date.now()
           }));
-          
           // Check if this is a first-time user (new org with no data)
           if (profile.org_id) {
             const { count } = await supabase
@@ -122,7 +122,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
           
           // Phase A & B: Use cached profile for INSTANT render
-          const cached = localStorage.getItem('user_profile_cache');
+          const cached = sessionStorage.getItem('user_profile_cache');
           let usedCache = false;
           
           if (cached) {
@@ -136,7 +136,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 usedCache = true;
               }
             } catch (e) {
-              localStorage.removeItem('user_profile_cache');
+              sessionStorage.removeItem('user_profile_cache');
             }
           }
           
@@ -155,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           clearUserContextSafe();
           
           setUserProfile(null);
-          localStorage.removeItem('user_profile_cache');
+          sessionStorage.removeItem('user_profile_cache');
           setLoading(false);
           
           // Redirect to auth page when signed out
@@ -171,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initAuth = async () => {
       try {
         // Check cache first for instant restore
-        const cached = localStorage.getItem('user_profile_cache');
+        const cached = sessionStorage.getItem('user_profile_cache');
         if (cached) {
           try {
             const { profile, timestamp } = JSON.parse(cached);
@@ -180,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setUserProfile(profile as UserProfile);
             }
           } catch (e) {
-            localStorage.removeItem('user_profile_cache');
+            sessionStorage.removeItem('user_profile_cache');
           }
         }
         
