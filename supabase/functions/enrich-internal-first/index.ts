@@ -204,12 +204,53 @@ const GENERIC_EMAIL_DOMAINS = [
   'aol.com', 'icloud.com', 'protonmail.com', 'mail.com',
   'sbcglobal.net', 'comcast.net', 'att.net', 'verizon.net',
   'live.com', 'msn.com', 'me.com', 'mac.com', 'ymail.com',
-  'rocketmail.com', 'cox.net', 'charter.net', 'earthlink.net'
+  'rocketmail.com', 'cox.net', 'charter.net', 'earthlink.net',
+  // Additional personal domains
+  'gmx.com', 'gmx.net', 'zoho.com', 'fastmail.com', 'tutanota.com',
+  'inbox.com', 'hushmail.com', 'mailfence.com', 'startmail.com'
 ];
 
 const isGenericEmailDomain = (domain: string): boolean => {
   return GENERIC_EMAIL_DOMAINS.includes(domain.toLowerCase());
 };
+
+// Retry wrapper with exponential backoff for rate-limited APIs
+const callWithRetry = async <T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelayMs: number = 1000,
+  operationName: string = 'API call'
+): Promise<T | null> => {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      const isRateLimited = error.message?.includes('429') || 
+                            error.message?.toLowerCase().includes('rate') ||
+                            error.message?.toLowerCase().includes('limit');
+      
+      if (isRateLimited && attempt < maxRetries - 1) {
+        const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 500;
+        console.log(`[enrich-internal-first] ${operationName} rate limited, waiting ${Math.round(delay)}ms before retry ${attempt + 1}/${maxRetries}`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      
+      console.error(`[enrich-internal-first] ${operationName} failed after ${attempt + 1} attempts:`, error.message);
+      return null;
+    }
+  }
+  return null;
+};
+
+// Track failure reasons for better analytics
+interface FailureTracking {
+  rate_limited: number;
+  personal_domain: number;
+  not_in_database: number;
+  api_error: number;
+  no_data_found: number;
+}
 
 // Validate phone number - filter out coordinates and garbage data
 const isValidPhone = (phone: string): boolean => {
@@ -289,7 +330,8 @@ Return ONLY valid JSON:
   ]
 }`;
 
-  try {
+  // Use retry wrapper for rate limit handling
+  const result = await callWithRetry(async () => {
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -306,35 +348,41 @@ Return ONLY valid JSON:
       }),
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content || '';
-      const citations = data.citations || [];
-      
-      console.log('[enrich-internal-first] Perplexity phone response:', content.substring(0, 200));
-      
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        return {
-          phone: sanitizePhone(parsed.phone) || undefined,
-          mobile: sanitizePhone(parsed.mobile) || undefined,
-          direct_phone: sanitizePhone(parsed.direct_phone) || undefined,
-          phones: (parsed.all_phones || []).map((p: any) => ({
-            number: sanitizePhone(p.number),
-            type: p.type,
-            confidence: p.confidence,
-            source: 'perplexity'
-          })).filter((p: any) => p.number),
-          citations
-        };
-      }
+    if (response.status === 429) {
+      throw new Error('429 rate limit exceeded');
     }
-  } catch (e) {
-    console.error('[enrich-internal-first] Perplexity phone discovery error:', e);
-  }
+    
+    if (!response.ok) {
+      throw new Error(`Perplexity API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    const citations = data.citations || [];
+    
+    console.log('[enrich-internal-first] Perplexity phone response:', content.substring(0, 200));
+    
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        phone: sanitizePhone(parsed.phone) || undefined,
+        mobile: sanitizePhone(parsed.mobile) || undefined,
+        direct_phone: sanitizePhone(parsed.direct_phone) || undefined,
+        phones: (parsed.all_phones || []).map((p: any) => ({
+          number: sanitizePhone(p.number),
+          type: p.type,
+          confidence: p.confidence,
+          source: 'perplexity'
+        })).filter((p: any) => p.number),
+        citations
+      };
+    }
+    
+    return null;
+  }, 3, 1500, `Perplexity phone for ${personName}`);
   
-  return null;
+  return result;
 };
 
 // NEW: Use Perplexity for SMB firmographic discovery when Apollo/PDL fail
@@ -375,7 +423,8 @@ Return ONLY valid JSON:
   "business_type": "local_service | retail | restaurant | professional_service | other"
 }`;
 
-  try {
+  // Use retry wrapper for rate limit handling
+  const result = await callWithRetry(async () => {
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -392,40 +441,44 @@ Return ONLY valid JSON:
       }),
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      const content = data.choices?.[0]?.message?.content || '';
-      const citations = data.citations || [];
-      
-      console.log('[enrich-internal-first] Perplexity firmographic response:', content.substring(0, 300));
-      
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        
-        // Map employee range to estimate
-        const employeeMap: Record<string, number> = {
-          '1-10': 5, '11-50': 25, '51-200': 100, '201-500': 350, '500+': 750
-        };
-        
-        return {
-          industry: parsed.industry || undefined,
-          employee_estimate: parsed.employee_count || employeeMap[parsed.employee_range] || undefined,
-          city: parsed.city || undefined,
-          state: parsed.state || undefined,
-          phone: sanitizePhone(parsed.phone) || undefined,
-          address: parsed.address || undefined,
-          citations
-        };
-      }
-    } else if (response.status === 429) {
-      console.warn('[enrich-internal-first] Perplexity rate limited, will fallback to AI');
+    if (response.status === 429) {
+      throw new Error('429 rate limit exceeded');
     }
-  } catch (e) {
-    console.error('[enrich-internal-first] Perplexity firmographic discovery error:', e);
-  }
+    
+    if (!response.ok) {
+      throw new Error(`Perplexity API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+    const citations = data.citations || [];
+    
+    console.log('[enrich-internal-first] Perplexity firmographic response:', content.substring(0, 300));
+    
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      
+      // Map employee range to estimate
+      const employeeMap: Record<string, number> = {
+        '1-10': 5, '11-50': 25, '51-200': 100, '201-500': 350, '500+': 750
+      };
+      
+      return {
+        industry: parsed.industry || undefined,
+        employee_estimate: parsed.employee_count || employeeMap[parsed.employee_range] || undefined,
+        city: parsed.city || undefined,
+        state: parsed.state || undefined,
+        phone: sanitizePhone(parsed.phone) || undefined,
+        address: parsed.address || undefined,
+        citations
+      };
+    }
+    
+    return null;
+  }, 3, 1500, `Perplexity firmographics for ${companyName}`);
   
-  return null;
+  return result;
 };
 
 // Use AI to discover person details (title, phone, linkedin)
@@ -1326,6 +1379,15 @@ serve(async (req) => {
       failed: 0,
       api_calls_saved: 0
     };
+    
+    // Track failure reasons for better diagnostics
+    const failureReasons: FailureTracking = {
+      rate_limited: 0,
+      personal_domain: 0,
+      not_in_database: 0,
+      api_error: 0,
+      no_data_found: 0
+    };
 
     // Phase 1: Internal Lookup (skip if force_external)
     console.log('[enrich-internal-first] Phase 1: Internal lookup');
@@ -1444,6 +1506,19 @@ serve(async (req) => {
       result.enriched_data.first_name = input.first_name || extractedName.first_name;
       result.enriched_data.last_name = input.last_name || extractedName.last_name;
       result.enriched_data.title = input.title;
+      
+      // EARLY SKIP: Personal email domains (gmail, yahoo, etc.)
+      // These cannot be enriched for company data - skip early to save API credits
+      if (domain && isGenericEmailDomain(domain)) {
+        result.source = 'skipped_personal' as any;
+        result.enriched_data.skip_reason = 'personal_email_domain';
+        result.enriched_data.notes = `Personal email domain (${domain}) - no company enrichment available`;
+        result.confidence = 0;
+        failureReasons.personal_domain++;
+        console.log(`[enrich-internal-first] Skipping personal domain: ${domain}`);
+        results.push(result);
+        continue;
+      }
       
       // Classify title if provided
       if (input.title) {
@@ -1704,6 +1779,9 @@ serve(async (req) => {
                 console.log(`[enrich-internal-first] Perplexity SMB enriched: ${domain}`, firmographics);
               }
             }
+            
+            // Add small delay between Perplexity calls to avoid rate limiting
+            await new Promise(r => setTimeout(r, 300));
           }
         }
       }
@@ -2121,14 +2199,27 @@ ${combinedContent}`;
 
     // FINAL: Recalculate stats from actual results to ensure accuracy
     // This overrides any incremental counting that may have been incorrect
+    const skippedPersonal = results.filter(r => r.source === 'skipped_personal').length;
+    const actualFailed = results.filter(r => 
+      (r.source === 'none' || r.fields_filled.length <= 2) && 
+      r.source !== 'skipped_personal'
+    ).length;
+    
     const finalStats = {
       internal_matches: results.filter(r => r.source === 'internal').length,
       apollo_enriched: results.filter(r => r.source === 'apollo').length,
       pdl_enriched: results.filter(r => r.source === 'pdl').length,
       ai_enriched: results.filter(r => ['ai', 'firecrawl', 'perplexity'].includes(r.source)).length,
-      failed: results.filter(r => r.source === 'none' || r.fields_filled.length <= 2).length,
-      person_enriched: stats.person_enriched, // Keep from incremental
-      email_verified: stats.email_verified // Keep from incremental
+      failed: actualFailed,
+      skipped_personal: skippedPersonal,
+      person_enriched: stats.person_enriched,
+      email_verified: stats.email_verified
+    };
+    
+    // Enhanced failure tracking
+    const failureBreakdown = {
+      ...failureReasons,
+      no_data_found: actualFailed - failureReasons.rate_limited - failureReasons.api_error
     };
 
     console.log(`[enrich-internal-first] Complete (recalculated):`, finalStats);
@@ -2138,13 +2229,16 @@ ${combinedContent}`;
       pdl: finalStats.pdl_enriched,
       ai: finalStats.ai_enriched,
       failed: finalStats.failed,
+      skipped_personal: finalStats.skipped_personal,
       total: results.length
     });
+    console.log(`[enrich-internal-first] Failure breakdown:`, failureBreakdown);
 
     return new Response(JSON.stringify({
       success: true,
       results,
-      stats
+      stats: { ...stats, ...finalStats },
+      failure_breakdown: failureBreakdown
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
