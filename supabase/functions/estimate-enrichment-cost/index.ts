@@ -1,25 +1,31 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.0";
+import { getCorsHeaders } from '../_shared/cors.ts';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-// Cost per provider per account
+// Updated cost per provider reflecting the 7-step waterfall from provider-waterfall.ts
 const COST_PER_PROVIDER = {
-  pdl: 0.005,          // $0.005 per PDL lookup
-  clearbit: 0.001,     // $0.001 per Clearbit lookup (free tier)
-  ai: 0.01,            // $0.01 per AI estimation
-  deep_research: 0.10, // $0.10 per deep research (10x more expensive)
+  email_name: 0.0,        // Free - extract name from email
+  perplexity: 0.005,      // $0.005 per Perplexity search (primary AI discovery)
+  firecrawl: 0.003,       // $0.003 per page scraped (ground truth)
+  claude: 0.008,          // $0.008 per Claude/AI fill-gaps call
+  google_search: 0.002,   // $0.002 per Google search via Firecrawl
+  pdl: 0.01,              // $0.01 per PDL lookup (fallback)
+  apollo: 0.015,          // $0.015 per Apollo lookup (last resort)
+  hunter: 0.005,          // $0.005 per Hunter email verification
+  deep_research: 0.10,    // $0.10 per deep research (premium)
 };
 
-// Typical success rates for each provider
+// Typical success rates for each provider in the waterfall
 const SUCCESS_RATES = {
-  pdl: 0.40,           // PDL enriches ~40% of accounts
-  clearbit: 0.30,      // Clearbit enriches ~30% of remaining
-  ai: 0.80,            // AI can estimate ~80% of remaining
-  deep_research: 1.0,  // Deep research always provides data
+  email_name: 0.70,       // 70% of emails have parseable names
+  perplexity: 0.60,       // Perplexity finds data for ~60%
+  firecrawl: 0.75,        // Website scraping succeeds ~75%
+  claude: 0.80,           // Claude fills gaps for ~80%
+  google_search: 0.50,    // Google search fallback ~50%
+  pdl: 0.40,              // PDL enriches ~40%
+  apollo: 0.35,           // Apollo enriches ~35%
+  hunter: 0.90,           // Hunter verifies ~90% of emails
+  deep_research: 1.0,     // Deep research always provides data
 };
 
 interface CostBreakdown {
@@ -40,6 +46,9 @@ interface EnrichmentCostEstimate {
 }
 
 serve(async (req) => {
+  const origin = req.headers.get('origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
