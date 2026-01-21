@@ -63,6 +63,37 @@ interface PreviewStats {
   company_name_only: number;
 }
 
+// Helper to map provider-based breakdown to UI categories
+function mapSourceBreakdownToCategories(breakdown: Record<string, any>) {
+  const categories = {
+    internal_matches: 0,
+    api_enriched: 0,  // Apollo + PDL + Hunter
+    ai_enriched: 0,   // Perplexity + Claude + Firecrawl + AI providers
+    failed: 0
+  };
+  
+  for (const [provider, data] of Object.entries(breakdown || {})) {
+    // Handle both number values and object values with attempted/enriched
+    const count = typeof data === 'number' ? data : (data?.enriched || data?.attempted || 0);
+    
+    // Categorize by provider type
+    if (['apollo', 'pdl', 'hunter', 'clearbit', 'zoominfo'].includes(provider.toLowerCase())) {
+      categories.api_enriched += count;
+    } else if (['perplexity', 'ai_claude', 'anthropic', 'openai', 'firecrawl', 'google_search', 'ai', 'claude'].includes(provider.toLowerCase())) {
+      categories.ai_enriched += count;
+    } else if (provider === 'internal' || provider === 'internal_matches' || provider === 'cache') {
+      categories.internal_matches += count;
+    } else if (provider === 'failed' || provider === 'error') {
+      categories.failed += count;
+    } else {
+      // Unknown providers go to AI category (most new providers are AI-based)
+      categories.ai_enriched += count;
+    }
+  }
+  
+  return categories;
+}
+
 export function UnifiedEnrichmentWizard() {
   const { userProfile } = useAuth();
   const [step, setStep] = useState<WizardStep>("type");
@@ -954,20 +985,30 @@ export function UnifiedEnrichmentWizard() {
               onComplete={(job) => {
                 console.log('[EnrichmentWizard] Job completed, full job data:', JSON.stringify(job, null, 2));
                 console.log('[EnrichmentWizard] source_breakdown value:', job.source_breakdown);
-                if (job.status === 'completed') {
+                
+                // Handle both completed AND paused (timeout) jobs as success
+                if (job.status === 'completed' || job.status === 'paused') {
                   setStep("results");
-                  // Read source breakdown from job source_breakdown column (not metadata)
+                  
+                  // Map provider-based breakdown to UI categories
                   const breakdown = job.source_breakdown || {};
-                  console.log('[EnrichmentWizard] Using breakdown:', breakdown);
+                  const categories = mapSourceBreakdownToCategories(breakdown);
+                  
+                  console.log('[EnrichmentWizard] Mapped categories:', categories);
                   setStats({
                     total: job.total_records || 0,
-                    enriched: job.enriched_records || job.rows_completed || 0,
-                    failed: job.failed_records || job.rows_failed || 0,
-                    internal_matches: breakdown.internal_matches || 0,
-                    apollo_enriched: breakdown.apollo_enriched || 0,
-                    pdl_enriched: breakdown.pdl_enriched || 0,
-                    ai_enriched: breakdown.ai_enriched || 0
+                    enriched: job.enriched_records || job.processed_records || 0,
+                    failed: job.failed_records || 0,
+                    internal_matches: categories.internal_matches,
+                    apollo_enriched: categories.api_enriched,
+                    pdl_enriched: 0,
+                    ai_enriched: categories.ai_enriched
                   });
+                  
+                  // Show partial completion message if paused due to timeout
+                  if (job.status === 'paused') {
+                    toast.info(`Processed ${job.processed_records} of ${job.total_records} records (timeout - can resume)`);
+                  }
                 } else {
                   setStep("preview");
                 }

@@ -288,6 +288,18 @@ serve(async (req) => {
     const isComplete = processed >= inputs.length;
     const finalStatus = isComplete ? 'completed' : 'paused';
 
+    // Calculate legacy category totals for backwards compatibility with UI
+    const categoryBreakdown = {
+      // Keep detailed provider breakdown
+      ...sourceBreakdown,
+      // Add legacy category fields for UI compatibility
+      internal_matches: (sourceBreakdown.internal?.enriched || 0) + (sourceBreakdown.cache?.enriched || 0),
+      api_enriched: (sourceBreakdown.apollo?.enriched || 0) + (sourceBreakdown.pdl?.enriched || 0) + (sourceBreakdown.hunter?.enriched || 0),
+      ai_enriched: (sourceBreakdown.perplexity?.enriched || 0) + (sourceBreakdown.firecrawl?.enriched || 0) + (sourceBreakdown.ai_claude?.enriched || 0) + (sourceBreakdown.anthropic?.enriched || 0),
+      apollo_enriched: sourceBreakdown.apollo?.enriched || 0,
+      pdl_enriched: sourceBreakdown.pdl?.enriched || 0,
+    };
+
     // Update job final status
     if (jobId) {
       await supabase
@@ -299,7 +311,7 @@ serve(async (req) => {
           processed_records: processed,
           enriched_records: enriched,
           failed_records: failed,
-          source_breakdown: sourceBreakdown,
+          source_breakdown: categoryBreakdown,
         })
         .eq('id', jobId);
     }
@@ -319,7 +331,7 @@ serve(async (req) => {
           ? Math.round(results.reduce((sum, r) => sum + r.confidence, 0) / enriched * 100) / 100 
           : 0,
       },
-      source_breakdown: sourceBreakdown,
+      source_breakdown: categoryBreakdown,
     };
 
     console.log(`[enrich-unified] Complete:`, response.summary);
