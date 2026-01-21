@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 export default function TermsOfService() {
   return (
-    <div className="min-h-screen bg-background">
+    <main className="min-h-screen bg-background">
       <div className="container max-w-4xl mx-auto px-4 py-12">
         <Link to="/auth">
           <Button variant="ghost" className="mb-8">
@@ -105,6 +105,6 @@ export default function TermsOfService() {
           </section>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

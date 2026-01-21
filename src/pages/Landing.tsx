@@ -94,6 +94,7 @@ export default function Landing() {
 
   return (
     <GradientBackground variant="hero" showOrbs>
+      <main>
       {/* Header */}
       <header className="border-b border-border/50 bg-background/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
@@ -330,6 +331,7 @@ export default function Landing() {
           </div>
         </div>
       </footer>
+      </main>
     </GradientBackground>
   );
 }
