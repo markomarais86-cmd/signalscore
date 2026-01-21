@@ -7,7 +7,12 @@ import { Button } from '@/components/ui/button';
 import { LaunchPulseDiscovery } from '@/components/discovery/LaunchPulseDiscovery';
 import { ICPMatchedAccountsTab } from './ICPMatchedAccountsTab';
 import { ICPTAMAnalysisTab } from './ICPTAMAnalysisTab';
+import { ICPAnalyticsTab } from './ICPAnalyticsTab';
 import { WhitespaceMappingCard } from './WhitespaceMappingCard';
+import { useUnifiedEnrichment } from '@/hooks/use-unified-enrichment';
+import { useAuth } from '@/hooks/use-auth';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { 
   Building, 
   Users, 
@@ -18,7 +23,10 @@ import {
   Edit,
   ArrowLeft,
   Briefcase,
-  DollarSign
+  DollarSign,
+  Zap,
+  TrendingUp,
+  Loader2
 } from 'lucide-react';
 
 interface ICPDetailViewProps {
@@ -30,6 +38,77 @@ interface ICPDetailViewProps {
 
 export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: ICPDetailViewProps) {
   const [activeTab, setActiveTab] = useState(defaultTab);
+  const { userProfile } = useAuth();
+  const [enrichmentCost, setEnrichmentCost] = useState<number | null>(null);
+  const [matchedAccountsCount, setMatchedAccountsCount] = useState<number | null>(null);
+  
+  const { isEnriching, progress, enrichAccounts } = useUnifiedEnrichment({
+    onComplete: (result) => {
+      toast.success(`Enriched ${result.summary.enriched} accounts`, {
+        description: `Total cost: $${result.summary.totalCost.toFixed(2)}`
+      });
+    }
+  });
+
+  const handleEnrichMatchedAccounts = async () => {
+    if (!userProfile?.org_id) return;
+
+    try {
+      // First get matched account IDs
+      const { data: scores, error: scoresError } = await supabase
+        .from('scores')
+        .select('account_external_id')
+        .eq('org_id', userProfile.org_id)
+        .eq('icp_id', icp.id)
+        .gte('fit', 70);
+
+      if (scoresError) throw scoresError;
+      if (!scores || scores.length === 0) {
+        toast.error('No high-fit accounts found');
+        return;
+      }
+
+      const accountIds = scores.map(s => s.account_external_id);
+
+      // Fetch accounts that need enrichment
+      const { data: accounts, error: accountsError } = await supabase
+        .from('accounts')
+        .select('external_id, name, domain, industry_norm, industry_raw, employee_count, revenue_range, country, state_province, city')
+        .eq('org_id', userProfile.org_id)
+        .in('external_id', accountIds)
+        .or('employee_count.is.null,revenue_range.is.null,industry_norm.is.null')
+        .not('domain', 'is', null)
+        .limit(100);
+
+      if (accountsError) throw accountsError;
+      if (!accounts || accounts.length === 0) {
+        toast.info('All high-fit accounts are already enriched');
+        return;
+      }
+
+      // Enrich the accounts
+      await enrichAccounts(userProfile.org_id, accounts, { skipPaidProviders: false });
+    } catch (error) {
+      console.error('Error enriching matched accounts:', error);
+      toast.error('Failed to enrich accounts');
+    }
+  };
+
+  // Fetch matched accounts count for cost estimate
+  useState(() => {
+    if (userProfile?.org_id && icp.id) {
+      supabase
+        .from('scores')
+        .select('account_external_id', { count: 'exact', head: true })
+        .eq('org_id', userProfile.org_id)
+        .eq('icp_id', icp.id)
+        .gte('fit', 70)
+        .then(({ count }) => {
+          setMatchedAccountsCount(count || 0);
+          setEnrichmentCost((count || 0) * 0.25); // ~$0.25 per account
+        });
+    }
+  });
 
   return (
     <div className="space-y-6">
@@ -50,15 +129,39 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
             </div>
           </div>
         </div>
-        <Button variant="outline" onClick={() => onEdit(icp)}>
-          <Edit className="h-4 w-4 mr-2" />
-          Edit ICP
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="default" 
+            onClick={handleEnrichMatchedAccounts}
+            disabled={isEnriching}
+          >
+            {isEnriching ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Enriching... {progress?.processed || 0}/{progress?.total || 0}
+              </>
+            ) : (
+              <>
+                <Zap className="h-4 w-4 mr-2" />
+                Enrich High-Fit Accounts
+                {enrichmentCost !== null && (
+                  <Badge variant="secondary" className="ml-2">
+                    ~${enrichmentCost.toFixed(0)}
+                  </Badge>
+                )}
+              </>
+            )}
+          </Button>
+          <Button variant="outline" onClick={() => onEdit(icp)}>
+            <Edit className="h-4 w-4 mr-2" />
+            Edit ICP
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Target className="h-4 w-4" />
             Overview
@@ -70,6 +173,10 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
           <TabsTrigger value="discover" className="flex items-center gap-2">
             <Rocket className="h-4 w-4" />
             Discover New
+          </TabsTrigger>
+          <TabsTrigger value="analytics" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Analytics
           </TabsTrigger>
           <TabsTrigger value="tam" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -213,6 +320,11 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
         {/* Discover Tab */}
         <TabsContent value="discover">
           <LaunchPulseDiscovery icp={icp} compact />
+        </TabsContent>
+
+        {/* Analytics Tab */}
+        <TabsContent value="analytics">
+          <ICPAnalyticsTab icpId={icp.id} icpName={icp.name} />
         </TabsContent>
 
         {/* TAM Analysis Tab */}

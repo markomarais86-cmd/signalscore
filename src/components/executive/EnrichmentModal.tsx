@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Database, AlertCircle } from "lucide-react";
+import { Database, AlertCircle, Loader2 } from "lucide-react";
 import { LaunchPulseMark } from '@/components/BrandLogo';
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
+import { useUnifiedEnrichment, EnrichmentConfig } from "@/hooks/use-unified-enrichment";
 
 interface EnrichmentProvider {
   id: string;
@@ -17,6 +18,7 @@ interface EnrichmentProvider {
   description: string;
   tier: "free" | "premium";
   fields: string[];
+  config: EnrichmentConfig;
 }
 
 interface EnrichmentModalProps {
@@ -33,13 +35,22 @@ export function EnrichmentModal({
   targetFields = []
 }: EnrichmentModalProps) {
   const { userProfile } = useAuth();
-  const [selectedProviders, setSelectedProviders] = useState<string[]>([]);
-  const [enriching, setEnriching] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<string>("smart");
   const [creditsAvailable, setCreditsAvailable] = useState<number | null>(null);
   const [batchSize, setBatchSize] = useState<number>(100);
+  
+  const { isEnriching, progress, enrichAccounts, reset } = useUnifiedEnrichment({
+    onComplete: (result) => {
+      onOpenChange(false);
+      window.location.reload();
+    },
+    onError: (error) => {
+      console.error('Enrichment error:', error);
+    }
+  });
 
   // Load available credits when modal opens
-  useState(() => {
+  useEffect(() => {
     if (open && userProfile?.org_id) {
       supabase
         .rpc('get_org_enrichment_credits', { org_uuid: userProfile.org_id })
@@ -49,194 +60,82 @@ export function EnrichmentModal({
           }
         });
     }
-  });
+    
+    // Reset enrichment state when modal opens
+    if (open) {
+      reset();
+    }
+  }, [open, userProfile?.org_id, reset]);
 
   const providers: EnrichmentProvider[] = [
     {
       id: "smart",
       name: "Smart Enrichment Waterfall (Recommended)",
-      description: "Uses PDL → Clearbit → AI in sequence for best coverage",
+      description: "Uses Perplexity → Firecrawl → AI → PDL → Apollo for best coverage",
       tier: "free",
-      fields: ["Industry", "Company Size", "Revenue", "Location", "Employee Count"]
+      fields: ["Industry", "Company Size", "Revenue", "Location", "Employee Count"],
+      config: {}
     },
     {
       id: "launch_pulse",
       name: "LaunchPulse Enrichment",
       description: "LaunchPulse proprietary data enrichment - high accuracy company data",
       tier: "free",
-      fields: ["Industry", "Employee Count", "Revenue", "Location", "Tech Stack"]
+      fields: ["Industry", "Employee Count", "Revenue", "Location", "Tech Stack"],
+      config: { includeWebScrape: true }
     },
     {
       id: "ai_free",
       name: "Free AI Enrichment ⭐",
       description: "AI-powered estimates using domain analysis. No API credits needed!",
       tier: "free",
-      fields: ["Industry", "Employee Count", "Revenue Range", "Business Model"]
+      fields: ["Industry", "Employee Count", "Revenue Range", "Business Model"],
+      config: { skipPaidProviders: true }
     },
     {
       id: "deep_research",
       name: "Deep Research (High-Value Accounts)",
       description: "AI-powered web research with citations, tech stack, funding, and confidence scores",
       tier: "premium",
-      fields: ["All Fields", "Tech Stack", "Funding", "Trust Signals", "Verified Contacts", "Citations"]
+      fields: ["All Fields", "Tech Stack", "Funding", "Trust Signals", "Verified Contacts", "Citations"],
+      config: { includeWebScrape: true, verifyEmail: true }
     }
   ];
 
   const handleEnrich = async () => {
-    if (selectedProviders.length === 0) {
-      toast.error("Please select enrichment option");
+    if (!userProfile?.org_id) return;
+    
+    const provider = providers.find(p => p.id === selectedProvider);
+    if (!provider) return;
+
+    // Fetch accounts to enrich
+    const { data: accounts, error } = await supabase
+      .from('accounts')
+      .select('external_id, name, domain, industry_norm, industry_raw, employee_count, revenue_range, country, state_province, city')
+      .eq('org_id', userProfile.org_id)
+      .or('employee_count.is.null,revenue_range.is.null,industry_norm.is.null')
+      .not('domain', 'is', null)
+      .limit(selectedProvider === 'deep_research' ? Math.min(batchSize, 50) : batchSize);
+
+    if (error) {
+      console.error('Error fetching accounts:', error);
       return;
     }
 
-    if (!userProfile?.org_id) {
-      toast.error("Organization not found. Please refresh the page.");
+    if (!accounts || accounts.length === 0) {
       return;
     }
 
-    setEnriching(true);
-    try {
-      const isDeepResearch = selectedProviders.includes('deep_research');
-      const isAIFree = selectedProviders.includes('ai_free');
-      const isLaunchPulse = selectedProviders.includes('launch_pulse');
-      
-      // Determine provider type
-      const providerType = isDeepResearch ? 'deep-research' : isAIFree ? 'ai_free' : isLaunchPulse ? 'launch_pulse' : 'smart-waterfall';
-      
-      // Create enrichment job
-      const { data: job, error: jobError } = await supabase
-        .from('enrichment_jobs')
-        .insert({
-          org_id: userProfile.org_id,
-          provider: providerType,
-          job_type: 'accounts',
-          status: 'pending',
-          total_records: selectedAccounts || batchSize
-        })
-        .select()
-        .single();
-
-      if (jobError) throw jobError;
-      if (!job) throw new Error('No job data returned');
-
-      if (isDeepResearch) {
-        toast.info("Starting deep research enrichment...", {
-          description: "AI-powered research with citations and confidence scores"
-        });
-
-        // Call deep-enrich-contact edge function
-        const { data: accounts } = await supabase
-          .from('accounts')
-          .select('external_id, name, domain')
-          .eq('org_id', userProfile.org_id)
-          .or('employee_count.is.null,revenue_range.is.null')
-          .not('domain', 'is', null)
-          .limit(Math.min(batchSize, 50)); // Max 50 for deep research
-
-        if (accounts && accounts.length > 0) {
-          const { error } = await supabase.functions.invoke('deep-enrich-contact', {
-            body: { accounts, orgId: userProfile.org_id }
-          });
-
-          if (error) throw error;
-        }
-      } else if (isAIFree) {
-        toast.info("Starting Free AI Enrichment...", {
-          description: "AI-powered estimates - no API credits needed!"
-        });
-
-        // Call enrich-ai-only edge function
-        const { error } = await supabase.functions.invoke('enrich-ai-only', {
-          body: { jobId: job.id, batchSize }
-        });
-
-        if (error) throw error;
-      } else if (isLaunchPulse) {
-        toast.info("Starting LaunchPulse Enrichment...", {
-          description: "Using LaunchPulse proprietary data sources"
-        });
-
-        // Use unified enrichment
-        const { error } = await supabase.functions.invoke('enrich-unified', {
-          body: { 
-            job_id: job.id, 
-            org_id: userProfile?.org_id,
-            record_type: 'account',
-            records: [],
-            config: { skipPaidProviders: false }
-          }
-        });
-
-        if (error) throw error;
-      } else {
-        toast.info("Starting enrichment...", {
-          description: "Enrichment waterfall: Perplexity → Firecrawl → AI → PDL → Apollo"
-        });
-
-        // Use unified enrichment
-        const { error } = await supabase.functions.invoke('enrich-unified', {
-          body: { 
-            job_id: job.id, 
-            org_id: userProfile?.org_id,
-            record_type: 'account',
-            records: []
-          }
-        });
-
-        if (error) throw error;
-      }
-
-      // Poll job status every 2 seconds with progress updates
-      const pollInterval = setInterval(async () => {
-        const { data: jobStatus } = await supabase
-          .from('enrichment_jobs')
-          .select('status, enriched_records, processed_records, total_records')
-          .eq('id', job.id)
-          .single();
-
-        if (jobStatus) {
-          const progress = jobStatus.processed_records > 0 
-            ? Math.round((jobStatus.processed_records / jobStatus.total_records) * 100)
-            : 0;
-          
-          if (jobStatus.status === 'processing') {
-            toast.info(`Enriching... ${progress}%`, {
-              description: `${jobStatus.enriched_records} of ${jobStatus.processed_records} accounts enriched`,
-              duration: 3000
-            });
-          } else if (jobStatus.status === 'completed') {
-            clearInterval(pollInterval);
-            toast.success("Enrichment complete!", {
-              description: `${jobStatus.enriched_records} of ${jobStatus.total_records} accounts enriched`
-            });
-            onOpenChange(false);
-            window.location.reload(); // Refresh to show new data
-          } else if (jobStatus.status === 'failed') {
-            clearInterval(pollInterval);
-            toast.error("Enrichment failed");
-            onOpenChange(false);
-          }
-        }
-      }, 2000);
-
-      // Stop polling after 5 minutes
-      setTimeout(() => {
-        clearInterval(pollInterval);
-      }, 300000);
-    } catch (error: any) {
-      console.error('Enrichment error:', error);
-      toast.error(error.message || 'Failed to start enrichment');
-    } finally {
-      setEnriching(false);
-    }
+    // Use the unified enrichment hook
+    await enrichAccounts(userProfile.org_id, accounts, provider.config);
   };
 
-  const toggleProvider = (providerId: string) => {
-    setSelectedProviders(prev =>
-      prev.includes(providerId)
-        ? prev.filter(p => p !== providerId)
-        : [...prev, providerId]
-    );
+  const getProgressPercentage = () => {
+    if (!progress) return 0;
+    return Math.round((progress.processed / progress.total) * 100);
   };
+
+  const selectedProviderData = providers.find(p => p.id === selectedProvider);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -262,9 +161,22 @@ export function EnrichmentModal({
           </AlertDescription>
         </Alert>
 
+        {isEnriching && progress && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Processing...</span>
+              <span>{progress.processed} / {progress.total}</span>
+            </div>
+            <Progress value={getProgressPercentage()} />
+            <div className="text-xs text-muted-foreground">
+              {progress.enriched} enriched • {progress.failed} failed • Est. cost: ${progress.totalCost.toFixed(2)}
+            </div>
+          </div>
+        )}
+
         <div className="space-y-2">
           <label className="text-sm font-medium">Batch Size</label>
-          <Select value={batchSize.toString()} onValueChange={(v) => setBatchSize(Number(v))}>
+          <Select value={batchSize.toString()} onValueChange={(v) => setBatchSize(Number(v))} disabled={isEnriching}>
             <SelectTrigger>
               <SelectValue placeholder="Select batch size" />
             </SelectTrigger>
@@ -291,14 +203,14 @@ export function EnrichmentModal({
               </span>
               {batchSize > 0 && (
                 <span className="text-xs text-muted-foreground">
-                  Est. cost: ~{Math.ceil(Math.min(batchSize, selectedAccounts || batchSize) * (selectedProviders.includes('deep_research') ? 2.5 : 0.25))} credits
+                  Est. cost: ~{Math.ceil(Math.min(batchSize, selectedAccounts || batchSize) * (selectedProvider === 'deep_research' ? 2.5 : 0.25))} credits
                 </span>
               )}
             </AlertDescription>
           </Alert>
         )}
 
-        {selectedProviders.includes('deep_research') && (
+        {selectedProvider === 'deep_research' && (
           <Alert variant="default" className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
             <AlertCircle className="h-4 w-4 text-yellow-600" />
             <AlertDescription className="text-yellow-900 dark:text-yellow-100">
@@ -313,13 +225,18 @@ export function EnrichmentModal({
           {providers.map((provider) => (
             <div
               key={provider.id}
-              className="border rounded-lg p-4 cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => toggleProvider(provider.id)}
+              className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                selectedProvider === provider.id 
+                  ? 'border-primary bg-primary/5' 
+                  : 'hover:bg-muted/50'
+              } ${isEnriching ? 'opacity-50 pointer-events-none' : ''}`}
+              onClick={() => !isEnriching && setSelectedProvider(provider.id)}
             >
               <div className="flex items-start gap-3">
                 <Checkbox
-                  checked={selectedProviders.includes(provider.id)}
-                  onCheckedChange={() => toggleProvider(provider.id)}
+                  checked={selectedProvider === provider.id}
+                  onCheckedChange={() => !isEnriching && setSelectedProvider(provider.id)}
+                  disabled={isEnriching}
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -345,13 +262,13 @@ export function EnrichmentModal({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={enriching}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isEnriching}>
             Cancel
           </Button>
-          <Button onClick={handleEnrich} disabled={enriching || selectedProviders.length === 0}>
-            {enriching ? (
+          <Button onClick={handleEnrich} disabled={isEnriching || !selectedProvider}>
+            {isEnriching ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-background mr-2"></div>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Enriching...
               </>
             ) : (
