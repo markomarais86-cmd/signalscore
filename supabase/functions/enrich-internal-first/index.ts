@@ -312,14 +312,46 @@ const isValidPhone = (phone: string): boolean => {
   return true;
 };
 
-// Sanitize phone number to E.164 format
+// Validate US area code - reject invalid/impossible area codes
+const isValidUSAreaCode = (areaCode: number): boolean => {
+  // US area codes: first digit is 2-9, second digit is 0-9
+  // Invalid patterns: N11 (like 211, 311, 411, 511, 611, 711, 811, 911)
+  // Also reject area codes starting with 0 or 1
+  if (areaCode < 200 || areaCode > 999) return false;
+  // Reject N11 patterns
+  if (areaCode % 100 >= 10 && areaCode % 100 <= 19) return false;
+  if (areaCode % 10 === 1 && Math.floor(areaCode / 10) % 10 === 1) return false;
+  return true;
+};
+
+// Sanitize phone number to E.164 format with US area code validation
 const sanitizePhone = (phone: any): string | null => {
   if (!phone) return null;
   if (!isValidPhone(String(phone))) return null;
   const digits = String(phone).replace(/\D/g, '');
   if (digits.length < 7) return null;
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  
+  // Handle 10-digit US numbers
+  if (digits.length === 10) {
+    const areaCode = parseInt(digits.substring(0, 3));
+    if (!isValidUSAreaCode(areaCode)) {
+      console.log(`[sanitizePhone] Rejecting invalid US area code: ${areaCode} from ${phone}`);
+      return null;
+    }
+    return `+1${digits}`;
+  }
+  
+  // Handle 11-digit US numbers (starting with 1)
+  if (digits.length === 11 && digits.startsWith('1')) {
+    const areaCode = parseInt(digits.substring(1, 4));
+    if (!isValidUSAreaCode(areaCode)) {
+      console.log(`[sanitizePhone] Rejecting invalid US area code: ${areaCode} from ${phone}`);
+      return null;
+    }
+    return `+${digits}`;
+  }
+  
+  // For international numbers, just return with +
   if (digits.length >= 10) return `+${digits}`;
   return null;
 };
@@ -1064,47 +1096,20 @@ async function processSingleInput(
 
   // ============= STEP 4: Firecrawl Website Scrape SECOND (ground truth) =============
   const firecrawlKey = Deno.env.get('FIRECRAWL_API_KEY');
+  const isGenericDomain = domain && isGenericEmailDomain(domain);
   
-  if (firecrawlKey && domain) {
+  if (firecrawlKey && domain && !isGenericDomain) {
     console.log(`[processSingleInput] Step 4: Firecrawl website scrape for ${domain} (multiple pages)`);
     
-    // Scrape homepage + /contact + /about
+    // Scrape homepage + /contact
     const combinedMarkdown = await scrapeMultiplePagesWithFirecrawl(domain);
     
     if (combinedMarkdown && combinedMarkdown.length > 100) {
-      // FIRST: Extract phone and address DIRECTLY from markdown (regex)
-      // This is GROUND TRUTH - takes precedence over AI
-      const websitePhone = extractPhoneFromMarkdown(combinedMarkdown);
-      const websiteAddress = extractAddressFromMarkdown(combinedMarkdown);
+      // PRIORITY: Use AI extraction FIRST (more context-aware and accurate)
+      // AI is GROUND TRUTH for phone/address - regex is fallback only
+      let aiExtractedPhone: string | null = null;
+      let aiExtractedAddress: any = null;
       
-      if (websitePhone) {
-        result.enriched_data.phone = websitePhone;
-        result.enriched_data.company_main_phone = websitePhone;
-        verifiedFields.add('phone');
-        console.log(`[processSingleInput] Website phone (VERIFIED): ${websitePhone}`);
-      }
-      
-      if (websiteAddress) {
-        if (websiteAddress.address) {
-          result.enriched_data.hq_address = websiteAddress.address;
-          verifiedFields.add('hq_address');
-        }
-        if (websiteAddress.city) {
-          result.enriched_data.hq_city = websiteAddress.city;
-          verifiedFields.add('hq_city');
-        }
-        if (websiteAddress.state) {
-          result.enriched_data.hq_state = websiteAddress.state;
-          verifiedFields.add('hq_state');
-        }
-        if (websiteAddress.zip) {
-          result.enriched_data.hq_postal_code = websiteAddress.zip;
-          verifiedFields.add('hq_postal_code');
-        }
-        console.log(`[processSingleInput] Website address (VERIFIED): ${websiteAddress.address}`);
-      }
-      
-      // SECOND: Use AI to extract additional info from website content
       if (!skipAi) {
         const extractPrompt = `Extract company information from this website content. Return ONLY valid JSON:
 
@@ -1116,7 +1121,7 @@ async function processSingleInput(
   "state": "State (2-letter code) from address or null",
   "address": "Full street address or null",
   "zip": "Zip code or null",
-  "phone": "Main phone number found on website or null",
+  "phone": "Main business phone number found on website (NOT fax, NOT sales) or null",
   "employee_estimate": "1-10 | 11-50 | 51-200 | 201-500 | 500+ | null",
   "services": ["list of services or products offered"],
   "sic_code": "4-digit SIC code based on industry or null",
@@ -1126,7 +1131,7 @@ async function processSingleInput(
 }
 
 Look carefully for:
-- Phone numbers in header, footer, or contact page
+- Phone numbers in header, footer, or contact page (prefer main business line)
 - Full address in footer or contact section
 - "About Us" content for company size/history
 - Industry from services offered
@@ -1153,29 +1158,41 @@ ${combinedMarkdown.substring(0, 6000)}`;
                 '1-10': 5, '11-50': 25, '51-200': 100, '201-500': 350, '500+': 750
               };
               
-              // Update fields ONLY if not already verified from regex extraction
-              if (!verifiedFields.has('phone') && extracted.phone) {
+              // AI phone is TRUSTED (has context awareness)
+              if (extracted.phone) {
                 const sanitized = sanitizePhone(extracted.phone);
                 if (sanitized) {
+                  aiExtractedPhone = sanitized;
                   result.enriched_data.phone = sanitized;
                   result.enriched_data.company_main_phone = sanitized;
+                  verifiedFields.add('phone');
+                  console.log(`[processSingleInput] AI extracted phone (VERIFIED): ${sanitized}`);
                 }
               }
               
-              if (!verifiedFields.has('hq_address') && extracted.address) {
+              // AI address is also trusted
+              if (extracted.address) {
+                aiExtractedAddress = {
+                  address: extracted.address,
+                  city: extracted.city,
+                  state: extracted.state,
+                  zip: extracted.zip
+                };
                 result.enriched_data.hq_address = extracted.address;
-              }
-              
-              if (!verifiedFields.has('hq_city') && extracted.city) {
-                result.enriched_data.hq_city = extracted.city;
-              }
-              
-              if (!verifiedFields.has('hq_state') && extracted.state) {
-                result.enriched_data.hq_state = extracted.state;
-              }
-              
-              if (!verifiedFields.has('hq_postal_code') && extracted.zip) {
-                result.enriched_data.hq_postal_code = extracted.zip;
+                verifiedFields.add('hq_address');
+                if (extracted.city) {
+                  result.enriched_data.hq_city = extracted.city;
+                  verifiedFields.add('hq_city');
+                }
+                if (extracted.state) {
+                  result.enriched_data.hq_state = extracted.state;
+                  verifiedFields.add('hq_state');
+                }
+                if (extracted.zip) {
+                  result.enriched_data.hq_postal_code = extracted.zip;
+                  verifiedFields.add('hq_postal_code');
+                }
+                console.log(`[processSingleInput] AI extracted address (VERIFIED): ${extracted.address}`);
               }
               
               // These fields don't need regex verification
@@ -1198,24 +1215,46 @@ ${combinedMarkdown.substring(0, 6000)}`;
             }
           }
         } catch (e) {
-          console.error(`[processSingleInput] Firecrawl AI extraction error:`, e);
+          console.error(`[processSingleInput] AI extraction error:`, e);
         }
       }
       
-      // Check for SMB indicators
-      const smbDetection = detectSMBFromContent(combinedMarkdown);
-      if (smbDetection.isSMB && !result.enriched_data.employee_count) {
-        result.enriched_data.employee_count = smbDetection.employeeEstimate || 10;
-        console.log(`[processSingleInput] SMB detected from content, estimating employees: 10`);
+      // FALLBACK: Use regex extraction ONLY if AI didn't find phone/address
+      if (!verifiedFields.has('phone')) {
+        const regexPhone = extractPhoneFromMarkdown(combinedMarkdown);
+        if (regexPhone) {
+          result.enriched_data.phone = regexPhone;
+          result.enriched_data.company_main_phone = regexPhone;
+          console.log(`[processSingleInput] Regex fallback phone: ${regexPhone}`);
+          // Note: NOT adding to verifiedFields since regex is less reliable
+        }
       }
       
-      // Domain-based industry detection as fallback
-      if (!result.enriched_data.industry_norm) {
-        const domainIndustry = detectIndustryFromDomain(domain);
-        if (domainIndustry) {
-          result.enriched_data.industry_norm = domainIndustry;
-          console.log(`[processSingleInput] Industry from domain: ${domainIndustry}`);
+      if (!verifiedFields.has('hq_address')) {
+        const regexAddress = extractAddressFromMarkdown(combinedMarkdown);
+        if (regexAddress) {
+          if (regexAddress.address) result.enriched_data.hq_address = regexAddress.address;
+          if (regexAddress.city) result.enriched_data.hq_city = regexAddress.city;
+          if (regexAddress.state) result.enriched_data.hq_state = regexAddress.state;
+          if (regexAddress.zip) result.enriched_data.hq_postal_code = regexAddress.zip;
+          console.log(`[processSingleInput] Regex fallback address: ${regexAddress.address}`);
         }
+      }
+    }
+  } else if (isGenericDomain) {
+    console.log(`[processSingleInput] Skipping Firecrawl for generic domain: ${domain}`);
+  }
+
+  // ============= STEP 5: Additional processing (SMB detection, industry fallback) =============
+  
+  // Check for SMB indicators from website content if we scraped it
+  if (firecrawlKey && domain && !isGenericDomain) {
+    // Domain-based industry detection as fallback
+    if (!result.enriched_data.industry_norm) {
+      const domainIndustry = detectIndustryFromDomain(domain);
+      if (domainIndustry) {
+        result.enriched_data.industry_norm = domainIndustry;
+        console.log(`[processSingleInput] Industry from domain: ${domainIndustry}`);
       }
     }
   }
@@ -1451,10 +1490,10 @@ async function processLeadsInBackground(
   saveToDb: boolean,
   sourceType: string
 ): Promise<void> {
-  const startTime = Date.now();
-  console.log(`[enrich-internal-first] ========== JOB ${jobId} STARTED ==========`);
-  console.log(`[enrich-internal-first] Config: inputs=${inputs.length}, saveToDb=${saveToDb}, forceExternal=${forceExternal}, skipAi=${skipAi}, sourceType=${sourceType}`);
+  // CRITICAL: First line - confirm function is called
+  console.log(`[BACKGROUND] >>>>>>>>>> Function ENTERED for job ${jobId} <<<<<<<<<<`);
   
+  const startTime = Date.now();
   let processed = 0;
   let completed = 0;
   let failed = 0;
@@ -1492,6 +1531,9 @@ async function processLeadsInBackground(
   const limit = createLimiter(CONCURRENCY_LIMIT);
   
   try {
+    console.log(`[enrich-internal-first] ========== JOB ${jobId} STARTED ==========`);
+    console.log(`[enrich-internal-first] Config: inputs=${inputs.length}, saveToDb=${saveToDb}, forceExternal=${forceExternal}, skipAi=${skipAi}, sourceType=${sourceType}`);
+
     for (let i = 0; i < inputs.length; i += CHUNK_SIZE) {
       const chunk = inputs.slice(i, i + CHUNK_SIZE);
       const chunkStartTime = Date.now();
@@ -1630,18 +1672,25 @@ async function processLeadsInBackground(
     console.log(`[enrich-internal-first] Sources: internal=${internalMatches}, apollo=${apolloEnriched}, pdl=${pdlEnriched}, ai=${aiEnriched}, firecrawl=${firecrawlEnriched}`);
     
   } catch (error) {
-    console.error(`[enrich-internal-first] Job ${jobId} failed:`, error);
-    await supabase.from('enrichment_jobs').update({
-      status: 'failed',
-      error_message: (error as Error).message,
-      processed_records: processed,
-      rows_completed: completed,
-      rows_failed: failed,
-      enriched_records: completed,
-      failed_records: failed
-    }).eq('id', jobId);
+    // Catch any errors during processing
+    console.error(`[BACKGROUND] FATAL ERROR in job ${jobId}:`, error);
+    try {
+      await supabase.from('enrichment_jobs').update({
+        status: 'failed',
+        error_message: `Background processing crashed: ${(error as Error).message}`,
+        processed_records: processed,
+        rows_completed: completed,
+        rows_failed: failed,
+        enriched_records: completed,
+        failed_records: failed,
+        completed_at: new Date().toISOString()
+      }).eq('id', jobId);
+    } catch (updateError) {
+      console.error(`[BACKGROUND] Failed to update job status after fatal error:`, updateError);
+    }
   } finally {
     clearInterval(heartbeatInterval);
+    console.log(`[BACKGROUND] >>>>>>>>>> Function EXITING for job ${jobId} <<<<<<<<<<`);
   }
 }
 
@@ -1803,6 +1852,8 @@ serve(async (req) => {
       
       console.log(`[enrich-internal-first] Created job ${job.id}, starting background processing`);
       
+      console.log(`[enrich-internal-first] About to call EdgeRuntime.waitUntil for job ${job.id}`);
+      
       EdgeRuntime.waitUntil(
         processLeadsInBackground(
           job.id,
@@ -1815,6 +1866,8 @@ serve(async (req) => {
           source_type
         )
       );
+      
+      console.log(`[enrich-internal-first] EdgeRuntime.waitUntil called successfully for job ${job.id}`);
       
       return new Response(JSON.stringify({
         async: true,
