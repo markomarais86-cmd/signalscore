@@ -369,7 +369,7 @@ Remember the current conversation context:
 - After execution, suggest related actions`;
 
 // AI Provider Configuration
-type AIProvider = 'openai' | 'abacus' | 'lovable';
+type AIProvider = 'openai' | 'lovable';
 
 interface ProviderConfig {
   endpoint: string;
@@ -399,16 +399,6 @@ function getProviderConfig(provider: AIProvider): ProviderConfig | null {
         supportsTemperature: true,
         maxTokensParam: 'max_tokens',
       };
-    case 'abacus':
-      const abacusKey = Deno.env.get("ABACUS_API_KEY");
-      if (!abacusKey) return null;
-      return {
-        endpoint: 'https://apps.abacus.ai/api/v0/getStreamingChatResponse',
-        model: 'RouteLLM',
-        apiKey: abacusKey,
-        supportsTemperature: true,
-        maxTokensParam: 'max_tokens',
-      };
     case 'lovable':
       const lovableKey = Deno.env.get("LOVABLE_API_KEY");
       if (!lovableKey) return null;
@@ -419,13 +409,14 @@ function getProviderConfig(provider: AIProvider): ProviderConfig | null {
         supportsTemperature: true,
         maxTokensParam: 'max_tokens',
       };
+    default:
+      return null;
   }
 }
 
 function getAvailableProviders(): AIProvider[] {
   const providers: AIProvider[] = [];
   if (Deno.env.get("OPENAI_API_KEY")) providers.push('openai');
-  if (Deno.env.get("ABACUS_API_KEY")) providers.push('abacus');
   if (Deno.env.get("LOVABLE_API_KEY")) providers.push('lovable');
   return providers;
 }
@@ -601,26 +592,25 @@ serve(async (req) => {
     
     if (available.length === 0) {
       console.error(`[${requestId}] ERROR: No AI providers configured!`);
-      throw new Error("No AI provider available. Please configure OPENAI_API_KEY, ABACUS_API_KEY, or LOVABLE_API_KEY.");
+      throw new Error("No AI provider available. Please configure OPENAI_API_KEY or LOVABLE_API_KEY.");
     }
 
-    // Priority order: OpenAI first (most reliable), Abacus second, Lovable last (currently degraded with HTTP 405)
-    // Note: Lovable gateway is excluded until it's fixed
+    // Priority order: OpenAI first (most reliable), Lovable as backup
     const orderedProviders: AIProvider[] = [];
     
-    // Add preferred provider first, but only if it's not lovable (which is degraded)
+    // Add preferred provider first, but only if it's not lovable (which may be degraded)
     if (preferredProvider && preferredProvider !== 'lovable' && available.includes(preferredProvider)) {
       orderedProviders.push(preferredProvider);
     }
     
-    // Always prioritize openai and abacus over lovable
-    for (const p of ['openai', 'abacus'] as AIProvider[]) {
+    // Prioritize openai
+    for (const p of ['openai'] as AIProvider[]) {
       if (available.includes(p) && !orderedProviders.includes(p)) {
         orderedProviders.push(p);
       }
     }
     
-    // Only add lovable as last resort fallback (currently returning HTTP 405)
+    // Add lovable as fallback
     if (available.includes('lovable') && !orderedProviders.includes('lovable')) {
       orderedProviders.push('lovable');
     }

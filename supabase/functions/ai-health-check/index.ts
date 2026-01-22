@@ -106,29 +106,6 @@ async function checkAllProviders(deepCheck: boolean): Promise<ProviderHealth[]> 
     });
   }
 
-  // Check Abacus
-  const abacusKey = Deno.env.get('ABACUS_API_KEY');
-  if (abacusKey) {
-    providers.push(await checkProvider('abacus', deepCheck, {
-      endpoint: 'https://api.abacus.ai/v0/models',
-      headers: { Authorization: `Bearer ${abacusKey}` },
-      testEndpoint: 'https://api.abacus.ai/v0/chat/completions',
-      testBody: {
-        model: 'claude-sonnet-4-20250514',
-        messages: [{ role: 'user', content: 'Hi' }],
-        max_tokens: 5,
-      },
-    }));
-  } else {
-    providers.push({
-      provider: 'abacus',
-      available: false,
-      status: 'unknown',
-      lastChecked: new Date().toISOString(),
-      error: 'API key not configured',
-    });
-  }
-
   // Check Lovable AI Gateway
   const lovableKey = Deno.env.get('LOVABLE_API_KEY');
   if (lovableKey) {

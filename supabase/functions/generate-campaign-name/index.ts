@@ -20,7 +20,7 @@ serve(async (req) => {
 
     const providers = getAvailableProviders();
     if (providers.length === 0) {
-      throw new Error('No AI provider configured. Please set OPENAI_API_KEY, ABACUS_API_KEY, or LOVABLE_API_KEY.');
+      throw new Error('No AI provider configured. Please set OPENAI_API_KEY, PERPLEXITY_API_KEY, or LOVABLE_API_KEY.');
     }
 
     // Build context for AI
