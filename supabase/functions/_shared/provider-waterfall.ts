@@ -283,6 +283,38 @@ export function formatPhone(phone: string | null): string | null {
 }
 
 /**
+ * Extract message content from AI provider response.
+ * Handles different API response formats between providers.
+ * - OpenAI/Perplexity/xAI/Lovable/Abacus: choices[0].message.content
+ * - Anthropic/Claude: content[0].text
+ */
+export function extractContentFromResponse(provider: AIProvider, data: any): string {
+  if (!data) return '';
+  
+  // Anthropic/Claude uses content[].text instead of choices[].message.content
+  if (provider === 'anthropic') {
+    const contentBlocks = data?.content;
+    if (Array.isArray(contentBlocks)) {
+      // Find text block and extract content
+      const textBlock = contentBlocks.find((b: any) => b.type === 'text');
+      if (textBlock?.text) {
+        console.log(`[provider-waterfall] Anthropic response extracted: ${textBlock.text.substring(0, 100)}...`);
+        return textBlock.text;
+      }
+    }
+    // Fallback: try choices format in case Anthropic changes API
+    if (data?.choices?.[0]?.message?.content) {
+      return data.choices[0].message.content;
+    }
+    console.log(`[provider-waterfall] Anthropic: Could not extract content from response structure`);
+    return '';
+  }
+  
+  // OpenAI-compatible format (OpenAI, Perplexity, xAI, Lovable, Abacus)
+  return data?.choices?.[0]?.message?.content || '';
+}
+
+/**
  * Calculate field coverage status - used to determine if AI fallback is needed
  */
 export function getFieldCoverageStatus(
@@ -700,7 +732,7 @@ For revenue_range, use: "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M
     if (!response.ok) return null;
     
     const aiData = await response.json();
-    const content = aiData.choices?.[0]?.message?.content || '';
+    const content = extractContentFromResponse(providers[0] || 'lovable', aiData);
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return null;
     
@@ -831,7 +863,8 @@ Return ONLY a valid JSON object with the requested fields.`;
         continue;
       }
       
-      const content = response.data.choices?.[0]?.message?.content || '';
+      // Use provider-specific content extraction
+      const content = extractContentFromResponse(response.provider, response.data);
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         providerStats[providerName].skipped = true;
@@ -842,7 +875,21 @@ Return ONLY a valid JSON object with the requested fields.`;
       
       try {
         const parsed = JSON.parse(jsonMatch[0]);
-        const providerConfidence = (parsed.confidence || 60) / 100;
+        let providerConfidence = (parsed.confidence || 60) / 100;
+        
+        // Perplexity tends to under-report confidence for factual queries
+        // If it provides substantive data but reports < 50%, boost to baseline
+        if (response.provider === 'perplexity' && providerConfidence < 0.5) {
+          const fieldsProvided = Object.keys(parsed).filter(k => 
+            k !== 'confidence' && parsed[k] !== null && parsed[k] !== '' && parsed[k] !== undefined
+          ).length;
+          
+          if (fieldsProvided >= 3) {
+            const originalConfidence = providerConfidence;
+            providerConfidence = Math.max(providerConfidence, 0.6);
+            console.log(`[provider-waterfall] Perplexity: Boosted confidence from ${Math.round(originalConfidence * 100)}% to ${Math.round(providerConfidence * 100)}% (${fieldsProvided} fields provided)`);
+          }
+        }
         
         // Skip low confidence responses
         if (providerConfidence < 0.4) {
