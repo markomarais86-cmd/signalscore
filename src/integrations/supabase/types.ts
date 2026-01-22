@@ -1909,6 +1909,48 @@ export type Database = {
           },
         ]
       }
+      carrier_cache: {
+        Row: {
+          carrier_name: string | null
+          country_code: string | null
+          country_name: string | null
+          created_at: string
+          expires_at: string
+          line_type: string | null
+          org_id: string | null
+          phone_normalized: string
+          raw_response: Json | null
+          valid: boolean
+          verified_at: string
+        }
+        Insert: {
+          carrier_name?: string | null
+          country_code?: string | null
+          country_name?: string | null
+          created_at?: string
+          expires_at?: string
+          line_type?: string | null
+          org_id?: string | null
+          phone_normalized: string
+          raw_response?: Json | null
+          valid?: boolean
+          verified_at?: string
+        }
+        Update: {
+          carrier_name?: string | null
+          country_code?: string | null
+          country_name?: string | null
+          created_at?: string
+          expires_at?: string
+          line_type?: string | null
+          org_id?: string | null
+          phone_normalized?: string
+          raw_response?: Json | null
+          valid?: boolean
+          verified_at?: string
+        }
+        Relationships: []
+      }
       clay_webhook_config: {
         Row: {
           created_at: string
