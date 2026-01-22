@@ -33,6 +33,24 @@ import {
 
 import { getCorsHeaders } from '../_shared/cors.ts';
 
+// ============ STARTUP HEALTH CHECK ============
+console.log('[enrich-unified] Function loaded and ready at', new Date().toISOString());
+
+// Check for required API keys at startup
+const REQUIRED_KEYS = ['PERPLEXITY_API_KEY', 'FIRECRAWL_API_KEY'];
+const OPTIONAL_KEYS = ['APOLLO_API_KEY', 'PDL_API_KEY', 'HUNTER_API_KEY', 'ANTHROPIC_API_KEY'];
+
+const missingRequired = REQUIRED_KEYS.filter(k => !Deno.env.get(k));
+const availableOptional = OPTIONAL_KEYS.filter(k => Deno.env.get(k));
+
+if (missingRequired.length > 0) {
+  console.warn(`[enrich-unified] WARNING: Missing required keys: ${missingRequired.join(', ')}`);
+} else {
+  console.log(`[enrich-unified] All required API keys configured`);
+}
+console.log(`[enrich-unified] Available optional providers: ${availableOptional.join(', ') || 'none'}`);
+// ============================================
+
 interface UnifiedEnrichmentRequest {
   org_id: string;
   record_type: 'account' | 'lead' | 'contact';
@@ -341,9 +359,33 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('[enrich-unified] Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[enrich-unified] Fatal error:', errorMessage, error);
+    
+    // Try to update job with error if we have context
+    try {
+      const reqBody = await req.clone().json().catch(() => ({}));
+      if (reqBody.job_id) {
+        const supabase = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        );
+        await supabase
+          .from('enrichment_jobs')
+          .update({ 
+            status: 'failed', 
+            error_message: errorMessage,
+            completed_at: new Date().toISOString()
+          })
+          .eq('id', reqBody.job_id);
+        console.log(`[enrich-unified] Marked job ${reqBody.job_id} as failed`);
+      }
+    } catch (updateErr) {
+      console.error('[enrich-unified] Could not update job status:', updateErr);
+    }
+    
     return new Response(JSON.stringify({ 
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage,
       success: false
     }), {
       status: 500,
