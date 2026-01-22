@@ -92,15 +92,22 @@ export const CIRCUIT_BREAKER_CONFIGS: Record<string, CircuitBreakerConfig> = {
     cooldownPeriodMs: 60000,
     requestTimeoutMs: 30000 
   },
-  'abacus': { 
-    serviceName: 'abacus', 
+  'lovable': { 
+    serviceName: 'lovable', 
     failureThreshold: 3, 
     successThreshold: 2, 
     cooldownPeriodMs: 30000,
     requestTimeoutMs: 120000 
   },
-  'lovable': { 
-    serviceName: 'lovable', 
+  'perplexity': { 
+    serviceName: 'perplexity', 
+    failureThreshold: 3, 
+    successThreshold: 2, 
+    cooldownPeriodMs: 30000,
+    requestTimeoutMs: 120000 
+  },
+  'xai': { 
+    serviceName: 'xai', 
     failureThreshold: 3, 
     successThreshold: 2, 
     cooldownPeriodMs: 30000,

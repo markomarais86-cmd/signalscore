@@ -153,14 +153,14 @@ export function getApiKey(provider: AIProvider): string {
       return Deno.env.get('PERPLEXITY_API_KEY') || '';
     case 'openai':
       return Deno.env.get('OPENAI_API_KEY') || '';
-    case 'abacus':
-      return Deno.env.get('ABACUS_API_KEY') || '';
     case 'lovable':
       return Deno.env.get('LOVABLE_API_KEY') || '';
     case 'anthropic':
       return Deno.env.get('ANTHROPIC_API_KEY') || '';
     case 'xai':
       return Deno.env.get('XAI_API_KEY') || '';
+    default:
+      return '';
   }
 }
 
@@ -262,12 +262,6 @@ export function buildRequestBody(
     body.search_recency_filter = options.search_recency_filter;
   }
   
-  // Abacus-specific parameters
-  if (provider === 'abacus') {
-    body.deploymentToken = Deno.env.get('ABACUS_DEPLOYMENT_TOKEN') || '';
-    body.deploymentId = Deno.env.get('ABACUS_DEPLOYMENT_ID') || '';
-  }
-  
   return body;
 }
 
@@ -301,7 +295,6 @@ export async function callAI(
       ...providers.filter(p => p === 'xai'),         // Grok for social/X data
       ...providers.filter(p => p === 'lovable'),     // Gemini as fast fallback
       ...providers.filter(p => p === 'openai'),      // GPT as backup
-      ...providers.filter(p => p === 'abacus'),      // Abacus last
     ].filter(p => providers.includes(p));
     console.log(`[AI Config] Using AI-first waterfall for ${taskType}: ${orderedProviders.join(' → ')}`);
   } else if (options.preferredProvider) {

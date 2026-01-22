@@ -2,7 +2,7 @@
 
 import { validateRequest, validateResponse, estimateCost } from './ai-guardrails.ts';
 
-export type AIProvider = 'openai' | 'abacus' | 'lovable';
+export type AIProvider = 'openai' | 'lovable';
 export type TaskType = 'chat' | 'analysis' | 'search' | 'enrichment' | 'workflow';
 
 export interface AIMessage {
@@ -48,15 +48,6 @@ const PROVIDER_CONFIGS: Record<AIProvider, (taskType: TaskType) => ProviderConfi
       Authorization: `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
     },
   }),
-  abacus: (taskType) => ({
-    endpoint: 'https://api.abacus.ai/v0/chat/completions',
-    model: taskType === 'analysis' ? 'claude-sonnet-4-20250514' : 'claude-sonnet-4-20250514',
-    apiKey: Deno.env.get('ABACUS_API_KEY'),
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${Deno.env.get('ABACUS_API_KEY')}`,
-    },
-  }),
   lovable: () => ({
     endpoint: 'https://ai.gateway.lovable.dev/v1/chat/completions',
     model: 'google/gemini-2.5-flash',
@@ -73,7 +64,6 @@ export function getAvailableProviders(): AIProvider[] {
   const providers: AIProvider[] = [];
   
   if (Deno.env.get('OPENAI_API_KEY')) providers.push('openai');
-  if (Deno.env.get('ABACUS_API_KEY')) providers.push('abacus');
   if (Deno.env.get('LOVABLE_API_KEY')) providers.push('lovable');
   
   return providers;
@@ -87,8 +77,8 @@ function getProviderOrder(preferred?: AIProvider): AIProvider[] {
     return [preferred, ...available.filter(p => p !== preferred)];
   }
   
-  // Default priority: openai > abacus > lovable
-  const priority: AIProvider[] = ['openai', 'abacus', 'lovable'];
+  // Default priority: openai > lovable
+  const priority: AIProvider[] = ['openai', 'lovable'];
   return priority.filter(p => available.includes(p));
 }
 

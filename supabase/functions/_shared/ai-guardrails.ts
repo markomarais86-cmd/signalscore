@@ -252,12 +252,18 @@ export function estimateCost(provider: string, model: string, tokensInput: numbe
       'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
       'gpt-4-turbo': { input: 0.01, output: 0.03 },
     },
-    abacus: {
+    anthropic: {
       'claude-sonnet-4-20250514': { input: 0.003, output: 0.015 },
       default: { input: 0.002, output: 0.01 },
     },
     lovable: {
       default: { input: 0.001, output: 0.005 },
+    },
+    perplexity: {
+      default: { input: 0.001, output: 0.005 },
+    },
+    xai: {
+      default: { input: 0.002, output: 0.008 },
     },
   };
 
