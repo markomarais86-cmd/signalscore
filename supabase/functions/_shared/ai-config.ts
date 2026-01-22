@@ -36,12 +36,12 @@ export const AI_MODELS = {
     research: 'sonar-pro', // Real-time web search for contact/phone research
   },
   openai: {
-    chat: 'gpt-5-2025-08-07',
-    analysis: 'gpt-5-2025-08-07',
-    enrichment: 'gpt-5-mini-2025-08-07',
-    bulk: 'gpt-5-nano-2025-08-07',
-    reasoning: 'o4-mini-2025-04-16',
-    research: 'gpt-5-mini-2025-08-07', // Fallback for contact research
+    chat: 'gpt-4o',
+    analysis: 'gpt-4o',
+    enrichment: 'gpt-4o-mini',
+    bulk: 'gpt-4o-mini',
+    reasoning: 'o1-mini',
+    research: 'gpt-4o-mini', // Fallback for contact research
   },
   // Abacus removed - consistently fails due to missing deploymentId
   lovable: {
@@ -53,20 +53,20 @@ export const AI_MODELS = {
     research: 'google/gemini-2.5-flash', // Fast AI research fallback
   },
   anthropic: {
-    chat: 'claude-sonnet-4-20250514',
-    analysis: 'claude-sonnet-4-20250514',
-    enrichment: 'claude-sonnet-4-20250514',
-    bulk: 'claude-sonnet-4-20250514',
-    reasoning: 'claude-sonnet-4-20250514',
-    research: 'claude-sonnet-4-20250514', // Deep reasoning for structured extraction
+    chat: 'claude-3-5-sonnet-20241022',
+    analysis: 'claude-3-5-sonnet-20241022',
+    enrichment: 'claude-3-5-sonnet-20241022',
+    bulk: 'claude-3-5-haiku-20241022', // Cheaper for bulk operations
+    reasoning: 'claude-3-5-sonnet-20241022',
+    research: 'claude-3-5-sonnet-20241022', // Deep reasoning for structured extraction
   },
   xai: {
-    chat: 'grok-3',
-    analysis: 'grok-3',
-    enrichment: 'grok-3',
-    bulk: 'grok-3',
-    reasoning: 'grok-3',
-    research: 'grok-3', // Real-time X/Twitter social data
+    chat: 'grok-2-1212',
+    analysis: 'grok-2-1212',
+    enrichment: 'grok-2-1212',
+    bulk: 'grok-2-1212',
+    reasoning: 'grok-2-1212',
+    research: 'grok-2-1212', // Real-time X/Twitter social data
   },
 };
 
@@ -484,15 +484,19 @@ async function checkBudget(
 export function estimateCost(provider: string, model: string, tokensInput: number, tokensOutput: number): number {
   const costs: Record<string, Record<string, { input: number; output: number }>> = {
     openai: {
-      'gpt-5-2025-08-07': { input: 0.005, output: 0.015 },
-      'gpt-5-mini-2025-08-07': { input: 0.00015, output: 0.0006 },
-      'gpt-5-nano-2025-08-07': { input: 0.0001, output: 0.0003 },
-      'o4-mini-2025-04-16': { input: 0.003, output: 0.012 },
+      'gpt-4o': { input: 0.0025, output: 0.01 },
+      'gpt-4o-mini': { input: 0.00015, output: 0.0006 },
+      'o1-mini': { input: 0.003, output: 0.012 },
       default: { input: 0.003, output: 0.010 },
     },
     anthropic: {
-      'claude-sonnet-4-20250514': { input: 0.003, output: 0.015 },
+      'claude-3-5-sonnet-20241022': { input: 0.003, output: 0.015 },
+      'claude-3-5-haiku-20241022': { input: 0.0008, output: 0.004 },
       default: { input: 0.002, output: 0.01 },
+    },
+    xai: {
+      'grok-2-1212': { input: 0.002, output: 0.010 },
+      default: { input: 0.002, output: 0.010 },
     },
     lovable: {
       default: { input: 0.001, output: 0.005 },
