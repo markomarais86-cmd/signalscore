@@ -10,7 +10,7 @@ import { ScoreBreakdownDialog } from "@/components/scoring/ScoreBreakdownDialog"
 import { AccountDetailDrawer } from "@/components/accounts/AccountDetailDrawer";
 import { BulkScoring } from "@/components/BulkScoring";
 import { ComponentErrorBoundary } from "@/components/ComponentErrorBoundary";
-// EnrichmentModal removed - consolidated into UnifiedEnrichmentWizard
+import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import { TableSkeleton } from "@/components/TableSkeleton";
 import { useInfiniteAccounts } from "@/hooks/use-infinite-accounts";
@@ -102,8 +102,7 @@ export default function Accounts() {
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [showDetailDrawer, setShowDetailDrawer] = useState(false);
   const [enrichingSingleAccount, setEnrichingSingleAccount] = useState<string | null>(null);
-  // Navigate to enrichment page instead of modal
-  const openEnrichmentPage = () => navigate('/enrichment?mode=existing&type=accounts');
+  const [showEnrichmentModal, setShowEnrichmentModal] = useState(false);
   const [showCampaignBuilder, setShowCampaignBuilder] = useState(false);
   const [hasActiveICP, setHasActiveICP] = useState(false);
   const [needsScoring, setNeedsScoring] = useState(false);
@@ -481,7 +480,7 @@ export default function Accounts() {
         isLoading={isLoading}
         totalCount={totalCount}
         onOpenCampaignBuilder={() => setShowCampaignBuilder(true)}
-        onOpenEnrichmentModal={openEnrichmentPage}
+        onOpenEnrichmentModal={() => setShowEnrichmentModal(true)}
         onRefresh={refresh}
       />
 
@@ -644,11 +643,16 @@ export default function Accounts() {
         }}
       />
 
-      {/* Enrichment modals removed - consolidated into Enrichment page */}
-      {/* Single account enrichment redirects to enrichment page */}
-      {enrichingSingleAccount && (
-        <>{(() => { openEnrichmentPage(); setEnrichingSingleAccount(null); return null; })()}</>
-      )}
+      <EnrichmentModal
+        open={!!enrichingSingleAccount}
+        onOpenChange={(open) => !open && setEnrichingSingleAccount(null)}
+        selectedAccounts={1}
+      />
+
+      <EnrichmentModal
+        open={showEnrichmentModal}
+        onOpenChange={setShowEnrichmentModal}
+      />
 
       <CampaignBuilderV2
         isOpen={showCampaignBuilder}

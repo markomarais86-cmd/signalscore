@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
-// EnrichmentModal removed - consolidated into UnifiedEnrichmentWizard
+import { EnrichmentModal } from "./EnrichmentModal";
 import { DataCompletenessCard } from "@/components/insights/DataCompletenessCard";
 import { enrichmentLogger as log } from "@/lib/logger";
 import { TIMING, ENRICHMENT } from "@/lib/constants";
@@ -98,11 +98,8 @@ export function UnifiedInsightsPanel({
   const { userProfile } = useAuth();
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
-  // Navigate to enrichment page instead of modal
-  const openEnrichmentPage = (fields?: string[]) => {
-    const fieldsParam = fields?.join(',') || '';
-    navigate(`/enrichment?mode=existing&type=accounts${fieldsParam ? `&fields=${fieldsParam}` : ''}`);
-  };
+  const [enrichmentModalOpen, setEnrichmentModalOpen] = useState(false);
+  const [selectedEnrichmentFields, setSelectedEnrichmentFields] = useState<string[]>([]);
   const [isInsightsLoading, setIsInsightsLoading] = useState(false);
   
   // Persist collapse state to localStorage
@@ -454,7 +451,8 @@ export function UnifiedInsightsPanel({
       }
       navigate(url.pathname + url.search);
     } else if (item.type === 'risk' && item.action === 'enrich') {
-      openEnrichmentPage(['contacts']);
+      setSelectedEnrichmentFields(['contacts']);
+      setEnrichmentModalOpen(true);
     }
   };
 
@@ -898,7 +896,11 @@ export function UnifiedInsightsPanel({
               </div>
             </div>
 
-            {/* Enrichment modal removed - consolidated into Enrichment page */}
+            <EnrichmentModal
+              open={enrichmentModalOpen}
+              onOpenChange={setEnrichmentModalOpen}
+              targetFields={selectedEnrichmentFields}
+            />
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
