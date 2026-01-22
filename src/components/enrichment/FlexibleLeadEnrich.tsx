@@ -19,12 +19,14 @@ import {
   Linkedin,
   Upload,
   CheckCircle,
-  AlertCircle,
-  Loader2
+  Loader2,
+  Bot,
+  ExternalLink
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 interface ParsedInput {
   type: 'email' | 'domain' | 'company';
@@ -32,13 +34,22 @@ interface ParsedInput {
   domain?: string;
 }
 
-interface EnrichmentResult {
-  input: any;
-  enriched_data: Record<string, any>;
-  source: string;
-  confidence: number;
-  fields_filled: string[];
-  api_calls_saved: boolean;
+interface EnrichmentSummary {
+  total: number;
+  processed: number;
+  enriched: number;
+  failed: number;
+  remaining: number;
+  totalCost: number;
+  avgConfidence: number;
+}
+
+interface SourceBreakdown {
+  [provider: string]: {
+    attempted: number;
+    enriched: number;
+    cost: number;
+  };
 }
 
 const SOURCE_OPTIONS = [
@@ -53,6 +64,7 @@ const SOURCE_OPTIONS = [
 export function FlexibleLeadEnrich() {
   const { userProfile } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
   const [inputText, setInputText] = useState("");
   const [sourceType, setSourceType] = useState("manual");
@@ -60,8 +72,12 @@ export function FlexibleLeadEnrich() {
   const [autoMatchAccounts, setAutoMatchAccounts] = useState(true);
   const [forceReEnrich, setForceReEnrich] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [results, setResults] = useState<EnrichmentResult[] | null>(null);
   const [parsedInputs, setParsedInputs] = useState<ParsedInput[]>([]);
+  const [enrichmentResult, setEnrichmentResult] = useState<{
+    summary: EnrichmentSummary;
+    source_breakdown: SourceBreakdown;
+    job_id?: string;
+  } | null>(null);
 
   // Parse input text into structured data
   const parseInputs = (text: string): ParsedInput[] => {
@@ -94,44 +110,75 @@ export function FlexibleLeadEnrich() {
   const handleInputChange = (text: string) => {
     setInputText(text);
     setParsedInputs(parseInputs(text));
-    setResults(null);
+    setEnrichmentResult(null);
   };
 
-  // Process enrichment
+  // Process enrichment using enrich-unified API
   const handleEnrich = async () => {
     if (!userProfile?.org_id || parsedInputs.length === 0) return;
 
     setIsProcessing(true);
-    setResults(null);
+    setEnrichmentResult(null);
 
     try {
-      // Convert parsed inputs to the format expected by the edge function
-      const inputs = parsedInputs.map(p => ({
+      // Convert parsed inputs to enrich-unified format
+      const records = parsedInputs.map((p, idx) => ({
+        id: idx + 1,
         email: p.type === 'email' ? p.value : undefined,
         domain: p.type === 'domain' ? p.value : p.domain,
-        company_name: p.type === 'company' ? p.value : undefined,
-        source_type: sourceType
+        company: p.type === 'company' ? p.value : undefined,
+        name: p.type === 'company' ? p.value : undefined,
       }));
 
-      const { data, error } = await supabase.functions.invoke('enrich-v4', {
+      const { data, error } = await supabase.functions.invoke('enrich-unified', {
         body: {
-          inputs,
           org_id: userProfile.org_id,
-          source_type: sourceType,
-          force_external: forceReEnrich,
-          skip_ai: false
+          record_type: 'lead',
+          records,
+          config: {
+            skipPaidProviders: !checkInternalFirst,
+            verifyEmail: true,
+            includeWebScrape: true,
+          }
         }
       });
 
       if (error) throw error;
 
-      setResults(data.results);
+      // Handle async job response (for large batches)
+      if (data?.job_id && !data?.summary) {
+        toast({
+          title: "Enrichment Started",
+          description: `Processing ${parsedInputs.length} records in background. Check the Leads page for results.`,
+        });
+        setEnrichmentResult({ 
+          summary: { total: parsedInputs.length, processed: 0, enriched: 0, failed: 0, remaining: parsedInputs.length, totalCost: 0, avgConfidence: 0 },
+          source_breakdown: {},
+          job_id: data.job_id 
+        });
+        return;
+      }
 
-      const stats = data.stats;
+      // Handle synchronous response with summary
+      const summary = data?.summary || { total: parsedInputs.length, processed: 0, enriched: 0, failed: 0, remaining: 0, totalCost: 0, avgConfidence: 0 };
+      const breakdown = data?.source_breakdown || {};
+
+      setEnrichmentResult({ summary, source_breakdown: breakdown, job_id: data?.job_id });
+
+      // Calculate totals from breakdown
+      const internalCount = breakdown.internal_cache?.enriched || breakdown.internal?.enriched || 0;
+      const apiCount = (breakdown.perplexity?.enriched || 0) + (breakdown.firecrawl?.enriched || 0) + 
+                       (breakdown.apollo?.enriched || 0) + (breakdown.pdl?.enriched || 0);
+      const aiCount = breakdown.ai?.enriched || breakdown.claude?.enriched || 0;
+
       toast({
         title: "Enrichment Complete",
-        description: `${stats.internal_matches} from internal data, ${stats.apollo_enriched + stats.pdl_enriched} from APIs, ${stats.ai_enriched} from AI. Saved ${stats.api_calls_saved} API calls.`,
+        description: `${internalCount} from internal data, ${apiCount} from APIs, ${aiCount} from AI.`,
       });
+
+      // Clear input after success
+      setInputText("");
+      setParsedInputs([]);
 
     } catch (error: any) {
       console.error('Enrichment error:', error);
@@ -145,24 +192,16 @@ export function FlexibleLeadEnrich() {
     }
   };
 
-  const getSourceIcon = (source: string) => {
-    switch (source) {
-      case 'internal': return <Database className="h-3 w-3" />;
-      case 'apollo': return <Zap className="h-3 w-3" />;
-      case 'pdl': return <Users className="h-3 w-3" />;
-      case 'ai': return <Sparkles className="h-3 w-3" />;
-      default: return <Globe className="h-3 w-3" />;
-    }
-  };
-
-  const getSourceColor = (source: string) => {
-    switch (source) {
-      case 'internal': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
-      case 'apollo': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'pdl': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400';
-      case 'ai': return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400';
-      default: return 'bg-muted text-muted-foreground';
-    }
+  // Calculate display values from source breakdown
+  const getBreakdownStats = () => {
+    if (!enrichmentResult?.source_breakdown) return { internal: 0, api: 0, ai: 0 };
+    const b = enrichmentResult.source_breakdown;
+    return {
+      internal: b.internal_cache?.enriched || b.internal?.enriched || 0,
+      api: (b.perplexity?.enriched || 0) + (b.firecrawl?.enriched || 0) + 
+           (b.apollo?.enriched || 0) + (b.pdl?.enriched || 0) + (b.hunter?.enriched || 0),
+      ai: b.ai?.enriched || b.claude?.enriched || b.anthropic?.enriched || 0
+    };
   };
 
   return (
@@ -178,7 +217,7 @@ export function FlexibleLeadEnrich() {
                 <div>
                   <CardTitle className="text-base flex items-center gap-2">
                     Flexible Enrichment
-                    <Badge variant="secondary" className="text-xs">New</Badge>
+                    <Badge variant="secondary" className="text-xs">Unified API</Badge>
                   </CardTitle>
                   <CardDescription className="text-xs">
                     Paste emails, domains, or company names - no CSV required
@@ -306,69 +345,59 @@ export function FlexibleLeadEnrich() {
               </Button>
             </div>
 
-            {/* Results */}
-            {results && results.length > 0 && (
+            {/* Results Summary - unified API returns aggregate stats */}
+            {enrichmentResult && (
               <div className="space-y-3 pt-4 border-t">
                 <h4 className="text-sm font-medium flex items-center gap-2">
                   <CheckCircle className="h-4 w-4 text-green-500" />
-                  Enrichment Results
+                  {enrichmentResult.job_id && !enrichmentResult.summary.enriched 
+                    ? 'Enrichment In Progress' 
+                    : 'Enrichment Complete'}
                 </h4>
-                <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                  {results.map((result, idx) => (
-                    <div 
-                      key={idx} 
-                      className="p-3 rounded-lg border bg-muted/30 space-y-2"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium truncate">
-                          {result.input.email || result.input.domain || result.input.company_name}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          {result.api_calls_saved && (
-                            <Badge variant="outline" className="text-xs text-green-600">
-                              Saved API call
-                            </Badge>
-                          )}
-                          <Badge className={`text-xs ${getSourceColor(result.source)}`}>
-                            {getSourceIcon(result.source)}
-                            <span className="ml-1 capitalize">{result.source}</span>
-                          </Badge>
-                        </div>
-                      </div>
-                      {result.fields_filled.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {result.enriched_data.name && (
-                            <Badge variant="secondary" className="text-xs">
-                              {result.enriched_data.name}
-                            </Badge>
-                          )}
-                          {result.enriched_data.employee_count && (
-                            <Badge variant="secondary" className="text-xs">
-                              {result.enriched_data.employee_count} employees
-                            </Badge>
-                          )}
-                          {result.enriched_data.revenue_range && (
-                            <Badge variant="secondary" className="text-xs">
-                              {result.enriched_data.revenue_range}
-                            </Badge>
-                          )}
-                          {result.enriched_data.industry_norm && (
-                            <Badge variant="secondary" className="text-xs">
-                              {result.enriched_data.industry_norm}
-                            </Badge>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <AlertCircle className="h-3 w-3" />
-                          No data found
-                        </div>
-                      )}
-                      <div className="text-xs text-muted-foreground">
-                        Confidence: {Math.round(result.confidence * 100)}%
-                      </div>
-                    </div>
-                  ))}
+                
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="p-2 rounded-lg bg-muted">
+                    <span className="text-muted-foreground">Total:</span>{' '}
+                    <span className="font-medium">{enrichmentResult.summary.total}</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-muted">
+                    <span className="text-muted-foreground">Enriched:</span>{' '}
+                    <span className="font-medium text-green-600">{enrichmentResult.summary.enriched}</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
+                    <Database className="h-3 w-3 inline mr-1" />
+                    <span className="text-muted-foreground">Internal:</span>{' '}
+                    <span className="font-medium">{getBreakdownStats().internal}</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                    <Zap className="h-3 w-3 inline mr-1" />
+                    <span className="text-muted-foreground">API:</span>{' '}
+                    <span className="font-medium">{getBreakdownStats().api}</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/30">
+                    <Bot className="h-3 w-3 inline mr-1" />
+                    <span className="text-muted-foreground">AI:</span>{' '}
+                    <span className="font-medium">{getBreakdownStats().ai}</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-muted">
+                    <span className="text-muted-foreground">Cost:</span>{' '}
+                    <span className="font-medium">${enrichmentResult.summary.totalCost?.toFixed(4) || '0.00'}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <p className="text-xs text-muted-foreground">
+                    Enriched records have been saved to your leads.
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="gap-1"
+                    onClick={() => navigate('/leads')}
+                  >
+                    View Leads
+                    <ExternalLink className="h-3 w-3" />
+                  </Button>
                 </div>
               </div>
             )}
