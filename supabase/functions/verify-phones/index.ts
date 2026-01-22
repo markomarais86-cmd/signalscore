@@ -3,6 +3,14 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { 
+  isValidPhoneNumber, 
+  sanitizePhone, 
+  hasRepeatingPattern,
+  isGPSCoordinate,
+  classifyPhoneType,
+  type PhoneEntry 
+} from "../_shared/phone-utils.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -27,34 +35,43 @@ interface VerifiedPhone {
   verified_at: string;
 }
 
-// Normalize phone number to E.164 format
-function normalizePhone(phone: string): { normalized: string; issues: string[] } {
+// Normalize phone number to E.164 format using new utilities
+function normalizePhone(phone: string): { normalized: string | null; issues: string[] } {
   const issues: string[] = [];
-  let cleaned = phone.replace(/\D/g, '');
   
-  // Handle US numbers
-  if (cleaned.length === 10) {
-    cleaned = '1' + cleaned;
+  // Check for GPS coordinates first
+  if (isGPSCoordinate(phone)) {
+    issues.push('GPS coordinate detected');
+    return { normalized: null, issues };
   }
   
-  // Handle numbers that might have country code already
-  if (cleaned.startsWith('1') && cleaned.length === 11) {
-    // Valid US/Canada number
-  } else if (cleaned.length < 10) {
-    issues.push('Too short for valid phone');
-  } else if (cleaned.length > 15) {
-    issues.push('Too long for valid phone');
+  // Check for repeating patterns
+  const digits = phone.replace(/\D/g, '');
+  if (hasRepeatingPattern(digits)) {
+    issues.push('Suspicious repeating digit pattern');
+    return { normalized: null, issues };
   }
   
-  const normalized = '+' + cleaned;
+  // Use the new sanitizePhone function
+  const sanitized = sanitizePhone(phone);
   
-  return { normalized, issues };
+  if (!sanitized) {
+    if (digits.length < 7) {
+      issues.push('Too short for valid phone');
+    } else if (digits.length > 15) {
+      issues.push('Too long for valid phone');
+    } else {
+      issues.push('Invalid phone format');
+    }
+    return { normalized: null, issues };
+  }
+  
+  return { normalized: sanitized, issues };
 }
 
-// Validate phone number format
+// Validate phone number format using new utilities
 function isValidE164(phone: string): boolean {
-  // E.164: + followed by 1-15 digits
-  return /^\+[1-9]\d{6,14}$/.test(phone);
+  return isValidPhoneNumber(phone);
 }
 
 // Calculate similarity between two phone numbers (handles minor variations)
@@ -98,17 +115,34 @@ serve(async (req) => {
 
     console.log(`[verify-phones] Processing ${phones.length} phone numbers`);
 
-    // Step 1: Normalize all phones
-    const normalizedPhones: Array<PhoneInput & { normalized: string; issues: string[] }> = 
-      phones.map((p: PhoneInput) => {
-        const { normalized, issues } = normalizePhone(p.number);
-        return { ...p, normalized, issues };
-      });
+    // Step 1: Normalize all phones, filtering out invalid ones
+    const normalizedPhones: Array<PhoneInput & { normalized: string; issues: string[] }> = [];
+    let rejected = 0;
+    
+    for (const p of phones as PhoneInput[]) {
+      const { normalized, issues } = normalizePhone(p.number);
+      
+      // Skip phones that failed validation
+      if (!normalized) {
+        console.log(`[verify-phones] Rejected: ${p.number} - ${issues.join(', ')}`);
+        rejected++;
+        continue;
+      }
+      
+      normalizedPhones.push({ ...p, normalized, issues });
+    }
+    
+    if (rejected > 0) {
+      console.log(`[verify-phones] Rejected ${rejected} invalid phone numbers`);
+    }
 
     // Step 2: Group by normalized number (deduplication)
     const phoneGroups = new Map<string, Array<typeof normalizedPhones[0]>>();
     
     for (const phone of normalizedPhones) {
+      // Skip if normalized is somehow still null (shouldn't happen after filter)
+      if (!phone.normalized) continue;
+      
       // Find existing group with similar number
       let matched = false;
       for (const [key, group] of phoneGroups) {
@@ -195,9 +229,10 @@ serve(async (req) => {
       }
     }
 
-    const duplicatesRemoved = phones.length - verifiedPhones.length;
+    const duplicatesRemoved = normalizedPhones.length - verifiedPhones.length;
+    const totalRejected = phones.length - normalizedPhones.length;
 
-    console.log(`[verify-phones] Complete: ${verifiedPhones.length} unique phones, ${duplicatesRemoved} duplicates removed`);
+    console.log(`[verify-phones] Complete: ${verifiedPhones.length} valid phones, ${totalRejected} rejected (invalid), ${duplicatesRemoved} duplicates removed`);
 
     return new Response(JSON.stringify({
       verified_phones: verifiedPhones,
@@ -205,6 +240,7 @@ serve(async (req) => {
         total: phones.length,
         unique: verifiedPhones.length,
         valid: verifiedPhones.filter(p => p.is_valid).length,
+        rejected_invalid: totalRejected,
         duplicates_removed: duplicatesRemoved,
         multi_source: verifiedPhones.filter(p => p.sources.length > 1).length
       }
