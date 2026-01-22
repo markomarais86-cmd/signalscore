@@ -5,16 +5,28 @@
  * 1. Extract name from email
  * 2. Perplexity AI search (primary discovery)
  * 3. Firecrawl website scrape (ground truth)
- * 4. Claude/AI for remaining gaps
+ * 4. Multi-provider AI aggregation (Claude/Gemini/Grok) for remaining gaps
  * 5. PDL (fallback)
  * 6. Apollo (last resort)
  * 7. Hunter email verification
  * 
  * A 'verifiedFields' Set ensures data from reliable sources acts as ground truth
  * and cannot be overwritten by subsequent lookups.
+ * 
+ * NEW: aggregateProviders mode calls ALL available AI providers and merges results
+ * with proper precedence to maximize field coverage.
  */
 
-import { callAI, getAvailableProviders, type AIProvider, type TaskType } from './ai-config.ts';
+import { 
+  callAI, 
+  callAIAllProviders, 
+  getAvailableProviders, 
+  getProviderConfidence,
+  getProviderCost,
+  type AIProvider, 
+  type TaskType,
+  type AggregatedAIResponse 
+} from './ai-config.ts';
 import { withHttpRetry, DEFAULT_RETRY_CONFIG } from './retry-helper.ts';
 
 // ============================================================================
@@ -106,7 +118,50 @@ export interface WaterfallConfig {
   discoverPhone?: boolean;
   includeWebScrape?: boolean;
   timeout?: number;
+  
+  // NEW: Full-field enrichment options
+  aggregateProviders?: boolean;      // Call all AI providers and merge results (default: true)
+  preferredProvider?: AIProvider;    // Try this provider first
+  forceAllStages?: boolean;          // Run PDL/Apollo even if some data exists (default: false)
+  fieldsToEnrich?: string[];         // Specific fields to target (empty = all)
 }
+
+// All enrichable fields - used for comprehensive field coverage
+export const ALL_ENRICHABLE_FIELDS = [
+  // Firmographic
+  'employee_count', 'revenue_range', 'industry', 'founded_year',
+  // Location
+  'city', 'state', 'country',
+  // Company identifiers  
+  'company_name', 'domain', 'linkedin_company_url', 'twitter_url',
+  // Contact details
+  'title', 'linkedin_url', 'phone', 'mobile', 'direct_phone', 'email_verified',
+  // Funding
+  'total_raised_usd', 'last_funding_round',
+  // Classification
+  'naics', 'sic_code', 'tech_stack',
+];
+
+// Provider precedence for field conflicts (higher index = higher priority for that field type)
+export const PROVIDER_PRECEDENCE: Record<string, AIProvider[]> = {
+  // Real-time company data
+  employee_count: ['perplexity', 'anthropic', 'openai', 'lovable', 'xai', 'abacus'],
+  revenue_range: ['perplexity', 'anthropic', 'openai', 'lovable', 'xai', 'abacus'],
+  industry: ['perplexity', 'anthropic', 'lovable', 'openai', 'xai', 'abacus'],
+  
+  // Contact/social data - Grok excels here
+  linkedin_url: ['xai', 'perplexity', 'anthropic', 'lovable', 'openai', 'abacus'],
+  twitter_url: ['xai', 'perplexity', 'lovable', 'anthropic', 'openai', 'abacus'],
+  phone: ['perplexity', 'anthropic', 'xai', 'lovable', 'openai', 'abacus'],
+  
+  // Location - prefer AI with web search
+  city: ['perplexity', 'anthropic', 'lovable', 'openai', 'xai', 'abacus'],
+  state: ['perplexity', 'anthropic', 'lovable', 'openai', 'xai', 'abacus'],
+  country: ['perplexity', 'anthropic', 'lovable', 'openai', 'xai', 'abacus'],
+  
+  // Default precedence for other fields
+  default: ['perplexity', 'anthropic', 'xai', 'lovable', 'openai', 'abacus'],
+};
 
 // ============================================================================
 // PROVIDER COST ESTIMATES (per record)
@@ -468,7 +523,7 @@ Return ONLY valid JSON, no other text.`;
 }
 
 // ============================================================================
-// STEP 4: AI FALLBACK (Claude/Gemini/Grok)
+// STEP 4: AI FALLBACK (Single Provider - Legacy)
 // ============================================================================
 
 async function enrichFromAI(
@@ -486,12 +541,13 @@ async function enrichFromAI(
   
   if (!companyName && !domain) return null;
   
-  // Identify missing fields
+  // Identify ALL missing fields (expanded coverage)
   const missingFields: string[] = [];
-  if (!data.employee_count && !verifiedFields.has('employee_count')) missingFields.push('employee_count');
-  if (!data.revenue_range && !verifiedFields.has('revenue_range')) missingFields.push('revenue_range');
-  if (!data.industry && !verifiedFields.has('industry')) missingFields.push('industry');
-  if (!data.founded_year && !verifiedFields.has('founded_year')) missingFields.push('founded_year');
+  for (const field of ALL_ENRICHABLE_FIELDS) {
+    if (!(data as any)[field] && !verifiedFields.has(field)) {
+      missingFields.push(field);
+    }
+  }
   
   if (missingFields.length === 0) return null;
   
@@ -549,13 +605,165 @@ For revenue_range, use: "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M
 }
 
 // ============================================================================
+// STEP 4b: MULTI-PROVIDER AI AGGREGATION (NEW - Full Coverage Mode)
+// ============================================================================
+
+/**
+ * Call ALL available AI providers and merge their results.
+ * Uses provider precedence to resolve conflicts and never overwrites verified fields.
+ */
+async function enrichFromMultipleAI(
+  input: EnrichmentInput,
+  data: EnrichedData,
+  verifiedFields: Set<string>,
+  config: WaterfallConfig
+): Promise<EnrichmentSource[]> {
+  const sources: EnrichmentSource[] = [];
+  const start = Date.now();
+  
+  const companyName = input.company || input.company_name || data.company_name;
+  const domain = input.domain || data.domain;
+  const personName = input.name || [input.first_name, input.last_name].filter(Boolean).join(' ');
+  
+  if (!companyName && !domain && !personName) return [];
+  
+  // Identify ALL missing fields
+  const fieldsToEnrich = config.fieldsToEnrich?.length 
+    ? config.fieldsToEnrich 
+    : ALL_ENRICHABLE_FIELDS;
+  
+  const missingFields: string[] = [];
+  for (const field of fieldsToEnrich) {
+    if (!(data as any)[field] && !verifiedFields.has(field)) {
+      missingFields.push(field);
+    }
+  }
+  
+  if (missingFields.length === 0) {
+    console.log('[provider-waterfall] No missing fields for AI enrichment');
+    return [];
+  }
+  
+  console.log(`[provider-waterfall] Multi-AI enrichment: ${missingFields.length} missing fields`);
+  
+  // Build comprehensive prompt
+  const targetInfo = personName 
+    ? `${personName} at ${companyName || domain}`
+    : `${companyName || domain}`;
+    
+  const prompt = `Research and provide data for ${targetInfo}.
+
+Find information for these fields:
+${missingFields.map(f => `- ${f}`).join('\n')}
+
+Guidelines:
+- For employee_count: provide exact number if known, or best estimate
+- For revenue_range: use "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M", "$50M-$100M", "$100M-$500M", "$500M-$1B", "$1B-$10B", "$10B+"
+- For phone numbers: use E.164 format (+1XXXXXXXXXX)
+- For linkedin_url: use full URL
+- Include a 'confidence' score (0-100) for the overall data quality
+
+Return ONLY a valid JSON object with the requested fields.`;
+
+  try {
+    // Call all AI providers
+    const responses = await callAIAllProviders('enrichment', [
+      { role: 'system', content: 'You are a B2B data researcher. Provide accurate, verifiable information. Only include fields you have reasonable confidence about.' },
+      { role: 'user', content: prompt },
+    ], { preferredProvider: config.preferredProvider });
+    
+    // Track which provider filled each field (for precedence)
+    const fieldProviders: Record<string, { provider: AIProvider; value: any; confidence: number }> = {};
+    
+    // Process each provider's response
+    for (const response of responses) {
+      if (!response.success || !response.data) continue;
+      
+      const content = response.data.choices?.[0]?.message?.content || '';
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) continue;
+      
+      try {
+        const parsed = JSON.parse(jsonMatch[0]);
+        const providerConfidence = (parsed.confidence || 60) / 100;
+        
+        // Skip low confidence responses
+        if (providerConfidence < 0.4) continue;
+        
+        for (const field of missingFields) {
+          const value = parsed[field];
+          if (value === undefined || value === null || value === '') continue;
+          
+          // Skip if this field is verified (ground truth)
+          if (verifiedFields.has(field)) continue;
+          
+          // Check if this provider has precedence for this field
+          const precedence = PROVIDER_PRECEDENCE[field] || PROVIDER_PRECEDENCE.default;
+          const existingEntry = fieldProviders[field];
+          
+          if (!existingEntry) {
+            // First provider to supply this field
+            fieldProviders[field] = { provider: response.provider, value, confidence: providerConfidence };
+          } else {
+            // Check precedence - lower index = higher priority
+            const existingPriority = precedence.indexOf(existingEntry.provider);
+            const newPriority = precedence.indexOf(response.provider);
+            
+            if (newPriority < existingPriority && newPriority !== -1) {
+              // New provider has higher precedence
+              fieldProviders[field] = { provider: response.provider, value, confidence: providerConfidence };
+            }
+          }
+        }
+      } catch (parseError) {
+        console.warn(`[provider-waterfall] Failed to parse ${response.provider} response`);
+      }
+    }
+    
+    // Group fields by provider for source tracking
+    const providerFields: Record<string, string[]> = {};
+    
+    for (const [field, entry] of Object.entries(fieldProviders)) {
+      // Apply the value to data
+      (data as any)[field] = entry.value;
+      
+      // Group by provider
+      const providerKey = `ai_${entry.provider}`;
+      if (!providerFields[providerKey]) {
+        providerFields[providerKey] = [];
+      }
+      providerFields[providerKey].push(field);
+    }
+    
+    // Create source entries for each provider that contributed
+    for (const [providerKey, fields] of Object.entries(providerFields)) {
+      const baseProvider = providerKey.replace('ai_', '') as AIProvider;
+      sources.push({
+        provider: providerKey,
+        fieldsEnriched: fields,
+        confidence: getProviderConfidence(baseProvider),
+        latencyMs: Date.now() - start,
+        cost: getProviderCost(baseProvider),
+      });
+      console.log(`[provider-waterfall] Multi-AI (${providerKey}): ${fields.join(', ')}`);
+    }
+    
+    return sources;
+  } catch (error) {
+    console.error('[provider-waterfall] Multi-AI enrichment error:', error);
+    return [];
+  }
+}
+
+// ============================================================================
 // STEP 5 & 6: PDL AND APOLLO (PAID FALLBACKS)
 // ============================================================================
 
 async function enrichFromPDL(
   input: EnrichmentInput,
   data: EnrichedData,
-  verifiedFields: Set<string>
+  verifiedFields: Set<string>,
+  forceAllStages: boolean = false
 ): Promise<EnrichmentSource | null> {
   const start = Date.now();
   
@@ -565,8 +773,11 @@ async function enrichFromPDL(
   const domain = input.domain || data.domain;
   if (!domain) return null;
   
-  // Skip if we already have key firmographic data
-  if (data.employee_count && data.revenue_range && data.industry) return null;
+  // Skip only if we have ALL key firmographic data AND forceAllStages is false
+  if (!forceAllStages && data.employee_count && data.revenue_range && data.industry) {
+    console.log('[provider-waterfall] PDL skipped - key data already present');
+    return null;
+  }
   
   try {
     const response = await withHttpRetry(
@@ -601,6 +812,22 @@ async function enrichFromPDL(
       fieldsEnriched.push('country');
     }
     
+    // Additional PDL fields for expanded coverage
+    if (pdlData.linkedin_url && !data.linkedin_company_url) {
+      data.linkedin_company_url = pdlData.linkedin_url;
+      fieldsEnriched.push('linkedin_company_url');
+    }
+    
+    if (pdlData.twitter_url && !data.twitter_url) {
+      data.twitter_url = pdlData.twitter_url;
+      fieldsEnriched.push('twitter_url');
+    }
+    
+    if (pdlData.founded && !data.founded_year && !verifiedFields.has('founded_year')) {
+      data.founded_year = pdlData.founded;
+      fieldsEnriched.push('founded_year');
+    }
+    
     if (fieldsEnriched.length === 0) return null;
     
     return {
@@ -619,7 +846,8 @@ async function enrichFromPDL(
 async function enrichFromApollo(
   input: EnrichmentInput,
   data: EnrichedData,
-  verifiedFields: Set<string>
+  verifiedFields: Set<string>,
+  forceAllStages: boolean = false
 ): Promise<EnrichmentSource | null> {
   const start = Date.now();
   
@@ -629,8 +857,11 @@ async function enrichFromApollo(
   const domain = input.domain || data.domain;
   if (!domain) return null;
   
-  // Skip if we already have key firmographic data
-  if (data.employee_count && data.revenue_range && data.industry) return null;
+  // Skip only if we have ALL key firmographic data AND forceAllStages is false
+  if (!forceAllStages && data.employee_count && data.revenue_range && data.industry) {
+    console.log('[provider-waterfall] Apollo skipped - key data already present');
+    return null;
+  }
   
   try {
     const response = await withHttpRetry(
@@ -670,9 +901,29 @@ async function enrichFromApollo(
       fieldsEnriched.push('country');
     }
     
+    if (org.city && !data.city && !verifiedFields.has('city')) {
+      data.city = org.city;
+      fieldsEnriched.push('city');
+    }
+    
+    if (org.state && !data.state && !verifiedFields.has('state')) {
+      data.state = org.state;
+      fieldsEnriched.push('state');
+    }
+    
     if (org.linkedin_url && !data.linkedin_company_url) {
       data.linkedin_company_url = org.linkedin_url;
       fieldsEnriched.push('linkedin_company_url');
+    }
+    
+    if (org.twitter_url && !data.twitter_url) {
+      data.twitter_url = org.twitter_url;
+      fieldsEnriched.push('twitter_url');
+    }
+    
+    if (org.founded_year && !data.founded_year && !verifiedFields.has('founded_year')) {
+      data.founded_year = org.founded_year;
+      fieldsEnriched.push('founded_year');
     }
     
     if (fieldsEnriched.length === 0) return null;
@@ -796,21 +1047,41 @@ export async function runEnrichmentWaterfall(
     }
   }
   
-  // Step 4: AI fallback for remaining gaps
-  const aiResult = await enrichFromAI(input, data, verifiedFields);
-  if (aiResult) {
-    sources.push(aiResult);
-    costs.push({ provider: aiResult.provider, cost: aiResult.cost });
-    totalCost += aiResult.cost;
-    console.log(`[provider-waterfall] Step 4 (AI): ${aiResult.fieldsEnriched.join(', ')}`);
+  // Step 4: AI enrichment (single or multi-provider based on config)
+  // Default to aggregateProviders: true for maximum field coverage
+  const useAggregation = config.aggregateProviders !== false;
+  
+  if (useAggregation) {
+    // NEW: Multi-provider AI aggregation for full field coverage
+    const multiAIResults = await enrichFromMultipleAI(input, data, verifiedFields, config);
+    for (const aiResult of multiAIResults) {
+      sources.push(aiResult);
+      costs.push({ provider: aiResult.provider, cost: aiResult.cost });
+      totalCost += aiResult.cost;
+    }
+    if (multiAIResults.length > 0) {
+      console.log(`[provider-waterfall] Step 4 (Multi-AI): ${multiAIResults.length} providers contributed`);
+    }
+  } else {
+    // Legacy: Single provider AI fallback
+    const aiResult = await enrichFromAI(input, data, verifiedFields);
+    if (aiResult) {
+      sources.push(aiResult);
+      costs.push({ provider: aiResult.provider, cost: aiResult.cost });
+      totalCost += aiResult.cost;
+      console.log(`[provider-waterfall] Step 4 (AI): ${aiResult.fieldsEnriched.join(', ')}`);
+    }
   }
   
-  // Steps 5-6: Paid providers (skip if we have enough data or config says skip)
+  // Steps 5-6: Paid providers
+  // With forceAllStages, run even if some data exists; otherwise check key data
   const hasKeyData = data.employee_count && data.revenue_range && data.industry;
+  const shouldRunPaid = !config.skipPaidProviders && totalCost < maxCost;
+  const forceAll = config.forceAllStages ?? false;
   
-  if (!config.skipPaidProviders && !hasKeyData && totalCost < maxCost) {
+  if (shouldRunPaid && (forceAll || !hasKeyData)) {
     // Step 5: PDL
-    const pdlResult = await enrichFromPDL(input, data, verifiedFields);
+    const pdlResult = await enrichFromPDL(input, data, verifiedFields, forceAll);
     if (pdlResult) {
       sources.push(pdlResult);
       costs.push({ provider: pdlResult.provider, cost: pdlResult.cost });
@@ -818,9 +1089,10 @@ export async function runEnrichmentWaterfall(
       console.log(`[provider-waterfall] Step 5 (PDL): ${pdlResult.fieldsEnriched.join(', ')}`);
     }
     
-    // Step 6: Apollo (only if still missing key data)
-    if (!data.employee_count || !data.revenue_range) {
-      const apolloResult = await enrichFromApollo(input, data, verifiedFields);
+    // Step 6: Apollo - run if forceAll or still missing data
+    const stillMissingData = !data.employee_count || !data.revenue_range;
+    if (forceAll || stillMissingData) {
+      const apolloResult = await enrichFromApollo(input, data, verifiedFields, forceAll);
       if (apolloResult) {
         sources.push(apolloResult);
         costs.push({ provider: apolloResult.provider, cost: apolloResult.cost });

@@ -56,7 +56,20 @@ interface UnifiedEnrichmentRequest {
   record_type: 'account' | 'lead' | 'contact';
   records: Record<string, any>[];
   job_id?: string;
-  config?: WaterfallConfig;
+  config?: {
+    // Existing options
+    skipPaidProviders?: boolean;
+    maxCost?: number;
+    verifyEmail?: boolean;
+    includeWebScrape?: boolean;
+    discoverPhone?: boolean;
+    
+    // NEW: Full-field enrichment options
+    aggregateProviders?: boolean;      // Call all AI providers and merge results (default: true)
+    preferredProvider?: string;        // Try this provider first
+    forceAllStages?: boolean;          // Run PDL/Apollo even if some data exists (default: false)
+    fieldsToEnrich?: string[];         // Specific fields to target (empty = all)
+  };
   concurrency?: number;
 }
 
@@ -113,9 +126,22 @@ serve(async (req) => {
       record_type, 
       records, 
       job_id,
-      config = {},
+      config: userConfig = {},
       concurrency = DEFAULT_CONCURRENCY 
     } = request;
+
+    // Build effective config with defaults for full-field enrichment
+    const config: WaterfallConfig = {
+      skipPaidProviders: userConfig.skipPaidProviders ?? false,
+      maxCost: userConfig.maxCost ?? 0.50,
+      verifyEmail: userConfig.verifyEmail ?? true,
+      includeWebScrape: userConfig.includeWebScrape ?? true,
+      discoverPhone: userConfig.discoverPhone ?? true,
+      aggregateProviders: userConfig.aggregateProviders ?? true,  // Default ON for full coverage
+      preferredProvider: userConfig.preferredProvider as any,
+      forceAllStages: userConfig.forceAllStages ?? false,
+      fieldsToEnrich: userConfig.fieldsToEnrich,
+    };
 
     console.log(`[enrich-unified] Starting ${record_type} enrichment for ${records.length} records`);
 
@@ -241,7 +267,7 @@ serve(async (req) => {
                 enrichment_confidence: result.confidence,
               };
 
-              // Map enriched data to account fields
+              // Map ALL enriched data to account fields (expanded coverage)
               if (result.data.employee_count) updateData.employee_count = result.data.employee_count;
               if (result.data.revenue_range) updateData.revenue_range = result.data.revenue_range;
               if (result.data.industry) updateData.industry_norm = result.data.industry;
@@ -251,6 +277,12 @@ serve(async (req) => {
               if (result.data.founded_year) updateData.founded_year = result.data.founded_year;
               if (result.data.linkedin_company_url) updateData.linkedin_url = result.data.linkedin_company_url;
               if (result.data.phone) updateData.company_main_phone = result.data.phone;
+              if (result.data.twitter_url) updateData.twitter_url = result.data.twitter_url;
+              if (result.data.naics) updateData.naics = result.data.naics;
+              if (result.data.sic_code) updateData.sic_code = result.data.sic_code;
+              if (result.data.tech_stack) updateData.tech_stack = result.data.tech_stack;
+              if (result.data.total_raised_usd) updateData.total_raised_usd = result.data.total_raised_usd;
+              if (result.data.last_funding_round) updateData.last_funding_round = result.data.last_funding_round;
 
               await supabase
                 .from('accounts')
@@ -264,20 +296,34 @@ serve(async (req) => {
                 enrichment_confidence: Math.round(result.confidence * 100),
               };
 
-              // Map enriched data to lead fields
+              // Map ALL enriched data to lead fields (expanded coverage)
               if (result.data.first_name) updateData.first_name = result.data.first_name;
               if (result.data.last_name) updateData.last_name = result.data.last_name;
               if (result.data.phone) updateData.phone = result.data.phone;
               if (result.data.mobile) updateData.mobile = result.data.mobile;
+              if (result.data.direct_phone) updateData.direct_phone = result.data.direct_phone;
               if (result.data.title) updateData.title = result.data.title;
               if (result.data.linkedin_url) updateData.linkedin_url = result.data.linkedin_url;
-              if (result.data.email_verified) updateData.email_verified = result.data.email_verified;
+              if (result.data.email_verified !== undefined) updateData.email_verified = result.data.email_verified;
 
               await supabase
                 .from('Leads')
                 .update(updateData)
                 .eq('id', record.id)
                 .eq('org_id', org_id);
+                
+              // Post-enrichment: Persona mapping for leads with titles
+              if (result.data.title && record.id) {
+                try {
+                  await supabase.rpc('map_title_to_persona', { 
+                    p_lead_id: record.id,
+                    p_title: result.data.title
+                  });
+                } catch (personaError) {
+                  // Persona mapping is optional, log but don't fail
+                  console.warn(`[enrich-unified] Persona mapping failed for lead ${record.id}:`, personaError);
+                }
+              }
             }
           }
         } else {
