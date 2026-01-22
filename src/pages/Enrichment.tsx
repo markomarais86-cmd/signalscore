@@ -36,6 +36,7 @@ import { EnrichmentQualityDashboard } from "@/components/settings/EnrichmentQual
 import { FlexibleLeadEnrich } from "@/components/enrichment/FlexibleLeadEnrich";
 import { EnrichmentAccuracyReport } from "@/components/enrichment/EnrichmentAccuracyReport";
 import { UnifiedEnrichmentWizard } from "@/components/enrichment/UnifiedEnrichmentWizard";
+import { AIPipelineHealth } from "@/components/enrichment/AIPipelineHealth";
 
 interface HeroStats {
   totalAccounts: number;
@@ -259,6 +260,9 @@ export default function Enrichment() {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <CardContent className="pt-0 space-y-6">
+                {/* AI Pipeline Health - Real-time provider monitoring */}
+                <AIPipelineHealth />
+
                 <div className="grid gap-6 lg:grid-cols-2">
                   <Card className="border-muted">
                     <CardHeader className="pb-3">

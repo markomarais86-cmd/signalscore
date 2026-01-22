@@ -40,9 +40,11 @@ interface ProviderHealth {
 }
 
 const PROVIDER_LABELS: Record<string, string> = {
-  openai: 'OpenAI',
-  abacus: 'Abacus.AI',
-  lovable: 'Lovable AI',
+  perplexity: 'Perplexity',
+  anthropic: 'Claude',
+  xai: 'Grok',
+  lovable: 'Gemini',
+  openai: 'GPT',
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -269,9 +271,10 @@ export function AIUsageStats() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {['openai', 'abacus', 'lovable'].map(provider => {
+                {['perplexity', 'anthropic', 'xai', 'lovable', 'openai'].map(provider => {
                   const health = providerHealth.find(p => p.provider === provider);
                   const status = health?.status || 'unknown';
+                  const providerStats = stats?.byProvider[provider];
                   
                   return (
                     <div 
@@ -282,16 +285,26 @@ export function AIUsageStats() {
                         <div className={`w-3 h-3 rounded-full ${STATUS_COLORS[status]}`} />
                         <div>
                           <p className="font-medium">{PROVIDER_LABELS[provider]}</p>
-                          <p className="text-sm text-muted-foreground capitalize">{status}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm text-muted-foreground capitalize">{status}</p>
+                            {(health as any)?.circuit_state === 'open' && (
+                              <Badge variant="destructive" className="text-xs">Circuit Open</Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right space-y-1">
                         {health?.latencyMs && (
                           <p className="text-sm">{health.latencyMs}ms avg</p>
                         )}
+                        {providerStats && (providerStats as any).timeouts > 0 && (
+                          <p className="text-xs text-destructive">
+                            {(providerStats as any).timeouts} timeouts
+                          </p>
+                        )}
                         {health?.lastChecked && (
                           <p className="text-xs text-muted-foreground">
-                            Last checked: {new Date(health.lastChecked).toLocaleTimeString()}
+                            Last: {new Date(health.lastChecked).toLocaleTimeString()}
                           </p>
                         )}
                       </div>

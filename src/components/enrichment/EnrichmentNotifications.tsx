@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, AlertTriangle, CheckCircle2, DollarSign } from "lucide-react";
+import { Bell, AlertTriangle, CheckCircle2, DollarSign, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,7 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 interface Notification {
   id: string;
-  type: 'budget_warning' | 'budget_exceeded' | 'enrichment_complete' | 'candidates_pending';
+  type: 'budget_warning' | 'budget_exceeded' | 'enrichment_complete' | 'candidates_pending' | 'circuit_open' | 'daily_budget_warning';
   message: string;
   timestamp: string;
   read: boolean;
@@ -58,10 +58,30 @@ export function EnrichmentNotifications() {
           checkPendingCandidates();
         }
       )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'service_health'
+        },
+        (payload) => {
+          const newState = payload.new as any;
+          if (newState.circuit_state === 'open') {
+            addNotification({
+              type: 'circuit_open',
+              message: `${newState.service_name} circuit breaker opened - provider temporarily disabled`
+            });
+          }
+        }
+      )
       .subscribe();
 
     // Check budget on mount
     checkBudgetStatus();
+    
+    // Check daily AI budget
+    checkDailyAIBudget();
 
     // Check pending candidates
     checkPendingCandidates();
@@ -151,6 +171,34 @@ export function EnrichmentNotifications() {
     }
   };
 
+  const checkDailyAIBudget = async () => {
+    if (!userProfile?.org_id) return;
+    
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    
+    try {
+      const { data } = await supabase
+        .from('ai_usage_tracking')
+        .select('cost_estimate')
+        .eq('org_id', userProfile.org_id)
+        .gte('created_at', todayStart.toISOString());
+      
+      const dailyCost = (data || []).reduce((sum, r) => sum + (Number(r.cost_estimate) || 0), 0);
+      const dailyBudget = 50; // $50/day default
+      const usagePercent = (dailyCost / dailyBudget) * 100;
+      
+      if (usagePercent >= 90) {
+        addNotification({
+          type: 'daily_budget_warning',
+          message: `Daily AI budget 90% used: $${dailyCost.toFixed(2)} / $${dailyBudget}`
+        });
+      }
+    } catch (error) {
+      console.error('Error checking daily AI budget:', error);
+    }
+  };
+
   const addNotification = (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => {
     const newNotification: Notification = {
       ...notification,
@@ -184,10 +232,14 @@ export function EnrichmentNotifications() {
       case 'budget_warning':
       case 'budget_exceeded':
         return <DollarSign className="h-4 w-4" />;
+      case 'daily_budget_warning':
+        return <DollarSign className="h-4 w-4 text-warning" />;
       case 'enrichment_complete':
         return <CheckCircle2 className="h-4 w-4" />;
       case 'candidates_pending':
         return <Bell className="h-4 w-4" />;
+      case 'circuit_open':
+        return <XCircle className="h-4 w-4 text-destructive" />;
     }
   };
 
