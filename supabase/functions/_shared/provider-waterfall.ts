@@ -64,6 +64,7 @@ export interface EnrichmentResult {
   cost: EnrichmentCost;
   confidence: number;
   citations?: string[];
+  debug?: EnrichmentDebugInfo;
 }
 
 export interface EnrichedData {
@@ -124,6 +125,23 @@ export interface WaterfallConfig {
   preferredProvider?: AIProvider;    // Try this provider first
   forceAllStages?: boolean;          // Run PDL/Apollo even if some data exists (default: false)
   fieldsToEnrich?: string[];         // Specific fields to target (empty = all)
+  
+  // Debug mode - returns detailed per-provider breakdown
+  debug?: boolean;
+}
+
+// Debug information returned when config.debug is true
+export interface EnrichmentDebugInfo {
+  providerResults: {
+    provider: string;
+    success: boolean;
+    fieldsAttempted: string[];
+    fieldsContributed: string[];
+    skippedReason?: string;
+    latencyMs: number;
+  }[];
+  verifiedFields: string[];
+  fieldSources: Record<string, { provider: string; confidence: number }>;
 }
 
 // All enrichable fields - used for comprehensive field coverage
@@ -672,30 +690,64 @@ Return ONLY a valid JSON object with the requested fields.`;
       { role: 'user', content: prompt },
     ], { preferredProvider: config.preferredProvider });
     
+    console.log(`[provider-waterfall] Multi-AI: Called ${responses.length} providers`);
+    
     // Track which provider filled each field (for precedence)
     const fieldProviders: Record<string, { provider: AIProvider; value: any; confidence: number }> = {};
     
+    // Track per-provider stats for logging
+    const providerStats: Record<string, { fieldsAttempted: string[]; fieldsWon: string[]; fieldsLost: string[]; skipped: boolean; reason?: string }> = {};
+    
     // Process each provider's response
     for (const response of responses) {
-      if (!response.success || !response.data) continue;
+      const providerName = response.provider;
+      providerStats[providerName] = { fieldsAttempted: [], fieldsWon: [], fieldsLost: [], skipped: false };
+      
+      if (!response.success) {
+        providerStats[providerName].skipped = true;
+        providerStats[providerName].reason = response.error || 'API call failed';
+        console.log(`[provider-waterfall] Multi-AI (${providerName}): SKIPPED - ${response.error || 'failed'}`);
+        continue;
+      }
+      
+      if (!response.data) {
+        providerStats[providerName].skipped = true;
+        providerStats[providerName].reason = 'No data returned';
+        continue;
+      }
       
       const content = response.data.choices?.[0]?.message?.content || '';
       const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) continue;
+      if (!jsonMatch) {
+        providerStats[providerName].skipped = true;
+        providerStats[providerName].reason = 'No valid JSON in response';
+        console.log(`[provider-waterfall] Multi-AI (${providerName}): SKIPPED - no valid JSON`);
+        continue;
+      }
       
       try {
         const parsed = JSON.parse(jsonMatch[0]);
         const providerConfidence = (parsed.confidence || 60) / 100;
         
         // Skip low confidence responses
-        if (providerConfidence < 0.4) continue;
+        if (providerConfidence < 0.4) {
+          providerStats[providerName].skipped = true;
+          providerStats[providerName].reason = `Low confidence: ${Math.round(providerConfidence * 100)}%`;
+          console.log(`[provider-waterfall] Multi-AI (${providerName}): SKIPPED - low confidence ${Math.round(providerConfidence * 100)}%`);
+          continue;
+        }
         
         for (const field of missingFields) {
           const value = parsed[field];
           if (value === undefined || value === null || value === '') continue;
           
+          providerStats[providerName].fieldsAttempted.push(field);
+          
           // Skip if this field is verified (ground truth)
-          if (verifiedFields.has(field)) continue;
+          if (verifiedFields.has(field)) {
+            console.log(`[provider-waterfall] Multi-AI (${providerName}): ${field} skipped - verified by prior provider`);
+            continue;
+          }
           
           // Check if this provider has precedence for this field
           const precedence = PROVIDER_PRECEDENCE[field] || PROVIDER_PRECEDENCE.default;
@@ -704,6 +756,7 @@ Return ONLY a valid JSON object with the requested fields.`;
           if (!existingEntry) {
             // First provider to supply this field
             fieldProviders[field] = { provider: response.provider, value, confidence: providerConfidence };
+            providerStats[providerName].fieldsWon.push(field);
           } else {
             // Check precedence - lower index = higher priority
             const existingPriority = precedence.indexOf(existingEntry.provider);
@@ -711,12 +764,38 @@ Return ONLY a valid JSON object with the requested fields.`;
             
             if (newPriority < existingPriority && newPriority !== -1) {
               // New provider has higher precedence
+              const oldProvider = existingEntry.provider;
               fieldProviders[field] = { provider: response.provider, value, confidence: providerConfidence };
+              providerStats[providerName].fieldsWon.push(field);
+              // Mark the old provider as having lost this field
+              if (providerStats[oldProvider]) {
+                providerStats[oldProvider].fieldsLost.push(field);
+                const wonIdx = providerStats[oldProvider].fieldsWon.indexOf(field);
+                if (wonIdx !== -1) providerStats[oldProvider].fieldsWon.splice(wonIdx, 1);
+              }
+              console.log(`[provider-waterfall] Multi-AI (${providerName}): ${field} superseded ${oldProvider}`);
+            } else {
+              providerStats[providerName].fieldsLost.push(field);
             }
           }
         }
       } catch (parseError) {
+        providerStats[providerName].skipped = true;
+        providerStats[providerName].reason = 'JSON parse error';
         console.warn(`[provider-waterfall] Failed to parse ${response.provider} response`);
+      }
+    }
+    
+    // Log summary for each provider
+    for (const [provider, stats] of Object.entries(providerStats)) {
+      if (stats.skipped) {
+        console.log(`[provider-waterfall] ${provider}: SKIPPED (${stats.reason})`);
+      } else if (stats.fieldsWon.length > 0) {
+        console.log(`[provider-waterfall] ${provider}: contributed ${stats.fieldsWon.join(', ')}${stats.fieldsLost.length > 0 ? ` (lost: ${stats.fieldsLost.join(', ')})` : ''}`);
+      } else if (stats.fieldsAttempted.length > 0) {
+        console.log(`[provider-waterfall] ${provider}: no new fields (all superseded by higher-precedence providers)`);
+      } else {
+        console.log(`[provider-waterfall] ${provider}: no fields returned`);
       }
     }
     
@@ -745,8 +824,9 @@ Return ONLY a valid JSON object with the requested fields.`;
         latencyMs: Date.now() - start,
         cost: getProviderCost(baseProvider),
       });
-      console.log(`[provider-waterfall] Multi-AI (${providerKey}): ${fields.join(', ')}`);
     }
+    
+    console.log(`[provider-waterfall] Multi-AI complete: ${Object.keys(fieldProviders).length} fields from ${Object.keys(providerFields).length} providers`);
     
     return sources;
   } catch (error) {
@@ -995,6 +1075,10 @@ export async function runEnrichmentWaterfall(
   const sources: EnrichmentSource[] = [];
   const costs: { provider: string; cost: number }[] = [];
   
+  // Debug tracking
+  const debugResults: EnrichmentDebugInfo['providerResults'] = [];
+  const fieldSources: Record<string, { provider: string; confidence: number }> = {};
+  
   // Copy existing data
   if (input.first_name) data.first_name = input.first_name;
   if (input.last_name) data.last_name = input.last_name;
@@ -1120,9 +1204,26 @@ export async function runEnrichmentWaterfall(
   
   const totalFieldsEnriched = sources.reduce((sum, s) => sum + s.fieldsEnriched.length, 0);
   
+  // Build field sources from all sources
+  for (const source of sources) {
+    for (const field of source.fieldsEnriched) {
+      if (!fieldSources[field]) {
+        fieldSources[field] = { provider: source.provider, confidence: source.confidence };
+      }
+    }
+    // Track each source for debug
+    debugResults.push({
+      provider: source.provider,
+      success: true,
+      fieldsAttempted: source.fieldsEnriched,
+      fieldsContributed: source.fieldsEnriched,
+      latencyMs: source.latencyMs,
+    });
+  }
+  
   console.log(`[provider-waterfall] Complete: ${totalFieldsEnriched} fields from ${sources.length} providers, cost=$${totalCost.toFixed(4)}`);
   
-  return {
+  const result: EnrichmentResult = {
     success: totalFieldsEnriched > 0,
     data,
     sources,
@@ -1133,6 +1234,18 @@ export async function runEnrichmentWaterfall(
     },
     confidence: avgConfidence,
   };
+  
+  // Add debug info if requested
+  if (config.debug) {
+    result.debug = {
+      providerResults: debugResults,
+      verifiedFields: Array.from(verifiedFields),
+      fieldSources,
+    };
+    console.log(`[provider-waterfall] Debug: Field sources:`, JSON.stringify(fieldSources, null, 2));
+  }
+  
+  return result;
 }
 
 // ============================================================================

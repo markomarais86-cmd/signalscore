@@ -284,11 +284,18 @@ serve(async (req) => {
               if (result.data.total_raised_usd) updateData.total_raised_usd = result.data.total_raised_usd;
               if (result.data.last_funding_round) updateData.last_funding_round = result.data.last_funding_round;
 
-              await supabase
+              const { error: updateError, count } = await supabase
                 .from('accounts')
                 .update(updateData)
                 .eq('external_id', record.external_id)
-                .eq('org_id', org_id);
+                .eq('org_id', org_id)
+                .select('id');
+
+              if (updateError) {
+                console.error(`[enrich-unified] Failed to update account ${record.external_id}:`, updateError.message);
+              } else {
+                console.log(`[enrich-unified] ✓ Updated account ${record.external_id} with ${Object.keys(updateData).length} fields`);
+              }
             } else {
               const updateData: Record<string, any> = {
                 enriched_at: new Date().toISOString(),
@@ -306,11 +313,17 @@ serve(async (req) => {
               if (result.data.linkedin_url) updateData.linkedin_url = result.data.linkedin_url;
               if (result.data.email_verified !== undefined) updateData.email_verified = result.data.email_verified;
 
-              await supabase
+              const { error: updateError } = await supabase
                 .from('Leads')
                 .update(updateData)
                 .eq('id', record.id)
                 .eq('org_id', org_id);
+
+              if (updateError) {
+                console.error(`[enrich-unified] Failed to update lead ${record.id}:`, updateError.message);
+              } else {
+                console.log(`[enrich-unified] ✓ Updated lead ${record.id} with ${Object.keys(updateData).length} fields`);
+              }
                 
               // Post-enrichment: Persona mapping for leads with titles
               if (result.data.title && record.id) {
