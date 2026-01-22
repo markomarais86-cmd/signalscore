@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -5,6 +6,7 @@ import { AlertTriangle, AlertCircle, Info, Target, Download, Settings } from "lu
 import { LaunchPulseMark } from '@/components/BrandLogo';
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { EnrichmentModal } from "./EnrichmentModal";
 
 export interface RiskItem {
   id: string;
@@ -35,6 +37,8 @@ export function RisksAndActionsCard({
   onRiskClick 
 }: RisksAndActionsCardProps) {
   const navigate = useNavigate();
+  const [enrichmentModalOpen, setEnrichmentModalOpen] = useState(false);
+  const [selectedEnrichmentFields, setSelectedEnrichmentFields] = useState<string[]>([]);
 
   const getSeverityIcon = (severity: RiskItem['severity']) => {
     switch (severity) {
@@ -74,9 +78,8 @@ export function RisksAndActionsCard({
   const infoRisks = risks.filter(r => r.severity === 'info');
 
   const handleEnrichClick = (targetFields?: string[]) => {
-    // Navigate to enrichment page with target fields
-    const fieldsParam = targetFields?.join(',') || '';
-    navigate(`/enrichment?mode=existing&type=accounts${fieldsParam ? `&fields=${fieldsParam}` : ''}`);
+    setSelectedEnrichmentFields(targetFields || []);
+    setEnrichmentModalOpen(true);
   };
 
   return (
@@ -254,7 +257,11 @@ export function RisksAndActionsCard({
           </div>
         </div>
 
-        {/* Enrichment modal removed - consolidated into Enrichment page */}
+        <EnrichmentModal
+          open={enrichmentModalOpen}
+          onOpenChange={setEnrichmentModalOpen}
+          targetFields={selectedEnrichmentFields}
+        />
       </CardContent>
     </Card>
   );

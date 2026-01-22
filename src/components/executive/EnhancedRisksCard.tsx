@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, AlertCircle, Info, AlertOctagon, Target, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { EnrichmentModal } from "./EnrichmentModal";
 import { LaunchPulseMark } from "@/components/BrandLogo";
 
 export type RiskSeverity = 'critical' | 'high' | 'medium' | 'low';
@@ -39,6 +41,8 @@ export function EnhancedRisksCard({
   onRiskClick 
 }: EnhancedRisksCardProps) {
   const navigate = useNavigate();
+  const [enrichmentModalOpen, setEnrichmentModalOpen] = useState(false);
+  const [enrichmentFields, setEnrichmentFields] = useState<string[]>([]);
 
   const getSeverityIcon = (severity: RiskSeverity) => {
     switch (severity) {
@@ -80,9 +84,8 @@ export function EnhancedRisksCard({
     if (!risk.fix) return;
 
     if (risk.fix.action === 'enrich') {
-      // Navigate to enrichment page with target fields
-      const fieldsParam = risk.fix.fields?.join(',') || '';
-      navigate(`/enrichment?mode=existing&type=accounts&fields=${fieldsParam}`);
+      setEnrichmentFields(risk.fix.fields || []);
+      setEnrichmentModalOpen(true);
     } else if (risk.fix.action === 'navigate' && risk.fix.target) {
       navigate(risk.fix.target);
     }
@@ -213,7 +216,10 @@ export function EnhancedRisksCard({
               </Button>
             )}
             <Button 
-              onClick={() => navigate('/enrichment?mode=existing&type=accounts')}
+              onClick={() => {
+                setEnrichmentFields([]);
+                setEnrichmentModalOpen(true);
+              }}
               variant="outline"
               size="sm"
               className="justify-start"
@@ -233,7 +239,11 @@ export function EnhancedRisksCard({
           </div>
         </div>
 
-        {/* Enrichment modal removed - consolidated into Enrichment page */}
+        <EnrichmentModal
+          open={enrichmentModalOpen}
+          onOpenChange={setEnrichmentModalOpen}
+          targetFields={enrichmentFields}
+        />
       </CardContent>
     </Card>
   );
