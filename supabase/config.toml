@@ -462,4 +462,4 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.verify-carrier]
-verify_jwt = true
+verify_jwt = false
