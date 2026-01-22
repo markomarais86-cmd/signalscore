@@ -7,6 +7,13 @@ export interface EnrichmentConfig {
   maxCost?: number;
   verifyEmail?: boolean;
   includeWebScrape?: boolean;
+  discoverPhone?: boolean;
+  
+  // Full-field enrichment options (NEW)
+  aggregateProviders?: boolean;      // Call all AI providers and merge results (default: true)
+  preferredProvider?: string;        // Try this provider first: 'perplexity' | 'anthropic' | 'xai' | 'lovable' | 'openai' | 'abacus'
+  forceAllStages?: boolean;          // Run PDL/Apollo even if some data exists (default: false)
+  fieldsToEnrich?: string[];         // Specific fields to target (empty = all 20+ fields)
 }
 
 export interface EnrichmentSummary {

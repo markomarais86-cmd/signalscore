@@ -2,7 +2,7 @@
 
 ## Overview
 
-The enrichment system has been consolidated from 40+ edge functions to a unified architecture with a single entry point.
+The enrichment system has been consolidated from 40+ edge functions to a unified architecture with a single entry point. **Version 2.0** introduces full-field data enrichment with multi-provider AI aggregation.
 
 ## Architecture
 
@@ -19,7 +19,10 @@ The enrichment system has been consolidated from 40+ edge functions to a unified
 │  Step 1: Email Name Extraction (free)                       │
 │  Step 2: Perplexity AI Search (primary discovery)           │
 │  Step 3: Firecrawl Website Scrape (ground truth)            │
-│  Step 4: Claude/Gemini/Grok AI (gap filling)                │
+│  Step 4: Multi-Provider AI Aggregation (Claude/Gemini/Grok) │ 🆕
+│         - Calls ALL available AI providers                  │
+│         - Merges results with precedence rules              │
+│         - Targets 20+ fields for full coverage              │
 │  Step 5: PDL (paid fallback)                                │
 │  Step 6: Apollo (last resort)                               │
 │  Step 7: Hunter Email Verification                          │
@@ -40,9 +43,17 @@ function MyComponent() {
 
   const handleEnrich = async () => {
     await enrichAccounts(orgId, accounts, {
+      // Basic options
       skipPaidProviders: false,
       maxCost: 0.50,
       verifyEmail: true,
+      includeWebScrape: true,
+      
+      // NEW: Full-field enrichment options
+      aggregateProviders: true,        // Call ALL AI providers and merge (default: true)
+      preferredProvider: 'perplexity', // Optional: try this provider first
+      forceAllStages: false,           // Run PDL/Apollo even if some data exists
+      fieldsToEnrich: [],              // Empty = all 20+ fields
     });
   };
 }
@@ -63,10 +74,46 @@ const { data, error } = await supabase.functions.invoke('enrich-unified', {
       maxCost: 0.50,
       verifyEmail: true,
       includeWebScrape: true,
+      
+      // NEW options for full-field enrichment
+      aggregateProviders: true,   // Default: true
+      forceAllStages: false,      // Default: false
+      preferredProvider: 'anthropic', // Optional
     },
   },
 });
 ```
+
+## Full-Field Enrichment (v2.0) 🆕
+
+### Enrichable Fields (20+)
+
+The system now targets ALL of these fields:
+
+| Category | Fields |
+|----------|--------|
+| Firmographic | `employee_count`, `revenue_range`, `industry`, `founded_year` |
+| Location | `city`, `state`, `country` |
+| Company IDs | `company_name`, `domain`, `linkedin_company_url`, `twitter_url` |
+| Contact | `title`, `linkedin_url`, `phone`, `mobile`, `direct_phone`, `email_verified` |
+| Funding | `total_raised_usd`, `last_funding_round` |
+| Classification | `naics`, `sic_code`, `tech_stack` |
+
+### Multi-Provider AI Aggregation
+
+When `aggregateProviders: true` (default), the system calls ALL available AI providers:
+
+1. **Perplexity** - Real-time web search with citations (best for company data)
+2. **Anthropic (Claude)** - Deep reasoning and structured extraction
+3. **xAI (Grok)** - Social/X data access
+4. **Lovable (Gemini)** - Fast general coverage
+5. **OpenAI (GPT)** - Reliable backup
+6. **Abacus** - Last resort
+
+Each provider's response is parsed and merged using **precedence rules**:
+- Fields from higher-priority providers override lower-priority ones
+- **Verified fields** (from Firecrawl ground truth) are never overwritten
+- Each field can have a different optimal provider
 
 ## Deprecated Functions
 

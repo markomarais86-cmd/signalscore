@@ -359,6 +359,135 @@ export async function callAI(
   throw lastError || new Error('All AI providers failed');
 }
 
+// ============================================================================
+// AGGREGATED AI CALL - CALL ALL PROVIDERS AND MERGE RESULTS
+// ============================================================================
+
+export interface AggregatedAIResponse {
+  provider: AIProvider;
+  success: boolean;
+  data: any;
+  error?: string;
+  latencyMs: number;
+}
+
+/**
+ * Call ALL available AI providers and return aggregated responses.
+ * This enables the enrichment pipeline to merge data from multiple AI sources.
+ */
+export async function callAIAllProviders(
+  taskType: TaskType,
+  messages: Array<{ role: string; content: string }>,
+  options: {
+    maxTokens?: number;
+    temperature?: number;
+    search_recency_filter?: string;
+    preferredProvider?: AIProvider;
+  } = {}
+): Promise<AggregatedAIResponse[]> {
+  const providers = getAvailableProviders();
+  const responses: AggregatedAIResponse[] = [];
+  
+  if (providers.length === 0) {
+    console.warn('[AI Config] No AI providers configured');
+    return [];
+  }
+  
+  // Define provider order for enrichment/research tasks
+  // Priority: real-time search → deep reasoning → social data → fast fallback
+  let orderedProviders: AIProvider[] = [
+    'perplexity',  // Real-time web search with citations
+    'anthropic',   // Deep reasoning and structured extraction (Claude)
+    'xai',         // Social/X data access (Grok)
+    'lovable',     // Fast Gemini model
+    'openai',      // Reliable backup (GPT)
+    'abacus',      // Last resort
+  ].filter(p => providers.includes(p));
+  
+  // If preferred provider specified, move it to front
+  if (options.preferredProvider && orderedProviders.includes(options.preferredProvider)) {
+    orderedProviders = [
+      options.preferredProvider,
+      ...orderedProviders.filter(p => p !== options.preferredProvider)
+    ];
+  }
+  
+  console.log(`[AI Config] Calling ${orderedProviders.length} providers for ${taskType}: ${orderedProviders.join(' → ')}`);
+  
+  for (const provider of orderedProviders) {
+    const start = Date.now();
+    try {
+      const config = getModelConfig(taskType, provider);
+      const headers = buildHeaders(provider);
+      const body = buildRequestBody(provider, config.model, messages, {
+        ...options,
+        // For Perplexity, use recent data
+        search_recency_filter: provider === 'perplexity' ? (options.search_recency_filter || 'month') : undefined,
+      });
+      
+      console.log(`[AI Config] Calling ${provider} with model ${config.model}`);
+      
+      const response = await fetch(config.endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+      });
+      
+      const latencyMs = Date.now() - start;
+      
+      if (response.ok) {
+        const data = await response.json();
+        responses.push({ provider, success: true, data, latencyMs });
+        console.log(`[AI Config] ${provider} succeeded in ${latencyMs}ms`);
+      } else {
+        const errorText = await response.text();
+        console.warn(`[AI Config] ${provider} error (${response.status}): ${errorText.substring(0, 200)}`);
+        responses.push({ provider, success: false, data: null, error: errorText, latencyMs });
+      }
+    } catch (error) {
+      const latencyMs = Date.now() - start;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.warn(`[AI Config] ${provider} failed: ${errorMsg}`);
+      responses.push({ provider, success: false, data: null, error: errorMsg, latencyMs });
+    }
+  }
+  
+  const successCount = responses.filter(r => r.success).length;
+  console.log(`[AI Config] Aggregation complete: ${successCount}/${orderedProviders.length} providers succeeded`);
+  
+  return responses;
+}
+
+/**
+ * Get confidence multiplier for a provider
+ */
+export function getProviderConfidence(provider: AIProvider): number {
+  const confidenceMap: Record<AIProvider, number> = {
+    perplexity: 0.88,  // Real-time web search with citations
+    anthropic: 0.85,   // Strong reasoning
+    xai: 0.80,         // Social data
+    lovable: 0.78,     // Fast but less verified
+    openai: 0.82,      // Reliable
+    abacus: 0.70,      // Last resort
+  };
+  return confidenceMap[provider] || 0.70;
+}
+
+/**
+ * Get estimated cost per call for a provider
+ */
+export function getProviderCost(provider: AIProvider): number {
+  const costMap: Record<AIProvider, number> = {
+    perplexity: 0.005,
+    anthropic: 0.003,
+    xai: 0.002,
+    lovable: 0.001,
+    openai: 0.003,
+    abacus: 0.002,
+  };
+  return costMap[provider] || 0.002;
+}
+
 // Parse streaming response from any provider
 export async function* parseStreamingResponse(
   response: Response,
