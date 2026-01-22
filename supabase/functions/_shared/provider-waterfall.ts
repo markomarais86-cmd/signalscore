@@ -176,24 +176,25 @@ export const LEAD_ENRICHABLE_FIELDS = [
 ] as const;
 
 // Provider precedence for field conflicts (higher index = higher priority for that field type)
+// Note: Abacus removed due to missing deploymentId configuration
 export const PROVIDER_PRECEDENCE: Record<string, AIProvider[]> = {
   // Real-time company data
-  employee_count: ['perplexity', 'anthropic', 'openai', 'lovable', 'xai', 'abacus'],
-  revenue_range: ['perplexity', 'anthropic', 'openai', 'lovable', 'xai', 'abacus'],
-  industry: ['perplexity', 'anthropic', 'lovable', 'openai', 'xai', 'abacus'],
+  employee_count: ['perplexity', 'anthropic', 'openai', 'lovable', 'xai'],
+  revenue_range: ['perplexity', 'anthropic', 'openai', 'lovable', 'xai'],
+  industry: ['perplexity', 'anthropic', 'lovable', 'openai', 'xai'],
   
   // Contact/social data - Grok excels here
-  linkedin_url: ['xai', 'perplexity', 'anthropic', 'lovable', 'openai', 'abacus'],
-  twitter_url: ['xai', 'perplexity', 'lovable', 'anthropic', 'openai', 'abacus'],
-  phone: ['perplexity', 'anthropic', 'xai', 'lovable', 'openai', 'abacus'],
+  linkedin_url: ['xai', 'perplexity', 'anthropic', 'lovable', 'openai'],
+  twitter_url: ['xai', 'perplexity', 'lovable', 'anthropic', 'openai'],
+  phone: ['perplexity', 'anthropic', 'xai', 'lovable', 'openai'],
   
   // Location - prefer AI with web search
-  city: ['perplexity', 'anthropic', 'lovable', 'openai', 'xai', 'abacus'],
-  state: ['perplexity', 'anthropic', 'lovable', 'openai', 'xai', 'abacus'],
-  country: ['perplexity', 'anthropic', 'lovable', 'openai', 'xai', 'abacus'],
+  city: ['perplexity', 'anthropic', 'lovable', 'openai', 'xai'],
+  state: ['perplexity', 'anthropic', 'lovable', 'openai', 'xai'],
+  country: ['perplexity', 'anthropic', 'lovable', 'openai', 'xai'],
   
   // Default precedence for other fields
-  default: ['perplexity', 'anthropic', 'xai', 'lovable', 'openai', 'abacus'],
+  default: ['perplexity', 'anthropic', 'xai', 'lovable', 'openai'],
 };
 
 // ============================================================================

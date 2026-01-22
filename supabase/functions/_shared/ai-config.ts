@@ -1,7 +1,8 @@
 // Centralized AI Model Configuration for Multi-Provider Support
-// Supports: Perplexity, OpenAI, Abacus.AI, Lovable AI Gateway, Anthropic Claude, xAI Grok
+// Supports: Perplexity, OpenAI, Lovable AI Gateway, Anthropic Claude, xAI Grok
+// Note: Abacus removed due to missing deploymentId configuration issues
 
-export type AIProvider = 'perplexity' | 'openai' | 'abacus' | 'lovable' | 'anthropic' | 'xai';
+export type AIProvider = 'perplexity' | 'openai' | 'lovable' | 'anthropic' | 'xai';
 export type TaskType = 'chat' | 'analysis' | 'enrichment' | 'bulk' | 'reasoning' | 'research';
 
 export interface AIModelConfig {
@@ -17,7 +18,6 @@ export interface AIModelConfig {
 export const AI_ENDPOINTS = {
   perplexity: 'https://api.perplexity.ai/chat/completions',
   openai: 'https://api.openai.com/v1/chat/completions',
-  abacus: 'https://apps.abacus.ai/api/v0/getStreamingChatResponse',
   lovable: 'https://ai.gateway.lovable.dev/v1/chat/completions',
   anthropic: 'https://api.anthropic.com/v1/messages',
   xai: 'https://api.x.ai/v1/chat/completions',
@@ -41,14 +41,7 @@ export const AI_MODELS = {
     reasoning: 'o4-mini-2025-04-16',
     research: 'gpt-5-mini-2025-08-07', // Fallback for contact research
   },
-  abacus: {
-    chat: 'RouteLLM',
-    analysis: 'claude-sonnet-4.5',
-    enrichment: 'gpt-5.1',
-    bulk: 'gpt-5.1',
-    reasoning: 'o4-mini',
-    research: 'gpt-5.1', // Fallback for contact research
-  },
+  // Abacus removed - consistently fails due to missing deploymentId
   lovable: {
     chat: 'google/gemini-2.5-flash',
     analysis: 'google/gemini-2.5-flash',
@@ -86,9 +79,7 @@ export function getAvailableProviders(): AIProvider[] {
   if (Deno.env.get('OPENAI_API_KEY')) {
     providers.push('openai');
   }
-  if (Deno.env.get('ABACUS_API_KEY')) {
-    providers.push('abacus');
-  }
+  // Abacus removed - consistently fails due to missing deploymentId
   if (Deno.env.get('LOVABLE_API_KEY')) {
     providers.push('lovable');
   }
@@ -108,11 +99,11 @@ export function getModelConfig(taskType: TaskType, preferredProvider?: AIProvide
   
   // Handle no providers case early
   if (available.length === 0) {
-    throw new Error('No AI provider available. Please configure PERPLEXITY_API_KEY, OPENAI_API_KEY, ABACUS_API_KEY, or LOVABLE_API_KEY.');
+    throw new Error('No AI provider available. Please configure PERPLEXITY_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, XAI_API_KEY, or LOVABLE_API_KEY.');
   }
   
   // For enrichment tasks: Perplexity first (real-time web search with citations)
-  // Priority: perplexity > openai > abacus > lovable
+  // Priority: perplexity > anthropic > xai > openai > lovable
   let provider: AIProvider;
   
   if (preferredProvider && available.includes(preferredProvider)) {
@@ -120,10 +111,12 @@ export function getModelConfig(taskType: TaskType, preferredProvider?: AIProvide
   } else if (taskType === 'enrichment' && available.includes('perplexity')) {
     // Perplexity is best for enrichment due to real-time web search
     provider = 'perplexity';
+  } else if (available.includes('anthropic')) {
+    provider = 'anthropic';
+  } else if (available.includes('xai')) {
+    provider = 'xai';
   } else if (available.includes('openai')) {
     provider = 'openai';
-  } else if (available.includes('abacus')) {
-    provider = 'abacus';
   } else if (available.includes('perplexity')) {
     provider = 'perplexity';
   } else if (available.includes('lovable')) {
@@ -401,7 +394,6 @@ export async function callAIAllProviders(
     'xai',         // Social/X data access (Grok)
     'lovable',     // Fast Gemini model
     'openai',      // Reliable backup (GPT)
-    'abacus',      // Last resort
   ].filter(p => providers.includes(p));
   
   // If preferred provider specified, move it to front
@@ -466,9 +458,8 @@ export function getProviderConfidence(provider: AIProvider): number {
     perplexity: 0.88,  // Real-time web search with citations
     anthropic: 0.85,   // Strong reasoning
     xai: 0.80,         // Social data
-    lovable: 0.78,     // Fast but less verified
     openai: 0.82,      // Reliable
-    abacus: 0.70,      // Last resort
+    lovable: 0.78,     // Fast but less verified
   };
   return confidenceMap[provider] || 0.70;
 }
@@ -481,9 +472,8 @@ export function getProviderCost(provider: AIProvider): number {
     perplexity: 0.005,
     anthropic: 0.003,
     xai: 0.002,
-    lovable: 0.001,
     openai: 0.003,
-    abacus: 0.002,
+    lovable: 0.001,
   };
   return costMap[provider] || 0.002;
 }
