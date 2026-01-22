@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
@@ -11,7 +9,6 @@ import {
   Settings,
   ChevronDown,
   ChevronUp,
-  Upload,
   CheckCircle2
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -21,7 +18,6 @@ import { supabase } from "@/integrations/supabase/client";
 
 // Components
 import { HeroMetric } from "@/components/executive/HeroMetric";
-import { InstantEnrich } from "@/components/enrichment/InstantEnrich";
 import { DataGapsVisualization } from "@/components/enrichment/DataGapsVisualization";
 import { RecentEnrichmentActivity } from "@/components/enrichment/RecentEnrichmentActivity";
 import { ExportAccountsButton } from "@/components/enrichment/ExportAccountsButton";
@@ -33,15 +29,15 @@ import { CreditsDisplay } from "@/components/enrichment/CreditsDisplay";
 import { DeepResearchSettings } from "@/components/settings/DeepResearchSettings";
 import { DataQualityDashboard } from "@/components/settings/DataQualityDashboard";
 import { EnrichmentQualityDashboard } from "@/components/settings/EnrichmentQualityDashboard";
-import { FlexibleLeadEnrich } from "@/components/enrichment/FlexibleLeadEnrich";
 import { EnrichmentAccuracyReport } from "@/components/enrichment/EnrichmentAccuracyReport";
 import { UnifiedEnrichmentWizard } from "@/components/enrichment/UnifiedEnrichmentWizard";
 import { AIPipelineHealth } from "@/components/enrichment/AIPipelineHealth";
 
 interface HeroStats {
   totalAccounts: number;
+  totalLeads: number;
   dataCompleteness: number;
-  enrichedToday: number;
+  enrichedAccounts: number;
   accountsWithContacts: number;
 }
 
@@ -53,8 +49,9 @@ export default function Enrichment() {
   const [settingsExpanded, setSettingsExpanded] = useState(false);
   const [heroStats, setHeroStats] = useState<HeroStats>({
     totalAccounts: 0,
+    totalLeads: 0,
     dataCompleteness: 0,
-    enrichedToday: 0,
+    enrichedAccounts: 0,
     accountsWithContacts: 0,
   });
 
@@ -68,8 +65,8 @@ export default function Enrichment() {
     if (!userProfile?.org_id) return;
 
     try {
-      // Use server-side RPC for efficient stats calculation
-      const { data, error } = await supabase.rpc('get_enrichment_stats', {
+      // Use the new RPC that correctly queries accounts and leads tables
+      const { data, error } = await supabase.rpc('get_enrichment_page_stats', {
         p_org_id: userProfile.org_id
       });
 
@@ -82,10 +79,11 @@ export default function Enrichment() {
       const stats = Array.isArray(data) ? data[0] : data;
 
       setHeroStats({
-        totalAccounts: Number(stats?.total_leads) || 0,
-        dataCompleteness: stats?.total_leads ? Math.round((Number(stats?.enriched_leads) / Number(stats?.total_leads)) * 100) : 0,
-        enrichedToday: Number(stats?.enriched_leads) || 0,
-        accountsWithContacts: Number(stats?.leads_with_email) || 0,
+        totalAccounts: Number(stats?.total_accounts) || 0,
+        totalLeads: Number(stats?.total_leads) || 0,
+        dataCompleteness: Number(stats?.data_completeness_pct) || 0,
+        enrichedAccounts: Number(stats?.enriched_accounts) || 0,
+        accountsWithContacts: Number(stats?.accounts_with_contacts) || 0,
       });
     } catch (error) {
       console.error("Error loading hero stats:", error);
@@ -135,7 +133,7 @@ export default function Enrichment() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <HeroMetric
           label="Total Accounts"
-          value={heroStats.totalAccounts}
+          value={heroStats.totalAccounts.toLocaleString()}
           icon={Database}
           status="default"
           tooltip={{
@@ -150,27 +148,27 @@ export default function Enrichment() {
           status={heroStats.dataCompleteness >= 80 ? "success" : heroStats.dataCompleteness >= 50 ? "warning" : "danger"}
           tooltip={{
             title: "Data Completeness",
-            description: "Average completeness of key fields (employee count, revenue, industry, country)",
+            description: "Percentage of accounts with key fields (employee count, revenue, or industry)",
           }}
         />
         <HeroMetric
-          label="Enriched Today"
-          value={heroStats.enrichedToday}
+          label="Enriched Accounts"
+          value={heroStats.enrichedAccounts.toLocaleString()}
           icon={Sparkles}
           status="success"
           tooltip={{
-            title: "Enriched Today",
-            description: "Accounts that were enriched with new data today",
+            title: "Enriched Accounts",
+            description: "Accounts that have been enriched with external data",
           }}
         />
         <HeroMetric
           label="With Contacts"
-          value={heroStats.accountsWithContacts}
+          value={heroStats.accountsWithContacts.toLocaleString()}
           icon={Users}
           status="default"
           tooltip={{
             title: "Accounts With Contacts",
-            description: "Accounts that have at least one contact associated",
+            description: "Accounts that have at least one lead/contact associated",
           }}
         />
       </div>
@@ -178,53 +176,26 @@ export default function Enrichment() {
       {/* Unified Enrichment Wizard - Primary Action */}
       <UnifiedEnrichmentWizard />
 
-      {/* Primary Action - Instant Lookup */}
-      <InstantEnrich />
-
-      {/* Two Column Layout: Data Gaps + Quick Upload */}
+      {/* Two Column Layout: Data Gaps + Contact Discovery */}
       <div className="grid gap-6 lg:grid-cols-2">
         <DataGapsVisualization />
         
-        {/* Quick Upload Card */}
+        {/* Contact Discovery */}
         <Card className="shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="pb-3">
+          <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5 text-primary" />
-              Quick Enrich
+              <Users className="h-5 w-5 text-primary" />
+              Contact Discovery
             </CardTitle>
             <CardDescription>
-              Upload a CSV or spreadsheet to enrich in bulk
+              Find and discover decision makers at your target accounts
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Upload your account list and we'll automatically fill in missing company data using AI research.
-            </p>
-            <Link to="/quick-enrich">
-              <Button className="w-full gap-2">
-                <Upload className="h-4 w-4" />
-                Upload & Enrich
-              </Button>
-            </Link>
+          <CardContent>
+            <EnrichmentDiscoverySettings />
           </CardContent>
         </Card>
       </div>
-
-      {/* Contact Discovery */}
-      <Card className="shadow-sm hover:shadow-md transition-shadow">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5 text-primary" />
-            Contact Discovery
-          </CardTitle>
-          <CardDescription>
-            Find and discover decision makers at your target accounts
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <EnrichmentDiscoverySettings />
-        </CardContent>
-      </Card>
 
       {/* ICP Account Discovery */}
       <ICPAccountDiscovery />
