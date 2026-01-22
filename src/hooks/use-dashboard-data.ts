@@ -161,8 +161,8 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
         low_fit_crm_leads: rawMetrics?.low_fit_crm_leads || 0,
         low_fit_database_leads: rawMetrics?.low_fit_database_leads || 0,
         campaign_ready_accounts: rawMetrics?.campaign_ready_accounts || 0,
-        campaign_ready_contacts: rawMetrics?.campaign_ready_leads || 0,
-        campaign_ready_leads: rawMetrics?.campaign_ready_leads || 0,
+        campaign_ready_contacts: rawMetrics?.campaign_ready || 0,
+        campaign_ready_leads: rawMetrics?.campaign_ready || 0,
         data_completeness: rawMetrics?.data_completeness || 0,
       };
       
