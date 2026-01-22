@@ -144,21 +144,36 @@ export interface EnrichmentDebugInfo {
   fieldSources: Record<string, { provider: string; confidence: number }>;
 }
 
-// All enrichable fields - used for comprehensive field coverage
+// All enrichable fields - used for comprehensive field coverage (21 fields)
 export const ALL_ENRICHABLE_FIELDS = [
-  // Firmographic
+  // Firmographic (4)
   'employee_count', 'revenue_range', 'industry', 'founded_year',
-  // Location
+  // Location (3)
   'city', 'state', 'country',
-  // Company identifiers  
+  // Company identifiers (4)
   'company_name', 'domain', 'linkedin_company_url', 'twitter_url',
-  // Contact details
+  // Contact details (6)
   'title', 'linkedin_url', 'phone', 'mobile', 'direct_phone', 'email_verified',
-  // Funding
+  // Funding (2)
   'total_raised_usd', 'last_funding_round',
-  // Classification
+  // Classification (3)
   'naics', 'sic_code', 'tech_stack',
-];
+] as const;
+
+// Account-specific fields (for company enrichment)
+export const ACCOUNT_ENRICHABLE_FIELDS = [
+  'employee_count', 'revenue_range', 'industry', 'founded_year',
+  'city', 'state', 'country',
+  'company_name', 'domain', 'linkedin_company_url', 'twitter_url',
+  'phone', 'total_raised_usd', 'last_funding_round',
+  'naics', 'sic_code', 'tech_stack',
+] as const;
+
+// Lead/Contact-specific fields
+export const LEAD_ENRICHABLE_FIELDS = [
+  'title', 'linkedin_url', 'phone', 'mobile', 'direct_phone', 'email_verified',
+  'first_name', 'last_name',
+] as const;
 
 // Provider precedence for field conflicts (higher index = higher priority for that field type)
 export const PROVIDER_PRECEDENCE: Record<string, AIProvider[]> = {
@@ -267,6 +282,43 @@ export function formatPhone(phone: string | null): string | null {
   return null;
 }
 
+/**
+ * Calculate field coverage status - used to determine if AI fallback is needed
+ */
+export function getFieldCoverageStatus(
+  data: EnrichedData,
+  verifiedFields: Set<string>,
+  targetFields: readonly string[] = ALL_ENRICHABLE_FIELDS
+): {
+  filled: string[];
+  verified: string[];
+  missing: string[];
+  coverage: number;
+} {
+  const filled: string[] = [];
+  const verified: string[] = [];
+  const missing: string[] = [];
+  
+  for (const field of targetFields) {
+    const value = (data as any)[field];
+    if (value !== undefined && value !== null && value !== '') {
+      filled.push(field);
+      if (verifiedFields.has(field)) {
+        verified.push(field);
+      }
+    } else {
+      missing.push(field);
+    }
+  }
+  
+  return {
+    filled,
+    verified,
+    missing,
+    coverage: targetFields.length > 0 ? (filled.length / targetFields.length) * 100 : 0,
+  };
+}
+
 export function mapRevenueToRange(revenue: number): string {
   if (revenue < 1000000) return '$0-$1M';
   if (revenue < 5000000) return '$1M-$5M';
@@ -351,16 +403,39 @@ async function enrichFromPerplexity(
 - LinkedIn profile URL
 - Direct phone number or mobile if available
 - Verified email address
-Return ONLY a JSON object with these fields: title, linkedin_url, phone, mobile, email, email_verified`
-    : `Research company information for ${companyName || domain}. Include:
-- Industry classification
-- Employee count (exact number)
-- Revenue range estimate
-- Headquarters location (city, state, country)
-- Founded year
-- Key technologies used
-- Recent funding information
-Return ONLY a JSON object with these fields.`;
+Return ONLY a JSON object with these fields: title, linkedin_url, phone, mobile, direct_phone, email, email_verified`
+    : `Research comprehensive company information for ${companyName || domain}. Find ALL available data:
+
+FIRMOGRAPHIC:
+- employee_count: Exact number of employees
+- revenue_range: Annual revenue (use: "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M", "$50M-$100M", "$100M-$500M", "$500M-$1B", "$1B-$10B", "$10B+")
+- industry: Primary industry classification
+- founded_year: Year company was founded
+
+LOCATION:
+- city: Headquarters city
+- state: Headquarters state/province  
+- country: Headquarters country
+
+IDENTIFIERS:
+- company_name: Official company name
+- domain: Company website domain
+- linkedin_company_url: LinkedIn company page URL
+- twitter_url: Twitter/X profile URL
+
+FUNDING:
+- total_raised_usd: Total funding raised in USD
+- last_funding_round: Most recent funding round type (Seed, Series A, etc.)
+
+CLASSIFICATION:
+- naics: 6-digit NAICS code
+- sic_code: 4-digit SIC code
+- tech_stack: Array of technologies used (e.g., ["React", "AWS", "Salesforce"])
+
+CONTACT:
+- phone: Main company phone number
+
+Return ONLY a valid JSON object with ALL fields you can find.`;
   
   try {
     const response = await callAI('research', [
@@ -380,20 +455,37 @@ Return ONLY a JSON object with these fields.`;
     const parsed = JSON.parse(jsonMatch[0]);
     const fieldsEnriched: string[] = [];
     
-    // Map fields (only if not already verified)
+    // Map ALL enrichable fields (expanded coverage)
     const fieldMappings = [
+      // Contact/Person fields
       ['title', 'title'],
       ['linkedin_url', 'linkedin_url'],
       ['phone', 'phone'],
       ['mobile', 'mobile'],
+      ['direct_phone', 'direct_phone'],
       ['email', 'email'],
+      ['email_verified', 'email_verified'],
+      // Firmographic
       ['industry', 'industry'],
       ['employee_count', 'employee_count'],
       ['revenue_range', 'revenue_range'],
+      ['founded_year', 'founded_year'],
+      // Location
       ['city', 'city'],
       ['state', 'state'],
       ['country', 'country'],
-      ['founded_year', 'founded_year'],
+      // Identifiers
+      ['company_name', 'company_name'],
+      ['domain', 'domain'],
+      ['linkedin_company_url', 'linkedin_company_url'],
+      ['twitter_url', 'twitter_url'],
+      // Funding
+      ['total_raised_usd', 'total_raised_usd'],
+      ['last_funding_round', 'last_funding_round'],
+      // Classification
+      ['naics', 'naics'],
+      ['sic_code', 'sic_code'],
+      ['tech_stack', 'tech_stack'],
     ];
     
     for (const [sourceField, targetField] of fieldMappings) {
@@ -476,19 +568,32 @@ async function enrichFromFirecrawl(
     
     const combinedContent = markdowns.join('\n\n---\n\n').substring(0, 30000);
     
-    // Extract data with AI
+    // Extract data with AI - ask for ALL possible fields from website
     const extractPrompt = `Extract business information from this website content.
 IMPORTANT: Only extract information that is EXPLICITLY stated on the website. This is ground truth data.
 
 Return a JSON object with any of these fields found:
+
+COMPANY INFO:
 - company_name: Official company name
-- phone: Main company phone number
+- phone: Main company phone number (in E.164 format if possible)
 - employee_count: Number of employees (just the number)
 - industry: Primary industry
+- founded_year: Year founded
+
+LOCATION:
 - city: City location
 - state: State/province
 - country: Country
-- founded_year: Year founded
+
+SOCIAL:
+- linkedin_company_url: LinkedIn company page URL
+- twitter_url: Twitter/X profile URL
+
+CLASSIFICATION:
+- tech_stack: Array of technologies mentioned (e.g., ["React", "AWS"])
+- naics: NAICS code if mentioned
+- sic_code: SIC code if mentioned
 
 Website content:
 ${combinedContent}
@@ -510,18 +615,28 @@ Return ONLY valid JSON, no other text.`;
     const parsed = JSON.parse(jsonMatch[0]);
     const fieldsEnriched: string[] = [];
     
-    // Ground truth - these fields are verified and locked
-    const groundTruthFields = ['company_name', 'phone', 'city', 'state', 'country'];
+    // Ground truth - fields extracted from official website are verified and locked
+    // Expanded to include all directly observable website data
+    const groundTruthFields = [
+      'company_name', 'phone', 'city', 'state', 'country',
+      'linkedin_company_url', 'twitter_url', // Social links from footer
+      'founded_year', // If stated on about page
+    ];
     
     for (const field of Object.keys(parsed)) {
-      if (parsed[field] && !(data as any)[field]) {
-        (data as any)[field] = parsed[field];
-        fieldsEnriched.push(field);
-        
-        // Mark ground truth fields as verified
-        if (groundTruthFields.includes(field)) {
-          verifiedFields.add(field);
-        }
+      const value = parsed[field];
+      // Skip empty values
+      if (value === undefined || value === null || value === '') continue;
+      // Skip if already filled
+      if ((data as any)[field]) continue;
+      
+      (data as any)[field] = value;
+      fieldsEnriched.push(field);
+      
+      // Mark ground truth fields as verified (prevents AI overwrite)
+      if (groundTruthFields.includes(field)) {
+        verifiedFields.add(field);
+        console.log(`[provider-waterfall] Firecrawl: ${field} marked as VERIFIED (ground truth)`);
       }
     }
     
@@ -1131,11 +1246,22 @@ export async function runEnrichmentWaterfall(
     }
   }
   
+  // Check field coverage before AI fallback
+  const priorCoverage = getFieldCoverageStatus(data, verifiedFields, ACCOUNT_ENRICHABLE_FIELDS);
+  console.log(`[provider-waterfall] Pre-AI coverage: ${priorCoverage.coverage.toFixed(0)}% (${priorCoverage.filled.length}/${ACCOUNT_ENRICHABLE_FIELDS.length} fields)`);
+  if (priorCoverage.missing.length > 0) {
+    console.log(`[provider-waterfall] Missing fields for AI: ${priorCoverage.missing.join(', ')}`);
+  }
+  if (priorCoverage.verified.length > 0) {
+    console.log(`[provider-waterfall] Verified fields (protected): ${priorCoverage.verified.join(', ')}`);
+  }
+  
   // Step 4: AI enrichment (single or multi-provider based on config)
   // Default to aggregateProviders: true for maximum field coverage
   const useAggregation = config.aggregateProviders !== false;
   
-  if (useAggregation) {
+  // Only invoke AI if there are missing fields
+  if (priorCoverage.missing.length > 0 && useAggregation) {
     // NEW: Multi-provider AI aggregation for full field coverage
     const multiAIResults = await enrichFromMultipleAI(input, data, verifiedFields, config);
     for (const aiResult of multiAIResults) {
@@ -1146,7 +1272,7 @@ export async function runEnrichmentWaterfall(
     if (multiAIResults.length > 0) {
       console.log(`[provider-waterfall] Step 4 (Multi-AI): ${multiAIResults.length} providers contributed`);
     }
-  } else {
+  } else if (priorCoverage.missing.length > 0) {
     // Legacy: Single provider AI fallback
     const aiResult = await enrichFromAI(input, data, verifiedFields);
     if (aiResult) {
@@ -1155,6 +1281,14 @@ export async function runEnrichmentWaterfall(
       totalCost += aiResult.cost;
       console.log(`[provider-waterfall] Step 4 (AI): ${aiResult.fieldsEnriched.join(', ')}`);
     }
+  } else {
+    console.log(`[provider-waterfall] Step 4 (AI): SKIPPED - all ${ACCOUNT_ENRICHABLE_FIELDS.length} fields already filled`);
+  }
+  
+  // Check coverage after AI enrichment
+  const postAICoverage = getFieldCoverageStatus(data, verifiedFields, ACCOUNT_ENRICHABLE_FIELDS);
+  if (postAICoverage.coverage > priorCoverage.coverage) {
+    console.log(`[provider-waterfall] Post-AI coverage: ${postAICoverage.coverage.toFixed(0)}% (+${(postAICoverage.coverage - priorCoverage.coverage).toFixed(0)}%)`);
   }
   
   // Steps 5-6: Paid providers
