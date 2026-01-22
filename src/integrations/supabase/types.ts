@@ -7248,6 +7248,17 @@ export type Database = {
           total_enriched: number
         }[]
       }
+      get_enrichment_page_stats: {
+        Args: { p_org_id: string }
+        Returns: {
+          accounts_with_contacts: number
+          data_completeness_pct: number
+          enriched_accounts: number
+          enriched_leads: number
+          total_accounts: number
+          total_leads: number
+        }[]
+      }
       get_enrichment_stats: {
         Args: { p_org_id: string }
         Returns: {
