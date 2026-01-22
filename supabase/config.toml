@@ -460,3 +460,6 @@ verify_jwt = true
 
 [functions.rate-limit-helper]
 verify_jwt = false
+
+[functions.verify-carrier]
+verify_jwt = true
