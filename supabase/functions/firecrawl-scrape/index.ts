@@ -51,7 +51,7 @@ serve(async (req) => {
 
     console.log('[Firecrawl] Scraping URL:', formattedUrl);
 
-    // Use structured JSON extraction for company data
+    // Default extraction schema for company data
     const extractSchema = options?.extractSchema || {
       type: "object",
       properties: {
@@ -68,18 +68,37 @@ serve(async (req) => {
       }
     };
 
+    // Determine if JSON extraction is needed
+    const wantsJsonExtraction = options?.extractSchema || !options?.formats;
+
+    // Build request body according to Firecrawl v1 spec
+    const requestBody: Record<string, unknown> = {
+      url: formattedUrl,
+      formats: options?.formats || ['markdown'],
+      onlyMainContent: options?.onlyMainContent ?? true,
+      waitFor: options?.waitFor || 2000,
+    };
+
+    // Add JSON extraction via jsonOptions (per Firecrawl v1 spec)
+    if (wantsJsonExtraction) {
+      requestBody.formats = ['markdown', 'json'];
+      requestBody.jsonOptions = {
+        schema: extractSchema,
+      };
+    }
+
+    console.log('[Firecrawl] Request formats:', requestBody.formats);
+    if (requestBody.jsonOptions) {
+      console.log('[Firecrawl] JSON extraction enabled with schema');
+    }
+
     const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        url: formattedUrl,
-        formats: options?.formats || ['markdown', { type: 'json', schema: extractSchema }],
-        onlyMainContent: options?.onlyMainContent ?? true,
-        waitFor: options?.waitFor || 2000,
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     const data = await response.json();
@@ -94,15 +113,22 @@ serve(async (req) => {
 
     console.log('[Firecrawl] Scrape successful');
     
-    // Extract structured data if available
-    const extractedData = data.data?.json || data.data?.extract || null;
+    // Extract structured data - check multiple possible locations per API version
+    const extractedData = data.data?.json || data.data?.extract || data.json || null;
+    
+    // Log response structure for debugging
+    console.log('[Firecrawl] Response keys:', Object.keys(data.data || data || {}));
+    if (extractedData) {
+      console.log('[Firecrawl] Extracted fields:', Object.keys(extractedData));
+    }
     
     return new Response(
       JSON.stringify({ 
         success: true, 
         data: data.data,
         extracted: extractedData,
-        markdown: data.data?.markdown,
+        markdown: data.data?.markdown || data.markdown,
+        metadata: data.data?.metadata || data.metadata,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
