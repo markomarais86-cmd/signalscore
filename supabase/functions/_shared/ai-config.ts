@@ -53,20 +53,20 @@ export const AI_MODELS = {
     research: 'google/gemini-2.5-flash', // Fast AI research fallback
   },
   anthropic: {
-    chat: 'claude-3-5-sonnet-20241022',
-    analysis: 'claude-3-5-sonnet-20241022',
-    enrichment: 'claude-3-5-sonnet-20241022',
-    bulk: 'claude-3-5-haiku-20241022', // Cheaper for bulk operations
-    reasoning: 'claude-3-5-sonnet-20241022',
-    research: 'claude-3-5-sonnet-20241022', // Deep reasoning for structured extraction
+    chat: 'claude-sonnet-4-20250514',
+    analysis: 'claude-sonnet-4-20250514',
+    enrichment: 'claude-sonnet-4-20250514',
+    bulk: 'claude-haiku-35-20250115', // Cheaper for bulk operations
+    reasoning: 'claude-sonnet-4-20250514',
+    research: 'claude-sonnet-4-20250514', // Deep reasoning for structured extraction
   },
   xai: {
-    chat: 'grok-2-1212',
-    analysis: 'grok-2-1212',
-    enrichment: 'grok-2-1212',
-    bulk: 'grok-2-1212',
-    reasoning: 'grok-2-1212',
-    research: 'grok-2-1212', // Real-time X/Twitter social data
+    chat: 'grok-3',
+    analysis: 'grok-3',
+    enrichment: 'grok-3',
+    bulk: 'grok-3',
+    reasoning: 'grok-3',
+    research: 'grok-3', // Real-time X/Twitter social data
   },
 };
 
