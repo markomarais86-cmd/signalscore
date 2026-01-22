@@ -835,7 +835,10 @@ export type Database = {
           last_failure_at: string | null
           last_success_at: string | null
           provider: string
+          requests_24h: number | null
           status: string
+          timeout_count: number | null
+          total_cost: number | null
         }
         Insert: {
           avg_latency_ms?: number | null
@@ -845,7 +848,10 @@ export type Database = {
           last_failure_at?: string | null
           last_success_at?: string | null
           provider: string
+          requests_24h?: number | null
           status?: string
+          timeout_count?: number | null
+          total_cost?: number | null
         }
         Update: {
           avg_latency_ms?: number | null
@@ -855,7 +861,10 @@ export type Database = {
           last_failure_at?: string | null
           last_success_at?: string | null
           provider?: string
+          requests_24h?: number | null
           status?: string
+          timeout_count?: number | null
+          total_cost?: number | null
         }
         Relationships: []
       }

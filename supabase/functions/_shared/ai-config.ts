@@ -2,6 +2,8 @@
 // Supports: Perplexity, OpenAI, Lovable AI Gateway, Anthropic Claude, xAI Grok
 // Note: Abacus removed due to missing deploymentId configuration issues
 
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.55.0";
+
 export type AIProvider = 'perplexity' | 'openai' | 'lovable' | 'anthropic' | 'xai';
 export type TaskType = 'chat' | 'analysis' | 'enrichment' | 'bulk' | 'reasoning' | 'research';
 
@@ -68,11 +70,459 @@ export const AI_MODELS = {
   },
 };
 
+// ============================================================================
+// TIMEOUT CONFIGURATION - Adaptive Timeouts
+// ============================================================================
+
+// Provider-specific base timeouts (milliseconds)
+export const AI_PROVIDER_BASE_TIMEOUTS: Record<AIProvider, number> = {
+  perplexity: 8000,    // 8s base - web search
+  anthropic: 10000,    // 10s base - Claude reasoning
+  xai: 8000,           // 8s base - Grok
+  lovable: 6000,       // 6s base - Gemini Flash (fastest)
+  openai: 12000,       // 12s base - GPT can be slow
+};
+
+// Maximum timeout cap (prevents any single provider from blocking too long)
+export const MAX_PROVIDER_TIMEOUT = 25000; // 25s cap
+
+// Latency multiplier for adaptive calculation
+export const LATENCY_MULTIPLIER = 1.5;
+export const LATENCY_BUFFER_MS = 3000;
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Create a Supabase client for internal operations
+ */
+function getSupabaseClient(): SupabaseClient {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+  return createClient(supabaseUrl, supabaseKey);
+}
+
+/**
+ * Fetch with timeout using AbortController
+ */
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number,
+  providerName: string
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`${providerName} timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  }
+}
+
+// ============================================================================
+// CIRCUIT BREAKER INTEGRATION
+// ============================================================================
+
+interface CircuitStatus {
+  isOpen: boolean;
+  state: 'closed' | 'open' | 'half_open';
+  cooldownRemaining?: number;
+}
+
+/**
+ * Check if circuit is open for a provider
+ */
+async function checkCircuitBreaker(
+  provider: AIProvider,
+  supabase: SupabaseClient
+): Promise<CircuitStatus> {
+  try {
+    const { data: health } = await supabase
+      .from('service_health')
+      .select('circuit_state, cooldown_until, failure_count')
+      .eq('service_name', provider)
+      .single();
+    
+    if (!health) {
+      // No record = circuit closed
+      return { isOpen: false, state: 'closed' };
+    }
+    
+    if (health.circuit_state === 'closed') {
+      return { isOpen: false, state: 'closed' };
+    }
+    
+    if (health.circuit_state === 'open') {
+      const cooldownUntil = health.cooldown_until ? new Date(health.cooldown_until) : null;
+      if (cooldownUntil && cooldownUntil > new Date()) {
+        const remaining = cooldownUntil.getTime() - Date.now();
+        return { isOpen: true, state: 'open', cooldownRemaining: remaining };
+      }
+      // Cooldown expired, transition to half-open
+      await supabase
+        .from('service_health')
+        .update({ circuit_state: 'half_open', state_changed_at: new Date().toISOString() })
+        .eq('service_name', provider);
+      return { isOpen: false, state: 'half_open' };
+    }
+    
+    // half_open - allow request (testing)
+    return { isOpen: false, state: 'half_open' };
+  } catch (error) {
+    console.warn(`[AI Config] Circuit breaker check failed for ${provider}:`, error);
+    return { isOpen: false, state: 'closed' }; // Fail open
+  }
+}
+
+/**
+ * Record success for circuit breaker
+ */
+async function recordCircuitSuccess(
+  provider: AIProvider,
+  latencyMs: number,
+  supabase: SupabaseClient
+): Promise<void> {
+  try {
+    const { data: health } = await supabase
+      .from('service_health')
+      .select('circuit_state, success_count, total_requests, avg_response_time_ms')
+      .eq('service_name', provider)
+      .single();
+    
+    const now = new Date().toISOString();
+    const currentAvg = health?.avg_response_time_ms || latencyMs;
+    const newAvg = Math.round((currentAvg * 0.7) + (latencyMs * 0.3));
+    
+    const updates: Record<string, any> = {
+      last_success_at: now,
+      failure_count: 0,
+      total_requests: (health?.total_requests || 0) + 1,
+      avg_response_time_ms: newAvg,
+    };
+    
+    // If half-open, check if we should close circuit
+    if (health?.circuit_state === 'half_open') {
+      const newSuccessCount = (health.success_count || 0) + 1;
+      updates.success_count = newSuccessCount;
+      
+      if (newSuccessCount >= 2) {
+        updates.circuit_state = 'closed';
+        updates.state_changed_at = now;
+        updates.success_count = 0;
+        console.log(`[AI Config] ${provider}: Circuit CLOSED after recovery`);
+      }
+    }
+    
+    await supabase
+      .from('service_health')
+      .upsert({ service_name: provider, ...updates }, { onConflict: 'service_name' });
+  } catch (error) {
+    console.warn(`[AI Config] Failed to record success for ${provider}:`, error);
+  }
+}
+
+/**
+ * Record failure for circuit breaker
+ */
+async function recordCircuitFailure(
+  provider: AIProvider,
+  errorMessage: string,
+  isTimeout: boolean,
+  supabase: SupabaseClient
+): Promise<{ circuitOpened: boolean }> {
+  try {
+    const { data: health } = await supabase
+      .from('service_health')
+      .select('circuit_state, failure_count, total_requests, total_failures')
+      .eq('service_name', provider)
+      .single();
+    
+    const now = new Date().toISOString();
+    const failureCount = (health?.failure_count || 0) + 1;
+    const failureThreshold = 3; // Open circuit after 3 failures
+    const cooldownMs = 30000; // 30s cooldown
+    
+    const updates: Record<string, any> = {
+      last_failure_at: now,
+      last_error_message: errorMessage.substring(0, 500),
+      failure_count: failureCount,
+      total_requests: (health?.total_requests || 0) + 1,
+      total_failures: (health?.total_failures || 0) + 1,
+    };
+    
+    let circuitOpened = false;
+    
+    // Open circuit if threshold exceeded or in half-open state
+    if (failureCount >= failureThreshold || health?.circuit_state === 'half_open') {
+      updates.circuit_state = 'open';
+      updates.state_changed_at = now;
+      updates.cooldown_until = new Date(Date.now() + cooldownMs).toISOString();
+      updates.success_count = 0;
+      circuitOpened = true;
+      console.log(`[AI Config] ${provider}: Circuit OPENED after ${failureCount} failures`);
+    }
+    
+    await supabase
+      .from('service_health')
+      .upsert({ service_name: provider, ...updates }, { onConflict: 'service_name' });
+    
+    return { circuitOpened };
+  } catch (error) {
+    console.warn(`[AI Config] Failed to record failure for ${provider}:`, error);
+    return { circuitOpened: false };
+  }
+}
+
+// ============================================================================
+// ADAPTIVE TIMEOUT FUNCTIONS
+// ============================================================================
+
+interface ProviderLatencyData {
+  provider: string;
+  avg_latency_ms: number | null;
+  status: string;
+  failure_count: number;
+  timeout_count: number;
+}
+
+/**
+ * Get adaptive timeouts based on recent provider performance
+ */
+async function getAdaptiveTimeouts(
+  supabase: SupabaseClient
+): Promise<Record<AIProvider, number>> {
+  const timeouts: Record<AIProvider, number> = { ...AI_PROVIDER_BASE_TIMEOUTS };
+  
+  try {
+    const { data: healthData } = await supabase
+      .from('ai_provider_health')
+      .select('provider, avg_latency_ms, status, failure_count, timeout_count')
+      .in('provider', ['perplexity', 'anthropic', 'xai', 'lovable', 'openai']);
+    
+    if (!healthData || healthData.length === 0) {
+      console.log('[AI Config] No health data, using base timeouts');
+      return timeouts;
+    }
+    
+    for (const record of healthData as ProviderLatencyData[]) {
+      const provider = record.provider as AIProvider;
+      const baseTimeout = AI_PROVIDER_BASE_TIMEOUTS[provider] || 10000;
+      
+      if (record.avg_latency_ms && record.avg_latency_ms > 0) {
+        // Adaptive: avg_latency * 1.5 + buffer, but at least base
+        const adaptiveTimeout = Math.max(
+          baseTimeout,
+          Math.round(record.avg_latency_ms * LATENCY_MULTIPLIER + LATENCY_BUFFER_MS)
+        );
+        // Cap at maximum
+        timeouts[provider] = Math.min(adaptiveTimeout, MAX_PROVIDER_TIMEOUT);
+      }
+      
+      // If provider is degraded/unhealthy or has many timeouts, reduce timeout to fail faster
+      if (record.status === 'unhealthy' || record.failure_count > 3 || record.timeout_count > 5) {
+        timeouts[provider] = Math.min(timeouts[provider], 10000);
+        console.log(`[AI Config] ${provider}: reduced timeout to ${timeouts[provider]}ms (status: ${record.status}, timeouts: ${record.timeout_count})`);
+      }
+    }
+  } catch (error) {
+    console.warn('[AI Config] Failed to fetch health data, using base timeouts:', error);
+  }
+  
+  return timeouts;
+}
+
+/**
+ * Update provider health after a call
+ */
+async function updateProviderHealth(
+  supabase: SupabaseClient,
+  provider: AIProvider,
+  success: boolean,
+  latencyMs: number,
+  isTimeout: boolean,
+  cost: number
+): Promise<void> {
+  try {
+    const now = new Date().toISOString();
+    
+    const { data: existing } = await supabase
+      .from('ai_provider_health')
+      .select('avg_latency_ms, failure_count, timeout_count, total_cost, requests_24h')
+      .eq('provider', provider)
+      .single();
+    
+    let newAvgLatency = latencyMs;
+    let newFailureCount = success ? 0 : 1;
+    let newTimeoutCount = isTimeout ? 1 : 0;
+    let newTotalCost = cost;
+    
+    if (existing) {
+      if (existing.avg_latency_ms && latencyMs > 0) {
+        // Exponential moving average: 70% old + 30% new
+        newAvgLatency = Math.round(existing.avg_latency_ms * 0.7 + latencyMs * 0.3);
+      }
+      newFailureCount = success ? 0 : (existing.failure_count || 0) + 1;
+      newTimeoutCount = isTimeout ? (existing.timeout_count || 0) + 1 : (existing.timeout_count || 0);
+      newTotalCost = (existing.total_cost || 0) + cost;
+    }
+    
+    // Determine status based on recent performance
+    let status = 'healthy';
+    if (newFailureCount > 2 || newTimeoutCount > 5) {
+      status = 'unhealthy';
+    } else if (newFailureCount > 0 || newTimeoutCount > 2) {
+      status = 'degraded';
+    }
+    
+    await supabase.from('ai_provider_health').upsert({
+      provider,
+      status,
+      avg_latency_ms: newAvgLatency,
+      failure_count: newFailureCount,
+      timeout_count: newTimeoutCount,
+      total_cost: newTotalCost,
+      requests_24h: (existing?.requests_24h || 0) + 1,
+      last_success_at: success ? now : undefined,
+      last_failure_at: success ? undefined : now,
+      checked_at: now,
+    }, {
+      onConflict: 'provider',
+    });
+  } catch (error) {
+    console.warn(`[AI Config] Failed to update health for ${provider}:`, error);
+  }
+}
+
+// ============================================================================
+// COST TRACKING
+// ============================================================================
+
+/**
+ * Track AI usage for billing and analytics
+ */
+async function trackAIUsage(
+  supabase: SupabaseClient,
+  orgId: string | undefined,
+  provider: AIProvider,
+  model: string,
+  taskType: TaskType,
+  tokensInput: number,
+  tokensOutput: number,
+  latencyMs: number,
+  success: boolean,
+  errorMessage?: string
+): Promise<void> {
+  if (!orgId) return;
+  
+  try {
+    const costEstimate = estimateCost(provider, model, tokensInput, tokensOutput);
+    
+    await supabase.from('ai_usage_tracking').insert({
+      org_id: orgId,
+      provider,
+      model,
+      task_type: taskType,
+      tokens_input: tokensInput,
+      tokens_output: tokensOutput,
+      cost_estimate: costEstimate,
+      latency_ms: latencyMs,
+      success,
+      error_message: errorMessage?.substring(0, 500),
+    });
+  } catch (error) {
+    console.warn(`[AI Config] Failed to track usage for ${provider}:`, error);
+  }
+}
+
+/**
+ * Check if budget allows more AI calls
+ */
+async function checkBudget(
+  supabase: SupabaseClient,
+  orgId: string,
+  maxCostPerDay: number = 50
+): Promise<{ allowed: boolean; currentCost: number; remaining: number }> {
+  try {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    
+    const { data } = await supabase
+      .from('ai_usage_tracking')
+      .select('cost_estimate')
+      .eq('org_id', orgId)
+      .gte('created_at', todayStart.toISOString());
+    
+    const currentCost = (data || []).reduce((sum, row: any) => sum + (parseFloat(row.cost_estimate) || 0), 0);
+    const remaining = maxCostPerDay - currentCost;
+    
+    return {
+      allowed: remaining > 0,
+      currentCost,
+      remaining: Math.max(0, remaining),
+    };
+  } catch (error) {
+    console.warn('[AI Config] Budget check failed:', error);
+    return { allowed: true, currentCost: 0, remaining: maxCostPerDay }; // Fail open
+  }
+}
+
+/**
+ * Estimate cost based on tokens
+ */
+export function estimateCost(provider: string, model: string, tokensInput: number, tokensOutput: number): number {
+  const costs: Record<string, Record<string, { input: number; output: number }>> = {
+    openai: {
+      'gpt-5-2025-08-07': { input: 0.005, output: 0.015 },
+      'gpt-5-mini-2025-08-07': { input: 0.00015, output: 0.0006 },
+      'gpt-5-nano-2025-08-07': { input: 0.0001, output: 0.0003 },
+      'o4-mini-2025-04-16': { input: 0.003, output: 0.012 },
+      default: { input: 0.003, output: 0.010 },
+    },
+    anthropic: {
+      'claude-sonnet-4-20250514': { input: 0.003, output: 0.015 },
+      default: { input: 0.002, output: 0.01 },
+    },
+    lovable: {
+      default: { input: 0.001, output: 0.005 },
+    },
+    perplexity: {
+      'sonar-pro': { input: 0.003, output: 0.015 },
+      'sonar': { input: 0.001, output: 0.005 },
+      default: { input: 0.002, output: 0.008 },
+    },
+    xai: {
+      'grok-3': { input: 0.003, output: 0.015 },
+      default: { input: 0.002, output: 0.008 },
+    },
+  };
+
+  const providerCosts = costs[provider] || costs.lovable;
+  const modelCosts = providerCosts[model] || providerCosts.default || { input: 0.001, output: 0.005 };
+
+  return (tokensInput / 1000) * modelCosts.input + (tokensOutput / 1000) * modelCosts.output;
+}
+
+// ============================================================================
+// PROVIDER AVAILABILITY
+// ============================================================================
+
 // Check which providers are available based on API keys
 export function getAvailableProviders(): AIProvider[] {
   const providers: AIProvider[] = [];
   
-  // Check all 6 providers
+  // Check all 5 providers
   if (Deno.env.get('PERPLEXITY_API_KEY')) {
     providers.push('perplexity');
   }
@@ -265,6 +715,10 @@ export function buildRequestBody(
   return body;
 }
 
+// ============================================================================
+// SINGLE PROVIDER CALL WITH FALLBACK
+// ============================================================================
+
 // Make an AI API call with automatic fallback across ALL providers
 export async function callAI(
   taskType: TaskType,
@@ -277,13 +731,19 @@ export async function callAI(
     tool_choice?: any;
     preferredProvider?: AIProvider;
     search_recency_filter?: string;
+    supabase?: SupabaseClient;
+    orgId?: string;
   } = {}
 ): Promise<Response> {
   const providers = getAvailableProviders();
+  const supabase = options.supabase || getSupabaseClient();
   
   if (providers.length === 0) {
     throw new Error('No AI providers configured');
   }
+  
+  // Get adaptive timeouts
+  const timeouts = await getAdaptiveTimeouts(supabase);
   
   // For enrichment/research, use AI-first waterfall: Perplexity → Claude → Grok → Gemini
   let orderedProviders: AIProvider[];
@@ -309,6 +769,16 @@ export async function callAI(
   let lastError: Error | null = null;
   
   for (const provider of orderedProviders) {
+    const start = Date.now();
+    const timeoutMs = timeouts[provider] || AI_PROVIDER_BASE_TIMEOUTS[provider] || MAX_PROVIDER_TIMEOUT;
+    
+    // Check circuit breaker
+    const circuitStatus = await checkCircuitBreaker(provider, supabase);
+    if (circuitStatus.isOpen) {
+      console.log(`[AI Config] ${provider}: Circuit OPEN, skipping (cooldown: ${circuitStatus.cooldownRemaining}ms)`);
+      continue;
+    }
+    
     try {
       const config = getModelConfig(taskType, provider);
       const headers = buildHeaders(provider);
@@ -318,26 +788,57 @@ export async function callAI(
         search_recency_filter: provider === 'perplexity' ? (options.search_recency_filter || 'month') : undefined,
       });
       
-      console.log(`[AI Config] Calling ${provider} with model ${config.model} for task ${taskType}`);
+      console.log(`[AI Config] Calling ${provider} with model ${config.model} (timeout: ${timeoutMs}ms)`);
       
-      const response = await fetch(config.endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      });
+      const response = await fetchWithTimeout(
+        config.endpoint,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        },
+        timeoutMs,
+        provider
+      );
+      
+      const latencyMs = Date.now() - start;
       
       if (response.ok) {
-        console.log(`[AI Config] ${provider} succeeded`);
+        console.log(`[AI Config] ${provider} succeeded in ${latencyMs}ms`);
+        
+        // Record success
+        await recordCircuitSuccess(provider, latencyMs, supabase);
+        await updateProviderHealth(supabase, provider, true, latencyMs, false, getProviderCost(provider));
+        
+        // Track usage (fire and forget)
+        if (options.orgId) {
+          trackAIUsage(supabase, options.orgId, provider, config.model, taskType, 500, 1000, latencyMs, true)
+            .catch(err => console.warn('[AI Config] Usage tracking failed:', err));
+        }
+        
         return response;
       }
       
       // Log error but continue to next provider
       const errorText = await response.text();
+      const latencyMsFinal = Date.now() - start;
       console.error(`[AI Config] ${provider} error (${response.status}): ${errorText}`);
+      
+      await recordCircuitFailure(provider, errorText, false, supabase);
+      await updateProviderHealth(supabase, provider, false, latencyMsFinal, false, 0);
+      
       lastError = new Error(`${provider} returned ${response.status}: ${errorText}`);
       
     } catch (error) {
-      console.error(`[AI Config] ${provider} failed:`, error);
+      const latencyMs = Date.now() - start;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      const isTimeout = errorMsg.includes('timed out');
+      
+      console.error(`[AI Config] ${provider} ${isTimeout ? 'TIMEOUT' : 'failed'}: ${errorMsg}`);
+      
+      await recordCircuitFailure(provider, errorMsg, isTimeout, supabase);
+      await updateProviderHealth(supabase, provider, false, latencyMs, isTimeout, 0);
+      
       lastError = error as Error;
     }
   }
@@ -346,7 +847,7 @@ export async function callAI(
 }
 
 // ============================================================================
-// AGGREGATED AI CALL - CALL ALL PROVIDERS AND MERGE RESULTS
+// AGGREGATED AI CALL - PARALLEL EXECUTION
 // ============================================================================
 
 export interface AggregatedAIResponse {
@@ -355,11 +856,12 @@ export interface AggregatedAIResponse {
   data: any;
   error?: string;
   latencyMs: number;
+  isTimeout?: boolean;
 }
 
 /**
- * Call ALL available AI providers and return aggregated responses.
- * This enables the enrichment pipeline to merge data from multiple AI sources.
+ * Call ALL available AI providers IN PARALLEL and return aggregated responses.
+ * Uses adaptive timeouts, circuit breakers, and budget limits.
  */
 export async function callAIAllProviders(
   taskType: TaskType,
@@ -369,15 +871,33 @@ export async function callAIAllProviders(
     temperature?: number;
     search_recency_filter?: string;
     preferredProvider?: AIProvider;
+    supabase?: SupabaseClient;
+    orgId?: string;
+    maxCostPerDay?: number;
   } = {}
 ): Promise<AggregatedAIResponse[]> {
   const providers = getAvailableProviders();
-  const responses: AggregatedAIResponse[] = [];
+  const supabase = options.supabase || getSupabaseClient();
   
   if (providers.length === 0) {
     console.warn('[AI Config] No AI providers configured');
     return [];
   }
+  
+  // Check budget before making calls
+  if (options.orgId) {
+    const { allowed, remaining } = await checkBudget(supabase, options.orgId, options.maxCostPerDay);
+    if (!allowed) {
+      console.warn(`[AI Config] Budget exceeded, cannot call AI providers`);
+      return [];
+    }
+    if (remaining < 5) {
+      console.warn(`[AI Config] Low budget remaining: $${remaining.toFixed(2)}`);
+    }
+  }
+  
+  // Get adaptive timeouts based on recent performance
+  const timeouts = await getAdaptiveTimeouts(supabase);
   
   // Define provider order for enrichment/research tasks
   // Priority: real-time search → deep reasoning → social data → fast fallback
@@ -397,48 +917,126 @@ export async function callAIAllProviders(
     ];
   }
   
-  console.log(`[AI Config] Calling ${orderedProviders.length} providers for ${taskType}: ${orderedProviders.join(' → ')}`);
-  
+  // Filter out providers with open circuits
+  const availableProviders: AIProvider[] = [];
   for (const provider of orderedProviders) {
+    const circuitStatus = await checkCircuitBreaker(provider, supabase);
+    if (!circuitStatus.isOpen) {
+      availableProviders.push(provider);
+    } else {
+      console.log(`[AI Config] ${provider}: Circuit OPEN, excluding from aggregation (cooldown: ${circuitStatus.cooldownRemaining}ms)`);
+    }
+  }
+  
+  if (availableProviders.length === 0) {
+    console.warn('[AI Config] All provider circuits are open');
+    return [];
+  }
+  
+  console.log(`[AI Config] PARALLEL call to ${availableProviders.length} providers: ${availableProviders.join(', ')}`);
+  console.log(`[AI Config] Timeouts: ${JSON.stringify(timeouts)}`);
+  
+  // Create promise for each provider - PARALLEL EXECUTION
+  const providerPromises = availableProviders.map(async (provider): Promise<AggregatedAIResponse> => {
     const start = Date.now();
+    const timeoutMs = timeouts[provider] || AI_PROVIDER_BASE_TIMEOUTS[provider] || MAX_PROVIDER_TIMEOUT;
+    
     try {
       const config = getModelConfig(taskType, provider);
       const headers = buildHeaders(provider);
       const body = buildRequestBody(provider, config.model, messages, {
         ...options,
-        // For Perplexity, use recent data
-        search_recency_filter: provider === 'perplexity' ? (options.search_recency_filter || 'month') : undefined,
+        search_recency_filter: provider === 'perplexity' 
+          ? (options.search_recency_filter || 'month') 
+          : undefined,
       });
       
-      console.log(`[AI Config] Calling ${provider} with model ${config.model}`);
+      console.log(`[AI Config] ${provider}: starting (timeout: ${timeoutMs}ms, model: ${config.model})`);
       
-      const response = await fetch(config.endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-      });
+      const response = await fetchWithTimeout(
+        config.endpoint,
+        {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+        },
+        timeoutMs,
+        provider
+      );
       
       const latencyMs = Date.now() - start;
       
       if (response.ok) {
         const data = await response.json();
-        responses.push({ provider, success: true, data, latencyMs });
-        console.log(`[AI Config] ${provider} succeeded in ${latencyMs}ms`);
+        console.log(`[AI Config] ${provider}: SUCCESS in ${latencyMs}ms`);
+        
+        // Record success (fire and forget)
+        recordCircuitSuccess(provider, latencyMs, supabase).catch(() => {});
+        updateProviderHealth(supabase, provider, true, latencyMs, false, getProviderCost(provider)).catch(() => {});
+        
+        // Track usage
+        if (options.orgId) {
+          trackAIUsage(supabase, options.orgId, provider, config.model, taskType, 500, 1000, latencyMs, true)
+            .catch(() => {});
+        }
+        
+        return { provider, success: true, data, latencyMs };
       } else {
         const errorText = await response.text();
-        console.warn(`[AI Config] ${provider} error (${response.status}): ${errorText.substring(0, 200)}`);
-        responses.push({ provider, success: false, data: null, error: errorText, latencyMs });
+        console.warn(`[AI Config] ${provider}: HTTP ${response.status} in ${latencyMs}ms`);
+        
+        recordCircuitFailure(provider, errorText, false, supabase).catch(() => {});
+        updateProviderHealth(supabase, provider, false, latencyMs, false, 0).catch(() => {});
+        
+        return { provider, success: false, data: null, error: errorText, latencyMs };
       }
     } catch (error) {
       const latencyMs = Date.now() - start;
       const errorMsg = error instanceof Error ? error.message : String(error);
-      console.warn(`[AI Config] ${provider} failed: ${errorMsg}`);
-      responses.push({ provider, success: false, data: null, error: errorMsg, latencyMs });
+      const isTimeout = errorMsg.includes('timed out');
+      
+      console.warn(`[AI Config] ${provider}: ${isTimeout ? 'TIMEOUT' : 'FAILED'} after ${latencyMs}ms - ${errorMsg}`);
+      
+      recordCircuitFailure(provider, errorMsg, isTimeout, supabase).catch(() => {});
+      updateProviderHealth(supabase, provider, false, latencyMs, isTimeout, 0).catch(() => {});
+      
+      return { 
+        provider, 
+        success: false, 
+        data: null, 
+        error: isTimeout ? `Timeout after ${latencyMs}ms` : errorMsg, 
+        latencyMs,
+        isTimeout 
+      };
     }
-  }
+  });
+  
+  // Execute all in parallel with Promise.allSettled
+  const results = await Promise.allSettled(providerPromises);
+  
+  // Extract responses from settled promises
+  const responses: AggregatedAIResponse[] = results.map((result, index) => {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    } else {
+      // Promise rejection (shouldn't happen with our error handling)
+      return {
+        provider: availableProviders[index],
+        success: false,
+        data: null,
+        error: result.reason?.message || 'Unknown error',
+        latencyMs: 0,
+      };
+    }
+  });
   
   const successCount = responses.filter(r => r.success).length;
-  console.log(`[AI Config] Aggregation complete: ${successCount}/${orderedProviders.length} providers succeeded`);
+  const timeoutCount = responses.filter(r => r.isTimeout).length;
+  const avgLatency = Math.round(
+    responses.reduce((sum, r) => sum + r.latencyMs, 0) / responses.length
+  );
+  
+  console.log(`[AI Config] Parallel complete: ${successCount}/${responses.length} succeeded, ${timeoutCount} timeouts, avg latency: ${avgLatency}ms`);
   
   return responses;
 }
