@@ -20,7 +20,7 @@ import { calculateTrends, TrendData } from "@/utils/trend-calculator";
 import { detectRisks, RiskItem } from "@/utils/risk-detector";
 import { UnifiedInsightsPanel, Insight } from "@/components/executive/UnifiedInsightsPanel";
 import { SyncProgressModal } from "@/components/settings/SyncProgressModal";
-import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
+// EnrichmentModal removed - consolidated into UnifiedEnrichmentWizard
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { SourceFilterToggle, type SourceFilter } from "@/components/executive/SourceFilterToggle";
 import { EmptyState } from "@/components/EmptyState";
@@ -59,7 +59,8 @@ export default function ExecutiveDashboard() {
   const { data: geographyData } = useGeographyData(userProfile?.org_id, !!dashboardData, sourceFilter);
   const { data: filterStats } = useSourceFilterStats(userProfile?.org_id);
 
-  const [isEnrichmentModalOpen, setIsEnrichmentModalOpen] = useState(false);
+  // Navigate to enrichment page instead of modal
+  const openEnrichmentPage = () => navigate('/enrichment?mode=existing&type=accounts');
   const [showAISuggestions, setShowAISuggestions] = useState(true);
   const [showAllRisks, setShowAllRisks] = useState(false);
   const [refreshingInsights, setRefreshingInsights] = useState(false);
@@ -375,7 +376,7 @@ export default function ExecutiveDashboard() {
       setApolloStale(false);
     },
     onGoToICP: () => navigate('/icp-manager'),
-    onEnrich: () => setIsEnrichmentModalOpen(true),
+    onEnrich: openEnrichmentPage,
     syncingApollo: syncingApolloFromAlert
   });
 
@@ -402,7 +403,7 @@ export default function ExecutiveDashboard() {
       {/* Command Palette - Global keyboard shortcut */}
       <CommandPalette
         onScoreAccounts={handleScoreAccounts}
-        onEnrich={() => setIsEnrichmentModalOpen(true)}
+        onEnrich={openEnrichmentPage}
         onSyncApollo={handleSyncApollo}
         onRefresh={() => {
           refetch();
@@ -476,7 +477,7 @@ export default function ExecutiveDashboard() {
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => setIsEnrichmentModalOpen(true)}
+              onClick={openEnrichmentPage}
               className="hover:shadow-sm transition-shadow active:scale-[0.98]"
             >
               <LaunchPulseMark className="mr-2 h-4 w-4" />
@@ -664,8 +665,7 @@ export default function ExecutiveDashboard() {
           </>
         )}
 
-        {/* Enrichment Modal */}
-        <EnrichmentModal open={isEnrichmentModalOpen} onOpenChange={setIsEnrichmentModalOpen} />
+        {/* Enrichment Modal removed - consolidated into Enrichment page */}
         
         {/* Sync Progress Modal */}
         <SyncProgressModal
