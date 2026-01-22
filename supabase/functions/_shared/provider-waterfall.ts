@@ -28,6 +28,13 @@ import {
   type AggregatedAIResponse 
 } from './ai-config.ts';
 import { withHttpRetry, DEFAULT_RETRY_CONFIG } from './retry-helper.ts';
+import { 
+  isValidPhoneNumber, 
+  sanitizePhone, 
+  extractPhonesFromText,
+  classifyPhoneType,
+  type PhoneEntry 
+} from './phone-utils.ts';
 
 // ============================================================================
 // TYPES
@@ -266,21 +273,20 @@ export function extractNameFromEmail(email: string): { first_name?: string; last
   return null;
 }
 
+/**
+ * Validate and format US phone number
+ * Uses the new phone-utils module for robust validation
+ */
 export function isValidUSPhone(phone: string | null): boolean {
-  if (!phone) return false;
-  const digits = phone.replace(/\D/g, '');
-  if (digits.length !== 10 && digits.length !== 11) return false;
-  const areaCode = digits.length === 11 ? digits.substring(1, 4) : digits.substring(0, 3);
-  const areaNum = parseInt(areaCode, 10);
-  return areaNum >= 200 && areaNum <= 999;
+  return isValidPhoneNumber(phone);
 }
 
+/**
+ * Format phone to E.164
+ * Uses the new phone-utils module for sanitization
+ */
 export function formatPhone(phone: string | null): string | null {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, '');
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-  return null;
+  return sanitizePhone(phone);
 }
 
 /**
@@ -523,7 +529,19 @@ Return ONLY a valid JSON object with ALL fields you can find.`;
     
     for (const [sourceField, targetField] of fieldMappings) {
       if (parsed[sourceField] && !verifiedFields.has(targetField) && !(data as any)[targetField]) {
-        (data as any)[targetField] = parsed[sourceField];
+        let value = parsed[sourceField];
+        
+        // Validate phone fields before storing
+        if (['phone', 'mobile', 'direct_phone'].includes(targetField)) {
+          const sanitized = sanitizePhone(value);
+          if (!sanitized) {
+            console.log(`[provider-waterfall] Perplexity: Rejected invalid ${targetField}: ${value}`);
+            continue;
+          }
+          value = sanitized;
+        }
+        
+        (data as any)[targetField] = value;
         fieldsEnriched.push(targetField);
       }
     }
@@ -657,11 +675,22 @@ Return ONLY valid JSON, no other text.`;
     ];
     
     for (const field of Object.keys(parsed)) {
-      const value = parsed[field];
+      let value = parsed[field];
       // Skip empty values
       if (value === undefined || value === null || value === '') continue;
       // Skip if already filled
       if ((data as any)[field]) continue;
+      
+      // Validate phone fields before storing (prevent GPS coordinates and garbage)
+      if (field === 'phone' || field === 'mobile' || field === 'direct_phone') {
+        const sanitized = sanitizePhone(value);
+        if (!sanitized) {
+          console.log(`[provider-waterfall] Firecrawl: Rejected invalid ${field}: ${value}`);
+          continue;
+        }
+        value = sanitized;
+        console.log(`[provider-waterfall] Firecrawl: Validated ${field}: ${sanitized}`);
+      }
       
       (data as any)[field] = value;
       fieldsEnriched.push(field);
