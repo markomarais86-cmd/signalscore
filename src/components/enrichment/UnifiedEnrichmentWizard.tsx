@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Building2, 
   Users, 
@@ -29,9 +31,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parseCSV } from "@/utils/csv-parser";
 import { EnrichmentProgressMonitor } from "@/components/settings/EnrichmentProgressMonitor";
+import { useUnifiedEnrichment, EnrichmentConfig } from "@/hooks/use-unified-enrichment";
+import { LaunchPulseMark } from "@/components/BrandLogo";
 
 type EnrichmentType = "accounts" | "leads";
 type InputMethod = "paste" | "upload" | "existing";
+
+// Provider configuration for existing data enrichment
+interface EnrichmentProvider {
+  id: string;
+  name: string;
+  description: string;
+  tier: "free" | "premium";
+  fields: string[];
+  config: EnrichmentConfig;
+}
 type WizardStep = "type" | "input" | "preview" | "process" | "processing" | "results";
 
 interface ParsedInput {
@@ -94,13 +108,77 @@ function mapSourceBreakdownToCategories(breakdown: Record<string, any>) {
   return categories;
 }
 
+// Provider options for existing data enrichment (consolidated from EnrichmentModal)
+const ENRICHMENT_PROVIDERS: EnrichmentProvider[] = [
+  {
+    id: "smart",
+    name: "Smart Enrichment Waterfall (Recommended)",
+    description: "Uses Perplexity → Firecrawl → AI → PDL → Apollo for best coverage",
+    tier: "free",
+    fields: ["Industry", "Company Size", "Revenue", "Location", "Employee Count"],
+    config: {}
+  },
+  {
+    id: "launch_pulse",
+    name: "LaunchPulse Enrichment",
+    description: "LaunchPulse proprietary data enrichment - high accuracy company data",
+    tier: "free",
+    fields: ["Industry", "Employee Count", "Revenue", "Location", "Tech Stack"],
+    config: { includeWebScrape: true }
+  },
+  {
+    id: "ai_free",
+    name: "Free AI Enrichment ⭐",
+    description: "AI-powered estimates using domain analysis. No API credits needed!",
+    tier: "free",
+    fields: ["Industry", "Employee Count", "Revenue Range", "Business Model"],
+    config: { skipPaidProviders: true }
+  },
+  {
+    id: "deep_research",
+    name: "Deep Research (High-Value Accounts)",
+    description: "AI-powered web research with citations, tech stack, funding, and confidence scores",
+    tier: "premium",
+    fields: ["All Fields", "Tech Stack", "Funding", "Trust Signals", "Verified Contacts", "Citations"],
+    config: { includeWebScrape: true, verifyEmail: true }
+  }
+];
+
 export function UnifiedEnrichmentWizard() {
   const { userProfile } = useAuth();
-  const [step, setStep] = useState<WizardStep>("type");
-  const [enrichmentType, setEnrichmentType] = useState<EnrichmentType>("accounts");
-  const [inputMethod, setInputMethod] = useState<InputMethod>("paste");
+  const [searchParams] = useSearchParams();
+  
+  // Check for URL params to auto-select mode
+  const urlMode = searchParams.get('mode');
+  const urlType = searchParams.get('type');
+  
+  const [step, setStep] = useState<WizardStep>(() => 
+    urlMode === 'existing' ? 'input' : 'type'
+  );
+  const [enrichmentType, setEnrichmentType] = useState<EnrichmentType>(() => 
+    (urlType === 'leads' ? 'leads' : 'accounts') as EnrichmentType
+  );
+  const [inputMethod, setInputMethod] = useState<InputMethod>(() => 
+    urlMode === 'existing' ? 'existing' : 'paste'
+  );
   const [pasteInput, setPasteInput] = useState("");
   const [sourceType, setSourceType] = useState("manual");
+  
+  // Existing data enrichment state (consolidated from EnrichmentModal)
+  const [selectedProvider, setSelectedProvider] = useState<string>("smart");
+  const [batchSize, setBatchSize] = useState<number>(100);
+  const [creditsAvailable, setCreditsAvailable] = useState<number | null>(null);
+  
+  // Use unified enrichment hook for existing data
+  const { isEnriching, progress: enrichProgress, enrichAccounts, reset: resetEnrichment } = useUnifiedEnrichment({
+    onComplete: () => {
+      toast.success('Enrichment complete! Refreshing...');
+      window.location.reload();
+    },
+    onError: (error) => {
+      console.error('Enrichment error:', error);
+    }
+  });
   
   // Options
   // Default to FALSE - always force external enrichment for fresh data
@@ -842,46 +920,163 @@ export function UnifiedEnrichmentWizard() {
                 <Alert>
                   <Database className="h-4 w-4" />
                   <AlertDescription>
-                    Enrich unenriched {enrichmentType} already in your database.
+                    Enrich {enrichmentType} with incomplete data (missing revenue, size, industry, location)
                   </AlertDescription>
                 </Alert>
-                
+
+                {/* Credits display */}
+                {creditsAvailable !== null && (
+                  <Alert>
+                    <Database className="h-4 w-4" />
+                    <AlertDescription className="flex items-center justify-between">
+                      <span>{creditsAvailable.toLocaleString()} enrichment credits available</span>
+                      {batchSize > 0 && (
+                        <span className="text-xs text-muted-foreground">
+                          Est. cost: ~{Math.ceil(batchSize * (selectedProvider === 'deep_research' ? 2.5 : 0.25))} credits
+                        </span>
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Enrichment progress */}
+                {isEnriching && enrichProgress && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Processing...</span>
+                      <span>{enrichProgress.processed} / {enrichProgress.total}</span>
+                    </div>
+                    <Progress value={Math.round((enrichProgress.processed / enrichProgress.total) * 100)} />
+                    <div className="text-xs text-muted-foreground">
+                      {enrichProgress.enriched} enriched • {enrichProgress.failed} failed • Est. cost: ${enrichProgress.totalCost.toFixed(2)}
+                    </div>
+                  </div>
+                )}
+
+                {/* Batch size selector */}
+                <div className="space-y-2">
+                  <Label>Batch Size</Label>
+                  <Select value={batchSize.toString()} onValueChange={(v) => setBatchSize(Number(v))} disabled={isEnriching}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select batch size" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="100">100 records (~15 sec)</SelectItem>
+                      <SelectItem value="250">250 records (~30 sec)</SelectItem>
+                      <SelectItem value="500">500 records (~1 min)</SelectItem>
+                      <SelectItem value="1000">1,000 records (~2 min)</SelectItem>
+                      <SelectItem value="2500">2,500 records (~5 min)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    ⚡ Parallel processing: 15 concurrent API calls + AI batch size 50
+                  </p>
+                </div>
+
+                {/* Deep research warning */}
+                {selectedProvider === 'deep_research' && (
+                  <Alert variant="default" className="border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+                    <AlertCircle className="h-4 w-4 text-yellow-600" />
+                    <AlertDescription className="text-yellow-900 dark:text-yellow-100">
+                      ⚠️ Deep Research: ~10x cost vs standard enrichment
+                      <br />
+                      <span className="text-xs">Provides: Tech stack, funding data, trust signals, verified contacts with citations</span>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Provider selection */}
+                <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                  <Label>Enrichment Provider</Label>
+                  {ENRICHMENT_PROVIDERS.map((provider) => (
+                    <div
+                      key={provider.id}
+                      className={`border rounded-lg p-3 cursor-pointer transition-colors ${
+                        selectedProvider === provider.id 
+                          ? 'border-primary bg-primary/5' 
+                          : 'hover:bg-muted/50'
+                      } ${isEnriching ? 'opacity-50 pointer-events-none' : ''}`}
+                      onClick={() => !isEnriching && setSelectedProvider(provider.id)}
+                    >
+                      <div className="flex items-start gap-2">
+                        <Checkbox
+                          checked={selectedProvider === provider.id}
+                          onCheckedChange={() => !isEnriching && setSelectedProvider(provider.id)}
+                          disabled={isEnriching}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium text-sm">{provider.name}</span>
+                            <Badge variant={provider.tier === "free" ? "outline" : "default"} className="text-xs">
+                              {provider.tier === "free" ? "Free" : "Premium"}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-1">
+                            {provider.description}
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {provider.fields.slice(0, 4).map(field => (
+                              <Badge key={field} variant="secondary" className="text-xs">
+                                {field}
+                              </Badge>
+                            ))}
+                            {provider.fields.length > 4 && (
+                              <Badge variant="secondary" className="text-xs">
+                                +{provider.fields.length - 4} more
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Start enrichment button */}
                 <Button 
                   onClick={async () => {
                     if (!userProfile?.org_id) return;
                     
-                    const table = enrichmentType === 'accounts' ? 'accounts' : 'Leads';
-                    const { data, count } = await supabase
-                      .from(table)
-                      .select('*', { count: 'exact' })
+                    const provider = ENRICHMENT_PROVIDERS.find(p => p.id === selectedProvider);
+                    if (!provider) return;
+
+                    // Fetch accounts to enrich
+                    const { data: accounts, error } = await supabase
+                      .from('accounts')
+                      .select('external_id, name, domain, industry_norm, industry_raw, employee_count, revenue_range, country, state_province, city')
                       .eq('org_id', userProfile.org_id)
-                      .is('enriched_at', null)
-                      .limit(100);
-                    
-                    if (!data || data.length === 0) {
-                      toast.info("No unenriched records found");
+                      .or('employee_count.is.null,revenue_range.is.null,industry_norm.is.null')
+                      .not('domain', 'is', null)
+                      .limit(selectedProvider === 'deep_research' ? Math.min(batchSize, 50) : batchSize);
+
+                    if (error) {
+                      console.error('Error fetching accounts:', error);
+                      toast.error('Failed to fetch accounts');
                       return;
                     }
-                    
-                    const parsed: ParsedInput[] = data.map((r: any) => ({
-                      type: r.email ? 'email' as const : r.domain ? 'domain' as const : 'company_name' as const,
-                      value: r.email || r.domain || r.name || r.company || '',
-                      domain: r.domain
-                    })).filter((p: ParsedInput) => p.value);
-                    
-                    setParsedInputs(parsed);
-                    setPreviewStats({
-                      total: parsed.length,
-                      with_domain: parsed.filter(p => p.type === 'domain' || p.domain).length,
-                      with_email: parsed.filter(p => p.type === 'email').length,
-                      company_name_only: parsed.filter(p => p.type === 'company_name').length
-                    });
-                    setStep("preview");
-                    toast.success(`Found ${count || parsed.length} unenriched records`);
+
+                    if (!accounts || accounts.length === 0) {
+                      toast.info('No accounts with incomplete data found');
+                      return;
+                    }
+
+                    toast.success(`Starting enrichment for ${accounts.length} accounts`);
+                    await enrichAccounts(userProfile.org_id, accounts, provider.config);
                   }}
                   className="w-full"
+                  disabled={isEnriching || !selectedProvider}
                 >
-                  Find Unenriched {enrichmentType === 'accounts' ? 'Accounts' : 'Leads'}
+                  {isEnriching ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Enriching...
+                    </>
+                  ) : (
+                    <>
+                      <LaunchPulseMark className="h-4 w-4 mr-2" />
+                      Start Enrichment
+                    </>
+                  )}
                 </Button>
               </TabsContent>
             </Tabs>
