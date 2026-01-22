@@ -66,7 +66,7 @@ const PROVIDER_COLORS: Record<string, string> = {
   openai: 'text-green-500',
 };
 
-export function EnrichmentProviderHealth() {
+export function AIPipelineHealth() {
   const { userProfile } = useAuth();
   const orgId = userProfile?.org_id;
 
