@@ -30,7 +30,12 @@ export const getAllowedOrigins = (): string[] => {
 const isLovableOrigin = (origin: string): boolean => {
   try {
     const url = new URL(origin);
-    return url.hostname.endsWith('.lovable.app') && url.protocol === 'https:';
+    // Support both .lovable.app AND .lovableproject.com domains
+    return (
+      (url.hostname.endsWith('.lovable.app') || 
+       url.hostname.endsWith('.lovableproject.com')) && 
+      url.protocol === 'https:'
+    );
   } catch {
     return false;
   }
