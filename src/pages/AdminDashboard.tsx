@@ -18,6 +18,7 @@ import { OrganizationManagementDialog } from '@/components/platform-admin/Organi
 import { usePlatformAdmin } from '@/hooks/use-platform-admin';
 import { FeatureToggles } from '@/components/settings/FeatureToggles';
 import { OrganizationFeatureFlags } from '@/components/platform-admin/OrganizationFeatureFlags';
+import { CreditManagementDashboard } from '@/components/platform-admin/CreditManagementDashboard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
@@ -321,9 +322,10 @@ export default function AdminDashboard() {
 
       {/* Tabbed Content */}
       <Tabs defaultValue="organizations-overview" className="space-y-6">
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="organizations-overview">Organizations Overview</TabsTrigger>
           <TabsTrigger value="organizations-table">Organizations Table</TabsTrigger>
+          <TabsTrigger value="credits">Credits</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="invitations">Invitations</TabsTrigger>
           <TabsTrigger value="feature-flags">Feature Flags</TabsTrigger>
@@ -410,6 +412,10 @@ export default function AdminDashboard() {
               </Table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="credits">
+          <CreditManagementDashboard />
         </TabsContent>
 
         <TabsContent value="users">

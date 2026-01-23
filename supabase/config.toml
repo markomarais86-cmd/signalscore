@@ -463,3 +463,6 @@ verify_jwt = false
 
 [functions.verify-carrier]
 verify_jwt = false
+
+[functions.reset-monthly-credits]
+verify_jwt = false
