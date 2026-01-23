@@ -316,9 +316,9 @@ serve(async (req) => {
               if (result.data.linkedin_url) leadData.linkedin_url = result.data.linkedin_url;
               if (result.data.email_verified !== undefined) leadData.email_verified = result.data.email_verified;
               if (result.data.company) leadData.company = result.data.company;
-              // NEW: Save location fields
+              // NEW: Save location fields (using correct column names)
               if (result.data.country) leadData.country = result.data.country;
-              if (result.data.city) leadData.city = result.data.city;
+              if (result.data.city) leadData.location_city = result.data.city;
               if (result.data.company_name && !leadData.company) leadData.company = result.data.company_name;
 
               if (isNewLead) {
@@ -336,7 +336,7 @@ serve(async (req) => {
                   linkedin_url: leadData.linkedin_url || record.linkedin_url,
                   company: leadData.company || record.company,
                   country: leadData.country || record.country,
-                  city: leadData.city || record.city,
+                  location_city: leadData.location_city || record.location_city,
                   data_source: 'enrichment_wizard',
                 };
 
