@@ -30,7 +30,9 @@ import {
 import { withHttpRetry, DEFAULT_RETRY_CONFIG } from './retry-helper.ts';
 import { 
   isValidPhoneNumber, 
-  sanitizePhone, 
+  sanitizePhone,
+  sanitizePhoneInternational,
+  isPhoneMatchingCountry,
   extractPhonesFromText,
   classifyPhoneType,
   type PhoneEntry 
@@ -238,7 +240,7 @@ export function extractNameFromEmail(email: string): { first_name?: string; last
   
   const local = email.split('@')[0].toLowerCase();
   
-  // Common patterns: first.last, first_last, firstlast
+  // Common patterns: first.last, first_last, first-last
   const dotMatch = local.match(/^([a-z]+)\.([a-z]+)$/);
   if (dotMatch) {
     return {
@@ -255,19 +257,21 @@ export function extractNameFromEmail(email: string): { first_name?: string; last
     };
   }
   
-  // firstlast@company.com where first is 2-4 chars and last is 3+
-  if (local.length >= 5 && /^[a-z]+$/.test(local)) {
-    // Try common splits
-    for (let i = 2; i <= 4; i++) {
-      const first = local.slice(0, i);
-      const last = local.slice(i);
-      if (last.length >= 3) {
-        return {
-          first_name: first.charAt(0).toUpperCase() + first.slice(1),
-          last_name: last.charAt(0).toUpperCase() + last.slice(1),
-        };
-      }
-    }
+  const dashMatch = local.match(/^([a-z]+)-([a-z]+)$/);
+  if (dashMatch) {
+    return {
+      first_name: dashMatch[1].charAt(0).toUpperCase() + dashMatch[1].slice(1),
+      last_name: dashMatch[2].charAt(0).toUpperCase() + dashMatch[2].slice(1),
+    };
+  }
+  
+  // Single word email (e.g., marko@company.com) - use as first name ONLY
+  // DO NOT split single words - let AI discover the last name
+  if (/^[a-z]+$/.test(local) && local.length >= 2) {
+    return {
+      first_name: local.charAt(0).toUpperCase() + local.slice(1),
+      // last_name intentionally undefined - let AI discover it
+    };
   }
   
   return null;
@@ -436,13 +440,26 @@ async function enrichFromPerplexity(
   
   if (!companyName && !domain) return null;
   
+  // Get country context for better phone discovery
+  const personCountry = input.country || data.country;
+  const countryContext = personCountry ? ` based in ${personCountry}` : '';
+  const phoneFormatHint = personCountry === 'United Kingdom' || personCountry === 'UK' 
+    ? 'IMPORTANT: Only return UK phone numbers starting with +44. Do NOT return US numbers (+1).'
+    : personCountry === 'United States' || personCountry === 'US' || personCountry === 'USA'
+    ? 'Return US phone numbers in E.164 format (+1XXXXXXXXXX).'
+    : 'Return phone numbers in E.164 format with country prefix.';
+  
   const prompt = personName 
-    ? `Find professional contact information for ${personName} at ${companyName || domain}. Include:
-- Current job title
-- LinkedIn profile URL
-- Direct phone number or mobile if available
+    ? `Find professional contact information for ${personName}${countryContext} at ${companyName || domain}. 
+Check their company website About/Team page and LinkedIn profile.
+Include:
+- Current job title (check company website - do NOT return "N/A")
+- LinkedIn profile URL  
+- Direct phone number or mobile in E.164 format (e.g., +44XXXXXXXXXX for UK, +1XXXXXXXXXX for US)
+- ${phoneFormatHint}
 - Verified email address
-Return ONLY a JSON object with these fields: title, linkedin_url, phone, mobile, direct_phone, email, email_verified`
+- Country where the person is located
+Return ONLY a JSON object with these fields: title, linkedin_url, phone, mobile, direct_phone, email, email_verified, country, first_name, last_name`
     : `Research comprehensive company information for ${companyName || domain}. Find ALL available data:
 
 FIRMOGRAPHIC:
@@ -527,18 +544,36 @@ Return ONLY a valid JSON object with ALL fields you can find.`;
       ['tech_stack', 'tech_stack'],
     ];
     
+    // Get person's country for phone validation (from input, existing data, or AI response)
+    const detectedCountry = input.country || data.country || parsed.country;
+    
     for (const [sourceField, targetField] of fieldMappings) {
       if (parsed[sourceField] && !verifiedFields.has(targetField) && !(data as any)[targetField]) {
         let value = parsed[sourceField];
         
-        // Validate phone fields before storing
+        // Skip "N/A" or placeholder values
+        if (typeof value === 'string' && (value === 'N/A' || value === 'n/a' || value === 'Not available' || value === 'Unknown')) {
+          console.log(`[provider-waterfall] Perplexity: Skipping placeholder ${targetField}: ${value}`);
+          continue;
+        }
+        
+        // Validate phone fields with country awareness
         if (['phone', 'mobile', 'direct_phone'].includes(targetField)) {
-          const sanitized = sanitizePhone(value);
+          // Use international sanitization with country context
+          const sanitized = sanitizePhoneInternational(value, detectedCountry);
           if (!sanitized) {
             console.log(`[provider-waterfall] Perplexity: Rejected invalid ${targetField}: ${value}`);
             continue;
           }
+          
+          // Validate phone matches detected country
+          if (detectedCountry && !isPhoneMatchingCountry(sanitized, detectedCountry)) {
+            console.log(`[provider-waterfall] Perplexity: Rejected ${targetField} ${sanitized} - doesn't match country ${detectedCountry}`);
+            continue;
+          }
+          
           value = sanitized;
+          console.log(`[provider-waterfall] Perplexity: Validated ${targetField}: ${sanitized} for country ${detectedCountry || 'unknown'}`);
         }
         
         (data as any)[targetField] = value;

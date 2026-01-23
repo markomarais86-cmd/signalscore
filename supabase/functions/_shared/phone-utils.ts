@@ -52,6 +52,147 @@ const GARBAGE_PATTERNS = [
 const TOLL_FREE_PREFIXES = ['800', '888', '877', '866', '855', '844', '833'];
 
 // ============================================================================
+// INTERNATIONAL PHONE SUPPORT
+// ============================================================================
+
+// Country code prefixes mapping
+const COUNTRY_PHONE_PREFIXES: Record<string, string[]> = {
+  'United Kingdom': ['+44', '44'],
+  'UK': ['+44', '44'],
+  'Great Britain': ['+44', '44'],
+  'England': ['+44', '44'],
+  'Scotland': ['+44', '44'],
+  'Wales': ['+44', '44'],
+  'United States': ['+1', '1'],
+  'US': ['+1', '1'],
+  'USA': ['+1', '1'],
+  'Canada': ['+1', '1'],
+  'Germany': ['+49', '49'],
+  'France': ['+33', '33'],
+  'Australia': ['+61', '61'],
+  'Ireland': ['+353', '353'],
+  'Netherlands': ['+31', '31'],
+  'Spain': ['+34', '34'],
+  'Italy': ['+39', '39'],
+  'Sweden': ['+46', '46'],
+  'Norway': ['+47', '47'],
+  'Denmark': ['+45', '45'],
+  'Switzerland': ['+41', '41'],
+  'Austria': ['+43', '43'],
+  'Belgium': ['+32', '32'],
+  'Poland': ['+48', '48'],
+  'Portugal': ['+351', '351'],
+  'India': ['+91', '91'],
+  'Singapore': ['+65', '65'],
+  'Hong Kong': ['+852', '852'],
+  'Japan': ['+81', '81'],
+  'South Korea': ['+82', '82'],
+  'China': ['+86', '86'],
+  'Brazil': ['+55', '55'],
+  'Mexico': ['+52', '52'],
+  'South Africa': ['+27', '27'],
+  'UAE': ['+971', '971'],
+  'Israel': ['+972', '972'],
+  'New Zealand': ['+64', '64'],
+};
+
+/**
+ * Check if a phone number matches the expected country
+ * Returns true if the phone prefix matches the country, or if country is unknown
+ */
+export function isPhoneMatchingCountry(phone: string, country: string | null | undefined): boolean {
+  if (!country) return true; // No country to validate against
+  if (!phone) return false;
+  
+  const digits = phone.replace(/\D/g, '');
+  const normalized = phone.startsWith('+') ? phone : `+${digits}`;
+  
+  const expectedPrefixes = COUNTRY_PHONE_PREFIXES[country];
+  if (!expectedPrefixes) return true; // Unknown country, allow any
+  
+  return expectedPrefixes.some(prefix => 
+    normalized.startsWith(prefix) || digits.startsWith(prefix.replace('+', ''))
+  );
+}
+
+/**
+ * Sanitize and normalize phone number with country context
+ * Supports international formats: UK (+44), US (+1), etc.
+ * Returns null if invalid
+ */
+export function sanitizePhoneInternational(
+  phone: string | null | undefined, 
+  country?: string | null
+): string | null {
+  if (!phone) return null;
+  
+  const original = String(phone).trim();
+  const digits = original.replace(/\D/g, '');
+  
+  // Check for GPS/garbage first
+  if (isGPSCoordinate(original)) return null;
+  for (const pattern of GARBAGE_PATTERNS) {
+    if (pattern.test(original)) return null;
+  }
+  if (hasRepeatingPattern(digits)) return null;
+  if (digits.length < 7 || digits.length > 15) return null;
+  
+  // If already has + prefix, preserve it
+  if (original.startsWith('+')) {
+    return original.replace(/[^\d+]/g, '');
+  }
+  
+  // UK numbers: Handle UK-specific formats
+  const isUKCountry = country === 'United Kingdom' || country === 'UK' || 
+                      country === 'Great Britain' || country === 'England' ||
+                      country === 'Scotland' || country === 'Wales';
+  
+  if (isUKCountry) {
+    // Already has 44 prefix
+    if (digits.startsWith('44')) {
+      return `+${digits}`;
+    }
+    // UK domestic format: 07XXX XXXXXX (11 digits starting with 0)
+    if (digits.startsWith('0') && digits.length === 11) {
+      return `+44${digits.slice(1)}`;
+    }
+    // 10 digit UK number without leading 0 (e.g., 7XXX XXXXXX)
+    if (digits.length === 10 && digits.startsWith('7')) {
+      return `+44${digits}`;
+    }
+  }
+  
+  // US/Canada numbers: 10 digits with valid area code
+  if (digits.length === 10) {
+    const areaCode = digits.substring(0, 3);
+    if (isValidNANPAreaCode(areaCode)) {
+      // Only add +1 if country matches or is unknown
+      const isNorthAmerican = !country || country === 'United States' || 
+                              country === 'US' || country === 'USA' || country === 'Canada';
+      if (isNorthAmerican) {
+        return `+1${digits}`;
+      }
+    }
+  }
+  
+  // 11-digit number with country code 1 (US/Canada)
+  if (digits.length === 11 && digits.startsWith('1')) {
+    const areaCode = digits.substring(1, 4);
+    if (isValidNANPAreaCode(areaCode)) {
+      return `+${digits}`;
+    }
+  }
+  
+  // Other international - assume includes country code if > 10 digits
+  if (digits.length > 10) {
+    return `+${digits}`;
+  }
+  
+  // Short number - don't assume country
+  return null;
+}
+
+// ============================================================================
 // CORE VALIDATION FUNCTIONS
 // ============================================================================
 

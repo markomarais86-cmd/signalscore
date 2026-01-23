@@ -316,6 +316,10 @@ serve(async (req) => {
               if (result.data.linkedin_url) leadData.linkedin_url = result.data.linkedin_url;
               if (result.data.email_verified !== undefined) leadData.email_verified = result.data.email_verified;
               if (result.data.company) leadData.company = result.data.company;
+              // NEW: Save location fields
+              if (result.data.country) leadData.country = result.data.country;
+              if (result.data.city) leadData.city = result.data.city;
+              if (result.data.company_name && !leadData.company) leadData.company = result.data.company_name;
 
               if (isNewLead) {
                 // INSERT new lead - include email and other input data
@@ -331,6 +335,8 @@ serve(async (req) => {
                   mobile: leadData.mobile || record.mobile,
                   linkedin_url: leadData.linkedin_url || record.linkedin_url,
                   company: leadData.company || record.company,
+                  country: leadData.country || record.country,
+                  city: leadData.city || record.city,
                   data_source: 'enrichment_wizard',
                 };
 
