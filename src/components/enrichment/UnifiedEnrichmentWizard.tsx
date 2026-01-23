@@ -405,11 +405,26 @@ export function UnifiedEnrichmentWizard() {
       // Handle synchronous response
       setProgress(80);
       setResults(data.results || []);
-      setStats(data.stats || {});
+      
+      // Use API summary/stats for stats display
+      const apiStats = data.stats || data.summary || {};
+      const breakdown = data.source_breakdown || {};
+      const categories = mapSourceBreakdownToCategories(breakdown);
+      
+      setStats({
+        total: apiStats.total || data.summary?.total || parsedInputs.length,
+        enriched: apiStats.enriched || data.summary?.enriched || (data.results?.length || 0),
+        failed: apiStats.failed || data.summary?.failed || 0,
+        internal_matches: categories.internal_matches,
+        apollo_enriched: categories.api_enriched,
+        pdl_enriched: 0,
+        ai_enriched: categories.ai_enriched,
+      });
+      
       setProgress(100);
       setStep("results");
       
-      toast.success(`Enriched ${data.results?.length || 0} records`);
+      toast.success(`Enriched ${apiStats.enriched || data.summary?.enriched || data.results?.length || 0} records`);
     } catch (error: any) {
       // Extract error from all possible Supabase error structures
       let errorMessage = 'Unknown error occurred';
@@ -1278,19 +1293,36 @@ export function UnifiedEnrichmentWizard() {
                   +{results.length - 5} more results
                 </div>
               )}
+              {results.length === 0 && stats.enriched > 0 && (
+                <div className="p-3 text-center text-sm text-muted-foreground">
+                  Data saved to database - view in {enrichmentType === 'leads' ? 'Leads' : 'Accounts'} page
+                </div>
+              )}
             </div>
             
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => exportResults(true)} className="flex-1 gap-2">
-                <Download className="h-4 w-4" />
-                Essential CSV (25 fields)
-              </Button>
-              <Button variant="outline" onClick={() => exportResults(false)} className="flex-1 gap-2">
-                <FileSpreadsheet className="h-4 w-4" />
-                Full CSV (34 fields)
+              {results.length > 0 && (
+                <>
+                  <Button variant="outline" onClick={() => exportResults(true)} className="flex-1 gap-2">
+                    <Download className="h-4 w-4" />
+                    Essential CSV
+                  </Button>
+                  <Button variant="outline" onClick={() => exportResults(false)} className="flex-1 gap-2">
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Full CSV
+                  </Button>
+                </>
+              )}
+              <Button 
+                variant="default" 
+                onClick={() => window.location.href = enrichmentType === 'leads' ? '/leads' : '/accounts'}
+                className="flex-1 gap-2"
+              >
+                <Users className="h-4 w-4" />
+                View {enrichmentType === 'leads' ? 'Leads' : 'Accounts'}
               </Button>
             </div>
-            <Button onClick={reset} className="w-full gap-2">
+            <Button onClick={reset} variant="outline" className="w-full gap-2">
               <Sparkles className="h-4 w-4" />
               Enrich More
             </Button>

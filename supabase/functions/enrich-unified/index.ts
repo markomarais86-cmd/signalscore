@@ -297,36 +297,73 @@ serve(async (req) => {
                 console.log(`[enrich-unified] ✓ Updated account ${record.external_id} with ${Object.keys(updateData).length} fields`);
               }
             } else {
-              const updateData: Record<string, any> = {
+              // Check if this is a NEW lead (id=0 or small index from wizard) or EXISTING lead
+              const isNewLead = !record.id || record.id === 0 || (typeof record.id === 'number' && record.id < 1000);
+              
+              const leadData: Record<string, any> = {
                 enriched_at: new Date().toISOString(),
                 enrichment_source: result.sources.map(s => s.provider).join(','),
                 enrichment_confidence: Math.round(result.confidence * 100),
               };
 
               // Map ALL enriched data to lead fields (expanded coverage)
-              if (result.data.first_name) updateData.first_name = result.data.first_name;
-              if (result.data.last_name) updateData.last_name = result.data.last_name;
-              if (result.data.phone) updateData.phone = result.data.phone;
-              if (result.data.mobile) updateData.mobile = result.data.mobile;
-              if (result.data.direct_phone) updateData.direct_phone = result.data.direct_phone;
-              if (result.data.title) updateData.title = result.data.title;
-              if (result.data.linkedin_url) updateData.linkedin_url = result.data.linkedin_url;
-              if (result.data.email_verified !== undefined) updateData.email_verified = result.data.email_verified;
+              if (result.data.first_name) leadData.first_name = result.data.first_name;
+              if (result.data.last_name) leadData.last_name = result.data.last_name;
+              if (result.data.phone) leadData.phone = result.data.phone;
+              if (result.data.mobile) leadData.mobile = result.data.mobile;
+              if (result.data.direct_phone) leadData.direct_phone = result.data.direct_phone;
+              if (result.data.title) leadData.title = result.data.title;
+              if (result.data.linkedin_url) leadData.linkedin_url = result.data.linkedin_url;
+              if (result.data.email_verified !== undefined) leadData.email_verified = result.data.email_verified;
+              if (result.data.company) leadData.company = result.data.company;
 
-              const { error: updateError } = await supabase
-                .from('Leads')
-                .update(updateData)
-                .eq('id', record.id)
-                .eq('org_id', org_id);
+              if (isNewLead) {
+                // INSERT new lead - include email and other input data
+                const insertData = {
+                  org_id,
+                  email: inputs[results.length - 1]?.email || record.email,
+                  ...leadData,
+                  // Preserve input data that wasn't enriched
+                  first_name: leadData.first_name || record.first_name,
+                  last_name: leadData.last_name || record.last_name,
+                  title: leadData.title || record.title,
+                  phone: leadData.phone || record.phone,
+                  mobile: leadData.mobile || record.mobile,
+                  linkedin_url: leadData.linkedin_url || record.linkedin_url,
+                  company: leadData.company || record.company,
+                  data_source: 'enrichment_wizard',
+                };
 
-              if (updateError) {
-                console.error(`[enrich-unified] Failed to update lead ${record.id}:`, updateError.message);
+                const { data: insertedLead, error: insertError } = await supabase
+                  .from('Leads')
+                  .insert(insertData)
+                  .select('id')
+                  .single();
+
+                if (insertError) {
+                  console.error(`[enrich-unified] Failed to insert lead:`, insertError.message);
+                } else {
+                  console.log(`[enrich-unified] ✓ Inserted NEW lead ${insertedLead.id} with ${Object.keys(leadData).length} enriched fields`);
+                  // Update record with real ID for persona mapping
+                  record.id = insertedLead.id;
+                }
               } else {
-                console.log(`[enrich-unified] ✓ Updated lead ${record.id} with ${Object.keys(updateData).length} fields`);
+                // UPDATE existing lead
+                const { error: updateError } = await supabase
+                  .from('Leads')
+                  .update(leadData)
+                  .eq('id', record.id)
+                  .eq('org_id', org_id);
+
+                if (updateError) {
+                  console.error(`[enrich-unified] Failed to update lead ${record.id}:`, updateError.message);
+                } else {
+                  console.log(`[enrich-unified] ✓ Updated lead ${record.id} with ${Object.keys(leadData).length} fields`);
+                }
               }
                 
               // Post-enrichment: Persona mapping for leads with titles
-              if (result.data.title && record.id) {
+              if (result.data.title && record.id && record.id > 0) {
                 try {
                   await supabase.rpc('map_title_to_persona', { 
                     p_lead_id: record.id,
@@ -393,6 +430,15 @@ serve(async (req) => {
         .eq('id', jobId);
     }
 
+    // Build per-record results for UI display
+    const perRecordResults = results.map((r, idx) => ({
+      input: records[idx] || {},
+      enriched_data: r.data || {},
+      source: r.sources.map(s => s.provider).join(','),
+      confidence: r.confidence,
+      fields_filled: Object.keys(r.data || {}).filter(k => r.data[k] !== null && r.data[k] !== undefined),
+    }));
+
     const response = {
       success: true,
       job_id: jobId,
@@ -409,6 +455,18 @@ serve(async (req) => {
           : 0,
       },
       source_breakdown: categoryBreakdown,
+      // Include per-record results for UI display
+      results: perRecordResults,
+      // Legacy stats for backwards compatibility
+      stats: {
+        total: records.length,
+        enriched,
+        failed,
+        internal_matches: categoryBreakdown.internal_matches || 0,
+        apollo_enriched: categoryBreakdown.apollo_enriched || 0,
+        pdl_enriched: categoryBreakdown.pdl_enriched || 0,
+        ai_enriched: categoryBreakdown.ai_enriched || 0,
+      },
     };
 
     console.log(`[enrich-unified] Complete:`, response.summary);
