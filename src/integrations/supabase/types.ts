@@ -2173,6 +2173,62 @@ export type Database = {
           },
         ]
       }
+      credit_adjustments: {
+        Row: {
+          adjustment_type: string
+          created_at: string | null
+          credits_added: number | null
+          id: string
+          new_bonus: number | null
+          new_total: number | null
+          new_used: number | null
+          org_id: string
+          performed_by: string
+          previous_bonus: number | null
+          previous_total: number | null
+          previous_used: number | null
+          reason: string | null
+        }
+        Insert: {
+          adjustment_type: string
+          created_at?: string | null
+          credits_added?: number | null
+          id?: string
+          new_bonus?: number | null
+          new_total?: number | null
+          new_used?: number | null
+          org_id: string
+          performed_by: string
+          previous_bonus?: number | null
+          previous_total?: number | null
+          previous_used?: number | null
+          reason?: string | null
+        }
+        Update: {
+          adjustment_type?: string
+          created_at?: string | null
+          credits_added?: number | null
+          id?: string
+          new_bonus?: number | null
+          new_total?: number | null
+          new_used?: number | null
+          org_id?: string
+          performed_by?: string
+          previous_bonus?: number | null
+          previous_total?: number | null
+          previous_used?: number | null
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_adjustments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       custom_reports: {
         Row: {
           config: Json
@@ -5499,6 +5555,7 @@ export type Database = {
       organizations: {
         Row: {
           created_at: string | null
+          enrichment_credits_bonus: number | null
           enrichment_credits_reset_at: string | null
           enrichment_credits_total: number | null
           enrichment_credits_used: number | null
@@ -5511,6 +5568,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          enrichment_credits_bonus?: number | null
           enrichment_credits_reset_at?: string | null
           enrichment_credits_total?: number | null
           enrichment_credits_used?: number | null
@@ -5523,6 +5581,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          enrichment_credits_bonus?: number | null
           enrichment_credits_reset_at?: string | null
           enrichment_credits_total?: number | null
           enrichment_credits_used?: number | null
