@@ -876,9 +876,18 @@ async function enrichFromMultipleAI(
   
   console.log(`[provider-waterfall] Multi-AI enrichment: ${missingFields.length} missing fields`);
   
+  // Get country context for phone discovery
+  const personCountry = input.country || data.country;
+  const countryContext = personCountry ? ` based in ${personCountry}` : '';
+  const phoneFormatHint = personCountry === 'United Kingdom' || personCountry === 'UK' 
+    ? 'IMPORTANT: Only return UK phone numbers starting with +44. Do NOT return US numbers (+1).'
+    : personCountry === 'United States' || personCountry === 'US' || personCountry === 'USA'
+    ? 'Return US phone numbers in E.164 format (+1XXXXXXXXXX).'
+    : 'Return phone numbers in E.164 format with country prefix.';
+  
   // Build comprehensive prompt
   const targetInfo = personName 
-    ? `${personName} at ${companyName || domain}`
+    ? `${personName}${countryContext} at ${companyName || domain}`
     : `${companyName || domain}`;
     
   const prompt = `Research and provide data for ${targetInfo}.
@@ -889,7 +898,7 @@ ${missingFields.map(f => `- ${f}`).join('\n')}
 Guidelines:
 - For employee_count: provide exact number if known, or best estimate
 - For revenue_range: use "$0-$1M", "$1M-$5M", "$5M-$10M", "$10M-$25M", "$25M-$50M", "$50M-$100M", "$100M-$500M", "$500M-$1B", "$1B-$10B", "$10B+"
-- For phone numbers: use E.164 format (+1XXXXXXXXXX)
+- ${phoneFormatHint}
 - For linkedin_url: use full URL
 - Include a 'confidence' score (0-100) for the overall data quality
 
@@ -964,8 +973,11 @@ Return ONLY a valid JSON object with the requested fields.`;
           continue;
         }
         
+        // Get country context for phone validation
+        const detectedCountry = input.country || data.country || parsed.country;
+        
         for (const field of missingFields) {
-          const value = parsed[field];
+          let value = parsed[field];
           if (value === undefined || value === null || value === '') continue;
           
           providerStats[providerName].fieldsAttempted.push(field);
@@ -974,6 +986,25 @@ Return ONLY a valid JSON object with the requested fields.`;
           if (verifiedFields.has(field)) {
             console.log(`[provider-waterfall] Multi-AI (${providerName}): ${field} skipped - verified by prior provider`);
             continue;
+          }
+          
+          // PHONE VALIDATION: Validate phone fields with country awareness
+          if (['phone', 'mobile', 'direct_phone'].includes(field)) {
+            // Use international sanitization with country context
+            const sanitized = sanitizePhoneInternational(value, detectedCountry);
+            if (!sanitized) {
+              console.log(`[provider-waterfall] Multi-AI (${providerName}): Rejected invalid ${field}: ${value}`);
+              continue;
+            }
+            
+            // CRITICAL: Validate phone matches detected country - reject mismatches
+            if (detectedCountry && !isPhoneMatchingCountry(sanitized, detectedCountry)) {
+              console.log(`[provider-waterfall] Multi-AI (${providerName}): REJECTED ${field} ${sanitized} - country mismatch with ${detectedCountry}`);
+              continue;
+            }
+            
+            value = sanitized;
+            console.log(`[provider-waterfall] Multi-AI (${providerName}): Validated ${field}: ${sanitized} for country ${detectedCountry || 'unknown'}`);
           }
           
           // Check if this provider has precedence for this field
