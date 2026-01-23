@@ -544,8 +544,11 @@ Return ONLY a valid JSON object with ALL fields you can find.`;
       ['tech_stack', 'tech_stack'],
     ];
     
-    // Get person's country for phone validation (from input, existing data, or AI response)
+    // Get person's country for phone validation
+    // PRIORITY: input.country is authoritative (user-provided), then existing data, then AI-discovered
+    // AI-discovered country should NOT override user input for phone validation
     const detectedCountry = input.country || data.country || parsed.country;
+    const authoritativeCountry = input.country || detectedCountry; // User input always wins
     
     for (const [sourceField, targetField] of fieldMappings) {
       if (parsed[sourceField] && !verifiedFields.has(targetField) && !(data as any)[targetField]) {
@@ -560,20 +563,20 @@ Return ONLY a valid JSON object with ALL fields you can find.`;
         // Validate phone fields with country awareness
         if (['phone', 'mobile', 'direct_phone'].includes(targetField)) {
           // Use international sanitization with country context
-          const sanitized = sanitizePhoneInternational(value, detectedCountry);
+          const sanitized = sanitizePhoneInternational(value, authoritativeCountry);
           if (!sanitized) {
             console.log(`[provider-waterfall] Perplexity: Rejected invalid ${targetField}: ${value}`);
             continue;
           }
           
-          // Validate phone matches detected country
-          if (detectedCountry && !isPhoneMatchingCountry(sanitized, detectedCountry)) {
-            console.log(`[provider-waterfall] Perplexity: Rejected ${targetField} ${sanitized} - doesn't match country ${detectedCountry}`);
+          // CRITICAL: Validate phone matches USER-PROVIDED country (not AI-discovered)
+          if (authoritativeCountry && !isPhoneMatchingCountry(sanitized, authoritativeCountry)) {
+            console.log(`[provider-waterfall] Perplexity: REJECTED ${targetField} ${sanitized} - country mismatch with ${authoritativeCountry}`);
             continue;
           }
           
           value = sanitized;
-          console.log(`[provider-waterfall] Perplexity: Validated ${targetField}: ${sanitized} for country ${detectedCountry || 'unknown'}`);
+          console.log(`[provider-waterfall] Perplexity: Validated ${targetField}: ${sanitized} for country ${authoritativeCountry || 'unknown'}`);
         }
         
         (data as any)[targetField] = value;
@@ -973,8 +976,10 @@ Return ONLY a valid JSON object with the requested fields.`;
           continue;
         }
         
-        // Get country context for phone validation
-        const detectedCountry = input.country || data.country || parsed.country;
+        // Use the authoritative country (captured BEFORE AI responses) for phone validation
+        // personCountry is defined at the top of this function and uses input.country as priority
+        // We should NOT use parsed.country here as AI may return wrong country
+        const authoritativeCountry = personCountry || parsed.country; // personCountry = input.country || data.country
         
         for (const field of missingFields) {
           let value = parsed[field];
@@ -991,20 +996,20 @@ Return ONLY a valid JSON object with the requested fields.`;
           // PHONE VALIDATION: Validate phone fields with country awareness
           if (['phone', 'mobile', 'direct_phone'].includes(field)) {
             // Use international sanitization with country context
-            const sanitized = sanitizePhoneInternational(value, detectedCountry);
+            const sanitized = sanitizePhoneInternational(value, authoritativeCountry);
             if (!sanitized) {
               console.log(`[provider-waterfall] Multi-AI (${providerName}): Rejected invalid ${field}: ${value}`);
               continue;
             }
             
-            // CRITICAL: Validate phone matches detected country - reject mismatches
-            if (detectedCountry && !isPhoneMatchingCountry(sanitized, detectedCountry)) {
-              console.log(`[provider-waterfall] Multi-AI (${providerName}): REJECTED ${field} ${sanitized} - country mismatch with ${detectedCountry}`);
+            // CRITICAL: Validate phone matches USER-PROVIDED country - reject mismatches
+            if (authoritativeCountry && !isPhoneMatchingCountry(sanitized, authoritativeCountry)) {
+              console.log(`[provider-waterfall] Multi-AI (${providerName}): REJECTED ${field} ${sanitized} - country mismatch with ${authoritativeCountry}`);
               continue;
             }
             
             value = sanitized;
-            console.log(`[provider-waterfall] Multi-AI (${providerName}): Validated ${field}: ${sanitized} for country ${detectedCountry || 'unknown'}`);
+            console.log(`[provider-waterfall] Multi-AI (${providerName}): Validated ${field}: ${sanitized} for country ${authoritativeCountry || 'unknown'}`);
           }
           
           // Check if this provider has precedence for this field
@@ -1351,7 +1356,13 @@ export async function runEnrichmentWaterfall(
   if (input.industry) data.industry = input.industry;
   if (input.employee_count) data.employee_count = input.employee_count;
   if (input.revenue_range) data.revenue_range = input.revenue_range;
-  if (input.country) data.country = input.country;
+  if (input.country) {
+    data.country = input.country;
+    // CRITICAL: User-provided country is authoritative for phone validation
+    // Mark as verified so AI cannot overwrite it
+    verifiedFields.add('country');
+    console.log(`[provider-waterfall] User-provided country "${input.country}" marked as VERIFIED`);
+  }
   if (input.state) data.state = input.state;
   if (input.city) data.city = input.city;
   
