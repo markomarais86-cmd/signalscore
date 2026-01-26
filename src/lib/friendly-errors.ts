@@ -91,3 +91,17 @@ export function handleError(error: unknown, context?: string): string {
   // Return friendly message for display
   return friendlyErrorMessage(errorMessage);
 }
+
+/**
+ * Get a user-friendly error message for use in toasts
+ * Logs the original error and returns a friendly message
+ */
+export function toastError(error: unknown, fallback = 'Operation failed'): string {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  
+  // Log the full error for debugging
+  console.error('[Error]', error);
+  
+  // Return friendly message for display
+  return friendlyErrorMessage(errorMessage) || fallback;
+}

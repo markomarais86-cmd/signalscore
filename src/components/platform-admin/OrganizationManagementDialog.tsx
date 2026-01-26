@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { OrganizationMetrics } from "@/hooks/use-platform-admin";
 import { AlertCircle, CheckCircle, XCircle } from "lucide-react";
+import { toastError } from "@/lib/friendly-errors";
 
 interface OrganizationManagementDialogProps {
   org: OrganizationMetrics | null;
@@ -53,7 +54,7 @@ export const OrganizationManagementDialog = ({
       onUpdate();
       onOpenChange(false);
     } catch (error: any) {
-      toast.error(error.message);
+      toast.error(toastError(error, 'Failed to update organization'));
     } finally {
       setLoading(false);
     }

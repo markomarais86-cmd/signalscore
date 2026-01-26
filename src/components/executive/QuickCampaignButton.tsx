@@ -5,6 +5,7 @@ import { Rocket, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
+import { toastError } from "@/lib/friendly-errors";
 
 interface QuickCampaignButtonProps {
   highFitAccounts: number;
@@ -221,7 +222,7 @@ export function QuickCampaignButton({ highFitAccounts, disabled }: QuickCampaign
       setOpen(false);
     } catch (error: any) {
       console.error('Quick campaign error:', error);
-      toast.error(error.message || 'Failed to create campaign');
+      toast.error(toastError(error, 'Failed to create campaign'));
     } finally {
       setLoading(false);
     }

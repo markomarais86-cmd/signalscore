@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toastError } from "@/lib/friendly-errors";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Database, 
@@ -224,7 +225,7 @@ export default function IntegrationManager() {
       ));
       toast({ 
         title: "Sync Failed", 
-        description: error.message || "Failed to sync data",
+        description: toastError(error, "Failed to sync data"),
         variant: "destructive"
       });
     }

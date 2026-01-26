@@ -18,6 +18,7 @@ import {
   Globe
 } from 'lucide-react';
 import { useState } from 'react';
+import { toastError } from '@/lib/friendly-errors';
 
 interface EnrichmentMetrics {
   totalAccounts: number;
@@ -101,7 +102,7 @@ export function EnrichmentStatusCard() {
       setTimeout(() => refetch(), 5000);
     } catch (error: any) {
       console.error('Error running enrichment agent:', error);
-      toast.error(error.message || 'Failed to start enrichment agent');
+      toast.error(toastError(error, 'Failed to start enrichment agent'));
     } finally {
       setIsRunningAgent(false);
     }

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCursorPagination } from './use-cursor-pagination';
 import { useToast } from './use-toast';
 import { logger } from '@/lib/logger';
+import { toastError } from '@/lib/friendly-errors';
 
 interface Account {
   id: string;
@@ -359,11 +360,11 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
         pagination.setError(error);
         setLastError(error);
         
-        // Show toast notification
-        const errorMessage = error?.message || 'Failed to load accounts';
+        // Show toast notification with friendly message
+        const friendlyMessage = toastError(error, 'Failed to load accounts');
         toast({
           title: isLoadingMore ? 'Error Loading More' : 'Error Loading Accounts',
-          description: retryCount < 3 ? `${errorMessage}. Click retry button below to try again.` : errorMessage,
+          description: retryCount < 3 ? `${friendlyMessage}. Click retry button below to try again.` : friendlyMessage,
           variant: 'destructive',
         });
       } finally {
