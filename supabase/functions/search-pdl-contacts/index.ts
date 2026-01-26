@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from '../_shared/cors.ts';
 import { applyRateLimit } from '../_shared/rate-limit.ts';
+import { validateDomain, sanitizeText } from '../_shared/validation.ts';
 
 interface SearchRequest {
   org_id: string;
@@ -80,22 +81,45 @@ serve(async (req) => {
     // Build SQL-like query for PDL
     const queryParts: string[] = [];
 
-    // Add domain filter if provided
+    // Add domain filter if provided - validate each domain
     if (domains && domains.length > 0) {
-      const domainList = domains.slice(0, 50).map(d => `"${d}"`).join(',');
-      queryParts.push(`job_company_website IN (${domainList})`);
+      const validDomains = domains
+        .slice(0, 50)
+        .map(d => {
+          try {
+            return validateDomain(d, 'domain', false);
+          } catch {
+            return null;
+          }
+        })
+        .filter((d): d is string => d !== null);
+      
+      if (validDomains.length > 0) {
+        const domainList = validDomains.map(d => `"${d}"`).join(',');
+        queryParts.push(`job_company_website IN (${domainList})`);
+      }
     }
 
-    // Add ICP criteria filters
+    // Add ICP criteria filters - sanitize text inputs
     if (icp_criteria) {
       if (icp_criteria.geographies && icp_criteria.geographies.length > 0) {
-        const countries = icp_criteria.geographies.map(g => `"${g}"`).join(',');
-        queryParts.push(`location_country IN (${countries})`);
+        const safeCountries = icp_criteria.geographies
+          .map(g => sanitizeText(g, 'geography', { maxLength: 100 }))
+          .filter((g): g is string => g !== undefined);
+        if (safeCountries.length > 0) {
+          const countries = safeCountries.map(g => `"${g}"`).join(',');
+          queryParts.push(`location_country IN (${countries})`);
+        }
       }
 
       if (icp_criteria.industries && icp_criteria.industries.length > 0) {
-        const industries = icp_criteria.industries.map(i => `"${i}"`).join(',');
-        queryParts.push(`job_company_industry IN (${industries})`);
+        const safeIndustries = icp_criteria.industries
+          .map(i => sanitizeText(i, 'industry', { maxLength: 100 }))
+          .filter((i): i is string => i !== undefined);
+        if (safeIndustries.length > 0) {
+          const industries = safeIndustries.map(i => `"${i}"`).join(',');
+          queryParts.push(`job_company_industry IN (${industries})`);
+        }
       }
 
       if (icp_criteria.company_sizes && icp_criteria.company_sizes.length > 0) {

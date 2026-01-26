@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.55.0'
 import { getCorsHeaders } from '../_shared/cors.ts'
 import { applyRateLimit } from '../_shared/rate-limit.ts'
 import { validateAuth, unauthorizedResponse, errorResponse, handleCorsOptions } from '../_shared/auth.ts'
-import { validateUUID, validateNumber, validateArray, validateEnum, ValidationError, validationErrorResponse } from '../_shared/validation.ts'
+import { validateUUID, validateNumber, validateArray, validateEnum, validateDomain, sanitizeText, ValidationError, validationErrorResponse } from '../_shared/validation.ts'
 
 // Function to enrich existing leads with missing data
 async function enrichExistingLeads(supabaseClient: any, jobId: string, batchSize: number, provider: string) {
@@ -76,8 +76,16 @@ async function enrichExistingLeads(supabaseClient: any, jobId: string, batchSize
           try {
             console.log(`  🔍 Attempting PDL enrichment...`);
             const startTime = Date.now();
-            const [firstName, ...lastNameParts] = lead.name.split(' ')
+            
+            // Sanitize name before splitting to prevent injection
+            const safeName = sanitizeText(lead.name, 'lead.name', { maxLength: 200 });
+            if (!safeName) continue;
+            
+            const [firstName, ...lastNameParts] = safeName.split(' ')
             const lastName = lastNameParts.join(' ')
+            
+            // Sanitize company name
+            const safeCompany = sanitizeText(lead.company, 'lead.company', { maxLength: 255 });
             
             const pdlResponse = await fetch('https://api.peopledatalabs.com/v5/person/search', {
               method: 'POST',
@@ -89,7 +97,7 @@ async function enrichExistingLeads(supabaseClient: any, jobId: string, batchSize
                 query: {
                   first_name: firstName,
                   last_name: lastName,
-                  company: lead.company
+                  company: safeCompany || undefined
                 },
                 size: 1
               })
@@ -472,7 +480,16 @@ Deno.serve(async (req) => {
 
     for (const account of accounts) {
       try {
-        if (!account.domain) {
+        // Validate domain before using in API calls
+        let safeDomain: string | undefined;
+        try {
+          safeDomain = validateDomain(account.domain, 'account.domain', false);
+        } catch {
+          console.log(`Skipping ${account.name} - invalid domain: ${account.domain}`);
+          continue;
+        }
+        
+        if (!safeDomain) {
           console.log(`Skipping ${account.name} - no domain`)
           continue
         }
@@ -489,7 +506,7 @@ Deno.serve(async (req) => {
                 'X-Api-Key': PDL_API_KEY
               },
               body: JSON.stringify({
-                website: account.domain,
+                website: safeDomain,
                 size: 5
               })
             })
@@ -515,7 +532,7 @@ Deno.serve(async (req) => {
         // Phase 2: Try Clearbit if PDL didn't work
         if (CLEARBIT_API_KEY && contactsFound.length === 0) {
           try {
-            const clearbitResponse = await fetch(`https://company.clearbit.com/v2/companies/find?domain=${account.domain}`, {
+            const clearbitResponse = await fetch(`https://company.clearbit.com/v2/companies/find?domain=${encodeURIComponent(safeDomain)}`, {
               headers: {
                 'Authorization': `Bearer ${CLEARBIT_API_KEY}`
               }
@@ -528,7 +545,7 @@ Deno.serve(async (req) => {
                 contactsFound = [{
                   first_name: 'Decision',
                   last_name: 'Maker',
-                  email: `contact@${account.domain}`,
+                  email: `contact@${safeDomain}`,
                   title_raw: 'Key Decision Maker',
                   source: 'clearbit'
                 }]
@@ -553,7 +570,7 @@ Deno.serve(async (req) => {
           contactsFound = [{
             first_name: 'Decision',
             last_name: 'Maker',
-            email: `contact@${account.domain}`,
+            email: `contact@${safeDomain}`,
             title_raw: titles[0],
             level: 'C-Level',
             persona: 'Business Decision Maker',
