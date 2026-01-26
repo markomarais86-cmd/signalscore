@@ -667,39 +667,119 @@ export type Database = {
           },
         ]
       }
+      ai_agent_registry: {
+        Row: {
+          agent_name: string
+          agent_type: string
+          avg_latency_ms: number | null
+          capabilities: Json
+          created_at: string
+          health_score: number | null
+          id: string
+          input_schema: Json | null
+          last_error: string | null
+          last_heartbeat: string | null
+          metadata: Json | null
+          org_id: string
+          output_schema: Json | null
+          status: Database["public"]["Enums"]["agent_registry_status"]
+          success_rate: number | null
+          total_invocations: number | null
+          updated_at: string
+        }
+        Insert: {
+          agent_name: string
+          agent_type: string
+          avg_latency_ms?: number | null
+          capabilities?: Json
+          created_at?: string
+          health_score?: number | null
+          id?: string
+          input_schema?: Json | null
+          last_error?: string | null
+          last_heartbeat?: string | null
+          metadata?: Json | null
+          org_id: string
+          output_schema?: Json | null
+          status?: Database["public"]["Enums"]["agent_registry_status"]
+          success_rate?: number | null
+          total_invocations?: number | null
+          updated_at?: string
+        }
+        Update: {
+          agent_name?: string
+          agent_type?: string
+          avg_latency_ms?: number | null
+          capabilities?: Json
+          created_at?: string
+          health_score?: number | null
+          id?: string
+          input_schema?: Json | null
+          last_error?: string | null
+          last_heartbeat?: string | null
+          metadata?: Json | null
+          org_id?: string
+          output_schema?: Json | null
+          status?: Database["public"]["Enums"]["agent_registry_status"]
+          success_rate?: number | null
+          total_invocations?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_agent_registry_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_agent_runs: {
         Row: {
           agent_id: string
           completed_at: string | null
+          current_step: string | null
           error_message: string | null
           id: string
+          live_metrics: Json | null
+          progress_percentage: number | null
           records_affected: number | null
           records_processed: number | null
           results: Json | null
           started_at: string
           status: string
+          step_details: Json | null
         }
         Insert: {
           agent_id: string
           completed_at?: string | null
+          current_step?: string | null
           error_message?: string | null
           id?: string
+          live_metrics?: Json | null
+          progress_percentage?: number | null
           records_affected?: number | null
           records_processed?: number | null
           results?: Json | null
           started_at?: string
           status: string
+          step_details?: Json | null
         }
         Update: {
           agent_id?: string
           completed_at?: string | null
+          current_step?: string | null
           error_message?: string | null
           id?: string
+          live_metrics?: Json | null
+          progress_percentage?: number | null
           records_affected?: number | null
           records_processed?: number | null
           results?: Json | null
           started_at?: string
           status?: string
+          step_details?: Json | null
         }
         Relationships: [
           {
@@ -773,6 +853,78 @@ export type Database = {
           },
         ]
       }
+      ai_decision_feedback: {
+        Row: {
+          agent_name: string
+          ai_recommendation: Json
+          confidence: number
+          created_at: string
+          decision_type: string
+          entity_id: string
+          entity_type: string
+          id: string
+          modified_recommendation: Json | null
+          org_id: string
+          outcome_notes: string | null
+          outcome_success: boolean | null
+          outcome_tracked: boolean | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          user_decision: Database["public"]["Enums"]["feedback_decision"] | null
+          user_feedback: string | null
+        }
+        Insert: {
+          agent_name: string
+          ai_recommendation: Json
+          confidence: number
+          created_at?: string
+          decision_type: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          modified_recommendation?: Json | null
+          org_id: string
+          outcome_notes?: string | null
+          outcome_success?: boolean | null
+          outcome_tracked?: boolean | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          user_decision?:
+            | Database["public"]["Enums"]["feedback_decision"]
+            | null
+          user_feedback?: string | null
+        }
+        Update: {
+          agent_name?: string
+          ai_recommendation?: Json
+          confidence?: number
+          created_at?: string
+          decision_type?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          modified_recommendation?: Json | null
+          org_id?: string
+          outcome_notes?: string | null
+          outcome_success?: boolean | null
+          outcome_tracked?: boolean | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          user_decision?:
+            | Database["public"]["Enums"]["feedback_decision"]
+            | null
+          user_feedback?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_decision_feedback_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_memory: {
         Row: {
           confidence: number | null
@@ -826,6 +978,74 @@ export type Database = {
           },
         ]
       }
+      ai_planning_rules: {
+        Row: {
+          action_workflow: string
+          auto_execute: boolean | null
+          confidence_threshold: number | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          last_triggered_at: string | null
+          org_id: string
+          parameters_template: Json | null
+          requires_approval: boolean | null
+          rule_name: string
+          success_count: number | null
+          trigger_condition: Json
+          trigger_count: number | null
+          updated_at: string
+        }
+        Insert: {
+          action_workflow: string
+          auto_execute?: boolean | null
+          confidence_threshold?: number | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_triggered_at?: string | null
+          org_id: string
+          parameters_template?: Json | null
+          requires_approval?: boolean | null
+          rule_name: string
+          success_count?: number | null
+          trigger_condition: Json
+          trigger_count?: number | null
+          updated_at?: string
+        }
+        Update: {
+          action_workflow?: string
+          auto_execute?: boolean | null
+          confidence_threshold?: number | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_triggered_at?: string | null
+          org_id?: string
+          parameters_template?: Json | null
+          requires_approval?: boolean | null
+          rule_name?: string
+          success_count?: number | null
+          trigger_condition?: Json
+          trigger_count?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_planning_rules_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_provider_health: {
         Row: {
           avg_latency_ms: number | null
@@ -867,6 +1087,87 @@ export type Database = {
           total_cost?: number | null
         }
         Relationships: []
+      }
+      ai_task_queue: {
+        Row: {
+          assigned_agent: string | null
+          claimed_at: string | null
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          expires_at: string | null
+          id: string
+          max_retries: number | null
+          org_id: string
+          parent_task_id: string | null
+          payload: Json
+          priority: Database["public"]["Enums"]["task_priority"]
+          requesting_agent: string
+          required_capabilities: Json
+          result: Json | null
+          retry_count: number | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["task_queue_status"]
+          timeout_seconds: number | null
+        }
+        Insert: {
+          assigned_agent?: string | null
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          expires_at?: string | null
+          id?: string
+          max_retries?: number | null
+          org_id: string
+          parent_task_id?: string | null
+          payload?: Json
+          priority?: Database["public"]["Enums"]["task_priority"]
+          requesting_agent: string
+          required_capabilities?: Json
+          result?: Json | null
+          retry_count?: number | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["task_queue_status"]
+          timeout_seconds?: number | null
+        }
+        Update: {
+          assigned_agent?: string | null
+          claimed_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          expires_at?: string | null
+          id?: string
+          max_retries?: number | null
+          org_id?: string
+          parent_task_id?: string | null
+          payload?: Json
+          priority?: Database["public"]["Enums"]["task_priority"]
+          requesting_agent?: string
+          required_capabilities?: Json
+          result?: Json | null
+          retry_count?: number | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["task_queue_status"]
+          timeout_seconds?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_task_queue_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_task_queue_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "ai_task_queue"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ai_usage_tracking: {
         Row: {
@@ -7653,7 +7954,9 @@ export type Database = {
       }
     }
     Enums: {
+      agent_registry_status: "active" | "inactive" | "degraded" | "starting"
       app_role: "super_admin" | "org_admin" | "user"
+      feedback_decision: "approved" | "rejected" | "modified" | "pending"
       lead_source_type:
         | "webinar"
         | "website_visitor"
@@ -7665,6 +7968,14 @@ export type Database = {
         | "apollo"
         | "pdl"
         | "unknown"
+      task_priority: "low" | "normal" | "high" | "critical"
+      task_queue_status:
+        | "pending"
+        | "claimed"
+        | "running"
+        | "completed"
+        | "failed"
+        | "timeout"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -7792,7 +8103,9 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      agent_registry_status: ["active", "inactive", "degraded", "starting"],
       app_role: ["super_admin", "org_admin", "user"],
+      feedback_decision: ["approved", "rejected", "modified", "pending"],
       lead_source_type: [
         "webinar",
         "website_visitor",
@@ -7804,6 +8117,15 @@ export const Constants = {
         "apollo",
         "pdl",
         "unknown",
+      ],
+      task_priority: ["low", "normal", "high", "critical"],
+      task_queue_status: [
+        "pending",
+        "claimed",
+        "running",
+        "completed",
+        "failed",
+        "timeout",
       ],
     },
   },
