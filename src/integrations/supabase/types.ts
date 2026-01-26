@@ -4127,6 +4127,68 @@ export type Database = {
           },
         ]
       }
+      export_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          download_url: string | null
+          error_message: string | null
+          expires_at: string | null
+          export_type: string
+          filename: string | null
+          filters: Json | null
+          id: string
+          org_id: string
+          processed_records: number
+          started_at: string | null
+          status: string
+          total_records: number
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          download_url?: string | null
+          error_message?: string | null
+          expires_at?: string | null
+          export_type: string
+          filename?: string | null
+          filters?: Json | null
+          id?: string
+          org_id: string
+          processed_records?: number
+          started_at?: string | null
+          status?: string
+          total_records?: number
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          download_url?: string | null
+          error_message?: string | null
+          expires_at?: string | null
+          export_type?: string
+          filename?: string | null
+          filters?: Json | null
+          id?: string
+          org_id?: string
+          processed_records?: number
+          started_at?: string | null
+          status?: string
+          total_records?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "export_jobs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       external_data_sources: {
         Row: {
           api_key_configured: boolean | null

@@ -9,6 +9,7 @@ import { Bot, Clock, CheckCircle, XCircle, Activity, Play } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { agentLogger } from "@/lib/logger";
+import { toastError } from "@/lib/friendly-errors";
 
 interface Agent {
   id: string;
@@ -87,7 +88,7 @@ export function AgentControlPanel() {
       toast.success("Agent status updated");
     },
     onError: (error) => {
-      toast.error(`Failed to update agent: ${error.message}`);
+      toast.error(toastError(error, 'Failed to update agent'));
     },
   });
 
@@ -128,8 +129,8 @@ export function AgentControlPanel() {
     },
     onError: (error: Error) => {
       agentLogger.error('Agent run mutation error:', error);
-      toast.error(`Failed to run agent: ${error.message}`, {
-        description: 'Check the console and edge function logs for details',
+      toast.error(toastError(error, 'Failed to run agent'), {
+        description: 'Please try again or contact support if the issue persists.',
       });
     },
   });

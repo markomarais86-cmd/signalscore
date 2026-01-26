@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { enrichmentLogger } from "@/lib/logger";
+import { RetryFailedButton } from "@/components/shared/RetryFailedButton";
+import { toastError } from "@/lib/friendly-errors";
 
 interface EnrichmentStats {
   total: number;
@@ -41,6 +43,7 @@ export function BulkAccountEnrichment() {
   const [stats, setStats] = useState<EnrichmentStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [enriching, setEnriching] = useState(false);
+  const [retryingFailed, setRetryingFailed] = useState(false);
   const [activeJob, setActiveJob] = useState<EnrichmentJob | null>(null);
   const [batchSize, setBatchSize] = useState<string>("100");
   const [provider, setProvider] = useState<string>("smart");
@@ -223,11 +226,60 @@ export function BulkAccountEnrichment() {
       enrichmentLogger.error('Error starting enrichment:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to start enrichment job",
+        description: toastError(error, "Failed to start enrichment job"),
         variant: "destructive"
       });
     } finally {
       setEnriching(false);
+    }
+  };
+
+  const handleRetryFailed = async () => {
+    if (!activeJob) return;
+    
+    setRetryingFailed(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('org_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile?.org_id) throw new Error('No organization found');
+
+      // Create a new job to retry only the failed records
+      const { error } = await supabase.functions.invoke('enrich-unified', {
+        body: {
+          org_id: profile.org_id,
+          record_type: 'account',
+          job_id: activeJob.id,
+          retry_failed: true,
+          config: {
+            skipPaidProviders: activeJob.provider === 'ai_free',
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Retry Started",
+        description: `Retrying ${activeJob.failed_records} failed records`,
+      });
+
+      loadActiveJob();
+    } catch (error: any) {
+      enrichmentLogger.error('Error retrying failed records:', error);
+      toast({
+        title: "Error",
+        description: toastError(error, "Failed to retry records"),
+        variant: "destructive"
+      });
+    } finally {
+      setRetryingFailed(false);
     }
   };
 
@@ -377,11 +429,17 @@ export function BulkAccountEnrichment() {
                     {activeJob.enriched_records}
                   </span>
                 </div>
-                <div>
+                <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">Failed:</span>
-                  <span className="ml-2 font-medium text-red-600">
+                  <span className="font-medium text-red-600">
                     {activeJob.failed_records}
                   </span>
+                  <RetryFailedButton
+                    failedCount={activeJob.failed_records}
+                    onRetry={handleRetryFailed}
+                    isRetrying={retryingFailed}
+                    size="sm"
+                  />
                 </div>
                 <div>
                   <span className="text-muted-foreground">Success Rate:</span>

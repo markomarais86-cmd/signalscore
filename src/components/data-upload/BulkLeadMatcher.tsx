@@ -7,6 +7,7 @@ import { AlertCircle, CheckCircle2, Loader2, RefreshCw, Building2 } from "lucide
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { toastError } from "@/lib/friendly-errors";
 
 interface MatchResult {
   success: boolean;
@@ -77,7 +78,7 @@ export function BulkLeadMatcher({ unlinkedLeads, onComplete }: BulkLeadMatcherPr
     } catch (error: any) {
       console.error("❌ Error in bulk matching:", error);
       toast.error("Failed to match leads", {
-        description: error.message
+        description: toastError(error, 'Please try again')
       });
       setResult({
         success: false,

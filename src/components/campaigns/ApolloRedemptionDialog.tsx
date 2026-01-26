@@ -15,6 +15,7 @@ import { useContactProvider, ContactProvider } from "@/hooks/use-contact-provide
 import { toast } from "sonner";
 import { contactsLogger } from "@/lib/logger";
 import { LaunchPulseMark } from "@/components/BrandLogo";
+import { toastError } from "@/lib/friendly-errors";
 
 export interface ICPCriteria {
   industries?: string[];
@@ -347,7 +348,7 @@ export function ApolloRedemptionDialog({
       }
     } catch (err: any) {
       contactsLogger.error('Redemption error:', err);
-      toast.error(err.message || 'Failed to redeem contacts');
+      toast.error(toastError(err, 'Failed to redeem contacts'));
     } finally {
       setIsRedeeming(false);
       setRedemptionProgress(0);

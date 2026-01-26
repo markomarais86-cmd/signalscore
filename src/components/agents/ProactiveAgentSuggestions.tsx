@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { Json } from "@/integrations/supabase/types";
+import { toastError } from "@/lib/friendly-errors";
 
 interface Suggestion {
   id: string;
@@ -101,7 +102,7 @@ export function ProactiveAgentSuggestions() {
       toast.success("Workflow started successfully");
     },
     onError: (error) => {
-      toast.error(`Failed to execute: ${error.message}`);
+      toast.error(toastError(error, 'Failed to execute workflow'));
     },
   });
 

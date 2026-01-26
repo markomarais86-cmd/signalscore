@@ -5,8 +5,10 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCw, CheckCircle2, XCircle, Clock, AlertCircle, RotateCcw } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, Clock, AlertCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { RetryFailedButton } from "@/components/shared/RetryFailedButton";
+import { toastError } from "@/lib/friendly-errors";
 
 interface SyncLog {
   id: string;
@@ -33,6 +35,7 @@ export function CRMSyncHistory({ orgId, provider }: CRMSyncHistoryProps) {
   const [syncLogs, setSyncLogs] = useState<SyncLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const loadSyncHistory = async () => {
@@ -97,6 +100,7 @@ export function CRMSyncHistory({ orgId, provider }: CRMSyncHistoryProps) {
   };
 
   const handleRetry = async (logId: string) => {
+    setRetryingId(logId);
     try {
       const { error } = await supabase.functions.invoke('retry-crm-sync', {
         body: { sync_log_id: logId, org_id: orgId }
@@ -113,9 +117,11 @@ export function CRMSyncHistory({ orgId, provider }: CRMSyncHistoryProps) {
     } catch (error: any) {
       toast({
         title: "Retry Failed",
-        description: error.message,
+        description: toastError(error, "Failed to retry sync"),
         variant: "destructive"
       });
+    } finally {
+      setRetryingId(null);
     }
   };
 
@@ -217,14 +223,21 @@ export function CRMSyncHistory({ orgId, provider }: CRMSyncHistoryProps) {
                       <div className="flex items-center gap-2">
                         {getStatusBadge(log.status)}
                         {log.status === 'failed' && (
-                          <Button
+                          <RetryFailedButton
+                            failedCount={1}
+                            onRetry={() => handleRetry(log.id)}
+                            isRetrying={retryingId === log.id}
+                            showCount={false}
+                            label="Retry"
                             variant="ghost"
-                            size="sm"
-                            onClick={() => handleRetry(log.id)}
-                          >
-                            <RotateCcw className="h-4 w-4 mr-1" />
-                            Retry
-                          </Button>
+                          />
+                        )}
+                        {log.status === 'completed' && (log.records_failed || 0) > 0 && (
+                          <RetryFailedButton
+                            failedCount={log.records_failed || 0}
+                            onRetry={() => handleRetry(log.id)}
+                            isRetrying={retryingId === log.id}
+                          />
                         )}
                       </div>
                     </div>

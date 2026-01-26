@@ -7,6 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Eye, EyeOff, CheckCircle2, XCircle, Loader2, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { toastError } from "@/lib/friendly-errors";
 
 interface Provider {
   name: string;
@@ -95,7 +96,7 @@ export function IntegrationCredentialManager() {
       setStatus(prev => ({ ...prev, [provider.name]: 'error' }));
       toast({
         title: "Test Failed",
-        description: error.message || "Failed to test connection",
+        description: toastError(error, "Failed to test connection"),
         variant: "destructive",
       });
     } finally {
@@ -141,7 +142,7 @@ export function IntegrationCredentialManager() {
       console.error('Save error:', error);
       toast({
         title: "Save Failed",
-        description: error.message || "Failed to save API key",
+        description: toastError(error, "Failed to save API key"),
         variant: "destructive",
       });
     } finally {
