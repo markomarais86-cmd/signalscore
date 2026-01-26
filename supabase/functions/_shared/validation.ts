@@ -9,6 +9,12 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 // Email regex pattern (basic validation)
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Domain regex pattern - validates standard domain format
+const DOMAIN_REGEX = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
+
+// Control character regex for sanitization
+const CONTROL_CHARS_REGEX = /[\x00-\x1F\x7F]/g;
+
 /**
  * Validation error class
  */
@@ -101,6 +107,102 @@ export function validateEmail(value: unknown, fieldName: string, required: boole
   }
 
   return value.toLowerCase();
+}
+
+/**
+ * Validate that a value is a valid domain name
+ * Prevents SSRF, injection, and malformed domain attacks
+ */
+export function validateDomain(value: unknown, fieldName: string, required: boolean = false): string | undefined {
+  if (value === undefined || value === null || value === '') {
+    if (required) {
+      throw new ValidationError(`${fieldName} is required`, fieldName, 'REQUIRED');
+    }
+    return undefined;
+  }
+
+  if (typeof value !== 'string') {
+    throw new ValidationError(`${fieldName} must be a string`, fieldName, 'INVALID_TYPE');
+  }
+
+  // Length check first - prevent resource exhaustion
+  if (value.length > 255) {
+    throw new ValidationError(`${fieldName} must be at most 255 characters`, fieldName, 'TOO_LONG');
+  }
+
+  // Normalize: trim, lowercase, remove protocol prefixes
+  let normalized = value.trim().toLowerCase();
+  normalized = normalized.replace(/^(https?:\/\/|\/\/)/i, '');
+  normalized = normalized.replace(/^www\./i, '');
+  normalized = normalized.replace(/\/.*$/, ''); // Remove paths
+  normalized = normalized.replace(/\.$/, ''); // Remove trailing dot
+
+  // Check for SSRF attempts (internal IP ranges, localhost, metadata endpoints)
+  const ssrfPatterns = [
+    /^localhost$/i,
+    /^127\./,
+    /^10\./,
+    /^192\.168\./,
+    /^172\.(1[6-9]|2[0-9]|3[01])\./,
+    /^169\.254\./,  // AWS metadata
+    /^0\./,
+    /^\[/,  // IPv6
+    /^metadata\./i,
+    /^internal\./i,
+  ];
+
+  for (const pattern of ssrfPatterns) {
+    if (pattern.test(normalized)) {
+      throw new ValidationError(`${fieldName} contains invalid domain pattern`, fieldName, 'INVALID_DOMAIN');
+    }
+  }
+
+  // Validate domain format
+  if (!DOMAIN_REGEX.test(normalized)) {
+    throw new ValidationError(`${fieldName} must be a valid domain (e.g., example.com)`, fieldName, 'INVALID_DOMAIN');
+  }
+
+  return normalized;
+}
+
+/**
+ * Sanitize text by removing control characters
+ * Used for company names, titles, etc. before API calls or database storage
+ */
+export function sanitizeText(value: unknown, fieldName: string, options: { 
+  maxLength?: number; 
+  required?: boolean;
+  allowHtml?: boolean;
+} = {}): string | undefined {
+  const { maxLength = 500, required = false, allowHtml = false } = options;
+
+  if (value === undefined || value === null || value === '') {
+    if (required) {
+      throw new ValidationError(`${fieldName} is required`, fieldName, 'REQUIRED');
+    }
+    return undefined;
+  }
+
+  if (typeof value !== 'string') {
+    throw new ValidationError(`${fieldName} must be a string`, fieldName, 'INVALID_TYPE');
+  }
+
+  if (value.length > maxLength) {
+    throw new ValidationError(`${fieldName} must be at most ${maxLength} characters`, fieldName, 'TOO_LONG');
+  }
+
+  // Remove control characters
+  let sanitized = value.replace(CONTROL_CHARS_REGEX, '');
+
+  // Remove HTML tags if not allowed (basic XSS prevention)
+  if (!allowHtml) {
+    sanitized = sanitized.replace(/<[^>]*>/g, '');
+  }
+
+  // Trim whitespace
+  sanitized = sanitized.trim();
+
+  return sanitized;
 }
 
 /**
