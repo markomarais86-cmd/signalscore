@@ -5,10 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Bot, Clock, CheckCircle, XCircle, Activity, Play, TrendingUp, Sparkles, RefreshCw } from "lucide-react";
+import { Bot, Clock, CheckCircle, XCircle, Activity, Play, TrendingUp, Sparkles, RefreshCw, Wifi } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 import { agentLogger } from "@/lib/logger";
+import { ProactiveAgentSuggestions, AgentHealthIndicator, AgentRealtimeProvider } from "@/components/agents";
+import { useAgentRealtime } from "@/hooks/use-agent-realtime";
 
 interface Agent {
   id: string;
@@ -36,6 +38,7 @@ interface AgentRun {
 export default function AIAgents() {
   const { userProfile } = useAuth();
   const queryClient = useQueryClient();
+  const { isConnected, registeredAgents } = useAgentRealtime();
 
   const { data: agents, isLoading: agentsLoading, refetch } = useQuery({
     queryKey: ["ai-agents", userProfile?.org_id],
@@ -141,11 +144,22 @@ export default function AIAgents() {
             Automated data enrichment and quality management
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => refetch()}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          {isConnected && (
+            <Badge variant="outline" className="text-green-600 border-green-500/30">
+              <Wifi className="h-3 w-3 mr-1" />
+              Live
+            </Badge>
+          )}
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
+
+      {/* Proactive AI Suggestions */}
+      <ProactiveAgentSuggestions />
 
       {/* Summary Stats */}
       <div className="grid gap-4 md:grid-cols-4">
