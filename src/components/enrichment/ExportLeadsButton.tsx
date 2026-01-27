@@ -11,14 +11,67 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Download, Loader2, Users, Mail, Star, Sparkles, Database } from "lucide-react";
 import { toast } from "sonner";
+import { LargeExportDialog } from "./LargeExportDialog";
 
 type ExportFilter = "all" | "with_email" | "high_fit" | "discovered" | "all_full";
 
-export function ExportLeadsButton() {
-  const { userProfile } = useAuth();
-  const [exporting, setExporting] = useState(false);
+const LARGE_EXPORT_THRESHOLD = 5000;
 
-  const exportLeads = async (filter: ExportFilter) => {
+export function ExportLeadsButton() {
+  const { userProfile, user } = useAuth();
+  const [exporting, setExporting] = useState(false);
+  const [showLargeExportDialog, setShowLargeExportDialog] = useState(false);
+  const [pendingFilter, setPendingFilter] = useState<ExportFilter>("all");
+  const [recordCount, setRecordCount] = useState(0);
+
+  const checkCountAndExport = async (filter: ExportFilter) => {
+    if (!userProfile?.org_id) return;
+
+    try {
+      setExporting(true);
+
+      // Check count first
+      let query = supabase
+        .from("Leads")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", userProfile.org_id);
+
+      if (filter === "with_email") {
+        query = query.not("email", "is", null);
+      } else if (filter === "discovered") {
+        query = query.eq("enrichment_source", "ai_discovered");
+      }
+      // Note: high_fit filter requires a join, so we handle it differently
+
+      const { count, error } = await query;
+
+      if (error) throw error;
+
+      const totalCount = count || 0;
+
+      if (totalCount === 0) {
+        toast.warning("No leads to export");
+        setExporting(false);
+        return;
+      }
+
+      if (totalCount > LARGE_EXPORT_THRESHOLD) {
+        setRecordCount(totalCount);
+        setPendingFilter(filter);
+        setShowLargeExportDialog(true);
+        setExporting(false);
+      } else {
+        // Proceed with client-side export
+        await exportLeadsClientSide(filter);
+      }
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to prepare export");
+      setExporting(false);
+    }
+  };
+
+  const exportLeadsClientSide = async (filter: ExportFilter) => {
     if (!userProfile?.org_id) return;
 
     try {
@@ -149,89 +202,26 @@ export function ExportLeadsButton() {
 
       // Full headers for all fields
       const headers = [
-        "External ID",
-        "Contact External ID",
-        "Account External ID",
-        "Name",
-        "First Name",
-        "Last Name",
-        "Title",
-        "Title Raw",
-        "Level",
-        "Persona",
-        "Email",
-        "Email Status",
-        "Email Verified",
-        "Email Verified At",
-        "Email Verification Status",
-        "Phone",
-        "Mobile",
-        "Cell Phone",
-        "Direct Phone",
-        "Phone Extension",
-        "Phone Type",
-        "Phone Verified",
-        "Phone Verification Status",
-        "Verified Phone",
-        "Verified Email",
-        "Company",
-        "Website",
-        "Industry",
-        "Sub Industry",
-        "Country",
-        "State/Province",
-        "Location City",
-        "Location Region",
-        "Timezone",
-        "Employee Count",
-        "Revenue Range",
-        "Company HQ Address",
-        "Company HQ City",
-        "Company HQ State",
-        "Company HQ Country",
-        "Company HQ Postal Code",
-        "Company Main Phone",
-        "Company SIC Code",
-        "Company NAICS Code",
-        "LinkedIn URL",
-        "Twitter URL",
-        "Facebook URL",
-        "Company Facebook URL",
-        "Status",
-        "Pipeline Stage",
-        "Pipeline Updated At",
-        "Pipeline Triggered By",
-        "ICP Qualified",
-        "ICP Fail Reasons",
-        "Priority Rank",
-        "Export Eligible",
-        "Enrichment Source",
-        "Enriched At",
-        "Enriched From",
-        "Enrichment Pass",
-        "Enrichment Confidence",
-        "Enrichment Overall Score",
-        "Enrichment Field Scores",
-        "Enrichment Total Score",
-        "Enrichment Max Score",
-        "Enrichment Citations",
-        "Data Source",
-        "Source Type",
-        "Discovered At",
-        "Discovered From Account",
-        "External Database Match",
-        "Match Confidence",
-        "Match Reasoning",
-        "Consent Status",
-        "Suppression Reason",
-        "Previous Company",
-        "Previous Title",
-        "Still At Company",
-        "Title As Of",
-        "Last Exported At",
-        "Deep Research Completed At",
-        "Created At",
-        "Updated At",
+        "External ID", "Contact External ID", "Account External ID", "Name",
+        "First Name", "Last Name", "Title", "Title Raw", "Level", "Persona",
+        "Email", "Email Status", "Email Verified", "Email Verified At",
+        "Email Verification Status", "Phone", "Mobile", "Cell Phone", "Direct Phone",
+        "Phone Extension", "Phone Type", "Phone Verified", "Phone Verification Status",
+        "Verified Phone", "Verified Email", "Company", "Website", "Industry",
+        "Sub Industry", "Country", "State/Province", "Location City", "Location Region",
+        "Timezone", "Employee Count", "Revenue Range", "Company HQ Address",
+        "Company HQ City", "Company HQ State", "Company HQ Country", "Company HQ Postal Code",
+        "Company Main Phone", "Company SIC Code", "Company NAICS Code", "LinkedIn URL",
+        "Twitter URL", "Facebook URL", "Company Facebook URL", "Status", "Pipeline Stage",
+        "Pipeline Updated At", "Pipeline Triggered By", "ICP Qualified", "ICP Fail Reasons",
+        "Priority Rank", "Export Eligible", "Enrichment Source", "Enriched At",
+        "Enriched From", "Enrichment Pass", "Enrichment Confidence", "Enrichment Overall Score",
+        "Enrichment Field Scores", "Enrichment Total Score", "Enrichment Max Score",
+        "Enrichment Citations", "Data Source", "Source Type", "Discovered At",
+        "Discovered From Account", "External Database Match", "Match Confidence",
+        "Match Reasoning", "Consent Status", "Suppression Reason", "Previous Company",
+        "Previous Title", "Still At Company", "Title As Of", "Last Exported At",
+        "Deep Research Completed At", "Created At", "Updated At",
       ];
 
       const csvRows = [headers.join(",")];
@@ -346,43 +336,89 @@ export function ExportLeadsButton() {
     }
   };
 
+  const startBackgroundExport = async () => {
+    if (!userProfile?.org_id || !user?.id) return;
+
+    try {
+      setExporting(true);
+      setShowLargeExportDialog(false);
+
+      const { data, error } = await supabase.functions.invoke("export-csv", {
+        body: {
+          export_type: "leads",
+          filter: pendingFilter,
+          org_id: userProfile.org_id,
+          user_id: user.id,
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success("Export started! You'll be notified when it's ready.", {
+        description: "Check the export queue for progress.",
+      });
+    } catch (error) {
+      console.error("Background export error:", error);
+      toast.error("Failed to start background export");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDownloadNow = () => {
+    setShowLargeExportDialog(false);
+    exportLeadsClientSide(pendingFilter);
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" disabled={exporting}>
-          {exporting ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <Users className="h-4 w-4 mr-2" />
-          )}
-          Export Leads
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuItem onClick={() => exportLeads("all")}>
-          <Download className="h-4 w-4 mr-2" />
-          Export All Leads
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => exportLeads("with_email")}>
-          <Mail className="h-4 w-4 mr-2" />
-          Export With Email Only
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => exportLeads("high_fit")}>
-          <Star className="h-4 w-4 mr-2" />
-          Export at High-Fit Accounts (70+)
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => exportLeads("discovered")}>
-          <Sparkles className="h-4 w-4 mr-2" />
-          Export AI Discovered Only
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => exportLeads("all_full")}>
-          <Database className="h-4 w-4 mr-2" />
-          Export Full Data (85 Fields)
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" disabled={exporting}>
+            {exporting ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Users className="h-4 w-4 mr-2" />
+            )}
+            Export Leads
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem onClick={() => checkCountAndExport("all")}>
+            <Download className="h-4 w-4 mr-2" />
+            Export All Leads
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => checkCountAndExport("with_email")}>
+            <Mail className="h-4 w-4 mr-2" />
+            Export With Email Only
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => checkCountAndExport("high_fit")}>
+            <Star className="h-4 w-4 mr-2" />
+            Export at High-Fit Accounts (70+)
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => checkCountAndExport("discovered")}>
+            <Sparkles className="h-4 w-4 mr-2" />
+            Export AI Discovered Only
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => checkCountAndExport("all_full")}>
+            <Database className="h-4 w-4 mr-2" />
+            Export Full Data (85 Fields)
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <LargeExportDialog
+        open={showLargeExportDialog}
+        onOpenChange={setShowLargeExportDialog}
+        recordCount={recordCount}
+        exportType="leads"
+        onDownloadNow={handleDownloadNow}
+        onExportInBackground={startBackgroundExport}
+        isExporting={exporting}
+      />
+    </>
   );
 }
 

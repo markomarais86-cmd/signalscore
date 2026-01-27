@@ -24,6 +24,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import CRMFieldMappingDialog from "./CRMFieldMappingDialog";
+import { SalesforceSetupWizard } from "./SalesforceSetupWizard";
+import { HubSpotSetupWizard } from "./HubSpotSetupWizard";
 
 interface Integration {
   id: string;
@@ -403,301 +405,115 @@ export default function IntegrationManager() {
 
       {/* Configuration Dialog */}
       <Dialog open={isConfiguring} onOpenChange={setIsConfiguring}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Configure {selectedIntegration?.name}</DialogTitle>
             <DialogDescription>
-              Set up connection parameters and sync preferences
+              {selectedIntegration?.id === 'salesforce' || selectedIntegration?.id === 'hubspot'
+                ? "Follow the steps below to connect your CRM"
+                : "Set up connection parameters and sync preferences"}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
-            {selectedIntegration?.oauth_required ? (
-              <div className="p-4 bg-muted rounded-lg">
-                <p className="text-sm">This integration requires OAuth authentication. Click connect to authorize access.</p>
-              </div>
-            ) : selectedIntegration?.id === 'salesforce' ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Salesforce Instance URL</label>
-                  <Input 
-                    placeholder="https://yourinstance.salesforce.com" 
-                    value={credentials.instanceUrl}
-                    onChange={(e) => {
-                      setCredentials({...credentials, instanceUrl: e.target.value});
-                      setTestResult(null);
-                    }}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">Your Salesforce domain (e.g., na1.salesforce.com or mycompany.my.salesforce.com)</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Username</label>
-                  <Input 
-                    placeholder="user@company.com" 
-                    value={credentials.username}
-                    onChange={(e) => {
-                      setCredentials({...credentials, username: e.target.value});
-                      setTestResult(null);
-                    }}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Password</label>
-                  <Input 
-                    type="password" 
-                    placeholder="Your Salesforce password" 
-                    value={credentials.password}
-                    onChange={(e) => {
-                      setCredentials({...credentials, password: e.target.value});
-                      setTestResult(null);
-                    }}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Security Token</label>
-                  <Input 
-                    type="password" 
-                    placeholder="Your Salesforce security token" 
-                    value={credentials.securityToken}
-                    onChange={(e) => {
-                      setCredentials({...credentials, securityToken: e.target.value});
-                      setTestResult(null);
-                    }}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Get your token: Setup → Personal Setup → Reset My Security Token
-                  </p>
-                </div>
+          {/* Salesforce Setup Wizard */}
+          {selectedIntegration?.id === 'salesforce' && (
+            <SalesforceSetupWizard
+              orgId={userProfile?.org_id || ''}
+              onSuccess={() => {
+                setIntegrations(prev => prev.map(i => 
+                  i.id === 'salesforce' 
+                    ? { ...i, status: 'connected', last_sync: new Date().toISOString(), sync_status: 'success' }
+                    : i
+                ));
+                setIsConfiguring(false);
+                toast({ title: "Connected", description: "Successfully connected to Salesforce" });
+              }}
+              onCancel={() => setIsConfiguring(false)}
+              existingConfig={selectedIntegration?.config}
+            />
+          )}
 
-                {/* Test Connection Button and Result */}
-                <div className="space-y-2">
-                  <Button 
-                    type="button"
-                    variant="outline" 
-                    className="w-full"
-                    onClick={handleTestConnection}
-                    disabled={isTesting || !credentials.instanceUrl || !credentials.username || !credentials.password || !credentials.securityToken}
-                  >
-                    {isTesting ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        Testing Connection...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Test Connection
-                      </>
-                    )}
-                  </Button>
-                  
-                  {testResult && (
-                    <div className={`p-3 rounded-lg border ${testResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-                      <div className="flex items-start gap-2">
-                        {testResult.success ? (
-                          <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
-                        ) : (
-                          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
-                        )}
-                        <p className={`text-sm ${testResult.success ? 'text-green-800' : 'text-red-800'}`}>
-                          {testResult.message}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">API Key</label>
-                  <Input placeholder="Enter your API key" type="password" />
-                </div>
-              </div>
-            )}
+          {/* HubSpot Setup Wizard */}
+          {selectedIntegration?.id === 'hubspot' && (
+            <HubSpotSetupWizard
+              orgId={userProfile?.org_id || ''}
+              onSuccess={() => {
+                setIntegrations(prev => prev.map(i => 
+                  i.id === 'hubspot' 
+                    ? { ...i, status: 'connected', last_sync: new Date().toISOString(), sync_status: 'success' }
+                    : i
+                ));
+                setIsConfiguring(false);
+                toast({ title: "Connected", description: "Successfully connected to HubSpot" });
+              }}
+              onCancel={() => setIsConfiguring(false)}
+              existingConfig={selectedIntegration?.config}
+            />
+          )}
 
-            {/* Sync Frequency Configuration (for all CRMs) */}
-            {(selectedIntegration?.id === 'salesforce' || selectedIntegration?.id === 'hubspot') && (
-              <div className="mt-4 pt-4 border-t space-y-3">
-                <div>
-                  <label className="text-sm font-medium">Auto-Sync Frequency</label>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Configure how often data should automatically sync from {selectedIntegration.name}
-                  </p>
-                  <select 
-                    className="w-full p-2 border rounded-md"
-                    value={selectedIntegration?.config?.sync_frequency || 'manual'}
-                    onChange={(e) => {
-                      if (selectedIntegration) {
-                        setIntegrations(prev => prev.map(i => 
-                          i.id === selectedIntegration.id 
-                            ? { 
-                                ...i, 
-                                config: { 
-                                  ...i.config, 
-                                  sync_frequency: e.target.value 
-                                } 
-                              }
-                            : i
-                        ));
-                        setSelectedIntegration({
-                          ...selectedIntegration,
-                          config: {
-                            ...selectedIntegration.config,
-                            sync_frequency: e.target.value
+          {/* Generic API Key form for other integrations */}
+          {selectedIntegration && selectedIntegration.id !== 'salesforce' && selectedIntegration.id !== 'hubspot' && (
+            <div className="space-y-4">
+              {selectedIntegration.oauth_required ? (
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm">This integration requires OAuth authentication. Click connect to authorize access.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">API Key</label>
+                    <Input placeholder="Enter your API key" type="password" />
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsConfiguring(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={async () => {
+                    if (selectedIntegration?.oauth_required) {
+                      if (!userProfile?.org_id) {
+                        toast({ 
+                          title: "Error", 
+                          description: "Organization not found",
+                          variant: "destructive"
+                        });
+                        return;
+                      }
+
+                      try {
+                        const { data, error } = await supabase.functions.invoke('oauth-initiate', {
+                          body: {
+                            provider: selectedIntegration.id,
+                            org_id: userProfile.org_id,
+                            redirect_url: `${window.location.origin}/settings?tab=integrations`
                           }
                         });
-                      }
-                    }}
-                  >
-                    <option value="manual">Manual only (no auto-sync)</option>
-                    <option value="hourly">Every hour</option>
-                    <option value="daily">Daily at 2 AM</option>
-                    <option value="weekly">Weekly (Monday at 2 AM)</option>
-                  </select>
-                </div>
-                {selectedIntegration?.config?.last_scheduled_sync && (
-                  <div className="text-xs text-muted-foreground">
-                    Last auto-sync: {new Date(selectedIntegration.config.last_scheduled_sync).toLocaleString()}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setIsConfiguring(false);
-              setTestResult(null);
-              setCredentials({
-                instanceUrl: '',
-                username: '',
-                password: '',
-                securityToken: ''
-              });
-            }}>
-              Cancel
-            </Button>
-            <Button 
-              disabled={selectedIntegration?.id === 'salesforce' && (!testResult || !testResult.success)}
-              onClick={async () => {
-              if (selectedIntegration?.oauth_required) {
-                // Handle OAuth flow for HubSpot and other OAuth integrations
-                if (!userProfile?.org_id) {
-                  toast({ 
-                    title: "Error", 
-                    description: "Organization not found",
-                    variant: "destructive"
-                  });
-                  return;
-                }
+                        if (error) throw error;
 
-                try {
-                  // Initiate OAuth flow
-                  const { data, error } = await supabase.functions.invoke('oauth-initiate', {
-                    body: {
-                      provider: selectedIntegration.id,
-                      org_id: userProfile.org_id,
-                      redirect_url: `${window.location.origin}/settings?tab=integrations`
-                    }
-                  });
-
-                  if (error) throw error;
-
-                  // Redirect to OAuth provider
-                  if (data?.authUrl) {
-                    window.location.href = data.authUrl;
-                  }
-                } catch (error: any) {
-                  console.error('OAuth initiation error:', error);
-                  toast({ 
-                    title: "Connection Failed", 
-                    description: error.message || "Failed to initiate OAuth flow",
-                    variant: "destructive"
-                  });
-                }
-              } else if (selectedIntegration?.id === 'salesforce') {
-                if (!credentials.instanceUrl || !credentials.username || !credentials.password || !credentials.securityToken) {
-                  toast({ 
-                    title: "Missing credentials", 
-                    description: "Please fill in all required fields",
-                    variant: "destructive"
-                  });
-                  return;
-                }
-
-                if (!userProfile?.org_id) {
-                  toast({ 
-                    title: "Error", 
-                    description: "Organization not found",
-                    variant: "destructive"
-                  });
-                  return;
-                }
-
-                try {
-                  // Call integration service to connect
-                  const { data, error } = await supabase.functions.invoke('integration-service', {
-                    body: {
-                      action: 'connect',
-                      org_id: userProfile.org_id,
-                      provider_name: 'salesforce',
-                      integration_type: 'crm',
-                      salesforce_credentials: {
-                        username: credentials.username,
-                        password: credentials.password,
-                        securityToken: credentials.securityToken,
-                        instanceUrl: credentials.instanceUrl,
-                      },
-                      sync_frequency: selectedIntegration.config?.sync_frequency || 'manual',
-                    },
-                  });
-
-                  if (error) throw error;
-
-                  setIntegrations(prev => prev.map(i => 
-                    i.id === selectedIntegration.id 
-                      ? { 
-                          ...i, 
-                          status: 'connected', 
-                          last_sync: new Date().toISOString(), 
-                          sync_status: 'success', 
-                          config: { 
-                            ...credentials, 
-                            integration_config_id: data?.integration_id || data?.config_id,
-                            sync_frequency: selectedIntegration.config?.sync_frequency || 'manual'
-                          }
+                        if (data?.authUrl) {
+                          window.location.href = data.authUrl;
                         }
-                      : i
-                  ));
-                  
-                  toast({ 
-                    title: "Connected", 
-                    description: `Successfully connected to ${selectedIntegration.name}` 
-                  });
-                } catch (error: any) {
-                  console.error('Connection error:', error);
-                  toast({ 
-                    title: "Connection Failed", 
-                    description: error.message || "Failed to connect to Salesforce",
-                    variant: "destructive"
-                  });
-                }
-              }
-              setIsConfiguring(false);
-              setTestResult(null);
-              setCredentials({
-                instanceUrl: '',
-                username: '',
-                password: '',
-                securityToken: ''
-              });
-            }}>
-              {selectedIntegration?.id === 'salesforce' && (!testResult || !testResult.success) 
-                ? 'Test Connection First' 
-                : 'Save & Connect'}
-            </Button>
-          </DialogFooter>
+                      } catch (error: any) {
+                        console.error('OAuth initiation error:', error);
+                        toast({ 
+                          title: "Connection Failed", 
+                          description: error.message || "Failed to initiate OAuth flow",
+                          variant: "destructive"
+                        });
+                      }
+                    }
+                    setIsConfiguring(false);
+                  }}
+                >
+                  {selectedIntegration?.oauth_required ? 'Connect' : 'Save'}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

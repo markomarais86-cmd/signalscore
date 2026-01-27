@@ -11,14 +11,68 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Download, Loader2, FileSpreadsheet, CheckCircle, Database } from "lucide-react";
 import { toast } from "sonner";
+import { LargeExportDialog } from "./LargeExportDialog";
 
 type ExportFilter = "all" | "enriched" | "high_score" | "all_full";
 
-export function ExportAccountsButton() {
-  const { userProfile } = useAuth();
-  const [exporting, setExporting] = useState(false);
+const LARGE_EXPORT_THRESHOLD = 5000;
 
-  const exportAccounts = async (filter: ExportFilter) => {
+export function ExportAccountsButton() {
+  const { userProfile, user } = useAuth();
+  const [exporting, setExporting] = useState(false);
+  const [showLargeExportDialog, setShowLargeExportDialog] = useState(false);
+  const [pendingFilter, setPendingFilter] = useState<ExportFilter>("all");
+  const [recordCount, setRecordCount] = useState(0);
+
+  const checkCountAndExport = async (filter: ExportFilter) => {
+    if (!userProfile?.org_id) return;
+
+    try {
+      setExporting(true);
+
+      // Check count first
+      let query = supabase
+        .from("accounts")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", userProfile.org_id);
+
+      if (filter === "enriched" || filter === "all_full") {
+        if (filter === "enriched") {
+          query = query.not("enriched_at", "is", null);
+        }
+      } else if (filter === "high_score") {
+        query = query.gte("propensity_score", 70);
+      }
+
+      const { count, error } = await query;
+
+      if (error) throw error;
+
+      const totalCount = count || 0;
+
+      if (totalCount === 0) {
+        toast.warning("No accounts to export");
+        setExporting(false);
+        return;
+      }
+
+      if (totalCount > LARGE_EXPORT_THRESHOLD) {
+        setRecordCount(totalCount);
+        setPendingFilter(filter);
+        setShowLargeExportDialog(true);
+        setExporting(false);
+      } else {
+        // Proceed with client-side export
+        await exportAccountsClientSide(filter);
+      }
+    } catch (error) {
+      console.error("Export error:", error);
+      toast.error("Failed to prepare export");
+      setExporting(false);
+    }
+  };
+
+  const exportAccountsClientSide = async (filter: ExportFilter) => {
     if (!userProfile?.org_id) return;
 
     try {
@@ -100,55 +154,18 @@ export function ExportAccountsButton() {
 
       // Full headers for all fields
       const headers = [
-        "External ID",
-        "Name",
-        "Domain",
-        "Legal Name",
-        "Industry",
-        "Industry Raw",
-        "Sub Industry",
-        "SIC Code",
-        "NAICS",
-        "Employee Count",
-        "Revenue Range",
-        "Business Model",
-        "Country",
-        "State/Province",
-        "City",
-        "HQ Address",
-        "HQ City",
-        "HQ State",
-        "HQ Postal Code",
-        "Phone",
-        "Mobile",
-        "Company Main Phone",
-        "LinkedIn URL",
-        "Twitter URL",
-        "Facebook URL",
-        "Founded Year",
-        "Total Raised USD",
-        "Last Funding Round",
-        "Last Funding Date",
-        "Tech Stack",
-        "Trust Signals",
-        "Propensity Score",
-        "Propensity Computed At",
-        "ICP Qualified",
-        "ICP Fail Reasons",
-        "Enriched At",
-        "Enriched From",
-        "Enrichment Phase",
-        "Enrichment Confidence",
-        "Enrichment Overall Score",
-        "Enrichment Field Scores",
-        "Enrichment Citations",
-        "Data Source",
-        "External Database Match",
-        "Deep Research Requested",
-        "Deep Research Completed At",
-        "Last Verified At",
-        "Manually Verified",
-        "Updated At",
+        "External ID", "Name", "Domain", "Legal Name", "Industry", "Industry Raw",
+        "Sub Industry", "SIC Code", "NAICS", "Employee Count", "Revenue Range",
+        "Business Model", "Country", "State/Province", "City", "HQ Address",
+        "HQ City", "HQ State", "HQ Postal Code", "Phone", "Mobile",
+        "Company Main Phone", "LinkedIn URL", "Twitter URL", "Facebook URL",
+        "Founded Year", "Total Raised USD", "Last Funding Round", "Last Funding Date",
+        "Tech Stack", "Trust Signals", "Propensity Score", "Propensity Computed At",
+        "ICP Qualified", "ICP Fail Reasons", "Enriched At", "Enriched From",
+        "Enrichment Phase", "Enrichment Confidence", "Enrichment Overall Score",
+        "Enrichment Field Scores", "Enrichment Citations", "Data Source",
+        "External Database Match", "Deep Research Requested", "Deep Research Completed At",
+        "Last Verified At", "Manually Verified", "Updated At",
       ];
 
       const csvRows = [headers.join(",")];
@@ -229,39 +246,85 @@ export function ExportAccountsButton() {
     }
   };
 
+  const startBackgroundExport = async () => {
+    if (!userProfile?.org_id || !user?.id) return;
+
+    try {
+      setExporting(true);
+      setShowLargeExportDialog(false);
+
+      const { data, error } = await supabase.functions.invoke("export-csv", {
+        body: {
+          export_type: "accounts",
+          filter: pendingFilter,
+          org_id: userProfile.org_id,
+          user_id: user.id,
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success("Export started! You'll be notified when it's ready.", {
+        description: "Check the export queue for progress.",
+      });
+    } catch (error) {
+      console.error("Background export error:", error);
+      toast.error("Failed to start background export");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDownloadNow = () => {
+    setShowLargeExportDialog(false);
+    exportAccountsClientSide(pendingFilter);
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" disabled={exporting}>
-          {exporting ? (
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" disabled={exporting}>
+            {exporting ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4 mr-2" />
+            )}
+            Export
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuItem onClick={() => checkCountAndExport("all")}>
+            <FileSpreadsheet className="h-4 w-4 mr-2" />
+            Export All Accounts
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => checkCountAndExport("enriched")}>
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Export Enriched Only
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => checkCountAndExport("high_score")}>
             <Download className="h-4 w-4 mr-2" />
-          )}
-          Export
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuItem onClick={() => exportAccounts("all")}>
-          <FileSpreadsheet className="h-4 w-4 mr-2" />
-          Export All Accounts
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => exportAccounts("enriched")}>
-          <CheckCircle className="h-4 w-4 mr-2" />
-          Export Enriched Only
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => exportAccounts("high_score")}>
-          <Download className="h-4 w-4 mr-2" />
-          Export High-Fit (70+)
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => exportAccounts("all_full")}>
-          <Database className="h-4 w-4 mr-2" />
-          Export Full Data (50 Fields)
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+            Export High-Fit (70+)
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => checkCountAndExport("all_full")}>
+            <Database className="h-4 w-4 mr-2" />
+            Export Full Data (50 Fields)
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <LargeExportDialog
+        open={showLargeExportDialog}
+        onOpenChange={setShowLargeExportDialog}
+        recordCount={recordCount}
+        exportType="accounts"
+        onDownloadNow={handleDownloadNow}
+        onExportInBackground={startBackgroundExport}
+        isExporting={exporting}
+      />
+    </>
   );
 }
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Download, FileSpreadsheet, CheckCircle, XCircle, Loader2, History } from "lucide-react";
+import { Download, FileSpreadsheet, CheckCircle, XCircle, Loader2, History, ExternalLink } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,7 @@ interface ExportJob {
   total_records: number;
   processed_records: number;
   filename: string | null;
+  download_url: string | null;
   created_at: string;
   completed_at: string | null;
   error_message: string | null;
@@ -34,58 +35,56 @@ export function ExportQueueManager() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  // Query for campaign snapshots as export history
-  const { data: recentExports } = useQuery({
-    queryKey: ["export-history", userProfile?.org_id],
+  // Query for export jobs
+  const { data: exportJobs } = useQuery({
+    queryKey: ["export-jobs", userProfile?.org_id],
     queryFn: async () => {
       if (!userProfile?.org_id) throw new Error("No organization found");
 
       const { data, error } = await supabase
-        .from("campaign_snapshots")
-        .select("id, export_type, total_contacts, export_filename, exported_at, sync_status, sync_destination")
+        .from("export_jobs")
+        .select("id, export_type, status, total_records, processed_records, filename, download_url, created_at, completed_at, error_message")
         .eq("org_id", userProfile.org_id)
-        .order("exported_at", { ascending: false })
-        .limit(10);
+        .order("created_at", { ascending: false })
+        .limit(20);
 
       if (error) throw error;
       
-      // Transform to ExportJob format
-      return (data || []).map((snap): ExportJob => ({
-        id: snap.id,
-        export_type: snap.export_type || 'csv',
-        status: snap.sync_status === 'failed' ? 'failed' : 'completed',
-        total_records: snap.total_contacts || 0,
-        processed_records: snap.total_contacts || 0,
-        filename: snap.export_filename,
-        created_at: snap.exported_at,
-        completed_at: snap.exported_at,
-        error_message: null,
-      }));
+      return (data || []) as ExportJob[];
     },
     enabled: !!userProfile?.org_id,
-    refetchInterval: 30000,
+    refetchInterval: 10000, // Poll every 10 seconds for active exports
   });
 
-  // Real-time subscription for new exports
+  // Real-time subscription for export job updates
   useEffect(() => {
     if (!userProfile?.org_id) return;
 
     const channel = supabase
-      .channel('export-queue')
+      .channel('export-jobs-updates')
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
-          table: 'campaign_snapshots',
+          table: 'export_jobs',
           filter: `org_id=eq.${userProfile.org_id}`,
         },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["export-history", userProfile.org_id] });
-          toast({
-            title: "Export Complete",
-            description: "Your campaign export is ready for download",
-          });
+        (payload) => {
+          queryClient.invalidateQueries({ queryKey: ["export-jobs", userProfile.org_id] });
+          
+          if (payload.eventType === 'UPDATE' && (payload.new as ExportJob).status === 'completed') {
+            toast({
+              title: "Export Complete",
+              description: "Your export is ready for download!",
+            });
+          } else if (payload.eventType === 'UPDATE' && (payload.new as ExportJob).status === 'failed') {
+            toast({
+              title: "Export Failed",
+              description: (payload.new as ExportJob).error_message || "An error occurred during export",
+              variant: "destructive",
+            });
+          }
         }
       )
       .subscribe();
@@ -95,8 +94,8 @@ export function ExportQueueManager() {
     };
   }, [userProfile?.org_id, queryClient, toast]);
 
-  const activeExports = recentExports?.filter(e => e.status === 'processing' || e.status === 'pending') || [];
-  const completedExports = recentExports?.filter(e => e.status === 'completed' || e.status === 'failed') || [];
+  const activeExports = exportJobs?.filter(e => e.status === 'processing' || e.status === 'pending') || [];
+  const completedExports = exportJobs?.filter(e => e.status === 'completed' || e.status === 'failed') || [];
 
   const getExportIcon = (status: string) => {
     switch (status) {
@@ -113,6 +112,8 @@ export function ExportQueueManager() {
 
   const formatExportType = (type: string): string => {
     const typeMap: Record<string, string> = {
+      'accounts': 'Accounts Export',
+      'leads': 'Leads Export',
       'csv': 'CSV Export',
       'salesforce': 'Salesforce Sync',
       'hubspot': 'HubSpot Sync',
@@ -121,7 +122,13 @@ export function ExportQueueManager() {
     return typeMap[type] || type;
   };
 
-  if (!recentExports || recentExports.length === 0) {
+  const handleDownload = (job: ExportJob) => {
+    if (job.download_url) {
+      window.open(job.download_url, '_blank');
+    }
+  };
+
+  if (!exportJobs || exportJobs.length === 0) {
     return null; // Don't show if no exports
   }
 
@@ -144,11 +151,11 @@ export function ExportQueueManager() {
         <div className="flex items-center justify-between px-4 py-2 border-b">
           <div className="flex items-center gap-2">
             <History className="h-4 w-4 text-muted-foreground" />
-            <h3 className="font-semibold">Export History</h3>
+            <h3 className="font-semibold">Export Queue</h3>
           </div>
-          <Badge variant="secondary">{recentExports.length} recent</Badge>
+          <Badge variant="secondary">{exportJobs.length} exports</Badge>
         </div>
-        <ScrollArea className="h-[300px]">
+        <ScrollArea className="h-[350px]">
           {/* Active exports with progress */}
           {activeExports.length > 0 && (
             <>
@@ -160,13 +167,23 @@ export function ExportQueueManager() {
                   <div className="flex items-center gap-2 mb-2">
                     {getExportIcon(exportJob.status)}
                     <span className="text-sm font-medium">{formatExportType(exportJob.export_type)}</span>
+                    <Badge variant="outline" className="ml-auto text-xs">
+                      {exportJob.status}
+                    </Badge>
                   </div>
-                  <Progress 
-                    value={(exportJob.processed_records / exportJob.total_records) * 100} 
-                    className="h-1.5 mb-1"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {exportJob.processed_records} of {exportJob.total_records} records
+                  {exportJob.total_records > 0 && (
+                    <>
+                      <Progress 
+                        value={(exportJob.processed_records / exportJob.total_records) * 100} 
+                        className="h-1.5 mb-1"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {exportJob.processed_records.toLocaleString()} of {exportJob.total_records.toLocaleString()} records
+                      </p>
+                    </>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Started {formatDistanceToNow(new Date(exportJob.created_at), { addSuffix: true })}
                   </p>
                 </div>
               ))}
@@ -177,31 +194,47 @@ export function ExportQueueManager() {
           {completedExports.length > 0 && (
             <>
               <div className="px-4 py-2 text-xs font-medium text-muted-foreground bg-muted/50">
-                Completed
+                Recent Exports
               </div>
               {completedExports.map((exportJob) => (
-                <DropdownMenuItem 
+                <div 
                   key={exportJob.id} 
-                  className="flex items-start gap-3 p-4 cursor-pointer"
+                  className="flex items-start gap-3 p-4 border-b hover:bg-muted/30 transition-colors"
                 >
                   <div className="mt-0.5">{getExportIcon(exportJob.status)}</div>
                   <div className="flex-1 space-y-1">
                     <p className="text-sm font-medium">
                       {formatExportType(exportJob.export_type)}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {exportJob.total_records} records exported
-                    </p>
+                    {exportJob.status === 'completed' ? (
+                      <p className="text-xs text-muted-foreground">
+                        {exportJob.total_records.toLocaleString()} records exported
+                      </p>
+                    ) : (
+                      <p className="text-xs text-red-600">
+                        {exportJob.error_message || "Export failed"}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground">
                       {formatDistanceToNow(new Date(exportJob.created_at), { addSuffix: true })}
                     </p>
                   </div>
-                </DropdownMenuItem>
+                  {exportJob.status === 'completed' && exportJob.download_url && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => handleDownload(exportJob)}
+                      className="shrink-0"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               ))}
             </>
           )}
 
-          {recentExports.length === 0 && (
+          {exportJobs.length === 0 && (
             <div className="p-4 text-center text-sm text-muted-foreground">
               No recent exports
             </div>
