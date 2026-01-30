@@ -85,7 +85,7 @@ export function InstantEnrich() {
 
     try {
       if (useFirecrawl && isDomain) {
-        const { data, error: fnError } = await supabase.functions.invoke("enrich-with-firecrawl", {
+        const { data, error: fnError } = await supabase.functions.invoke("enrich-unified", {
           body: { 
             domain: query.trim().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0],
             companyName: query.trim().split('.')[0]
@@ -112,7 +112,7 @@ export function InstantEnrich() {
   };
 
   const searchWithAI = async () => {
-    const { data, error: fnError } = await supabase.functions.invoke("enrich-single-company", {
+    const { data, error: fnError } = await supabase.functions.invoke("enrich-unified", {
       body: { query: query.trim() }
     });
 

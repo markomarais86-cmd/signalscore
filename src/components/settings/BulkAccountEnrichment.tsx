@@ -408,7 +408,7 @@ export function BulkAccountEnrichment() {
                       className="h-auto p-0 mt-2"
                       onClick={() => {
                         window.open(
-                          `https://supabase.com/dashboard/project/dhyfbaptcprxxixgnpby/functions/${activeJob.provider === 'smart' ? 'smart-enrich' : activeJob.provider === 'ai_free' ? 'enrich-ai-only' : 'enrich-accounts'}/logs`,
+                          `https://supabase.com/dashboard/project/dhyfbaptcprxxixgnpby/functions/enrich-unified/logs`,
                           '_blank'
                         );
                       }}

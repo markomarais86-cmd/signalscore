@@ -159,7 +159,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
       setEnrichmentProgress(prev => prev ? { ...prev, status: 'paused', isStalled: false } : null);
       
       // Call resume function
-      const { error } = await supabase.functions.invoke('enrich-ai-only', {
+      const { error } = await supabase.functions.invoke('enrich-unified', {
         body: { 
           jobId: enrichmentProgress.jobId, 
           resumeFromCheckpoint: true,
@@ -233,7 +233,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
               const totalRecords = freshJob?.total_records || status.total_records || ENRICHMENT.DEFAULT_BATCH_SIZE;
               
               log.info(`Auto-resuming job ${currentJobId}...`);
-              const { error } = await supabase.functions.invoke('enrich-ai-only', {
+              const { error } = await supabase.functions.invoke('enrich-unified', {
                 body: { 
                   jobId: currentJobId, 
                   resumeFromCheckpoint: true,
@@ -328,7 +328,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
           enriched: 0
         });
         
-        const { error } = await supabase.functions.invoke('enrich-ai-only', {
+        const { error } = await supabase.functions.invoke('enrich-unified', {
           body: { jobId: job.id, batchSize }
         });
         
