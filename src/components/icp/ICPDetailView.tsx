@@ -52,9 +52,7 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
   const [accountsNeedingEnrichment, setAccountsNeedingEnrichment] = useState<number | null>(null);
   const [showEnrichmentConfirmation, setShowEnrichmentConfirmation] = useState(false);
   const [isLoadingCost, setIsLoadingCost] = useState(false);
-  
-  // Actual cost per account from unified enrichment (~$0.029)
-  const COST_PER_ACCOUNT = 0.029;
+  const [costBreakdown, setCostBreakdown] = useState<Array<{provider: string; totalCost: number}> | null>(null);
   
   const { isEnriching, progress, enrichAccounts } = useUnifiedEnrichment({
     onComplete: (result) => {
@@ -109,7 +107,7 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
     }
   };
 
-  // Fetch accounts that actually NEED enrichment (missing firmographics)
+  // Fetch accounts that actually NEED enrichment and get cost from edge function
   useEffect(() => {
     const fetchAccountsNeedingEnrichment = async () => {
       if (!userProfile?.org_id || !icp.id) return;
@@ -128,6 +126,7 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
         if (!scores || scores.length === 0) {
           setAccountsNeedingEnrichment(0);
           setEnrichmentCost(0);
+          setCostBreakdown(null);
           return;
         }
         
@@ -146,11 +145,32 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
         
         const needsEnrichment = count || 0;
         setAccountsNeedingEnrichment(needsEnrichment);
-        setEnrichmentCost(needsEnrichment * COST_PER_ACCOUNT);
+        
+        // Call edge function for accurate cost estimate
+        if (needsEnrichment > 0) {
+          const { data: costData, error: costError } = await supabase.functions.invoke('estimate-enrichment-cost', {
+            body: {
+              accountCount: needsEnrichment,
+              providers: ['perplexity', 'firecrawl', 'claude', 'pdl', 'apollo'],
+              orgId: userProfile.org_id,
+            },
+          });
+          
+          if (!costError && costData) {
+            setEnrichmentCost(costData.totalCost);
+            setCostBreakdown(costData.breakdown || null);
+          } else {
+            // Fallback to estimated cost
+            setEnrichmentCost(needsEnrichment * 0.029);
+          }
+        } else {
+          setEnrichmentCost(0);
+        }
       } catch (error) {
         console.error('Error fetching enrichment cost:', error);
         setAccountsNeedingEnrichment(null);
         setEnrichmentCost(null);
+        setCostBreakdown(null);
       } finally {
         setIsLoadingCost(false);
       }
@@ -242,11 +262,20 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
             
             <div className="text-sm text-muted-foreground space-y-2">
               <p><strong>Cost breakdown:</strong></p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>Rate: ~$0.029 per account (unified waterfall)</li>
-                <li>Providers: Perplexity → Firecrawl → Claude → PDL → Apollo</li>
-                <li>Fields enriched: employee count, revenue, industry, tech stack</li>
-              </ul>
+              {costBreakdown && costBreakdown.length > 0 ? (
+                <ul className="list-disc list-inside space-y-1">
+                  {costBreakdown.map((item, i) => (
+                    <li key={i} className="capitalize">
+                      {item.provider}: ${item.totalCost.toFixed(3)}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <ul className="list-disc list-inside space-y-1">
+                  <li>Unified waterfall: Perplexity → Firecrawl → Claude → PDL → Apollo</li>
+                  <li>Fields enriched: employee count, revenue, industry, tech stack</li>
+                </ul>
+              )}
             </div>
           </div>
           

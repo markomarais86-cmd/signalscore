@@ -98,7 +98,10 @@ export function SetupStep({
               • CRM Source: <strong>$0</strong> (use existing contacts, no enrichment needed)
             </div>
             <div className="text-sm">
-              • Database Source: <strong>$0.50-$1.00/contact</strong> (requires enrichment credits)
+              • Database Source: <strong>~$0.015-$0.03/contact</strong> via unified enrichment waterfall
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Costs vary based on data availability. See Data Source step for detailed breakdown.
             </div>
           </AlertDescription>
         </Alert>
