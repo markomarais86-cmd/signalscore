@@ -3345,6 +3345,48 @@ export type Database = {
           },
         ]
       }
+      enrichment_cache: {
+        Row: {
+          cache_key: string
+          cache_type: string
+          confidence: number | null
+          created_at: string
+          enriched_data: Json
+          expires_at: string
+          hit_count: number | null
+          id: string
+          last_accessed_at: string | null
+          sources: string[] | null
+          total_cost: number | null
+        }
+        Insert: {
+          cache_key: string
+          cache_type: string
+          confidence?: number | null
+          created_at?: string
+          enriched_data?: Json
+          expires_at?: string
+          hit_count?: number | null
+          id?: string
+          last_accessed_at?: string | null
+          sources?: string[] | null
+          total_cost?: number | null
+        }
+        Update: {
+          cache_key?: string
+          cache_type?: string
+          confidence?: number | null
+          created_at?: string
+          enriched_data?: Json
+          expires_at?: string
+          hit_count?: number | null
+          id?: string
+          last_accessed_at?: string | null
+          sources?: string[] | null
+          total_cost?: number | null
+        }
+        Relationships: []
+      }
       enrichment_costs: {
         Row: {
           api_credits_used: number | null
@@ -7580,6 +7622,7 @@ export type Database = {
         }
         Returns: Json
       }
+      cleanup_expired_cache: { Args: never; Returns: number }
       cleanup_expired_idempotency_keys: { Args: never; Returns: number }
       cleanup_expired_oauth_states: { Args: never; Returns: number }
       cleanup_stuck_enrichment_jobs: { Args: never; Returns: Json }
@@ -7668,6 +7711,15 @@ export type Database = {
           high_confidence: number
           phone_discovered: number
           total_enriched: number
+        }[]
+      }
+      get_enrichment_cache: {
+        Args: { p_cache_key: string; p_cache_type: string }
+        Returns: {
+          confidence: number
+          enriched_data: Json
+          hit: boolean
+          sources: string[]
         }[]
       }
       get_enrichment_page_stats: {
@@ -7949,6 +8001,18 @@ export type Database = {
       seed_default_benchmarks: {
         Args: { p_org_id: string }
         Returns: undefined
+      }
+      set_enrichment_cache: {
+        Args: {
+          p_cache_key: string
+          p_cache_type: string
+          p_confidence: number
+          p_enriched_data: Json
+          p_sources: string[]
+          p_total_cost?: number
+          p_ttl_days?: number
+        }
+        Returns: string
       }
       set_firmographic_auto_sync: {
         Args: { p_enabled: boolean; p_org_id: string }
