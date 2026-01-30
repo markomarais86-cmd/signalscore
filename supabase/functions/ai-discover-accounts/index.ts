@@ -105,7 +105,60 @@ function buildPerplexitySearchPrompt(criteria: DiscoveryCriteria, limit: number)
   return prompt;
 }
 
-// Parse Perplexity results using Lovable AI for structured output
+// Fallback: Extract companies from raw text using regex when tool calling fails
+function extractCompaniesFromText(content: string, citations: string[]): DiscoveredCompany[] {
+  console.log('[Fallback] Attempting regex extraction from raw content...');
+  
+  const companies: DiscoveredCompany[] = [];
+  const now = new Date().toISOString();
+  
+  // Pattern to find domains (company websites)
+  const domainPattern = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9][-a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)/g;
+  const foundDomains = new Set<string>();
+  
+  let match;
+  while ((match = domainPattern.exec(content)) !== null) {
+    const domain = match[1].toLowerCase().replace(/^www\./, '');
+    // Filter out common non-company domains
+    if (!domain.match(/\.(gov|edu|org|net)$/) && 
+        !domain.includes('example') &&
+        !domain.includes('linkedin') &&
+        !domain.includes('twitter') &&
+        !domain.includes('facebook') &&
+        !domain.includes('google') &&
+        !foundDomains.has(domain)) {
+      foundDomains.add(domain);
+      
+      // Try to extract company name from context around the domain mention
+      const domainIndex = content.indexOf(domain);
+      const contextStart = Math.max(0, domainIndex - 200);
+      const contextEnd = Math.min(content.length, domainIndex + 200);
+      const context = content.slice(contextStart, contextEnd);
+      
+      // Look for company name patterns
+      const companyNameMatch = context.match(/(?:^|\n|,|;|\.|:)\s*([A-Z][A-Za-z0-9\s&.'-]{2,40})(?:\s*(?:\(|,|\||-))/);
+      const name = companyNameMatch ? companyNameMatch[1].trim() : domain.split('.')[0];
+      
+      companies.push({
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        domain,
+        industry: 'Technology', // Default, will be enriched later
+        employee_count: 100, // Default placeholder
+        revenue_range: '$10M-$25M', // Default placeholder
+        country: 'United States', // Default
+        confidence: 50, // Lower confidence for regex extraction
+        discovery_reason: 'Extracted from web search results (fallback method)',
+        sources: citations.slice(0, 3),
+        last_verified: now
+      });
+    }
+  }
+  
+  console.log(`[Fallback] Extracted ${companies.length} companies via regex`);
+  return companies.slice(0, 20); // Limit to 20 companies
+}
+
+// Parse Perplexity results using Lovable AI for structured output with retry and fallback
 async function parsePerplexityResults(
   rawContent: string, 
   citations: string[], 
@@ -113,87 +166,154 @@ async function parsePerplexityResults(
   lovableApiKey: string
 ): Promise<DiscoveredCompany[]> {
   console.log('[Lovable AI] Parsing Perplexity results into structured format...');
+  console.log(`[Lovable AI] Raw content length: ${rawContent.length} chars, citations: ${citations.length}`);
   
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${lovableApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
-      messages: [
-        {
-          role: 'system',
-          content: `You are a data extraction expert. Parse the company information from web search results into structured data. Extract only real companies with verifiable information. Be accurate with domains, employee counts, and revenue estimates. Include confidence scores based on data quality.`
+  const maxRetries = 3;
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      // Add exponential backoff delay for retries
+      if (attempt > 0) {
+        const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+        console.log(`[Lovable AI] Retry attempt ${attempt + 1}/${maxRetries} after ${delay}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+      
+      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${lovableApiKey}`,
+          'Content-Type': 'application/json',
         },
-        {
-          role: 'user',
-          content: `Parse the following company search results into structured data. The data came from real-time web search.\n\nSearch Results:\n${rawContent}\n\nSource citations: ${citations.join(', ')}\n\nICP Criteria used:\n- Industries: ${criteria.industries?.join(', ') || 'Any'}\n- Geographies: ${criteria.geographies?.join(', ') || 'Any'}\n- Sizes: ${criteria.company_sizes?.join(', ') || 'Any'}`
-        }
-      ],
-      tools: [
-        {
-          type: 'function',
-          function: {
-            name: 'parsed_companies',
-            description: 'Return structured company data from the search results',
-            parameters: {
-              type: 'object',
-              properties: {
-                companies: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      name: { type: 'string' },
-                      domain: { type: 'string' },
-                      industry: { type: 'string' },
-                      employee_count: { type: 'number' },
-                      revenue_range: { 
-                        type: 'string',
-                        enum: ['<$1M', '$1M-$5M', '$5M-$10M', '$10M-$25M', '$25M-$50M', '$50M-$100M', '$100M-$250M', '$250M-$500M', '$500M-$1B', '$1B+']
-                      },
-                      country: { type: 'string' },
-                      city: { type: 'string' },
-                      description: { type: 'string' },
-                      tech_stack: { type: 'array', items: { type: 'string' } },
-                      confidence: { type: 'number', minimum: 0, maximum: 100 },
-                      discovery_reason: { type: 'string' }
-                    },
-                    required: ['name', 'domain', 'industry', 'employee_count', 'revenue_range', 'country', 'confidence', 'discovery_reason']
-                  }
-                }
-              },
-              required: ['companies']
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a data extraction expert. Parse the company information from web search results into structured data. Extract only real companies with verifiable information. Be accurate with domains, employee counts, and revenue estimates. Include confidence scores based on data quality.`
+            },
+            {
+              role: 'user',
+              content: `Parse the following company search results into structured data. The data came from real-time web search.\n\nSearch Results:\n${rawContent}\n\nSource citations: ${citations.join(', ')}\n\nICP Criteria used:\n- Industries: ${criteria.industries?.join(', ') || 'Any'}\n- Geographies: ${criteria.geographies?.join(', ') || 'Any'}\n- Sizes: ${criteria.company_sizes?.join(', ') || 'Any'}`
             }
-          }
+          ],
+          tools: [
+            {
+              type: 'function',
+              function: {
+                name: 'parsed_companies',
+                description: 'Return structured company data from the search results',
+                parameters: {
+                  type: 'object',
+                  properties: {
+                    companies: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          name: { type: 'string' },
+                          domain: { type: 'string' },
+                          industry: { type: 'string' },
+                          employee_count: { type: 'number' },
+                          revenue_range: { 
+                            type: 'string',
+                            enum: ['<$1M', '$1M-$5M', '$5M-$10M', '$10M-$25M', '$25M-$50M', '$50M-$100M', '$100M-$250M', '$250M-$500M', '$500M-$1B', '$1B+']
+                          },
+                          country: { type: 'string' },
+                          city: { type: 'string' },
+                          description: { type: 'string' },
+                          tech_stack: { type: 'array', items: { type: 'string' } },
+                          confidence: { type: 'number', minimum: 0, maximum: 100 },
+                          discovery_reason: { type: 'string' }
+                        },
+                        required: ['name', 'domain', 'industry', 'employee_count', 'revenue_range', 'country', 'confidence', 'discovery_reason']
+                      }
+                    }
+                  },
+                  required: ['companies']
+                }
+              }
+            }
+          ],
+          tool_choice: { type: 'function', function: { name: 'parsed_companies' } }
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[Lovable AI] API error ${response.status}:`, errorText);
+        throw new Error(`Lovable AI parsing error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Detailed logging of response structure
+      console.log('[Lovable AI] Response structure:', JSON.stringify({
+        hasChoices: !!data.choices,
+        choicesLength: data.choices?.length,
+        hasMessage: !!data.choices?.[0]?.message,
+        hasToolCalls: !!data.choices?.[0]?.message?.tool_calls,
+        toolCallsLength: data.choices?.[0]?.message?.tool_calls?.length,
+        messageContent: data.choices?.[0]?.message?.content?.substring(0, 200)
+      }));
+      
+      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+      
+      if (toolCall?.function?.arguments) {
+        console.log('[Lovable AI] Tool call arguments preview:', toolCall.function.arguments.substring(0, 500));
+        
+        try {
+          const parsed = JSON.parse(toolCall.function.arguments);
+          const companies = parsed.companies || [];
+          
+          console.log(`[Lovable AI] Successfully parsed ${companies.length} companies`);
+          
+          // Add citations and timestamp to each company
+          const now = new Date().toISOString();
+          return companies.map((c: DiscoveredCompany) => ({
+            ...c,
+            sources: citations.slice(0, 5),
+            last_verified: now
+          }));
+        } catch (parseError) {
+          console.error('[Lovable AI] JSON parse error:', parseError);
+          throw new Error('Failed to parse tool call arguments as JSON');
         }
-      ],
-      tool_choice: { type: 'function', function: { name: 'parsed_companies' } }
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Lovable AI parsing error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  
-  if (toolCall?.function?.arguments) {
-    const parsed = JSON.parse(toolCall.function.arguments);
-    const companies = parsed.companies || [];
-    
-    // Add citations and timestamp to each company
-    const now = new Date().toISOString();
-    return companies.map((c: DiscoveredCompany) => ({
-      ...c,
-      sources: citations.slice(0, 5),
-      last_verified: now
-    }));
+      }
+      
+      // No tool call in response - log the full message content
+      const messageContent = data.choices?.[0]?.message?.content;
+      console.warn('[Lovable AI] No tool_calls in response. Message content:', messageContent?.substring(0, 500));
+      
+      // If we got content but no tool_calls, this is a parsing issue - retry
+      if (messageContent && messageContent.length > 0) {
+        throw new Error('Gemini returned content but no tool_calls - retrying');
+      }
+      
+      // Empty response
+      throw new Error('Empty response from Lovable AI');
+      
+    } catch (error) {
+      lastError = error as Error;
+      console.error(`[Lovable AI] Attempt ${attempt + 1} failed:`, error);
+    }
   }
   
+  // All retries failed - try fallback regex extraction
+  console.warn('[Lovable AI] All retry attempts failed, using fallback regex extraction');
+  console.warn('[Lovable AI] Last error:', lastError?.message);
+  
+  // Only use fallback if we have meaningful content from Perplexity
+  if (rawContent && rawContent.length > 100 && citations.length > 0) {
+    const fallbackCompanies = extractCompaniesFromText(rawContent, citations);
+    if (fallbackCompanies.length > 0) {
+      console.log(`[Lovable AI] Fallback extracted ${fallbackCompanies.length} companies`);
+      return fallbackCompanies;
+    }
+  }
+  
+  console.warn('[Lovable AI] Fallback extraction also returned 0 companies');
   return [];
 }
 
