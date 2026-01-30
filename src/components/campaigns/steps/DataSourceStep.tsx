@@ -2,10 +2,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Database, Globe, Zap } from "lucide-react";
 import { ApolloCreditsDisplay } from "../ApolloCreditsDisplay";
 import { formatNumber } from "@/utils/format-numbers";
-
 interface DataSourceStepProps {
   dataSource: 'all' | 'crm' | 'database';
   setDataSource: (source: 'all' | 'crm' | 'database') => void;
@@ -83,9 +83,10 @@ export function DataSourceStep({
             </Card>
             
             <Card 
-              className={`cursor-pointer transition-all ${provider === 'zoominfo' ? 'border-primary ring-2 ring-primary' : ''}`}
-              onClick={() => setProvider('zoominfo')}
+              className="opacity-60 cursor-not-allowed relative"
+              title="ZoomInfo integration coming soon"
             >
+              <Badge className="absolute top-2 right-2 bg-muted text-muted-foreground" variant="secondary">Coming Soon</Badge>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Database className="h-4 w-4 text-blue-500" />
@@ -98,9 +99,10 @@ export function DataSourceStep({
             </Card>
             
             <Card 
-              className={`cursor-pointer transition-all ${provider === 'clearbit' ? 'border-primary ring-2 ring-primary' : ''}`}
-              onClick={() => setProvider('clearbit')}
+              className="opacity-60 cursor-not-allowed relative"
+              title="Clearbit integration coming soon"
             >
+              <Badge className="absolute top-2 right-2 bg-muted text-muted-foreground" variant="secondary">Coming Soon</Badge>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <Globe className="h-4 w-4 text-purple-500" />
