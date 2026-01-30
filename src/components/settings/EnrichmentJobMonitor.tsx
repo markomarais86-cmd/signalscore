@@ -228,7 +228,7 @@ export function EnrichmentJobMonitor() {
       if (updateError) throw updateError;
 
       // Invoke the enrichment function
-      const { error } = await supabase.functions.invoke('enrich-ai-only', {
+      const { error } = await supabase.functions.invoke('enrich-unified', {
         body: { jobId, batchSize: 100 }
       });
 

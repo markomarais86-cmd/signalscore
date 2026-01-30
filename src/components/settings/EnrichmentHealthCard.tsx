@@ -159,7 +159,7 @@ export function EnrichmentHealthCard() {
           className="w-full"
           onClick={() => {
             window.open(
-              `https://supabase.com/dashboard/project/${import.meta.env.VITE_SUPABASE_PROJECT_ID}/logs/edge-functions?search=enrich-contacts-bulk`,
+              `https://supabase.com/dashboard/project/${import.meta.env.VITE_SUPABASE_PROJECT_ID}/logs/edge-functions?search=enrich-unified`,
               '_blank'
             );
           }}

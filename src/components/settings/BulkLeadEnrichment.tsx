@@ -182,7 +182,7 @@ export function BulkLeadEnrichment() {
       }
 
       // Use the multi-agent orchestrator instead of simple enrichment
-      const { data: result, error: enrichError } = await supabase.functions.invoke('enrichment-orchestrator', {
+      const { data: result, error: enrichError } = await supabase.functions.invoke('enrich-unified', {
         body: { 
           org_id: profile.org_id,
           source_type: 'database',
@@ -344,7 +344,7 @@ export function BulkLeadEnrichment() {
                       className="h-auto p-0 mt-2"
                       onClick={() => {
                         window.open(
-                          `https://supabase.com/dashboard/project/${import.meta.env.VITE_SUPABASE_PROJECT_ID}/logs/edge-functions?search=enrich-contacts-bulk`,
+                          `https://supabase.com/dashboard/project/${import.meta.env.VITE_SUPABASE_PROJECT_ID}/logs/edge-functions?search=enrich-unified`,
                           '_blank'
                         );
                       }}
