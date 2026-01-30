@@ -469,3 +469,6 @@ verify_jwt = false
 
 [functions.export-csv]
 verify_jwt = false
+
+[functions.discover-contacts]
+verify_jwt = true

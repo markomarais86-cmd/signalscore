@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ICPProfile } from '@/types/icp';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,14 @@ import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { 
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { 
   Building, 
   Users, 
   MapPin, 
@@ -26,7 +34,8 @@ import {
   DollarSign,
   Zap,
   TrendingUp,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 
 interface ICPDetailViewProps {
@@ -40,13 +49,19 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
   const [activeTab, setActiveTab] = useState(defaultTab);
   const { userProfile } = useAuth();
   const [enrichmentCost, setEnrichmentCost] = useState<number | null>(null);
-  const [matchedAccountsCount, setMatchedAccountsCount] = useState<number | null>(null);
+  const [accountsNeedingEnrichment, setAccountsNeedingEnrichment] = useState<number | null>(null);
+  const [showEnrichmentConfirmation, setShowEnrichmentConfirmation] = useState(false);
+  const [isLoadingCost, setIsLoadingCost] = useState(false);
+  
+  // Actual cost per account from unified enrichment (~$0.029)
+  const COST_PER_ACCOUNT = 0.029;
   
   const { isEnriching, progress, enrichAccounts } = useUnifiedEnrichment({
     onComplete: (result) => {
       toast.success(`Enriched ${result.summary.enriched} accounts`, {
         description: `Total cost: $${result.summary.totalCost.toFixed(2)}`
       });
+      setShowEnrichmentConfirmation(false);
     }
   });
 
@@ -94,21 +109,55 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
     }
   };
 
-  // Fetch matched accounts count for cost estimate
-  useState(() => {
-    if (userProfile?.org_id && icp.id) {
-      supabase
-        .from('scores')
-        .select('account_external_id', { count: 'exact', head: true })
-        .eq('org_id', userProfile.org_id)
-        .eq('icp_id', icp.id)
-        .gte('fit', 70)
-        .then(({ count }) => {
-          setMatchedAccountsCount(count || 0);
-          setEnrichmentCost((count || 0) * 0.25); // ~$0.25 per account
-        });
-    }
-  });
+  // Fetch accounts that actually NEED enrichment (missing firmographics)
+  useEffect(() => {
+    const fetchAccountsNeedingEnrichment = async () => {
+      if (!userProfile?.org_id || !icp.id) return;
+      
+      setIsLoadingCost(true);
+      try {
+        // First get high-fit account IDs
+        const { data: scores, error: scoresError } = await supabase
+          .from('scores')
+          .select('account_external_id')
+          .eq('org_id', userProfile.org_id)
+          .eq('icp_id', icp.id)
+          .gte('fit', 70);
+        
+        if (scoresError) throw scoresError;
+        if (!scores || scores.length === 0) {
+          setAccountsNeedingEnrichment(0);
+          setEnrichmentCost(0);
+          return;
+        }
+        
+        const accountIds = scores.map(s => s.account_external_id);
+        
+        // Now count only accounts that NEED enrichment (missing key firmographics)
+        const { count, error: countError } = await supabase
+          .from('accounts')
+          .select('*', { count: 'exact', head: true })
+          .eq('org_id', userProfile.org_id)
+          .in('external_id', accountIds)
+          .or('employee_count.is.null,revenue_range.is.null,industry_norm.is.null')
+          .not('domain', 'is', null);
+        
+        if (countError) throw countError;
+        
+        const needsEnrichment = count || 0;
+        setAccountsNeedingEnrichment(needsEnrichment);
+        setEnrichmentCost(needsEnrichment * COST_PER_ACCOUNT);
+      } catch (error) {
+        console.error('Error fetching enrichment cost:', error);
+        setAccountsNeedingEnrichment(null);
+        setEnrichmentCost(null);
+      } finally {
+        setIsLoadingCost(false);
+      }
+    };
+    
+    fetchAccountsNeedingEnrichment();
+  }, [userProfile?.org_id, icp.id]);
 
   return (
     <div className="space-y-6">
@@ -132,21 +181,26 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
         <div className="flex items-center gap-2">
           <Button 
             variant="default" 
-            onClick={handleEnrichMatchedAccounts}
-            disabled={isEnriching}
+            onClick={() => setShowEnrichmentConfirmation(true)}
+            disabled={isEnriching || accountsNeedingEnrichment === 0 || isLoadingCost}
           >
             {isEnriching ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 Enriching... {progress?.processed || 0}/{progress?.total || 0}
               </>
+            ) : isLoadingCost ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Calculating...
+              </>
             ) : (
               <>
                 <Zap className="h-4 w-4 mr-2" />
                 Enrich High-Fit Accounts
-                {enrichmentCost !== null && (
+                {enrichmentCost !== null && accountsNeedingEnrichment !== null && (
                   <Badge variant="secondary" className="ml-2">
-                    ~${enrichmentCost.toFixed(0)}
+                    {accountsNeedingEnrichment} accounts · ~${enrichmentCost.toFixed(2)}
                   </Badge>
                 )}
               </>
@@ -158,6 +212,58 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
           </Button>
         </div>
       </div>
+
+      {/* Enrichment Confirmation Dialog */}
+      <Dialog open={showEnrichmentConfirmation} onOpenChange={setShowEnrichmentConfirmation}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Confirm Enrichment
+            </DialogTitle>
+            <DialogDescription>
+              You are about to enrich accounts with missing firmographic data.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-muted-foreground">Accounts to Enrich</p>
+                <p className="text-2xl font-bold">{accountsNeedingEnrichment || 0}</p>
+              </div>
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-muted-foreground">Estimated Cost</p>
+                <p className="text-2xl font-bold text-green-600">
+                  ${enrichmentCost?.toFixed(2) || '0.00'}
+                </p>
+              </div>
+            </div>
+            
+            <div className="text-sm text-muted-foreground space-y-2">
+              <p><strong>Cost breakdown:</strong></p>
+              <ul className="list-disc list-inside space-y-1">
+                <li>Rate: ~$0.029 per account (unified waterfall)</li>
+                <li>Providers: Perplexity → Firecrawl → Claude → PDL → Apollo</li>
+                <li>Fields enriched: employee count, revenue, industry, tech stack</li>
+              </ul>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEnrichmentConfirmation(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => {
+              setShowEnrichmentConfirmation(false);
+              handleEnrichMatchedAccounts();
+            }}>
+              <Zap className="h-4 w-4 mr-2" />
+              Start Enrichment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">

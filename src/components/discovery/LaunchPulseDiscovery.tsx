@@ -68,8 +68,11 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
   const { userProfile } = useAuth();
   const [isDiscovering, setIsDiscovering] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isDiscoveringContacts, setIsDiscoveringContacts] = useState(false);
   const [result, setResult] = useState<DiscoveryResult | null>(null);
   const [selectedCompanies, setSelectedCompanies] = useState<Set<string>>(new Set());
+  const [discoverContactsEnabled, setDiscoverContactsEnabled] = useState(true);
+  const [contactDiscoveryProgress, setContactDiscoveryProgress] = useState<{ found: number; created: number } | null>(null);
   
   // Criteria state
   const [keywords, setKeywords] = useState('');
@@ -147,6 +150,7 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
     }
 
     setIsImporting(true);
+    setContactDiscoveryProgress(null);
 
     try {
       const { data, error } = await supabase.functions.invoke('ai-discover-accounts', {
@@ -169,6 +173,12 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
 
       if (data.success) {
         toast.success(`Imported ${data.imported_count} accounts to your pipeline!`);
+        
+        // Trigger contact discovery if enabled and accounts were imported
+        if (discoverContactsEnabled && data.imported_accounts?.length > 0) {
+          await discoverContactsForAccounts(data.imported_accounts);
+        }
+        
         setResult(null);
         setSelectedCompanies(new Set());
       } else {
@@ -179,6 +189,48 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
       toast.error('Failed to import accounts');
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  const discoverContactsForAccounts = async (accountIds: string[]) => {
+    if (!userProfile?.org_id) return;
+    
+    setIsDiscoveringContacts(true);
+    
+    try {
+      toast.info('Discovering contacts at imported accounts...', { duration: 5000 });
+      
+      const { data, error } = await supabase.functions.invoke('discover-contacts', {
+        body: {
+          org_id: userProfile.org_id,
+          account_ids: accountIds,
+          persona_job_titles: icp?.persona_job_titles || ['CEO', 'CTO', 'VP', 'Director', 'Manager'],
+          limit_per_account: 3,
+          icp_id: icp?.id
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        setContactDiscoveryProgress({
+          found: data.contacts_found || 0,
+          created: data.leads_created || 0
+        });
+        
+        if (data.leads_created > 0) {
+          toast.success(`Found ${data.leads_created} contacts at ${accountIds.length} accounts!`, {
+            description: `${data.duplicates_skipped || 0} duplicates skipped`
+          });
+        } else {
+          toast.info('No new contacts found at imported accounts');
+        }
+      }
+    } catch (err) {
+      console.error('Contact discovery error:', err);
+      toast.error('Failed to discover contacts');
+    } finally {
+      setIsDiscoveringContacts(false);
     }
   };
 
@@ -316,7 +368,52 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
             </Button>
           </div>
         </div>
+        
+        {/* Contact Discovery Toggle */}
+        <div className="flex items-center gap-2 md:col-span-3 pt-2">
+          <Checkbox
+            id="discoverContacts"
+            checked={discoverContactsEnabled}
+            onCheckedChange={(checked) => setDiscoverContactsEnabled(checked === true)}
+          />
+          <Label htmlFor="discoverContacts" className="flex items-center gap-2 cursor-pointer text-sm">
+            <Users className="h-4 w-4" />
+            Auto-discover contacts at imported accounts
+            <Badge variant="outline" className="text-xs">
+              {icp?.persona_job_titles?.length || 6} titles
+            </Badge>
+          </Label>
+        </div>
       </div>
+
+      {/* Contact Discovery Progress */}
+      {(isDiscoveringContacts || contactDiscoveryProgress) && (
+        <Card className="bg-muted/30 border-primary/20">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3">
+              {isDiscoveringContacts ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  <div>
+                    <p className="font-medium">Discovering contacts...</p>
+                    <p className="text-sm text-muted-foreground">Searching for decision-makers at imported accounts</p>
+                  </div>
+                </>
+              ) : contactDiscoveryProgress && (
+                <>
+                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  <div>
+                    <p className="font-medium">Contact discovery complete</p>
+                    <p className="text-sm text-muted-foreground">
+                      Found {contactDiscoveryProgress.found} contacts · Created {contactDiscoveryProgress.created} leads
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Results */}
       <Card>
@@ -352,14 +449,22 @@ export function LaunchPulseDiscovery({ icp, compact = false }: LaunchPulseDiscov
                 <Button
                   size="sm"
                   onClick={handleImport}
-                  disabled={isImporting || selectedCompanies.size === 0}
+                  disabled={isImporting || isDiscoveringContacts || selectedCompanies.size === 0}
                 >
                   {isImporting ? (
                     <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : isDiscoveringContacts ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      Finding Contacts...
+                    </>
                   ) : (
                     <Download className="h-4 w-4 mr-1" />
                   )}
-                  Import ({selectedCompanies.size})
+                  {!isImporting && !isDiscoveringContacts && `Import (${selectedCompanies.size})`}
+                  {discoverContactsEnabled && !isImporting && !isDiscoveringContacts && (
+                    <Badge variant="secondary" className="ml-1 text-xs">+contacts</Badge>
+                  )}
                 </Button>
               </div>
             )}
