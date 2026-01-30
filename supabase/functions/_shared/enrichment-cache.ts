@@ -1,14 +1,13 @@
 /**
- * Enrichment Cache Module
+ * Enrichment Cache Module (Simplified)
  * 
- * Provides caching for enrichment results to reduce API costs
- * and improve speed for repeated lookups.
+ * Provides lightweight caching for enrichment results.
+ * Uses direct table queries instead of RPC for simplicity.
  * 
  * Cache TTL: 30 days by default
- * Cache Types: 'domain', 'email', 'company'
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 export interface CacheEntry {
   enriched_data: Record<string, any>;
@@ -16,13 +15,6 @@ export interface CacheEntry {
   confidence: number;
   hit: boolean;
 }
-
-export interface CacheConfig {
-  ttlDays?: number;
-  enabled?: boolean;
-}
-
-const DEFAULT_TTL_DAYS = 30;
 
 /**
  * Generate a normalized cache key for domain lookups
@@ -48,7 +40,6 @@ export function getCompanyCacheKey(companyName: string, domain?: string): string
     return getDomainCacheKey(domain);
   }
   if (!companyName) return '';
-  // Normalize company name: lowercase, remove common suffixes
   return companyName
     .toLowerCase()
     .trim()
@@ -57,72 +48,84 @@ export function getCompanyCacheKey(companyName: string, domain?: string): string
 }
 
 /**
- * Check cache for existing enrichment data
+ * Check cache for existing enrichment data (non-blocking, safe)
  */
 export async function getCachedEnrichment(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   cacheKey: string,
   cacheType: 'domain' | 'email' | 'company'
 ): Promise<CacheEntry | null> {
   if (!cacheKey) return null;
 
   try {
-    const { data, error } = await supabase.rpc('get_enrichment_cache', {
-      p_cache_key: cacheKey,
-      p_cache_type: cacheType,
-    });
+    const { data, error } = await supabase
+      .from('enrichment_cache')
+      .select('enriched_data, sources, confidence')
+      .eq('cache_key', cacheKey)
+      .eq('cache_type', cacheType)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
 
-    if (error) {
-      console.warn('[enrichment-cache] Cache lookup error:', error.message);
+    if (error || !data) {
       return null;
     }
 
-    // RPC returns array, get first row
-    const result = Array.isArray(data) ? data[0] : data;
-    
-    if (result && result.hit === true) {
-      console.log(`[enrichment-cache] HIT for ${cacheType}:${cacheKey.slice(0, 20)}...`);
-      return {
-        enriched_data: result.enriched_data || {},
-        sources: result.sources || [],
-        confidence: result.confidence || 0,
-        hit: true,
-      };
-    }
+    // Update hit count in background (don't wait)
+    supabase
+      .from('enrichment_cache')
+      .update({ hit_count: (data as any).hit_count + 1, last_accessed_at: new Date().toISOString() })
+      .eq('cache_key', cacheKey)
+      .eq('cache_type', cacheType)
+      .then(() => {})
+      .catch(() => {});
 
-    console.log(`[enrichment-cache] MISS for ${cacheType}:${cacheKey.slice(0, 20)}...`);
-    return null;
+    console.log(`[enrichment-cache] HIT for ${cacheType}:${cacheKey.slice(0, 20)}...`);
+    return {
+      enriched_data: data.enriched_data || {},
+      sources: data.sources || [],
+      confidence: data.confidence || 0,
+      hit: true,
+    };
   } catch (error) {
-    console.error('[enrichment-cache] Cache lookup failed:', error);
+    console.warn('[enrichment-cache] Cache lookup error:', error);
     return null;
   }
 }
 
 /**
- * Store enrichment result in cache
+ * Store enrichment result in cache (non-blocking, safe)
  */
 export async function setCachedEnrichment(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   cacheKey: string,
   cacheType: 'domain' | 'email' | 'company',
   enrichedData: Record<string, any>,
   sources: string[],
   confidence: number,
   totalCost: number = 0,
-  ttlDays: number = DEFAULT_TTL_DAYS
+  ttlDays: number = 30
 ): Promise<boolean> {
   if (!cacheKey) return false;
 
   try {
-    const { data, error } = await supabase.rpc('set_enrichment_cache', {
-      p_cache_key: cacheKey,
-      p_cache_type: cacheType,
-      p_enriched_data: enrichedData,
-      p_sources: sources,
-      p_confidence: confidence,
-      p_total_cost: totalCost,
-      p_ttl_days: ttlDays,
-    });
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + ttlDays);
+
+    const { error } = await supabase
+      .from('enrichment_cache')
+      .upsert({
+        cache_key: cacheKey,
+        cache_type: cacheType,
+        enriched_data: enrichedData,
+        sources,
+        confidence,
+        total_cost: totalCost,
+        expires_at: expiresAt.toISOString(),
+        hit_count: 0,
+        last_accessed_at: new Date().toISOString(),
+      }, {
+        onConflict: 'cache_key,cache_type'
+      });
 
     if (error) {
       console.warn('[enrichment-cache] Cache write error:', error.message);
@@ -132,87 +135,7 @@ export async function setCachedEnrichment(
     console.log(`[enrichment-cache] Cached ${cacheType}:${cacheKey.slice(0, 20)}... (TTL: ${ttlDays}d)`);
     return true;
   } catch (error) {
-    console.error('[enrichment-cache] Cache write failed:', error);
+    console.warn('[enrichment-cache] Cache write failed:', error);
     return false;
-  }
-}
-
-/**
- * Bulk check cache for multiple keys
- * Returns map of key -> cached data (or null if miss)
- */
-export async function getBulkCachedEnrichment(
-  supabase: ReturnType<typeof createClient>,
-  keys: { key: string; type: 'domain' | 'email' | 'company' }[]
-): Promise<Map<string, CacheEntry | null>> {
-  const results = new Map<string, CacheEntry | null>();
-  
-  if (!keys.length) return results;
-
-  // For efficiency, do parallel lookups (max 10 concurrent)
-  const batchSize = 10;
-  for (let i = 0; i < keys.length; i += batchSize) {
-    const batch = keys.slice(i, i + batchSize);
-    const promises = batch.map(({ key, type }) => 
-      getCachedEnrichment(supabase, key, type).then(result => ({ key, result }))
-    );
-    
-    const batchResults = await Promise.all(promises);
-    for (const { key, result } of batchResults) {
-      results.set(key, result);
-    }
-  }
-
-  return results;
-}
-
-/**
- * Get cache statistics for monitoring
- */
-export async function getCacheStats(
-  supabase: ReturnType<typeof createClient>
-): Promise<{
-  totalEntries: number;
-  totalHits: number;
-  hitRate: number;
-  expiredCount: number;
-}> {
-  try {
-    const { data, error } = await supabase
-      .from('enrichment_cache')
-      .select('hit_count, expires_at')
-      .limit(10000);
-
-    if (error) throw error;
-
-    const now = new Date();
-    const totalEntries = data.length;
-    const totalHits = data.reduce((sum, row) => sum + (row.hit_count || 0), 0);
-    const expiredCount = data.filter(row => new Date(row.expires_at) < now).length;
-    const validEntries = totalEntries - expiredCount;
-    const hitRate = validEntries > 0 ? (totalHits / (totalHits + validEntries)) * 100 : 0;
-
-    return { totalEntries, totalHits, hitRate: Math.round(hitRate * 10) / 10, expiredCount };
-  } catch (error) {
-    console.error('[enrichment-cache] Stats fetch failed:', error);
-    return { totalEntries: 0, totalHits: 0, hitRate: 0, expiredCount: 0 };
-  }
-}
-
-/**
- * Cleanup expired cache entries
- */
-export async function cleanupExpiredCache(
-  supabase: ReturnType<typeof createClient>
-): Promise<number> {
-  try {
-    const { data, error } = await supabase.rpc('cleanup_expired_cache');
-    if (error) throw error;
-    const count = typeof data === 'number' ? data : 0;
-    console.log(`[enrichment-cache] Cleaned up ${count} expired entries`);
-    return count;
-  } catch (error) {
-    console.error('[enrichment-cache] Cleanup failed:', error);
-    return 0;
   }
 }
