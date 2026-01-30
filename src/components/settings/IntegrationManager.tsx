@@ -332,13 +332,38 @@ export default function IntegrationManager() {
                             </div>
                             <p className="text-sm text-muted-foreground mb-2">{integration.description}</p>
                             
+                            {/* Show detailed status for CRM integrations */}
+                            {(integration.id === 'salesforce' || integration.id === 'hubspot') && integration.status === 'disconnected' && (
+                              <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-500/10 rounded px-2 py-1 mb-2">
+                                <AlertCircle className="h-3 w-3" />
+                                <span>Not configured - Click "Connect" to set up {integration.name} integration</span>
+                              </div>
+                            )}
+                            
+                            {integration.status === 'error' && (
+                              <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 rounded px-2 py-1 mb-2">
+                                <AlertCircle className="h-3 w-3" />
+                                <span>Connection failed - Please reconfigure credentials</span>
+                              </div>
+                            )}
+                            
                             {integration.last_sync && (
                               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                 {getSyncStatusIcon(integration.sync_status)}
                                 <span>Last sync: {new Date(integration.last_sync).toLocaleString()}</span>
-                                {integration.records_synced && (
+                                {integration.records_synced !== undefined && (
                                   <span>• {integration.records_synced} records</span>
                                 )}
+                                {integration.sync_status === 'success' && (
+                                  <Badge variant="outline" className="text-green-600 ml-2">Active</Badge>
+                                )}
+                              </div>
+                            )}
+                            
+                            {integration.status === 'connected' && !integration.last_sync && (
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Clock className="h-3 w-3" />
+                                <span>Connected - No sync performed yet</span>
                               </div>
                             )}
                           </div>

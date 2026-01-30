@@ -88,33 +88,82 @@ export function EnrichmentAnalyticsDashboard() {
       .eq('org_id', userProfile.org_id)
       .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
 
-    // Get account stats
+    // Get account stats for enriched accounts
     const { data: accountData } = await supabase
       .from('accounts')
-      .select('external_id, enriched_from, enrichment_confidence')
+      .select('external_id, enriched_from, enrichment_confidence, employee_count, revenue_range, industry_norm')
       .eq('org_id', userProfile.org_id)
       .not('enriched_from', 'is', null);
 
-    if (historyData && accountData) {
-      const totalEnriched = accountData.length;
-      const successRate = historyData.length > 0 ? 
-        (historyData.filter(h => h.status === 'success').length / historyData.length) * 100 : 0;
-      
-      const confidenceScores = accountData
-        .filter(a => a.enrichment_confidence)
-        .map(a => a.enrichment_confidence);
-      const avgConfidence = confidenceScores.length > 0 ?
-        confidenceScores.reduce((sum, c) => sum + (c as number), 0) / confidenceScores.length : 0;
+    // Get all accounts to calculate completeness gain
+    const { data: allAccounts } = await supabase
+      .from('accounts')
+      .select('external_id, employee_count, revenue_range, industry_norm, enriched_from')
+      .eq('org_id', userProfile.org_id);
 
-      setStats({
-        totalEnriched,
-        successRate,
-        avgConfidence: avgConfidence * 100,
-        completenessGain: 45, // Mock for now
-        conversionRate: 12.5, // Mock
-        avgDealValue: 85000 // Mock
+    // Get leads for conversion rate calculation
+    const { data: leadsData } = await supabase
+      .from('Leads')
+      .select('id, status, account_external_id')
+      .eq('org_id', userProfile.org_id);
+
+    // Get deals for average deal value
+    const { data: dealsData } = await supabase
+      .from('deals')
+      .select('amount, account_external_id, stage')
+      .eq('org_id', userProfile.org_id)
+      .eq('stage', 'closed_won');
+
+    // Calculate real metrics
+    const totalEnriched = accountData?.length || 0;
+    const successRate = historyData && historyData.length > 0 ? 
+      (historyData.filter(h => h.status === 'success').length / historyData.length) * 100 : 0;
+    
+    const confidenceScores = (accountData || [])
+      .filter(a => a.enrichment_confidence)
+      .map(a => a.enrichment_confidence);
+    const avgConfidence = confidenceScores.length > 0 ?
+      confidenceScores.reduce((sum, c) => sum + (c as number), 0) / confidenceScores.length : 0;
+
+    // Calculate completeness gain: compare enriched vs non-enriched accounts
+    const calculateCompleteness = (accounts: any[]) => {
+      if (!accounts || accounts.length === 0) return 0;
+      let filledFields = 0;
+      const totalFields = accounts.length * 3; // 3 key fields: employee_count, revenue_range, industry_norm
+      accounts.forEach(a => {
+        if (a.employee_count) filledFields++;
+        if (a.revenue_range) filledFields++;
+        if (a.industry_norm) filledFields++;
       });
-    }
+      return (filledFields / totalFields) * 100;
+    };
+
+    const enrichedAccounts = (allAccounts || []).filter(a => a.enriched_from);
+    const nonEnrichedAccounts = (allAccounts || []).filter(a => !a.enriched_from);
+    const enrichedCompleteness = calculateCompleteness(enrichedAccounts);
+    const nonEnrichedCompleteness = calculateCompleteness(nonEnrichedAccounts);
+    const completenessGain = enrichedCompleteness - nonEnrichedCompleteness;
+
+    // Calculate conversion rate: leads with enriched accounts that converted
+    const enrichedAccountIds = new Set((accountData || []).map(a => a.external_id));
+    const enrichedLeads = (leadsData || []).filter(l => l.account_external_id && enrichedAccountIds.has(l.account_external_id));
+    const wonLeads = enrichedLeads.filter(l => l.status === 'won' || l.status === 'converted');
+    const conversionRate = enrichedLeads.length > 0 ? (wonLeads.length / enrichedLeads.length) * 100 : 0;
+
+    // Calculate average deal value for enriched accounts
+    const enrichedDeals = (dealsData || []).filter(d => d.account_external_id && enrichedAccountIds.has(d.account_external_id));
+    const avgDealValue = enrichedDeals.length > 0 
+      ? enrichedDeals.reduce((sum, d) => sum + (Number(d.amount) || 0), 0) / enrichedDeals.length 
+      : 0;
+
+    setStats({
+      totalEnriched,
+      successRate,
+      avgConfidence: avgConfidence * 100,
+      completenessGain: Math.max(0, completenessGain),
+      conversionRate,
+      avgDealValue
+    });
   };
 
   const totalSpent = spending.reduce((sum, s) => sum + s.spent, 0);
