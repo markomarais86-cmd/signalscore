@@ -291,7 +291,7 @@ export function LeadEnrichmentPanel() {
 
       const concurrency = getConcurrency(parseInt(batchSize));
 
-      const { data, error } = await supabase.functions.invoke('enrichment-orchestrator', {
+      const { data, error } = await supabase.functions.invoke('enrich-unified', {
         body: { 
           org_id: profile.org_id,
           source_type: 'database',

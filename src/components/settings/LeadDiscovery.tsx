@@ -101,7 +101,7 @@ export function LeadDiscovery() {
       });
 
       // Start enrichment
-      const { data, error } = await supabase.functions.invoke('enrich-contacts-bulk', {
+      const { data, error } = await supabase.functions.invoke('enrich-unified', {
         body: { 
           orgId: userProfile.org_id,
           batchSize: 50 // Process 50 accounts at a time

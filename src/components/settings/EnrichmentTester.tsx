@@ -69,12 +69,9 @@ export function EnrichmentTester() {
 
       if (jobError) throw jobError;
 
-      // Call the appropriate enrichment function - use unified for smart testing
-      let functionName = "";
-      if (provider === "clearbit_free") functionName = "enrich-clearbit-free";
-      else if (provider === "ai") functionName = "enrich-firmographics";
-      else if (provider === "pdl") functionName = "enrich-pdl";
-      else if (provider === "smart_sequential") functionName = "enrich-unified";
+      // Call the appropriate enrichment function - use unified for all tests
+      let functionName = "enrich-unified";
+      if (provider === "pdl") functionName = "enrich-pdl";
 
       const body = provider === "smart_sequential" 
         ? { job_id: job.id, record_type: 'account', records: [], org_id: userProfile?.org_id }
