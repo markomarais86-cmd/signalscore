@@ -1,209 +1,204 @@
 
+# Fix Plan: ICP Manager Enrichment Cost + AI Discovery Bugs
 
-# Implementation Plan: Tasks 4 & 5 - Background Exports and CRM Setup Wizards
+## Summary
 
-## Overview
-This plan completes the remaining GTM readiness fixes: background export infrastructure for large datasets and guided CRM setup wizards.
+This plan addresses three critical issues in the ICP Manager:
 
----
-
-## Task 4: Background Export for Large Datasets
-
-### Problem
-The current export buttons (`ExportAccountsButton.tsx`, `ExportLeadsButton.tsx`) process all data client-side, which causes browser freezes for datasets exceeding 5,000 records.
-
-### Solution
-Add a threshold check that offers background processing for large exports.
-
-### Files to Create
-
-#### 1. Edge Function: `supabase/functions/export-csv/index.ts`
-A background export processor that:
-- Accepts export parameters (type, filter, org_id, user_id)
-- Creates an `export_jobs` record with status "processing"
-- Uses `EdgeRuntime.waitUntil()` for background processing
-- Fetches data in batches (1,000 records at a time to avoid memory issues)
-- Generates CSV content and stores it in Supabase Storage
-- Updates the job with download URL when complete
-- Handles errors gracefully and updates job status
-
-#### 2. Shared Dialog Component: `src/components/enrichment/LargeExportDialog.tsx`
-A dialog that appears when export exceeds 5,000 records:
-- Shows record count warning
-- Two options: "Download Now" (client-side) or "Export in Background" (server-side)
-- Visual explanation of the tradeoff
-
-### Files to Modify
-
-#### 1. `src/components/enrichment/ExportAccountsButton.tsx`
-Changes:
-- Add a pre-flight count query before export
-- If count > 5,000, show `LargeExportDialog` instead of immediate download
-- Add `startBackgroundExport()` function that calls the edge function
-- Keep existing client-side export for "Download Now" option
-
-#### 2. `src/components/enrichment/ExportLeadsButton.tsx`
-Same changes as ExportAccountsButton.
-
-#### 3. `src/components/ExportQueueManager.tsx`
-Changes:
-- Subscribe to `export_jobs` table instead of `campaign_snapshots`
-- Show real-time progress for pending/processing jobs
-- Add download button for completed jobs
-- Show error state for failed jobs
-
-### Database (Already Created)
-The `export_jobs` table was created in the previous session with:
-- `id`, `org_id`, `user_id`, `export_type`, `status`
-- `filter_params`, `total_records`, `processed_records`
-- `filename`, `download_url`, `created_at`, `completed_at`, `error_message`
-
-### Storage Bucket
-Create a storage bucket `exports` for storing generated CSV files with:
-- RLS policy: users can only download files for their org
-- Auto-expiration after 7 days (optional)
+1. **$2,172 Enrichment Cost Bug** - The UI shows ~100x the actual cost because it uses the wrong account count and rate
+2. **0 Companies Found Bug** - Perplexity successfully searches but Gemini parsing fails silently, returning empty arrays
+3. **Missing Account-to-Lead Bridge** - Discovered companies have no contacts/leads discovered for them
 
 ---
 
-## Task 5: CRM Setup Wizards
+## Issue 1: Fix the $2,172 Enrichment Cost Calculation
 
-### Problem
-Salesforce requires finding a security token (hidden in personal settings), and HubSpot requires creating a Developer App - too many external steps with no guidance.
+### Root Cause
 
-### Solution
-Replace the basic credential forms with step-by-step wizards that include inline instructions.
+In `src/components/icp/ICPDetailView.tsx` (lines 97-111):
+- Uses `count * 0.25` - a hardcoded $0.25/account rate instead of the actual $0.029/account
+- Counts ALL 8,687 high-fit accounts instead of filtering for the ~773 that actually need enrichment
+- The actual enrichment function already correctly filters for accounts needing enrichment (lines 74-81) but the cost display does not
 
-### Files to Create
+### Changes
 
-#### 1. `src/components/settings/SalesforceSetupWizard.tsx`
-A multi-step wizard component:
+**File: `src/components/icp/ICPDetailView.tsx`**
 
-**Step 1: Get Your Security Token**
-- Collapsible section with detailed instructions
-- Screenshot or diagram showing where to find the token
-- "I have my token" checkbox to proceed
+- Replace the cost estimation logic (lines 97-111) to:
+  1. Query only accounts that need enrichment (where `employee_count`, `revenue_range`, or `industry_norm` is null)
+  2. Call the `estimate-enrichment-cost` edge function for accurate pricing
+  3. Display both the account count needing enrichment and the actual estimated cost
 
-**Step 2: Enter Your Credentials**
-- Instance URL input with example and validation
-- Username input
-- Password input
-- Security Token input
-- "Test Connection" button with real-time feedback
-
-**Step 3: Configure Sync Settings**
-- Sync frequency dropdown
-- Object selection (Accounts, Contacts, Opportunities)
-- Success state with "Save & Connect" button
-
-Features:
-- Progress indicator showing current step
-- Collapsible troubleshooting tips
-- Clear error messages with suggested fixes
-- Visual checkmarks for completed steps
-
-#### 2. `src/components/settings/HubSpotSetupWizard.tsx`
-A multi-step wizard component:
-
-**Step 1: Create HubSpot Private App**
-- Link to HubSpot Developer Portal
-- Required scopes displayed in copyable format
-- Screenshot/diagram of the setup process
-- "I've created my app" checkbox to proceed
-
-**Step 2: Enter App Credentials**
-- Access Token input (for Private Apps)
-- Alternative: Client ID/Secret for OAuth flow
-- "Test Connection" button
-
-**Step 3: Authorize & Configure**
-- Sync frequency settings
-- Object selection
-- Success confirmation
-
-Features:
-- Clear explanation of Private App vs OAuth options
-- Copyable scope list
-- Inline validation
-
-### Files to Modify
-
-#### 1. `src/components/settings/IntegrationManager.tsx`
-Changes:
-- Replace the inline Salesforce credential form (lines 419-508) with `<SalesforceSetupWizard />`
-- Replace the OAuth prompt for HubSpot (lines 415-417) with `<HubSpotSetupWizard />`
-- Pass necessary props: `onSuccess`, `onCancel`, `orgId`, existing `config` if reconnecting
-- Keep the existing sync/disconnect/field-mapping buttons unchanged
+- Add a confirmation dialog before starting expensive enrichment operations showing:
+  - Number of accounts to enrich
+  - Estimated cost breakdown by provider
+  - Estimated duration
 
 ---
 
-## Implementation Order
+## Issue 2: Fix 0 Companies Found in AI Discovery
 
-| Step | Task | Details |
-|------|------|---------|
-| 1 | Create `export-csv` edge function | Background processing with batch fetching |
-| 2 | Create Supabase Storage bucket | For storing generated CSV files |
-| 3 | Create `LargeExportDialog.tsx` | Threshold warning and option selection |
-| 4 | Update `ExportAccountsButton.tsx` | Add count check and background option |
-| 5 | Update `ExportLeadsButton.tsx` | Same updates as accounts |
-| 6 | Update `ExportQueueManager.tsx` | Subscribe to export_jobs, show progress |
-| 7 | Create `SalesforceSetupWizard.tsx` | Step-by-step Salesforce setup |
-| 8 | Create `HubSpotSetupWizard.tsx` | Step-by-step HubSpot setup |
-| 9 | Update `IntegrationManager.tsx` | Use wizards instead of basic forms |
+### Root Cause
+
+In `supabase/functions/ai-discover-accounts/index.ts` (lines 108-198):
+- `parsePerplexityResults()` uses Gemini tool calling to extract structured data
+- When Gemini fails to return a valid `tool_calls` response, the function silently returns `[]`
+- No logging shows what Gemini actually returned or why parsing failed
+- No retry logic or fallback for parsing failures
+
+Logs confirm:
+```
+[Perplexity] Received response with 9 citations  ← Search worked
+[Lovable AI] Parsing Perplexity results...
+[AI Discovery] Perplexity returned 0 companies   ← Parsing failed silently
+```
+
+### Changes
+
+**File: `supabase/functions/ai-discover-accounts/index.ts`**
+
+1. Add detailed logging after Gemini API call to show:
+   - Full response structure
+   - Whether tool_calls was present
+   - Raw arguments before parsing
+
+2. Add fallback regex extraction if tool_call parsing fails:
+   - Parse the raw text response looking for company names, domains, and attributes
+   - Use a simpler format that doesn't rely on tool calling
+
+3. Add retry logic with exponential backoff for Gemini API failures
+
+4. Add validation before returning empty array:
+   - If Perplexity found content but Gemini returned 0 companies, log a warning and try alternate parsing
+
+---
+
+## Issue 3: Build Account-to-Lead Discovery Bridge
+
+### Current Gap
+
+When new companies are discovered and imported:
+- They are added to the `accounts` table with firmographic data
+- But NO contacts/leads are created for these accounts
+- Users have accounts but no one to reach out to
+
+### Solution Architecture
+
+```text
+Discovery Flow (Current):
+  ICP → Perplexity Search → Parse → Import to accounts
+
+Discovery Flow (Proposed):
+  ICP → Perplexity Search → Parse → Import to accounts
+                                         ↓
+                              Trigger Contact Discovery
+                                         ↓
+                              Find Decision Makers at Each Account
+                                         ↓
+                              Create Leads Linked to Account
+```
+
+### Changes
+
+**New File: `supabase/functions/discover-contacts/index.ts`**
+
+Create a new edge function that:
+1. Takes an `account_id` or list of account domains
+2. Uses Perplexity to search for decision-makers matching the ICP's `persona_job_titles`
+3. Uses Apollo (if configured) to find verified contacts
+4. Creates leads in the `Leads` table linked to the account
+5. Runs enrichment on discovered leads
+
+**File: `supabase/functions/ai-discover-accounts/index.ts`**
+
+After successfully importing accounts (lines 430-432):
+- Add a post-import hook that triggers contact discovery for newly imported accounts
+- Make this optional via a `discoverContacts: boolean` config flag
+- Default to `true` for full end-to-end workflow
+
+**File: `src/components/discovery/LaunchPulseDiscovery.tsx`**
+
+- Add a "Discover Contacts" checkbox to the import options
+- Show progress for contact discovery after account import
+- Display the number of leads found per account
 
 ---
 
 ## Technical Details
 
-### Edge Function Pattern
-Following the existing pattern in `enrich-v4`:
-```text
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+### File Changes Summary
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+| File | Changes |
+|------|---------|
+| `src/components/icp/ICPDetailView.tsx` | Fix cost calculation, add confirmation dialog |
+| `supabase/functions/ai-discover-accounts/index.ts` | Add parsing fallback, logging, retry logic |
+| `supabase/functions/discover-contacts/index.ts` | New edge function for contact discovery |
+| `src/components/discovery/LaunchPulseDiscovery.tsx` | Add contact discovery toggle and progress |
+| `supabase/config.toml` | Add `discover-contacts` function entry |
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-  
-  // Start background task
-  EdgeRuntime.waitUntil(processExport(jobId, params));
-  
-  // Return immediate response
-  return new Response(JSON.stringify({ success: true, jobId }), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-  });
-});
+### Cost Calculation Fix Details
+
+Current (broken):
+```typescript
+setEnrichmentCost((count || 0) * 0.25); // ~$0.25 per account = $2,172
 ```
 
-### Export Threshold
-5,000 records chosen as the threshold based on:
-- Typical browser memory limits for large string operations
-- User patience thresholds (30+ seconds feels broken)
-- Testing shows reliable client-side performance below this limit
+Fixed:
+```typescript
+// 1. Query only accounts needing enrichment
+const { count } = await supabase
+  .from('accounts')
+  .select('*', { count: 'exact', head: true })
+  .eq('org_id', userProfile.org_id)
+  .in('external_id', accountIds)
+  .or('employee_count.is.null,revenue_range.is.null,industry_norm.is.null');
 
-### Wizard Component Structure
-Each wizard uses:
-- `useState` for current step tracking
-- Collapsible sections from Radix UI
-- Existing UI components (Input, Button, Badge)
-- The existing `handleTestConnection` logic from IntegrationManager
+// 2. Use actual cost rate (~$0.029/account)
+const COST_PER_ACCOUNT = 0.029;
+setEnrichmentCost((count || 0) * COST_PER_ACCOUNT);
+```
 
-### Real-time Updates
-The ExportQueueManager already has Supabase Realtime patterns - we'll adapt these for the `export_jobs` table.
+### Parsing Fallback Logic
+
+If Gemini tool_call fails, extract from raw text:
+```typescript
+// Fallback: regex extraction from raw response
+function extractCompaniesFromText(content: string): DiscoveredCompany[] {
+  const companies: DiscoveredCompany[] = [];
+  
+  // Look for company mentions with domains
+  const domainPattern = /([A-Za-z0-9][A-Za-z0-9-]*\.[a-z]{2,})/g;
+  const matches = content.matchAll(domainPattern);
+  
+  // Extract context around each domain mention
+  // ... parse company details from surrounding text
+  
+  return companies;
+}
+```
+
+### Contact Discovery Prompt
+
+```text
+Find decision-makers at {company_name} ({domain}) with these titles:
+{persona_job_titles}
+
+For each person found, provide:
+- Full name
+- Job title
+- LinkedIn URL
+- Email (if publicly available)
+- Confidence score
+
+Focus on verifiable, current employees only.
+```
 
 ---
 
-## Summary
+## Expected Outcomes
 
-| Task | New Files | Modified Files |
-|------|-----------|----------------|
-| **Background Exports** | `export-csv/index.ts`, `LargeExportDialog.tsx` | `ExportAccountsButton.tsx`, `ExportLeadsButton.tsx`, `ExportQueueManager.tsx` |
-| **CRM Wizards** | `SalesforceSetupWizard.tsx`, `HubSpotSetupWizard.tsx` | `IntegrationManager.tsx` |
-
-Total: 5 new files, 4 modified files
-
+After implementation:
+1. Enrichment cost displays correctly (~$22 instead of $2,172)
+2. AI Discovery returns companies instead of empty results
+3. Discovered accounts automatically have contacts/leads created
+4. Complete end-to-end workflow: ICP → Accounts → Leads → Campaign
