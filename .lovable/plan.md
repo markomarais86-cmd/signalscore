@@ -1,263 +1,244 @@
 
-# Comprehensive System Improvement Plan
+# Phase 3: System Cleanup - Implementation Plan
 
 ## Overview
 
-This plan addresses all issues identified in the full system audit across Dashboard, Accounts, Leads, Campaigns, ICP, and Enrichment tabs. The plan is organized into three phases: Critical Fixes, Data Quality Improvements, and System Cleanup.
+This plan deletes 20+ legacy edge functions that have been superseded by `enrich-unified`, updates the `supabase/config.toml`, and refactors frontend components to use the unified API. This will remove approximately 10,000+ lines of legacy code.
 
 ---
 
-## Phase 1: Critical Fixes (High Priority)
+## Summary of Changes
 
-### 1.1 Fix Mock Analytics Data in Enrichment Dashboard
-
-**Problem**: `src/components/settings/EnrichmentAnalyticsDashboard.tsx` has three hardcoded mock values on lines 113-115:
-- `completenessGain: 45` (mock)
-- `conversionRate: 12.5` (mock)
-- `avgDealValue: 85000` (mock)
-
-**Solution**: Replace with real calculations from database
-
-| Metric | Current | Fix |
-|--------|---------|-----|
-| completenessGain | `45` (hardcoded) | Calculate average field population increase before/after enrichment from `enrichment_history` |
-| conversionRate | `12.5` (hardcoded) | Query `Leads` converted to opportunities / total enriched leads |
-| avgDealValue | `85000` (hardcoded) | Calculate from closed-won deals for enriched accounts |
-
-**Changes**:
-- Add new queries in `loadEnrichmentStats()` function
-- Query `enrichment_history` for before/after field counts
-- Query `Leads` with `status = 'won'` joined to `accounts` with enrichment data
+| Category | Count | Impact |
+|----------|-------|--------|
+| Edge Functions to Delete | 22 folders | ~10,000 lines removed |
+| Config Entries to Remove | 24 entries | Cleaner config.toml |
+| Frontend Files to Update | 6 files | Migrate to enrich-unified |
+| Deprecated Config Entries | 2 entries | Non-existent functions |
 
 ---
 
-### 1.2 Remove or Disable UI-Only Providers (ZoomInfo, Clearbit)
+## Part 1: Frontend Migration (Update Before Deleting)
 
-**Problem**: In `src/components/campaigns/steps/DataSourceStep.tsx`, ZoomInfo and Clearbit are shown as selectable providers but have no backend integration. Users can select them but nothing will work.
+Before deleting edge functions, we must update frontend components that still reference them.
 
-**Current State**:
-- Apollo: Fully integrated with edge function `redeem-apollo-contacts`
-- ZoomInfo: UI card only, no backend function
-- Clearbit: Used only for domain lookup in `discover-domain`, NOT for contact enrichment
+### 1.1 Files That Need Migration
 
-**Solution**: Mark ZoomInfo and Clearbit as "Coming Soon" or remove them
-
-**Changes to `DataSourceStep.tsx`**:
-- Add "Coming Soon" badge to ZoomInfo and Clearbit cards
-- Disable click handler for unintegrated providers
-- Show tooltip explaining they are not yet available
-- Keep Apollo as the only active provider
-
----
-
-### 1.3 Finalize CRM Integration Status Display
-
-**Problem**: Salesforce and HubSpot edge functions exist but require OAuth setup. Users may not know the current connection status.
-
-**Current State**:
-- `salesforce-sync/index.ts`: 532 lines, fully built with SOAP authentication
-- `hubspot-sync/index.ts`: 359 lines, fully built with OAuth token flow
-- Both require credentials in `integration_credentials` table
-
-**Solution**: Improve the Settings CRM integration UI to show clear status
-
-**Changes**:
-- Add explicit "Not Connected" state with setup instructions
-- Show last sync timestamp when connected
-- Add "Test Connection" button that validates credentials
-- Display error messages from failed syncs prominently
+| File | Current Call | Migrate To |
+|------|--------------|------------|
+| `EnrichmentJobMonitor.tsx` | `enrich-ai-only` | `enrich-unified` |
+| `ProactiveInsightsWidget.tsx` | `enrich-ai-only` | `enrich-unified` |
+| `SmartEnrichmentPanel.tsx` | `enrich-ai-only` | `enrich-unified` |
+| `UnifiedInsightsPanel.tsx` | `enrich-ai-only` | `enrich-unified` |
+| `LeadEnrichmentPanel.tsx` | `enrichment-orchestrator` | `enrich-unified` |
+| `BulkLeadEnrichment.tsx` | `enrichment-orchestrator` | `enrich-unified` |
+| `LeadDiscovery.tsx` | `enrich-contacts-bulk` | `enrich-unified` |
+| `InstantEnrich.tsx` | `enrich-single-company`, `enrich-with-firecrawl` | `enrich-unified` |
+| `SparseDataDiscovery.tsx` | `enrich-discover` | `enrich-unified` |
+| `EnrichmentTester.tsx` | `enrich-clearbit-free`, `enrich-firmographics` | `enrich-unified` |
+| `APIAccess.tsx` | References `enrich-single-company`, `enrich-free-orchestrator` | Update docs to `enrich-unified` |
+| `BulkAccountEnrichment.tsx` | Log link to `smart-enrich` | Update to `enrich-unified` |
 
 ---
 
-## Phase 2: Data Quality Improvements (Medium Priority)
+## Part 2: Edge Functions to Delete
 
-### 2.1 Replace Enrichment Analytics with Real Metrics
+### 2.1 Safe to Delete (No Frontend References)
 
-**New Queries for `EnrichmentAnalyticsDashboard.tsx`**:
+These functions have no remaining frontend invocations:
 
-**Completeness Gain Calculation**:
-```sql
--- Before: Count null fields per account before enrichment
--- After: Count null fields per account after enrichment
--- Gain = (before - after) / before * 100
-SELECT 
-  AVG(CASE WHEN employee_count IS NOT NULL THEN 1 ELSE 0 END +
-      CASE WHEN revenue_range IS NOT NULL THEN 1 ELSE 0 END +
-      CASE WHEN industry_norm IS NOT NULL THEN 1 ELSE 0 END) / 3 * 100 as completeness
-FROM accounts WHERE enriched_from IS NOT NULL
+| Function | Lines | Reason for Deletion |
+|----------|-------|---------------------|
+| `deep-enrich-contact/` | ~220 | Superseded by unified waterfall |
+| `enrich-v4/` | ~560 | Old version, replaced by unified |
+| `enrich-person/` | ~200 | Waterfall handles person enrichment |
+| `enrich-contact-info/` | ~150 | Merged into unified |
+| `enrich-lead-slim/` | ~180 | Unified handles all lead modes |
+| `enrich-gemini-account/` | ~250 | Multi-provider replaces single provider |
+| `enrich-gemini-phones/` | ~200 | Phone discovery in unified |
+| `enrich-perplexity/` | ~300 | Used internally by waterfall only |
+| `enrich-perplexity-contact/` | ~250 | Merged into unified |
+| `enrich-verified/` | ~180 | Hunter verification in unified |
+| `enrich-fast/` | ~200 | Fast mode available in unified config |
+| `enrich-with-firecrawl/` | Does not exist (orphan config) | Config only, no folder |
+| `enrich-accounts/` | Does not exist (orphan config) | Config only, no folder |
+| `smart-enrich/` | Does not exist (orphan config) | Config only, no folder |
+| `process-enrichment/` | Does not exist (orphan config) | Config only, no folder |
+| `enrich-from-master/` | Does not exist (orphan config) | Config only, no folder |
+| `bulk-enrich-all-accounts/` | Does not exist (orphan config) | Config only, no folder |
+| `enrich-lead-test/` | Does not exist (orphan config) | Config only, no folder |
+| `enrich-lead-orchestrator/` | Does not exist (orphan config) | Config only, no folder |
+
+### 2.2 Delete After Frontend Migration
+
+These will be safe to delete once frontend is migrated:
+
+| Function | Lines | Current References |
+|----------|-------|-------------------|
+| `enrich-ai-only/` | ~870 | 5 components (migrate first) |
+| `enrichment-orchestrator/` | ~400 | 2 components (migrate first) |
+| `enrich-contacts-bulk/` | ~350 | 2 components (migrate first) |
+| `enrich-discover/` | ~300 | 1 component (migrate first) |
+| `enrich-single-company/` | ~250 | 2 components (migrate first) |
+| `enrich-clearbit-free/` | ~200 | 1 component (migrate first) |
+| `enrich-firmographics/` | ~300 | 1 component (migrate first) |
+| `enrich-free-orchestrator/` | ~400 | 1 component (migrate first) |
+| `enrich-free-worker/` | ~350 | Internal to free-orchestrator |
+| `process-enrichment-queue/` | ~300 | No frontend refs, queue remnant |
+
+---
+
+## Part 3: Functions to KEEP
+
+These functions are still actively used or provide unique functionality:
+
+| Function | Reason to Keep |
+|----------|----------------|
+| `enrich-unified/` | **Core unified API** - primary enrichment entry point |
+| `enrich-pdl/` | Called by waterfall internally |
+| `enrich-tech-stack/` | Specialized tech stack discovery |
+| `enrich-technology-insights/` | Specialized technology analysis |
+| `enrich-hq-address/` | Specialized HQ address lookup |
+| `enrich-contacts-persona/` | Persona-specific enrichment |
+| `enrich-ai-firmographics/` | AI firmographics (review for merge) |
+| `enrich-test-accuracy/` | QA testing function |
+| `firecrawl-scrape/` | General-purpose web scraping utility |
+| `discover-contacts/` | New contact discovery bridge |
+| `discover-domain/` | Domain discovery utility |
+| `chrome-extension-enrich/` | Chrome extension support |
+
+---
+
+## Part 4: Config.toml Cleanup
+
+Remove these 24 entries from `supabase/config.toml`:
+
 ```
-
-**Conversion Rate Calculation**:
-```sql
-SELECT 
-  COUNT(CASE WHEN status = 'won' THEN 1 END)::float / 
-  NULLIF(COUNT(*), 0) * 100 as conversion_rate
-FROM "Leads" 
-WHERE account_external_id IN (
-  SELECT external_id FROM accounts WHERE enriched_from IS NOT NULL
-)
-```
-
-**Average Deal Value**:
-```sql
-SELECT AVG(deal_value) FROM opportunities 
-WHERE account_id IN (
-  SELECT id FROM accounts WHERE enriched_from IS NOT NULL
-)
-```
-
----
-
-### 2.2 Add Provider Health Status to Campaign Builder
-
-**Enhancement**: Show real-time provider availability when user selects data source
-
-**Changes to `DataSourceStep.tsx`**:
-- Query `service_health` table for Apollo status
-- Show green/yellow/red indicator based on circuit breaker state
-- Display remaining credits if available
-- Warn if Apollo circuit breaker is open
-
----
-
-### 2.3 Improve Enrichment Cost Transparency
-
-**Enhancement**: Make cost calculations consistent across all UIs
-
-**Files to update**:
-1. `src/components/icp/ICPDetailView.tsx` - Already fixed to use `$0.029`
-2. `src/components/campaigns/steps/DataSourceStep.tsx` - Shows `~$0.50/contact` for Apollo
-3. `src/components/enrichment/*` - Uses `estimate-enrichment-cost` edge function
-
-**Standardization**:
-- All costs should call `estimate-enrichment-cost` for consistency
-- Remove hardcoded cost estimates from UI components
-- Add cost breakdown tooltip showing waterfall provider costs
-
----
-
-## Phase 3: System Cleanup (Lower Priority)
-
-### 3.1 Legacy Edge Function Cleanup
-
-**Functions to Deprecate/Delete**:
-
-Based on the `enrich-unified` documentation stating it "consolidates: smart-enrich, process-enrichment, enrich-accounts, enrich-fast, bulk-enrich-all-accounts, and enrich-free-orchestrator", the following 40+ functions appear legacy:
-
-| Function | Status | Recommendation |
-|----------|--------|----------------|
-| `enrich-v4/` | 560 lines, superseded by `enrich-unified` | Delete after verification |
-| `deep-enrich-contact/` | 222 lines, uses old AI pattern | Delete - `enrich-unified` handles this |
-| `enrich-ai-only/` | 874 lines, standalone AI enrichment | Delete - waterfall replaces this |
-| `enrich-pdl/` | 292 lines, standalone PDL | Keep - used by waterfall |
-| `enrich-clearbit-free/` | Clearbit lookup | Delete - not in waterfall |
-| `enrich-contacts-bulk/` | Bulk enrichment | Delete - `enrich-unified` handles bulk |
-| `enrich-contacts-persona/` | Persona enrichment | Review - may be unique |
-| `enrich-discover/` | Discovery enrichment | Delete - `discover-contacts` replaces |
-| `enrich-firmographics/` | Firmographic data | Delete - waterfall handles |
-| `enrich-gemini-account/` | Gemini-specific | Delete - multi-provider replaces |
-| `enrich-gemini-phones/` | Phone discovery | Review - may be unique |
-| `enrich-hq-address/` | HQ address lookup | Review - specialized function |
-| `enrich-lead-slim/` | Lightweight enrichment | Delete - unified handles modes |
-| `enrich-perplexity/` | Perplexity standalone | Delete - waterfall uses it internally |
-| `enrich-perplexity-contact/` | Contact perplexity | Delete - unified handles |
-| `enrich-person/` | Person enrichment | Delete - unified handles |
-| `enrich-single-company/` | Single company | Delete - use unified with 1 record |
-| `enrich-tech-stack/` | Tech stack discovery | Keep - specialized function |
-| `enrich-technology-insights/` | Tech insights | Keep - specialized function |
-| `enrich-test-accuracy/` | Testing function | Keep for QA |
-| `enrich-verified/` | Email verification | Review - may overlap with Hunter |
-| `enrich-with-firecrawl/` | Firecrawl standalone | Delete - waterfall uses internally |
-| `enrichment-orchestrator/` | Old orchestrator | Delete - unified replaces |
-
-**Safe Deletion Process**:
-1. Search codebase for function name references
-2. Check `supabase/config.toml` for any special configs
-3. Verify no active jobs reference the function
-4. Delete function folder
-5. Update `config.toml` to remove entry
-
----
-
-### 3.2 Update DataSourceStep Provider UI
-
-**Current Code (lines 85-114)**:
-```tsx
-<Card onClick={() => setProvider('zoominfo')}>
-  <CardTitle>ZoomInfo</CardTitle>
-  <p>~$0.75/contact</p>
-</Card>
-
-<Card onClick={() => setProvider('clearbit')}>
-  <CardTitle>Clearbit</CardTitle>
-  <p>~$1.00/contact</p>
-</Card>
-```
-
-**New Code**:
-```tsx
-<Card className="opacity-60 cursor-not-allowed relative">
-  <Badge className="absolute top-2 right-2" variant="secondary">Coming Soon</Badge>
-  <CardTitle>ZoomInfo</CardTitle>
-  <p>~$0.75/contact</p>
-</Card>
-
-<Card className="opacity-60 cursor-not-allowed relative">
-  <Badge className="absolute top-2 right-2" variant="secondary">Coming Soon</Badge>
-  <CardTitle>Clearbit</CardTitle>
-  <p>~$1.00/contact</p>
-</Card>
+[functions.enrich-lead-slim]         # Delete
+[functions.enrich-lead-orchestrator] # Orphan - no folder exists
+[functions.enrich-person]            # Delete
+[functions.enrich-contact-info]      # Delete
+[functions.enrich-firmographics]     # Delete after migration
+[functions.enrich-lead-test]         # Orphan - no folder exists
+[functions.enrich-accounts]          # Orphan - no folder exists
+[functions.enrich-contacts-bulk]     # Delete after migration
+[functions.enrich-clearbit-free]     # Delete after migration
+[functions.smart-enrich]             # Orphan - no folder exists
+[functions.process-enrichment]       # Orphan - no folder exists
+[functions.deep-enrich-contact]      # Delete
+[functions.enrichment-orchestrator]  # Delete after migration
+[functions.bulk-enrich-all-accounts] # Orphan - no folder exists
+[functions.enrich-from-master]       # Orphan - no folder exists
+[functions.enrich-ai-only]           # Delete after migration
+[functions.enrich-verified]          # Delete
+[functions.enrich-fast]              # Delete
+[functions.enrich-gemini-phones]     # Delete
+[functions.enrich-perplexity-contact]# Delete
+[functions.enrich-gemini-account]    # Delete
+[functions.enrich-discover]          # Delete after migration
+[functions.process-enrichment-queue] # Delete
+[functions.enrich-v4]                # Delete
+[functions.enrich-free-worker]       # Delete
+[functions.enrich-free-orchestrator] # Delete after migration
+[functions.enrich-perplexity]        # Delete
+[functions.enrich-single-company]    # Delete after migration
 ```
 
 ---
 
-### 3.3 Add Missing API Key Checks
+## Implementation Steps
 
-**Enhancement**: Add startup validation for required API keys
+### Step 1: Migrate Frontend Components
 
-**Files to check/update**:
-- All edge functions should check for required keys at startup
-- Display clear error messages when keys are missing
-- Add to Settings page a "Provider Configuration" status section
+Update these 9 files to use `enrich-unified`:
+
+1. **EnrichmentJobMonitor.tsx** - Change `enrich-ai-only` to `enrich-unified`
+2. **ProactiveInsightsWidget.tsx** - Change `enrich-ai-only` to `enrich-unified`
+3. **SmartEnrichmentPanel.tsx** - Change `enrich-ai-only` to `enrich-unified`
+4. **UnifiedInsightsPanel.tsx** - Change `enrich-ai-only` to `enrich-unified`
+5. **LeadEnrichmentPanel.tsx** - Change `enrichment-orchestrator` to `enrich-unified`
+6. **BulkLeadEnrichment.tsx** - Change `enrichment-orchestrator` to `enrich-unified`
+7. **LeadDiscovery.tsx** - Change `enrich-contacts-bulk` to `enrich-unified`
+8. **InstantEnrich.tsx** - Change `enrich-single-company` and `enrich-with-firecrawl` to `enrich-unified`
+9. **SparseDataDiscovery.tsx** - Change `enrich-discover` to `enrich-unified`
+10. **EnrichmentTester.tsx** - Update provider mappings to use `enrich-unified`
+11. **APIAccess.tsx** - Update API documentation to reference `enrich-unified`
+12. **BulkAccountEnrichment.tsx** - Update log link to `enrich-unified`
+
+### Step 2: Delete Edge Function Folders
+
+Delete these 22 folders from `supabase/functions/`:
+
+```
+supabase/functions/deep-enrich-contact/
+supabase/functions/enrich-v4/
+supabase/functions/enrich-person/
+supabase/functions/enrich-contact-info/
+supabase/functions/enrich-lead-slim/
+supabase/functions/enrich-gemini-account/
+supabase/functions/enrich-gemini-phones/
+supabase/functions/enrich-perplexity/
+supabase/functions/enrich-perplexity-contact/
+supabase/functions/enrich-verified/
+supabase/functions/enrich-fast/
+supabase/functions/enrich-ai-only/
+supabase/functions/enrichment-orchestrator/
+supabase/functions/enrich-contacts-bulk/
+supabase/functions/enrich-discover/
+supabase/functions/enrich-single-company/
+supabase/functions/enrich-clearbit-free/
+supabase/functions/enrich-firmographics/
+supabase/functions/enrich-free-orchestrator/
+supabase/functions/enrich-free-worker/
+supabase/functions/process-enrichment-queue/
+```
+
+### Step 3: Update supabase/config.toml
+
+Remove all deprecated function entries and clean up the configuration file.
 
 ---
 
-## Implementation Order
+## Request Body Migration Guide
 
-1. **Week 1: Critical Fixes**
-   - Fix mock analytics (1.1)
-   - Disable ZoomInfo/Clearbit UI (1.2)
-   - Improve CRM status display (1.3)
+When migrating from legacy functions to `enrich-unified`, use this format:
 
-2. **Week 2: Data Quality**
-   - Implement real analytics queries (2.1)
-   - Add provider health to campaign builder (2.2)
-   - Standardize cost calculations (2.3)
+**Old (enrich-ai-only):**
+```typescript
+supabase.functions.invoke('enrich-ai-only', {
+  body: { jobId, batchSize: 100 }
+});
+```
 
-3. **Week 3-4: Cleanup**
-   - Audit and delete legacy functions (3.1)
-   - Update provider UI (3.2)
-   - Add API key validation (3.3)
-
----
-
-## Files to Modify
-
-| File | Changes |
-|------|---------|
-| `src/components/settings/EnrichmentAnalyticsDashboard.tsx` | Replace mock values with real queries |
-| `src/components/campaigns/steps/DataSourceStep.tsx` | Add "Coming Soon" badges, disable non-working providers |
-| `src/components/settings/IntegrationManager.tsx` | Improve CRM connection status display |
-| `supabase/config.toml` | Remove deprecated function entries |
-| 20+ `supabase/functions/*` | Delete legacy functions |
+**New (enrich-unified):**
+```typescript
+supabase.functions.invoke('enrich-unified', {
+  body: { 
+    job_id: jobId, 
+    org_id: userProfile?.org_id,
+    record_type: 'account',
+    records: [],
+    config: { aggregateProviders: true }
+  }
+});
+```
 
 ---
 
 ## Expected Outcomes
 
-1. All displayed metrics are from real data (no mock values)
-2. Users cannot select providers that don't work
-3. CRM integration status is clear and actionable
-4. Codebase is reduced by ~15,000 lines of legacy code
-5. Enrichment costs are consistent across all UIs
-6. System is easier to maintain with fewer redundant functions
+1. **~10,000 lines of legacy code removed** from edge functions
+2. **24 config entries removed** from config.toml
+3. **Single enrichment entry point** - all enrichment goes through `enrich-unified`
+4. **Consistent API** across all enrichment operations
+5. **Easier maintenance** with fewer functions to manage
+6. **Reduced deployment time** with smaller codebase
+
+---
+
+## Risk Mitigation
+
+- Frontend migration happens BEFORE function deletion
+- Each migration can be tested independently
+- Unified function already handles all enrichment modes
+- Rollback: functions can be restored from git if needed
