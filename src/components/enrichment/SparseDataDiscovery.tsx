@@ -65,7 +65,7 @@ export function SparseDataDiscovery() {
     setResults([]);
 
     try {
-      const { data, error } = await supabase.functions.invoke('enrich-discover', {
+      const { data, error } = await supabase.functions.invoke('enrich-unified', {
         body: {
           company,
           domain: domain || undefined,

@@ -1,23 +1,5 @@
 project_id = "dhyfbaptcprxxixgnpby"
 
-[functions.enrich-lead-slim]
-verify_jwt = false
-
-[functions.enrich-lead-orchestrator]
-verify_jwt = false
-
-[functions.enrich-person]
-verify_jwt = false
-
-[functions.enrich-contact-info]
-verify_jwt = false
-
-[functions.enrich-firmographics]
-verify_jwt = false
-
-[functions.enrich-lead-test]
-verify_jwt = false
-
 [functions.detect-account-signals]
 verify_jwt = false
 
@@ -93,9 +75,6 @@ verify_jwt = true
 [functions.match-external-data]
 verify_jwt = true
 
-[functions.enrich-accounts]
-verify_jwt = true
-
 [functions.bulk-upload]
 verify_jwt = true
 
@@ -105,22 +84,10 @@ verify_jwt = true
 [functions.enrich-contacts-persona]
 verify_jwt = true
 
-[functions.enrich-contacts-bulk]
-verify_jwt = true
-
-[functions.enrich-clearbit-free]
-verify_jwt = true
-
 [functions.enrich-pdl]
 verify_jwt = true
 
-[functions.smart-enrich]
-verify_jwt = false
-
 [functions.map-industry-to-zoominfo]
-verify_jwt = true
-
-[functions.process-enrichment]
 verify_jwt = true
 
 [functions.sync-external-provider]
@@ -145,9 +112,6 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.oauth-refresh]
-verify_jwt = false
-
-[functions.deep-enrich-contact]
 verify_jwt = false
 
 [functions.clay-webhook-receiver]
@@ -177,9 +141,6 @@ verify_jwt = true
 [functions.scheduled-agent-runner]
 verify_jwt = false
 
-[functions.enrichment-orchestrator]
-verify_jwt = true
-
 [functions.agent-search-enrichment]
 verify_jwt = true
 
@@ -192,14 +153,8 @@ verify_jwt = true
 [functions.resume-enrichment-job]
 verify_jwt = true
 
-[functions.bulk-enrich-all-accounts]
-verify_jwt = true
-
 [functions.upload-master-data]
 verify_jwt = false
-
-[functions.enrich-from-master]
-verify_jwt = true
 
 [functions.get-apollo-credits]
 verify_jwt = true
@@ -234,7 +189,6 @@ verify_jwt = true
 [functions.ai-chat]
 verify_jwt = true
 
-
 [functions.ai-actions-router]
 verify_jwt = true
 
@@ -260,9 +214,6 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.bulk-qualify-leads]
-verify_jwt = true
-
-[functions.enrich-ai-only]
 verify_jwt = true
 
 [functions.generate-proactive-insights]
@@ -364,17 +315,10 @@ verify_jwt = true
 [functions.bidirectional-sync-orchestrator]
 verify_jwt = false
 
-
-[functions.enrich-verified]
-verify_jwt = true
+[functions.enrich-unified]
+verify_jwt = false
 
 [functions.enrich-fast]
-verify_jwt = true
-
-[functions.enrich-gemini-phones]
-verify_jwt = true
-
-[functions.enrich-perplexity-contact]
 verify_jwt = true
 
 [functions.verify-phones]
@@ -383,35 +327,8 @@ verify_jwt = true
 [functions.lookup-naics]
 verify_jwt = true
 
-[functions.enrich-gemini-account]
-verify_jwt = true
-
 [functions.enrich-test-accuracy]
 verify_jwt = true
-
-[functions.enrich-discover]
-verify_jwt = true
-
-[functions.process-enrichment-queue]
-verify_jwt = false
-
-[functions.enrich-v4]
-verify_jwt = false
-
-[functions.enrich-unified]
-verify_jwt = false
-
-[functions.enrich-free-worker]
-verify_jwt = false
-
-[functions.enrich-free-orchestrator]
-verify_jwt = false
-
-[functions.enrich-perplexity]
-verify_jwt = false
-
-[functions.enrich-single-company]
-verify_jwt = false
 
 [functions.firecrawl-scrape]
 verify_jwt = false

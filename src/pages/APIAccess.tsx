@@ -323,16 +323,23 @@ export default function APIAccess() {
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Badge className="bg-green-500/10 text-green-600">POST</Badge>
-                  <code className="text-sm">/enrich-single-company</code>
+                  <code className="text-sm">/enrich-unified</code>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Enrich a single company by name or domain.
+                  Unified enrichment endpoint for companies and contacts.
                 </p>
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-muted-foreground">Request Body:</p>
                   <pre className="p-3 rounded-lg bg-muted text-xs overflow-x-auto">
 {`{
-  "query": "stripe.com"  // Company name or domain
+  "org_id": "your-org-id",
+  "record_type": "account",  // or "lead"
+  "records": [
+    { "external_id": "abc123", "name": "Stripe", "domain": "stripe.com" }
+  ],
+  "config": {
+    "aggregateProviders": true
+  }
 }`}
                   </pre>
                 </div>
@@ -340,17 +347,12 @@ export default function APIAccess() {
                   <p className="text-xs font-medium text-muted-foreground">Response:</p>
                   <pre className="p-3 rounded-lg bg-muted text-xs overflow-x-auto">
 {`{
-  "company": {
-    "name": "Stripe",
-    "domain": "stripe.com",
-    "employee_count": 7000,
-    "revenue_range": "$1B-$10B",
-    "industry": "Financial Services",
-    "country": "United States",
-    "city": "San Francisco",
-    "linkedin_url": "https://linkedin.com/company/stripe",
-    "confidence": 95,
-    "source": "apollo"
+  "success": true,
+  "job_id": "job-uuid",
+  "summary": {
+    "total": 1,
+    "enriched": 1,
+    "failed": 0
   }
 }`}
                   </pre>
@@ -376,10 +378,10 @@ export default function APIAccess() {
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Badge className="bg-green-500/10 text-green-600">POST</Badge>
-                  <code className="text-sm">/enrich-free-orchestrator</code>
+                  <code className="text-sm">/enrich-unified</code>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Start a bulk enrichment job for multiple accounts.
+                  Bulk enrichment - pass multiple records in the records array.
                 </p>
               </div>
             </CardContent>
@@ -419,46 +421,51 @@ export default function APIAccess() {
             </CardHeader>
             <CardContent>
               <pre className="p-4 rounded-lg bg-muted text-sm overflow-x-auto">
-{`// Enrich a single company
+{`// Enrich accounts using unified API
 const response = await fetch(
-  'https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/enrich-single-company',
+  'https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/enrich-unified',
   {
     method: 'POST',
     headers: {
       'Authorization': 'Bearer YOUR_API_KEY',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ query: 'stripe.com' }),
+    body: JSON.stringify({
+      org_id: 'your-org-id',
+      record_type: 'account',
+      records: [{ external_id: 'abc123', domain: 'stripe.com' }],
+      config: { aggregateProviders: true }
+    }),
   }
 );
 
 const data = await response.json();
-console.log(data.company);
-// {
-//   name: "Stripe",
-//   employee_count: 7000,
-//   revenue_range: "$1B-$10B",
-//   ...
-// }`}
+console.log(data.summary);
+// { total: 1, enriched: 1, failed: 0 }`}
               </pre>
               <Button 
                 variant="outline" 
                 size="sm" 
                 className="mt-3"
                 onClick={() => copyToClipboard(`const response = await fetch(
-  'https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/enrich-single-company',
+  'https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/enrich-unified',
   {
     method: 'POST',
     headers: {
       'Authorization': 'Bearer YOUR_API_KEY',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ query: 'stripe.com' }),
+    body: JSON.stringify({
+      org_id: 'your-org-id',
+      record_type: 'account',
+      records: [{ external_id: 'abc123', domain: 'stripe.com' }],
+      config: { aggregateProviders: true }
+    }),
   }
 );
 
 const data = await response.json();
-console.log(data.company);`)}
+console.log(data.summary);`)}
               >
                 <Copy className="h-4 w-4 mr-2" />
                 Copy Code
@@ -475,22 +482,21 @@ console.log(data.company);`)}
 {`import requests
 
 response = requests.post(
-    'https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/enrich-single-company',
+    'https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/enrich-unified',
     headers={
         'Authorization': 'Bearer YOUR_API_KEY',
         'Content-Type': 'application/json',
     },
-    json={'query': 'stripe.com'}
+    json={
+        'org_id': 'your-org-id',
+        'record_type': 'account',
+        'records': [{'external_id': 'abc123', 'domain': 'stripe.com'}],
+        'config': {'aggregateProviders': True}
+    }
 )
 
 data = response.json()
-print(data['company'])
-# {
-#   'name': 'Stripe',
-#   'employee_count': 7000,
-#   'revenue_range': '$1B-$10B',
-#   ...
-# }`}
+print(data['summary'])`}
               </pre>
               <Button 
                 variant="outline" 
@@ -499,16 +505,21 @@ print(data['company'])
                 onClick={() => copyToClipboard(`import requests
 
 response = requests.post(
-    'https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/enrich-single-company',
+    'https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/enrich-unified',
     headers={
         'Authorization': 'Bearer YOUR_API_KEY',
         'Content-Type': 'application/json',
     },
-    json={'query': 'stripe.com'}
+    json={
+        'org_id': 'your-org-id',
+        'record_type': 'account',
+        'records': [{'external_id': 'abc123', 'domain': 'stripe.com'}],
+        'config': {'aggregateProviders': True}
+    }
 )
 
 data = response.json()
-print(data['company'])`)}
+print(data['summary'])`)}
               >
                 <Copy className="h-4 w-4 mr-2" />
                 Copy Code
@@ -523,20 +534,20 @@ print(data['company'])`)}
             <CardContent>
               <pre className="p-4 rounded-lg bg-muted text-sm overflow-x-auto">
 {`curl -X POST \\
-  'https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/enrich-single-company' \\
+  'https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/enrich-unified' \\
   -H 'Authorization: Bearer YOUR_API_KEY' \\
   -H 'Content-Type: application/json' \\
-  -d '{"query": "stripe.com"}'`}
+  -d '{"org_id":"your-org-id","record_type":"account","records":[{"external_id":"abc123","domain":"stripe.com"}],"config":{"aggregateProviders":true}}'`}
               </pre>
               <Button 
                 variant="outline" 
                 size="sm" 
                 className="mt-3"
                 onClick={() => copyToClipboard(`curl -X POST \\
-  'https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/enrich-single-company' \\
+  'https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/enrich-unified' \\
   -H 'Authorization: Bearer YOUR_API_KEY' \\
   -H 'Content-Type: application/json' \\
-  -d '{"query": "stripe.com"}'`)}
+  -d '{"org_id":"your-org-id","record_type":"account","records":[{"external_id":"abc123","domain":"stripe.com"}],"config":{"aggregateProviders":true}}'`)}
               >
                 <Copy className="h-4 w-4 mr-2" />
                 Copy Code

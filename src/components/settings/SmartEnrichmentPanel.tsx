@@ -251,7 +251,7 @@ export function SmartEnrichmentPanel() {
       });
 
       // Immediately invoke the edge function (auto-start)
-      const { error } = await supabase.functions.invoke('enrich-ai-only', {
+      const { error } = await supabase.functions.invoke('enrich-unified', {
         body: { jobId: job.id, batchSize: 100 }
       });
 

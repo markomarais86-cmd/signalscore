@@ -219,7 +219,7 @@ export function UnifiedInsightsPanel({
       
       setEnrichmentProgress(prev => prev ? { ...prev, status: 'paused', isStalled: false } : null);
       
-      const { error } = await supabase.functions.invoke('enrich-ai-only', {
+      const { error } = await supabase.functions.invoke('enrich-unified', {
         body: { 
           jobId: enrichmentProgress.jobId, 
           resumeFromCheckpoint: true,
@@ -306,7 +306,7 @@ export function UnifiedInsightsPanel({
               const totalRecords = freshJob?.total_records || status.total_records || ENRICHMENT.DEFAULT_BATCH_SIZE;
               
               log.info(`Auto-resuming job ${currentJobId}...`);
-              const { error } = await supabase.functions.invoke('enrich-ai-only', {
+              const { error } = await supabase.functions.invoke('enrich-unified', {
                 body: { 
                   jobId: currentJobId, 
                   resumeFromCheckpoint: true,
@@ -497,7 +497,7 @@ export function UnifiedInsightsPanel({
           enriched: 0
         });
         
-        const { error } = await supabase.functions.invoke('enrich-ai-only', {
+        const { error } = await supabase.functions.invoke('enrich-unified', {
           body: { jobId: job.id, batchSize }
         });
         
