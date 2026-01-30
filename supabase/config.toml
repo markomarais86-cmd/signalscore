@@ -318,9 +318,6 @@ verify_jwt = false
 [functions.enrich-unified]
 verify_jwt = false
 
-[functions.enrich-fast]
-verify_jwt = true
-
 [functions.verify-phones]
 verify_jwt = true
 
@@ -388,4 +385,13 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.discover-contacts]
+verify_jwt = true
+
+[functions.agent-coordinator]
+verify_jwt = true
+
+[functions.agent-registry]
+verify_jwt = true
+
+[functions.agent-planner]
 verify_jwt = true
