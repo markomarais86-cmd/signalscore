@@ -47,7 +47,6 @@ import {
   getDomainCacheKey,
   getEmailCacheKey,
   getCompanyCacheKey,
-  type CacheEntry,
 } from './enrichment-cache.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -1378,28 +1377,32 @@ export async function runEnrichmentWaterfall(
       : 'company';
   
   // STEP 0: Check cache for existing enrichment (Phase 4A optimization)
-  if (cacheKey && config.forceAllStages !== true) {
-    const cached = await getCachedEnrichment(supabase, cacheKey, cacheType);
-    if (cached && cached.hit) {
-      console.log(`[provider-waterfall] CACHE HIT for ${cacheType}:${cacheKey.slice(0, 20)}...`);
-      
-      // Merge cached data into result
-      const cachedData = cached.enriched_data as EnrichedData;
-      return {
-        success: true,
-        data: cachedData,
-        sources: [{
-          provider: 'cache',
-          fieldsEnriched: Object.keys(cachedData).filter(k => (cachedData as any)[k] != null),
+  try {
+    if (cacheKey && config.forceAllStages !== true) {
+      const cached = await getCachedEnrichment(supabase, cacheKey, cacheType);
+      if (cached && cached.hit) {
+        console.log(`[provider-waterfall] CACHE HIT for ${cacheType}:${cacheKey.slice(0, 20)}...`);
+        
+        // Merge cached data into result
+        const cachedData = cached.enriched_data as EnrichedData;
+        return {
+          success: true,
+          data: cachedData,
+          sources: [{
+            provider: 'cache',
+            fieldsEnriched: Object.keys(cachedData).filter(k => (cachedData as any)[k] != null),
+            confidence: cached.confidence || 0.9,
+            latencyMs: Date.now() - startTime,
+            cost: 0,
+          }],
+          verifiedFields: [],
+          cost: { total: 0, breakdown: [] },
           confidence: cached.confidence || 0.9,
-          latencyMs: Date.now() - startTime,
-          cost: 0,
-        }],
-        verifiedFields: [],
-        cost: { total: 0, breakdown: [] },
-        confidence: cached.confidence || 0.9,
-      };
+        };
+      }
     }
+  } catch (cacheError) {
+    console.warn('[provider-waterfall] Cache lookup failed, continuing without cache:', cacheError);
   }
   
   // Copy existing data
