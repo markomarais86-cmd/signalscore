@@ -96,7 +96,7 @@ export default function About() {
                     <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20">
                       <Icon className="h-7 w-7 text-primary" />
                     </div>
-                    <h3 className="text-xl font-semibold mb-1">
+                    <h3 className="text-xl font-semibold mb-3 text-white">
                       {item.title} <span className="text-white/50 font-normal">{item.subtitle}</span>
                     </h3>
                     <p className="text-white/70 leading-relaxed">
