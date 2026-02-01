@@ -22,16 +22,61 @@ export default function ResetPassword() {
   const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+    
+    // Check if URL has recovery token (from email link)
+    const hasRecoveryToken = window.location.hash.includes('type=recovery') ||
+                              window.location.hash.includes('access_token');
+    
+    // Set up auth state listener FIRST - this catches the PASSWORD_RECOVERY event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!mounted) return;
+        
+        console.log('Auth event:', event);
+        
+        if (event === 'PASSWORD_RECOVERY') {
+          // Token was valid - session is now active
+          setCheckingSession(false);
+          setNoSession(false);
+        } else if (event === 'SIGNED_IN' && session) {
+          // Already signed in
+          setCheckingSession(false);
+          setNoSession(false);
+        }
+      }
+    );
+    
+    // Then check for existing session
     const checkSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
+      // If URL has recovery token, wait a bit for Supabase to process it
+      if (hasRecoveryToken) {
+        // Give Supabase time to process the hash token
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
       
-      if (error || !session) {
-        // User navigated here directly without email link
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!mounted) return;
+      
+      if (session) {
+        // Session exists (either from recovery or existing login)
+        setNoSession(false);
+      } else if (!hasRecoveryToken) {
+        // No session AND no recovery token - user navigated directly
         setNoSession(true);
       }
+      // If hasRecoveryToken but no session yet, keep waiting for auth event
+      
       setCheckingSession(false);
     };
+    
     checkSession();
+    
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   if (user) {
