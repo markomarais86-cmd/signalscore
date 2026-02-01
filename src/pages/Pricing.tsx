@@ -159,7 +159,7 @@ export default function Pricing() {
         <MarketingHero
           headline={
             <>
-              <span className="text-foreground">Simple,</span>{" "}
+              <span className="text-white">Simple,</span>{" "}
               <span className="text-primary">Transparent</span>
               <br />
               <span className="text-foreground">Pricing</span>
