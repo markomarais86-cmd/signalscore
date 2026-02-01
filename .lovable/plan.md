@@ -1,165 +1,200 @@
 
-# SEO Improvement Plan for LaunchPulse
+# Website Improvement Plan (No Blog/Testimonials/Pricing Changes)
 
-## Current State Analysis
-
-After reviewing your codebase, I've identified several areas where SEO can be significantly improved:
-
-**What's Already Good:**
-- Basic meta tags in `index.html` (title, description, Open Graph, Twitter cards)
-- `robots.txt` configured to allow crawling
-- Semantic `<main>` tags on pages
-- Good use of heading hierarchy (h1, h2, h3)
-
-**Key Gaps Found:**
-- No sitemap.xml for search engine discovery
-- No per-page meta tags (all pages share the same title/description)
-- No structured data (JSON-LD schema)
-- Missing `og-image.png` file in public folder
-- Images missing descriptive alt text in some places
-- No favicon set locally (using external URL)
+## Overview
+Focused improvements to technical quality, accessibility, performance, and code organization - keeping your existing "14,000+ Accounts Scored" social proof stat.
 
 ---
 
-## Recommended Improvements
+## 1. Accessibility Fixes
 
-### 1. Add Dynamic Per-Page Meta Tags
-Currently all pages share the same title/description from `index.html`. Each marketing page should have unique, keyword-optimized metadata.
+### Password Toggle Buttons - Missing ARIA Labels
+**File:** `src/components/AuthSystem.tsx`
+**Issue:** Password visibility toggle buttons lack accessible labels for screen readers
 
-**Solution:** Create a reusable `SEOHead` component using document.title and meta tag updates, or install `react-helmet-async` for proper SSR-ready meta management.
-
-**Example pages needing unique meta:**
-| Page | Suggested Title | Target Keywords |
-|------|-----------------|-----------------|
-| Landing | "LaunchPulse - AI-Driven ICP & TAM Intelligence" | ICP, TAM, GTM, sales intelligence |
-| Product | "Product - ICP Builder & TAM Generator" | ICP builder, TAM generator, CRM analytics |
-| Pricing | "Pricing - Simple, Transparent Plans" | pricing, plans, sales intelligence cost |
-| About | "About LaunchPulse - GTM Intelligence" | about, company, mission |
-| Contact | "Contact Us - Request a Demo" | contact, demo, sales |
-
-### 2. Create sitemap.xml
-Search engines use sitemaps to discover and prioritize pages. Your site currently has no sitemap.
-
-**Solution:** Add a static `public/sitemap.xml` listing all public marketing pages with lastmod dates and priority levels.
-
-**Pages to include:**
-- /landing (priority: 1.0)
-- /product (priority: 0.9)
-- /pricing (priority: 0.9)
-- /about (priority: 0.8)
-- /contact (priority: 0.8)
-- /privacy (priority: 0.3)
-- /terms (priority: 0.3)
-
-### 3. Add Structured Data (JSON-LD)
-Add schema.org markup for better rich snippets in search results.
-
-**Recommended schemas:**
-- **Organization** - Company info, logo, contact
-- **WebSite** - Site name and search action
-- **FAQPage** - For pricing page FAQ section
-- **SoftwareApplication** - For product description
-
-### 4. Add Local og-image.png
-The current `og:image` points to `/og-image.png` but the file doesn't exist in the public folder.
-
-**Solution:** Create or add a 1200x630px branded social sharing image to `public/og-image.png`.
-
-### 5. Add Local Favicon
-Currently using an external URL for favicon. This can slow loading and may fail if the external source is unavailable.
-
-**Solution:** Download and add favicon files locally:
-- `public/favicon.svg` or `public/favicon.ico`
-- `public/apple-touch-icon.png` (180x180)
-
-### 6. Improve Image Alt Text
-Some images have empty or generic alt attributes.
-
-**Examples to fix:**
-- Business_Man.webp: Currently `alt=""` - should describe the image
-- Background images with `alt=""` are fine (decorative)
-
-### 7. Update robots.txt with Sitemap Reference
-Add sitemap location to help crawlers find it.
-
-```text
-Sitemap: https://launchpulse.io/sitemap.xml
-```
-
-### 8. Add Canonical URLs to Each Page
-Each marketing page should have its own canonical URL to prevent duplicate content issues.
-
----
-
-## Files to Create/Modify
-
-| File | Action |
-|------|--------|
-| `src/components/SEOHead.tsx` | Create - Reusable component for page-specific meta tags |
-| `public/sitemap.xml` | Create - XML sitemap with all public pages |
-| `public/og-image.png` | Create - Social sharing image (1200x630) |
-| `public/favicon.svg` | Create - Local favicon file |
-| `public/robots.txt` | Modify - Add sitemap reference |
-| `index.html` | Modify - Update favicon to local path, add JSON-LD |
-| `src/pages/Landing.tsx` | Modify - Add SEOHead with unique meta |
-| `src/pages/Product.tsx` | Modify - Add SEOHead with unique meta |
-| `src/pages/Pricing.tsx` | Modify - Add SEOHead with unique meta |
-| `src/pages/About.tsx` | Modify - Add SEOHead with unique meta |
-| `src/pages/Contact.tsx` | Modify - Add SEOHead with unique meta |
-| `src/pages/PrivacyPolicy.tsx` | Modify - Add SEOHead with unique meta |
-| `src/pages/TermsOfService.tsx` | Modify - Add SEOHead with unique meta |
-
----
-
-## Priority Order
-
-1. **High Impact**: Per-page meta tags + sitemap.xml
-2. **Medium Impact**: Structured data + og-image
-3. **Low Impact**: Local favicon + alt text improvements
-
----
-
-## Technical Details
-
-### SEOHead Component Pattern
-
+**Current (lines 296-302):**
 ```tsx
-// Sets document.title and meta tags on mount
-useEffect(() => {
-  document.title = title;
-  
-  // Update or create meta tags
-  const metaDescription = document.querySelector('meta[name="description"]');
-  if (metaDescription) {
-    metaDescription.setAttribute('content', description);
-  }
-  
-  // Update OG tags similarly...
-}, [title, description]);
+<button
+  type="button"
+  onClick={() => setShowPassword(!showPassword)}
+  className="absolute right-3 top-3..."
+>
+  {showPassword ? <EyeOff /> : <Eye />}
+</button>
 ```
 
-### JSON-LD Organization Schema
+**Fix:** Add `aria-label` attribute:
+```tsx
+<button
+  type="button"
+  onClick={() => setShowPassword(!showPassword)}
+  className="absolute right-3 top-3..."
+  aria-label={showPassword ? 'Hide password' : 'Show password'}
+>
+```
 
-```json
-{
-  "@context": "https://schema.org",
-  "@type": "Organization",
-  "name": "LaunchPulse",
-  "url": "https://launchpulse.io",
-  "logo": "https://launchpulse.io/brand/logo.svg",
-  "contactPoint": {
-    "@type": "ContactPoint",
-    "email": "contact@launchpulse.io"
-  }
+### Business Man Image - Missing Alt Text
+**File:** `src/pages/Pricing.tsx` (line 484-486)
+**Issue:** Key CTA section image has empty alt text
+
+**Current:**
+```tsx
+<img src="/images/Business_Man.webp" alt="" ... />
+```
+
+**Fix:**
+```tsx
+<img 
+  src="/images/Business_Man.webp" 
+  alt="Business professional reviewing GTM analytics dashboard" 
+  ...
+/>
+```
+
+---
+
+## 2. SEO Fixes
+
+### NotFound Page - Missing SEOHead
+**File:** `src/pages/NotFound.tsx`
+**Issue:** 404 page lacks proper meta tags
+
+**Fix:** Add SEOHead component:
+```tsx
+import { SEOHead } from "@/components/SEOHead";
+
+// Inside component:
+<SEOHead
+  title="Page Not Found - LaunchPulse"
+  description="The page you're looking for doesn't exist or has been moved."
+  canonicalPath="/404"
+/>
+```
+
+### Pricing FAQ - Add Structured Data
+**File:** `src/pages/Pricing.tsx`
+**Issue:** FAQ section could enable rich snippets in Google search
+
+**Fix:** Add JSON-LD FAQPage schema that dynamically generates from the existing `faqs` array:
+```tsx
+useEffect(() => {
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faqs.map(faq => ({
+      "@type": "Question",
+      "name": faq.question,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": faq.answer
+      }
+    }))
+  };
+  // Inject into document head
+}, []);
+```
+
+---
+
+## 3. Technical Debt - Shared DiagonalArrow Component
+
+### Current State
+The `DiagonalArrow` SVG is duplicated in **6 files**:
+- `src/pages/Landing.tsx`
+- `src/pages/Product.tsx`
+- `src/pages/Pricing.tsx`
+- `src/pages/About.tsx`
+- `src/components/marketing/MarketingNav.tsx`
+- `src/components/marketing/MarketingHero.tsx`
+
+### Solution
+Create a single shared component:
+
+**New file:** `src/components/ui/DiagonalArrow.tsx`
+```tsx
+export function DiagonalArrow({ className }: { className?: string }) {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="18" 
+      height="18" 
+      viewBox="0 0 18 18" 
+      fill="none"
+      className={className}
+      aria-hidden="true"
+    >
+      <path 
+        d="M4.38237 12.4016L10.5268 6.25717L5.7538 6.25717L5.7538 4.7574L13.0872 4.7574L13.0872 12.0908L11.5874 12.0908V7.31783L5.44303 13.4622L4.38237 12.4016Z" 
+        fill="currentColor"
+      />
+    </svg>
+  );
 }
 ```
 
+Then update all 6 files to import from the shared location.
+
 ---
 
-## Expected Outcomes
+## 4. Performance Optimizations
 
-- Improved search engine indexing and discovery
-- Better click-through rates from unique page titles/descriptions
-- Rich snippets in search results (FAQ, organization info)
-- Proper social media previews when links are shared
-- Faster favicon loading with local assets
+### Hero Image Preloading
+**File:** `index.html`
+**Issue:** Hero section images could load faster with preloading hints
+
+**Fix:** Add preload link for critical above-the-fold image:
+```html
+<link rel="preload" as="image" href="/images/Business_Man.webp" fetchpriority="high" />
+```
+
+### Localize CDN Assets (Optional)
+**Files:** `src/pages/Landing.tsx`, `src/pages/Product.tsx`
+**Issue:** Some images load from external CDN (cdn.prod.website-files.com) which adds latency and external dependency
+
+**Current:**
+```tsx
+src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695055dccf22527a26df6e62_icp-01.svg"
+```
+
+**Recommendation:** Download and host locally in `/public/images/` for:
+- Faster loading (same-origin)
+- No external dependencies
+- Better reliability
+
+---
+
+## Summary of Changes
+
+| Category | File(s) | Change |
+|----------|---------|--------|
+| Accessibility | `AuthSystem.tsx` | Add ARIA labels to password toggles |
+| Accessibility | `Pricing.tsx` | Add descriptive alt text to Business_Man.webp |
+| SEO | `NotFound.tsx` | Add SEOHead component |
+| SEO | `Pricing.tsx` | Add FAQPage JSON-LD structured data |
+| Code Quality | Create `DiagonalArrow.tsx` | Shared component |
+| Code Quality | 6 marketing files | Update imports to use shared component |
+| Performance | `index.html` | Add image preload hints |
+
+---
+
+## Files to Create
+1. `src/components/ui/DiagonalArrow.tsx`
+
+## Files to Modify
+1. `src/components/AuthSystem.tsx` - ARIA labels
+2. `src/pages/NotFound.tsx` - SEOHead
+3. `src/pages/Pricing.tsx` - Alt text + FAQ schema
+4. `src/pages/Landing.tsx` - Import shared DiagonalArrow
+5. `src/pages/Product.tsx` - Import shared DiagonalArrow
+6. `src/pages/About.tsx` - Import shared DiagonalArrow
+7. `src/components/marketing/MarketingNav.tsx` - Import shared DiagonalArrow
+8. `src/components/marketing/MarketingHero.tsx` - Import shared DiagonalArrow
+9. `index.html` - Add preload hint
+
+---
+
+## Expected Impact
+- Better accessibility scores (WCAG compliance)
+- Improved SEO with FAQ rich snippets in search results
+- Cleaner codebase with no duplicate SVG definitions
+- Faster page loads with preloaded critical images
