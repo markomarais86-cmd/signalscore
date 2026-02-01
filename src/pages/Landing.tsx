@@ -184,21 +184,6 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* Trust Badges Section */}
-        <section className="container mx-auto px-6 py-12">
-          <ScrollReveal animation="fade-up">
-            <div className="flex flex-wrap justify-center items-center gap-8 text-white/40">
-              <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                <span className="text-sm">24hr Onboarding</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5" />
-                <span className="text-sm">99.9% Uptime</span>
-              </div>
-            </div>
-          </ScrollReveal>
-        </section>
 
         {/* CTA Section - With Business Man Background */}
         <ScrollReveal animation="fade-up">
