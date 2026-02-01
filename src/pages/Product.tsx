@@ -7,9 +7,9 @@ import {
   Users,
   ShieldCheck,
   Zap,
-  DollarSign,
   TrendingUp,
-  Briefcase,
+  Filter,
+  UserCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -109,19 +109,19 @@ const enrichmentSection = {
 
 const useCases = [
   {
-    iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a568544cb17760d8d12f2_graph.svg",
+    icon: TrendingUp,
     title: "RevOps",
     description:
       "Validate ICP/TAM assumptions, identify leakage points in your funnel, and build data-backed business cases for leadership.",
   },
   {
-    iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a568bd4d6d4b54f1e4315_pipeline.svg",
+    icon: Filter,
     title: "Sales Leadership",
     description:
       "See where your team's effort is misallocated, which segments have thin coverage, and where to focus for maximum impact.",
   },
   {
-    iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a5691bdbe3c4be51e5766_executives.svg",
+    icon: UserCircle,
     title: "Executives",
     description:
       "Get a clear diagnostic view of your market opportunity and where GTM execution is leaving revenue on the table.",
@@ -276,19 +276,22 @@ export default function Product() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {useCases.map((useCase, index) => (
-              <div
-                key={index}
-                className="p-8 rounded-xl border border-white/10 bg-white/5 text-center animate-fade-in"
-                style={{ animationDelay: `${0.1 * index}s` }}
-              >
-                <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20 mx-auto overflow-hidden">
-                  <img src={useCase.iconUrl} alt={useCase.title} className="w-8 h-8 object-contain" />
+            {useCases.map((useCase, index) => {
+              const Icon = useCase.icon;
+              return (
+                <div
+                  key={index}
+                  className="p-8 rounded-xl border border-white/10 bg-white/5 text-center animate-fade-in hover:bg-white/[0.08] hover:border-white/20 transition-all duration-300"
+                  style={{ animationDelay: `${0.1 * index}s` }}
+                >
+                  <div className="w-16 h-16 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20 mx-auto">
+                    <Icon className="h-8 w-8 text-primary" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-3 text-white">{useCase.title}</h3>
+                  <p className="text-white/60 leading-relaxed">{useCase.description}</p>
                 </div>
-                <h3 className="text-xl font-semibold mb-3">{useCase.title}</h3>
-                <p className="text-white/60">{useCase.description}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
