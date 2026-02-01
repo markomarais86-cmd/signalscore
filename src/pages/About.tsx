@@ -70,7 +70,7 @@ export default function About() {
         {/* The LaunchPulse Difference */}
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-white">
               The <span className="text-primary">LaunchPulse</span> Difference
             </h2>
             <p className="text-xl text-white/60 max-w-2xl mx-auto">
