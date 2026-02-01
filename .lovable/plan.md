@@ -2,94 +2,118 @@
 
 ## Overview
 
-This plan improves the feature card icons on the landing page and adds a 4th "Enrichment" feature tile to create a more polished and complete feature showcase.
+This plan fixes the "pixelated icons" issue on the About page's "LaunchPulse Difference" section by replacing external SVG image URLs with crisp Lucide React vector icons, and updates the subtitle text to match the original launchpulse.org site.
+
+## Issues Identified
+
+1. **Pixelated Icons**: The current external SVG URLs are rendering poorly and appear pixelated
+2. **Wrong Subtitle**: Current text says "Built for revenue teams who demand precision and transparency" but original says "What makes LaunchPulse different in practice"
+3. **External Image Dependencies**: Using CDN-hosted images introduces loading delays and quality issues
 
 ## What We're Changing
 
-### 1. Replace External SVG Icons with Styled Lucide Icons
+### 1. Replace External SVG Icons with Lucide Icons
 
-Currently, the feature cards use external image URLs for icons. We'll replace these with Lucide React icons that are styled to match the current design aesthetic (primary color with subtle background).
+The original launchpulse.org uses clean vector icons in rounded green boxes. We'll replace the external URLs with matching Lucide React icons:
 
-**New icon mapping:**
-- AI ICP Builder: `Target` icon (bullseye/crosshair represents precision targeting)
-- TAM Generator: `BarChart3` icon (chart represents market sizing/analytics)
-- CRM Insight Layer: `Users` icon (represents customer/persona insights)
-- Data Enrichment: `Zap` icon (represents the fast, powerful enrichment engine)
+| Card | Current (External SVG) | New (Lucide Icon) |
+|------|------------------------|-------------------|
+| Evidence-Based ICP | icp-01.svg | `Search` (magnifying glass) |
+| Explainable Diagnostics | insight-01.svg | `BarChart3` (bar chart) |
+| Stack-Enhancing by Design | up-01.svg | `ArrowUpCircle` (up arrow) |
+| Fast Time-to-Value | launch.svg | `Rocket` (rocket icon) |
 
-### 2. Add 4th Feature Card: Data Enrichment
+### 2. Fix the Subtitle Text
 
-New enrichment feature card with content based on the Product page:
-- **Title:** "Data Enrichment"
-- **Description:** "AI-powered enrichment waterfall verifies data across multiple premium sources to deliver highest accuracy at a fraction of competitor costs."
+Change from:
+> "Built for revenue teams who demand precision and transparency"
 
-### 3. Update Grid Layout
-
-Change the grid from 3 columns to 4 columns on larger screens to accommodate the new tile, or optionally use a 2x2 grid for balanced appearance.
+To match original:
+> "What makes LaunchPulse different in practice"
 
 ---
 
 ## Technical Details
 
-### Files to Modify
+### File to Modify: `src/pages/About.tsx`
 
-**src/pages/Landing.tsx**
+**1. Import Lucide icons at the top:**
+```tsx
+import { Search, BarChart3, ArrowUpCircle, Rocket } from "lucide-react";
+```
 
-1. Import Lucide icons at the top:
-   ```tsx
-   import { Target, BarChart3, Users, Zap } from "lucide-react";
-   ```
+**2. Update the `differentiators` array to use Lucide icons:**
+```tsx
+const differentiators = [
+  {
+    icon: Search,
+    title: "Evidence-Based ICP",
+    subtitle: "(not opinion-based targeting)",
+    description:
+      "LaunchPulse derives ICP from actual CRM conversion patterns, highlighting the attributes and personas that consistently produce pipeline yield.",
+  },
+  {
+    icon: BarChart3,
+    title: "Explainable Diagnostics",
+    subtitle: "(not opaque scoring)",
+    description:
+      "Every output is traceable—so RevOps and Sales Leadership can understand why accounts rank, where leakage occurs, and what to fix.",
+  },
+  {
+    icon: ArrowUpCircle,
+    title: "Stack-Enhancing by Design",
+    subtitle: "(not a rip-and-replace platform)",
+    description:
+      "LaunchPulse plugs into Salesforce/HubSpot and enrichment sources to make the systems you already pay for materially smarter.",
+  },
+  {
+    icon: Rocket,
+    title: "Fast Time-to-Value",
+    subtitle: "(without heavy implementation)",
+    description:
+      "Deploy quickly, get clarity fast, and operationalise insights immediately—without months of integration work or reporting rebuilds.",
+  },
+];
+```
 
-2. Update the `features` array to use Lucide icons instead of iconUrl:
-   ```tsx
-   const features = [
-     {
-       icon: Target,
-       title: "AI ICP Builder",
-       description: "Define and validate your ICP using real conversion patterns from your CRM—so targeting is based on evidence, not internal opinion.",
-     },
-     {
-       icon: BarChart3,
-       title: "TAM Generator",
-       description: "Generate a dynamic, segmentable TAM that stays aligned to your ICP and can be operationalised by territory, industry, size band, region, and buyer persona.",
-     },
-     {
-       icon: Users,
-       title: "CRM Insight Layer",
-       description: "Diagnose pipeline misalignment by surfacing data quality risk, persona coverage gaps, segment leakage, and where GTM effort is being misallocated.",
-     },
-     {
-       icon: Zap,
-       title: "Data Enrichment",
-       description: "AI-powered enrichment waterfall verifies data across multiple premium sources to deliver highest accuracy at a fraction of competitor costs.",
-     },
-   ];
-   ```
+**3. Update the card rendering to use Lucide icons:**
+```tsx
+{differentiators.map((item, index) => {
+  const Icon = item.icon;
+  return (
+    <div key={index} className="...">
+      {/* ... background image ... */}
+      <div className="relative z-10">
+        <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20">
+          <Icon className="h-7 w-7 text-primary" />
+        </div>
+        <h3 className="text-xl font-semibold mb-1">
+          {item.title} <span className="text-white/50 font-normal">{item.subtitle}</span>
+        </h3>
+        <p className="text-white/70 leading-relaxed">
+          {item.description}
+        </p>
+      </div>
+    </div>
+  );
+})}
+```
 
-3. Update the grid layout for 4 cards:
-   ```tsx
-   <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
-   ```
-
-4. Update the FeatureCard usage to pass `icon` instead of `iconUrl`:
-   ```tsx
-   <FeatureCard
-     key={index}
-     icon={feature.icon}
-     title={feature.title}
-     description={feature.description}
-     delay={0.1 * index}
-   />
-   ```
+**4. Update the subtitle text (line 76-77):**
+```tsx
+<p className="text-xl text-white/60 max-w-2xl mx-auto">
+  What makes LaunchPulse different in practice
+</p>
+```
 
 ---
 
 ## Visual Result
 
-The landing page will display 4 feature cards in a row on desktop:
-1. **AI ICP Builder** - Target icon
-2. **TAM Generator** - BarChart3 icon
-3. **CRM Insight Layer** - Users icon  
-4. **Data Enrichment** - Zap icon (NEW)
-
-Each icon will render as a Lucide icon inside the existing styled container (rounded box with primary color background), providing consistent styling across all cards while eliminating external image dependencies.
+After these changes:
+- Crisp, clean Lucide vector icons replace pixelated external SVGs
+- Icons render as proper React components with no loading delays
+- Subtitle text matches the original launchpulse.org
+- Each card title includes the parenthetical subtitle matching the original format (e.g., "Evidence-Based ICP (not opinion-based targeting)")
+- Consistent styling with the primary green color for icons
 
