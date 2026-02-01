@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { DiagonalArrow } from "@/components/ui/DiagonalArrow";
+import { BrandLogo } from "@/components/BrandLogo";
 import { Menu, X } from "lucide-react";
 
 const navLinks = [
@@ -21,11 +22,7 @@ export function MarketingNav() {
     <header className="border-b border-white/10 bg-black sticky top-0 z-50">
       <div className="container mx-auto px-6 h-16 flex items-center justify-between">
         <Link to="/landing">
-          <img 
-            src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/69497386bcff6817bd62fe29_light-01.svg" 
-            alt="LaunchPulse" 
-            className="h-8"
-          />
+          <BrandLogo variant="dark" collapsed={false} />
         </Link>
 
         {/* Desktop Navigation */}
