@@ -1,200 +1,258 @@
 
-# Website Improvement Plan (No Blog/Testimonials/Pricing Changes)
+# Align Plan Tiers: Database and Frontend to Match Pricing Page
 
-## Overview
-Focused improvements to technical quality, accessibility, performance, and code organization - keeping your existing "14,000+ Accounts Scored" social proof stat.
+## The Problem
 
----
+Your Pricing Page shows: **Pilot, Professional, Growth, Enterprise**
+Your Database and Frontend use: **Free, Starter, Professional, Enterprise**
 
-## 1. Accessibility Fixes
-
-### Password Toggle Buttons - Missing ARIA Labels
-**File:** `src/components/AuthSystem.tsx`
-**Issue:** Password visibility toggle buttons lack accessible labels for screen readers
-
-**Current (lines 296-302):**
-```tsx
-<button
-  type="button"
-  onClick={() => setShowPassword(!showPassword)}
-  className="absolute right-3 top-3..."
->
-  {showPassword ? <EyeOff /> : <Eye />}
-</button>
-```
-
-**Fix:** Add `aria-label` attribute:
-```tsx
-<button
-  type="button"
-  onClick={() => setShowPassword(!showPassword)}
-  className="absolute right-3 top-3..."
-  aria-label={showPassword ? 'Hide password' : 'Show password'}
->
-```
-
-### Business Man Image - Missing Alt Text
-**File:** `src/pages/Pricing.tsx` (line 484-486)
-**Issue:** Key CTA section image has empty alt text
-
-**Current:**
-```tsx
-<img src="/images/Business_Man.webp" alt="" ... />
-```
-
-**Fix:**
-```tsx
-<img 
-  src="/images/Business_Man.webp" 
-  alt="Business professional reviewing GTM analytics dashboard" 
-  ...
-/>
-```
+This creates inconsistency where customers see one set of tiers on the marketing site, but your admin tools and enforcement use completely different ones.
 
 ---
 
-## 2. SEO Fixes
+## Source of Truth: Pricing Page
 
-### NotFound Page - Missing SEOHead
-**File:** `src/pages/NotFound.tsx`
-**Issue:** 404 page lacks proper meta tags
+From `src/pages/Pricing.tsx` (lines 29-97):
 
-**Fix:** Add SEOHead component:
-```tsx
-import { SEOHead } from "@/components/SEOHead";
+| Tier | Accounts | ICP Models | Credits | Integrations | History |
+|------|----------|------------|---------|--------------|---------|
+| **Pilot** | 3,000 | 1 | 500 total | 1 (manual) | 3 months |
+| **Professional** | 10,000 | 3 | 1,000/mo | 2 | 12 months |
+| **Growth** | 30,000 | 10 | 3,000/mo | unlimited | 24 months |
+| **Enterprise** | unlimited | unlimited | 10K+/mo | custom | full |
 
-// Inside component:
-<SEOHead
-  title="Page Not Found - LaunchPulse"
-  description="The page you're looking for doesn't exist or has been moved."
-  canonicalPath="/404"
-/>
-```
-
-### Pricing FAQ - Add Structured Data
-**File:** `src/pages/Pricing.tsx`
-**Issue:** FAQ section could enable rich snippets in Google search
-
-**Fix:** Add JSON-LD FAQPage schema that dynamically generates from the existing `faqs` array:
-```tsx
-useEffect(() => {
-  const faqSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": faqs.map(faq => ({
-      "@type": "Question",
-      "name": faq.question,
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": faq.answer
-      }
-    }))
-  };
-  // Inject into document head
-}, []);
-```
+Credit Packs (lines 100-125):
+- Starter: 200 credits
+- Growth: 1,000 credits
+- Scale: 5,000 credits
+- Enterprise: 25,000 credits
 
 ---
 
-## 3. Technical Debt - Shared DiagonalArrow Component
+## Changes Required
 
-### Current State
-The `DiagonalArrow` SVG is duplicated in **6 files**:
-- `src/pages/Landing.tsx`
-- `src/pages/Product.tsx`
-- `src/pages/Pricing.tsx`
-- `src/pages/About.tsx`
-- `src/components/marketing/MarketingNav.tsx`
-- `src/components/marketing/MarketingHero.tsx`
+### 1. Database: Update `plan_limits` Table
 
-### Solution
-Create a single shared component:
+**Current rows to update/add:**
 
-**New file:** `src/components/ui/DiagonalArrow.tsx`
-```tsx
-export function DiagonalArrow({ className }: { className?: string }) {
-  return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="18" 
-      height="18" 
-      viewBox="0 0 18 18" 
-      fill="none"
-      className={className}
-      aria-hidden="true"
-    >
-      <path 
-        d="M4.38237 12.4016L10.5268 6.25717L5.7538 6.25717L5.7538 4.7574L13.0872 4.7574L13.0872 12.0908L11.5874 12.0908V7.31783L5.44303 13.4622L4.38237 12.4016Z" 
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
+| plan_name | Current → New Credits | Current → New Accounts |
+|-----------|----------------------|----------------------|
+| free | 50/mo | Keep as-is (internal trial tier) |
+| ~~starter~~ → **pilot** | 500/mo → 500 total | 1,000 → 3,000 |
+| professional | 5,000/mo → 1,000/mo | 10,000 (same) |
+| **growth** (NEW) | — → 3,000/mo | — → 30,000 |
+| enterprise | unlimited (same) | unlimited (same) |
+
+**New columns needed:**
+- `max_icp_models` (integer) - Track ICP model limits per plan
+- `max_integrations` (integer, null = unlimited)
+- `history_months` (integer) - Data history retention
+
+**Migration SQL:**
+```sql
+-- Add new columns
+ALTER TABLE plan_limits 
+ADD COLUMN IF NOT EXISTS max_icp_models integer,
+ADD COLUMN IF NOT EXISTS max_integrations integer,
+ADD COLUMN IF NOT EXISTS history_months integer DEFAULT 3;
+
+-- Rename starter → pilot
+UPDATE plan_limits SET 
+  plan_name = 'pilot',
+  display_name = 'Pilot',
+  max_accounts = 3000,
+  enrichment_credits_monthly = 500,
+  max_icp_models = 1,
+  max_integrations = 1,
+  history_months = 3,
+  sort_order = 2
+WHERE plan_name = 'starter';
+
+-- Update professional
+UPDATE plan_limits SET
+  enrichment_credits_monthly = 1000,
+  max_icp_models = 3,
+  max_integrations = 2,
+  history_months = 12
+WHERE plan_name = 'professional';
+
+-- Insert growth tier
+INSERT INTO plan_limits (plan_name, display_name, max_accounts, max_users, enrichment_credits_monthly, max_icp_models, max_integrations, history_months, features, sort_order, is_active)
+VALUES ('growth', 'Growth', 30000, 25, 3000, 10, NULL, 24, 
+  '{"basic_analytics":true,"basic_enrichment":true,"ai_enrichment":true,"pipeline_analytics":true,"crm_sync":true,"deep_research":true,"alerts":true,"benchmarking":true}',
+  4, true);
+
+-- Update enterprise
+UPDATE plan_limits SET
+  max_icp_models = NULL,
+  max_integrations = NULL,
+  history_months = NULL,
+  sort_order = 5
+WHERE plan_name = 'enterprise';
+
+-- Update free tier sort order
+UPDATE plan_limits SET sort_order = 1 WHERE plan_name = 'free';
 ```
 
-Then update all 6 files to import from the shared location.
+### 2. Frontend: Rewrite `src/lib/plan-tiers.ts`
+
+**Update the PlanTier type:**
+```typescript
+// Old
+export type PlanTier = 'free' | 'starter' | 'professional' | 'enterprise';
+
+// New
+export type PlanTier = 'free' | 'pilot' | 'professional' | 'growth' | 'enterprise';
+```
+
+**Update PlanTierConfig interface:**
+```typescript
+limits: {
+  maxAccounts: number | null;
+  maxLeads: number | null;
+  maxUsers: number | null;
+  maxCrmIntegrations: number | null;
+  maxIcpModels: number | null;        // NEW
+  maxIntegrations: number | null;      // NEW
+  historyMonths: number | null;        // NEW
+};
+```
+
+**New tier configurations:**
+```typescript
+pilot: {
+  id: 'pilot',
+  displayName: 'Pilot',
+  monthlyEnrichmentCredits: 500, // Total, not monthly
+  limits: {
+    maxAccounts: 3000,
+    maxUsers: 3,
+    maxIcpModels: 1,
+    maxIntegrations: 1,
+    historyMonths: 3,
+  },
+  features: {
+    basicTam: true,
+    advancedTam: false,
+    personaInsights: true,
+    aiAgents: true,
+    crmSync: false,
+    apiAccess: false,
+    sso: false,
+    customReporting: false,
+    benchmarking: false,    // NEW
+    multiRegion: false,     // NEW
+    subIndustry: false,     // NEW
+  },
+},
+professional: {
+  id: 'professional',
+  displayName: 'Professional',
+  monthlyEnrichmentCredits: 1000,
+  limits: {
+    maxAccounts: 10000,
+    maxUsers: 10,
+    maxIcpModels: 3,
+    maxIntegrations: 2,
+    historyMonths: 12,
+  },
+  features: {
+    basicTam: true,
+    advancedTam: true,
+    personaInsights: true,
+    aiAgents: true,
+    crmSync: true,
+    multiRegion: true,
+    // ...
+  },
+},
+growth: {
+  id: 'growth',
+  displayName: 'Growth',
+  monthlyEnrichmentCredits: 3000,
+  limits: {
+    maxAccounts: 30000,
+    maxUsers: 25,
+    maxIcpModels: 10,
+    maxIntegrations: null, // unlimited
+    historyMonths: 24,
+  },
+  features: {
+    // All professional features plus:
+    subIndustry: true,
+    benchmarking: true,
+  },
+},
+enterprise: {
+  // All unlimited, all features
+},
+```
+
+**Update credit packs to match pricing page:**
+```typescript
+export const ENRICHMENT_CREDIT_PACKS: EnrichmentCreditPack[] = [
+  { id: 'starter', name: 'Starter', credits: 200, price: 39, perCredit: 0.20 },
+  { id: 'growth', name: 'Growth', credits: 1000, price: 149, perCredit: 0.15, popular: true },
+  { id: 'scale', name: 'Scale', credits: 5000, price: 499, perCredit: 0.10 },
+  { id: 'enterprise', name: 'Enterprise', credits: 25000, price: 1999, perCredit: 0.08 },
+];
+```
+
+### 3. Update Admin Components
+
+**`OrganizationManagementDialog.tsx`:**
+- Add plan selector dropdown using PLAN_TIER_LIST
+- Show plan limits in the dialog
+- Allow setting ICP model limits
+
+**`CreditManagementDashboard.tsx`:**
+- No changes needed - already uses `getPlanDisplayName()` which will auto-update
 
 ---
 
-## 4. Performance Optimizations
+## Feature Comparison Alignment
 
-### Hero Image Preloading
-**File:** `index.html`
-**Issue:** Hero section images could load faster with preloading hints
+From Pricing page `featureComparison` (lines 127-139):
 
-**Fix:** Add preload link for critical above-the-fold image:
-```html
-<link rel="preload" as="image" href="/images/Business_Man.webp" fetchpriority="high" />
-```
-
-### Localize CDN Assets (Optional)
-**Files:** `src/pages/Landing.tsx`, `src/pages/Product.tsx`
-**Issue:** Some images load from external CDN (cdn.prod.website-files.com) which adds latency and external dependency
-
-**Current:**
-```tsx
-src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695055dccf22527a26df6e62_icp-01.svg"
-```
-
-**Recommendation:** Download and host locally in `/public/images/` for:
-- Faster loading (same-origin)
-- No external dependencies
-- Better reliability
+| Feature | Pilot | Pro | Growth | Enterprise |
+|---------|-------|-----|--------|------------|
+| ICP and TAM Engine | ✓ | ✓ | ✓ | ✓ |
+| Revenue Signal Index | ✓ | ✓ | ✓ | ✓ |
+| Board Dashboards | ✓ | ✓ | ✓ | ✓ |
+| Persona Conversion | ✓ | ✓ | ✓ | ✓ |
+| Multi-Region Analytics | — | ✓ | ✓ | ✓ |
+| Sub-Industry Modeling | — | — | ✓ | ✓ |
+| Benchmarking Index | — | — | ✓ | ✓ |
+| Portfolio View | — | — | — | ✓ |
+| API Access | — | — | — | ✓ |
+| SSO / SLA | — | — | — | ✓ |
 
 ---
-
-## Summary of Changes
-
-| Category | File(s) | Change |
-|----------|---------|--------|
-| Accessibility | `AuthSystem.tsx` | Add ARIA labels to password toggles |
-| Accessibility | `Pricing.tsx` | Add descriptive alt text to Business_Man.webp |
-| SEO | `NotFound.tsx` | Add SEOHead component |
-| SEO | `Pricing.tsx` | Add FAQPage JSON-LD structured data |
-| Code Quality | Create `DiagonalArrow.tsx` | Shared component |
-| Code Quality | 6 marketing files | Update imports to use shared component |
-| Performance | `index.html` | Add image preload hints |
-
----
-
-## Files to Create
-1. `src/components/ui/DiagonalArrow.tsx`
 
 ## Files to Modify
-1. `src/components/AuthSystem.tsx` - ARIA labels
-2. `src/pages/NotFound.tsx` - SEOHead
-3. `src/pages/Pricing.tsx` - Alt text + FAQ schema
-4. `src/pages/Landing.tsx` - Import shared DiagonalArrow
-5. `src/pages/Product.tsx` - Import shared DiagonalArrow
-6. `src/pages/About.tsx` - Import shared DiagonalArrow
-7. `src/components/marketing/MarketingNav.tsx` - Import shared DiagonalArrow
-8. `src/components/marketing/MarketingHero.tsx` - Import shared DiagonalArrow
-9. `index.html` - Add preload hint
+
+| File | Changes |
+|------|---------|
+| `src/lib/plan-tiers.ts` | Complete rewrite with new tiers and features |
+| `src/components/platform-admin/OrganizationManagementDialog.tsx` | Add plan selector, show limits |
+
+## Database Migration Required
+
+Run SQL migration to:
+1. Add new columns: `max_icp_models`, `max_integrations`, `history_months`
+2. Rename `starter` to `pilot`
+3. Update credit amounts to match pricing page
+4. Insert new `growth` tier
 
 ---
 
-## Expected Impact
-- Better accessibility scores (WCAG compliance)
-- Improved SEO with FAQ rich snippets in search results
-- Cleaner codebase with no duplicate SVG definitions
-- Faster page loads with preloaded critical images
+## Summary
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Tier names | Free, Starter, Pro, Enterprise | Free, Pilot, Pro, Growth, Enterprise |
+| Professional credits | 5,000/mo | 1,000/mo |
+| Growth tier | Missing | 3,000/mo, 30K accounts |
+| ICP limits | Not tracked | 1 → 3 → 10 → unlimited |
+| Integration limits | Not tracked | 1 → 2 → unlimited |
+| Credit packs | 250/1000/5000/25000 | 200/1000/5000/25000 |
