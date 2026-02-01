@@ -5,6 +5,7 @@ export interface OrganizationMetrics {
   id: string;
   name: string;
   status: string;
+  plan_id: string | null;
   created_at: string;
   total_users: number;
   total_accounts: number;
@@ -83,6 +84,7 @@ export const usePlatformAdmin = () => {
             id: org.id,
             name: org.name,
             status: org.status,
+            plan_id: org.plan_id || null,
             created_at: org.created_at,
             total_users: uniqueUsers || 0,
             total_accounts: accountCount || 0,

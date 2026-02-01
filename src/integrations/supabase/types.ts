@@ -6175,9 +6175,12 @@ export type Database = {
           display_name: string
           enrichment_credits_monthly: number | null
           features: Json
+          history_months: number | null
           id: string
           is_active: boolean
           max_accounts: number | null
+          max_icp_models: number | null
+          max_integrations: number | null
           max_leads: number | null
           max_users: number | null
           plan_name: string
@@ -6190,9 +6193,12 @@ export type Database = {
           display_name: string
           enrichment_credits_monthly?: number | null
           features?: Json
+          history_months?: number | null
           id?: string
           is_active?: boolean
           max_accounts?: number | null
+          max_icp_models?: number | null
+          max_integrations?: number | null
           max_leads?: number | null
           max_users?: number | null
           plan_name: string
@@ -6205,9 +6211,12 @@ export type Database = {
           display_name?: string
           enrichment_credits_monthly?: number | null
           features?: Json
+          history_months?: number | null
           id?: string
           is_active?: boolean
           max_accounts?: number | null
+          max_icp_models?: number | null
+          max_integrations?: number | null
           max_leads?: number | null
           max_users?: number | null
           plan_name?: string

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,8 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { OrganizationMetrics } from "@/hooks/use-platform-admin";
-import { AlertCircle, CheckCircle, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle, XCircle, Building2, Users, Database, Layers } from "lucide-react";
 import { toastError } from "@/lib/friendly-errors";
+import { PLAN_TIER_LIST, getPlanTierFromId, type PlanTier } from "@/lib/plan-tiers";
 
 interface OrganizationManagementDialogProps {
   org: OrganizationMetrics | null;
@@ -24,8 +25,20 @@ export const OrganizationManagementDialog = ({
   onUpdate
 }: OrganizationManagementDialogProps) => {
   const [status, setStatus] = useState(org?.status || 'active');
+  const [planId, setPlanId] = useState<PlanTier>(org?.plan_id as PlanTier || 'free');
   const [creditLimit, setCreditLimit] = useState(org?.enrichment_credits_total || 1000);
   const [loading, setLoading] = useState(false);
+
+  // Update state when org changes
+  useEffect(() => {
+    if (org) {
+      setStatus(org.status || 'active');
+      setPlanId(org.plan_id as PlanTier || 'free');
+      setCreditLimit(org.enrichment_credits_total || 1000);
+    }
+  }, [org]);
+
+  const selectedPlan = getPlanTierFromId(planId);
 
   const handleSave = async () => {
     if (!org) return;
@@ -36,6 +49,7 @@ export const OrganizationManagementDialog = ({
         .from("organizations")
         .update({
           status,
+          plan_id: planId,
           enrichment_credits_total: creditLimit
         })
         .eq("id", org.id);
@@ -47,7 +61,7 @@ export const OrganizationManagementDialog = ({
         org_id: org.id,
         actor: "super_admin",
         action: "organization_updated",
-        meta: { status, creditLimit }
+        meta: { status, planId, creditLimit }
       });
 
       toast.success("Organization updated successfully");
@@ -70,22 +84,65 @@ export const OrganizationManagementDialog = ({
         </DialogHeader>
 
         <div className="space-y-6">
-          <div className="grid grid-cols-3 gap-4 p-4 bg-muted rounded-lg">
-            <div>
-              <p className="text-sm text-muted-foreground">Users</p>
-              <p className="text-2xl font-bold">{org.total_users}</p>
+          {/* Metrics Overview */}
+          <div className="grid grid-cols-4 gap-4 p-4 bg-muted rounded-lg">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Users</p>
+                <p className="text-xl font-bold">{org.total_users}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Accounts</p>
-              <p className="text-2xl font-bold">{org.total_accounts}</p>
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Accounts</p>
+                <p className="text-xl font-bold">{org.total_accounts}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Credits Used</p>
-              <p className="text-2xl font-bold">{org.enrichment_credits_used}</p>
+            <div className="flex items-center gap-2">
+              <Database className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Credits Used</p>
+                <p className="text-xl font-bold">{org.enrichment_credits_used}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Layers className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Current Plan</p>
+                <p className="text-xl font-bold">{selectedPlan.displayName}</p>
+              </div>
             </div>
           </div>
 
           <div className="space-y-4">
+            {/* Plan Selection */}
+            <div>
+              <Label htmlFor="plan">Plan Tier</Label>
+              <Select value={planId} onValueChange={(value) => setPlanId(value as PlanTier)}>
+                <SelectTrigger id="plan">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PLAN_TIER_LIST.map((tier) => (
+                    <SelectItem key={tier.id} value={tier.id}>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{tier.displayName}</span>
+                        <span className="text-muted-foreground text-xs">
+                          ({tier.limits.maxAccounts ? `${tier.limits.maxAccounts.toLocaleString()} accounts` : 'unlimited'})
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Plan limits: {selectedPlan.limits.maxIcpModels ?? '∞'} ICP models, {selectedPlan.limits.maxIntegrations ?? '∞'} integrations, {selectedPlan.limits.historyMonths ?? 'full'} months history
+              </p>
+            </div>
+
+            {/* Organization Status */}
             <div>
               <Label htmlFor="status">Organization Status</Label>
               <Select value={status} onValueChange={setStatus}>
@@ -115,14 +172,73 @@ export const OrganizationManagementDialog = ({
               </Select>
             </div>
 
+            {/* Credit Limit Override */}
             <div>
-              <Label htmlFor="credits">Enrichment Credit Limit</Label>
+              <Label htmlFor="credits">Enrichment Credit Limit (Override)</Label>
               <Input
                 id="credits"
                 type="number"
                 value={creditLimit}
-                onChange={(e) => setCreditLimit(parseInt(e.target.value))}
+                onChange={(e) => setCreditLimit(parseInt(e.target.value) || 0)}
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Default for {selectedPlan.displayName}: {selectedPlan.monthlyEnrichmentCredits.toLocaleString()} credits/month
+              </p>
+            </div>
+          </div>
+
+          {/* Plan Features Summary */}
+          <div className="p-3 bg-muted/50 rounded-lg">
+            <p className="text-sm font-medium mb-2">Plan Features</p>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="flex items-center gap-1">
+                {selectedPlan.features.crmSync ? (
+                  <CheckCircle className="h-3 w-3 text-green-600" />
+                ) : (
+                  <XCircle className="h-3 w-3 text-muted-foreground" />
+                )}
+                CRM Sync
+              </div>
+              <div className="flex items-center gap-1">
+                {selectedPlan.features.multiRegion ? (
+                  <CheckCircle className="h-3 w-3 text-green-600" />
+                ) : (
+                  <XCircle className="h-3 w-3 text-muted-foreground" />
+                )}
+                Multi-Region
+              </div>
+              <div className="flex items-center gap-1">
+                {selectedPlan.features.benchmarking ? (
+                  <CheckCircle className="h-3 w-3 text-green-600" />
+                ) : (
+                  <XCircle className="h-3 w-3 text-muted-foreground" />
+                )}
+                Benchmarking
+              </div>
+              <div className="flex items-center gap-1">
+                {selectedPlan.features.subIndustry ? (
+                  <CheckCircle className="h-3 w-3 text-green-600" />
+                ) : (
+                  <XCircle className="h-3 w-3 text-muted-foreground" />
+                )}
+                Sub-Industry
+              </div>
+              <div className="flex items-center gap-1">
+                {selectedPlan.features.apiAccess ? (
+                  <CheckCircle className="h-3 w-3 text-green-600" />
+                ) : (
+                  <XCircle className="h-3 w-3 text-muted-foreground" />
+                )}
+                API Access
+              </div>
+              <div className="flex items-center gap-1">
+                {selectedPlan.features.sso ? (
+                  <CheckCircle className="h-3 w-3 text-green-600" />
+                ) : (
+                  <XCircle className="h-3 w-3 text-muted-foreground" />
+                )}
+                SSO
+              </div>
             </div>
           </div>
 
