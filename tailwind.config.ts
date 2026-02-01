@@ -110,6 +110,10 @@ export default {
 					'0%, 100%': { transform: 'translateY(0px) rotate(0deg)' },
 					'50%': { transform: 'translateY(-20px) rotate(2deg)' }
 				},
+				'float-gentle': {
+					'0%, 100%': { transform: 'translateY(0px)' },
+					'50%': { transform: 'translateY(-10px)' }
+				},
 				'glow-pulse': {
 					'0%, 100%': { 
 						opacity: '0.3',
@@ -127,6 +131,26 @@ export default {
 				'scale-in': {
 					'0%': { opacity: '0', transform: 'scale(0.95)' },
 					'100%': { opacity: '1', transform: 'scale(1)' }
+				},
+				'slide-up': {
+					'0%': { opacity: '0', transform: 'translateY(40px)' },
+					'100%': { opacity: '1', transform: 'translateY(0)' }
+				},
+				'slide-down': {
+					'0%': { opacity: '0', transform: 'translateY(-40px)' },
+					'100%': { opacity: '1', transform: 'translateY(0)' }
+				},
+				'slide-left': {
+					'0%': { opacity: '0', transform: 'translateX(40px)' },
+					'100%': { opacity: '1', transform: 'translateX(0)' }
+				},
+				'slide-right': {
+					'0%': { opacity: '0', transform: 'translateX(-40px)' },
+					'100%': { opacity: '1', transform: 'translateX(0)' }
+				},
+				'blur-in': {
+					'0%': { opacity: '0', filter: 'blur(10px)' },
+					'100%': { opacity: '1', filter: 'blur(0)' }
 				}
 			},
 			animation: {
@@ -134,9 +158,16 @@ export default {
 				'accordion-up': 'accordion-up 0.2s ease-out',
 				'float': 'float 6s ease-in-out infinite',
 				'float-delayed': 'float 6s ease-in-out 2s infinite',
+				'float-gentle': 'float-gentle 4s ease-in-out infinite',
+				'float-gentle-delayed': 'float-gentle 4s ease-in-out 1.5s infinite',
 				'glow-pulse': 'glow-pulse 3s ease-in-out infinite',
 				'fade-in': 'fade-in 0.5s ease-out forwards',
-				'scale-in': 'scale-in 0.3s ease-out forwards'
+				'scale-in': 'scale-in 0.3s ease-out forwards',
+				'slide-up': 'slide-up 0.6s ease-out forwards',
+				'slide-down': 'slide-down 0.6s ease-out forwards',
+				'slide-left': 'slide-left 0.6s ease-out forwards',
+				'slide-right': 'slide-right 0.6s ease-out forwards',
+				'blur-in': 'blur-in 0.5s ease-out forwards'
 			}
 		}
 	},
