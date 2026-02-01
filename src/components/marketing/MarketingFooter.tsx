@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export function MarketingFooter() {
   const currentYear = new Date().getFullYear();
 
@@ -9,6 +11,20 @@ export function MarketingFooter() {
           alt="LaunchPulse" 
           className="h-6"
         />
+        <div className="flex items-center gap-6">
+          <Link 
+            to="/privacy" 
+            className="text-sm text-white/50 hover:text-white transition-colors"
+          >
+            Privacy Policy
+          </Link>
+          <Link 
+            to="/terms" 
+            className="text-sm text-white/50 hover:text-white transition-colors"
+          >
+            Terms of Service
+          </Link>
+        </div>
         <p className="text-sm text-white/50">
           © {currentYear} LaunchPulse. All rights reserved.
         </p>
