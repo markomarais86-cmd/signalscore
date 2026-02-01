@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { OrganizationMetrics } from "@/hooks/use-platform-admin";
 import { AlertCircle, CheckCircle, XCircle, Building2, Users, Database, Layers } from "lucide-react";
 import { toastError } from "@/lib/friendly-errors";
-import { PLAN_TIER_LIST, getPlanTierFromId, type PlanTier } from "@/lib/plan-tiers";
+import { PLAN_TIER_LIST, getPlanTierFromId, getPlanUuid, getPlanTierFromUuid, type PlanTier } from "@/lib/plan-tiers";
 
 interface OrganizationManagementDialogProps {
   org: OrganizationMetrics | null;
@@ -25,31 +25,35 @@ export const OrganizationManagementDialog = ({
   onUpdate
 }: OrganizationManagementDialogProps) => {
   const [status, setStatus] = useState(org?.status || 'active');
-  const [planId, setPlanId] = useState<PlanTier>(org?.plan_id as PlanTier || 'free');
+  // Convert database UUID to tier name for display/selection
+  const [planTier, setPlanTier] = useState<PlanTier>(getPlanTierFromUuid(org?.plan_id) || 'free');
   const [creditLimit, setCreditLimit] = useState(org?.enrichment_credits_total || 1000);
   const [loading, setLoading] = useState(false);
 
-  // Update state when org changes
+  // Update state when org changes - convert UUID to tier name
   useEffect(() => {
     if (org) {
       setStatus(org.status || 'active');
-      setPlanId(org.plan_id as PlanTier || 'free');
+      setPlanTier(getPlanTierFromUuid(org.plan_id) || 'free');
       setCreditLimit(org.enrichment_credits_total || 1000);
     }
   }, [org]);
 
-  const selectedPlan = getPlanTierFromId(planId);
+  const selectedPlan = getPlanTierFromId(planTier);
 
   const handleSave = async () => {
     if (!org) return;
     
     setLoading(true);
     try {
+      // Convert tier name back to UUID for database storage
+      const planUuid = getPlanUuid(planTier);
+      
       const { error } = await supabase
         .from("organizations")
         .update({
           status,
-          plan_id: planId,
+          plan_id: planUuid,
           enrichment_credits_total: creditLimit
         })
         .eq("id", org.id);
@@ -61,13 +65,14 @@ export const OrganizationManagementDialog = ({
         org_id: org.id,
         actor: "super_admin",
         action: "organization_updated",
-        meta: { status, planId, creditLimit }
+        meta: { status, planTier, planUuid, creditLimit }
       });
 
       toast.success("Organization updated successfully");
       onUpdate();
       onOpenChange(false);
     } catch (error: any) {
+      console.error('Failed to update organization:', error);
       toast.error(toastError(error, 'Failed to update organization'));
     } finally {
       setLoading(false);
@@ -120,7 +125,7 @@ export const OrganizationManagementDialog = ({
             {/* Plan Selection */}
             <div>
               <Label htmlFor="plan">Plan Tier</Label>
-              <Select value={planId} onValueChange={(value) => setPlanId(value as PlanTier)}>
+              <Select value={planTier} onValueChange={(value) => setPlanTier(value as PlanTier)}>
                 <SelectTrigger id="plan">
                   <SelectValue />
                 </SelectTrigger>
