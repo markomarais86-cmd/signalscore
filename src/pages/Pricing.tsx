@@ -251,7 +251,7 @@ export default function Pricing() {
                 className={`relative ${pack.popular ? "border-primary/50" : ""}`}
               >
                 {pack.popular && (
-                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary/10 text-primary border border-primary/30">
+                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground shadow-glow-sm">
                     Best Value
                   </Badge>
                 )}

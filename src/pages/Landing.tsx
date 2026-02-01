@@ -1,4 +1,4 @@
-import { Zap } from "lucide-react";
+import { Crosshair, TrendingUp, Layers, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { GradientBackground } from "@/components/ui/GradientBackground";
 import {
@@ -10,34 +10,27 @@ import {
   HeroDashboardMockup,
 } from "@/components/marketing";
 
-// Feature icons from launchpulse.org CDN
-const FEATURE_ICONS = {
-  icpBuilder: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/69696639d97eebd4bc9bcd01_build-01.svg",
-  tamGenerator: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696964446c7c72967b3789de_Tam%20Generator.svg",
-  crmInsight: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a48e374f363cbe28776a0_persona.svg",
-};
-
 const features = [
   {
-    iconUrl: FEATURE_ICONS.icpBuilder,
+    icon: Crosshair,
     title: "AI ICP Builder",
     description:
       "Define and validate your Ideal Customer Profile based on real CRM patterns—not guesswork. Our AI analyzes your closed-won deals to surface the attributes that actually drive revenue.",
   },
   {
-    iconUrl: FEATURE_ICONS.tamGenerator,
+    icon: TrendingUp,
     title: "TAM Generator",
     description:
       "Build dynamic, segmentable Total Addressable Market lists aligned to your ICP. See exactly how much of your market you're covering and where the biggest whitespace opportunities are.",
   },
   {
-    iconUrl: FEATURE_ICONS.crmInsight,
+    icon: Layers,
     title: "CRM Insight Layer",
     description:
       "Surface gaps in your data, personas, segments, and coverage. Understand where pipeline misalignment comes from and get actionable recommendations to fix it.",
   },
   {
-    icon: Zap,
+    icon: Sparkles,
     title: "Data Enrichment Engine",
     description:
       "Multi-source data verification waterfall that delivers verified emails, phones, and firmographics at 60-85% less than Apollo, ZoomInfo, or Clay.",
@@ -155,7 +148,6 @@ export default function Landing() {
               <FeatureCard
                 key={index}
                 icon={feature.icon}
-                iconUrl={feature.iconUrl}
                 title={feature.title}
                 description={feature.description}
                 delay={0.1 * index}
