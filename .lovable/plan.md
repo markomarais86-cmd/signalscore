@@ -1,101 +1,220 @@
 
 
-# Redirect & Demo Email Implementation Plan
+# Website Redesign: Dark Theme + Dashboard Imagery
 
-## Overview
+## Problem Summary
 
-This plan covers two changes:
-1. **Redirect logged-out users to marketing homepage** - Update the redirect targets from `/auth` to `/landing`
-2. **Demo request email notification** - Create edge function to send demo request emails to contact@launchpulse.io
+The current marketing pages have two critical issues:
+
+1. **Wrong color scheme** - Pages may render with white/light background instead of the dark, sleek look from launchpulse.org
+2. **Missing imagery** - No hero images, no dashboard mockups, no feature illustrations - just icons and empty placeholder boxes
+
+## Reference: launchpulse.org Design
+
+From the screenshot of launchpulse.org:
+- **Background**: True black (#0A0A0F or similar) with mint green gradient glows
+- **Hero section**: Shows floating dashboard mockups with real stats (Total Accounts, Total Leads, Campaign Ready, ICP Coverage chart)
+- **Text styling**: Gray gradient text for "AI-Driven ICP and TAM Intelligence for" with white bold text for "High-Performance GTM Teams"
+- **Visual elements**: Floating dashboard cards with shadows, data visualizations
 
 ---
 
-## Part 1: Update Redirect Logic
+## Solution Overview
 
-### Change 1: Sign-Out Redirect
+### Part 1: Force Dark Theme on Marketing Pages
 
-**File:** `src/hooks/use-auth.tsx` (lines 161-165)
+The marketing pages should ALWAYS be dark, regardless of user theme preference.
 
-**Current:**
+**Update `GradientBackground.tsx`:**
+- Add a `forceDark` prop that bypasses theme detection
+- Marketing pages will pass `forceDark={true}`
+
+### Part 2: Add Hero Dashboard Mockup Components
+
+Create components that render realistic-looking dashboard previews matching launchpulse.org:
+
+**New file: `src/components/marketing/HeroDashboardMockup.tsx`**
+- Floating dashboard cards with stats (Total Accounts, Total Leads, Campaign Ready)
+- ICP Coverage Overview section with chart mockup
+- TAM indicator with dollar value
+- Glass effect styling with shadows
+- Floating/perspective animations
+
+### Part 3: Add Feature Section Illustrations
+
+**New file: `src/components/marketing/FeatureIllustration.tsx`**
+- SVG-based or styled component illustrations for each feature
+- ICP Builder: Targeting visualization
+- TAM Generator: Chart/graph visualization
+- CRM Insight Layer: Data flow diagram
+- Enrichment Engine: Waterfall/verification flow
+
+---
+
+## Detailed Implementation
+
+### File 1: `src/components/ui/GradientBackground.tsx`
+
+Add `forceDark` prop:
+
 ```typescript
-if (event === 'SIGNED_OUT') {
-  authLogger.info('User signed out, redirecting to /auth');
-  window.location.href = '/auth';
+interface GradientBackgroundProps {
+  children: React.ReactNode;
+  className?: string;
+  variant?: "hero" | "subtle" | "auth";
+  showOrbs?: boolean;
+  forceDark?: boolean; // NEW: Force dark mode for marketing pages
+}
+
+export function GradientBackground({ 
+  children, 
+  className,
+  variant = "hero",
+  showOrbs = true,
+  forceDark = false  // Default false for backward compat
+}: GradientBackgroundProps) {
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Force dark for marketing pages, otherwise use theme
+  const isDark = forceDark || !mounted || resolvedTheme === "dark";
+  // ... rest unchanged
 }
 ```
 
-**Updated:**
+---
+
+### File 2: `src/components/marketing/HeroDashboardMockup.tsx` (NEW)
+
+Create floating dashboard preview matching launchpulse.org:
+
+```text
++--------------------------------------------------+
+|    +-------------+  +-------------+  +---------+ |
+|    | Total       |  | Total       |  | Campaign| |
+|    | Accounts    |  | Leads       |  | Ready   | |
+|    | 78,755      |  | 278,636     |  | 0       | |
+|    | ████████    |  | ████████    |  |         | |
+|    +-------------+  +-------------+  +---------+ |
+|                                                  |
+|    +------------------------------------------+  |
+|    | ICP Coverage Overview                   |  |
+|    | Total Market and high-fit distribution  |  |
+|    | +--------+ +------------------------+   |  |
+|    | |TAM $5.9B| | Bar chart + ICP donut |   |  |
+|    | +--------+ +------------------------+   |  |
+|    +------------------------------------------+  |
++--------------------------------------------------+
+```
+
+Features:
+- Glassmorphism cards with dark backgrounds
+- Mint green accents and chart bars
+- Mini bar charts in stat cards
+- ICP donut chart visualization
+- Floating card shadows
+- Perspective/tilt animations on hover
+
+---
+
+### File 3: `src/components/marketing/FeatureIllustration.tsx` (NEW)
+
+Create feature-specific illustrations:
+
 ```typescript
-if (event === 'SIGNED_OUT') {
-  authLogger.info('User signed out, redirecting to /landing');
-  window.location.href = '/landing';
+type IllustrationType = "icp-builder" | "tam-generator" | "crm-insights" | "enrichment";
+
+export function FeatureIllustration({ type }: { type: IllustrationType }) {
+  // Returns styled component matching the feature
+  // Uses primary/secondary colors
+  // Animated elements
 }
 ```
 
 ---
 
-### Change 2: Protected Route Redirect
+### File 4: Update `src/pages/Landing.tsx`
 
-**File:** `src/components/ProtectedRoute.tsx` (line 47)
+**Changes:**
+1. Pass `forceDark` to GradientBackground
+2. Add HeroDashboardMockup below hero CTA
+3. Add FeatureIllustration to feature cards
+4. Update pain points section with dashboard imagery
 
-**Current:**
 ```typescript
-if (!user) {
-  return <Navigate to="/auth" state={{ from: location }} replace />;
-}
+<GradientBackground variant="hero" showOrbs forceDark>
+  <main>
+    <MarketingNav />
+    
+    <MarketingHero ... >
+      {/* Add dashboard mockup as children */}
+      <HeroDashboardMockup className="mt-16" />
+    </MarketingHero>
+    
+    {/* Rest of sections... */}
+  </main>
+</GradientBackground>
 ```
 
-**Updated:**
+---
+
+### File 5: Update `src/pages/About.tsx`
+
+Add `forceDark` prop:
 ```typescript
-if (!user) {
-  return <Navigate to="/landing" state={{ from: location }} replace />;
-}
+<GradientBackground variant="hero" showOrbs forceDark>
 ```
 
 ---
 
-## Part 2: Demo Request Email Function
+### File 6: Update `src/pages/Product.tsx`
 
-### Step 1: Create Edge Function
-
-**New File:** `supabase/functions/demo-request/index.ts`
-
-This function will:
-- Accept demo request form data (name, email, company, subject, message)
-- Send notification email to `contact@launchpulse.io` via Resend
-- Send confirmation email to the requester
-- Return success/error response
-
-**Key features:**
-- Uses existing `RESEND_API_KEY` secret (already configured)
-- CORS headers for web access
-- No JWT verification (public form)
-- Proper error handling and logging
+1. Add `forceDark` prop
+2. Replace placeholder boxes with actual FeatureIllustration components
 
 ---
 
-### Step 2: Update Config
+### File 7: Update `src/pages/Pricing.tsx`
 
-**File:** `supabase/config.toml`
-
-Add entry for the new function:
-```toml
-[functions.demo-request]
-verify_jwt = false
-```
+Add `forceDark` prop
 
 ---
 
-### Step 3: Update Demo Request Form
+### File 8: Update `src/pages/Contact.tsx`
 
-**File:** `src/components/marketing/DemoRequestForm.tsx`
+Add `forceDark` prop
 
-**Current:** Logs to console and simulates API call
+---
 
-**Updated:**
-- Call the `demo-request` edge function via `supabase.functions.invoke`
-- Handle success/error responses properly
-- Show appropriate toast messages
+## Dashboard Mockup Design Details
+
+### Stat Cards (3 across the top)
+
+Each card:
+- Dark glass background (`bg-card/80`)
+- Subtle border (`border-border/50`)
+- Label (muted text)
+- Large number (white, bold)
+- Subtext (small, muted)
+- Mini bar chart (3-4 bars in primary color with varying heights)
+
+### ICP Coverage Section
+
+- Larger card spanning full width
+- Header with icon
+- Left side: TAM pill showing "$5.9B" with icon
+- Center: Bar chart with two series (accounts vs leads)
+- Right side: ICP donut chart with percentages
+
+### Animation
+
+- Cards have `floating-card` or `floating-card-left`/`floating-card-right` classes
+- Staggered fade-in animations
+- Subtle hover lift effects
 
 ---
 
@@ -103,63 +222,36 @@ verify_jwt = false
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/hooks/use-auth.tsx` | Modify | Change sign-out redirect to `/landing` |
-| `src/components/ProtectedRoute.tsx` | Modify | Change unauthenticated redirect to `/landing` |
-| `supabase/functions/demo-request/index.ts` | Create | Edge function to send demo request emails |
-| `supabase/config.toml` | Modify | Add demo-request function config |
-| `src/components/marketing/DemoRequestForm.tsx` | Modify | Connect form to edge function |
+| `src/components/ui/GradientBackground.tsx` | Modify | Add `forceDark` prop |
+| `src/components/marketing/HeroDashboardMockup.tsx` | Create | Hero section dashboard imagery |
+| `src/components/marketing/FeatureIllustration.tsx` | Create | Feature-specific illustrations |
+| `src/pages/Landing.tsx` | Modify | Add forceDark + dashboard mockup |
+| `src/pages/About.tsx` | Modify | Add forceDark |
+| `src/pages/Product.tsx` | Modify | Add forceDark + feature illustrations |
+| `src/pages/Pricing.tsx` | Modify | Add forceDark |
+| `src/pages/Contact.tsx` | Modify | Add forceDark |
+| `src/components/marketing/index.ts` | Modify | Export new components |
 
 ---
 
-## Email Content
+## Visual Outcome
 
-### Notification Email (to contact@launchpulse.io)
-
-**Subject:** New Demo Request from {name}
-
-**Body:**
-- Name
-- Email
-- Company (if provided)
-- Subject (if provided)
-- Message (if provided)
-- Timestamp
-
-### Confirmation Email (to requester)
-
-**Subject:** Thanks for your interest in LaunchPulse!
-
-**Body:**
-- Acknowledgment of receipt
-- Next steps (team will reach out within 24 hours)
-- Contact email for questions
-
----
-
-## User Flow After Implementation
-
-| Scenario | Current | New |
-|----------|---------|-----|
-| Visit `/` logged out | Redirect to `/auth` | Redirect to `/landing` |
-| Sign out | Redirect to `/auth` | Redirect to `/landing` |
-| Submit demo form | Console log only | Email to contact@launchpulse.io + confirmation to user |
-| Click "Sign In" in nav | Goes to `/auth` | Goes to `/auth` (unchanged) |
-
----
-
-## Dependencies
-
-- **RESEND_API_KEY** - Already configured
-- **Verified domain in Resend** - Emails will be sent from `noreply@launchpulse.io` (you'll need to verify this domain in Resend if not already done)
+After implementation:
+1. All marketing pages will have consistent dark backgrounds with teal gradient glows
+2. Hero section will show a floating dashboard mockup with realistic stats
+3. Feature sections will have proper illustrations instead of empty boxes
+4. The design will closely match the premium look of launchpulse.org
+5. Animations and hover effects will add polish
 
 ---
 
 ## Implementation Order
 
-1. Update redirect in `use-auth.tsx`
-2. Update redirect in `ProtectedRoute.tsx`
-3. Create `demo-request` edge function
-4. Update `config.toml` with function entry
-5. Update `DemoRequestForm.tsx` to call edge function
-6. Test end-to-end flow
+1. Update GradientBackground with forceDark prop
+2. Create HeroDashboardMockup component
+3. Create FeatureIllustration component
+4. Update Landing page with forceDark and dashboard mockup
+5. Update About, Product, Pricing, Contact pages with forceDark
+6. Update marketing/index.ts exports
+7. Visual testing and refinement
 
