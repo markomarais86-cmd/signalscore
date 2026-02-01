@@ -226,51 +226,20 @@ export function useGeographyData(orgId: string | undefined, enabled: boolean = t
   });
 }
 
-// Hook for source filter toggle stats - reads from useDashboardData cache to avoid duplicate RPC calls
+// Hook for source filter toggle stats - derives directly from dashboard data to avoid race conditions
 export function useSourceFilterStats(orgId: string | undefined) {
-  // Derive stats from the dashboard cache instead of making a duplicate RPC call
-  const { data: dashboardData } = useDashboardData(orgId, 'crm');
+  const { data: dashboardData, isLoading } = useDashboardData(orgId, 'crm');
   
-  return useQuery({
-    queryKey: ['source-filter-stats', orgId],
-    queryFn: async () => {
-      if (!orgId) throw new Error('No org ID provided');
-      
-      // If dashboard data is already cached, derive values from it
-      if (dashboardData?.metrics) {
-        // Fetch only TAM data - the metrics are already in cache
-        const { data: tamData } = await supabase
-          .from('external_data_sources')
-          .select('total_accounts')
-          .eq('org_id', orgId)
-          .eq('is_active', true)
-          .order('last_synced_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        
-        return {
-          crm: dashboardData.metrics.total_crm_accounts ?? dashboardData.metrics.total_accounts ?? 0,
-          database: Number(tamData?.total_accounts) || 0,
-        };
+  // Directly derive stats from loaded dashboard data - no separate query needed
+  const stats = dashboardData?.metrics 
+    ? {
+        crm: dashboardData.metrics.total_crm_accounts || dashboardData.metrics.total_accounts || 0,
+        database: dashboardData.tamData?.totalAccounts || 0,
       }
-      
-      // Fallback: fetch TAM data only, use 0 for CRM until dashboard loads
-      const { data: tamData } = await supabase
-        .from('external_data_sources')
-        .select('total_accounts')
-        .eq('org_id', orgId)
-        .eq('is_active', true)
-        .order('last_synced_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      return {
-        crm: 0,
-        database: Number(tamData?.total_accounts) || 0,
-      };
-    },
-    enabled: !!orgId,
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    gcTime: 10 * 60 * 1000,
-  });
+    : { crm: 0, database: 0 };
+  
+  return { 
+    data: stats, 
+    isLoading 
+  };
 }
