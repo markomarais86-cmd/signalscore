@@ -286,6 +286,25 @@ export function AuthSystem() {
                     </p>
                     <div className="flex flex-col gap-2">
                       <Button
+                        variant="default"
+                        className="w-full"
+                        onClick={async () => {
+                          setForgotPasswordLoading(true);
+                          await resetPassword(forgotPasswordEmail);
+                          setForgotPasswordLoading(false);
+                        }}
+                        disabled={forgotPasswordLoading}
+                      >
+                        {forgotPasswordLoading ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          "Resend link"
+                        )}
+                      </Button>
+                      <Button
                         variant="outline"
                         className="w-full"
                         onClick={() => {
