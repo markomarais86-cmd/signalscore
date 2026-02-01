@@ -53,7 +53,7 @@ export function MarketingHero({
       </h1>
 
       <p
-        className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto mb-10 animate-fade-in"
+        className="text-lg md:text-xl text-white/60 max-w-3xl mx-auto mb-10 animate-fade-in"
         style={{ animationDelay: "0.3s" }}
       >
         {subheadline}
@@ -95,7 +95,7 @@ export function MarketingHero({
 
       {footnote && (
         <p
-          className="text-sm text-muted-foreground mt-6 animate-fade-in"
+          className="text-sm text-white/50 mt-6 animate-fade-in"
           style={{ animationDelay: "0.5s" }}
         >
           {footnote}

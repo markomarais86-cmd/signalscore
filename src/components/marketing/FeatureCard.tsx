@@ -28,7 +28,7 @@ export function FeatureCard({ icon: Icon, iconUrl, title, description, delay = 0
         <CardTitle className="text-xl">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <CardDescription className="text-muted-foreground text-base leading-relaxed">
+        <CardDescription className="text-white/60 text-base leading-relaxed">
           {description}
         </CardDescription>
       </CardContent>
