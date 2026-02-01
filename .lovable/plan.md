@@ -1,135 +1,131 @@
 
+# Page-Specific Open Graph Images Plan
 
-# Meta Description Optimization Plan
+## Current State
 
-## Current State Analysis
+**What's working:**
+- The `SEOHead` component already supports an `ogImage` prop (line 7, defaults to `/og-image.png`)
+- A generic `og-image.png` exists in `/public/`
+- index.html uses an external image from Google Storage for OG/Twitter
 
-I've audited all 8 public pages and found the meta descriptions are functional but could be significantly improved for click-through rates (CTR). The main issues are:
-
-1. **Missing power words** that create urgency or curiosity
-2. **No clear value propositions** in some descriptions
-3. **Missing calls-to-action** that encourage clicks
-4. **Generic phrasing** that doesn't differentiate from competitors
-5. **Inconsistent character lengths** (optimal is 150-160 characters)
-
----
-
-## Current vs. Optimized Descriptions
-
-| Page | Current Description | Issues |
-|------|---------------------|--------|
-| **Homepage** (index.html) | "AI-Driven ICP and TAM Intelligence Platform. Transform your go-to-market strategy with precision targeting and lead scoring." | Generic, no urgency, no differentiator |
-| **Landing** | "Transform your go-to-market strategy with precision ICP targeting, TAM generation, and CRM insights..." | Similar to homepage, lacks hook |
-| **Product** | "Connect your CRM and transform raw activity into clear ICP, TAM, persona, and data-quality insights..." | Technical focus, no benefit-first messaging |
-| **Pricing** | "Platform subscription plus pay-as-you-go enrichment credits. Choose from Pilot, Professional, Growth, or Enterprise plans..." | Focuses on structure, not value |
-| **About** | "LaunchPulse makes GTM targeting measurable, explainable, and operational..." | No emotional hook |
-| **Contact** | "Ready to transform your GTM strategy? Contact us for a personalized demo..." | Good, could add specificity |
-| **Privacy** | "Learn how LaunchPulse collects, uses, and protects your data..." | Standard, appropriate for legal |
-| **Terms** | "Read the Terms of Service for LaunchPulse..." | Standard, appropriate for legal |
+**The problem:**
+- None of the 8 pages pass a custom `ogImage` prop to `SEOHead`
+- All pages fall back to the generic `/og-image.png`
+- When shared on social media, every page looks identical—missing an opportunity to customize messaging per page
 
 ---
 
-## Optimized Descriptions
+## Solution: Page-Specific OG Images
 
-### High-Priority Pages (Marketing)
+### Step 1: Create OG Image Assets
 
-**Homepage / Landing:**
-> "Stop guessing which accounts convert. LaunchPulse uses AI to analyze your CRM data and reveal your true ICP in under 24 hours. Request a free demo."
+You'll need to create 6 distinct OG images (1200x630px recommended) for your key pages. I recommend using a tool like Canva, Figma, or an OG image generator.
 
-**Why it works:**
-- Addresses pain point directly ("stop guessing")
-- Includes differentiator ("analyze your CRM data")
-- Time-based hook ("under 24 hours")
-- Clear CTA ("Request a free demo")
-- 155 characters
+**Suggested images to create:**
 
----
+| Page | Filename | Suggested Content |
+|------|----------|-------------------|
+| Landing/Home | `og-landing.png` | Logo + "AI-Powered ICP Intelligence" + dashboard preview |
+| Product | `og-product.png` | Logo + "See Why Deals Close" + feature icons |
+| Pricing | `og-pricing.png` | Logo + "Plans That Scale With You" + price tiers visual |
+| About | `og-about.png` | Logo + "Built for RevOps Leaders" + team/mission visual |
+| Contact | `og-contact.png` | Logo + "Let's Talk GTM" + contact illustration |
+| Generic | `og-default.png` | Logo + tagline (for legal pages, 404, etc.) |
 
-**Product:**
-> "See exactly why deals close and where pipeline leaks. LaunchPulse reveals ICP patterns, persona conversion rates, and data gaps your CRM is hiding."
-
-**Why it works:**
-- Outcome-focused ("see exactly why deals close")
-- Curiosity hook ("your CRM is hiding")
-- Features as benefits
-- 152 characters
+**Upload location:** `public/og/` (new folder)
 
 ---
 
-**Pricing:**
-> "No per-seat pricing. LaunchPulse plans start with a 90-day Pilot to prove ROI. Includes AI enrichment credits up to 85% cheaper than competitors."
+### Step 2: Update SEOHead Component
 
-**Why it works:**
-- Differentiator ("No per-seat pricing")
-- Risk reducer ("90-day Pilot to prove ROI")
-- Value hook ("85% cheaper")
-- 154 characters
+Enhance the component to construct full absolute URLs for OG images (social platforms require absolute URLs):
 
----
+**File:** `src/components/SEOHead.tsx`
 
-**About:**
-> "Built for RevOps and GTM leaders who are tired of targeting based on assumptions. LaunchPulse delivers evidence-based ICP clarity in days, not months."
-
-**Why it works:**
-- Speaks to audience directly ("RevOps and GTM leaders")
-- Pain point ("tired of assumptions")
-- Speed hook ("days, not months")
-- 156 characters
+```typescript
+// Add base URL constant and construct absolute OG image URL
+const baseUrl = "https://launchpulse.io";
+const absoluteOgImage = ogImage.startsWith("http") 
+  ? ogImage 
+  : `${baseUrl}${ogImage}`;
+```
 
 ---
 
-**Contact:**
-> "Book a personalized LaunchPulse demo in 30 seconds. Our team responds within 24 hours to show you exactly where your pipeline is leaking revenue."
+### Step 3: Add ogImage Prop to Each Page
 
-**Why it works:**
-- Low-friction CTA ("30 seconds")
-- Trust signal ("within 24 hours")
-- Curiosity hook ("leaking revenue")
-- 151 characters
+**Files to modify:**
 
----
-
-### Lower-Priority Pages (Legal)
-
-**Privacy Policy:**
-> "LaunchPulse Privacy Policy: How we protect your CRM and business data. GDPR-compliant practices for our ICP intelligence platform."
-
-**Terms of Service:**
-> "LaunchPulse Terms of Service: Your rights and responsibilities when using our AI-powered ICP and TAM intelligence platform."
+| File | ogImage Value |
+|------|---------------|
+| `src/pages/Landing.tsx` | `ogImage="/og/og-landing.png"` |
+| `src/pages/Product.tsx` | `ogImage="/og/og-product.png"` |
+| `src/pages/Pricing.tsx` | `ogImage="/og/og-pricing.png"` |
+| `src/pages/About.tsx` | `ogImage="/og/og-about.png"` |
+| `src/pages/Contact.tsx` | `ogImage="/og/og-contact.png"` |
+| `src/pages/PrivacyPolicy.tsx` | `ogImage="/og/og-default.png"` |
+| `src/pages/TermsOfService.tsx` | `ogImage="/og/og-default.png"` |
+| `src/pages/NotFound.tsx` | `ogImage="/og/og-default.png"` |
 
 ---
 
-## Implementation Details
+### Step 4: Update index.html Default
 
-### Files to Modify
+Update the fallback OG image in `index.html` to use the landing page image as the default for initial page loads:
 
-| File | Change |
+**File:** `index.html`
+
+```html
+<meta property="og:image" content="https://launchpulse.io/og/og-landing.png">
+<meta name="twitter:image" content="https://launchpulse.io/og/og-landing.png">
+```
+
+---
+
+## OG Image Best Practices
+
+For maximum social media impact, each image should:
+
+1. **Dimensions:** 1200x630px (optimal for LinkedIn, Facebook, Twitter)
+2. **File size:** Under 300KB for fast loading
+3. **Format:** PNG for graphics/text, JPG for photos
+4. **Safe zone:** Keep important content within center 60% (some platforms crop edges)
+5. **Brand consistency:** Use LaunchPulse colors, fonts, and logo
+6. **Text:** Large, readable headlines (max 5-6 words)
+7. **Contrast:** Dark background works well with your brand
+
+---
+
+## Summary of Changes
+
+| File | Action |
 |------|--------|
-| `index.html` | Update `<meta name="description">` and matching OG/Twitter descriptions |
-| `src/pages/Landing.tsx` | Update `SEOHead description` prop |
-| `src/pages/Product.tsx` | Update `SEOHead description` prop |
-| `src/pages/Pricing.tsx` | Update `SEOHead description` prop |
-| `src/pages/About.tsx` | Update `SEOHead description` prop |
-| `src/pages/Contact.tsx` | Update `SEOHead description` prop |
-| `src/pages/PrivacyPolicy.tsx` | Update `SEOHead description` prop |
-| `src/pages/TermsOfService.tsx` | Update `SEOHead description` prop |
-
----
-
-## SEO Best Practices Applied
-
-1. **Front-load keywords** - "LaunchPulse", "ICP", "CRM" appear early
-2. **Include power words** - "Stop", "Reveal", "Exactly", "Free"
-3. **Add numbers** - "24 hours", "85% cheaper", "30 seconds"
-4. **Use action verbs** - "Request", "Book", "See"
-5. **Create curiosity gaps** - "your CRM is hiding", "leaking revenue"
-6. **Stay within limits** - All descriptions are 150-160 characters
+| `public/og/` | Create new folder for OG images |
+| `public/og/*.png` | Upload 6 custom OG images (you create these) |
+| `src/components/SEOHead.tsx` | Construct absolute URLs for OG images |
+| `src/pages/Landing.tsx` | Add `ogImage` prop |
+| `src/pages/Product.tsx` | Add `ogImage` prop |
+| `src/pages/Pricing.tsx` | Add `ogImage` prop |
+| `src/pages/About.tsx` | Add `ogImage` prop |
+| `src/pages/Contact.tsx` | Add `ogImage` prop |
+| `src/pages/PrivacyPolicy.tsx` | Add `ogImage` prop |
+| `src/pages/TermsOfService.tsx` | Add `ogImage` prop |
+| `src/pages/NotFound.tsx` | Add `ogImage` prop |
+| `index.html` | Update default OG image URLs |
 
 ---
 
 ## Expected Impact
 
-- **Higher CTR** from search results (industry data shows optimized descriptions can improve CTR by 5-10%)
-- **Better brand differentiation** in competitive SERP listings
-- **Clearer value proposition** for users scanning results
+- **Better social CTR:** Page-specific images grab attention in feeds
+- **Clearer messaging:** Each share preview communicates page-specific value
+- **Professional appearance:** Consistent branded assets across all shares
+- **SEO benefit:** Proper OG tags improve social signal quality
 
+---
+
+## Next Steps After Approval
+
+1. I'll implement the code changes (SEOHead enhancement + page updates)
+2. You'll need to create and upload the 6 OG images to `public/og/`
+3. Test with Facebook Sharing Debugger and Twitter Card Validator
