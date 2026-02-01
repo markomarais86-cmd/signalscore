@@ -119,6 +119,7 @@ export default function Product() {
         title="LaunchPulse Product - ICP Builder & TAM Generator"
         description="See exactly why deals close and where pipeline leaks. LaunchPulse reveals ICP patterns, persona conversion rates, and data gaps your CRM is hiding."
         canonicalPath="/product"
+        ogImage="/og/og-product.png"
       />
       <main>
         <MarketingNav />

@@ -13,6 +13,7 @@ export default function PrivacyPolicy() {
         title="Privacy Policy - LaunchPulse"
         description="LaunchPulse Privacy Policy: How we protect your CRM and business data. GDPR-compliant practices for our ICP intelligence platform."
         canonicalPath="/privacy"
+        ogImage="/og/og-default.png"
       />
       <MarketingNav />
       <main className="min-h-screen">

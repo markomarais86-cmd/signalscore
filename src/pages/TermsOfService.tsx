@@ -13,6 +13,7 @@ export default function TermsOfService() {
         title="Terms of Service - LaunchPulse"
         description="LaunchPulse Terms of Service: Your rights and responsibilities when using our AI-powered ICP and TAM intelligence platform."
         canonicalPath="/terms"
+        ogImage="/og/og-default.png"
       />
       <MarketingNav />
       <main className="min-h-screen">

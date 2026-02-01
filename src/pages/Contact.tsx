@@ -12,6 +12,7 @@ export default function Contact() {
         title="Contact LaunchPulse - Request a Demo"
         description="Book a personalized LaunchPulse demo in 30 seconds. Our team responds within 24 hours to show you exactly where your pipeline is leaking revenue."
         canonicalPath="/contact"
+        ogImage="/og/og-contact.png"
       />
       <main>
         <MarketingNav />

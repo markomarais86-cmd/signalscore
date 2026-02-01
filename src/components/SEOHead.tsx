@@ -15,8 +15,13 @@ export function SEOHead({
   title,
   description,
   canonicalPath = "",
-  ogImage = "/og-image.png",
+  ogImage = "/og/og-default.png",
 }: SEOHeadProps) {
+  // Construct absolute URL for OG image (required by social platforms)
+  const baseUrl = "https://launchpulse.io";
+  const absoluteOgImage = ogImage.startsWith("http") 
+    ? ogImage 
+    : `${baseUrl}${ogImage}`;
   useEffect(() => {
     // Update document title
     document.title = title;
@@ -40,7 +45,7 @@ export function SEOHead({
 
     const ogImg = document.querySelector('meta[property="og:image"]');
     if (ogImg) {
-      ogImg.setAttribute("content", ogImage);
+      ogImg.setAttribute("content", absoluteOgImage);
     }
 
     // Update Twitter tags
@@ -56,7 +61,7 @@ export function SEOHead({
 
     const twitterImg = document.querySelector('meta[name="twitter:image"]');
     if (twitterImg) {
-      twitterImg.setAttribute("content", ogImage);
+      twitterImg.setAttribute("content", absoluteOgImage);
     }
 
     // Update canonical URL
