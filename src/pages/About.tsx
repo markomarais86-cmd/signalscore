@@ -157,8 +157,8 @@ export default function About() {
             
             {/* Centered content */}
             <div className="relative z-10 text-center max-w-2xl mx-auto">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4 text-black">
-                A precise, explainable GTM intelligence layer
+              <h2 className="text-3xl md:text-5xl font-bold mb-4 text-black italic">
+                A precise,<br />explainable GTM<br />intelligence layer
               </h2>
               <p className="text-lg text-black/70 mb-8">
                 If you want targeting clarity, ICP validation, and GTM diagnostics anchored to evidence—LaunchPulse is built for you.
