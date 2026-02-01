@@ -139,6 +139,28 @@ Deno.serve(async (req) => {
 
       console.log(`Sync completed successfully: ${totalProcessed} records processed`);
 
+      // Trigger background cache pre-warming for synced accounts
+      if (accountStats.processed > 0) {
+        console.log('🔥 Triggering background enrichment cache pre-warming...');
+        EdgeRuntime.waitUntil(
+          supabaseClient.functions.invoke('prewarm-enrichment-cache', {
+            body: {
+              org_id,
+              priority: 'high', // CRM accounts are high priority
+              max_records: Math.min(accountStats.processed, 500),
+            },
+          }).then(res => {
+            if (res.error) {
+              console.warn('⚠️ Pre-warm failed:', res.error.message);
+            } else {
+              console.log('✅ Pre-warm queued successfully');
+            }
+          }).catch(err => {
+            console.warn('⚠️ Pre-warm error:', err.message);
+          })
+        );
+      }
+
       return new Response(
         JSON.stringify({
           success: true,

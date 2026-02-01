@@ -398,3 +398,9 @@ verify_jwt = true
 
 [functions.demo-request]
 verify_jwt = false
+
+[functions.prewarm-enrichment-cache]
+verify_jwt = true
+
+[functions.scheduled-cache-refresh]
+verify_jwt = false
