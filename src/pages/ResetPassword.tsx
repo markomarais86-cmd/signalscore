@@ -22,14 +22,58 @@ export default function ResetPassword() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
+  // Define resetAction before useActionState hook (must be before any early returns)
+  const resetAction = async (prevState: FormState, formData: FormData): Promise<FormState> => {
+    const password = getFormValue(formData, 'password');
+    const confirmPassword = getFormValue(formData, 'confirmPassword');
+
+    if (password !== confirmPassword) {
+      return createErrorState("Passwords don't match. Please make sure both passwords are the same.");
+    }
+
+    if (password.length < 6) {
+      return createErrorState("Password must be at least 6 characters long.");
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      return createErrorState("Your reset link has expired. Please request a new password reset link.");
+    }
+
+    const { error } = await supabase.auth.updateUser({ password });
+
+    if (error) {
+      let friendlyMessage = error.message;
+      
+      if (error.message.includes('not right') || 
+          error.message.includes('invalid') ||
+          error.message.includes('expired')) {
+        friendlyMessage = "Your reset link has expired or is invalid. Please request a new password reset link.";
+      } else if (error.message.includes('same_password')) {
+        friendlyMessage = "New password must be different from your current password.";
+      }
+      
+      return createErrorState(friendlyMessage);
+    }
+
+    toast({
+      title: "Password updated",
+      description: "Your password has been updated successfully."
+    });
+    navigate("/");
+    return createFormState();
+  };
+
+  // All hooks must be called before any conditional returns
+  const [state, formAction, isPending] = useActionState(resetAction, initialFormState);
+
   useEffect(() => {
     let mounted = true;
     
-    // Check if URL has recovery token (from email link)
     const hasRecoveryToken = window.location.hash.includes('type=recovery') ||
                               window.location.hash.includes('access_token');
     
-    // Set up auth state listener FIRST - this catches the PASSWORD_RECOVERY event
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!mounted) return;
@@ -37,23 +81,18 @@ export default function ResetPassword() {
         console.log('Auth event:', event);
         
         if (event === 'PASSWORD_RECOVERY') {
-          // Token was valid - session is now active, mark as recovery flow
           setIsPasswordRecovery(true);
           setCheckingSession(false);
           setNoSession(false);
         } else if (event === 'SIGNED_IN' && session) {
-          // Already signed in
           setCheckingSession(false);
           setNoSession(false);
         }
       }
     );
     
-    // Then check for existing session
     const checkSession = async () => {
-      // If URL has recovery token, wait a bit for Supabase to process it
       if (hasRecoveryToken) {
-        // Give Supabase time to process the hash token
         await new Promise(resolve => setTimeout(resolve, 1500));
       }
       
@@ -62,13 +101,10 @@ export default function ResetPassword() {
       if (!mounted) return;
       
       if (session) {
-        // Session exists (either from recovery or existing login)
         setNoSession(false);
       } else if (!hasRecoveryToken) {
-        // No session AND no recovery token - user navigated directly
         setNoSession(true);
       }
-      // If hasRecoveryToken but no session yet, keep waiting for auth event
       
       setCheckingSession(false);
     };
@@ -81,12 +117,11 @@ export default function ResetPassword() {
     };
   }, []);
 
-  // Only redirect if logged in normally (not during password recovery)
+  // Conditional early returns are now safe - all hooks are already called
   if (user && !isPasswordRecovery) {
     return <Navigate to="/" replace />;
   }
 
-  // Show loading while checking session
   if (checkingSession) {
     return (
       <GradientBackground variant="auth" showOrbs={true}>
@@ -97,7 +132,6 @@ export default function ResetPassword() {
     );
   }
 
-  // Show helpful message if user navigated here directly
   if (noSession) {
     return (
       <GradientBackground variant="auth" showOrbs={true}>
@@ -141,52 +175,6 @@ export default function ResetPassword() {
       </GradientBackground>
     );
   }
-
-  const resetAction = async (prevState: FormState, formData: FormData): Promise<FormState> => {
-    const password = getFormValue(formData, 'password');
-    const confirmPassword = getFormValue(formData, 'confirmPassword');
-
-    if (password !== confirmPassword) {
-      return createErrorState("Passwords don't match. Please make sure both passwords are the same.");
-    }
-
-    if (password.length < 6) {
-      return createErrorState("Password must be at least 6 characters long.");
-    }
-
-    // Verify we have a valid session before attempting update
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      return createErrorState("Your reset link has expired. Please request a new password reset link.");
-    }
-
-    const { error } = await supabase.auth.updateUser({ password });
-
-    if (error) {
-      // Map cryptic Supabase errors to user-friendly messages
-      let friendlyMessage = error.message;
-      
-      if (error.message.includes('not right') || 
-          error.message.includes('invalid') ||
-          error.message.includes('expired')) {
-        friendlyMessage = "Your reset link has expired or is invalid. Please request a new password reset link.";
-      } else if (error.message.includes('same_password')) {
-        friendlyMessage = "New password must be different from your current password.";
-      }
-      
-      return createErrorState(friendlyMessage);
-    }
-
-    toast({
-      title: "Password updated",
-      description: "Your password has been updated successfully."
-    });
-    navigate("/");
-    return createFormState();
-  };
-
-  const [state, formAction, isPending] = useActionState(resetAction, initialFormState);
 
   return (
     <GradientBackground variant="auth" showOrbs={true}>
