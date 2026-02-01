@@ -89,7 +89,9 @@ export default function AdminDashboard() {
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
 
   useEffect(() => {
-    if (!rolesLoading && !isSuperAdmin) {
+    // Only redirect if roles have finished loading AND user is definitively not a super admin
+    // Don't redirect during loading states to prevent flickering after query invalidation
+    if (!rolesLoading && isSuperAdmin === false) {
       toast({
         title: 'Access Denied',
         description: 'You do not have permission to access this page.',
