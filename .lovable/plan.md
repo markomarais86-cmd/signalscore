@@ -1,107 +1,121 @@
 
-# Fix Password Reset Flow
+
+# Fix Password Reset Link Not Working
 
 ## Problem Summary
 
-The "Forgot password?" button is broken in two ways:
+The password reset flow breaks at step 3 - when clicking the link from the email:
 
-| Issue | Current Behavior | Expected Behavior |
-|-------|-----------------|-------------------|
-| 1. No email input | Button navigates directly to `/reset-password` | Should show email input form and send reset email |
-| 2. Auth session missing | Reset page shows error because no session exists | Session should come from clicking email link |
+| Step | Status | Issue |
+|------|--------|-------|
+| 1. Click "Forgot password?" | Works | Shows email input form |
+| 2. Enter email, get reset link | Works | Email is sent by Supabase |
+| 3. Click link in email | Broken | Page shows "Check Your Email" instead of password form |
 
 ## Root Cause
 
-The password reset flow is incomplete:
-- The `resetPassword()` function in `use-auth.tsx` exists and works correctly
-- BUT it's never called - the "Forgot password?" button just navigates away
-- Users land on `/reset-password` without a valid session from the email link
+When you click the reset link from your email, Supabase redirects you to `/reset-password` with a special token in the URL hash:
+
+```text
+https://www.launchpulse.io/reset-password#access_token=xxx&type=recovery
+```
+
+The current `ResetPassword.tsx` immediately checks for a session and shows the "no session" message before Supabase has a chance to process the token and create a session. This is a **race condition**.
+
+The app also doesn't listen for the `PASSWORD_RECOVERY` auth event from Supabase.
 
 ## Solution
 
-Create a proper two-step password reset flow:
-
-### Step 1: Add "Forgot Password" Request Form
-
-Create a new page or dialog where users enter their email to request a reset link.
-
-**Option A: Inline in Auth Page (Recommended)**
-- Add a "forgot password" mode to `AuthSystem.tsx`
-- When clicked, shows email input instead of login form
-- Calls `resetPassword(email)` and shows success message
-
-**Option B: Separate Page**
-- Create `/forgot-password` page with email input
-- Redirects back to `/auth` after sending email
-
-### Step 2: Fix Reset Password Page
-
 Update `ResetPassword.tsx` to:
-1. Better detect when session is missing (user navigated directly)
-2. Show helpful message: "Please check your email for the reset link"
-3. Provide "Back to login" button
+
+1. Wait for Supabase to process the URL hash token before checking session
+2. Listen for the `PASSWORD_RECOVERY` auth event
+3. Only show the "no session" message if:
+   - No recovery token in URL AND
+   - No session exists after waiting
 
 ---
 
 ## Implementation Details
 
-### Changes to `src/components/AuthSystem.tsx`
-
-Add a "forgot password" state that shows an email-only form:
-
-```typescript
-const [showForgotPassword, setShowForgotPassword] = useState(false);
-
-// In the forgot password view:
-<div className="space-y-4">
-  <p className="text-sm text-muted-foreground">
-    Enter your email and we'll send you a password reset link.
-  </p>
-  <Input
-    name="email"
-    type="email"
-    placeholder="you@company.com"
-  />
-  <Button onClick={() => resetPassword(email)}>
-    Send Reset Link
-  </Button>
-  <Button variant="ghost" onClick={() => setShowForgotPassword(false)}>
-    Back to Sign In
-  </Button>
-</div>
-```
-
 ### Changes to `src/pages/ResetPassword.tsx`
 
-Improve session detection and user guidance:
-
 ```typescript
-useEffect(() => {
-  const checkSession = async () => {
-    const { data: { session }, error } = await supabase.auth.getSession();
-    
-    if (!session) {
-      // User navigated here directly without email link
-      setNoSession(true);
-    }
-  };
-  checkSession();
-}, []);
+import { useActionState, useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
-// If no session, show helpful message instead of error
-if (noSession) {
-  return (
-    <Card>
-      <CardTitle>Check Your Email</CardTitle>
-      <p>To reset your password, you need to click the link we sent to your email.</p>
-      <p>Didn't receive an email? Go back and try again.</p>
-      <Button onClick={() => navigate('/auth')}>
-        Back to Login
-      </Button>
-    </Card>
-  );
+export default function ResetPassword() {
+  const [noSession, setNoSession] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+  
+  useEffect(() => {
+    let mounted = true;
+    
+    // Check if URL has recovery token (from email link)
+    const hasRecoveryToken = window.location.hash.includes('type=recovery') ||
+                              window.location.hash.includes('access_token');
+    
+    // Set up auth state listener FIRST - this catches the PASSWORD_RECOVERY event
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!mounted) return;
+        
+        console.log('Auth event:', event); // Debug
+        
+        if (event === 'PASSWORD_RECOVERY') {
+          // Token was valid - session is now active
+          setCheckingSession(false);
+          setNoSession(false);
+        } else if (event === 'SIGNED_IN' && session) {
+          // Already signed in
+          setCheckingSession(false);
+          setNoSession(false);
+        }
+      }
+    );
+    
+    // Then check for existing session
+    const checkSession = async () => {
+      // If URL has recovery token, wait a bit for Supabase to process it
+      if (hasRecoveryToken) {
+        // Give Supabase time to process the hash token
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!mounted) return;
+      
+      if (session) {
+        // Session exists (either from recovery or existing login)
+        setNoSession(false);
+      } else if (!hasRecoveryToken) {
+        // No session AND no recovery token - user navigated directly
+        setNoSession(true);
+      }
+      // If hasRecoveryToken but no session yet, keep waiting for auth event
+      
+      setCheckingSession(false);
+    };
+    
+    checkSession();
+    
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+  
+  // ... rest of component
 }
 ```
+
+### Key Changes
+
+1. **Detect recovery token in URL** - Check for `type=recovery` or `access_token` in hash
+2. **Listen for PASSWORD_RECOVERY event** - Supabase fires this when token is processed
+3. **Add delay for token processing** - Give Supabase time to exchange the token
+4. **Better logic for "no session"** - Only show error if no token AND no session
 
 ---
 
@@ -109,8 +123,7 @@ if (noSession) {
 
 | File | Changes |
 |------|---------|
-| `src/components/AuthSystem.tsx` | Add forgot password form with email input that calls `resetPassword()` |
-| `src/pages/ResetPassword.tsx` | Better handle missing session with helpful UX |
+| `src/pages/ResetPassword.tsx` | Add auth state listener for `PASSWORD_RECOVERY` event, detect URL token, add processing delay |
 
 ---
 
@@ -119,27 +132,31 @@ if (noSession) {
 ```text
 1. User on /auth clicks "Forgot password?"
    ↓
-2. Form changes to show email input
+2. Form shows email input
    ↓
 3. User enters email, clicks "Send Reset Link"
    ↓
-4. resetPassword() calls Supabase API
+4. Supabase sends email with reset link
    ↓
-5. Success message: "Check your email for reset link"
+5. User clicks link in email → lands on /reset-password#access_token=xxx&type=recovery
    ↓
-6. User clicks link in email → lands on /reset-password WITH session
+6. Page shows loading spinner while Supabase processes token
    ↓
-7. User enters new password → success!
+7. Supabase fires PASSWORD_RECOVERY event, session is created
+   ↓
+8. Password reset form appears
+   ↓
+9. User enters new password → success!
 ```
 
 ---
 
-## Supabase Configuration Check
+## Supabase Configuration Reminder
 
-The password reset email functionality uses Supabase's built-in auth emails. These should be working, but verify:
+Make sure these settings are correct in Supabase Dashboard (Authentication > URL Configuration):
 
-1. **Site URL** in Supabase dashboard should be set to `https://www.launchpulse.io`
-2. **Redirect URLs** should include `https://www.launchpulse.io/reset-password`
+| Setting | Value |
+|---------|-------|
+| Site URL | `https://www.launchpulse.io` |
+| Redirect URLs | Should include `https://www.launchpulse.io/reset-password` |
 
-If emails aren't being sent, these settings may need to be updated in:
-`Authentication > URL Configuration`
