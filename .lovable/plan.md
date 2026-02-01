@@ -1,110 +1,178 @@
 
+# Fix LaunchPulse AI 401 Unauthorized Errors
 
-# Add "Resend Password Link" Button
+## Problem Summary
 
-## Problem
+Multiple AI-related edge functions are returning **401 Unauthorized** errors:
+- `ai-memory/index.ts` → "Unauthorized"
+- `generate-icp-insights/index.ts` → "Invalid or expired token"
 
-After requesting a password reset, there's no way to resend the link to the same email address with a single click. The only options are:
-- **"Try another email"** → Clears the email field and shows the form again
-- **"Back to Sign In"** → Returns to login screen
+This is breaking the AI chatbot and all AI features in LaunchPulse.
 
-Users expect a "Resend" button that immediately sends another reset email to the same address.
+## Root Cause Analysis
 
-## Current State
+The issue stems from two problems:
 
-```text
-+--------------------------------+
-|    Check Your Email           |
-|                                |
-|  ✓ Reset link sent to...      |
-|                                |
-|  [Try another email]           |  ← Clears email, shows form
-|  [Back to Sign In]             |  ← Goes to login
-+--------------------------------+
-```
+1. **`verify_jwt = true` in config.toml doesn't work with Lovable Cloud**: This project uses ES256 token signing (Lovable Cloud), but the Supabase gateway's JWT verification doesn't properly handle ES256 tokens. When `verify_jwt = true`, valid tokens get rejected at the gateway level **before the code even runs**.
+
+2. **Using `getClaims()` instead of `getUser()`**: The shared auth module and `ai-memory` function use `supabase.auth.getClaims(token)` which can fail in certain edge cases. The more reliable method is `supabase.auth.getUser(token)` which performs server-side JWT validation.
+
+### Functions Affected
+
+The following AI functions have `verify_jwt = true` and will fail:
+
+| Function | Line in config.toml |
+|----------|---------------------|
+| `ai-chat` | 190 |
+| `ai-actions-router` | 193 |
+| `ai-actions-search` | 196 |
+| `ai-actions-analytics` | 199 |
+| `ai-actions-icp` | 202 |
+| `ai-actions-agents` | 205 |
+| `ai-orchestrator` | 208 |
+| `generate-icp-insights` | 55 |
+| `generate-proactive-insights` | 220 |
+| `generate-account-insights` | 226 |
+| `ask-account-ai` | 307 |
+
+The `ai-memory` function already has `verify_jwt = false` (line 211) but uses `getClaims()` which is failing.
 
 ## Solution
 
-Add a **"Resend link"** button that keeps the email and calls `resetPassword` again.
+### Part 1: Update `supabase/config.toml`
 
-```text
-+--------------------------------+
-|    Check Your Email           |
-|                                |
-|  ✓ Reset link sent to...      |
-|                                |
-|  [Resend link]                 |  ← NEW: Sends again
-|  [Try another email]           |
-|  [Back to Sign In]             |
-+--------------------------------+
+Set `verify_jwt = false` for all AI-related functions that are called from the frontend. This disables gateway-level verification, allowing the code's own authentication logic to run.
+
+**Functions to change from `verify_jwt = true` to `verify_jwt = false`:**
+- `ai-chat`
+- `ai-actions-router`
+- `ai-actions-search`
+- `ai-actions-analytics`
+- `ai-actions-icp`
+- `ai-actions-agents`
+- `ai-orchestrator`
+- `generate-icp-insights`
+- `generate-proactive-insights`
+- `generate-account-insights`
+- `ask-account-ai`
+
+### Part 2: Update `supabase/functions/_shared/auth.ts`
+
+Replace `getClaims(token)` with `getUser(token)` for more reliable JWT validation.
+
+**Before (lines 57-80):**
+```typescript
+// Validate JWT token using getClaims (recommended approach)
+const token = authHeader.replace('Bearer ', '');
+const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
+
+if (claimsError || !claimsData?.claims) {
+  console.error('[Auth] Token validation failed:', claimsError?.message);
+  return {
+    success: false,
+    error: 'Invalid or expired token',
+  };
+}
+
+const claims = claimsData.claims;
+
+return {
+  success: true,
+  user: {
+    id: claims.sub as string,
+    email: claims.email as string | undefined,
+    role: claims.role as string | undefined,
+  },
+  supabaseClient,
+};
 ```
 
-## Technical Changes
+**After:**
+```typescript
+// Validate JWT token using getUser for reliable server-side validation
+// CRITICAL: Must pass token explicitly when verify_jwt=false
+const token = authHeader.replace('Bearer ', '');
+const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
 
-### File: `src/components/AuthSystem.tsx`
+if (authError || !user) {
+  console.error('[Auth] Token validation failed:', authError?.message);
+  return {
+    success: false,
+    error: 'Invalid or expired token',
+  };
+}
 
-**Add "Resend link" button to the success state (around lines 287-297):**
-
-Before:
-```tsx
-<div className="flex flex-col gap-2">
-  <Button
-    variant="outline"
-    className="w-full"
-    onClick={() => {
-      setForgotPasswordSent(false);
-      setForgotPasswordEmail('');
-    }}
-  >
-    Try another email
-  </Button>
+return {
+  success: true,
+  user: {
+    id: user.id,
+    email: user.email,
+    role: user.role,
+  },
+  supabaseClient,
+};
 ```
 
-After:
-```tsx
-<div className="flex flex-col gap-2">
-  <Button
-    variant="default"
-    className="w-full"
-    onClick={async () => {
-      setForgotPasswordLoading(true);
-      await resetPassword(forgotPasswordEmail);
-      setForgotPasswordLoading(false);
-    }}
-    disabled={forgotPasswordLoading}
-  >
-    {forgotPasswordLoading ? (
-      <>
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        Sending...
-      </>
-    ) : (
-      "Resend link"
-    )}
-  </Button>
-  <Button
-    variant="outline"
-    className="w-full"
-    onClick={() => {
-      setForgotPasswordSent(false);
-      setForgotPasswordEmail('');
-    }}
-  >
-    Try another email
-  </Button>
+### Part 3: Update `supabase/functions/ai-memory/index.ts`
+
+Replace `getClaims(token)` with `getUser(token)`.
+
+**Before (lines 41-51):**
+```typescript
+const token = authHeader.replace('Bearer ', '');
+const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
+
+if (claimsError || !claimsData?.claims) {
+  return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    status: 401,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+const userId = claimsData.claims.sub as string;
 ```
 
-**Also need to add `Loader2` to imports (if not already imported).**
+**After:**
+```typescript
+const token = authHeader.replace('Bearer ', '');
+const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token);
+
+if (authError || !user) {
+  console.error('[ai-memory] Auth error:', authError?.message);
+  return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+    status: 401,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+const userId = user.id;
+```
 
 ## Files to Modify
 
-| File | Change |
-|------|--------|
-| `src/components/AuthSystem.tsx` | Add "Resend link" button with loading state before "Try another email" button |
+| File | Changes |
+|------|---------|
+| `supabase/config.toml` | Set `verify_jwt = false` for 11 AI functions |
+| `supabase/functions/_shared/auth.ts` | Replace `getClaims()` with `getUser()` |
+| `supabase/functions/ai-memory/index.ts` | Replace `getClaims()` with `getUser()` |
+
+## Why This Works
+
+- **`verify_jwt = false`**: Disables gateway-level JWT verification that doesn't support ES256 tokens (used by Lovable Cloud)
+- **`getUser(token)`**: Performs proper server-side JWT validation that handles all token types correctly
+- **Explicit token parameter**: Critical when `verify_jwt = false` — without passing the token explicitly, the auth check won't validate anything
 
 ## Expected Outcome
 
-- Users can click "Resend link" to send another password reset email to the same address
-- Button shows loading state while sending
-- Success/error toasts appear as usual from the `resetPassword` function
+After these changes:
+- All AI features will authenticate correctly
+- No more 401 "Unauthorized" or "Invalid or expired token" errors
+- The LaunchPulse AI chatbot will work as expected
+- Authentication will work reliably across all environments
 
+## Testing
+
+After implementation, test by:
+1. Opening the LaunchPulse AI chatbot
+2. Asking a question
+3. Verifying the response comes through without 401 errors
