@@ -109,19 +109,19 @@ const enrichmentSection = {
 
 const useCases = [
   {
-    icon: TrendingUp,
+    iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a568544cb17760d8d12f2_graph.svg",
     title: "RevOps",
     description:
       "Validate ICP/TAM assumptions, identify leakage points in your funnel, and build data-backed business cases for leadership.",
   },
   {
-    icon: Briefcase,
+    iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a568bd4d6d4b54f1e4315_pipeline.svg",
     title: "Sales Leadership",
     description:
       "See where your team's effort is misallocated, which segments have thin coverage, and where to focus for maximum impact.",
   },
   {
-    icon: DollarSign,
+    iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a5691bdbe3c4be51e5766_executives.svg",
     title: "Executives",
     description:
       "Get a clear diagnostic view of your market opportunity and where GTM execution is leaving revenue on the table.",
@@ -282,8 +282,8 @@ export default function Product() {
                 className="p-8 rounded-xl border border-white/10 bg-white/5 text-center animate-fade-in"
                 style={{ animationDelay: `${0.1 * index}s` }}
               >
-                <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20 mx-auto">
-                  <useCase.icon className="h-7 w-7 text-primary" />
+                <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20 mx-auto overflow-hidden">
+                  <img src={useCase.iconUrl} alt={useCase.title} className="w-8 h-8 object-contain" />
                 </div>
                 <h3 className="text-xl font-semibold mb-3">{useCase.title}</h3>
                 <p className="text-white/60">{useCase.description}</p>
@@ -292,21 +292,29 @@ export default function Product() {
           </div>
         </section>
 
-        {/* CTA Section - Left aligned matching original */}
-        <section className="container mx-auto px-6 py-24">
-          <div className="max-w-2xl">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              Ready to See<br /><span className="text-primary">Your Data</span> Differently?
-            </h2>
-            <p className="text-lg text-white/60 mb-8">
-              Connect your CRM and discover insights you've been missing.
-            </p>
-            <Link to="/contact">
-              <Button size="xl" variant="default" className="text-lg gap-2">
-                Request Demo
-                <DiagonalArrow />
-              </Button>
-            </Link>
+        {/* CTA Section - With Business Man Background */}
+        <section className="relative w-full overflow-hidden">
+          <img 
+            src="/images/Business_Man.webp"
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
+          <div className="relative container mx-auto px-6 py-32">
+            <div className="max-w-xl">
+              <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
+                Ready to See<br />Your Data Differently?
+              </h2>
+              <p className="text-lg text-white/80 mb-8">
+                Connect your CRM and discover insights you've been missing.
+              </p>
+              <Link to="/contact">
+                <Button size="xl" variant="default" className="text-lg gap-2">
+                  Request Demo
+                  <DiagonalArrow />
+                </Button>
+              </Link>
+            </div>
           </div>
         </section>
 
