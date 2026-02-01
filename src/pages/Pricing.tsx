@@ -1,20 +1,27 @@
+import { useState } from "react";
 import { GradientBackground } from "@/components/ui/GradientBackground";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MarketingNav, MarketingFooter, MarketingHero } from "@/components/marketing";
+import { MarketingNav, MarketingFooter, MarketingHero, DemoRequestForm } from "@/components/marketing";
 import {
   Check,
   Zap,
   HelpCircle,
 } from "lucide-react";
-import { Link } from "react-router-dom";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 function DiagonalArrow({ className }: { className?: string }) {
   return (
@@ -37,8 +44,8 @@ function DiagonalArrow({ className }: { className?: string }) {
 const platformPlans = [
   {
     name: "Pilot",
-    price: "£6,000",
-    period: "/ 90 days",
+    price: "90-Day",
+    period: "Validation",
     bestFor: "Validation & ROI proof",
     features: [
       "Up to 3,000 accounts",
@@ -54,8 +61,8 @@ const platformPlans = [
   },
   {
     name: "Professional",
-    price: "From £999",
-    period: "–£1,299 / mo",
+    price: "Monthly",
+    period: "Subscription",
     bestFor: "Core revenue teams",
     features: [
       "Up to 10,000 accounts",
@@ -66,13 +73,13 @@ const platformPlans = [
       "Up to 2 integrations",
       "1,000 credits / mo",
     ],
-    cta: "Request Demo",
+    cta: "Get Pricing",
     popular: true,
   },
   {
     name: "Growth",
-    price: "From £1,799",
-    period: "–£2,499 / mo",
+    price: "Monthly",
+    period: "Subscription",
     bestFor: "Scaling GTM teams",
     features: [
       "Up to 30,000 accounts",
@@ -89,7 +96,7 @@ const platformPlans = [
   {
     name: "Enterprise",
     price: "Custom",
-    period: "(£40K+ / yr)",
+    period: "Annual",
     bestFor: "Enterprise / PE",
     features: [
       "Unlimited accounts",
@@ -110,28 +117,24 @@ const creditPacks = [
     id: "starter",
     name: "Starter",
     credits: 200,
-    price: 79,
     popular: false,
   },
   {
     id: "growth",
     name: "Growth",
     credits: 1000,
-    price: 299,
     popular: true,
   },
   {
     id: "scale",
     name: "Scale",
     credits: 5000,
-    price: 1099,
     popular: false,
   },
   {
     id: "enterprise",
     name: "Enterprise",
     credits: 25000,
-    price: null,
     popular: false,
   },
 ];
@@ -179,6 +182,14 @@ const faqs = [
 ];
 
 export default function Pricing() {
+  const [pricingDialogOpen, setPricingDialogOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<string>("");
+
+  const handlePricingRequest = (planName: string) => {
+    setSelectedPlan(planName);
+    setPricingDialogOpen(true);
+  };
+
   return (
     <GradientBackground variant="hero" showOrbs forceDark>
       <main>
@@ -193,16 +204,16 @@ export default function Pricing() {
               <span className="text-white">Pricing</span>
             </>
           }
-          subheadline="Platform subscription + pay-as-you-go enrichment credits. No hidden fees, no long-term contracts."
+          subheadline="Platform subscription + pay-as-you-go enrichment credits. Request pricing tailored to your needs."
         />
 
         {/* Platform Plans */}
         <section className="container mx-auto px-6 py-12">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
               Platform Plans
             </h2>
-            <p className="text-lg text-white/70">
+            <p className="text-xl text-white/80 max-w-2xl mx-auto">
               SignalScore is priced based on data volume, intelligence depth, and business impact
             </p>
           </div>
@@ -223,7 +234,7 @@ export default function Pricing() {
                   <p className="text-sm text-primary">{plan.bestFor}</p>
                   <div className="mt-4">
                     <span className="text-3xl font-bold text-white">{plan.price}</span>
-                    <span className="text-sm text-white/50">{plan.period}</span>
+                    <span className="text-sm text-white/50 ml-1">{plan.period}</span>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -237,15 +248,14 @@ export default function Pricing() {
                       </li>
                     ))}
                   </ul>
-                  <Link to="/contact" className="block">
-                    <Button
-                      className="w-full"
-                      variant={plan.popular ? "glow" : "outline"}
-                      size="sm"
-                    >
-                      {plan.cta}
-                    </Button>
-                  </Link>
+                  <Button
+                    className="w-full"
+                    variant={plan.popular ? "glow" : "outline"}
+                    size="sm"
+                    onClick={() => handlePricingRequest(plan.name)}
+                  >
+                    {plan.cta}
+                  </Button>
                 </CardContent>
               </div>
             ))}
@@ -259,10 +269,10 @@ export default function Pricing() {
               <Zap className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium text-primary">Add-On</span>
             </div>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
               Additional Enrichment Capacity
             </h2>
-            <p className="text-lg text-white/70 max-w-2xl mx-auto">
+            <p className="text-xl text-white/80 max-w-2xl mx-auto">
               All plans include monthly credits. Extra capacity is available as needed.
             </p>
           </div>
@@ -279,16 +289,18 @@ export default function Pricing() {
                   </Badge>
                 )}
                 <CardContent className="pt-8 text-center">
-                  <h3 className="font-semibold mb-2 text-white">{pack.name}</h3>
-                  <div className="text-4xl font-bold text-primary mb-1">
+                  <h3 className="font-semibold text-lg mb-2 text-white">{pack.name}</h3>
+                  <div className="text-5xl font-bold text-primary mb-2">
                     {pack.credits.toLocaleString()}
                   </div>
-                  <p className="text-sm text-white/50 mb-4">credits</p>
-                  <div className="text-2xl font-bold mb-4 text-white">
-                    {pack.price ? `$${pack.price}` : "Custom"}
-                  </div>
-                  <Button variant="outline" size="sm" className="w-full">
-                    {pack.price ? "Add to Plan" : "Contact Sales"}
+                  <p className="text-base text-white/60 mb-6">credits</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={() => handlePricingRequest(`${pack.name} Credit Pack`)}
+                  >
+                    Get Pricing
                   </Button>
                 </CardContent>
               </div>
@@ -296,7 +308,7 @@ export default function Pricing() {
           </div>
 
           <div className="mt-12 text-center">
-            <p className="text-sm text-white/50">
+            <p className="text-base text-white/60">
               Credits are used for enrichment, verification, and AI research.
             </p>
           </div>
@@ -305,7 +317,7 @@ export default function Pricing() {
         {/* Feature Comparison */}
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
               Platform Capabilities
             </h2>
           </div>
@@ -315,17 +327,17 @@ export default function Pricing() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-white/10">
-                    <th className="text-left p-4 font-semibold text-white">Capability</th>
-                    <th className="text-center p-4 font-semibold text-white">Pilot</th>
-                    <th className="text-center p-4 font-semibold text-primary">Professional</th>
-                    <th className="text-center p-4 font-semibold text-white">Growth</th>
-                    <th className="text-center p-4 font-semibold text-white">Enterprise</th>
+                    <th className="text-left p-4 text-lg font-semibold text-white">Capability</th>
+                    <th className="text-center p-4 text-lg font-semibold text-white">Pilot</th>
+                    <th className="text-center p-4 text-lg font-semibold text-primary">Professional</th>
+                    <th className="text-center p-4 text-lg font-semibold text-white">Growth</th>
+                    <th className="text-center p-4 text-lg font-semibold text-white">Enterprise</th>
                   </tr>
                 </thead>
                 <tbody>
                   {featureComparison.map((row, index) => (
                     <tr key={index} className="border-b border-white/10 last:border-0">
-                      <td className="p-4 text-sm text-white">{row.feature}</td>
+                      <td className="p-4 text-base text-white">{row.feature}</td>
                       <td className="p-4 text-center">
                         {row.pilot ? (
                           <Check className="h-5 w-5 text-primary mx-auto" />
@@ -365,10 +377,10 @@ export default function Pricing() {
         {/* How It Works */}
         <section className="container mx-auto px-6 py-24">
           <div className="max-w-3xl mx-auto text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6 text-white">
+            <h2 className="text-4xl md:text-5xl font-bold mb-8 text-white">
               How SignalScore Pricing Works
             </h2>
-            <p className="text-lg text-white/70 mb-8">
+            <p className="text-xl text-white/80 mb-10">
               SignalScore is priced based on data volume, intelligence depth, and business impact — not user seats.
             </p>
             <div className="grid md:grid-cols-2 gap-6">
@@ -386,7 +398,7 @@ export default function Pricing() {
                 </div>
               ))}
             </div>
-            <p className="mt-8 text-white/50">
+            <p className="mt-8 text-white/60">
               Plans scale as your GTM complexity grows.
             </p>
           </div>
@@ -399,7 +411,7 @@ export default function Pricing() {
               <h3 className="text-2xl font-bold mb-4 text-white">
                 Pilot Conversion Guarantee
               </h3>
-              <p className="text-lg text-white/70">
+              <p className="text-lg text-white/80">
                 Pilot customers who convert within 90 days retain their negotiated pricing for their first annual term.
               </p>
             </div>
@@ -410,7 +422,7 @@ export default function Pricing() {
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-12">
             <HelpCircle className="h-10 w-10 text-primary mx-auto mb-4" />
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
               Frequently Asked Questions
             </h2>
           </div>
@@ -423,10 +435,10 @@ export default function Pricing() {
                   value={`item-${index}`}
                   className="bg-[#1F2227] border border-white/10 rounded-lg px-6"
                 >
-                  <AccordionTrigger className="text-left hover:no-underline">
+                  <AccordionTrigger className="text-left text-lg font-medium text-white hover:no-underline py-5">
                     {faq.question}
                   </AccordionTrigger>
-                  <AccordionContent className="text-white/60">
+                  <AccordionContent className="text-base text-white/80 pb-5">
                     {faq.answer}
                   </AccordionContent>
                 </AccordionItem>
@@ -451,17 +463,38 @@ export default function Pricing() {
               <p className="text-lg text-white/80 mb-8">
                 Schedule a demo and see how SignalScore can transform your GTM strategy.
               </p>
-              <Link to="/contact">
-                <Button size="xl" variant="default" className="text-lg gap-2">
-                  Request Demo
-                  <DiagonalArrow />
-                </Button>
-              </Link>
+              <Button 
+                size="xl" 
+                variant="default" 
+                className="text-lg gap-2"
+                onClick={() => handlePricingRequest("Demo Request")}
+              >
+                Request Demo
+                <DiagonalArrow />
+              </Button>
             </div>
           </div>
         </section>
 
         <MarketingFooter />
+
+        {/* Pricing Request Dialog */}
+        <Dialog open={pricingDialogOpen} onOpenChange={setPricingDialogOpen}>
+          <DialogContent className="sm:max-w-lg bg-[#1F2227] border-white/10">
+            <DialogHeader>
+              <DialogTitle className="text-2xl text-white">
+                Get {selectedPlan} Pricing
+              </DialogTitle>
+              <DialogDescription className="text-white/70">
+                Fill out the form below and we'll send you detailed pricing information.
+              </DialogDescription>
+            </DialogHeader>
+            <DemoRequestForm 
+              source={`pricing-${selectedPlan.toLowerCase().replace(/\s+/g, '-')}`} 
+              onSuccess={() => setPricingDialogOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
       </main>
     </GradientBackground>
   );
