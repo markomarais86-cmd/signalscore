@@ -1,55 +1,76 @@
 
-# Fix Marketing Navigation to Stay Fixed on Scroll
+# Fix Light Mode Background in Authenticated App
 
 ## The Problem
 
-The marketing navigation bar has `sticky top-0` but it's not staying fixed when scrolling. This is because the parent `GradientBackground` component has `overflow-hidden`, which breaks sticky positioning behavior in CSS.
+The authenticated dashboard (Layout) uses the `GradientBackground` component which was designed for marketing pages. This component applies `bg-black` in dark mode and `bg-white` in light mode, but the visual result shows a dark background even when the sidebar is in light mode.
+
+The issue is that `GradientBackground` is inappropriate for the authenticated app - it's designed for marketing pages with a specific dark aesthetic.
+
+---
 
 ## The Solution
 
-Change the navigation from `sticky` to `fixed` positioning, which works independently of parent overflow settings.
+Remove `GradientBackground` from the authenticated Layout and use the standard theme-aware background color (`bg-background`) instead. This will ensure the app respects the user's light/dark mode preference correctly.
+
+---
 
 ## Changes Required
 
-### File: `src/components/marketing/MarketingNav.tsx`
+### File: `src/components/Layout.tsx`
 
-**Current (line 22):**
-```tsx
-<header className="border-b border-white/10 bg-black sticky top-0 z-50">
-```
-
-**Change to:**
-```tsx
-<header className="border-b border-white/10 bg-black fixed top-0 left-0 right-0 z-50">
-```
-
-- `sticky` → `fixed` - Positions relative to viewport, not scroll container
-- Added `left-0 right-0` - Ensures full-width coverage
-
-### File: `src/components/marketing/MarketingNav.tsx`
-
-**Add a spacer div after the header to prevent content from being hidden behind the fixed nav:**
-
+**Current code (lines 23-68):**
 ```tsx
 return (
-  <>
-    <header className="border-b border-white/10 bg-black fixed top-0 left-0 right-0 z-50">
-      {/* ... existing nav content ... */}
-    </header>
-    {/* Spacer to account for fixed header height */}
-    <div className="h-16" />
-  </>
+  <SidebarProvider>
+    <GradientBackground variant="hero" showOrbs={true} className="!min-h-screen">
+      <div className="min-h-screen flex w-full">
+        {/* ... content ... */}
+      </div>
+    </GradientBackground>
+  </SidebarProvider>
 );
 ```
 
-The `h-16` spacer matches the `h-16` height of the header, so content flows naturally below the fixed navigation.
+**New code:**
+```tsx
+return (
+  <SidebarProvider>
+    <div className="min-h-screen flex w-full bg-background">
+      <AppSidebar />
+      <main className="flex-1 flex flex-col">
+        {/* ... existing content unchanged ... */}
+      </main>
+      <AIChat />
+      <GlobalCommandPalette />
+      <CampaignBuilderV2 ... />
+    </div>
+  </SidebarProvider>
+);
+```
 
-## Result
+**Key changes:**
+1. Remove the `GradientBackground` wrapper component
+2. Remove the import for `GradientBackground`
+3. Add `bg-background` to the main container div - this uses the theme-aware CSS variable that's white in light mode and black in dark mode
 
-The navigation bar will remain locked at the top of the screen on all marketing pages (Landing, About, Product, Pricing) as users scroll up and down. The logo, navigation links (Home, About, Product, Pricing), Sign In button, and Request Demo button will always be visible.
+---
+
+## Visual Result
+
+| Mode | Before | After |
+|------|--------|-------|
+| Light | Black background (incorrect) | White background (correct) |
+| Dark | Black background | Black background |
+
+The sidebar and main content area will now both respect the user's theme preference correctly.
+
+---
 
 ## Technical Note
 
-- `fixed` positioning is relative to the viewport, ignoring parent `overflow` properties
-- `sticky` positioning depends on scroll context and can be broken by ancestor `overflow` rules
-- No changes needed to individual pages - the fix is contained within the shared nav component
+The `bg-background` class uses the CSS variable `--background` defined in `index.css`:
+- Light mode: `--background: 0 0% 100%` (white)
+- Dark mode: `--background: 0 0% 0%` (black)
+
+This is the standard Tailwind/shadcn approach for theme-aware backgrounds.
