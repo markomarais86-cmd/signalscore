@@ -96,21 +96,29 @@ export default function Landing() {
             </div>
             
             {/* Right side - Images */}
-            <div className="relative hidden lg:block h-[400px]">
-              <img 
-                src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695055dccf22527a26df6e62_icp-01.svg"
-                alt="ICP Chart"
-                className="absolute left-0 top-0 w-96"
-              />
-              <img 
-                src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/694e6fd27d17f86e6ce24884_total-01.svg"
-                alt="Revenue Stats"
-                className="absolute right-0 bottom-0 w-72"
-              />
+            <div className="relative lg:block h-[400px]">
+              {/* Background shape */}
               <img 
                 src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695012c6ca938bbd9d2d6114_bg_Grey.webp"
                 alt=""
-                className="absolute inset-0 w-full h-full object-cover opacity-30 -z-10"
+                className="absolute inset-0 w-full h-full object-cover opacity-30"
+                loading="lazy"
+              />
+              {/* ICP Chart - larger, positioned left */}
+              <img 
+                src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695055dccf22527a26df6e62_icp-01.svg"
+                alt="ICP Chart"
+                className="absolute left-0 top-0 w-[400px]"
+                loading="lazy"
+                width="400"
+              />
+              {/* Revenue Stats - bottom right */}
+              <img 
+                src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/694e6fd27d17f86e6ce24884_total-01.svg"
+                alt="Revenue Stats"
+                className="absolute right-0 bottom-0 w-[280px]"
+                loading="lazy"
+                width="280"
               />
             </div>
           </div>
