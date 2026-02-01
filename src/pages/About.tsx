@@ -2,6 +2,7 @@ import { GradientBackground } from "@/components/ui/GradientBackground";
 import { Button } from "@/components/ui/button";
 import { MarketingNav, MarketingFooter, MarketingHero } from "@/components/marketing";
 import { Link } from "react-router-dom";
+import { Search, BarChart3, ArrowUpCircle, Rocket, type LucideIcon } from "lucide-react";
 
 // Diagonal arrow SVG matching original launchpulse.org
 function DiagonalArrow({ className }: { className?: string }) {
@@ -22,30 +23,34 @@ function DiagonalArrow({ className }: { className?: string }) {
   );
 }
 
-const differentiators = [
+const differentiators: { icon: LucideIcon; title: string; subtitle: string; description: string }[] = [
   {
-    iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a554e5c773e8c22e066f0_icp-01.svg",
+    icon: Search,
     title: "Evidence-Based ICP",
+    subtitle: "(not opinion-based targeting)",
     description:
-      "Not opinion-based targeting. LaunchPulse defines your ICP using actual conversion patterns from your CRM data, eliminating guesswork.",
+      "LaunchPulse derives ICP from actual CRM conversion patterns, highlighting the attributes and personas that consistently produce pipeline yield.",
   },
   {
-    iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a54af3f87402c43ea5404_insight-01.svg",
+    icon: BarChart3,
     title: "Explainable Diagnostics",
+    subtitle: "(not opaque scoring)",
     description:
-      "Not opaque scoring. Every insight comes with clear reasoning and recommendations you can act on immediately.",
+      "Every output is traceable—so RevOps and Sales Leadership can understand why accounts rank, where leakage occurs, and what to fix.",
   },
   {
-    iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a53d52131b4d6c510ffb2_up-01.svg",
+    icon: ArrowUpCircle,
     title: "Stack-Enhancing by Design",
+    subtitle: "(not a rip-and-replace platform)",
     description:
-      "Not a rip-and-replace platform. LaunchPulse integrates with your existing CRM and data sources to maximize ROI.",
+      "LaunchPulse plugs into Salesforce/HubSpot and enrichment sources to make the systems you already pay for materially smarter.",
   },
   {
-    iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a547a83395e9e16030b72_launch.svg",
+    icon: Rocket,
     title: "Fast Time-to-Value",
+    subtitle: "(without heavy implementation)",
     description:
-      "Without heavy implementation. Connect your CRM and start seeing insights within hours, not months.",
+      "Deploy quickly, get clarity fast, and operationalise insights immediately—without months of integration work or reporting rebuilds.",
   },
 ];
 
@@ -74,33 +79,38 @@ export default function About() {
               The <span className="text-primary">LaunchPulse</span> Difference
             </h2>
             <p className="text-xl text-white/60 max-w-2xl mx-auto">
-              Built for revenue teams who demand precision and transparency
+              What makes LaunchPulse different in practice
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            {differentiators.map((item, index) => (
-              <div
-                key={index}
-                className="relative p-8 rounded-xl border border-white/10 overflow-hidden animate-fade-in"
-                style={{ animationDelay: `${0.1 * index}s` }}
-              >
-                <img 
-                  src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a4cf6a9a77e800b6242c1_about-card-2.png"
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover opacity-30"
-                />
-                <div className="relative z-10">
-                  <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20 overflow-hidden">
-                    <img src={item.iconUrl} alt={item.title} className="w-8 h-8 object-contain" />
+            {differentiators.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <div
+                  key={index}
+                  className="relative p-8 rounded-xl border border-white/10 overflow-hidden animate-fade-in"
+                  style={{ animationDelay: `${0.1 * index}s` }}
+                >
+                  <img 
+                    src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a4cf6a9a77e800b6242c1_about-card-2.png"
+                    alt=""
+                    className="absolute inset-0 w-full h-full object-cover opacity-30"
+                  />
+                  <div className="relative z-10">
+                    <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20">
+                      <Icon className="h-7 w-7 text-primary" />
+                    </div>
+                    <h3 className="text-xl font-semibold mb-1">
+                      {item.title} <span className="text-white/50 font-normal">{item.subtitle}</span>
+                    </h3>
+                    <p className="text-white/70 leading-relaxed">
+                      {item.description}
+                    </p>
                   </div>
-                  <h3 className="text-xl font-semibold mb-3">{item.title}</h3>
-                  <p className="text-white/70 leading-relaxed">
-                    {item.description}
-                  </p>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
