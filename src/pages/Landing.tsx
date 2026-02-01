@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { GradientBackground } from "@/components/ui/GradientBackground";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { Link } from "react-router-dom";
-import { Target, BarChart3, Users, Zap } from "lucide-react";
+import { Target, BarChart3, Users, Zap, Shield, Clock, TrendingUp } from "lucide-react";
 import {
   MarketingNav,
   MarketingFooter,
@@ -30,6 +30,13 @@ function DiagonalArrow({ className }: { className?: string }) {
     </svg>
   );
 }
+
+// Trust stats for social proof
+const trustStats = [
+  { value: "14,000+", label: "Accounts Scored" },
+  { value: "99%", label: "Data Accuracy" },
+  { value: "<24hr", label: "Time to Insights" },
+];
 
 const features = [
   {
@@ -84,8 +91,20 @@ export default function Landing() {
           subheadline="LaunchPulse pinpoints your highest-converting customer profile, validates ICP alignment inside your CRM, and exposes where pipeline yield is being constrained by data quality, persona coverage, or segment misfit."
           primaryCta={{ label: "Request Demo", href: "/contact" }}
         >
+          {/* Trust Stats Bar */}
+          <ScrollReveal animation="fade-up" delay={0.1}>
+            <div className="flex flex-wrap justify-center gap-8 mt-8 mb-8">
+              {trustStats.map((stat, index) => (
+                <div key={index} className="text-center">
+                  <div className="text-2xl md:text-3xl font-bold text-primary">{stat.value}</div>
+                  <div className="text-sm text-white/50">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+          </ScrollReveal>
+          
           <ScrollReveal animation="scale" delay={0.2}>
-            <HeroDashboardMockup className="mt-16" />
+            <HeroDashboardMockup className="mt-8" />
           </ScrollReveal>
         </MarketingHero>
 
@@ -165,6 +184,26 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* Trust Badges Section */}
+        <section className="container mx-auto px-6 py-12">
+          <ScrollReveal animation="fade-up">
+            <div className="flex flex-wrap justify-center items-center gap-8 text-white/40">
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                <span className="text-sm">SOC 2 Compliant</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                <span className="text-sm">24hr Onboarding</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                <span className="text-sm">99.9% Uptime</span>
+              </div>
+            </div>
+          </ScrollReveal>
+        </section>
+
         {/* CTA Section - With Business Man Background */}
         <ScrollReveal animation="fade-up">
           <section className="relative w-full overflow-hidden">
@@ -176,6 +215,13 @@ export default function Landing() {
             <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
             <div className="relative container mx-auto px-6 py-32">
               <div className="max-w-xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 border border-primary/30 mb-6">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                  </span>
+                  <span className="text-sm text-primary font-medium">Limited Early Access Spots</span>
+                </div>
                 <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
                   Request Early<br />Access
                 </h2>
@@ -183,7 +229,7 @@ export default function Landing() {
                   Get a fast, explainable view of: who converts, who you should target next, and what's blocking yield today. Request early access to see LaunchPulse mapped against your CRM reality.
                 </p>
                 <Link to="/contact">
-                  <Button variant="default" size="xl" className="text-lg gap-2">
+                  <Button variant="glow" size="xl" className="text-lg gap-2">
                     Request Demo
                     <DiagonalArrow />
                   </Button>
