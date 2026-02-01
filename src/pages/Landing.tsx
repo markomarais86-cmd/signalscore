@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { GradientBackground } from "@/components/ui/GradientBackground";
+import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { Link } from "react-router-dom";
 import { Target, BarChart3, Users, Zap } from "lucide-react";
 import {
@@ -83,7 +84,9 @@ export default function Landing() {
           subheadline="LaunchPulse pinpoints your highest-converting customer profile, validates ICP alignment inside your CRM, and exposes where pipeline yield is being constrained by data quality, persona coverage, or segment misfit."
           primaryCta={{ label: "Request Demo", href: "/contact" }}
         >
-          <HeroDashboardMockup className="mt-16" />
+          <ScrollReveal animation="scale" delay={0.2}>
+            <HeroDashboardMockup className="mt-16" />
+          </ScrollReveal>
         </MarketingHero>
 
         {/* Pain Points Section - 2 column layout matching original */}
@@ -91,13 +94,17 @@ export default function Landing() {
           <div className="grid lg:grid-cols-2 gap-16 items-center max-w-6xl mx-auto">
             {/* Left side - Text content */}
             <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-8 text-white">
-                Why GTM Teams<br />
-                <span className="text-white/50">performance stalls even when activity is high:</span>
-              </h2>
+              <ScrollReveal animation="fade-up">
+                <h2 className="text-3xl md:text-4xl font-bold mb-8 text-white">
+                  Why GTM Teams<br />
+                  <span className="text-white/50">performance stalls even when activity is high:</span>
+                </h2>
+              </ScrollReveal>
               <div className="space-y-5">
                 {painPoints.map((point, index) => (
-                  <PainPointCard key={index} text={point} delay={0.1 * index} />
+                  <ScrollReveal key={index} animation="fade-right" delay={0.1 * index}>
+                    <PainPointCard text={point} delay={0} />
+                  </ScrollReveal>
                 ))}
               </div>
             </div>
@@ -112,70 +119,79 @@ export default function Landing() {
                 loading="lazy"
               />
               {/* ICP Chart - larger, positioned left */}
-              <img 
-                src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695055dccf22527a26df6e62_icp-01.svg"
-                alt="ICP Chart"
-                className="absolute left-0 top-0 w-[400px]"
-                loading="lazy"
-                width="400"
-              />
+              <ScrollReveal animation="fade-left" delay={0.2}>
+                <img 
+                  src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695055dccf22527a26df6e62_icp-01.svg"
+                  alt="ICP Chart"
+                  className="absolute left-0 top-0 w-[400px] animate-float-gentle"
+                  loading="lazy"
+                  width="400"
+                />
+              </ScrollReveal>
               {/* Revenue Stats - bottom right */}
-              <img 
-                src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/694e6fd27d17f86e6ce24884_total-01.svg"
-                alt="Revenue Stats"
-                className="absolute right-0 bottom-0 w-[280px]"
-                loading="lazy"
-                width="280"
-              />
+              <ScrollReveal animation="fade-up" delay={0.4}>
+                <img 
+                  src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/694e6fd27d17f86e6ce24884_total-01.svg"
+                  alt="Revenue Stats"
+                  className="absolute right-0 bottom-0 w-[280px] animate-float-gentle-delayed"
+                  loading="lazy"
+                  width="280"
+                />
+              </ScrollReveal>
             </div>
           </div>
         </section>
 
         {/* Features Section */}
         <section className="container mx-auto px-6 py-24">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-white">
-              What LaunchPulse Delivers
-            </h2>
-          </div>
+          <ScrollReveal animation="fade-up">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl md:text-5xl font-bold mb-4 text-white">
+                What LaunchPulse Delivers
+              </h2>
+            </div>
+          </ScrollReveal>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
             {features.map((feature, index) => (
-              <FeatureCard
-                key={index}
-                icon={feature.icon}
-                title={feature.title}
-                description={feature.description}
-                delay={0.1 * index}
-              />
+              <ScrollReveal key={index} animation="fade-up" delay={0.1 * index}>
+                <FeatureCard
+                  icon={feature.icon}
+                  title={feature.title}
+                  description={feature.description}
+                  delay={0}
+                />
+              </ScrollReveal>
             ))}
           </div>
         </section>
 
         {/* CTA Section - With Business Man Background */}
-        <section className="relative w-full overflow-hidden">
-          <img 
-            src="/images/Business_Man.webp"
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
-          <div className="relative container mx-auto px-6 py-32">
-            <div className="max-w-xl">
-              <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
-                Request Early<br />Access
-              </h2>
-              <p className="text-lg text-white/80 mb-8">
-                Get a fast, explainable view of: who converts, who you should target next, and what's blocking yield today. Request early access to see LaunchPulse mapped against your CRM reality.
-              </p>
-              <Link to="/contact">
-                <Button variant="default" size="xl" className="text-lg gap-2">
-                  Request Demo
-                  <DiagonalArrow />
-                </Button>
-              </Link>
+        <ScrollReveal animation="fade-up">
+          <section className="relative w-full overflow-hidden">
+            <img 
+              src="/images/Business_Man.webp"
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
+            <div className="relative container mx-auto px-6 py-32">
+              <div className="max-w-xl">
+                <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
+                  Request Early<br />Access
+                </h2>
+                <p className="text-lg text-white/80 mb-8">
+                  Get a fast, explainable view of: who converts, who you should target next, and what's blocking yield today. Request early access to see LaunchPulse mapped against your CRM reality.
+                </p>
+                <Link to="/contact">
+                  <Button variant="default" size="xl" className="text-lg gap-2">
+                    Request Demo
+                    <DiagonalArrow />
+                  </Button>
+                </Link>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </ScrollReveal>
 
         <MarketingFooter />
       </main>

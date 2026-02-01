@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { GradientBackground } from "@/components/ui/GradientBackground";
+import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -209,101 +210,107 @@ export default function Pricing() {
 
         {/* Platform Plans */}
         <section className="container mx-auto px-6 py-12">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
-              Platform Plans
-            </h2>
-            <p className="text-xl text-white/80 max-w-2xl mx-auto">
-              SignalScore is priced based on data volume, intelligence depth, and business impact
-            </p>
-          </div>
+          <ScrollReveal animation="fade-up">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
+                Platform Plans
+              </h2>
+              <p className="text-xl text-white/80 max-w-2xl mx-auto">
+                SignalScore is priced based on data volume, intelligence depth, and business impact
+              </p>
+            </div>
+          </ScrollReveal>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
             {platformPlans.map((plan, index) => (
-              <div
-                key={index}
-                className={`relative rounded-xl border border-white/10 bg-[#1F2227] transition-all duration-300 hover:-translate-y-1 ${plan.popular ? "border-primary/30" : ""}`}
-              >
-                {plan.popular && (
-                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
-                    Most Popular
-                  </Badge>
-                )}
-                <CardHeader className="pt-8 pb-4">
-                  <CardTitle className="text-xl !text-white">{plan.name}</CardTitle>
-                  <p className="text-sm text-primary">{plan.bestFor}</p>
-                  <div className="mt-4">
-                    <span className="text-3xl font-bold text-white">{plan.price}</span>
-                    <span className="text-sm text-white/50 ml-1">{plan.period}</span>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <ul className="space-y-2">
-                    {plan.features.map((feature, idx) => (
-                      <li key={idx} className="flex items-start gap-2">
-                        <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Check className="h-2.5 w-2.5 text-primary" />
-                        </div>
-                        <span className="text-sm text-white/80">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Button
-                    className="w-full text-white"
-                    variant={plan.popular ? "glow" : "outline"}
-                    size="sm"
-                    onClick={() => handlePricingRequest(plan.name)}
-                  >
-                    {plan.cta}
-                  </Button>
-                </CardContent>
-              </div>
+              <ScrollReveal key={index} animation="fade-up" delay={0.1 * index}>
+                <div
+                  className={`relative rounded-xl border border-white/10 bg-[#1F2227] transition-all duration-300 hover:-translate-y-1 h-full ${plan.popular ? "border-primary/30" : ""}`}
+                >
+                  {plan.popular && (
+                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
+                      Most Popular
+                    </Badge>
+                  )}
+                  <CardHeader className="pt-8 pb-4">
+                    <CardTitle className="text-xl !text-white">{plan.name}</CardTitle>
+                    <p className="text-sm text-primary">{plan.bestFor}</p>
+                    <div className="mt-4">
+                      <span className="text-3xl font-bold text-white">{plan.price}</span>
+                      <span className="text-sm text-white/50 ml-1">{plan.period}</span>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <ul className="space-y-2">
+                      {plan.features.map((feature, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <Check className="h-2.5 w-2.5 text-primary" />
+                          </div>
+                          <span className="text-sm text-white/80">{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <Button
+                      className="w-full text-white"
+                      variant={plan.popular ? "glow" : "outline"}
+                      size="sm"
+                      onClick={() => handlePricingRequest(plan.name)}
+                    >
+                      {plan.cta}
+                    </Button>
+                  </CardContent>
+                </div>
+              </ScrollReveal>
             ))}
           </div>
         </section>
 
         {/* Enrichment Credits */}
         <section className="container mx-auto px-6 py-24">
-          <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
-              <Zap className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium text-primary">Add-On</span>
+          <ScrollReveal animation="fade-up">
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
+                <Zap className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium text-primary">Add-On</span>
+              </div>
+              <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
+                Additional Enrichment Capacity
+              </h2>
+              <p className="text-xl text-white/80 max-w-2xl mx-auto">
+                All plans include monthly credits. Extra capacity is available as needed.
+              </p>
             </div>
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
-              Additional Enrichment Capacity
-            </h2>
-            <p className="text-xl text-white/80 max-w-2xl mx-auto">
-              All plans include monthly credits. Extra capacity is available as needed.
-            </p>
-          </div>
+          </ScrollReveal>
 
           <div className="grid md:grid-cols-4 gap-6 max-w-5xl mx-auto">
             {creditPacks.map((pack, index) => (
-              <div
-                key={index}
-                className={`relative rounded-xl border border-white/10 bg-[#1F2227] transition-all duration-300 hover:-translate-y-1 ${pack.popular ? "border-primary/50" : ""}`}
-              >
-                {pack.popular && (
-                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
-                    Popular
-                  </Badge>
-                )}
-                <CardContent className="pt-8 text-center">
-                  <h3 className="font-semibold text-lg mb-2 text-white">{pack.name}</h3>
-                  <div className="text-5xl font-bold text-primary mb-2">
-                    {pack.credits.toLocaleString()}
-                  </div>
-                  <p className="text-base text-white/60 mb-6">credits</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full text-white"
-                    onClick={() => handlePricingRequest(`${pack.name} Credit Pack`)}
-                  >
-                    Get Pricing
-                  </Button>
-                </CardContent>
-              </div>
+              <ScrollReveal key={index} animation="fade-up" delay={0.1 * index}>
+                <div
+                  className={`relative rounded-xl border border-white/10 bg-[#1F2227] transition-all duration-300 hover:-translate-y-1 h-full ${pack.popular ? "border-primary/50" : ""}`}
+                >
+                  {pack.popular && (
+                    <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
+                      Popular
+                    </Badge>
+                  )}
+                  <CardContent className="pt-8 text-center">
+                    <h3 className="font-semibold text-lg mb-2 text-white">{pack.name}</h3>
+                    <div className="text-5xl font-bold text-primary mb-2">
+                      {pack.credits.toLocaleString()}
+                    </div>
+                    <p className="text-base text-white/60 mb-6">credits</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full text-white"
+                      onClick={() => handlePricingRequest(`${pack.name} Credit Pack`)}
+                    >
+                      Get Pricing
+                    </Button>
+                  </CardContent>
+                </div>
+              </ScrollReveal>
             ))}
           </div>
 
@@ -316,151 +323,164 @@ export default function Pricing() {
 
         {/* Feature Comparison */}
         <section className="container mx-auto px-6 py-24">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
-              Platform Capabilities
-            </h2>
-          </div>
-
-          <div className="max-w-5xl mx-auto overflow-hidden rounded-xl border border-white/10 bg-[#1F2227]">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="text-left p-4 text-lg font-semibold text-white">Capability</th>
-                    <th className="text-center p-4 text-lg font-semibold text-white">Pilot</th>
-                    <th className="text-center p-4 text-lg font-semibold text-primary">Professional</th>
-                    <th className="text-center p-4 text-lg font-semibold text-white">Growth</th>
-                    <th className="text-center p-4 text-lg font-semibold text-white">Enterprise</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {featureComparison.map((row, index) => (
-                    <tr key={index} className="border-b border-white/10 last:border-0">
-                      <td className="p-4 text-base text-white">{row.feature}</td>
-                      <td className="p-4 text-center">
-                        {row.pilot ? (
-                          <Check className="h-5 w-5 text-primary mx-auto" />
-                        ) : (
-                          <span className="text-white/30">—</span>
-                        )}
-                      </td>
-                      <td className="p-4 text-center bg-primary/5">
-                        {row.professional ? (
-                          <Check className="h-5 w-5 text-primary mx-auto" />
-                        ) : (
-                          <span className="text-white/30">—</span>
-                        )}
-                      </td>
-                      <td className="p-4 text-center">
-                        {row.growth ? (
-                          <Check className="h-5 w-5 text-primary mx-auto" />
-                        ) : (
-                          <span className="text-white/30">—</span>
-                        )}
-                      </td>
-                      <td className="p-4 text-center">
-                        {row.enterprise ? (
-                          <Check className="h-5 w-5 text-primary mx-auto" />
-                        ) : (
-                          <span className="text-white/30">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <ScrollReveal animation="fade-up">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
+                Platform Capabilities
+              </h2>
             </div>
-          </div>
+          </ScrollReveal>
+
+          <ScrollReveal animation="fade-up" delay={0.2}>
+            <div className="max-w-5xl mx-auto overflow-hidden rounded-xl border border-white/10 bg-[#1F2227]">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-white/10">
+                      <th className="text-left p-4 text-lg font-semibold text-white">Capability</th>
+                      <th className="text-center p-4 text-lg font-semibold text-white">Pilot</th>
+                      <th className="text-center p-4 text-lg font-semibold text-primary">Professional</th>
+                      <th className="text-center p-4 text-lg font-semibold text-white">Growth</th>
+                      <th className="text-center p-4 text-lg font-semibold text-white">Enterprise</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {featureComparison.map((row, index) => (
+                      <tr key={index} className="border-b border-white/10 last:border-0">
+                        <td className="p-4 text-base text-white">{row.feature}</td>
+                        <td className="p-4 text-center">
+                          {row.pilot ? (
+                            <Check className="h-5 w-5 text-primary mx-auto" />
+                          ) : (
+                            <span className="text-white/30">—</span>
+                          )}
+                        </td>
+                        <td className="p-4 text-center bg-primary/5">
+                          {row.professional ? (
+                            <Check className="h-5 w-5 text-primary mx-auto" />
+                          ) : (
+                            <span className="text-white/30">—</span>
+                          )}
+                        </td>
+                        <td className="p-4 text-center">
+                          {row.growth ? (
+                            <Check className="h-5 w-5 text-primary mx-auto" />
+                          ) : (
+                            <span className="text-white/30">—</span>
+                          )}
+                        </td>
+                        <td className="p-4 text-center">
+                          {row.enterprise ? (
+                            <Check className="h-5 w-5 text-primary mx-auto" />
+                          ) : (
+                            <span className="text-white/30">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </ScrollReveal>
         </section>
 
         {/* How It Works */}
         <section className="container mx-auto px-6 py-24">
-          <div className="max-w-3xl mx-auto text-center">
-            <h2 className="text-4xl md:text-5xl font-bold mb-8 text-white">
-              How SignalScore Pricing Works
-            </h2>
-            <p className="text-xl text-white/80 mb-10">
-              SignalScore is priced based on data volume, intelligence depth, and business impact — not user seats.
-            </p>
-            <div className="grid md:grid-cols-2 gap-6">
-              {[
-                "Core analytics",
-                "AI insights",
-                "Integrated enrichment",
-                "Monthly credit allocation",
-              ].map((item, idx) => (
-                <div key={idx} className="flex items-center gap-3 p-4 rounded-lg bg-[#1F2227] border border-white/10">
-                  <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Check className="h-3 w-3 text-primary" />
-                  </div>
-                  <span className="text-white">{item}</span>
-                </div>
-              ))}
+          <ScrollReveal animation="fade-up">
+            <div className="max-w-3xl mx-auto text-center">
+              <h2 className="text-4xl md:text-5xl font-bold mb-8 text-white">
+                How SignalScore Pricing Works
+              </h2>
+              <p className="text-xl text-white/80 mb-10">
+                SignalScore is priced based on data volume, intelligence depth, and business impact — not user seats.
+              </p>
+              <div className="grid md:grid-cols-2 gap-6">
+                {[
+                  "Core analytics",
+                  "AI insights",
+                  "Integrated enrichment",
+                  "Monthly credit allocation",
+                ].map((item, idx) => (
+                  <ScrollReveal key={idx} animation="fade-up" delay={0.1 * idx}>
+                    <div className="flex items-center gap-3 p-4 rounded-lg bg-[#1F2227] border border-white/10">
+                      <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                        <Check className="h-3 w-3 text-primary" />
+                      </div>
+                      <span className="text-white">{item}</span>
+                    </div>
+                  </ScrollReveal>
+                ))}
+              </div>
+              <p className="mt-8 text-white/60">
+                Plans scale as your GTM complexity grows.
+              </p>
             </div>
-            <p className="mt-8 text-white/60">
-              Plans scale as your GTM complexity grows.
-            </p>
-          </div>
+          </ScrollReveal>
         </section>
 
         {/* FAQ */}
         <section className="container mx-auto px-6 py-24">
-          <div className="text-center mb-12">
-            <HelpCircle className="h-10 w-10 text-primary mx-auto mb-4" />
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
-              Frequently Asked Questions
-            </h2>
-          </div>
+          <ScrollReveal animation="fade-up">
+            <div className="text-center mb-12">
+              <HelpCircle className="h-10 w-10 text-primary mx-auto mb-4" />
+              <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
+                Frequently Asked Questions
+              </h2>
+            </div>
+          </ScrollReveal>
 
           <div className="max-w-3xl mx-auto">
             <Accordion type="single" collapsible className="space-y-4">
               {faqs.map((faq, index) => (
-                <AccordionItem
-                  key={index}
-                  value={`item-${index}`}
-                  className="bg-[#1F2227] border border-white/10 rounded-lg px-6"
-                >
-                  <AccordionTrigger className="text-left text-lg font-medium text-white hover:no-underline py-5">
-                    {faq.question}
-                  </AccordionTrigger>
-                  <AccordionContent className="text-base text-white/80 pb-5">
-                    {faq.answer}
-                  </AccordionContent>
-                </AccordionItem>
+                <ScrollReveal key={index} animation="fade-up" delay={0.1 * index}>
+                  <AccordionItem
+                    value={`item-${index}`}
+                    className="bg-[#1F2227] border border-white/10 rounded-lg px-6"
+                  >
+                    <AccordionTrigger className="text-left text-lg font-medium text-white hover:no-underline py-5">
+                      {faq.question}
+                    </AccordionTrigger>
+                    <AccordionContent className="text-base text-white/80 pb-5">
+                      {faq.answer}
+                    </AccordionContent>
+                  </AccordionItem>
+                </ScrollReveal>
               ))}
             </Accordion>
           </div>
         </section>
 
         {/* CTA Section */}
-        <section className="relative w-full overflow-hidden">
-          <img 
-            src="/images/Business_Man.webp"
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
-          <div className="relative container mx-auto px-6 py-32">
-            <div className="max-w-xl">
-              <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
-                Ready to Get<br />Started?
-              </h2>
-              <p className="text-lg text-white/80 mb-8">
-                Schedule a demo and see how SignalScore can transform your GTM strategy.
-              </p>
-              <Button 
-                size="xl" 
-                variant="default" 
-                className="text-lg gap-2"
-                onClick={() => handlePricingRequest("Demo Request")}
-              >
-                Request Demo
-                <DiagonalArrow />
-              </Button>
+        <ScrollReveal animation="fade-up">
+          <section className="relative w-full overflow-hidden">
+            <img 
+              src="/images/Business_Man.webp"
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
+            <div className="relative container mx-auto px-6 py-32">
+              <div className="max-w-xl">
+                <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
+                  Ready to Get<br />Started?
+                </h2>
+                <p className="text-lg text-white/80 mb-8">
+                  Schedule a demo and see how SignalScore can transform your GTM strategy.
+                </p>
+                <Button 
+                  size="xl" 
+                  variant="default" 
+                  className="text-lg gap-2"
+                  onClick={() => handlePricingRequest("Demo Request")}
+                >
+                  Request Demo
+                  <DiagonalArrow />
+                </Button>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </ScrollReveal>
 
         <MarketingFooter />
 

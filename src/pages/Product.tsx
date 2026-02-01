@@ -1,4 +1,5 @@
 import { GradientBackground } from "@/components/ui/GradientBackground";
+import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { Button } from "@/components/ui/button";
 import { MarketingNav, MarketingFooter, MarketingHero } from "@/components/marketing";
 import {
@@ -149,41 +150,41 @@ export default function Product() {
 
         {/* Core Features - Simple Cards */}
         <section className="container mx-auto px-6 py-24">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-white">
-              Core <span className="text-primary">Capabilities</span>
-            </h2>
-            <p className="text-xl text-white/60 max-w-2xl mx-auto">
-              Everything you need to align your GTM strategy with your best customers
-            </p>
-          </div>
+          <ScrollReveal animation="fade-up">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl md:text-5xl font-bold mb-4 text-white">
+                Core <span className="text-primary">Capabilities</span>
+              </h2>
+              <p className="text-xl text-white/60 max-w-2xl mx-auto">
+                Everything you need to align your GTM strategy with your best customers
+              </p>
+            </div>
+          </ScrollReveal>
 
           <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
             {productFeatures.map((feature, index) => (
-              <div
-                key={index}
-                className="p-8 rounded-xl border border-white/10 bg-[#1F2227] animate-fade-in"
-                style={{ animationDelay: `${0.1 * index}s` }}
-              >
-                <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20">
-                  <feature.icon className="h-7 w-7 text-primary" />
+              <ScrollReveal key={index} animation="fade-up" delay={0.1 * index}>
+                <div className="p-8 rounded-xl border border-white/10 bg-[#1F2227] h-full">
+                  <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20">
+                    <feature.icon className="h-7 w-7 text-primary" />
+                  </div>
+                  <h3 className="text-2xl font-bold mb-2 text-white">{feature.title}</h3>
+                  <p className="text-primary mb-4">{feature.subtitle}</p>
+                  <p className="text-white/60 mb-6 leading-relaxed">
+                    {feature.description}
+                  </p>
+                  <ul className="space-y-2">
+                    {feature.highlights.map((highlight, idx) => (
+                      <li key={idx} className="flex items-center gap-3">
+                        <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                        </div>
+                        <span className="text-sm text-white">{highlight}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-                <h3 className="text-2xl font-bold mb-2 text-white">{feature.title}</h3>
-                <p className="text-primary mb-4">{feature.subtitle}</p>
-                <p className="text-white/60 mb-6 leading-relaxed">
-                  {feature.description}
-                </p>
-                <ul className="space-y-2">
-                  {feature.highlights.map((highlight, idx) => (
-                    <li key={idx} className="flex items-center gap-3">
-                      <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                      </div>
-                      <span className="text-sm text-white">{highlight}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              </ScrollReveal>
             ))}
           </div>
         </section>
@@ -191,135 +192,143 @@ export default function Product() {
         {/* Enrichment Section */}
         <section className="container mx-auto px-6 py-24">
           <div className="max-w-6xl mx-auto">
-            <div className="text-center mb-16">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
-                <Zap className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium text-primary">NEW</span>
+            <ScrollReveal animation="fade-up">
+              <div className="text-center mb-16">
+                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
+                  <Zap className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium text-primary">NEW</span>
+                </div>
+                <h2 className="text-4xl md:text-5xl font-bold mb-4">
+                  <span className="text-primary">Data Enrichment Engine</span>
+                </h2>
+                <p className="text-xl text-white/60 max-w-2xl mx-auto">
+                  {enrichmentSection.subtitle}
+                </p>
               </div>
-              <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                <span className="text-primary">Data Enrichment Engine</span>
-              </h2>
-              <p className="text-xl text-white/60 max-w-2xl mx-auto">
-                {enrichmentSection.subtitle}
-              </p>
-            </div>
+            </ScrollReveal>
 
             <div className="grid lg:grid-cols-2 gap-12 items-center">
-              <div>
-                <p className="text-lg text-white/60 mb-8 leading-relaxed">
-                  {enrichmentSection.description}
-                </p>
-                <ul className="space-y-4 mb-8">
-                  {enrichmentSection.highlights.map((highlight, idx) => (
-                    <li key={idx} className="flex items-center gap-3">
-                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
-                        <div className="w-2.5 h-2.5 rounded-full bg-primary" />
-                      </div>
-                      <span className="text-white">{highlight}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link to="/pricing">
-                  <Button variant="default" className="gap-2">
-                    See Pricing
-                    <DiagonalArrow />
-                  </Button>
-                </Link>
-              </div>
-
-              <div className="p-6 rounded-xl border border-white/10 bg-[#1F2227]">
-                <h4 className="font-semibold mb-4 text-white">Cost Comparison Per Lead</h4>
-                <div className="space-y-3">
-                  {enrichmentSection.comparison.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className={`flex items-center justify-between p-3 rounded-lg ${
-                        item.provider === "LaunchPulse"
-                          ? "bg-primary/10 border border-primary/30"
-                          : "bg-white/5"
-                      }`}
-                    >
-                      <span
-                        className={
-                          item.provider === "LaunchPulse"
-                            ? "font-semibold text-primary"
-                            : "text-white/50"
-                        }
-                      >
-                        {item.provider}
-                      </span>
-                      <div className="flex items-center gap-4">
-                        <span className="font-mono">{item.price}</span>
-                        {item.savings !== "—" && (
-                          <span className="text-sm text-primary">
-                            Save {item.savings}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+              <ScrollReveal animation="fade-right">
+                <div>
+                  <p className="text-lg text-white/60 mb-8 leading-relaxed">
+                    {enrichmentSection.description}
+                  </p>
+                  <ul className="space-y-4 mb-8">
+                    {enrichmentSection.highlights.map((highlight, idx) => (
+                      <li key={idx} className="flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
+                          <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                        </div>
+                        <span className="text-white">{highlight}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Link to="/pricing">
+                    <Button variant="default" className="gap-2">
+                      See Pricing
+                      <DiagonalArrow />
+                    </Button>
+                  </Link>
                 </div>
-              </div>
+              </ScrollReveal>
+
+              <ScrollReveal animation="fade-left" delay={0.2}>
+                <div className="p-6 rounded-xl border border-white/10 bg-[#1F2227]">
+                  <h4 className="font-semibold mb-4 text-white">Cost Comparison Per Lead</h4>
+                  <div className="space-y-3">
+                    {enrichmentSection.comparison.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className={`flex items-center justify-between p-3 rounded-lg ${
+                          item.provider === "LaunchPulse"
+                            ? "bg-primary/10 border border-primary/30"
+                            : "bg-white/5"
+                        }`}
+                      >
+                        <span
+                          className={
+                            item.provider === "LaunchPulse"
+                              ? "font-semibold text-primary"
+                              : "text-white/50"
+                          }
+                        >
+                          {item.provider}
+                        </span>
+                        <div className="flex items-center gap-4">
+                          <span className="font-mono">{item.price}</span>
+                          {item.savings !== "—" && (
+                            <span className="text-sm text-primary">
+                              Save {item.savings}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </ScrollReveal>
             </div>
           </div>
         </section>
 
         {/* Use Cases */}
         <section className="container mx-auto px-6 py-24">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-white">
-              Built for <span className="text-primary">GTM Teams</span>
-            </h2>
-            <p className="text-xl text-white/60 max-w-2xl mx-auto">
-              Role-specific insights for every stakeholder
-            </p>
-          </div>
+          <ScrollReveal animation="fade-up">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl md:text-5xl font-bold mb-4 text-white">
+                Built for <span className="text-primary">GTM Teams</span>
+              </h2>
+              <p className="text-xl text-white/60 max-w-2xl mx-auto">
+                Role-specific insights for every stakeholder
+              </p>
+            </div>
+          </ScrollReveal>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             {useCases.map((useCase, index) => {
               const Icon = useCase.icon;
               return (
-                <div
-                  key={index}
-                  className="p-8 rounded-xl border border-white/10 bg-[#1F2227] text-center animate-fade-in hover:bg-[#262a30] hover:border-white/20 transition-all duration-300"
-                  style={{ animationDelay: `${0.1 * index}s` }}
-                >
-                  <div className="w-16 h-16 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20 mx-auto">
-                    <Icon className="h-8 w-8 text-primary" />
+                <ScrollReveal key={index} animation="scale" delay={0.1 * index}>
+                  <div className="p-8 rounded-xl border border-white/10 bg-[#1F2227] text-center h-full hover:bg-[#262a30] hover:border-white/20 transition-all duration-300">
+                    <div className="w-16 h-16 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20 mx-auto">
+                      <Icon className="h-8 w-8 text-primary" />
+                    </div>
+                    <h3 className="text-xl font-semibold mb-3 text-white">{useCase.title}</h3>
+                    <p className="text-white/60 leading-relaxed">{useCase.description}</p>
                   </div>
-                  <h3 className="text-xl font-semibold mb-3 text-white">{useCase.title}</h3>
-                  <p className="text-white/60 leading-relaxed">{useCase.description}</p>
-                </div>
+                </ScrollReveal>
               );
             })}
           </div>
         </section>
 
         {/* CTA Section - With Business Man Background */}
-        <section className="relative w-full overflow-hidden">
-          <img 
-            src="/images/Business_Man.webp"
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
-          <div className="relative container mx-auto px-6 py-32">
-            <div className="max-w-xl">
-              <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
-                Ready to See<br />Your Data Differently?
-              </h2>
-              <p className="text-lg text-white/80 mb-8">
-                Connect your CRM and discover insights you've been missing.
-              </p>
-              <Link to="/contact">
-                <Button size="xl" variant="default" className="text-lg gap-2">
-                  Request Demo
-                  <DiagonalArrow />
-                </Button>
-              </Link>
+        <ScrollReveal animation="fade-up">
+          <section className="relative w-full overflow-hidden">
+            <img 
+              src="/images/Business_Man.webp"
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
+            <div className="relative container mx-auto px-6 py-32">
+              <div className="max-w-xl">
+                <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
+                  Ready to See<br />Your Data Differently?
+                </h2>
+                <p className="text-lg text-white/80 mb-8">
+                  Connect your CRM and discover insights you've been missing.
+                </p>
+                <Link to="/contact">
+                  <Button size="xl" variant="default" className="text-lg gap-2">
+                    Request Demo
+                    <DiagonalArrow />
+                  </Button>
+                </Link>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        </ScrollReveal>
 
         <MarketingFooter />
       </main>
