@@ -11,7 +11,7 @@ export default function PrivacyPolicy() {
     <GradientBackground forceDark>
       <SEOHead
         title="Privacy Policy - LaunchPulse"
-        description="Learn how LaunchPulse collects, uses, and protects your data. Our Privacy Policy explains our data practices for our ICP and TAM intelligence platform."
+        description="LaunchPulse Privacy Policy: How we protect your CRM and business data. GDPR-compliant practices for our ICP intelligence platform."
         canonicalPath="/privacy"
       />
       <MarketingNav />

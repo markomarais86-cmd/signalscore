@@ -43,7 +43,7 @@ export default function About() {
     <GradientBackground variant="hero" showOrbs forceDark>
       <SEOHead
         title="About LaunchPulse - GTM Intelligence Platform"
-        description="LaunchPulse makes GTM targeting measurable, explainable, and operational. Evidence-based ICP, explainable diagnostics, and fast time-to-value."
+        description="Built for RevOps and GTM leaders who are tired of targeting based on assumptions. LaunchPulse delivers evidence-based ICP clarity in days, not months."
         canonicalPath="/about"
       />
       <main>

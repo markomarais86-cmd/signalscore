@@ -11,7 +11,7 @@ export default function TermsOfService() {
     <GradientBackground forceDark>
       <SEOHead
         title="Terms of Service - LaunchPulse"
-        description="Read the Terms of Service for LaunchPulse, the AI-driven ICP and TAM intelligence platform. Understand your rights and responsibilities when using our service."
+        description="LaunchPulse Terms of Service: Your rights and responsibilities when using our AI-powered ICP and TAM intelligence platform."
         canonicalPath="/terms"
       />
       <MarketingNav />

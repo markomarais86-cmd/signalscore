@@ -211,7 +211,7 @@ export default function Pricing() {
     <GradientBackground variant="hero" showOrbs forceDark>
       <SEOHead
         title="LaunchPulse Pricing - Simple, Transparent Plans"
-        description="Platform subscription plus pay-as-you-go enrichment credits. Choose from Pilot, Professional, Growth, or Enterprise plans tailored to your GTM needs."
+        description="No per-seat pricing. LaunchPulse plans start with a 90-day Pilot to prove ROI. Includes AI enrichment credits up to 85% cheaper than competitors."
         canonicalPath="/pricing"
       />
       <main>
