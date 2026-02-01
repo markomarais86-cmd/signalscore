@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FormState, initialFormState, validateEmail, getFormValue, createErrorState, createFormState } from '@/lib/form-actions';
+import { getInviteUrl } from '@/lib/url-utils';
 
 interface CreateOrganizationDialogProps {
   open: boolean;
@@ -71,8 +72,8 @@ export function CreateOrganizationDialog({ open, onOpenChange, onSuccess }: Crea
 
       if (inviteError) throw inviteError;
 
-      // 4. Send invitation email
-      const inviteUrl = `https://launchpulse.io/auth?invite=${token}`;
+      // 4. Send invitation email using production URL
+      const inviteUrl = getInviteUrl(token);
       
       const { error: emailError } = await supabase.functions.invoke('send-invitation', {
         body: {

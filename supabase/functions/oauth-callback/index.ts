@@ -235,8 +235,8 @@ serve(async (req) => {
 });
 
 function redirectWithError(error: string, description: string): Response {
-  // Redirect to app with error parameters
-  const redirectUrl = new URL(SUPABASE_URL.replace('supabase.co', '') + '/settings');
+  // Redirect to production app with error parameters
+  const redirectUrl = new URL('https://launchpulse.io/settings');
   redirectUrl.searchParams.set('oauth_error', error);
   redirectUrl.searchParams.set('oauth_error_description', description);
   
