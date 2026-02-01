@@ -1,58 +1,48 @@
 
-# Fix Light Mode Background in Authenticated App
+# Fix Light Mode Background on Executive Dashboard
 
 ## The Problem
 
-The authenticated dashboard (Layout) uses the `GradientBackground` component which was designed for marketing pages. This component applies `bg-black` in dark mode and `bg-white` in light mode, but the visual result shows a dark background even when the sidebar is in light mode.
+The Executive Dashboard (`/`) page has a hardcoded dark background that doesn't respect light mode. This is caused by the `hero-gradient` class applied directly to the dashboard component:
 
-The issue is that `GradientBackground` is inappropriate for the authenticated app - it's designed for marketing pages with a specific dark aesthetic.
+**In `src/pages/ExecutiveDashboard.tsx` (line 401):**
+```tsx
+<div className="w-full ... hero-gradient bg-grid-pattern min-h-screen ...">
+```
+
+**In `src/index.css` (lines 258-260):**
+```css
+.hero-gradient {
+  @apply relative overflow-hidden;
+  background: #000000; /* True black base - HARDCODED! */
+}
+```
+
+The `hero-gradient` class forces `background: #000000` regardless of the active theme.
 
 ---
 
 ## The Solution
 
-Remove `GradientBackground` from the authenticated Layout and use the standard theme-aware background color (`bg-background`) instead. This will ensure the app respects the user's light/dark mode preference correctly.
+Remove the `hero-gradient` class from the Executive Dashboard and rely on the theme-aware `bg-background` that the parent `Layout` component now provides.
 
 ---
 
 ## Changes Required
 
-### File: `src/components/Layout.tsx`
+### File: `src/pages/ExecutiveDashboard.tsx`
 
-**Current code (lines 23-68):**
+**Current (line 401):**
 ```tsx
-return (
-  <SidebarProvider>
-    <GradientBackground variant="hero" showOrbs={true} className="!min-h-screen">
-      <div className="min-h-screen flex w-full">
-        {/* ... content ... */}
-      </div>
-    </GradientBackground>
-  </SidebarProvider>
-);
+<div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-6 lg:space-y-8 hero-gradient bg-grid-pattern min-h-screen pb-8">
 ```
 
-**New code:**
+**Change to:**
 ```tsx
-return (
-  <SidebarProvider>
-    <div className="min-h-screen flex w-full bg-background">
-      <AppSidebar />
-      <main className="flex-1 flex flex-col">
-        {/* ... existing content unchanged ... */}
-      </main>
-      <AIChat />
-      <GlobalCommandPalette />
-      <CampaignBuilderV2 ... />
-    </div>
-  </SidebarProvider>
-);
+<div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-6 lg:space-y-8 min-h-screen pb-8">
 ```
 
-**Key changes:**
-1. Remove the `GradientBackground` wrapper component
-2. Remove the import for `GradientBackground`
-3. Add `bg-background` to the main container div - this uses the theme-aware CSS variable that's white in light mode and black in dark mode
+Simply remove `hero-gradient bg-grid-pattern` from the className - the Layout component already sets `bg-background` which correctly switches between white (light mode) and black (dark mode).
 
 ---
 
@@ -63,14 +53,12 @@ return (
 | Light | Black background (incorrect) | White background (correct) |
 | Dark | Black background | Black background |
 
-The sidebar and main content area will now both respect the user's theme preference correctly.
+The Executive Dashboard will now properly switch between white and black backgrounds based on the user's theme preference, matching the sidebar and other components.
 
 ---
 
 ## Technical Note
 
-The `bg-background` class uses the CSS variable `--background` defined in `index.css`:
-- Light mode: `--background: 0 0% 100%` (white)
-- Dark mode: `--background: 0 0% 0%` (black)
-
-This is the standard Tailwind/shadcn approach for theme-aware backgrounds.
+- The `hero-gradient` class is designed for marketing pages with a fixed dark aesthetic
+- Authenticated app pages should use `bg-background` for theme awareness
+- The Layout wrapper already provides `bg-background`, so child pages don't need their own background classes
