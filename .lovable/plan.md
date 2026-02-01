@@ -1,148 +1,127 @@
 
-# Improve Password Reset Email Template
+# Authentication Redirect URL Audit
 
-## Overview
+## Summary
 
-Currently, the password reset uses Supabase's default email template via `supabase.auth.resetPasswordForEmail()`. To create a custom branded email with LaunchPulse's design and clearer instructions, we need to implement a custom email sending system using Supabase Auth Hooks and React Email.
+I've audited all authentication-related redirect URLs in the codebase. Here's what I found:
 
-## What We'll Create
+## Current State
 
-### 1. Email Assets Storage Bucket
+### Correctly Using launchpulse.io (Hardcoded)
 
-Create a public storage bucket to host the LaunchPulse logo for email templates.
+| File | Line | URL | Purpose |
+|------|------|-----|---------|
+| `src/hooks/use-auth.tsx` | 317-318 | `https://www.launchpulse.io/reset-password` | Password reset redirect |
+| `src/components/settings/CreateOrganizationDialog.tsx` | 75 | `https://launchpulse.io/auth?invite=` | Org admin invitation link |
 
-**File: `supabase/migrations/XXXXXX_create_email_assets_bucket.sql`**
+### Using `window.location.origin` (Dynamic)
 
-```sql
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('email-assets', 'email-assets', true)
-ON CONFLICT (id) DO NOTHING;
+| File | Line | Pattern | Purpose |
+|------|------|---------|---------|
+| `src/hooks/use-auth.tsx` | 223 | `${window.location.origin}/` | Default signup redirect |
+| `src/components/AuthSystem.tsx` | 200-202 | `${window.location.origin}/auth?invite=` | Signup with invite redirect |
+| `src/components/settings/InvitationsManager.tsx` | 113 | `${window.location.origin}/auth?invite=` | Resend invitation URL |
+| `src/components/settings/InviteUserModal.tsx` | 70 | `${window.location.origin}/auth?invite=` | New invitation URL |
+| `src/components/settings/IntegrationManager.tsx` | 516 | `${window.location.origin}/settings?tab=integrations` | OAuth redirect |
 
-CREATE POLICY "Email assets are publicly accessible"
-ON storage.objects FOR SELECT
-USING (bucket_id = 'email-assets');
+### Problematic: OAuth Error Redirect
+
+| File | Line | Issue |
+|------|------|-------|
+| `supabase/functions/oauth-callback/index.ts` | 239 | Broken URL construction: `SUPABASE_URL.replace('supabase.co', '') + '/settings'` |
+
+## Issues Found
+
+### Issue 1: Inconsistent Invitation URLs (Medium Priority)
+
+- `CreateOrganizationDialog.tsx` hardcodes `https://launchpulse.io/auth?invite=`
+- Other invitation components use `window.location.origin`
+
+**Problem**: When testing in preview environments, `CreateOrganizationDialog` will send emails with production URLs that won't work for testing.
+
+**Recommendation**: Use `window.location.origin` consistently, OR create a helper function that:
+- Uses `https://launchpulse.io` when in production
+- Uses `window.location.origin` when in development/preview
+
+### Issue 2: OAuth Error Redirect is Broken (High Priority)
+
+```typescript
+// Line 239 - This produces an invalid URL
+const redirectUrl = new URL(SUPABASE_URL.replace('supabase.co', '') + '/settings');
 ```
 
-### 2. Password Reset Email Template
+When `SUPABASE_URL` is `https://dhyfbaptcprxxixgnpby.supabase.co`:
+- After replace: `https://dhyfbaptcprxxixgnpby./settings`
+- This is not a valid URL!
 
-Create a React Email template with LaunchPulse branding.
+**Recommendation**: Hardcode to `https://launchpulse.io/settings` or use the stored `redirect_url` from the oauth_state table.
 
-**File: `supabase/functions/send-auth-email/_templates/password-reset.tsx`**
+### Issue 3: Dynamic URLs May Cause Email Deliverability Issues (Low Priority)
 
-The template will include:
-- LaunchPulse logo and brand colors
-- Clear, friendly instructions
-- Primary CTA button for resetting password
-- Fallback text link
-- Security notice
-- Help section with contact information
-- Professional footer
+Using `window.location.origin` for invitation emails means:
+- Emails from preview environments contain preview URLs
+- These look suspicious and may affect deliverability
+- Users who receive emails from preview environments may get confused
 
-Key design elements:
-- Brand color: `#6366f1` (primary purple/indigo)
-- Clean white background with subtle gray footer
-- Mobile-responsive table-based layout
-- Clear typography hierarchy
+**Recommendation**: For invitation emails specifically, always use the production domain.
 
-### 3. Auth Email Edge Function
+## Recommended Changes
 
-Create an edge function that handles Supabase Auth email hooks.
+### 1. Fix OAuth Error Redirect (Critical)
 
-**File: `supabase/functions/send-auth-email/index.ts`**
-
-This function will:
-- Receive password reset requests via Supabase Auth Hook
-- Validate the webhook signature using `standardwebhooks`
-- Render the React Email template with user data
-- Send the email via Resend API
-- Handle errors gracefully
-
-**Config: `supabase/config.toml`**
-
-```toml
-[functions.send-auth-email]
-verify_jwt = false
+```typescript
+// supabase/functions/oauth-callback/index.ts line 237-243
+function redirectWithError(error: string, description: string): Response {
+  // Use production domain for error redirects
+  const redirectUrl = new URL('https://launchpulse.io/settings');
+  redirectUrl.searchParams.set('oauth_error', error);
+  redirectUrl.searchParams.set('oauth_error_description', description);
+  
+  return Response.redirect(redirectUrl.toString(), 302);
+}
 ```
 
-## Email Template Design
+### 2. Standardize Invitation URLs
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│                                                         │
-│     [LaunchPulse Logo]                                  │
-│                                                         │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│     Reset Your Password                                 │
-│                                                         │
-│     Hi [Name],                                          │
-│                                                         │
-│     We received a request to reset your password        │
-│     for your LaunchPulse account. Click the button      │
-│     below to create a new password.                     │
-│                                                         │
-│              ┌─────────────────────┐                    │
-│              │   Reset Password    │ (purple button)    │
-│              └─────────────────────┘                    │
-│                                                         │
-│     This link expires in 1 hour for security.           │
-│                                                         │
-├─────────────────────────────────────────────────────────┤
-│     Security Notice                                     │
-│     If you didn't request this reset, you can           │
-│     safely ignore this email. Your password will        │
-│     remain unchanged.                                   │
-├─────────────────────────────────────────────────────────┤
-│     Having trouble?                                     │
-│     Copy and paste this link: [URL]                     │
-│                                                         │
-│     Need help? Contact us at support@launchpulse.io     │
-├─────────────────────────────────────────────────────────┤
-│     © 2026 LaunchPulse. All rights reserved.            │
-│     Where GTM Meets ICP Precision                       │
-└─────────────────────────────────────────────────────────┘
+Create a utility function:
+
+```typescript
+// src/lib/url-utils.ts
+export function getProductionUrl(): string {
+  return 'https://launchpulse.io';
+}
+
+export function getInviteUrl(token: string): string {
+  // Always use production for email links
+  return `${getProductionUrl()}/auth?invite=${token}`;
+}
 ```
 
-## Files to Create/Modify
+Update all invitation components to use this helper:
+- `InviteUserModal.tsx`
+- `InvitationsManager.tsx`  
+- `CreateOrganizationDialog.tsx`
 
-| File | Action | Description |
-|------|--------|-------------|
-| `supabase/migrations/XXXXXX_create_email_assets_bucket.sql` | Create | Storage bucket for email logo |
-| `supabase/functions/send-auth-email/_templates/password-reset.tsx` | Create | React Email template |
-| `supabase/functions/send-auth-email/index.ts` | Create | Edge function handler |
-| `supabase/config.toml` | Modify | Add function config |
+### 3. Keep Dynamic for OAuth Redirects
 
-## Post-Implementation Steps
+OAuth success redirects should continue using `window.location.origin` since users need to return to the environment they started from.
 
-After deployment, you'll need to configure the Auth Hook in Supabase:
+## Files to Modify
 
-1. Go to Supabase Dashboard → Authentication → Hooks
-2. Enable the "Send Email" hook
-3. Set the URL to: `https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/send-auth-email`
-4. Generate and save the webhook secret as `SEND_EMAIL_HOOK_SECRET` in project secrets
+| File | Change |
+|------|--------|
+| `supabase/functions/oauth-callback/index.ts` | Fix broken error redirect URL |
+| `src/lib/url-utils.ts` | Create new utility file |
+| `src/components/settings/InviteUserModal.tsx` | Use standardized invite URL |
+| `src/components/settings/InvitationsManager.tsx` | Use standardized invite URL |
+| `src/components/settings/CreateOrganizationDialog.tsx` | Use standardized invite URL |
 
-## Technical Details
+## Summary Table
 
-### Dependencies Used
-- `npm:@react-email/components@0.0.22` - Email component library
-- `npm:react@18.3.1` - React for template rendering
-- `npm:resend@4.0.0` - Email sending API
-- `https://esm.sh/standardwebhooks@1.0.0` - Webhook signature verification
-
-### Email Types Handled
-The function will handle:
-- `recovery` - Password reset emails (primary focus)
-- Other auth email types can be added later (magic links, email verification)
-
-### Brand Colors
-- Primary: `#6366f1` (Indigo)
-- Text: `#18181b` (Near black)
-- Muted: `#71717a` (Gray)
-- Background: `#ffffff` (White)
-- Footer bg: `#f4f4f5` (Light gray)
-
-### Security Features
-- Webhook signature verification using `standardwebhooks`
-- Token hash passed via secure URL parameter
-- 1-hour expiration notice
-- Clear security messaging about ignoring unexpected emails
+| URL Type | Current Approach | Recommended Approach |
+|----------|-----------------|---------------------|
+| Password reset | ✅ Hardcoded production | Keep as-is |
+| Email confirmations | 🟡 Dynamic origin | Consider hardcoding production |
+| Invitation emails | 🟡 Mixed | Standardize to production |
+| OAuth success | ✅ Dynamic origin | Keep as-is (correct) |
+| OAuth error | ❌ Broken | Fix to production URL |
