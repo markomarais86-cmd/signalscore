@@ -233,7 +233,7 @@ export default function Pricing() {
               <Zap className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium text-primary">Add-On</span>
             </div>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
               Enrichment <span className="text-primary">Credit Packs</span>
             </h2>
             <p className="text-lg text-white/60 max-w-2xl mx-auto">
