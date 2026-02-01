@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Eye, EyeOff, Mail, Lock, User, Building, CheckCircle2 } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Mail, Lock, User, Building, CheckCircle2, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -17,7 +17,7 @@ import { BrandLogo } from '@/components/BrandLogo';
 const PENDING_INVITE_KEY = 'pending_invitation_token';
 
 export function AuthSystem() {
-  const { signIn, signUp, user, loading } = useAuth();
+  const { signIn, signUp, resetPassword, user, loading } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -29,6 +29,10 @@ export function AuthSystem() {
   
   const [showPassword, setShowPassword] = useState(false);
   const [invitationInfo, setInvitationInfo] = useState<any>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
+  const [forgotPasswordSent, setForgotPasswordSent] = useState(false);
 
   // Persist invite token to localStorage when present in URL
   useEffect(() => {
@@ -223,6 +227,137 @@ export function AuthSystem() {
   const [signInState, signInFormAction, signInPending] = useActionState(signInAction, initialFormState);
   const [signUpState, signUpFormAction, signUpPending] = useActionState(signUpAction, initialFormState);
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateEmail(forgotPasswordEmail)) {
+      toast({
+        title: "Invalid email",
+        description: "Please enter a valid email address",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setForgotPasswordLoading(true);
+    
+    const { error } = await resetPassword(forgotPasswordEmail);
+    
+    setForgotPasswordLoading(false);
+    
+    if (!error) {
+      setForgotPasswordSent(true);
+    }
+  };
+
+  // Forgot Password View
+  if (showForgotPassword) {
+    return (
+      <GradientBackground variant="auth" showOrbs>
+        <main className="min-h-screen flex items-center justify-center p-4">
+          <div className="w-full max-w-md animate-fade-in">
+            <div className="text-center mb-8">
+              <BrandLogo variant="light" className="justify-center" />
+            </div>
+
+            <Card variant="glass" className="shadow-glow-sm">
+              <CardHeader className="text-center pb-2">
+                <CardTitle className="text-2xl font-bold">
+                  {forgotPasswordSent ? 'Check Your Email' : 'Reset Password'}
+                </CardTitle>
+                <p className="text-white/60 text-sm mt-1">
+                  {forgotPasswordSent 
+                    ? "We've sent you a password reset link"
+                    : "Enter your email and we'll send you a reset link"
+                  }
+                </p>
+              </CardHeader>
+              <CardContent className="pt-4">
+                {forgotPasswordSent ? (
+                  <div className="space-y-4">
+                    <Alert className="bg-primary/10 border-primary/20">
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      <AlertDescription className="text-foreground">
+                        If an account exists for <strong>{forgotPasswordEmail}</strong>, you'll receive an email with a reset link shortly.
+                      </AlertDescription>
+                    </Alert>
+                    <p className="text-sm text-white/60 text-center">
+                      Didn't receive the email? Check your spam folder or try again.
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => {
+                          setForgotPasswordSent(false);
+                          setForgotPasswordEmail('');
+                        }}
+                      >
+                        Try another email
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="w-full text-white/50 hover:text-primary"
+                        onClick={() => {
+                          setShowForgotPassword(false);
+                          setForgotPasswordSent(false);
+                          setForgotPasswordEmail('');
+                        }}
+                      >
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Back to Sign In
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <form onSubmit={handleForgotPassword} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="forgot-email" className="text-sm font-medium">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          id="forgot-email"
+                          name="email"
+                          type="email"
+                          placeholder="you@company.com"
+                          value={forgotPasswordEmail}
+                          onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                          className="pl-10 bg-background/50 border-border/50 focus:border-primary/50 input-glow"
+                          disabled={forgotPasswordLoading}
+                        />
+                      </div>
+                    </div>
+                    
+                    <Button type="submit" className="w-full" variant="glow" disabled={forgotPasswordLoading}>
+                      {forgotPasswordLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        'Send Reset Link'
+                      )}
+                    </Button>
+                    
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-full text-white/50 hover:text-primary"
+                      onClick={() => setShowForgotPassword(false)}
+                    >
+                      <ArrowLeft className="mr-2 h-4 w-4" />
+                      Back to Sign In
+                    </Button>
+                  </form>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </GradientBackground>
+    );
+  }
+
   return (
     <GradientBackground variant="auth" showOrbs>
       <main className="min-h-screen flex items-center justify-center p-4">
@@ -320,7 +455,7 @@ export function AuthSystem() {
                         type="button"
                         variant="link"
                         className="text-sm text-white/50 hover:text-primary"
-                        onClick={() => navigate('/reset-password')}
+                        onClick={() => setShowForgotPassword(true)}
                       >
                         Forgot password?
                       </Button>
