@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, CheckCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -40,13 +41,16 @@ export function DemoRequestForm({ source = "website", onSuccess }: DemoRequestFo
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
     try {
-      // For now, we'll store this locally until the edge function is created
-      // This will be replaced with the actual API call
-      console.log("Demo request submitted:", { ...data, source });
-      
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
+      const { data: response, error } = await supabase.functions.invoke('demo-request', {
+        body: { ...data, source },
+      });
+
+      if (error) {
+        console.error("Error submitting demo request:", error);
+        toast.error("Something went wrong. Please try again.");
+        return;
+      }
+
       setIsSuccess(true);
       toast.success("Thank you! We'll be in touch soon.");
       reset();
