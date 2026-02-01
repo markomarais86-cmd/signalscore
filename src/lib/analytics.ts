@@ -106,3 +106,21 @@ export const trackEvent = (
   
   window.gtag?.('event', eventName, params);
 };
+
+/**
+ * Track which A/B variant was shown to the user
+ * Used for SEO meta description experiments and other A/B tests
+ */
+export const trackABVariant = (
+  experimentId: string,
+  variantId: string,
+  pagePath: string
+): void => {
+  if (!isGAAvailable()) return;
+  
+  window.gtag?.('event', 'ab_experiment_view', {
+    experiment_id: experimentId,
+    variant_id: variantId,
+    page_path: pagePath,
+  });
+};

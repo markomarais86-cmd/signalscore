@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { SEOHead } from "@/components/SEOHead";
 import { DiagonalArrow } from "@/components/ui/DiagonalArrow";
 import { MarketingNav, MarketingFooter, MarketingHero } from "@/components/marketing";
+import { SEO_EXPERIMENTS } from "@/lib/seo-variants";
 import {
   Target,
   BarChart3,
@@ -117,7 +118,8 @@ export default function Product() {
     <GradientBackground variant="hero" showOrbs forceDark>
       <SEOHead
         title="LaunchPulse Product - ICP Builder & TAM Generator"
-        description="See exactly why deals close and where pipeline leaks. LaunchPulse reveals ICP patterns, persona conversion rates, and data gaps your CRM is hiding."
+        description={SEO_EXPERIMENTS.product.variants.control}
+        descriptionVariants={SEO_EXPERIMENTS.product}
         canonicalPath="/product"
         ogImage="/og/og-product.png"
       />
