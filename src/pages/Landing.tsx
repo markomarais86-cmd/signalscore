@@ -189,10 +189,6 @@ export default function Landing() {
           <ScrollReveal animation="fade-up">
             <div className="flex flex-wrap justify-center items-center gap-8 text-white/40">
               <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                <span className="text-sm">SOC 2 Compliant</span>
-              </div>
-              <div className="flex items-center gap-2">
                 <Clock className="h-5 w-5" />
                 <span className="text-sm">24hr Onboarding</span>
               </div>
