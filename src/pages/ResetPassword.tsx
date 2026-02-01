@@ -151,10 +151,28 @@ export default function ResetPassword() {
       return createErrorState("Password must be at least 6 characters long.");
     }
 
+    // Verify we have a valid session before attempting update
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      return createErrorState("Your reset link has expired. Please request a new password reset link.");
+    }
+
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      return createErrorState(error.message);
+      // Map cryptic Supabase errors to user-friendly messages
+      let friendlyMessage = error.message;
+      
+      if (error.message.includes('not right') || 
+          error.message.includes('invalid') ||
+          error.message.includes('expired')) {
+        friendlyMessage = "Your reset link has expired or is invalid. Please request a new password reset link.";
+      } else if (error.message.includes('same_password')) {
+        friendlyMessage = "New password must be different from your current password.";
+      }
+      
+      return createErrorState(friendlyMessage);
     }
 
     toast({
@@ -183,7 +201,19 @@ export default function ResetPassword() {
               {state.error && (
                 <Alert variant="destructive" className="bg-destructive/10 border-destructive/30">
                   <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{state.error}</AlertDescription>
+                  <AlertDescription className="flex flex-col gap-2">
+                    <span>{state.error}</span>
+                    {state.error.includes('expired') && (
+                      <Button 
+                        type="button"
+                        variant="link" 
+                        className="p-0 h-auto justify-start text-primary"
+                        onClick={() => navigate('/auth')}
+                      >
+                        Request new link
+                      </Button>
+                    )}
+                  </AlertDescription>
                 </Alert>
               )}
               
