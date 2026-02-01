@@ -16,6 +16,10 @@ import { useOnboarding } from "./hooks/use-onboarding";
 import { logger } from "./lib/logger";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
 import Landing from "./pages/Landing";
+import About from "./pages/About";
+import Product from "./pages/Product";
+import Pricing from "./pages/Pricing";
+import Contact from "./pages/Contact";
 import Auth from "./pages/Auth";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -69,7 +73,14 @@ function AppContent() {
       >
         <OnboardingWizard />
         <Routes>
+                {/* Public Marketing Pages */}
                 <Route path="/landing" element={<Landing />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/product" element={<Product />} />
+                <Route path="/pricing" element={<Pricing />} />
+                <Route path="/contact" element={<Contact />} />
+                
+                {/* Auth Pages */}
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/terms" element={<TermsOfService />} />
