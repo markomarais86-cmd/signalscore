@@ -13,6 +13,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { useEffect } from "react";
 import { useOnboarding } from "./hooks/use-onboarding";
+import { usePageTracking } from "./hooks/usePageTracking";
 import { logger } from "./lib/logger";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
 import Landing from "./pages/Landing";
@@ -49,6 +50,11 @@ import AIFeedbackPage from "./pages/AIFeedbackPage";
 
 const queryClient = new QueryClient();
 
+function PageTracker() {
+  usePageTracking();
+  return null;
+}
+
 function AppContent() {
   const { startOnboarding } = useOnboarding();
 
@@ -71,6 +77,7 @@ function AppContent() {
           v7_relativeSplatPath: true,
         }}
       >
+        <PageTracker />
         <OnboardingWizard />
         <Routes>
                 {/* Public Marketing Pages */}

@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { trackDemoRequest } from "@/lib/analytics";
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -53,6 +54,7 @@ export function DemoRequestForm({ source = "website", onSuccess }: DemoRequestFo
 
       setIsSuccess(true);
       toast.success("Thank you! We'll be in touch soon.");
+      trackDemoRequest(source);
       reset();
       onSuccess?.();
       
