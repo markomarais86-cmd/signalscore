@@ -249,7 +249,7 @@ export default function Pricing() {
                     ))}
                   </ul>
                   <Button
-                    className="w-full"
+                    className="w-full text-white"
                     variant={plan.popular ? "glow" : "outline"}
                     size="sm"
                     onClick={() => handlePricingRequest(plan.name)}
