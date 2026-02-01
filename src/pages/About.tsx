@@ -89,14 +89,14 @@ export default function About() {
               return (
                 <div
                   key={index}
-                  className="relative p-8 rounded-xl border border-white/10 bg-white/5 overflow-hidden animate-fade-in"
+                  className="relative p-8 rounded-xl border border-white/10 bg-[#1F2227] overflow-hidden animate-fade-in"
                   style={{ animationDelay: `${0.1 * index}s` }}
                 >
                   {/* Decorative gradient line at top */}
                   <div 
-                    className="absolute top-0 left-0 right-0 h-[2px]"
+                    className="absolute top-0 left-0 right-0 h-[1px]"
                     style={{ 
-                      background: 'linear-gradient(90deg, transparent 0%, #3CF1AE 50%, transparent 100%)' 
+                      background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%)' 
                     }}
                   />
                   <div className="relative z-10">
