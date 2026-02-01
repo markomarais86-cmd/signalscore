@@ -312,7 +312,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const resetPassword = async (email: string) => {
-    const redirectUrl = `${window.location.origin}/reset-password`;
+    // Always use production URL for password reset emails
+    // This ensures the email link works regardless of where the reset was triggered
+    const productionUrl = 'https://www.launchpulse.io';
+    const redirectUrl = `${productionUrl}/reset-password`;
     
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: redirectUrl
