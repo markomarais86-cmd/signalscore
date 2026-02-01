@@ -89,14 +89,9 @@ export default function About() {
               return (
                 <div
                   key={index}
-                  className="relative p-8 rounded-xl border border-white/10 overflow-hidden animate-fade-in"
+                  className="relative p-8 rounded-xl border border-white/10 bg-white/5 overflow-hidden animate-fade-in"
                   style={{ animationDelay: `${0.1 * index}s` }}
                 >
-                  <img 
-                    src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a4cf6a9a77e800b6242c1_about-card-2.png"
-                    alt=""
-                    className="absolute inset-0 w-full h-full object-cover opacity-30"
-                  />
                   <div className="relative z-10">
                     <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20">
                       <Icon className="h-7 w-7 text-primary" />
