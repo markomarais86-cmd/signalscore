@@ -143,7 +143,7 @@ export default function PrivacyPolicy() {
               <h2 className="text-2xl font-semibold mb-4 text-white">11. Contact Us</h2>
               <p className="text-white/70 leading-relaxed">
                 If you have any questions about this Privacy Policy or our data practices, please contact us 
-                at privacy@launchpulse.io.
+                at contact@launchpulse.io.
               </p>
             </section>
           </div>
