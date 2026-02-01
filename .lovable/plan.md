@@ -1,59 +1,45 @@
 
-
 ## Overview
 
-The Product page cards use `bg-white/5` (nearly transparent) while the Pricing page cards use `bg-[#1F2227]` (solid dark grey). They should match.
+The Pricing page cards are already using `bg-[#1F2227]` (solid dark grey), which matches the About and Product pages. However, the **Landing page** uses a different style (`bg-white/5` - transparent) for its feature cards.
 
-## Issue
+## Current State
 
-| Page | Card Background | Result |
-|------|-----------------|--------|
-| Product | `bg-white/5` | Nearly transparent, lighter |
-| Pricing | `bg-[#1F2227]` | Solid dark grey |
+| Page | Card Background |
+|------|-----------------|
+| Landing (FeatureCard) | `bg-white/5` (transparent/lighter) |
+| About | `bg-[#1F2227]` (solid dark grey) |
+| Product | `bg-[#1F2227]` (solid dark grey) |
+| Pricing | `bg-[#1F2227]` (solid dark grey) |
 
 ## Solution
 
-Update the **Product page** cards to use the same `bg-[#1F2227]` background as Pricing and About pages.
+Update the **FeatureCard** component used on the Landing page to use the same `bg-[#1F2227]` background as the rest of the marketing pages, ensuring visual consistency across the entire website.
 
 ---
 
 ## Technical Details
 
-### File: `src/pages/Product.tsx`
+### File: `src/components/marketing/FeatureCard.tsx`
 
-**1. Core Features cards (around line 138):**
-
-```tsx
-// BEFORE:
-className="p-8 rounded-xl border border-white/10 bg-white/5 animate-fade-in"
-
-// AFTER:
-className="p-8 rounded-xl border border-white/10 bg-[#1F2227] animate-fade-in"
-```
-
-**2. Enrichment comparison card (around line 197):**
+**Update card background (line 19):**
 
 ```tsx
 // BEFORE:
-className="p-6 rounded-xl border border-white/10 bg-white/5"
+className="p-6 rounded-xl border border-white/10 bg-white/5 animate-fade-in"
 
 // AFTER:
-className="p-6 rounded-xl border border-white/10 bg-[#1F2227]"
-```
-
-**3. Use Cases cards (around line 220):**
-
-```tsx
-// BEFORE:
-className="p-8 rounded-xl border border-white/10 bg-white/5 text-center animate-fade-in hover:bg-white/[0.08] ..."
-
-// AFTER:
-className="p-8 rounded-xl border border-white/10 bg-[#1F2227] text-center animate-fade-in hover:bg-[#262a30] ..."
+className="p-6 rounded-xl border border-white/10 bg-[#1F2227] animate-fade-in"
 ```
 
 ---
 
 ## Visual Result
 
-After this change, all marketing page cards will have consistent solid dark grey (`#1F2227`) backgrounds matching the brand style guide.
+After this change, all marketing page cards will use the same solid dark grey (`#1F2227`) background:
+- Landing page ✓
+- About page ✓
+- Product page ✓
+- Pricing page ✓
 
+This matches the brand style guide which specifies Dark Grey (#1F2227) for cards.
