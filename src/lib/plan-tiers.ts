@@ -355,3 +355,36 @@ export function getPlanLimit(planId: string | null, limit: keyof PlanTierConfig[
 export function isLimitUnlimited(planId: string | null, limit: keyof PlanTierConfig['limits']): boolean {
   return getPlanLimit(planId, limit) === null;
 }
+
+// ============================================================================
+// UUID MAPPING FOR DATABASE plan_limits TABLE
+// ============================================================================
+
+// Maps plan tier names to their database UUIDs in plan_limits table
+export const PLAN_TIER_UUID_MAP: Record<PlanTier, string> = {
+  free: '9d176a2d-d4cd-482a-b7c5-ba104e7d1db0',
+  pilot: '90cc86c5-d3fc-446e-97ee-ac9afca4ebdc',
+  professional: 'adfb7b99-4f2b-4f3c-a2ea-7b2f6e2f836c',
+  growth: '94e94bab-d831-47f6-9a46-bc1c9182cc3d',
+  enterprise: '4a2e8e92-6801-4bf9-b35f-01c20ed84a89',
+};
+
+// Reverse lookup: UUID to plan tier name
+export const UUID_TO_PLAN_TIER: Record<string, PlanTier> = {
+  '9d176a2d-d4cd-482a-b7c5-ba104e7d1db0': 'free',
+  '90cc86c5-d3fc-446e-97ee-ac9afca4ebdc': 'pilot',
+  'adfb7b99-4f2b-4f3c-a2ea-7b2f6e2f836c': 'professional',
+  '94e94bab-d831-47f6-9a46-bc1c9182cc3d': 'growth',
+  '4a2e8e92-6801-4bf9-b35f-01c20ed84a89': 'enterprise',
+};
+
+// Get the database UUID for a plan tier
+export function getPlanUuid(planTier: PlanTier): string {
+  return PLAN_TIER_UUID_MAP[planTier];
+}
+
+// Convert a database UUID to a plan tier name
+export function getPlanTierFromUuid(uuid: string | null): PlanTier {
+  if (!uuid) return 'free';
+  return UUID_TO_PLAN_TIER[uuid] ?? 'free';
+}
