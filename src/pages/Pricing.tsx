@@ -1,5 +1,5 @@
 import { GradientBackground } from "@/components/ui/GradientBackground";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MarketingNav, MarketingFooter, MarketingHero } from "@/components/marketing";
@@ -7,7 +7,6 @@ import {
   Check,
   X,
   Zap,
-  ArrowRight,
   HelpCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -17,6 +16,24 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+
+function DiagonalArrow({ className }: { className?: string }) {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="18" 
+      height="18" 
+      viewBox="0 0 18 18" 
+      fill="none"
+      className={className}
+    >
+      <path 
+        d="M4.38237 12.4016L10.5268 6.25717L5.7538 6.25717L5.7538 4.7574L13.0872 4.7574L13.0872 12.0908L11.5874 12.0908V7.31783L5.44303 13.4622L4.38237 12.4016Z" 
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 
 const platformPlans = [
   {
@@ -172,7 +189,7 @@ export default function Pricing() {
         <section className="container mx-auto px-6 py-12">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
-              Platform <span className="text-primary">Plans</span>
+              Platform Plans
             </h2>
             <p className="text-lg text-white/60">
               Choose the plan that fits your team size and needs
@@ -181,11 +198,9 @@ export default function Pricing() {
 
           <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
             {platformPlans.map((plan, index) => (
-              <Card
+              <div
                 key={index}
-                variant={plan.popular ? "gradient" : "glass"}
-                hover="lift"
-                className={`relative ${plan.popular ? "md:scale-105 shadow-glow z-10" : ""}`}
+                className={`relative rounded-xl border border-white/10 bg-[#1F2227] transition-all duration-300 hover:-translate-y-1 ${plan.popular ? "md:scale-105 border-primary/30 z-10" : ""}`}
               >
                 {plan.popular && (
                   <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground shadow-glow-sm">
@@ -221,7 +236,7 @@ export default function Pricing() {
                     </Button>
                   </Link>
                 </CardContent>
-              </Card>
+              </div>
             ))}
           </div>
         </section>
@@ -234,7 +249,7 @@ export default function Pricing() {
               <span className="text-sm font-medium text-primary">Add-On</span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
-              Enrichment <span className="text-primary">Credit Packs</span>
+              Enrichment Credit Packs
             </h2>
             <p className="text-lg text-white/60 max-w-2xl mx-auto">
               Need more data? Add credits to any plan. Save 60-85% vs Apollo, ZoomInfo, and Clay.
@@ -243,11 +258,9 @@ export default function Pricing() {
 
           <div className="grid md:grid-cols-4 gap-6 max-w-5xl mx-auto">
             {creditPacks.map((pack, index) => (
-              <Card
+              <div
                 key={index}
-                variant="glass"
-                hover="lift"
-                className={`relative ${pack.popular ? "border-primary/50" : ""}`}
+                className={`relative rounded-xl border border-white/10 bg-[#1F2227] transition-all duration-300 hover:-translate-y-1 ${pack.popular ? "border-primary/50" : ""}`}
               >
                 {pack.popular && (
                   <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground shadow-glow-sm">
@@ -268,7 +281,7 @@ export default function Pricing() {
                     Add to Plan
                   </Button>
                 </CardContent>
-              </Card>
+              </div>
             ))}
           </div>
 
@@ -283,16 +296,16 @@ export default function Pricing() {
         {/* Feature Comparison */}
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Feature <span className="text-primary">Comparison</span>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+              Feature Comparison
             </h2>
           </div>
 
-          <Card variant="glass" className="max-w-4xl mx-auto overflow-hidden">
+          <div className="max-w-4xl mx-auto overflow-hidden rounded-xl border border-white/10 bg-[#1F2227]">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-border/50">
+                  <tr className="border-b border-white/10">
                     <th className="text-left p-4 font-semibold">Feature</th>
                     <th className="text-center p-4 font-semibold">Starter</th>
                     <th className="text-center p-4 font-semibold text-primary">
@@ -305,7 +318,7 @@ export default function Pricing() {
                   {featureComparison.map((row, index) => (
                     <tr
                       key={index}
-                      className="border-b border-border/30 last:border-0"
+                      className="border-b border-white/10 last:border-0"
                     >
                       <td className="p-4 text-sm">{row.feature}</td>
                       <td className="p-4 text-center">
@@ -346,15 +359,15 @@ export default function Pricing() {
                 </tbody>
               </table>
             </div>
-          </Card>
+          </div>
         </section>
 
         {/* FAQ */}
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-12">
             <HelpCircle className="h-10 w-10 text-primary mx-auto mb-4" />
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Frequently Asked <span className="text-primary">Questions</span>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
+              Frequently Asked Questions
             </h2>
           </div>
 
@@ -364,7 +377,7 @@ export default function Pricing() {
                 <AccordionItem
                   key={index}
                   value={`item-${index}`}
-                  className="bg-card/40 backdrop-blur-xl border border-border/50 rounded-lg px-6"
+                  className="bg-[#1F2227] border border-white/10 rounded-lg px-6"
                 >
                   <AccordionTrigger className="text-left hover:no-underline">
                     {faq.question}
@@ -379,30 +392,29 @@ export default function Pricing() {
         </section>
 
         {/* CTA Section */}
-        <section className="container mx-auto px-6 py-24">
-          <Card variant="gradient" className="overflow-hidden relative">
-            <div
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-20 pointer-events-none"
-              style={{
-                background:
-                  "radial-gradient(circle, hsl(161 85% 60% / 0.3), transparent 60%)",
-              }}
-            />
-            <CardContent className="pt-16 pb-16 text-center relative z-10">
-              <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                Ready to Get <span className="text-primary">Started</span>?
+        <section className="relative w-full overflow-hidden">
+          <img 
+            src="/images/Business_Man.webp"
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
+          <div className="relative container mx-auto px-6 py-32">
+            <div className="max-w-xl">
+              <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
+                Ready to Get<br />Started?
               </h2>
-              <p className="text-xl text-white/60 mb-10 max-w-2xl mx-auto">
+              <p className="text-lg text-white/80 mb-8">
                 Schedule a demo and see how LaunchPulse can transform your GTM strategy.
               </p>
               <Link to="/contact">
-                <Button size="xl" variant="glow" className="text-lg">
+                <Button size="xl" variant="default" className="text-lg gap-2">
                   Request Demo
-                  <ArrowRight className="ml-2 h-5 w-5" />
+                  <DiagonalArrow />
                 </Button>
               </Link>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </section>
 
         <MarketingFooter />
