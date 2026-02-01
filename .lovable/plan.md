@@ -1,132 +1,245 @@
 
+# 100% Exact LaunchPulse.org Replication Plan
 
-# EXACT LaunchPulse.org Replication - Detailed Differences & Fixes
+## Critical Visual Differences to Fix
 
-## Side-by-Side Comparison (from screenshots)
+### What the Original Has (That We Need to Match Exactly)
 
-### ORIGINAL (launchpulse.org):
-- **Navigation**: Logo + Home, About, Product + Request Demo button (NO Pricing, NO Sign In)
-- **Logo**: Uses CDN SVG logo `https://cdn.prod.website-files.com/694961d117761a0a17d0744b/69497386bcff6817bd62fe29_light-01.svg`
-- **Hero headline**: First line "AI-Driven ICP and TAM" is GRAY (not white/40), second line "Intelligence for" is also GRAY, "High-Performance GTM Teams" is WHITE
-- **Hero button**: Simple rounded button with arrow icon, black background with green text or green background with black text
-- **Dashboard mockup**: Three floating SVG images positioned correctly
-- **Pain Points**: Has floating SVG decorations (icp-01.svg on left, total-01.svg on right, bg_Grey.webp as background shape)
-- **Features**: Simple cards with icon, title, description (no glass effect, simpler design)
-- **CTA Section**: "Request Early Access" header, specific text, simple button
-
-### CURRENT (your preview):
-- **Navigation**: Logo + Home, About, Product, **Pricing** + **Sign In** + Request Demo (extra items)
-- **Logo**: Custom SVG component (different from original)
-- **Hero headline**: Using white/40 opacity (too light), and white (correct)
-- **Hero button**: Has arrow AND glowing effect (different from original)
-- **Dashboard mockup**: Correct SVGs but positioning may differ
-- **Pain Points**: Missing the floating decoration SVGs, has 2-column grid
-- **Features**: Has glass card effect with hover lift animation (too fancy)
-- **CTA Section**: Has gradient card background and glow effect (too fancy)
+| Element | Original launchpulse.org | Current Site | Status |
+|---------|-------------------------|--------------|--------|
+| Navigation background | Pure black, no blur | Gray blur effect | FIX |
+| Grid pattern | Visible white lines (opacity ~0.05) | Nearly invisible (0.015) | FIX |
+| Aurora/orb effects | NONE - pure black | Green glows present | FIX |
+| Nav items | Home, About, Product only | Has Pricing, Sign In | KEEP (requested) |
+| Button arrow | Diagonal arrow SVG | ArrowRight Lucide | FIX |
+| Pain Points layout | 2-column (text left, images right) | Centered with overlaid images | FIX |
+| Pain Point icons | Green check_circle icon | Circle bg with check | FIX |
+| Pain Point text | Bold part white, gray part gray | All same color | FIX |
+| CTA alignment | Left-aligned | Centered | FIX |
+| Feature titles | "AI ICP" green, "Builder" white | Not styled this way | FIX |
 
 ---
 
-## File-by-File Fixes
+## Files to Modify
 
-### File 1: `src/components/marketing/MarketingNav.tsx`
+### 1. `src/components/ui/GradientBackground.tsx`
 
-**Problem**: Navigation has extra items (Pricing, Sign In) and uses custom logo
+**Current Issues:**
+- Has green aurora/orb radial gradients (lines 38-70)
+- Grid pattern opacity is 0.015 (too low)
+- Grid uses green-tinted color
 
-**Fixes**:
-1. Use the EXACT original logo from CDN: `https://cdn.prod.website-files.com/694961d117761a0a17d0744b/69497386bcff6817bd62fe29_light-01.svg`
-2. **KEEP Pricing link** (as requested)
-3. **KEEP Sign In button** (for app functionality)
-4. Remove glow effect from Request Demo button - make it simpler
+**Changes Required:**
+- Remove ALL aurora/orb effects completely (delete lines 38-70)
+- Increase grid visibility to opacity 0.05
+- Change grid color to pure white (not green-tinted)
 
 ```tsx
-// Line 23-25: Replace BrandLogo with original CDN logo
-<Link to="/landing">
-  <img 
-    src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/69497386bcff6817bd62fe29_light-01.svg" 
-    alt="LaunchPulse" 
-    className="h-8"
-  />
-</Link>
+// REMOVE: All the aurora/orb divs (lines 38-70)
+// KEEP: Only the grid pattern with these changes:
 
-// Line 52: Change button variant from "glow" to "default"
-<Button variant="default">Request Demo</Button>
+{isDark && (
+  <div 
+    className="absolute inset-0 pointer-events-none"
+    style={{
+      backgroundImage: `linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+                       linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)`,
+      backgroundSize: '60px 60px'
+    }}
+  />
+)}
 ```
 
 ---
 
-### File 2: `src/pages/Landing.tsx`
+### 2. `src/components/marketing/MarketingNav.tsx`
 
-**Problem**: Missing floating decoration SVGs in pain points section, CTA section too fancy
+**Current Issues:**
+- Has `bg-background/50 backdrop-blur-xl` (gray blur)
+- Has Pricing and Sign In links (KEEP as requested)
+- Button uses Lucide ArrowRight
 
-**Fixes**:
-1. Add floating SVG decorations to pain points section
-2. Simplify CTA section (remove gradient card, glow effects)
-3. Align pain points layout to match original
+**Changes Required:**
+- Change background to pure black: `bg-black`
+- Remove backdrop-blur
+- Add custom diagonal arrow icon to match original button
 
-**Pain Points Section Update**:
 ```tsx
-<section className="container mx-auto px-6 py-16 relative">
-  {/* Floating decoration SVGs - matching original */}
-  <img 
-    src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695055dccf22527a26df6e62_icp-01.svg"
-    alt=""
-    className="absolute left-0 md:left-10 top-1/2 -translate-y-1/2 w-24 md:w-32 opacity-80"
-  />
-  <img 
-    src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/694e6fd27d17f86e6ce24884_total-01.svg"
-    alt=""
-    className="absolute right-0 md:right-10 top-1/2 -translate-y-1/2 w-24 md:w-32 opacity-80"
-  />
-  {/* Gray background shape */}
-  <img 
-    src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695012c6ca938bbd9d2d6114_bg_Grey.webp"
-    alt=""
-    className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none"
-  />
-  
-  <div className="text-center mb-12 relative z-10">
-    <h2 className="text-3xl md:text-4xl font-bold mb-4">
-      Why GTM Teams performance stalls even when activity is high:
+// Line 20: Change header class
+<header className="border-b border-white/10 bg-black sticky top-0 z-50">
+
+// Button with diagonal arrow SVG (matching original exactly)
+<Button variant="default" className="gap-2">
+  Request Demo
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 18 18" fill="none">
+    <path d="M4.38237 12.4016L10.5268 6.25717L5.7538 6.25717L5.7538 4.7574L13.0872 4.7574L13.0872 12.0908L11.5874 12.0908V7.31783L5.44303 13.4622L4.38237 12.4016Z" fill="currentColor"/>
+  </svg>
+</Button>
+```
+
+---
+
+### 3. `src/components/marketing/MarketingHero.tsx`
+
+**Current Issues:**
+- Uses Lucide ArrowRight icon
+- Animation delays may differ
+
+**Changes Required:**
+- Replace ArrowRight with diagonal arrow SVG
+
+```tsx
+// Replace the Button content
+<Button size="xl" variant="default" className="text-lg gap-2">
+  {primaryCta.label}
+  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <path d="M4.38237 12.4016L10.5268 6.25717L5.7538 6.25717L5.7538 4.7574L13.0872 4.7574L13.0872 12.0908L11.5874 12.0908V7.31783L5.44303 13.4622L4.38237 12.4016Z" fill="currentColor"/>
+  </svg>
+</Button>
+```
+
+---
+
+### 4. `src/pages/Landing.tsx`
+
+**Current Issues:**
+- Pain Points section is centered with grid layout
+- Images overlaid instead of side-by-side
+- CTA section is centered
+- Feature titles not styled correctly
+
+**Changes Required:**
+
+**A. Pain Points Section - Complete restructure to 2-column layout:**
+```tsx
+{/* Pain Points Section - 2 column layout matching original */}
+<section className="container mx-auto px-6 py-24">
+  <div className="grid lg:grid-cols-2 gap-16 items-center max-w-6xl mx-auto">
+    {/* Left side - Text content */}
+    <div>
+      <h2 className="text-3xl md:text-4xl font-bold mb-8">
+        Why GTM Teams<br />
+        <span className="text-white/50">performance stalls even when activity is high:</span>
+      </h2>
+      <div className="space-y-5">
+        {painPoints.map((point, index) => (
+          <PainPointCard key={index} text={point} delay={0.1 * index} />
+        ))}
+      </div>
+    </div>
+    
+    {/* Right side - Images */}
+    <div className="relative hidden lg:block h-[400px]">
+      <img 
+        src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695055dccf22527a26df6e62_icp-01.svg"
+        alt="ICP Chart"
+        className="absolute left-0 top-0 w-96"
+      />
+      <img 
+        src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/694e6fd27d17f86e6ce24884_total-01.svg"
+        alt="Revenue Stats"
+        className="absolute right-0 bottom-0 w-72"
+      />
+      <img 
+        src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695012c6ca938bbd9d2d6114_bg_Grey.webp"
+        alt=""
+        className="absolute inset-0 w-full h-full object-cover opacity-30 -z-10"
+      />
+    </div>
+  </div>
+</section>
+```
+
+**B. Features Section - Update title styling:**
+```tsx
+<h2 className="text-4xl md:text-5xl font-bold mb-4">
+  What LaunchPulse Delivers
+</h2>
+```
+
+**C. CTA Section - Left-align like original:**
+```tsx
+{/* CTA Section - Left aligned matching original */}
+<section className="container mx-auto px-6 py-24">
+  <div className="max-w-2xl">
+    <h2 className="text-4xl md:text-5xl font-bold mb-6">
+      Request Early<br />Access
     </h2>
+    <p className="text-lg text-white/60 mb-8">
+      Get a fast, explainable view of: who converts, who you should target next, and what's blocking yield today. Request early access to see LaunchPulse mapped against your CRM reality.
+    </p>
+    <Link to="/contact">
+      <Button variant="default" size="xl" className="text-lg gap-2">
+        Request Demo
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M4.38237 12.4016L10.5268 6.25717L5.7538 6.25717L5.7538 4.7574L13.0872 4.7574L13.0872 12.0908L11.5874 12.0908V7.31783L5.44303 13.4622L4.38237 12.4016Z" fill="currentColor"/>
+        </svg>
+      </Button>
+    </Link>
   </div>
-  <div className="grid md:grid-cols-2 gap-4 max-w-3xl mx-auto relative z-10">
-    {painPoints.map((point, index) => (
-      <PainPointCard key={index} text={point} delay={0.1 * index} />
-    ))}
-  </div>
-</section>
-```
-
-**CTA Section Update** (simplify, remove gradient card):
-```tsx
-<section className="container mx-auto px-6 py-24 text-center">
-  <h2 className="text-4xl md:text-5xl font-bold mb-4">
-    Request Early Access
-  </h2>
-  <p className="text-xl text-white/60 mb-10 max-w-2xl mx-auto">
-    Get a fast, explainable view of: who converts, who you should target next, and what's blocking yield today. Request early access to see LaunchPulse mapped against your CRM reality.
-  </p>
-  <Link to="/contact">
-    <Button variant="default" size="xl">
-      Request Demo
-      <ArrowRight className="ml-2 h-5 w-5" />
-    </Button>
-  </Link>
 </section>
 ```
 
 ---
 
-### File 3: `src/components/marketing/FeatureCard.tsx`
+### 5. `src/components/marketing/PainPointCard.tsx`
 
-**Problem**: Glass card effect and hover animations are too fancy
+**Current Issues:**
+- Uses circle background with Lucide Check icon
+- All text same color
+- Original has Material Icons check_circle (green outline circle with check)
 
-**Fixes**:
-1. Remove `variant="glass"` and `hover="lift"`
-2. Use simpler styling that matches original
+**Changes Required:**
+- Use green check_circle style (can be approximated with text icon or SVG)
+- Split text into bold (white) and gray parts
+
+```tsx
+import { CheckCircle } from "lucide-react";
+
+interface PainPointCardProps {
+  text: string;
+  delay?: number;
+}
+
+export function PainPointCard({ text, delay = 0 }: PainPointCardProps) {
+  // Split text at first comma to style differently
+  const commaIndex = text.indexOf(',');
+  const boldPart = commaIndex > -1 ? text.slice(0, commaIndex) : text;
+  const grayPart = commaIndex > -1 ? text.slice(commaIndex) : '';
+  
+  return (
+    <div
+      className="flex items-start gap-3 animate-fade-in"
+      style={{ animationDelay: `${delay}s` }}
+    >
+      <CheckCircle className="h-6 w-6 text-primary flex-shrink-0 mt-0.5" />
+      <span className="text-base leading-relaxed">
+        <span className="text-white">{boldPart}</span>
+        <span className="text-white/50">{grayPart}</span>
+      </span>
+    </div>
+  );
+}
+```
+
+---
+
+### 6. `src/components/marketing/FeatureCard.tsx`
+
+**Current Issues:**
+- Title not styled with green + white split
+- Original has "AI ICP" in green, "Builder" in white
+
+**Changes Required:**
+- Add title styling to match original (first word green, rest white)
 
 ```tsx
 export function FeatureCard({ icon: Icon, iconUrl, title, description, delay = 0 }: FeatureCardProps) {
+  // Split title for styling (first word or "AI ICP" / "TAM" / "CRM" green, rest white)
+  const words = title.split(' ');
+  const greenPart = words.slice(0, -1).join(' '); // All but last word
+  const whitePart = words[words.length - 1]; // Last word
+  
   return (
     <div
       className="p-6 rounded-xl border border-white/10 bg-white/5 animate-fade-in"
@@ -139,7 +252,10 @@ export function FeatureCard({ icon: Icon, iconUrl, title, description, delay = 0
           <Icon className="h-7 w-7 text-primary" />
         ) : null}
       </div>
-      <h3 className="text-xl font-semibold mb-3">{title}</h3>
+      <h3 className="text-xl font-semibold mb-3">
+        <span className="text-primary">{greenPart}</span>{' '}
+        <span className="text-white">{whitePart}</span>
+      </h3>
       <p className="text-white/60 text-base leading-relaxed">
         {description}
       </p>
@@ -150,99 +266,102 @@ export function FeatureCard({ icon: Icon, iconUrl, title, description, delay = 0
 
 ---
 
-### File 4: `src/components/marketing/MarketingHero.tsx`
+### 7. `src/pages/Product.tsx`
 
-**Problem**: Button has glow effect, headline colors need adjustment
-
-**Fixes**:
-1. Change button variant from "glow" to "default"
-2. Keep headline as-is (text-white/40 and text-white work)
-
-```tsx
-// Line 69: Change variant
-<Button size="xl" variant="default" className="text-lg">
-  {primaryCta.label}
-  <ArrowRight className="ml-2 h-5 w-5" />
-</Button>
-```
-
----
-
-### File 5: `src/components/marketing/MarketingFooter.tsx`
-
-**Original has a much simpler footer** - just logo, copyright, and minimal links
-
-**Fixes**:
-1. Simplify footer to match original
-2. Remove extra link columns
-3. Keep essential links only
+**Changes Required:**
+- Update hero headline to match original wording exactly
+- Replace all ArrowRight icons with diagonal arrow SVG
+- Left-align CTA section
+- Update headline styling
 
 ```tsx
-export function MarketingFooter() {
-  const currentYear = new Date().getFullYear();
-
-  return (
-    <footer className="border-t border-white/10 py-8">
-      <div className="container mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4">
-        <img 
-          src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/69497386bcff6817bd62fe29_light-01.svg" 
-          alt="LaunchPulse" 
-          className="h-6"
-        />
-        <p className="text-sm text-white/50">
-          © {currentYear} LaunchPulse. All rights reserved.
-        </p>
-      </div>
-    </footer>
-  );
+// Hero headline matching original:
+headline={
+  <>
+    <span className="text-white/50">LaunchPulse connects to your CRM</span>{' '}
+    <span className="text-white">and transforms raw activity and outcome history</span>
+  </>
 }
+subheadline="into clear ICP, TAM, persona, and data-quality insights—built to improve pipeline yield and targeting precision."
 ```
 
 ---
 
-### File 6: `src/components/BrandLogo.tsx`
+### 8. `src/pages/About.tsx`
 
-**Problem**: Custom SVG logo doesn't match original
+**Changes Required:**
+- Update hero headline to match original wording exactly
+- Left-align CTA section
+- Update cards to match original design (with card background images)
 
-**Fix**: Keep the component but update it to use the original CDN logo for the marketing pages. The current BrandLogo can still be used for the app dashboard.
+```tsx
+// Hero headline matching original:
+headline={
+  <>
+    <span className="text-white/50">LaunchPulse exists</span>{' '}
+    <span className="text-white">make GTM targeting measurable, explainable, and operational:</span>
+  </>
+}
+subheadline="Who to prioritise, why they convert, and where your CRM reality is diverging from your ICP—so execution is anchored to evidence, not assumptions."
+```
 
 ---
 
-## Summary of All Differences Fixed
+## Summary of ALL Changes
 
-| Element | Original | Current | Fix |
-|---------|----------|---------|-----|
-| Nav logo | CDN SVG image | Custom SVG component | Use CDN image |
-| Nav items | Home, About, Product | Has Pricing, Sign In | KEEP both (requested) |
-| Request Demo btn | Simple default style | Glow effect | Use variant="default" |
-| Hero button | Default with arrow | Glow with arrow | Use variant="default" |
-| Pain points | Has floating SVGs | No decorations | Add floating SVG images |
-| Pain points | Has gray bg shape | No bg | Add bg_Grey.webp |
-| Feature cards | Simple border style | Glass + hover lift | Simplify to border only |
-| CTA section | Simple text + button | Gradient card + glow | Remove card, simplify |
-| Footer | Minimal (logo + copyright) | Full 4-column layout | Simplify to minimal |
+| File | Change Type | Priority |
+|------|------------|----------|
+| GradientBackground.tsx | Remove aurora orbs, increase grid visibility | Critical |
+| MarketingNav.tsx | Pure black bg, remove blur, diagonal arrow | Critical |
+| MarketingHero.tsx | Diagonal arrow icon | High |
+| Landing.tsx | 2-column pain points, left-align CTA | Critical |
+| PainPointCard.tsx | CheckCircle icon, split text colors | Critical |
+| FeatureCard.tsx | Split title coloring | Medium |
+| Product.tsx | Update content, left-align CTA | High |
+| About.tsx | Update content, left-align CTA | High |
+| MarketingFooter.tsx | Already simplified - no changes needed | Done |
+
+---
+
+## Visual Result After Implementation
+
+After these changes, your site will have:
+
+1. **Pure black background** with subtle white grid lines (no green aurora)
+2. **Clean navigation** with black background (Pricing and Sign In kept as requested)
+3. **Diagonal arrow icons** on all buttons (matching original exactly)
+4. **2-column Pain Points layout** with text left, floating images right
+5. **Properly styled text** with green checkmarks and white/gray text split
+6. **Left-aligned CTA section** matching original
+7. **Feature cards** with green/white split titles
+8. **Exact same content** as launchpulse.org
 
 ---
 
 ## Technical Notes
 
-**CDN Assets to Use**:
+**Diagonal Arrow SVG (used throughout):**
+```html
+<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" fill="none">
+  <path d="M4.38237 12.4016L10.5268 6.25717L5.7538 6.25717L5.7538 4.7574L13.0872 4.7574L13.0872 12.0908L11.5874 12.0908V7.31783L5.44303 13.4622L4.38237 12.4016Z" fill="currentColor"/>
+</svg>
+```
+
+**Grid Pattern (matching original visibility):**
+```css
+background-image: linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px);
+background-size: 60px 60px;
+```
+
+**CDN Assets (already correct):**
 - Logo: `https://cdn.prod.website-files.com/694961d117761a0a17d0744b/69497386bcff6817bd62fe29_light-01.svg`
-- Pain point left decoration: `https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695055dccf22527a26df6e62_icp-01.svg`
-- Pain point right decoration: `https://cdn.prod.website-files.com/694961d117761a0a17d0744b/694e6fd27d17f86e6ce24884_total-01.svg`
-- Pain point background: `https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695012c6ca938bbd9d2d6114_bg_Grey.webp`
-- Feature icons: Already using correct CDN URLs
+- Hero main: `https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695056603a61a746b7ebbe31_light.svg`
+- TAM indicator: `https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695060479ce89b8d2ce475be_TAM-01.svg`
+- ICP chart: `https://cdn.prod.website-files.com/694961d117761a0a17d0744b/69505f8e81701ec89798c0a8_icp-01.svg`
 
-**Files to Modify**:
-1. `src/components/marketing/MarketingNav.tsx` - Use CDN logo, simplify button
-2. `src/pages/Landing.tsx` - Add floating decorations, simplify CTA
-3. `src/components/marketing/FeatureCard.tsx` - Remove glass/hover effects
-4. `src/components/marketing/MarketingHero.tsx` - Simplify button
-5. `src/components/marketing/MarketingFooter.tsx` - Simplify to minimal layout
-
-**Preserved Features (as requested)**:
-- Pricing link in navigation
-- Sign In button
-- Login functionality
-- Pricing page
-
+**Preserved Features (as requested):**
+- Pricing link in navigation - KEPT
+- Sign In button - KEPT
+- Login/Auth functionality - KEPT
+- Pricing page - KEPT
