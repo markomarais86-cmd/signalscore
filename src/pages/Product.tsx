@@ -228,7 +228,7 @@ export default function Product() {
               </div>
 
               <div className="p-6 rounded-xl border border-white/10 bg-white/5">
-                <h4 className="font-semibold mb-4">Cost Comparison Per Lead</h4>
+                <h4 className="font-semibold mb-4 text-white">Cost Comparison Per Lead</h4>
                 <div className="space-y-3">
                   {enrichmentSection.comparison.map((item, idx) => (
                     <div
