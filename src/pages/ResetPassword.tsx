@@ -20,6 +20,7 @@ export default function ResetPassword() {
   const { toast } = useToast();
   const [noSession, setNoSession] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -36,7 +37,8 @@ export default function ResetPassword() {
         console.log('Auth event:', event);
         
         if (event === 'PASSWORD_RECOVERY') {
-          // Token was valid - session is now active
+          // Token was valid - session is now active, mark as recovery flow
+          setIsPasswordRecovery(true);
           setCheckingSession(false);
           setNoSession(false);
         } else if (event === 'SIGNED_IN' && session) {
@@ -79,7 +81,8 @@ export default function ResetPassword() {
     };
   }, []);
 
-  if (user) {
+  // Only redirect if logged in normally (not during password recovery)
+  if (user && !isPasswordRecovery) {
     return <Navigate to="/" replace />;
   }
 
