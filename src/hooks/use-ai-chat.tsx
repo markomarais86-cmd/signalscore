@@ -375,6 +375,16 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     };
 
     try {
+      // Get user's session token for authentication
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      
+      if (!token) {
+        toast.error('Please log in to use the AI assistant');
+        setIsLoading(false);
+        return;
+      }
+
       // Build enhanced context
       const enhancedContext = {
         ...options.context,
@@ -382,7 +392,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         ...sessionContext,
       };
 
-      const CHAT_URL = `https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/ai-chat`;
+      const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
       
       // Add 60-second timeout with AbortController
       const controller = new AbortController();
@@ -392,7 +402,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRoeWZiYXB0Y3ByeHhpeGducGJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNDQ0NzksImV4cCI6MjA2MzkyMDQ3OX0.wadO7aQoaPuXI1ykXJCxjdsk7vGbJ2Jg6q0bWGtmQbM`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ 
           messages: [...messages, userMessage].map(m => ({ role: m.role, content: m.content })),
