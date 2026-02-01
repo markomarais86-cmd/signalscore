@@ -4,6 +4,7 @@ import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SEOHead } from "@/components/SEOHead";
 import { MarketingNav, MarketingFooter, MarketingHero, DemoRequestForm } from "@/components/marketing";
 import {
   Check,
@@ -193,6 +194,11 @@ export default function Pricing() {
 
   return (
     <GradientBackground variant="hero" showOrbs forceDark>
+      <SEOHead
+        title="LaunchPulse Pricing - Simple, Transparent Plans"
+        description="Platform subscription plus pay-as-you-go enrichment credits. Choose from Pilot, Professional, Growth, or Enterprise plans tailored to your GTM needs."
+        canonicalPath="/pricing"
+      />
       <main>
         <MarketingNav />
 

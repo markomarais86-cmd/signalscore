@@ -1,6 +1,7 @@
 import { GradientBackground } from "@/components/ui/GradientBackground";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { Button } from "@/components/ui/button";
+import { SEOHead } from "@/components/SEOHead";
 import { MarketingNav, MarketingFooter, MarketingHero } from "@/components/marketing";
 import {
   Target,
@@ -132,6 +133,11 @@ const useCases = [
 export default function Product() {
   return (
     <GradientBackground variant="hero" showOrbs forceDark>
+      <SEOHead
+        title="LaunchPulse Product - ICP Builder & TAM Generator"
+        description="Connect your CRM and transform raw activity into clear ICP, TAM, persona, and data-quality insights. Built to improve pipeline yield and targeting precision."
+        canonicalPath="/product"
+      />
       <main>
         <MarketingNav />
 
@@ -307,7 +313,7 @@ export default function Product() {
           <section className="relative w-full overflow-hidden">
             <img 
               src="/images/Business_Man.webp"
-              alt=""
+              alt="Business professional reviewing CRM data insights"
               className="absolute inset-0 w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />

@@ -1,6 +1,7 @@
 import { GradientBackground } from "@/components/ui/GradientBackground";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { Button } from "@/components/ui/button";
+import { SEOHead } from "@/components/SEOHead";
 import { MarketingNav, MarketingFooter, MarketingHero } from "@/components/marketing";
 import { Link } from "react-router-dom";
 import { Search, BarChart3, ArrowUpCircle, Rocket, type LucideIcon } from "lucide-react";
@@ -58,6 +59,11 @@ const differentiators: { icon: LucideIcon; title: string; subtitle: string; desc
 export default function About() {
   return (
     <GradientBackground variant="hero" showOrbs forceDark>
+      <SEOHead
+        title="About LaunchPulse - GTM Intelligence Platform"
+        description="LaunchPulse makes GTM targeting measurable, explainable, and operational. Evidence-based ICP, explainable diagnostics, and fast time-to-value."
+        canonicalPath="/about"
+      />
       <main>
         <MarketingNav />
 

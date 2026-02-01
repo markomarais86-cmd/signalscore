@@ -2,12 +2,18 @@ import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GradientBackground } from "@/components/ui/GradientBackground";
+import { SEOHead } from "@/components/SEOHead";
 import { MarketingNav } from "@/components/marketing/MarketingNav";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 
 export default function TermsOfService() {
   return (
     <GradientBackground forceDark>
+      <SEOHead
+        title="Terms of Service - LaunchPulse"
+        description="Read the Terms of Service for LaunchPulse, the AI-driven ICP and TAM intelligence platform. Understand your rights and responsibilities when using our service."
+        canonicalPath="/terms"
+      />
       <MarketingNav />
       <main className="min-h-screen">
         <div className="container max-w-4xl mx-auto px-4 py-12">

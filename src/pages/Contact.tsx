@@ -1,12 +1,18 @@
 import { GradientBackground } from "@/components/ui/GradientBackground";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { Card } from "@/components/ui/card";
+import { SEOHead } from "@/components/SEOHead";
 import { MarketingNav, MarketingFooter, MarketingHero, DemoRequestForm } from "@/components/marketing";
 import { Mail, Clock, Users, Shield } from "lucide-react";
 
 export default function Contact() {
   return (
     <GradientBackground variant="hero" showOrbs forceDark>
+      <SEOHead
+        title="Contact LaunchPulse - Request a Demo"
+        description="Ready to transform your GTM strategy? Contact us for a personalized demo. Our team responds within 24 hours to discuss your ICP and TAM intelligence needs."
+        canonicalPath="/contact"
+      />
       <main>
         <MarketingNav />
 

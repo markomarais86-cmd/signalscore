@@ -2,12 +2,18 @@ import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GradientBackground } from "@/components/ui/GradientBackground";
+import { SEOHead } from "@/components/SEOHead";
 import { MarketingNav } from "@/components/marketing/MarketingNav";
 import { MarketingFooter } from "@/components/marketing/MarketingFooter";
 
 export default function PrivacyPolicy() {
   return (
     <GradientBackground forceDark>
+      <SEOHead
+        title="Privacy Policy - LaunchPulse"
+        description="Learn how LaunchPulse collects, uses, and protects your data. Our Privacy Policy explains our data practices for our ICP and TAM intelligence platform."
+        canonicalPath="/privacy"
+      />
       <MarketingNav />
       <main className="min-h-screen">
         <div className="container max-w-4xl mx-auto px-4 py-12">

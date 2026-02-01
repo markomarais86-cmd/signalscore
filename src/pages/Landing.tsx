@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { GradientBackground } from "@/components/ui/GradientBackground";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
+import { SEOHead } from "@/components/SEOHead";
 import { Link } from "react-router-dom";
-import { Target, BarChart3, Users, Zap, Shield, Clock, TrendingUp } from "lucide-react";
+import { Target, BarChart3, Users, Zap } from "lucide-react";
 import {
   MarketingNav,
   MarketingFooter,
@@ -75,6 +76,11 @@ const painPoints = [
 export default function Landing() {
   return (
     <GradientBackground variant="hero" showOrbs forceDark>
+      <SEOHead
+        title="LaunchPulse - AI-Driven ICP & TAM Intelligence Platform"
+        description="Transform your go-to-market strategy with precision ICP targeting, TAM generation, and CRM insights. LaunchPulse pinpoints your highest-converting customer profile."
+        canonicalPath="/landing"
+      />
       <main>
         <MarketingNav />
 
@@ -190,7 +196,7 @@ export default function Landing() {
           <section className="relative w-full overflow-hidden">
             <img 
               src="/images/Business_Man.webp"
-              alt=""
+              alt="Business professional reviewing GTM analytics dashboard"
               className="absolute inset-0 w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
