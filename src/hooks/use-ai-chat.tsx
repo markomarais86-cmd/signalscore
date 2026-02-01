@@ -414,13 +414,24 @@ export function useAIChat(options: UseAIChatOptions = {}) {
       clearTimeout(timeoutId);
 
       if (!resp.ok) {
-        const errorData = await resp.json().catch(() => ({}));
+        const errorText = await resp.text();
+        console.error(`[AI Chat] Error ${resp.status}:`, errorText);
+        
+        let errorData: any = {};
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {}
+        
         if (resp.status === 429) {
           toast.error('Rate limit exceeded. Please wait a moment.');
         } else if (resp.status === 402) {
           toast.error('AI credits exhausted. Please contact support.');
+        } else if (resp.status === 401) {
+          toast.error('Session expired. Please log in again.');
+        } else if (resp.status === 500) {
+          toast.error('AI service error. Please try again in a moment.');
         } else {
-          toast.error(errorData.error || 'Failed to get AI response');
+          toast.error(errorData.error || `Request failed (${resp.status})`);
         }
         setIsLoading(false);
         return;
@@ -499,11 +510,23 @@ export function useAIChat(options: UseAIChatOptions = {}) {
 
     } catch (error) {
       cleanup();
-      console.error('AI chat error:', error);
+      
+      // Enhanced error logging
+      console.error('[AI Chat] Request failed:', {
+        error,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorName: error instanceof Error ? error.name : 'Unknown',
+      });
       
       // User-friendly error messages based on error type
-      if (error instanceof Error && error.name === 'AbortError') {
-        toast.error('Request timed out. The AI may be busy - please try again.');
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          toast.error('Request timed out. Please try again.');
+        } else if (error.message.includes('Failed to fetch')) {
+          toast.error('Network error. Check your connection and try again.');
+        } else {
+          toast.error(`AI error: ${error.message}`);
+        }
       } else {
         toast.error('Failed to connect to AI assistant. Please try again.');
       }
