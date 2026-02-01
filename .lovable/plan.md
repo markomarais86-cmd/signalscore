@@ -1,54 +1,55 @@
 
-# Replace External Logo with Local BrandLogo Component
+# Fix Marketing Navigation to Stay Fixed on Scroll
 
-## The Issue
+## The Problem
 
-The marketing navigation bar currently uses an external CDN image for the logo that may not be loading:
-```tsx
-<img 
-  src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/69497386bcff6817bd62fe29_light-01.svg" 
-  alt="LaunchPulse" 
-  className="h-8"
-/>
-```
+The marketing navigation bar has `sticky top-0` but it's not staying fixed when scrolling. This is because the parent `GradientBackground` component has `overflow-hidden`, which breaks sticky positioning behavior in CSS.
 
 ## The Solution
 
-Replace the external image with the existing `BrandLogo` component that's already used throughout the app. This component:
-- Contains the LaunchPulse SVG mark (geometric icon)
-- Shows "LaunchPulse" text with proper styling
-- Works reliably without external dependencies
+Change the navigation from `sticky` to `fixed` positioning, which works independently of parent overflow settings.
 
 ## Changes Required
 
 ### File: `src/components/marketing/MarketingNav.tsx`
 
-1. Import the `BrandLogo` component
-2. Replace the external `<img>` tag with `<BrandLogo>`
-3. Use the "dark" variant for the black navbar background
-
+**Current (line 22):**
 ```tsx
-// Add import
-import { BrandLogo } from "@/components/BrandLogo";
-
-// Replace the img tag (line 24-29) with:
-<Link to="/landing">
-  <BrandLogo variant="dark" collapsed={false} />
-</Link>
+<header className="border-b border-white/10 bg-black sticky top-0 z-50">
 ```
 
-## Visual Result
+**Change to:**
+```tsx
+<header className="border-b border-white/10 bg-black fixed top-0 left-0 right-0 z-50">
+```
 
-Before: External image that may fail to load
-After: Local SVG logo with "LaunchPulse" text in primary green + white
+- `sticky` → `fixed` - Positions relative to viewport, not scroll container
+- Added `left-0 right-0` - Ensures full-width coverage
 
-The sticky behavior is already working (`sticky top-0 z-50`), so the logo will stay visible as you scroll once this fix is applied.
+### File: `src/components/marketing/MarketingNav.tsx`
 
----
+**Add a spacer div after the header to prevent content from being hidden behind the fixed nav:**
+
+```tsx
+return (
+  <>
+    <header className="border-b border-white/10 bg-black fixed top-0 left-0 right-0 z-50">
+      {/* ... existing nav content ... */}
+    </header>
+    {/* Spacer to account for fixed header height */}
+    <div className="h-16" />
+  </>
+);
+```
+
+The `h-16` spacer matches the `h-16` height of the header, so content flows naturally below the fixed navigation.
+
+## Result
+
+The navigation bar will remain locked at the top of the screen on all marketing pages (Landing, About, Product, Pricing) as users scroll up and down. The logo, navigation links (Home, About, Product, Pricing), Sign In button, and Request Demo button will always be visible.
 
 ## Technical Note
 
-The `BrandLogo` component uses:
-- `LaunchPulseMark`: SVG icon in primary color
-- Text: "Launch" (primary) + "Pulse" (white for dark variant)
-- The `variant="dark"` prop ensures text is visible on black backgrounds
+- `fixed` positioning is relative to the viewport, ignoring parent `overflow` properties
+- `sticky` positioning depends on scroll context and can be broken by ancestor `overflow` rules
+- No changes needed to individual pages - the fix is contained within the shared nav component
