@@ -84,7 +84,7 @@ export default function Landing() {
           <div className="grid lg:grid-cols-2 gap-16 items-center max-w-6xl mx-auto">
             {/* Left side - Text content */}
             <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-8">
+              <h2 className="text-3xl md:text-4xl font-bold mb-8 text-white">
                 Why GTM Teams<br />
                 <span className="text-white/50">performance stalls even when activity is high:</span>
               </h2>
