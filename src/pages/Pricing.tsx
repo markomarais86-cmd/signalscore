@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { GradientBackground } from "@/components/ui/GradientBackground";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SEOHead } from "@/components/SEOHead";
+import { DiagonalArrow } from "@/components/ui/DiagonalArrow";
 import { MarketingNav, MarketingFooter, MarketingHero, DemoRequestForm } from "@/components/marketing";
 import {
   Check,
@@ -24,24 +25,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-
-function DiagonalArrow({ className }: { className?: string }) {
-  return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="18" 
-      height="18" 
-      viewBox="0 0 18 18" 
-      fill="none"
-      className={className}
-    >
-      <path 
-        d="M4.38237 12.4016L10.5268 6.25717L5.7538 6.25717L5.7538 4.7574L13.0872 4.7574L13.0872 12.0908L11.5874 12.0908V7.31783L5.44303 13.4622L4.38237 12.4016Z" 
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
 
 const platformPlans = [
   {
@@ -186,6 +169,38 @@ const faqs = [
 export default function Pricing() {
   const [pricingDialogOpen, setPricingDialogOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string>("");
+
+  // Inject FAQ structured data for rich snippets
+  useEffect(() => {
+    const faqSchema = {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": faqs.map(faq => ({
+        "@type": "Question",
+        "name": faq.question,
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": faq.answer
+        }
+      }))
+    };
+
+    const script = document.createElement('script');
+    script.type = 'application/ld+json';
+    script.id = 'faq-schema';
+    script.textContent = JSON.stringify(faqSchema);
+    
+    // Remove existing if any
+    const existing = document.getElementById('faq-schema');
+    if (existing) existing.remove();
+    
+    document.head.appendChild(script);
+
+    return () => {
+      const el = document.getElementById('faq-schema');
+      if (el) el.remove();
+    };
+  }, []);
 
   const handlePricingRequest = (planName: string) => {
     setSelectedPlan(planName);
@@ -482,7 +497,7 @@ export default function Pricing() {
           <section className="relative w-full overflow-hidden">
             <img 
               src="/images/Business_Man.webp"
-              alt=""
+              alt="Business professional reviewing GTM analytics dashboard"
               className="absolute inset-0 w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
