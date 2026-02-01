@@ -18,6 +18,32 @@ interface DemoRequest {
   source?: string;
 }
 
+function getPlanDisplayName(source: string | undefined): string | null {
+  if (!source) return null;
+  
+  // Handle pricing page sources: "pricing-professional" → "Professional Plan"
+  if (source.startsWith('pricing-')) {
+    const planPart = source.replace('pricing-', '');
+    
+    // Handle credit packs: "starter-credit-pack" → "Starter Credit Pack"
+    if (planPart.includes('credit-pack')) {
+      return planPart
+        .replace('-credit-pack', '')
+        .split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ') + ' Credit Pack';
+    }
+    
+    // Handle platform plans: "professional" → "Professional Plan"
+    return planPart
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ') + ' Plan';
+  }
+  
+  return null; // Return null for non-pricing sources
+}
+
 const handler = async (req: Request): Promise<Response> => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -37,11 +63,30 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const timestamp = new Date().toISOString();
+    const planDisplayName = getPlanDisplayName(data.source);
+    
+    // Build email subject with plan if from pricing page
+    const emailSubject = planDisplayName 
+      ? `New Demo Request: ${planDisplayName} - ${data.name}`
+      : `New Demo Request from ${data.name}`;
+
+    // Build the selected plan row if applicable
+    const selectedPlanRow = planDisplayName ? `
+        <tr style="background-color: #6366f1;">
+          <td style="padding: 12px; border: 1px solid #5558e3; color: white;">
+            <strong>Selected Plan</strong>
+          </td>
+          <td style="padding: 12px; border: 1px solid #5558e3; color: white; font-weight: bold; font-size: 16px;">
+            ${planDisplayName}
+          </td>
+        </tr>
+    ` : '';
 
     // Send notification email to contact@launchpulse.io
     const notificationHtml = `
       <h1>New Demo Request</h1>
       <table style="border-collapse: collapse; width: 100%;">
+        ${selectedPlanRow}
         <tr>
           <td style="padding: 8px; border: 1px solid #ddd;"><strong>Name</strong></td>
           <td style="padding: 8px; border: 1px solid #ddd;">${data.name}</td>
@@ -79,11 +124,11 @@ const handler = async (req: Request): Promise<Response> => {
       </table>
     `;
 
-    console.log("Sending notification email to contact@launchpulse.io");
+    console.log("Sending notification email to contact@launchpulse.io with subject:", emailSubject);
     const notificationResult = await resend.emails.send({
       from: "LaunchPulse <noreply@launchpulse.io>",
       to: ["contact@launchpulse.io"],
-      subject: `New Demo Request from ${data.name}`,
+      subject: emailSubject,
       html: notificationHtml,
     });
     console.log("Notification email sent:", notificationResult);
