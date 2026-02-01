@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 
 export interface MemoryEntry {
   key: string;
@@ -47,8 +48,18 @@ export function useAIMemory(): UseAIMemoryReturn {
   const [templates, setTemplates] = useState<ActionTemplate[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  
+  const { user, loading: authLoading } = useAuth();
 
   const callMemoryFunction = useCallback(async (action: string, params: Record<string, any> = {}) => {
+    // Get fresh session token - prevents race condition
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.access_token) {
+      console.warn('[ai-memory] No auth session available');
+      return { error: 'Not authenticated' };
+    }
+
     const { data, error } = await supabase.functions.invoke('ai-memory', {
       body: { action, ...params },
     });
@@ -57,11 +68,13 @@ export function useAIMemory(): UseAIMemoryReturn {
     return data;
   }, []);
 
-  // Load preferences on mount
+  // Load preferences only when authenticated
   useEffect(() => {
-    loadPreferences();
-    loadTemplates();
-  }, []);
+    if (user && !authLoading) {
+      loadPreferences();
+      loadTemplates();
+    }
+  }, [user, authLoading]);
 
   const loadPreferences = useCallback(async () => {
     try {
