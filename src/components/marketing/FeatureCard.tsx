@@ -16,10 +16,10 @@ export function FeatureCard({ icon: Icon, iconUrl, title, description, delay = 0
   
   return (
     <div
-      className="p-6 rounded-xl border border-white/10 bg-[#1F2227] animate-fade-in"
+      className="group p-6 rounded-xl border border-white/10 bg-[#1F2227] animate-fade-in transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-lg hover:shadow-primary/5"
       style={{ animationDelay: `${delay}s` }}
     >
-      <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-4 bg-primary/10 border border-primary/20 overflow-hidden">
+      <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-4 bg-primary/10 border border-primary/20 overflow-hidden transition-transform duration-300 group-hover:scale-110">
         {iconUrl ? (
           <img src={iconUrl} alt={title} className="w-10 h-10 object-contain" />
         ) : Icon ? (

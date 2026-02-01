@@ -313,6 +313,13 @@ export default function Product() {
             <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
             <div className="relative container mx-auto px-6 py-32">
               <div className="max-w-xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 border border-primary/30 mb-6">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                  </span>
+                  <span className="text-sm text-primary font-medium">Get Started in Under 24 Hours</span>
+                </div>
                 <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
                   Ready to See<br />Your Data Differently?
                 </h2>
@@ -320,7 +327,7 @@ export default function Product() {
                   Connect your CRM and discover insights you've been missing.
                 </p>
                 <Link to="/contact">
-                  <Button size="xl" variant="default" className="text-lg gap-2">
+                  <Button size="xl" variant="glow" className="text-lg gap-2">
                     Request Demo
                     <DiagonalArrow />
                   </Button>

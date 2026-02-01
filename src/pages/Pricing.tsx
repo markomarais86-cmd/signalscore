@@ -208,6 +208,26 @@ export default function Pricing() {
           subheadline="Platform subscription + pay-as-you-go enrichment credits. Request pricing tailored to your needs."
         />
 
+        {/* Trust Indicators */}
+        <section className="container mx-auto px-6 py-8">
+          <ScrollReveal animation="fade-up">
+            <div className="flex flex-wrap justify-center items-center gap-6 text-white/50 text-sm">
+              <span className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-primary" />
+                No long-term contracts required
+              </span>
+              <span className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-primary" />
+                Cancel anytime
+              </span>
+              <span className="flex items-center gap-2">
+                <Check className="h-4 w-4 text-primary" />
+                14-day money-back guarantee
+              </span>
+            </div>
+          </ScrollReveal>
+        </section>
+
         {/* Platform Plans */}
         <section className="container mx-auto px-6 py-12">
           <ScrollReveal animation="fade-up">
@@ -225,7 +245,7 @@ export default function Pricing() {
             {platformPlans.map((plan, index) => (
               <ScrollReveal key={index} animation="fade-up" delay={0.1 * index}>
                 <div
-                  className={`relative rounded-xl border border-white/10 bg-[#1F2227] transition-all duration-300 hover:-translate-y-1 h-full ${plan.popular ? "border-primary/30" : ""}`}
+                  className={`group relative rounded-xl border border-white/10 bg-[#1F2227] transition-all duration-300 hover:-translate-y-2 hover:shadow-lg hover:shadow-primary/10 h-full ${plan.popular ? "border-primary/30 shadow-md shadow-primary/5" : "hover:border-white/20"}`}
                 >
                   {plan.popular && (
                     <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
@@ -252,7 +272,7 @@ export default function Pricing() {
                       ))}
                     </ul>
                     <Button
-                      className="w-full text-white"
+                      className="w-full text-white group-hover:scale-[1.02] transition-transform"
                       variant={plan.popular ? "glow" : "outline"}
                       size="sm"
                       onClick={() => handlePricingRequest(plan.name)}
@@ -462,6 +482,13 @@ export default function Pricing() {
             <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
             <div className="relative container mx-auto px-6 py-32">
               <div className="max-w-xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 border border-primary/30 mb-6">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                  </span>
+                  <span className="text-sm text-primary font-medium">Early Adopter Pricing Available</span>
+                </div>
                 <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
                   Ready to Get<br />Started?
                 </h2>
@@ -470,7 +497,7 @@ export default function Pricing() {
                 </p>
                 <Button 
                   size="xl" 
-                  variant="default" 
+                  variant="glow" 
                   className="text-lg gap-2"
                   onClick={() => handlePricingRequest("Demo Request")}
                 >

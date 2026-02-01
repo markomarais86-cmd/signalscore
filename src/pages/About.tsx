@@ -91,16 +91,16 @@ export default function About() {
               const Icon = item.icon;
               return (
                 <ScrollReveal key={index} animation="fade-up" delay={0.1 * index}>
-                  <div className="relative p-8 rounded-xl border border-white/10 bg-[#1F2227] overflow-hidden h-full">
+                  <div className="group relative p-8 rounded-xl border border-white/10 bg-[#1F2227] overflow-hidden h-full transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-lg hover:shadow-primary/5">
                     {/* Decorative gradient line at top */}
                     <div 
-                      className="absolute top-0 left-0 right-0 h-[1px]"
+                      className="absolute top-0 left-0 right-0 h-[1px] transition-opacity duration-300 group-hover:opacity-100 opacity-50"
                       style={{ 
-                        background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.15) 50%, transparent 100%)' 
+                        background: 'linear-gradient(90deg, transparent 0%, rgba(60, 241, 174, 0.3) 50%, transparent 100%)' 
                       }}
                     />
                     <div className="relative z-10">
-                      <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20">
+                      <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20 transition-transform duration-300 group-hover:scale-110">
                         <Icon className="h-7 w-7 text-primary" />
                       </div>
                       <h3 className="text-xl font-semibold mb-3 text-white">

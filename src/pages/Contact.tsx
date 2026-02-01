@@ -2,7 +2,7 @@ import { GradientBackground } from "@/components/ui/GradientBackground";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { Card } from "@/components/ui/card";
 import { MarketingNav, MarketingFooter, MarketingHero, DemoRequestForm } from "@/components/marketing";
-import { Mail } from "lucide-react";
+import { Mail, Clock, Users, Shield } from "lucide-react";
 
 export default function Contact() {
   return (
@@ -21,6 +21,26 @@ export default function Contact() {
           }
           subheadline="Ready to see how LaunchPulse can transform your go-to-market strategy? Fill out the form below and our team will reach out within 24 hours."
         />
+
+        {/* Trust Bar */}
+        <section className="container mx-auto px-6 py-8">
+          <ScrollReveal animation="fade-up">
+            <div className="flex flex-wrap justify-center items-center gap-8 text-white/40 text-sm">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                <span>Response within 24hrs</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                <span>Join 50+ GTM Teams</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4" />
+                <span>No commitment required</span>
+              </div>
+            </div>
+          </ScrollReveal>
+        </section>
 
         {/* Contact Section */}
         <section className="container mx-auto px-6 py-12">
@@ -78,8 +98,17 @@ export default function Contact() {
 
             {/* Right Column - Form */}
             <ScrollReveal animation="fade-left" delay={0.2}>
-              <Card className="p-8 border border-white/10 bg-white/5">
-                <h3 className="text-xl font-semibold mb-6">Request a Demo</h3>
+              <Card className="p-8 border border-white/10 bg-white/5 hover:border-white/20 transition-colors">
+                <div className="flex items-center gap-2 mb-6">
+                  <h3 className="text-xl font-semibold">Request a Demo</h3>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/20 text-primary text-xs font-medium">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-primary"></span>
+                    </span>
+                    Free
+                  </span>
+                </div>
                 <DemoRequestForm source="contact-page" />
               </Card>
             </ScrollReveal>
