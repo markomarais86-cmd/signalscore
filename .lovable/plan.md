@@ -1,138 +1,148 @@
 
-# Fix AI Chat 401 Errors and Network Issues
+# Improve Password Reset Email Template
 
-## Problem Analysis
+## Overview
 
-After investigating the logs, code, and error patterns, I identified multiple issues causing the "Network error" message when using the AI chatbot:
+Currently, the password reset uses Supabase's default email template via `supabase.auth.resetPasswordForEmail()`. To create a custom branded email with LaunchPulse's design and clearer instructions, we need to implement a custom email sending system using Supabase Auth Hooks and React Email.
 
-### Issue 1: CORS Not Allowing Custom Domain
-The user's custom domain `launchpulse.io` is not included in the allowed CORS origins. The current CORS configuration only allows:
-- `*.lovable.app` domains
-- `localhost` for development
+## What We'll Create
 
-When requests come from `launchpulse.io`, the CORS check fails and the browser blocks the response, causing "Failed to fetch" errors.
+### 1. Email Assets Storage Bucket
 
-### Issue 2: Race Condition in Session Retrieval
-The `use-ai-chat.tsx` hook calls `supabase.auth.getSession()` directly instead of using the `useAuth()` context. This can cause a race condition where:
-1. User opens AI chat
-2. `sendMessage` is called
-3. `getSession()` returns null because the session is still being restored
-4. Request is sent without Authorization header
+Create a public storage bucket to host the LaunchPulse logo for email templates.
 
-### Issue 3: No Retry Logic for Auth Failures
-When `getSession()` fails initially, there's no retry mechanism. The user sees "Please log in" even though they are logged in (just the session wasn't ready yet).
+**File: `supabase/migrations/XXXXXX_create_email_assets_bucket.sql`**
 
-## Solution
+```sql
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('email-assets', 'email-assets', true)
+ON CONFLICT (id) DO NOTHING;
 
-### Part 1: Add Custom Domain to CORS Configuration
-
-**File: `supabase/functions/_shared/cors.ts`**
-
-Add `launchpulse.io` and its subdomains to the allowed origins:
-
-```typescript
-// Line 16-24 - Update default allowed origins
-return [
-  // Production custom domain
-  'https://launchpulse.io',
-  'https://www.launchpulse.io',
-  // Lovable preview URLs
-  'https://id-preview--f6080332-94e1-4aef-bfee-6cc8143489f0.lovable.app',
-  // Published URL
-  'https://signalscore.lovable.app',
-  // Development
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'http://localhost:8080',
-];
+CREATE POLICY "Email assets are publicly accessible"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'email-assets');
 ```
 
-### Part 2: Use Auth Context in AI Chat Hook
+### 2. Password Reset Email Template
 
-**File: `src/hooks/use-ai-chat.tsx`**
+Create a React Email template with LaunchPulse branding.
 
-Instead of calling `supabase.auth.getSession()` directly, use the `useAuth()` hook which manages session state properly:
+**File: `supabase/functions/send-auth-email/_templates/password-reset.tsx`**
 
-1. Import `useAuth` at the top of the file
-2. Get `session` from the auth context
-3. Add a wait mechanism if auth is still loading
+The template will include:
+- LaunchPulse logo and brand colors
+- Clear, friendly instructions
+- Primary CTA button for resetting password
+- Fallback text link
+- Security notice
+- Help section with contact information
+- Professional footer
 
-```typescript
-// Line 1-4 - Add import
-import { useAuth } from '@/hooks/use-auth';
+Key design elements:
+- Brand color: `#6366f1` (primary purple/indigo)
+- Clean white background with subtle gray footer
+- Mobile-responsive table-based layout
+- Clear typography hierarchy
 
-// Inside useAIChat function, add:
-const { session, loading: authLoading } = useAuth();
+### 3. Auth Email Edge Function
 
-// In sendMessage function (around line 377-386):
-// Wait for auth to be ready with retry
-const getAuthToken = async (): Promise<string | null> => {
-  // First try the context session
-  if (session?.access_token) {
-    return session.access_token;
-  }
-  
-  // If not available, wait briefly and try getSession
-  const { data: sessionData } = await supabase.auth.getSession();
-  return sessionData?.session?.access_token || null;
-};
+Create an edge function that handles Supabase Auth email hooks.
 
-const token = await getAuthToken();
+**File: `supabase/functions/send-auth-email/index.ts`**
 
-if (!token) {
-  // If still no token after retry, the user really isn't logged in
-  toast.error('Please log in to use the AI assistant');
-  setIsLoading(false);
-  return;
-}
+This function will:
+- Receive password reset requests via Supabase Auth Hook
+- Validate the webhook signature using `standardwebhooks`
+- Render the React Email template with user data
+- Send the email via Resend API
+- Handle errors gracefully
+
+**Config: `supabase/config.toml`**
+
+```toml
+[functions.send-auth-email]
+verify_jwt = false
 ```
 
-### Part 3: Improve Error Handling for 401 Responses
+## Email Template Design
 
-**File: `src/hooks/use-ai-chat.tsx`**
-
-Add better handling for 401 errors that provides a retry option:
-
-```typescript
-// Around line 429-434 - Improve 401 handling
-} else if (resp.status === 401) {
-  // Try to refresh the session
-  const { data: { session: newSession } } = await supabase.auth.refreshSession();
-  if (newSession) {
-    toast.error('Session refreshed. Please try again.');
-  } else {
-    toast.error('Session expired. Please log in again.');
-  }
-}
+```text
+┌─────────────────────────────────────────────────────────┐
+│                                                         │
+│     [LaunchPulse Logo]                                  │
+│                                                         │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│     Reset Your Password                                 │
+│                                                         │
+│     Hi [Name],                                          │
+│                                                         │
+│     We received a request to reset your password        │
+│     for your LaunchPulse account. Click the button      │
+│     below to create a new password.                     │
+│                                                         │
+│              ┌─────────────────────┐                    │
+│              │   Reset Password    │ (purple button)    │
+│              └─────────────────────┘                    │
+│                                                         │
+│     This link expires in 1 hour for security.           │
+│                                                         │
+├─────────────────────────────────────────────────────────┤
+│     Security Notice                                     │
+│     If you didn't request this reset, you can           │
+│     safely ignore this email. Your password will        │
+│     remain unchanged.                                   │
+├─────────────────────────────────────────────────────────┤
+│     Having trouble?                                     │
+│     Copy and paste this link: [URL]                     │
+│                                                         │
+│     Need help? Contact us at support@launchpulse.io     │
+├─────────────────────────────────────────────────────────┤
+│     © 2026 LaunchPulse. All rights reserved.            │
+│     Where GTM Meets ICP Precision                       │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## Files to Modify
+## Files to Create/Modify
 
-| File | Changes |
-|------|---------|
-| `supabase/functions/_shared/cors.ts` | Add `launchpulse.io` to allowed origins |
-| `src/hooks/use-ai-chat.tsx` | Use `useAuth()` context and add retry logic |
+| File | Action | Description |
+|------|--------|-------------|
+| `supabase/migrations/XXXXXX_create_email_assets_bucket.sql` | Create | Storage bucket for email logo |
+| `supabase/functions/send-auth-email/_templates/password-reset.tsx` | Create | React Email template |
+| `supabase/functions/send-auth-email/index.ts` | Create | Edge function handler |
+| `supabase/config.toml` | Modify | Add function config |
+
+## Post-Implementation Steps
+
+After deployment, you'll need to configure the Auth Hook in Supabase:
+
+1. Go to Supabase Dashboard → Authentication → Hooks
+2. Enable the "Send Email" hook
+3. Set the URL to: `https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/send-auth-email`
+4. Generate and save the webhook secret as `SEND_EMAIL_HOOK_SECRET` in project secrets
 
 ## Technical Details
 
-### Why These Changes Work
+### Dependencies Used
+- `npm:@react-email/components@0.0.22` - Email component library
+- `npm:react@18.3.1` - React for template rendering
+- `npm:resend@4.0.0` - Email sending API
+- `https://esm.sh/standardwebhooks@1.0.0` - Webhook signature verification
 
-1. **CORS Fix**: Adding `launchpulse.io` ensures the browser accepts responses from edge functions when accessed from the custom domain.
+### Email Types Handled
+The function will handle:
+- `recovery` - Password reset emails (primary focus)
+- Other auth email types can be added later (magic links, email verification)
 
-2. **Auth Context**: Using `useAuth()` instead of raw `getSession()` ensures we use the already-resolved session from the auth provider, avoiding race conditions.
+### Brand Colors
+- Primary: `#6366f1` (Indigo)
+- Text: `#18181b` (Near black)
+- Muted: `#71717a` (Gray)
+- Background: `#ffffff` (White)
+- Footer bg: `#f4f4f5` (Light gray)
 
-3. **Retry Logic**: If the session isn't immediately available, we wait and retry, handling edge cases where the auth state is still initializing.
-
-### Testing Steps
-
-After implementation:
-1. Access the app from `launchpulse.io`
-2. Open the AI chatbot
-3. Send "Show me platform insights"
-4. Verify the response comes through without errors
-
-## Expected Outcome
-
-- No more "Network error" messages when using AI chat
-- No more 401 "Missing authorization header" errors
-- AI chatbot works reliably from both `launchpulse.io` and `signalscore.lovable.app`
+### Security Features
+- Webhook signature verification using `standardwebhooks`
+- Token hash passed via secure URL parameter
+- 1-hour expiration notice
+- Clear security messaging about ignoring unexpected emails
