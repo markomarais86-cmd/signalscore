@@ -215,7 +215,7 @@ export default function Product() {
                       <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
                         <div className="w-2.5 h-2.5 rounded-full bg-primary" />
                       </div>
-                      <span>{highlight}</span>
+                      <span className="text-white">{highlight}</span>
                     </li>
                   ))}
                 </ul>
