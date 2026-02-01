@@ -1,11 +1,11 @@
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mail, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { FormState, initialFormState, createErrorState, createFormState, getFormValue } from "@/lib/form-actions";
@@ -18,24 +18,80 @@ export default function ResetPassword() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [noSession, setNoSession] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
-    const handleAuthCallback = async () => {
-      const { error } = await supabase.auth.getSession();
-      if (error) {
-        toast({
-          title: "Invalid reset link",
-          description: "This password reset link is invalid or has expired.",
-          variant: "destructive"
-        });
-        navigate("/auth");
+    const checkSession = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      
+      if (error || !session) {
+        // User navigated here directly without email link
+        setNoSession(true);
       }
+      setCheckingSession(false);
     };
-    handleAuthCallback();
-  }, [navigate, toast]);
+    checkSession();
+  }, []);
 
   if (user) {
     return <Navigate to="/" replace />;
+  }
+
+  // Show loading while checking session
+  if (checkingSession) {
+    return (
+      <GradientBackground variant="auth" showOrbs={true}>
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </GradientBackground>
+    );
+  }
+
+  // Show helpful message if user navigated here directly
+  if (noSession) {
+    return (
+      <GradientBackground variant="auth" showOrbs={true}>
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <Card variant="glass" className="w-full max-w-md border-border/30">
+            <CardHeader className="text-center space-y-4">
+              <div className="flex justify-center mb-2">
+                <BrandLogo variant="light" />
+              </div>
+              <div className="mx-auto w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                <Mail className="h-6 w-6 text-primary" />
+              </div>
+              <CardTitle className="text-2xl font-bold text-foreground">Check Your Email</CardTitle>
+              <CardDescription className="text-muted-foreground">
+                To reset your password, you need to click the link we sent to your email.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Alert className="bg-muted/50 border-border/30">
+                <AlertDescription className="text-sm text-muted-foreground">
+                  <strong>Didn't receive an email?</strong>
+                  <ul className="mt-2 list-disc list-inside space-y-1">
+                    <li>Check your spam or junk folder</li>
+                    <li>Make sure you entered the correct email</li>
+                    <li>Go back and request a new reset link</li>
+                  </ul>
+                </AlertDescription>
+              </Alert>
+              
+              <Button
+                variant="glow"
+                className="w-full"
+                onClick={() => navigate('/auth')}
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Sign In
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </GradientBackground>
+    );
   }
 
   const resetAction = async (prevState: FormState, formData: FormData): Promise<FormState> => {
