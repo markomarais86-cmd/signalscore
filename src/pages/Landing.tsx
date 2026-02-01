@@ -144,21 +144,29 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* CTA Section - Left aligned matching original */}
-        <section className="container mx-auto px-6 py-24">
-          <div className="max-w-2xl">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              Request Early<br />Access
-            </h2>
-            <p className="text-lg text-white/60 mb-8">
-              Get a fast, explainable view of: who converts, who you should target next, and what's blocking yield today. Request early access to see LaunchPulse mapped against your CRM reality.
-            </p>
-            <Link to="/contact">
-              <Button variant="default" size="xl" className="text-lg gap-2">
-                Request Demo
-                <DiagonalArrow />
-              </Button>
-            </Link>
+        {/* CTA Section - With Business Man Background */}
+        <section className="relative w-full overflow-hidden">
+          <img 
+            src="/images/Business_Man.webp"
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
+          <div className="relative container mx-auto px-6 py-32">
+            <div className="max-w-xl">
+              <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
+                Request Early<br />Access
+              </h2>
+              <p className="text-lg text-white/80 mb-8">
+                Get a fast, explainable view of: who converts, who you should target next, and what's blocking yield today. Request early access to see LaunchPulse mapped against your CRM reality.
+              </p>
+              <Link to="/contact">
+                <Button variant="default" size="xl" className="text-lg gap-2">
+                  Request Demo
+                  <DiagonalArrow />
+                </Button>
+              </Link>
+            </div>
           </div>
         </section>
 
