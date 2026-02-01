@@ -398,7 +398,7 @@ export default function ExecutiveDashboard() {
   };
 
   return (
-    <div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-6 lg:space-y-8 hero-gradient bg-grid-pattern min-h-screen pb-8">
+    <div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-6 lg:space-y-8 min-h-screen pb-8">
       {/* Command Palette - Global keyboard shortcut */}
       <CommandPalette
         onScoreAccounts={handleScoreAccounts}
