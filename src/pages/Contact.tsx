@@ -40,10 +40,10 @@ export default function Contact() {
                   <div>
                     <h3 className="font-semibold mb-1">Email Us</h3>
                     <a
-                      href="mailto:hello@launchpulse.io"
+                      href="mailto:contact@launchpulse.io"
                       className="text-primary hover:underline"
                     >
-                      hello@launchpulse.io
+                      contact@launchpulse.io
                     </a>
                     <p className="text-sm text-white/50 mt-1">
                       We typically respond within 24 hours
