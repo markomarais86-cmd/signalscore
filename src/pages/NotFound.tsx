@@ -4,6 +4,7 @@ import { GradientBackground } from "@/components/ui/GradientBackground";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/BrandLogo";
+import { SEOHead } from "@/components/SEOHead";
 import { Home, ArrowLeft } from "lucide-react";
 
 const NotFound = () => {
@@ -18,6 +19,11 @@ const NotFound = () => {
 
   return (
     <GradientBackground variant="auth" showOrbs={true}>
+      <SEOHead
+        title="Page Not Found - LaunchPulse"
+        description="The page you're looking for doesn't exist or has been moved."
+        canonicalPath="/404"
+      />
       <div className="min-h-screen flex items-center justify-center p-4">
         <Card variant="glass" className="w-full max-w-md border-border/30 text-center">
           <div className="p-8 space-y-6">
