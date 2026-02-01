@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -128,6 +129,7 @@ async function loadFromMemory(orgId: string, userId: string, key: string): Promi
 }
 
 export function useAIChat(options: UseAIChatOptions = {}) {
+  const { session, loading: authLoading } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [pendingAction, setPendingAction] = useState<{ action: string; parameters: Record<string, any> } | null>(null);
@@ -139,6 +141,18 @@ export function useAIChat(options: UseAIChatOptions = {}) {
   }>({});
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowStatus | null>(null);
   const workflowPollRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Helper to get auth token with retry logic
+  const getAuthToken = useCallback(async (): Promise<string | null> => {
+    // First try the context session
+    if (session?.access_token) {
+      return session.access_token;
+    }
+    
+    // If not available, wait briefly and try getSession
+    const { data: sessionData } = await supabase.auth.getSession();
+    return sessionData?.session?.access_token || null;
+  }, [session]);
 
   // Load recent context on mount
   useEffect(() => {
@@ -375,11 +389,11 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     };
 
     try {
-      // Get user's session token for authentication
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
+      // Get user's session token with retry logic
+      const token = await getAuthToken();
       
       if (!token) {
+        // If still no token, the user really isn't logged in
         toast.error('Please log in to use the AI assistant');
         setIsLoading(false);
         return;
@@ -427,7 +441,13 @@ export function useAIChat(options: UseAIChatOptions = {}) {
         } else if (resp.status === 402) {
           toast.error('AI credits exhausted. Please contact support.');
         } else if (resp.status === 401) {
-          toast.error('Session expired. Please log in again.');
+          // Try to refresh the session
+          const { data: { session: newSession } } = await supabase.auth.refreshSession();
+          if (newSession) {
+            toast.error('Session refreshed. Please try again.');
+          } else {
+            toast.error('Session expired. Please log in again.');
+          }
         } else if (resp.status === 500) {
           toast.error('AI service error. Please try again in a moment.');
         } else {

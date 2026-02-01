@@ -14,9 +14,14 @@ export const getAllowedOrigins = (): string[] => {
   // Default allowed origins - Lovable preview and published URLs
   // These patterns match Lovable's URL structure
   return [
+    // Production custom domain
+    'https://launchpulse.io',
+    'https://www.launchpulse.io',
     // Lovable preview URLs (pattern: id-preview--{project-id}.lovable.app)
     'https://id-preview--f6080332-94e1-4aef-bfee-6cc8143489f0.lovable.app',
-    // Add localhost for development
+    // Published URL
+    'https://signalscore.lovable.app',
+    // Development
     'http://localhost:5173',
     'http://localhost:3000',
     'http://localhost:8080',
