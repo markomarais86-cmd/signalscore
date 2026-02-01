@@ -404,20 +404,6 @@ export default function Pricing() {
           </div>
         </section>
 
-        {/* Pilot Conversion Guarantee */}
-        <section className="container mx-auto px-6 py-16">
-          <div className="max-w-3xl mx-auto">
-            <div className="p-8 rounded-xl border border-primary/30 bg-primary/5 text-center">
-              <h3 className="text-2xl font-bold mb-4 text-white">
-                Pilot Conversion Guarantee
-              </h3>
-              <p className="text-lg text-white/80">
-                Pilot customers who convert within 90 days retain their negotiated pricing for their first annual term.
-              </p>
-            </div>
-          </div>
-        </section>
-
         {/* FAQ */}
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-12">
