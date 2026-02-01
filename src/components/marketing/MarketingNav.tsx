@@ -33,7 +33,7 @@ export function MarketingNav() {
               className={`text-sm font-medium transition-colors hover:text-primary ${
                 isActive(link.href)
                   ? "text-primary"
-                  : "text-muted-foreground"
+                  : "text-white/60"
               }`}
             >
               {link.label}
@@ -44,7 +44,7 @@ export function MarketingNav() {
         {/* Desktop Actions */}
         <div className="hidden md:flex items-center gap-4">
           <Link to="/auth">
-            <Button variant="ghost" className="text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" className="text-white/60 hover:text-white">
               Sign In
             </Button>
           </Link>
@@ -55,7 +55,7 @@ export function MarketingNav() {
 
         {/* Mobile Menu Button */}
         <button
-          className="md:hidden p-2 text-muted-foreground hover:text-foreground"
+          className="md:hidden p-2 text-white/60 hover:text-white"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           aria-label="Toggle menu"
         >
@@ -75,7 +75,7 @@ export function MarketingNav() {
                 className={`text-sm font-medium py-2 transition-colors hover:text-primary ${
                   isActive(link.href)
                     ? "text-primary"
-                    : "text-muted-foreground"
+                    : "text-white/60"
                 }`}
               >
                 {link.label}

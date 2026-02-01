@@ -14,19 +14,19 @@ const features = [
     iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/69696639d97eebd4bc9bcd01_build-01.svg",
     title: "AI ICP Builder",
     description:
-      "Define and validate your Ideal Customer Profile based on real CRM patterns—not guesswork. Our AI analyzes your closed-won deals to surface the attributes that actually drive revenue.",
+      "Define and validate your ICP using real conversion patterns from your CRM—so targeting is based on evidence, not internal opinion.",
   },
   {
     iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696964446c7c72967b3789de_Tam%20Generator.svg",
     title: "TAM Generator",
     description:
-      "Build dynamic, segmentable Total Addressable Market lists aligned to your ICP. See exactly how much of your market you're covering and where the biggest whitespace opportunities are.",
+      "Generate a dynamic, segmentable TAM that stays aligned to your ICP and can be operationalised by territory, industry, size band, region, and buyer persona.",
   },
   {
     iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a48e374f363cbe28776a0_persona.svg",
     title: "CRM Insight Layer",
     description:
-      "Surface gaps in your data, personas, segments, and coverage. Understand where pipeline misalignment comes from and get actionable recommendations to fix it.",
+      "Diagnose pipeline misalignment by surfacing data quality risk, persona coverage gaps, segment leakage, and where GTM effort is being misallocated.",
   },
 ];
 
@@ -45,7 +45,6 @@ export default function Landing() {
 
         {/* Hero Section */}
         <MarketingHero
-          badge="Where GTM Meets ICP Precision"
           headline={
             <>
               <span className="text-white/40">AI-Driven ICP and TAM</span>
@@ -56,8 +55,6 @@ export default function Landing() {
           }
           subheadline="LaunchPulse pinpoints your highest-converting customer profile, validates ICP alignment inside your CRM, and exposes where pipeline yield is being constrained by data quality, persona coverage, or segment misfit."
           primaryCta={{ label: "Request Demo", href: "/contact" }}
-          secondaryCta={{ label: "Watch Demo" }}
-          footnote="No credit card required • Setup in 5 minutes"
         >
           <HeroDashboardMockup className="mt-16" />
         </MarketingHero>
@@ -66,13 +63,10 @@ export default function Landing() {
         <section className="container mx-auto px-6 py-16">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Why GTM Teams <span className="text-primary">Stall</span>
+              Why GTM Teams performance stalls even when activity is high:
             </h2>
-            <p className="text-lg text-white/60 max-w-2xl mx-auto">
-              Most go-to-market teams struggle with these challenges every day
-            </p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-4 max-w-4xl mx-auto">
             {painPoints.map((point, index) => (
               <PainPointCard key={index} text={point} delay={0.1 * index} />
             ))}
@@ -85,9 +79,6 @@ export default function Landing() {
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
               What <span className="text-primary">LaunchPulse</span> Delivers
             </h2>
-            <p className="text-xl text-white/60 max-w-2xl mx-auto">
-              Three pillars of GTM intelligence to align your strategy with your best customers
-            </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
             {features.map((feature, index) => (
@@ -116,21 +107,16 @@ export default function Landing() {
 
             <CardContent className="pt-16 pb-16 text-center relative z-10">
               <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                Ready to Transform Your{" "}
-                <span className="text-primary">GTM Strategy</span>?
+                Request Early Access
               </h2>
               <p className="text-xl text-white/60 mb-10 max-w-2xl mx-auto">
-                Join revenue teams at fast-growing B2B companies who use LaunchPulse
-                to align their GTM strategy with their best customers
+                Get a fast, explainable view of: who converts, who you should target next, and what's blocking yield today. Request early access to see LaunchPulse mapped against your CRM reality.
               </p>
               <a href="/contact">
                 <button className="btn-glow inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-14 px-8 text-lg rounded-lg">
-                  Request Early Access
+                  Request Demo
                 </button>
               </a>
-              <p className="text-sm text-white/50 mt-6">
-                No commitment required • See it in action
-              </p>
             </CardContent>
           </Card>
         </section>

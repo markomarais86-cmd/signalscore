@@ -40,12 +40,11 @@ export default function About() {
 
         {/* Hero Section */}
         <MarketingHero
-          badge="Our Mission"
           headline={
             <>
               <span className="text-foreground">LaunchPulse exists to make</span>
               <br />
-              <span className="gradient-text">GTM targeting measurable, explainable, and operational</span>
+              <span className="text-primary">GTM targeting measurable, explainable, and operational</span>
             </>
           }
           subheadline="We believe go-to-market teams deserve tools that show their work. No black boxes. No magic scores. Just clear, actionable intelligence that aligns your strategy with your best customers."
@@ -55,7 +54,7 @@ export default function About() {
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
-              The <span className="gradient-text">LaunchPulse</span> Difference
+              The <span className="text-primary">LaunchPulse</span> Difference
             </h2>
             <p className="text-xl text-white/60 max-w-2xl mx-auto">
               Built for revenue teams who demand precision and transparency
@@ -89,7 +88,7 @@ export default function About() {
         <section className="container mx-auto px-6 py-24">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-3xl md:text-4xl font-bold mb-8">
-              Built by <span className="gradient-text">GTM Operators</span>
+              Built by <span className="text-primary">GTM Operators</span>
             </h2>
             <div className="space-y-6 text-lg text-white/70 text-left">
               <p>
@@ -123,7 +122,7 @@ export default function About() {
             />
             <CardContent className="pt-16 pb-16 text-center relative z-10">
               <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                Ready to See <span className="gradient-text">LaunchPulse</span> in Action?
+                Ready to See <span className="text-primary">LaunchPulse</span> in Action?
               </h2>
               <p className="text-xl text-white/60 mb-10 max-w-2xl mx-auto">
                 Schedule a demo and discover how precision GTM intelligence can

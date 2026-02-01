@@ -28,7 +28,7 @@ export function MarketingFooter() {
           {/* Brand Column */}
           <div className="md:col-span-1">
             <BrandLogo variant="light" showTagline />
-            <p className="mt-4 text-sm text-muted-foreground max-w-xs">
+            <p className="mt-4 text-sm text-white/60 max-w-xs">
               AI-driven ICP and TAM intelligence for high-performance GTM teams.
             </p>
             <div className="flex items-center gap-4 mt-6">
@@ -36,7 +36,7 @@ export function MarketingFooter() {
                 href="https://linkedin.com/company/launchpulse"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-muted-foreground hover:text-primary transition-colors"
+                className="text-white/50 hover:text-primary transition-colors"
                 aria-label="LinkedIn"
               >
                 <Linkedin className="h-5 w-5" />
@@ -45,7 +45,7 @@ export function MarketingFooter() {
                 href="https://twitter.com/launchpulse"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-muted-foreground hover:text-primary transition-colors"
+                className="text-white/50 hover:text-primary transition-colors"
                 aria-label="Twitter"
               >
                 <Twitter className="h-5 w-5" />
@@ -61,7 +61,7 @@ export function MarketingFooter() {
                 <li key={link.href}>
                   <Link
                     to={link.href}
-                    className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                    className="text-sm text-white/60 hover:text-primary transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -78,7 +78,7 @@ export function MarketingFooter() {
                 <li key={link.href}>
                   <Link
                     to={link.href}
-                    className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                    className="text-sm text-white/60 hover:text-primary transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -95,7 +95,7 @@ export function MarketingFooter() {
                 <li key={link.href}>
                   <Link
                     to={link.href}
-                    className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                    className="text-sm text-white/60 hover:text-primary transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -107,10 +107,10 @@ export function MarketingFooter() {
 
         {/* Bottom Bar */}
         <div className="pt-8 border-t border-border/50 flex flex-col md:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-white/50">
             © {currentYear} LaunchPulse. All rights reserved.
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-white/50">
             Built for GTM teams that demand precision.
           </p>
         </div>

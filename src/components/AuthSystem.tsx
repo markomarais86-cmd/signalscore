@@ -237,7 +237,7 @@ export function AuthSystem() {
               <CardTitle className="text-2xl font-bold">
                 {invitationInfo ? 'Accept Invitation' : 'Welcome Back'}
               </CardTitle>
-              <p className="text-muted-foreground text-sm mt-1">
+              <p className="text-white/60 text-sm mt-1">
                 ICP Analysis & Lead Scoring Platform
               </p>
             </CardHeader>
@@ -318,7 +318,7 @@ export function AuthSystem() {
                       <Button
                         type="button"
                         variant="link"
-                        className="text-sm text-muted-foreground hover:text-primary"
+                        className="text-sm text-white/50 hover:text-primary"
                         onClick={() => navigate('/reset-password')}
                       >
                         Forgot password?
@@ -402,7 +402,7 @@ export function AuthSystem() {
                           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-white/50">
                         Must be at least 8 characters long
                       </p>
                     </div>
