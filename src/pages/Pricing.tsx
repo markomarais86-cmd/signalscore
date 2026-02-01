@@ -162,7 +162,7 @@ export default function Pricing() {
               <span className="text-white">Simple,</span>{" "}
               <span className="text-primary">Transparent</span>
               <br />
-              <span className="text-foreground">Pricing</span>
+              <span className="text-white">Pricing</span>
             </>
           }
           subheadline="Platform subscription + pay-as-you-go enrichment credits. No hidden fees, no long-term contracts."
