@@ -1,85 +1,130 @@
 
-# Fix Password Reset Redirecting Immediately After Login
+# Fix AI Chat Connection Error
 
-## Problem Identified
+## Problem
 
-The password reset link now correctly points to `https://www.launchpulse.io/reset-password` (confirmed in auth logs). However, when you click it:
+The "Failed to connect to AI assistant" error occurs because the frontend sends the wrong authentication token to the AI chat edge function.
 
-1. Supabase processes the recovery token and creates a session
-2. The `useAuth` hook detects the session and sets `user`
-3. `ResetPassword.tsx` line 82-84 runs: `if (user) { return <Navigate to="/" replace />; }`
-4. You get redirected to the homepage instead of seeing the password reset form
+## Root Cause
 
-The page doesn't distinguish between a **password recovery session** and a **regular login session**.
+In `src/hooks/use-ai-chat.tsx`, the code uses a **hardcoded Supabase anon key** instead of the user's **session access token**:
+
+```typescript
+// Current (broken) - line 395
+Authorization: `Bearer eyJhbGciOiJI...` // This is the anon key
+```
+
+However, the edge function `ai-chat` requires a valid user session to:
+1. Authenticate the request (`validateAuth(req)`)  
+2. Look up the user's `org_id` from `user_profiles`
+
+Without the user's session token, the edge function returns a 401 Unauthorized error, which the frontend catches and displays as "Failed to connect to AI assistant."
+
+## Comparison with Working Code
+
+Another streaming AI hook (`src/hooks/useAccountAI.ts`) works correctly because it properly gets the session token:
+
+```typescript
+// Working pattern from useAccountAI.ts (lines 25-38)
+const { data: sessionData } = await supabase.auth.getSession();
+const token = sessionData?.session?.access_token;
+
+if (!token) {
+  throw new Error('Not authenticated');
+}
+
+const response = await fetch(url, {
+  headers: {
+    'Authorization': `Bearer ${token}`,  // User's session token
+  },
+});
+```
 
 ## Solution
 
-Modify `ResetPassword.tsx` to:
-1. Track whether we're in a password recovery flow using a state variable
-2. Listen for the `PASSWORD_RECOVERY` auth event specifically  
-3. Only redirect away if the user is logged in **and** we're NOT in password recovery mode
+Update `src/hooks/use-ai-chat.tsx` to:
+
+1. Get the user's session token before making the request
+2. Handle the case where the user is not authenticated
+3. Use the dynamic session token instead of the hardcoded anon key
 
 ## Technical Changes
 
-### File: `src/pages/ResetPassword.tsx`
+### File: `src/hooks/use-ai-chat.tsx`
 
-**Current logic (broken):**
+**Before (lines 377-402):**
 ```typescript
-if (user) {
-  return <Navigate to="/" replace />;
-}
+try {
+  const enhancedContext = {
+    ...options.context,
+    ...
+  };
+
+  const CHAT_URL = `https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/ai-chat`;
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+  
+  const resp = await fetch(CHAT_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer eyJhbGciOi...`, // Hardcoded anon key
+    },
+    body: JSON.stringify({ ... }),
+    signal: controller.signal,
+  });
 ```
 
-**New logic:**
+**After:**
 ```typescript
-// Track if we're in password recovery mode
-const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+try {
+  // Get user's session token for authentication
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  
+  if (!token) {
+    toast.error('Please log in to use the AI assistant');
+    setIsLoading(false);
+    return;
+  }
 
-// In the auth listener:
-if (event === 'PASSWORD_RECOVERY') {
-  setIsPasswordRecovery(true);  // Mark that we're recovering password
-  setCheckingSession(false);
-  setNoSession(false);
-}
+  const enhancedContext = {
+    ...options.context,
+    ...
+  };
 
-// Updated redirect check:
-if (user && !isPasswordRecovery) {
-  return <Navigate to="/" replace />;
-}
+  const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+  
+  const resp = await fetch(CHAT_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,  // Use session token
+    },
+    body: JSON.stringify({ ... }),
+    signal: controller.signal,
+  });
 ```
 
-This ensures:
-- If you're logged in normally and visit `/reset-password` → redirects to home
-- If you arrived via password recovery link → shows the password reset form
+## Additional Improvements
 
-## Flow After Fix
-
-```text
-Password Recovery Flow:
-1. Click recovery link → lands on /reset-password#token=xxx
-2. Supabase fires PASSWORD_RECOVERY event
-3. isPasswordRecovery = true
-4. user is set (recovery creates a session)
-5. Check: user && !isPasswordRecovery → false (don't redirect)
-6. Password reset form is displayed ✓
-7. User enters new password and submits
-8. Success → navigate to "/"
-
-Normal Login Flow:
-1. User logs in normally
-2. user is set
-3. If they visit /reset-password directly
-4. isPasswordRecovery = false
-5. Check: user && !isPasswordRecovery → true (redirect)
-6. Redirects to "/" ✓
-```
+1. **Use environment variable for URL**: Replace hardcoded Supabase URL with `import.meta.env.VITE_SUPABASE_URL`
+2. **Better error handling**: Show specific error message when not authenticated
+3. **Follow existing pattern**: Match the working pattern from `useAccountAI.ts`
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/pages/ResetPassword.tsx` | Add `isPasswordRecovery` state, update redirect logic |
+| `src/hooks/use-ai-chat.tsx` | Get session token before fetch, use dynamic URL, update Authorization header |
 
-## Why This Works
+## Expected Outcome
 
-The `PASSWORD_RECOVERY` event is fired by Supabase **only** when processing a valid recovery token from an email link. Regular logins fire `SIGNED_IN` instead. By tracking this event, we can distinguish between the two scenarios.
+After this fix:
+- AI chat will authenticate properly with the user's session
+- The edge function will successfully look up the user's org_id
+- AI responses will stream correctly to the chat interface
