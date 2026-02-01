@@ -161,12 +161,20 @@ export function useICPInsights() {
         }
       }
     } catch (error: any) {
+      // Handle 401 errors gracefully - session may have expired
+      const errorMessage = error?.message || '';
+      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized') || errorMessage.includes('Invalid or expired token')) {
+        insightsLogger.warn('Session expired or invalid, skipping insights generation');
+        // Don't show error toast for auth issues - silently fail
+        return;
+      }
+      
       insightsLogger.error('Error generating insights:', error);
-      setError(error.message || "Failed to generate insights");
+      setError(errorMessage || "Failed to generate insights");
       if (!isAutoRefresh) {
         toast({
           title: "Error",
-          description: error.message || "Failed to generate insights",
+          description: errorMessage || "Failed to generate insights",
           variant: "destructive",
         });
       }

@@ -56,16 +56,31 @@ export function useAIMemory(): UseAIMemoryReturn {
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session?.access_token) {
-      console.warn('[ai-memory] No auth session available');
-      return { error: 'Not authenticated' };
+      // Silently return empty result when not authenticated - this is expected on public pages
+      return { preferences: {}, templates: [], suggestions: [], entries: [] };
     }
 
-    const { data, error } = await supabase.functions.invoke('ai-memory', {
-      body: { action, ...params },
-    });
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-memory', {
+        body: { action, ...params },
+      });
 
-    if (error) throw error;
-    return data;
+      if (error) {
+        // Handle 401 errors gracefully - user session may have expired
+        if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+          console.warn('[ai-memory] Session expired or invalid');
+          return { preferences: {}, templates: [], suggestions: [], entries: [] };
+        }
+        throw error;
+      }
+      return data;
+    } catch (err: any) {
+      // Handle network or other errors gracefully
+      if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
+        return { preferences: {}, templates: [], suggestions: [], entries: [] };
+      }
+      throw err;
+    }
   }, []);
 
   // Load preferences only when authenticated
