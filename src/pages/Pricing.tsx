@@ -157,11 +157,10 @@ export default function Pricing() {
 
         {/* Hero Section */}
         <MarketingHero
-          badge="Pricing"
           headline={
             <>
               <span className="text-foreground">Simple,</span>{" "}
-              <span className="gradient-text">Transparent</span>
+              <span className="text-primary">Transparent</span>
               <br />
               <span className="text-foreground">Pricing</span>
             </>
@@ -173,9 +172,9 @@ export default function Pricing() {
         <section className="container mx-auto px-6 py-12">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Platform <span className="gradient-text">Plans</span>
+              Platform <span className="text-primary">Plans</span>
             </h2>
-            <p className="text-lg text-muted-foreground">
+            <p className="text-lg text-white/60">
               Choose the plan that fits your team size and needs
             </p>
           </div>
@@ -195,10 +194,10 @@ export default function Pricing() {
                 )}
                 <CardHeader className="pt-8">
                   <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                  <p className="text-sm text-muted-foreground">{plan.description}</p>
+                  <p className="text-sm text-white/60">{plan.description}</p>
                   <div className="mt-4">
                     <span className="text-5xl font-bold">{plan.price}</span>
-                    <span className="text-muted-foreground">{plan.period}</span>
+                    <span className="text-white/60">{plan.period}</span>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -235,9 +234,9 @@ export default function Pricing() {
               <span className="text-sm font-medium text-primary">Add-On</span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Enrichment <span className="gradient-text">Credit Packs</span>
+              Enrichment <span className="text-primary">Credit Packs</span>
             </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-lg text-white/60 max-w-2xl mx-auto">
               Need more data? Add credits to any plan. Save 60-85% vs Apollo, ZoomInfo, and Clay.
             </p>
           </div>
@@ -257,12 +256,12 @@ export default function Pricing() {
                 )}
                 <CardContent className="pt-8 text-center">
                   <h3 className="font-semibold mb-2">{pack.name}</h3>
-                  <div className="text-4xl font-bold gradient-text mb-1">
+                  <div className="text-4xl font-bold text-primary mb-1">
                     {pack.credits.toLocaleString()}
                   </div>
-                  <p className="text-sm text-muted-foreground mb-4">credits</p>
+                  <p className="text-sm text-white/50 mb-4">credits</p>
                   <div className="text-2xl font-bold mb-1">${pack.price}</div>
-                  <p className="text-sm text-muted-foreground mb-6">
+                  <p className="text-sm text-white/50 mb-6">
                     ${pack.perCredit.toFixed(2)}/credit
                   </p>
                   <Button variant="outline" size="sm" className="w-full">
@@ -274,7 +273,7 @@ export default function Pricing() {
           </div>
 
           <div className="mt-12 text-center">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-white/50">
               <strong>Usage examples:</strong> Quick account enrich: 1-2 credits • Full lead
               enrichment: 3-5 credits • Deep research with verification: 5-10 credits
             </p>
@@ -285,7 +284,7 @@ export default function Pricing() {
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Feature <span className="gradient-text">Comparison</span>
+              Feature <span className="text-primary">Comparison</span>
             </h2>
           </div>
 
@@ -314,7 +313,7 @@ export default function Pricing() {
                           row.starter ? (
                             <Check className="h-5 w-5 text-primary mx-auto" />
                           ) : (
-                            <X className="h-5 w-5 text-muted-foreground/50 mx-auto" />
+                            <X className="h-5 w-5 text-white/30 mx-auto" />
                           )
                         ) : (
                           <span className="text-sm">{row.starter}</span>
@@ -325,7 +324,7 @@ export default function Pricing() {
                           row.professional ? (
                             <Check className="h-5 w-5 text-primary mx-auto" />
                           ) : (
-                            <X className="h-5 w-5 text-muted-foreground/50 mx-auto" />
+                            <X className="h-5 w-5 text-white/30 mx-auto" />
                           )
                         ) : (
                           <span className="text-sm font-medium">{row.professional}</span>
@@ -336,7 +335,7 @@ export default function Pricing() {
                           row.enterprise ? (
                             <Check className="h-5 w-5 text-primary mx-auto" />
                           ) : (
-                            <X className="h-5 w-5 text-muted-foreground/50 mx-auto" />
+                            <X className="h-5 w-5 text-white/30 mx-auto" />
                           )
                         ) : (
                           <span className="text-sm">{row.enterprise}</span>
@@ -355,7 +354,7 @@ export default function Pricing() {
           <div className="text-center mb-12">
             <HelpCircle className="h-10 w-10 text-primary mx-auto mb-4" />
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Frequently Asked <span className="gradient-text">Questions</span>
+              Frequently Asked <span className="text-primary">Questions</span>
             </h2>
           </div>
 
@@ -370,7 +369,7 @@ export default function Pricing() {
                   <AccordionTrigger className="text-left hover:no-underline">
                     {faq.question}
                   </AccordionTrigger>
-                  <AccordionContent className="text-muted-foreground">
+                  <AccordionContent className="text-white/60">
                     {faq.answer}
                   </AccordionContent>
                 </AccordionItem>
@@ -391,9 +390,9 @@ export default function Pricing() {
             />
             <CardContent className="pt-16 pb-16 text-center relative z-10">
               <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                Ready to Get <span className="gradient-text">Started</span>?
+                Ready to Get <span className="text-primary">Started</span>?
               </h2>
-              <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
+              <p className="text-xl text-white/60 mb-10 max-w-2xl mx-auto">
                 Schedule a demo and see how LaunchPulse can transform your GTM strategy.
               </p>
               <Link to="/contact">

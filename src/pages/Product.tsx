@@ -119,26 +119,24 @@ export default function Product() {
 
         {/* Hero Section */}
         <MarketingHero
-          badge="Product Overview"
           headline={
             <>
               <span className="text-foreground">Transform Raw CRM Data into</span>
               <br />
-              <span className="gradient-text">Precision GTM Intelligence</span>
+              <span className="text-primary">Precision GTM Intelligence</span>
             </>
           }
           subheadline="LaunchPulse connects to your CRM and transforms raw activity and outcome history into a precise, continuously refined map of who to target, why they convert, and where your pipeline is leaking."
           primaryCta={{ label: "Request Demo", href: "/contact" }}
-          secondaryCta={{ label: "View Pricing", href: "/pricing" }}
         />
 
         {/* Core Features - Clean Card Grid */}
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
-              Core <span className="gradient-text">Capabilities</span>
+              Core <span className="text-primary">Capabilities</span>
             </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-xl text-white/60 max-w-2xl mx-auto">
               Everything you need to align your GTM strategy with your best customers
             </p>
           </div>
@@ -158,7 +156,7 @@ export default function Product() {
                   </div>
                   <h3 className="text-2xl font-bold mb-2">{feature.title}</h3>
                   <p className="text-primary mb-4">{feature.subtitle}</p>
-                  <p className="text-muted-foreground mb-6 leading-relaxed">
+                  <p className="text-white/60 mb-6 leading-relaxed">
                     {feature.description}
                   </p>
                   <ul className="space-y-2">
@@ -186,16 +184,16 @@ export default function Product() {
                 <span className="text-sm font-medium text-primary">NEW</span>
               </div>
               <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                <span className="gradient-text">Data Enrichment Engine</span>
+                <span className="text-primary">Data Enrichment Engine</span>
               </h2>
-              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              <p className="text-xl text-white/60 max-w-2xl mx-auto">
                 {enrichmentSection.subtitle}
               </p>
             </div>
 
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               <div>
-                <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
+                <p className="text-lg text-white/60 mb-8 leading-relaxed">
                   {enrichmentSection.description}
                 </p>
                 <ul className="space-y-4 mb-8">
@@ -232,7 +230,7 @@ export default function Product() {
                         className={
                           item.provider === "LaunchPulse"
                             ? "font-semibold text-primary"
-                            : "text-muted-foreground"
+                            : "text-white/50"
                         }
                       >
                         {item.provider}
@@ -257,9 +255,9 @@ export default function Product() {
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
-              Built for <span className="gradient-text">GTM Teams</span>
+              Built for <span className="text-primary">GTM Teams</span>
             </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-xl text-white/60 max-w-2xl mx-auto">
               Role-specific insights for every stakeholder
             </p>
           </div>
@@ -278,7 +276,7 @@ export default function Product() {
                     <useCase.icon className="h-7 w-7 text-primary" />
                   </div>
                   <h3 className="text-xl font-semibold mb-3">{useCase.title}</h3>
-                  <p className="text-muted-foreground">{useCase.description}</p>
+                  <p className="text-white/60">{useCase.description}</p>
                 </CardContent>
               </Card>
             ))}
@@ -297,9 +295,9 @@ export default function Product() {
             />
             <CardContent className="pt-16 pb-16 text-center relative z-10">
               <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                Ready to See <span className="gradient-text">Your Data</span> Differently?
+                Ready to See <span className="text-primary">Your Data</span> Differently?
               </h2>
-              <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
+              <p className="text-xl text-white/60 mb-10 max-w-2xl mx-auto">
                 Connect your CRM and discover insights you've been missing.
               </p>
               <Link to="/contact">
