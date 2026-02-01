@@ -1,100 +1,81 @@
 
-# Fix Password Reset Link Pointing to Localhost
+# Fix Login After Failed Password Reset
 
-## Problem
+## Summary
 
-When clicking the password reset link from the email, users are redirected to `localhost:3000` which doesn't work because:
+The password reset failed because the email link pointed to `localhost:3000`. Your password was never actually changed, which is why login with your "new" password fails.
 
-1. The `resetPassword()` function uses `window.location.origin` for the redirect URL
-2. When you triggered the reset from your local development environment, it captured `http://localhost:3000`
-3. Supabase stored this and put it in the email link
+## Immediate Solution
 
-## Solution
+### Step 1: Verify Supabase URL Configuration (You Must Do This First)
 
-Two changes are needed:
+Go to your Supabase Dashboard:
+**https://supabase.com/dashboard/project/dhyfbaptcprxxixgnpby/auth/url-configuration**
 
-### 1. Supabase Dashboard Configuration (Required - You Must Do This)
+Set these values:
 
-Go to your Supabase Dashboard and update these settings:
+| Setting | Value |
+|---------|-------|
+| Site URL | `https://www.launchpulse.io` |
+| Redirect URLs (add all) | `https://www.launchpulse.io/**` |
+| | `https://signalscore.lovable.app/**` |
+| | `https://id-preview--f6080332-94e1-4aef-bfee-6cc8143489f0.lovable.app/**` |
 
-**Authentication > URL Configuration:**
+### Step 2: Request a New Password Reset
 
-| Setting | Current (Likely) | Should Be |
-|---------|-----------------|-----------|
-| Site URL | `http://localhost:3000` | `https://www.launchpulse.io` |
-| Redirect URLs | Missing entries | Add all of these: |
-| | | `https://www.launchpulse.io/**` |
-| | | `https://signalscore.lovable.app/**` |
-| | | `https://id-preview--f6080332-94e1-4aef-bfee-6cc8143489f0.lovable.app/**` |
+1. Go to **https://www.launchpulse.io** (the published site, NOT localhost)
+2. Click "Forgot password?"
+3. Enter your email
+4. Check your email for the new reset link
+5. Click the link - it should now go to `https://www.launchpulse.io/reset-password`
+6. Set your new password
 
-### 2. Code Change - Use Production URL for Password Reset
+### Step 3: Login with New Password
 
-Update `src/hooks/use-auth.tsx` to use the production URL instead of `window.location.origin`:
+After successfully resetting, login should work.
 
-**Current code:**
-```typescript
-const resetPassword = async (email: string) => {
-  const redirectUrl = `${window.location.origin}/reset-password`;
-  // ...
-};
+## Why This Happened
+
+```text
+Old Flow (Broken):
+1. You clicked "Forgot password" from localhost:3000
+2. Code used window.location.origin → captured localhost
+3. Email link pointed to localhost:3000/reset-password
+4. localhost isn't running → reset form never loaded
+5. Password never changed → old password still active
+6. You tried logging in with "new" password → fails
 ```
 
-**Updated code:**
+## Code Already Fixed
+
+I already updated `src/hooks/use-auth.tsx` to hardcode the production URL:
+
 ```typescript
 const resetPassword = async (email: string) => {
-  // Always use production URL for password reset emails
-  // This ensures the email link works regardless of where the reset was triggered
   const productionUrl = 'https://www.launchpulse.io';
   const redirectUrl = `${productionUrl}/reset-password`;
   // ...
 };
 ```
 
-This ensures that even if you trigger a password reset from localhost, the preview URL, or any other environment, the email link will always point to your production site.
+This fix is deployed if you published. But **the Supabase Dashboard settings must also be updated** for this to work completely.
 
----
+## Verification Steps
 
-## Files to Modify
+After completing the above:
 
-| File | Change |
-|------|--------|
-| `src/hooks/use-auth.tsx` | Hardcode production URL for password reset redirect |
+1. Test password reset from the **published site** (not localhost)
+2. Verify the email link points to `https://www.launchpulse.io/reset-password`
+3. Complete the password reset
+4. Login with the new password
 
----
+## Files
 
-## Why This Happens
+No additional code changes needed - the fix was already implemented. This is a configuration issue in Supabase Dashboard.
 
-When `resetPasswordForEmail()` is called, Supabase:
-1. Takes the `redirectTo` URL you provide
-2. Validates it against your configured Redirect URLs in the dashboard
-3. Embeds it in the email template
+## Technical Details
 
-If you call this from `localhost:3000`, it captures that origin. The dashboard settings act as a whitelist - if localhost isn't in the Redirect URLs, Supabase may fall back to the Site URL (which might also be localhost).
-
----
-
-## Expected Flow After Fix
-
-```text
-1. User clicks "Forgot password?" (from any environment)
-   ↓
-2. Code sends redirect URL as https://www.launchpulse.io/reset-password
-   ↓
-3. Supabase validates against Redirect URLs whitelist (passes)
-   ↓
-4. Email contains link to https://www.launchpulse.io/reset-password#token=xxx
-   ↓
-5. User clicks link → lands on production site with valid token
-   ↓
-6. Password reset form works correctly
-```
-
----
-
-## Immediate Action Required
-
-Before any code changes will help, you **must update the Supabase Dashboard settings**. Go to:
-
-`https://supabase.com/dashboard/project/dhyfbaptcprxxixgnpby/auth/url-configuration`
-
-And configure the Site URL and Redirect URLs as described above.
+The auth logs confirm:
+- All requests show `referer: http://localhost:3000` - indicating requests came from local environment
+- `error_code: "invalid_credentials"` at 20:08:27 UTC - login failed because password was never updated
+- Password reset emails were sent but pointed to localhost
