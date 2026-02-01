@@ -18,6 +18,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { UserPlus, XCircle, RefreshCw, Mail } from 'lucide-react';
 import { formatDistanceToNow, addDays } from 'date-fns';
+import { getInviteUrl } from '@/lib/url-utils';
 
 interface Invitation {
   id: string;
@@ -109,8 +110,8 @@ export function InvitationsManager() {
         .eq('id', invitation.org_id)
         .single();
 
-      // Build invitation URL using dynamic origin
-      const inviteUrl = `${window.location.origin}/auth?invite=${invitation.token}`;
+      // Build invitation URL using production domain for email deliverability
+      const inviteUrl = getInviteUrl(invitation.token);
       
       // Send email via edge function
       const { error: emailError } = await supabase.functions.invoke('send-invitation', {

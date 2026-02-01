@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Mail, Loader2 } from 'lucide-react';
 import { FormState, initialFormState, validateEmail, getFormValue, createErrorState, createFormState } from '@/lib/form-actions';
+import { getInviteUrl } from '@/lib/url-utils';
 
 interface InviteUserModalProps {
   open: boolean;
@@ -66,8 +67,8 @@ export function InviteUserModal({ open, onOpenChange, onInviteSent }: InviteUser
 
       if (inviteError) throw inviteError;
 
-      // Send invitation email
-      const inviteUrl = `${window.location.origin}/auth?invite=${token}`;
+      // Send invitation email using production URL for deliverability
+      const inviteUrl = getInviteUrl(token);
       
       const { error: emailError } = await supabase.functions.invoke('send-invitation', {
         body: {
