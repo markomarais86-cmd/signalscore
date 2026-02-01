@@ -16,7 +16,7 @@ export function FeatureCard({ icon: Icon, iconUrl, title, description, delay = 0
   
   return (
     <div
-      className="p-6 rounded-xl border border-white/10 bg-white/5 animate-fade-in"
+      className="p-6 rounded-xl border border-white/10 bg-[#1F2227] animate-fade-in"
       style={{ animationDelay: `${delay}s` }}
     >
       <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-4 bg-primary/10 border border-primary/20 overflow-hidden">
