@@ -55,26 +55,25 @@ export async function validateAuth(req: Request): Promise<AuthResult> {
   });
 
   try {
-    // Validate JWT token using getClaims (recommended approach)
+    // Validate JWT token using getUser for reliable server-side validation
+    // CRITICAL: Must pass token explicitly when verify_jwt=false
     const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
     
-    if (claimsError || !claimsData?.claims) {
-      console.error('[Auth] Token validation failed:', claimsError?.message);
+    if (authError || !user) {
+      console.error('[Auth] Token validation failed:', authError?.message);
       return {
         success: false,
         error: 'Invalid or expired token',
       };
     }
-
-    const claims = claimsData.claims;
     
     return {
       success: true,
       user: {
-        id: claims.sub as string,
-        email: claims.email as string | undefined,
-        role: claims.role as string | undefined,
+        id: user.id,
+        email: user.email,
+        role: user.role,
       },
       supabaseClient,
     };
