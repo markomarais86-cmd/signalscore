@@ -19,7 +19,8 @@ export function MarketingNav() {
   const isActive = (href: string) => location.pathname === href;
 
   return (
-    <header className="border-b border-white/10 bg-black sticky top-0 z-50">
+    <>
+      <header className="border-b border-white/10 bg-black fixed top-0 left-0 right-0 z-50">
       <div className="container mx-auto px-6 h-16 flex items-center justify-between">
         <Link to="/landing">
           <BrandLogo variant="dark" collapsed={false} />
@@ -100,7 +101,10 @@ export function MarketingNav() {
             </div>
           </nav>
         </div>
-      )}
-    </header>
+        )}
+      </header>
+      {/* Spacer to account for fixed header height */}
+      <div className="h-16" />
+    </>
   );
 }
