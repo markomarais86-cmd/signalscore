@@ -321,6 +321,28 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Trigger background cache pre-warming for newly created accounts
+    if (createdAccountIds.length > 0) {
+      console.log('🔥 Triggering background enrichment cache pre-warming...')
+      EdgeRuntime.waitUntil(
+        supabaseClient.functions.invoke('prewarm-enrichment-cache', {
+          body: {
+            org_id: orgId,
+            account_ids: createdAccountIds.slice(0, 500), // Limit to 500 accounts
+            priority: 'medium',
+          },
+        }).then(res => {
+          if (res.error) {
+            console.warn('⚠️ Pre-warm failed:', res.error.message)
+          } else {
+            console.log('✅ Pre-warm queued successfully')
+          }
+        }).catch(err => {
+          console.warn('⚠️ Pre-warm error:', err.message)
+        })
+      )
+    }
+
     return new Response(
       JSON.stringify({
         success: true,

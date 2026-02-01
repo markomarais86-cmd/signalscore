@@ -6959,6 +6959,33 @@ export type Database = {
           },
         ]
       }
+      system_health_checks: {
+        Row: {
+          check_type: string
+          checked_at: string | null
+          created_at: string | null
+          details: Json | null
+          id: string
+          status: string
+        }
+        Insert: {
+          check_type: string
+          checked_at?: string | null
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          status?: string
+        }
+        Update: {
+          check_type?: string
+          checked_at?: string | null
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          status?: string
+        }
+        Relationships: []
+      }
       user_profiles: {
         Row: {
           created_at: string | null
@@ -7614,6 +7641,10 @@ export type Database = {
         }
         Returns: Json
       }
+      check_materialized_view_exists: {
+        Args: { view_name: string }
+        Returns: boolean
+      }
       check_plan_limit: {
         Args: {
           p_limit_type: string
@@ -7977,6 +8008,14 @@ export type Database = {
       }
       refresh_all_materialized_views: { Args: never; Returns: undefined }
       refresh_dashboard_caches: { Args: never; Returns: undefined }
+      refresh_dashboard_metrics: {
+        Args: { p_org_id: string }
+        Returns: undefined
+      }
+      refresh_materialized_view_concurrently: {
+        Args: { view_name: string }
+        Returns: undefined
+      }
       refresh_reporting_views: { Args: never; Returns: undefined }
       release_processing_lock: {
         Args: { p_org_id: string; p_process_name: string }

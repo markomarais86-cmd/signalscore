@@ -34,8 +34,11 @@ Deno.serve(async (req) => {
     let batchCount = 0;
     let hasMore = true;
 
+    // Max batches to process: 250 batches × 2000 leads = 500K leads
+    const MAX_BATCHES = 250;
+
     // Process in batches until done
-    while (hasMore && batchCount < 50) { // Max 50 batches (100k leads) safety limit
+    while (hasMore && batchCount < MAX_BATCHES) {
       batchCount++;
       console.log(`📦 Processing batch ${batchCount}...`);
 
