@@ -162,7 +162,7 @@ export default function Product() {
             {productFeatures.map((feature, index) => (
               <div
                 key={index}
-                className="p-8 rounded-xl border border-white/10 bg-white/5 animate-fade-in"
+                className="p-8 rounded-xl border border-white/10 bg-[#1F2227] animate-fade-in"
                 style={{ animationDelay: `${0.1 * index}s` }}
               >
                 <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20">
@@ -227,7 +227,7 @@ export default function Product() {
                 </Link>
               </div>
 
-              <div className="p-6 rounded-xl border border-white/10 bg-white/5">
+              <div className="p-6 rounded-xl border border-white/10 bg-[#1F2227]">
                 <h4 className="font-semibold mb-4 text-white">Cost Comparison Per Lead</h4>
                 <div className="space-y-3">
                   {enrichmentSection.comparison.map((item, idx) => (
@@ -281,7 +281,7 @@ export default function Product() {
               return (
                 <div
                   key={index}
-                  className="p-8 rounded-xl border border-white/10 bg-white/5 text-center animate-fade-in hover:bg-white/[0.08] hover:border-white/20 transition-all duration-300"
+                  className="p-8 rounded-xl border border-white/10 bg-[#1F2227] text-center animate-fade-in hover:bg-[#262a30] hover:border-white/20 transition-all duration-300"
                   style={{ animationDelay: `${0.1 * index}s` }}
                 >
                   <div className="w-16 h-16 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20 mx-auto">
