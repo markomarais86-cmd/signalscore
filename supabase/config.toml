@@ -52,7 +52,7 @@ verify_jwt = true
 verify_jwt = false
 
 [functions.generate-icp-insights]
-verify_jwt = true
+verify_jwt = false
 
 [functions.analyze-correlations]
 verify_jwt = false
@@ -187,25 +187,25 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.ai-chat]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ai-actions-router]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ai-actions-search]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ai-actions-analytics]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ai-actions-icp]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ai-actions-agents]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ai-orchestrator]
-verify_jwt = true
+verify_jwt = false
 
 [functions.ai-memory]
 verify_jwt = false
@@ -217,13 +217,13 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.generate-proactive-insights]
-verify_jwt = true
+verify_jwt = false
 
 [functions.agent-pipeline-controller]
 verify_jwt = true
 
 [functions.generate-account-insights]
-verify_jwt = true
+verify_jwt = false
 
 [functions.job-auto-recovery]
 verify_jwt = false
@@ -304,7 +304,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.ask-account-ai]
-verify_jwt = true
+verify_jwt = false
 
 [functions.generate-weekly-report]
 verify_jwt = true
