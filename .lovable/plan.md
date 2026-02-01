@@ -1,336 +1,508 @@
 
-# Phase 4: Performance, Accuracy & Agentic Improvements
+# Complete LaunchPulse Website + Payments Integration Plan
 
 ## Overview
 
-This plan addresses six key areas for improving LaunchPulse: **Speed**, **Accuracy**, **Performance**, **Enrichment Coverage**, **Campaign AI**, and **Agentic Behavior**. Based on codebase analysis, here are the concrete improvements organized by priority.
+This plan consolidates everything into one unified app at launchpulse.io:
+1. Marketing website rebuilt from launchpulse.org (Home, About, Product, Contact)
+2. Dedicated Pricing page with Platform tiers + Enrichment Credits
+3. Stripe integration for self-serve credit purchases and upgrades
+4. Competitive "undercut" pricing based on cost analysis
 
 ---
 
-## Summary of Improvements
+## Pricing Strategy Summary
 
-| Area | Improvement | Impact |
-|------|-------------|--------|
-| Speed | Redis-like caching layer | 60-80% faster repeated lookups |
-| Speed | Parallel provider execution optimization | 40% faster enrichment |
-| Accuracy | Confidence scoring with source verification | Higher data quality |
-| Accuracy | Ground truth validation from website scrapes | Reduce AI hallucinations |
-| Performance | Database query optimization | 3-5x faster dashboard loads |
-| Performance | Streaming AI responses | Better UX for long operations |
-| Enrichment | Add new data providers (ZoomInfo, Clearbit) | 15-20% more field coverage |
-| Campaign AI | Autonomous campaign optimization | Self-improving sequences |
-| Agentic | Agent chaining and goal-driven workflows | True autonomous operation |
+### Platform Subscription Tiers
 
----
+| Tier | Price | Accounts | Users | CRM Integrations | Included Credits |
+|------|-------|----------|-------|------------------|------------------|
+| **Starter** | $299/mo | 2,500 | 5 | 1 | 50/mo |
+| **Professional** | $699/mo | 10,000 | 15 | Unlimited | 250/mo |
+| **Enterprise** | Custom | Unlimited | Unlimited | + API, SSO | Custom |
 
-## Part 1: Speed Improvements
+### Enrichment Credit Packs (Undercut Pricing)
 
-### 1.1 Implement Result Caching Layer
+Based on internal cost analysis ($0.029/lead) and competitor benchmarks:
 
-**Current State**: Each enrichment call makes fresh API requests even for recently enriched companies.
-
-**Implementation**:
-- Create `enrichment_cache` table with TTL-based expiration
-- Add cache check at start of `enrich-unified` waterfall
-- Store per-domain/per-email enrichment results with 30-day TTL
-- Expected impact: 60-80% reduction in API calls for repeat lookups
-
-```text
-┌─────────────────────────────────────────────────┐
-│              Enrichment Request                 │
-└────────────────────┬────────────────────────────┘
-                     │
-         ┌───────────▼───────────┐
-         │   Check Cache (30d)   │
-         └───────────┬───────────┘
-                     │
-          ┌──────────┴──────────┐
-          │ Hit                 │ Miss
-          ▼                     ▼
-    Return cached         Run waterfall
-       result             + cache result
-```
-
-### 1.2 Optimize Parallel Provider Execution
-
-**Current State**: `callAIAllProviders` runs providers in parallel with `Promise.allSettled`, but waits for all.
-
-**Improvements**:
-- Implement early-exit when sufficient field coverage reached (e.g., 90%)
-- Add provider-specific timeout reduction for slow/degraded providers
-- Use `Promise.race` with coverage threshold check
-
-### 1.3 Batch Database Operations
-
-**Current State**: `enrich-unified` updates records one-by-one in a loop.
-
-**Improvements**:
-- Batch INSERT/UPDATE operations using `.upsert()` with arrays
-- Reduce database round-trips from N to 1 per batch
-- Expected impact: 50% faster job completion for large batches
+| Pack | Credits | Price | Per Credit | Margin | vs Competitors |
+|------|---------|-------|------------|--------|----------------|
+| **Starter** | 250 | $49 | $0.20 | 85% | 60% cheaper than Apollo |
+| **Growth** | 1,000 | $149 | $0.15 | 80% | 70% cheaper than Apollo |
+| **Scale** | 5,000 | $499 | $0.10 | 70% | 80% cheaper than Apollo |
+| **Enterprise** | 25,000 | $1,999 | $0.08 | 64% | 85% cheaper than Apollo |
 
 ---
 
-## Part 2: Accuracy Improvements
+## Current State
 
-### 2.1 Multi-Source Confidence Scoring
-
-**Current State**: Confidence is calculated per-provider but not aggregated intelligently.
-
-**Implementation**:
-- Create weighted confidence algorithm based on source reliability
-- Firecrawl (website) = 1.0, Perplexity = 0.9, Claude = 0.85, PDL = 0.8, Apollo = 0.75
-- Store `confidence_breakdown` per field showing all sources
-
-### 2.2 Ground Truth Verification
-
-**Current State**: Firecrawl data marked as "verified" but no cross-validation.
-
-**Improvements**:
-- Compare AI-extracted data against Firecrawl website scrape
-- Flag discrepancies for human review
-- Auto-reject AI data that contradicts verified website data
-- Add `data_conflicts` tracking table
-
-### 2.3 Phone Number Accuracy
-
-**Current State**: Phone validation exists but can return wrong country numbers.
-
-**Improvements**:
-- Enforce country-specific validation (UK leads get UK phones only)
-- Add carrier verification for mobile numbers via NumVerify
-- Score phone confidence: verified mobile > main line > generic
+| Component | Status |
+|-----------|--------|
+| Auth System | Built (sign-in, sign-up, invitation) |
+| Plan Tiers Config | Exists but needs restructuring |
+| Credit System | Built (tracking, consumption, admin) |
+| Marketing Pages | Need to be built |
+| Pricing Page | Needs dedicated page |
+| Stripe | Not configured |
 
 ---
 
-## Part 3: Performance Improvements
+## Phase 1: Marketing Website
 
-### 3.1 Database Query Optimization
+### Step 1: Create Shared Marketing Components
 
-**Current State**: Dashboard queries fetch all accounts/leads, then filter in-app.
+Create `src/components/marketing/` folder with:
 
-**Improvements**:
-- Add composite indexes on frequently filtered columns
-- Implement cursor-based pagination for large datasets
-- Create materialized views for dashboard metrics
+**MarketingNav.tsx** - Sticky navigation
+- Logo (LaunchPulseMark)
+- Links: Home, About, Product, Pricing
+- "Sign In" and "Request Demo" buttons
+- Mobile hamburger menu
+- Backdrop blur effect
 
-**Key Indexes to Add**:
+**MarketingFooter.tsx** - Consistent footer
+- Logo with tagline
+- Navigation links
+- Social icons
+- Copyright
+
+**MarketingHero.tsx** - Reusable hero section component
+- Gradient text highlights (teal accent on keywords)
+- Subtitle text
+- CTA buttons
+- Optional graphics
+
+**FeatureCard.tsx** - Feature display cards
+- Icon in teal circle
+- Title and description
+- Hover effects
+
+**PainPointCard.tsx** - Problem statement cards
+- Red X icon
+- Pain point text
+
+**DemoRequestForm.tsx** - Contact form
+- Name, email, company, subject, message fields
+- Validation with zod + react-hook-form
+- Loading states
+- Success/error handling
+
+### Step 2: Rebuild Landing Page (Home)
+
+Replace `src/pages/Landing.tsx` matching launchpulse.org design:
+
+**Hero Section**
+- Headline: "AI-Driven ICP and TAM Intelligence for High-Performance GTM Teams"
+- Subheadline: "LaunchPulse pinpoints your highest-converting customer profile, validates ICP alignment inside your CRM, and exposes where pipeline yield is being constrained by data quality, persona coverage, or segment misfit."
+- "Request Demo" and "Watch Demo" CTAs
+- Dashboard preview graphics
+
+**Pain Points Section ("Why GTM Teams Stall")**
+- ICP is built on assumptions, not conversion evidence
+- TAM is static, poorly segmented, and rarely tied to ICP reality
+- CRM data obscures persona coverage, segment gaps, and lead quality risk
+- Leadership lacks a clear diagnostic view of what's blocking yield
+
+**Features Section ("What LaunchPulse Delivers")**
+- AI ICP Builder - Define and validate your ICP using real conversion patterns
+- TAM Generator - Generate a dynamic, segmentable TAM aligned to your ICP
+- CRM Insight Layer - Diagnose pipeline misalignment by surfacing data quality risk
+- **Data Enrichment Engine** (NEW 4th pillar) - Multi-source data verification at 60-85% less than competitors
+
+**CTA Section**
+- "Request Early Access" with form or link to /contact
+
+### Step 3: Create About Page
+
+Create `src/pages/About.tsx`:
+
+**Hero Section**
+- "LaunchPulse exists to make GTM targeting measurable, explainable, and operational"
+
+**"The LaunchPulse Difference" Section** - 4 cards:
+- Evidence-Based ICP (not opinion-based targeting)
+- Explainable Diagnostics (not opaque scoring)
+- Stack-Enhancing by Design (not a rip-and-replace platform)
+- Fast Time-to-Value (without heavy implementation)
+
+**Bottom CTA Section**
+
+### Step 4: Create Product Page
+
+Create `src/pages/Product.tsx`:
+
+**Hero Section**
+- "LaunchPulse connects to your CRM and transforms raw activity and outcome history into a precise, continuously refined map of who to target"
+
+**4 Product Feature Sections** (alternating layouts):
+1. ICP Builder - Identify what "good" looks like in your CRM
+2. TAM Generator - Dynamic TAM mapped directly to your ICP
+3. Persona Conversion Insights - Quantify which personas convert
+4. CRM Data Quality Analysis - Diagnose data quality risks
+
+**Data Enrichment Section** (NEW)
+- Multi-source verification waterfall
+- Real-time web scraping
+- Email/phone verification
+- Competitor pricing comparison showing savings
+
+**Use Cases Section** (3 columns):
+- RevOps - Validate ICP/TAM, identify leakage points
+- Sales Leadership - See misallocated effort and thin coverage
+- Executives - Clear diagnostic view of market opportunity
+
+**Bottom CTA**
+
+### Step 5: Create Contact Page
+
+Create `src/pages/Contact.tsx`:
+
+**Two-column layout**
+- Left: "Contact Us" header, description, direct email link
+- Right: Demo request form with Name, Email, Company, Subject, Message fields
+- Form validation and submission handling
+
+### Step 6: Create Demo Request Backend
+
+**Database migration** (`xxx_demo_requests.sql`):
 ```sql
-CREATE INDEX idx_accounts_org_enriched ON accounts(org_id, enriched_at);
-CREATE INDEX idx_leads_org_status ON "Leads"(org_id, lead_status, created_at);
-CREATE INDEX idx_enrichment_jobs_org_status ON enrichment_jobs(org_id, status);
+CREATE TABLE demo_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  company TEXT,
+  subject TEXT,
+  message TEXT,
+  source TEXT DEFAULT 'website',
+  status TEXT DEFAULT 'new',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE demo_requests ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can view demo requests" ON demo_requests
+  FOR SELECT USING (
+    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+  );
 ```
 
-### 3.2 Streaming AI Responses
-
-**Current State**: AI chat waits for full response before displaying.
-
-**Improvements**:
-- Implement SSE streaming in `ai-chat` edge function
-- Add token-by-token rendering in `AIChat.tsx`
-- Reduce perceived latency by 60-70%
-
-### 3.3 Edge Function Cold Start Optimization
-
-**Current State**: Edge functions have variable cold start times.
-
-**Improvements**:
-- Implement health-check pinging to keep critical functions warm
-- Reduce import sizes by lazy-loading optional dependencies
-- Add connection pooling for Supabase client
+**Edge function** (`demo-request/index.ts`):
+- Validate required fields (name, email)
+- Store in database
+- Send notification email via Resend
+- Return success/error response
 
 ---
 
-## Part 4: Enrichment Coverage Improvements
+## Phase 2: Pricing Page
 
-### 4.1 Add New Data Providers
+### Step 7: Create Dedicated Pricing Page
 
-**Current Providers**: Perplexity, Firecrawl, Claude, PDL, Apollo, Hunter
+Create `src/pages/Pricing.tsx`:
 
-**New Providers to Add**:
-| Provider | Data Type | Cost | Coverage |
-|----------|-----------|------|----------|
-| ZoomInfo | Firmographics | $0.15/record | Enterprise-focused |
-| Clearbit | Tech stack, Funding | $0.05/record | Startup-focused |
-| LinkedIn (RapidAPI) | Profiles, Company | $0.02/lookup | Social data |
-| Crunchbase | Funding, Investors | $0.08/record | Investment data |
+**Section 1: Hero**
+- "Simple, Transparent Pricing"
+- "Platform subscription + pay-as-you-go enrichment credits"
 
-### 4.2 Expand Field Coverage
+**Section 2: Platform Plans** (3-column cards)
 
-**Current Fields**: 21 enrichable fields
+Starter - $299/mo:
+- 2,500 accounts
+- 5 users
+- 1 CRM integration
+- AI ICP Builder
+- Basic TAM Generator
+- 50 enrichment credits/mo
+- CTA: "Request Demo"
 
-**New Fields to Add**:
-- `social_followers` (LinkedIn/Twitter follower counts)
-- `company_description` (AI-generated summary)
-- `key_technologies` (detailed tech stack beyond basics)
-- `recent_news` (news mentions in last 90 days)
-- `hiring_signals` (job postings count)
-- `web_traffic_rank` (Alexa/SimilarWeb rank)
+Professional - $699/mo (MOST POPULAR badge):
+- 10,000 accounts
+- 15 users
+- Unlimited CRM integrations
+- Advanced TAM with segmentation
+- Persona Conversion Insights
+- AI Agents
+- 250 enrichment credits/mo
+- CTA: "Request Demo"
 
-### 4.3 Smart Enrichment Routing
+Enterprise - Custom:
+- Unlimited everything
+- API access, SSO/SAML
+- Dedicated success manager
+- Custom enrichment volume
+- CTA: "Contact Sales"
 
-**Implementation**:
-- Analyze record characteristics to choose optimal provider path
-- SMB records: Firecrawl-first (website scraping)
-- Enterprise records: PDL/Apollo-first (database lookups)
-- International records: Perplexity-first (web search)
+**Section 3: Enrichment Credits**
+- "Need more data? Add credits to any plan"
+- Visual credit pack cards with pricing
+- Usage examples (1-2 credits for quick enrich, 3-5 for full lead, 5-10 for deep research)
+- Competitor comparison callout: "Save 60-85% vs Apollo, ZoomInfo, and Clay"
+
+**Section 4: Feature Comparison Matrix**
+
+| Feature | Starter | Professional | Enterprise |
+|---------|---------|--------------|------------|
+| AI ICP Builder | ✓ | ✓ | ✓ |
+| TAM Generator | Basic | Advanced | Advanced |
+| CRM Sync | 1 | Unlimited | Unlimited |
+| Persona Insights | - | ✓ | ✓ |
+| AI Agents | - | ✓ | ✓ |
+| API Access | - | - | ✓ |
+| SSO/SAML | - | - | ✓ |
+| Credits/mo | 50 | 250 | Custom |
+| Support | Email | Priority | Dedicated |
+
+**Section 5: FAQ**
+- "What's included in enrichment credits?"
+- "Do credits roll over?"
+- "Can I buy credits without a platform subscription?"
+- "How does your pricing compare to competitors?"
+- "What counts as one credit?"
 
 ---
 
-## Part 5: Campaign AI Improvements
+## Phase 3: Update Plan Tiers Configuration
 
-### 5.1 Autonomous Sequence Optimization
+### Step 8: Restructure plan-tiers.ts
 
-**Current State**: `optimize-sequence` provides recommendations but requires manual action.
+Update `src/lib/plan-tiers.ts` with new structure:
 
-**Improvements**:
-- Track email open rates, reply rates, meeting bookings per sequence step
-- Auto-adjust timing/content based on engagement patterns
-- A/B test subject lines and CTAs automatically
+```typescript
+export interface PlanTierConfig {
+  id: PlanTier;
+  name: string;
+  displayName: string;
+  
+  // Pricing
+  monthlyPrice: number | null;
+  annualPrice: number | null;
+  
+  // Platform Limits
+  limits: {
+    maxAccounts: number | null;
+    maxLeads: number | null;
+    maxUsers: number | null;
+    maxCrmIntegrations: number | null;
+  };
+  
+  // Included Enrichment Credits
+  monthlyEnrichmentCredits: number;
+  
+  // Feature Flags
+  features: {
+    basicTam: boolean;
+    advancedTam: boolean;
+    personaInsights: boolean;
+    aiAgents: boolean;
+    crmSync: boolean;
+    apiAccess: boolean;
+    sso: boolean;
+    customReporting: boolean;
+  };
+}
 
-### 5.2 Predictive Campaign Scoring
-
-**Implementation**:
-- Score campaigns before launch based on:
-  - Target audience fit score average
-  - Data quality (email verification %, phone coverage)
-  - Historical conversion rates for similar ICPs
-- Provide "Campaign Health Score" with actionable recommendations
-
-### 5.3 AI-Powered Personalization
-
-**Improvements**:
-- Generate personalized email snippets per contact using:
-  - Recent company news
-  - LinkedIn activity
-  - Industry trends
-- Store personalization in `campaign_personalization` table
-
----
-
-## Part 6: Agentic Behavior Improvements
-
-### 6.1 Agent Chaining and Orchestration
-
-**Current State**: Agents work independently; `agent-coordinator` delegates but doesn't chain.
-
-**Improvements**:
-- Implement goal-driven agent workflows
-- Allow agents to spawn sub-tasks and wait for completion
-- Add workflow templates: "Full Lead Processing" chains qualification -> enrichment -> scoring -> follow-up
-
-```text
-┌────────────────────────────────────────────────────────────┐
-│                    Goal: Process New Leads                 │
-└────────────────────────────┬───────────────────────────────┘
-                             │
-        ┌────────────────────┼────────────────────┐
-        ▼                    ▼                    ▼
-  ┌──────────┐        ┌──────────┐        ┌──────────┐
-  │ Enrich   │───────>│ Qualify  │───────>│ Assign   │
-  │ Agent    │        │ Agent    │        │ Agent    │
-  └──────────┘        └──────────┘        └──────────┘
-        │                    │                    │
-        └────────────────────┴────────────────────┘
-                             │
-                             ▼
-                    ┌──────────────┐
-                    │ Follow-up    │
-                    │ Automation   │
-                    └──────────────┘
+export const ENRICHMENT_CREDIT_PACKS = [
+  { id: 'starter', name: 'Starter Pack', credits: 250, price: 49, perCredit: 0.20 },
+  { id: 'growth', name: 'Growth Pack', credits: 1000, price: 149, perCredit: 0.15 },
+  { id: 'scale', name: 'Scale Pack', credits: 5000, price: 499, perCredit: 0.10 },
+  { id: 'enterprise', name: 'Enterprise Pack', credits: 25000, price: 1999, perCredit: 0.08 },
+];
 ```
 
-### 6.2 Proactive Agent Suggestions
+---
 
-**Current State**: `agent-planner` evaluates rules but suggestions require manual approval.
+## Phase 4: Stripe Integration
 
-**Improvements**:
-- Add confidence thresholds for auto-execution
-- Implement "learning mode" where agent watches user actions and suggests automation
-- Create daily digest of agent recommendations with one-click approval
+### Step 9: Enable Stripe
 
-### 6.3 Human-in-the-Loop with Smart Escalation
+Use Lovable's Stripe integration tool to connect Stripe account.
 
-**Implementation**:
-- Track user approval/rejection patterns per agent type
-- Auto-approve when pattern matches previous approvals
-- Escalate only truly novel decisions to humans
-- Store decision history in `ai_decision_patterns` for learning
+### Step 10: Create Stripe Products (Manual in Dashboard)
 
-### 6.4 Agent Memory and Context
+**Subscriptions:**
+- "LaunchPulse Starter" - $299/month recurring
+- "LaunchPulse Professional" - $699/month recurring
 
-**Improvements**:
-- Extend `ai-memory` to store cross-session context
-- Agents remember past interactions with specific accounts/leads
-- Use embeddings for semantic memory search
-- Enable agents to reference "what we discussed last time"
+**Credit Packs (one-time):**
+- "250 Enrichment Credits" - $49
+- "1,000 Enrichment Credits" - $149
+- "5,000 Enrichment Credits" - $499
+- "25,000 Enrichment Credits" - $1,999
+
+### Step 11: Database Updates
+
+Migration (`xxx_add_stripe_fields.sql`):
+```sql
+ALTER TABLE organizations 
+ADD COLUMN stripe_customer_id TEXT,
+ADD COLUMN stripe_subscription_id TEXT,
+ADD COLUMN subscription_status TEXT DEFAULT 'none',
+ADD COLUMN subscription_plan TEXT;
+
+CREATE INDEX idx_org_stripe_customer ON organizations(stripe_customer_id);
+```
+
+### Step 12: Create Checkout Edge Functions
+
+**create-checkout-session/index.ts:**
+- Accept product type (subscription or credit pack)
+- Create/retrieve Stripe customer
+- Create checkout session with success/cancel URLs
+- Return checkout URL
+
+**stripe-webhook/index.ts:**
+- Verify webhook signature
+- Handle `checkout.session.completed` - add credits or update subscription
+- Handle `customer.subscription.updated` - plan changes
+- Handle `customer.subscription.deleted` - cancellations
+- Update organization accordingly
+
+**create-portal-session/index.ts:**
+- Create Stripe billing portal session
+- Allow users to manage subscriptions
 
 ---
 
-## Implementation Phases
+## Phase 5: In-App Billing UI
 
-### Phase 4A: Speed & Performance (Week 1-2)
-1. Implement caching layer for enrichment results
-2. Add composite database indexes
-3. Optimize parallel provider execution
-4. Implement streaming for AI chat
+### Step 13: Create Billing Components
 
-### Phase 4B: Accuracy & Enrichment (Week 3-4)
-1. Add multi-source confidence scoring
-2. Implement ground truth validation
-3. Add 2 new data providers (Clearbit, LinkedIn)
-4. Expand field coverage
+Create `src/components/billing/`:
 
-### Phase 4C: Campaign AI (Week 5)
-1. Add autonomous sequence optimization
-2. Implement predictive campaign scoring
-3. Add AI-powered personalization
+**BillingSection.tsx** - Settings page billing tab
+- Current plan display with features
+- Credit balance with visual indicator
+- Usage this billing period
+- "Buy Credits" and "Manage Subscription" buttons
 
-### Phase 4D: Agentic Improvements (Week 6-7)
-1. Implement agent chaining
-2. Add proactive auto-execution with learning
-3. Implement smart escalation
-4. Extend agent memory system
+**CreditPurchaseModal.tsx** - Buy credits dialog
+- Credit pack selection cards
+- Per-credit cost display
+- Total price
+- Checkout button → Stripe
 
----
+**UpgradePrompt.tsx** - Low credit warning banner
+- Shown when credits < 20% remaining
+- "Buy Credits" or "Upgrade Plan" CTAs
+- Dismissable but persistent
 
-## Technical Debt to Address
+**PlanComparisonTable.tsx** - Reusable feature matrix
 
-1. **Carrier cache optimization**: Current `carrier_cache` has 90-day TTL; consider extending or implementing background refresh
-2. **Provider health dashboard**: Add real-time UI for monitoring AI provider health/costs
-3. **Batch job monitoring**: Improve visibility into long-running enrichment jobs
-4. **Error categorization**: Classify errors by type (rate limit, auth, data) for better retry logic
+### Step 14: Update Settings Page
 
----
+Add Billing tab to existing Settings:
+- Current subscription tier and status
+- Credit balance with usage chart
+- "Buy Credits" button → CreditPurchaseModal
+- "Manage Subscription" → Stripe portal
+- Recent transactions list
 
-## Expected Outcomes
+### Step 15: Add Credit Warning System
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| Enrichment Speed | 3-5s/record | 1-2s/record |
-| Cache Hit Rate | 0% | 60-80% |
-| Field Coverage | 21 fields | 27 fields |
-| Dashboard Load Time | 2-4s | 0.5-1s |
-| AI Response Latency | 5-10s | 2-3s (streaming) |
-| Agent Auto-Execution Rate | 0% | 40-60% |
-| Campaign Prediction Accuracy | N/A | 75%+ |
+Update enrichment flows:
+- Check credit balance before operations
+- Show warning when credits < 20%
+- Block bulk operations if insufficient credits
+- Prompt to purchase more
 
 ---
 
-## Files to Create/Modify
+## Phase 6: Routing Updates
 
-**New Files**:
-- `supabase/functions/_shared/enrichment-cache.ts`
-- `supabase/functions/clearbit-enrich/index.ts`
-- `supabase/functions/linkedin-lookup/index.ts`
-- `src/hooks/use-streaming-chat.ts`
-- `src/components/agents/AgentWorkflowBuilder.tsx`
-- `src/components/campaigns/CampaignHealthScore.tsx`
+### Step 16: Update App.tsx
 
-**Modified Files**:
-- `supabase/functions/enrich-unified/index.ts` (add caching, batch updates)
-- `supabase/functions/_shared/provider-waterfall.ts` (early-exit logic)
-- `supabase/functions/ai-chat/index.ts` (streaming support)
-- `supabase/functions/agent-coordinator/index.ts` (chaining support)
-- `src/components/ai-chat/AIChat.tsx` (streaming UI)
-- `src/components/campaigns/AICampaignAssistant.tsx` (predictive scoring)
+Add new public routes (no auth required):
+- `/landing` - Home (marketing)
+- `/about` - About page
+- `/product` - Product page
+- `/pricing` - Pricing page
+- `/contact` - Contact/Demo request
+
+Ensure proper layout wrapping for marketing pages vs app pages.
+
+---
+
+## File Structure Summary
+
+```
+src/
+├── components/
+│   ├── marketing/
+│   │   ├── MarketingNav.tsx
+│   │   ├── MarketingFooter.tsx
+│   │   ├── MarketingHero.tsx
+│   │   ├── FeatureCard.tsx
+│   │   ├── PainPointCard.tsx
+│   │   └── DemoRequestForm.tsx
+│   └── billing/
+│       ├── BillingSection.tsx
+│       ├── CreditPurchaseModal.tsx
+│       ├── UpgradePrompt.tsx
+│       └── PlanComparisonTable.tsx
+├── pages/
+│   ├── Landing.tsx (rebuild)
+│   ├── About.tsx (new)
+│   ├── Product.tsx (new)
+│   ├── Pricing.tsx (new)
+│   └── Contact.tsx (new)
+├── lib/
+│   └── plan-tiers.ts (update)
+supabase/
+├── functions/
+│   ├── demo-request/index.ts
+│   ├── create-checkout-session/index.ts
+│   ├── stripe-webhook/index.ts
+│   └── create-portal-session/index.ts
+└── migrations/
+    ├── xxx_demo_requests.sql
+    └── xxx_add_stripe_fields.sql
+```
+
+---
+
+## Route Structure
+
+| Route | Page | Auth Required | Purpose |
+|-------|------|---------------|---------|
+| `/landing` | Home | No | Marketing homepage |
+| `/about` | About | No | Company mission |
+| `/product` | Product | No | Feature details + enrichment |
+| `/pricing` | Pricing | No | Plans + credits |
+| `/contact` | Contact | No | Demo request form |
+| `/auth` | Auth | No | Sign in/up |
+| `/` | Dashboard | Yes | App home |
+| `/settings` | Settings | Yes | Includes billing tab |
+
+---
+
+## Implementation Order
+
+1. Create shared marketing components (Nav, Footer, Hero, Cards)
+2. Rebuild Landing page with launchpulse.org content
+3. Create About page
+4. Create Product page with enrichment section
+5. Create Contact page with demo form
+6. Create demo_requests table and edge function
+7. Create Pricing page with new pricing model
+8. Update plan-tiers.ts configuration
+9. Enable Stripe integration
+10. Create checkout/webhook edge functions
+11. Add Stripe fields to organizations table
+12. Build billing UI components
+13. Add billing section to Settings
+14. Implement credit warning system
+15. Update routing in App.tsx
+16. End-to-end testing
+
+---
+
+## Success Criteria
+
+- All marketing pages match launchpulse.org dark aesthetic with teal accents
+- Demo request form submits correctly and sends notifications
+- Pricing page clearly displays Platform + Credits model
+- Stripe checkout works for credit pack purchases
+- Credits correctly added to organization after purchase
+- Low credit warnings appear at appropriate thresholds
+- Billing section displays current plan and usage accurately
+- All routes properly protected/unprotected as specified
