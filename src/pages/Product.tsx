@@ -98,12 +98,12 @@ const enrichmentSection = {
     "Multi-source verification waterfall",
     "Real-time web scraping & validation",
     "Verified emails, phones, and firmographics",
-    "60-85% cheaper than Apollo, ZoomInfo, Clay",
+    "60-85% cheaper than traditional providers",
   ],
   comparison: [
-    { provider: "ZoomInfo", price: "$1.50-3.00", savings: "90%+" },
-    { provider: "Apollo", price: "$0.50", savings: "60-85%" },
-    { provider: "Clay", price: "$0.08-0.84", savings: "40-70%" },
+    { provider: "Enterprise Providers", price: "$1.50-3.00", savings: "90%+" },
+    { provider: "Sales Intelligence", price: "$0.50", savings: "60-85%" },
+    { provider: "Workflow Platforms", price: "$0.08-0.84", savings: "40-70%" },
     { provider: "LaunchPulse", price: "$0.08-0.20", savings: "—" },
   ],
 };
