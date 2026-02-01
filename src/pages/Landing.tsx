@@ -1,5 +1,7 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { GradientBackground } from "@/components/ui/GradientBackground";
+import { ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import {
   MarketingNav,
   MarketingFooter,
@@ -60,13 +62,31 @@ export default function Landing() {
         </MarketingHero>
 
         {/* Pain Points Section */}
-        <section className="container mx-auto px-6 py-16">
-          <div className="text-center mb-12">
+        <section className="container mx-auto px-6 py-16 relative overflow-hidden">
+          {/* Floating decoration SVGs - matching original */}
+          <img 
+            src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695055dccf22527a26df6e62_icp-01.svg"
+            alt=""
+            className="absolute left-0 md:left-10 top-1/2 -translate-y-1/2 w-24 md:w-32 opacity-80 hidden lg:block"
+          />
+          <img 
+            src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/694e6fd27d17f86e6ce24884_total-01.svg"
+            alt=""
+            className="absolute right-0 md:right-10 top-1/2 -translate-y-1/2 w-24 md:w-32 opacity-80 hidden lg:block"
+          />
+          {/* Gray background shape */}
+          <img 
+            src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695012c6ca938bbd9d2d6114_bg_Grey.webp"
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none"
+          />
+          
+          <div className="text-center mb-12 relative z-10">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
               Why GTM Teams performance stalls even when activity is high:
             </h2>
           </div>
-          <div className="grid md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-4 max-w-3xl mx-auto relative z-10">
             {painPoints.map((point, index) => (
               <PainPointCard key={index} text={point} delay={0.1 * index} />
             ))}
@@ -93,32 +113,20 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* CTA Section */}
-        <section className="container mx-auto px-6 py-24">
-          <Card variant="gradient" className="overflow-hidden relative">
-            {/* Background Glow */}
-            <div
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-20 pointer-events-none"
-              style={{
-                background:
-                  "radial-gradient(circle, hsl(161 85% 60% / 0.3), transparent 60%)",
-              }}
-            />
-
-            <CardContent className="pt-16 pb-16 text-center relative z-10">
-              <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                Request Early Access
-              </h2>
-              <p className="text-xl text-white/60 mb-10 max-w-2xl mx-auto">
-                Get a fast, explainable view of: who converts, who you should target next, and what's blocking yield today. Request early access to see LaunchPulse mapped against your CRM reality.
-              </p>
-              <a href="/contact">
-                <button className="btn-glow inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-14 px-8 text-lg rounded-lg">
-                  Request Demo
-                </button>
-              </a>
-            </CardContent>
-          </Card>
+        {/* CTA Section - Simplified */}
+        <section className="container mx-auto px-6 py-24 text-center">
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+            Request Early Access
+          </h2>
+          <p className="text-xl text-white/60 mb-10 max-w-2xl mx-auto">
+            Get a fast, explainable view of: who converts, who you should target next, and what's blocking yield today. Request early access to see LaunchPulse mapped against your CRM reality.
+          </p>
+          <Link to="/contact">
+            <Button variant="default" size="xl" className="text-lg">
+              Request Demo
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+          </Link>
         </section>
 
         <MarketingFooter />
