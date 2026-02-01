@@ -76,7 +76,7 @@ export default function About() {
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-4 text-white">
-              The <span className="text-primary">LaunchPulse</span> Difference
+              The LaunchPulse Difference
             </h2>
             <p className="text-xl text-white/60 max-w-2xl mx-auto">
               What makes LaunchPulse different in practice
@@ -92,6 +92,13 @@ export default function About() {
                   className="relative p-8 rounded-xl border border-white/10 bg-white/5 overflow-hidden animate-fade-in"
                   style={{ animationDelay: `${0.1 * index}s` }}
                 >
+                  {/* Decorative gradient line at top */}
+                  <div 
+                    className="absolute top-0 left-0 right-0 h-[2px]"
+                    style={{ 
+                      background: 'linear-gradient(90deg, transparent 0%, #3CF1AE 50%, transparent 100%)' 
+                    }}
+                  />
                   <div className="relative z-10">
                     <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20">
                       <Icon className="h-7 w-7 text-primary" />
@@ -109,31 +116,6 @@ export default function About() {
           </div>
         </section>
 
-        {/* Our Story Section */}
-        <section className="container mx-auto px-6 py-24">
-          <div className="max-w-3xl mx-auto text-center">
-            <h2 className="text-3xl md:text-4xl font-bold mb-8">
-              Built by <span className="text-primary">GTM Operators</span>
-            </h2>
-            <div className="space-y-6 text-lg text-white/70 text-left">
-              <p>
-                We've spent years watching revenue teams struggle with the same problems:
-                ICPs defined by intuition, TAMs that are static spreadsheets, and CRM data
-                that hides more than it reveals.
-              </p>
-              <p>
-                LaunchPulse was built to fix this. We combine AI-powered analysis with
-                deep GTM expertise to give you the clarity you need to focus on accounts
-                that will actually close.
-              </p>
-              <p>
-                Our platform doesn't replace your team's expertise—it amplifies it. By
-                surfacing the patterns in your own data, we help you validate hunches,
-                discover blind spots, and execute with precision.
-              </p>
-            </div>
-          </div>
-        </section>
 
         {/* Green Gradient CTA Banner */}
         <section className="container mx-auto px-6 py-24">
@@ -161,7 +143,7 @@ export default function About() {
                 A precise,<br />explainable GTM<br />intelligence layer
               </h2>
               <p className="text-lg text-black/70 mb-8">
-                If you want targeting clarity, ICP validation, and GTM diagnostics anchored to evidence—LaunchPulse is built for you.
+                If you want targeting clarity, persona coverage visibility, and a practical path to fixing data-driven pipeline leakage, request a demo.
               </p>
               <Link to="/contact">
                 <Button size="xl" className="text-lg gap-2 bg-black text-white hover:bg-black/90">
