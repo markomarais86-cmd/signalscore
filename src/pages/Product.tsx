@@ -132,7 +132,7 @@ export default function Product() {
           secondaryCta={{ label: "View Pricing", href: "/pricing" }}
         />
 
-        {/* Core Features */}
+        {/* Core Features - Clean Card Grid */}
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
@@ -143,42 +143,36 @@ export default function Product() {
             </p>
           </div>
 
-          <div className="space-y-24">
+          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
             {productFeatures.map((feature, index) => (
-              <div
+              <Card
                 key={index}
-                className={`flex flex-col ${
-                  index % 2 === 0 ? "lg:flex-row" : "lg:flex-row-reverse"
-                } gap-12 items-center`}
+                variant="glass"
+                hover="lift"
+                className="animate-fade-in"
+                style={{ animationDelay: `${0.1 * index}s` }}
               >
-                <div className="flex-1">
+                <CardContent className="p-8">
                   <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20">
                     <feature.icon className="h-7 w-7 text-primary" />
                   </div>
-                  <h3 className="text-3xl font-bold mb-2">{feature.title}</h3>
-                  <p className="text-lg text-primary mb-4">{feature.subtitle}</p>
+                  <h3 className="text-2xl font-bold mb-2">{feature.title}</h3>
+                  <p className="text-primary mb-4">{feature.subtitle}</p>
                   <p className="text-muted-foreground mb-6 leading-relaxed">
                     {feature.description}
                   </p>
-                  <ul className="space-y-3">
+                  <ul className="space-y-2">
                     {feature.highlights.map((highlight, idx) => (
                       <li key={idx} className="flex items-center gap-3">
-                        <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
-                          <div className="w-2 h-2 rounded-full bg-primary" />
+                        <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                         </div>
                         <span className="text-sm">{highlight}</span>
                       </li>
                     ))}
                   </ul>
-                </div>
-                <div className="flex-1">
-                  <Card variant="glass" className="p-8">
-                    <div className="aspect-video bg-muted/20 rounded-lg flex items-center justify-center">
-                      <feature.icon className="h-20 w-20 text-primary/30" />
-                    </div>
-                  </Card>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </section>

@@ -105,7 +105,7 @@
 
     /* Grey #5F6C72 for muted */
     --muted: 195 8% 41%; /* #5F6C72 */
-    --muted-foreground: 220 9% 73%; /* #B3B7C0 Platinum */
+    --muted-foreground: 0 0% 75%; /* Lighter for better contrast on black */
 
     /* Dark Green accent #1AB97E */
     --accent: 158 76% 41%; /* #1AB97E */
