@@ -1,38 +1,41 @@
 
-
-# Fix Password Reset Link Not Working
+# Fix "this is not right" Error on Password Reset
 
 ## Problem Summary
 
-The password reset flow breaks at step 3 - when clicking the link from the email:
+When clicking "Update Password" after filling in the new password form, users see a cryptic error message "this is not right" instead of the password being updated.
 
-| Step | Status | Issue |
-|------|--------|-------|
-| 1. Click "Forgot password?" | Works | Shows email input form |
-| 2. Enter email, get reset link | Works | Email is sent by Supabase |
-| 3. Click link in email | Broken | Page shows "Check Your Email" instead of password form |
+| Issue | Root Cause |
+|-------|------------|
+| Cryptic error message | Raw Supabase API error shown to user |
+| Password update fails | Session may not be fully ready, or token expired |
 
-## Root Cause
+## Technical Diagnosis
 
-When you click the reset link from your email, Supabase redirects you to `/reset-password` with a special token in the URL hash:
-
-```text
-https://www.launchpulse.io/reset-password#access_token=xxx&type=recovery
+The error flows from:
+```
+supabase.auth.updateUser({ password })
+    ↓ fails
+error.message = "this is not right"
+    ↓ displayed via
+createErrorState(error.message)
 ```
 
-The current `ResetPassword.tsx` immediately checks for a session and shows the "no session" message before Supabase has a chance to process the token and create a session. This is a **race condition**.
+This Supabase error indicates the session is invalid or the recovery token has issues. Possible causes:
 
-The app also doesn't listen for the `PASSWORD_RECOVERY` auth event from Supabase.
+1. **Token expired** - Recovery tokens expire after 1 hour
+2. **Token already used** - Tokens are single-use
+3. **Session not fully established** - Race condition between token processing and form submission
+4. **Token exchange failed silently** - The hash token wasn't properly converted to a session
 
 ## Solution
 
-Update `ResetPassword.tsx` to:
+Improve the password reset flow with:
 
-1. Wait for Supabase to process the URL hash token before checking session
-2. Listen for the `PASSWORD_RECOVERY` auth event
-3. Only show the "no session" message if:
-   - No recovery token in URL AND
-   - No session exists after waiting
+1. **Better session verification before allowing form submission**
+2. **User-friendly error messages instead of raw API errors**
+3. **Verify the session is valid before attempting updateUser**
+4. **Add a "request new link" option when token issues occur**
 
 ---
 
@@ -40,82 +43,78 @@ Update `ResetPassword.tsx` to:
 
 ### Changes to `src/pages/ResetPassword.tsx`
 
-```typescript
-import { useActionState, useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+**1. Verify session is valid before password update:**
 
-export default function ResetPassword() {
-  const [noSession, setNoSession] = useState(false);
-  const [checkingSession, setCheckingSession] = useState(true);
+```typescript
+const resetAction = async (prevState: FormState, formData: FormData): Promise<FormState> => {
+  const password = getFormValue(formData, 'password');
+  const confirmPassword = getFormValue(formData, 'confirmPassword');
+
+  if (password !== confirmPassword) {
+    return createErrorState("Passwords don't match.");
+  }
+
+  if (password.length < 6) {
+    return createErrorState("Password must be at least 6 characters long.");
+  }
+
+  // Verify we have a valid session before attempting update
+  const { data: { session } } = await supabase.auth.getSession();
   
-  useEffect(() => {
-    let mounted = true;
+  if (!session) {
+    return createErrorState("Your reset link has expired. Please request a new password reset link.");
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    // Map cryptic Supabase errors to user-friendly messages
+    let friendlyMessage = error.message;
     
-    // Check if URL has recovery token (from email link)
-    const hasRecoveryToken = window.location.hash.includes('type=recovery') ||
-                              window.location.hash.includes('access_token');
+    if (error.message.includes('not right') || 
+        error.message.includes('invalid') ||
+        error.message.includes('expired')) {
+      friendlyMessage = "Your reset link has expired or is invalid. Please request a new password reset link.";
+    } else if (error.message.includes('same_password')) {
+      friendlyMessage = "New password must be different from your current password.";
+    }
     
-    // Set up auth state listener FIRST - this catches the PASSWORD_RECOVERY event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (!mounted) return;
-        
-        console.log('Auth event:', event); // Debug
-        
-        if (event === 'PASSWORD_RECOVERY') {
-          // Token was valid - session is now active
-          setCheckingSession(false);
-          setNoSession(false);
-        } else if (event === 'SIGNED_IN' && session) {
-          // Already signed in
-          setCheckingSession(false);
-          setNoSession(false);
-        }
-      }
-    );
-    
-    // Then check for existing session
-    const checkSession = async () => {
-      // If URL has recovery token, wait a bit for Supabase to process it
-      if (hasRecoveryToken) {
-        // Give Supabase time to process the hash token
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
-      
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!mounted) return;
-      
-      if (session) {
-        // Session exists (either from recovery or existing login)
-        setNoSession(false);
-      } else if (!hasRecoveryToken) {
-        // No session AND no recovery token - user navigated directly
-        setNoSession(true);
-      }
-      // If hasRecoveryToken but no session yet, keep waiting for auth event
-      
-      setCheckingSession(false);
-    };
-    
-    checkSession();
-    
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-  
-  // ... rest of component
-}
+    return createErrorState(friendlyMessage);
+  }
+
+  // Success
+  toast({
+    title: "Password updated",
+    description: "Your password has been updated successfully."
+  });
+  navigate("/");
+  return createFormState();
+};
 ```
 
-### Key Changes
+**2. Add option to request new link when error occurs:**
 
-1. **Detect recovery token in URL** - Check for `type=recovery` or `access_token` in hash
-2. **Listen for PASSWORD_RECOVERY event** - Supabase fires this when token is processed
-3. **Add delay for token processing** - Give Supabase time to exchange the token
-4. **Better logic for "no session"** - Only show error if no token AND no session
+Update the error display in the form to include a link back to request a new reset:
+
+```tsx
+{state.error && (
+  <Alert variant="destructive" className="bg-destructive/10 border-destructive/30">
+    <AlertCircle className="h-4 w-4" />
+    <AlertDescription>
+      {state.error}
+      {state.error.includes('expired') && (
+        <Button 
+          variant="link" 
+          className="p-0 h-auto ml-1 text-primary"
+          onClick={() => navigate('/auth')}
+        >
+          Request new link
+        </Button>
+      )}
+    </AlertDescription>
+  </Alert>
+)}
+```
 
 ---
 
@@ -123,40 +122,25 @@ export default function ResetPassword() {
 
 | File | Changes |
 |------|---------|
-| `src/pages/ResetPassword.tsx` | Add auth state listener for `PASSWORD_RECOVERY` event, detect URL token, add processing delay |
+| `src/pages/ResetPassword.tsx` | Add session verification before updateUser, improve error messages |
 
 ---
 
-## Expected User Flow After Fix
+## Expected Behavior After Fix
 
-```text
-1. User on /auth clicks "Forgot password?"
-   ↓
-2. Form shows email input
-   ↓
-3. User enters email, clicks "Send Reset Link"
-   ↓
-4. Supabase sends email with reset link
-   ↓
-5. User clicks link in email → lands on /reset-password#access_token=xxx&type=recovery
-   ↓
-6. Page shows loading spinner while Supabase processes token
-   ↓
-7. Supabase fires PASSWORD_RECOVERY event, session is created
-   ↓
-8. Password reset form appears
-   ↓
-9. User enters new password → success!
-```
+| Scenario | Before | After |
+|----------|--------|-------|
+| Token expired | "this is not right" | "Your reset link has expired. Please request a new password reset link." |
+| Token invalid | Cryptic error | Clear message + link to request new |
+| Same password | Error shown | "New password must be different from your current password." |
+| Success | Works | No change |
 
 ---
 
-## Supabase Configuration Reminder
+## Additional Recommendation
 
-Make sure these settings are correct in Supabase Dashboard (Authentication > URL Configuration):
+**Supabase Dashboard Setting:** The password reset token expiry can be configured in Supabase. The default is 1 hour. If users often have expired tokens, consider increasing this in:
 
-| Setting | Value |
-|---------|-------|
-| Site URL | `https://www.launchpulse.io` |
-| Redirect URLs | Should include `https://www.launchpulse.io/reset-password` |
+`Authentication > URL Configuration > Password recovery link expiry`
 
+You may want to increase it to 24 hours for a better user experience.
