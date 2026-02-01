@@ -1,81 +1,85 @@
 
-# Fix Login After Failed Password Reset
+# Fix Password Reset Redirecting Immediately After Login
 
-## Summary
+## Problem Identified
 
-The password reset failed because the email link pointed to `localhost:3000`. Your password was never actually changed, which is why login with your "new" password fails.
+The password reset link now correctly points to `https://www.launchpulse.io/reset-password` (confirmed in auth logs). However, when you click it:
 
-## Immediate Solution
+1. Supabase processes the recovery token and creates a session
+2. The `useAuth` hook detects the session and sets `user`
+3. `ResetPassword.tsx` line 82-84 runs: `if (user) { return <Navigate to="/" replace />; }`
+4. You get redirected to the homepage instead of seeing the password reset form
 
-### Step 1: Verify Supabase URL Configuration (You Must Do This First)
+The page doesn't distinguish between a **password recovery session** and a **regular login session**.
 
-Go to your Supabase Dashboard:
-**https://supabase.com/dashboard/project/dhyfbaptcprxxixgnpby/auth/url-configuration**
+## Solution
 
-Set these values:
+Modify `ResetPassword.tsx` to:
+1. Track whether we're in a password recovery flow using a state variable
+2. Listen for the `PASSWORD_RECOVERY` auth event specifically  
+3. Only redirect away if the user is logged in **and** we're NOT in password recovery mode
 
-| Setting | Value |
-|---------|-------|
-| Site URL | `https://www.launchpulse.io` |
-| Redirect URLs (add all) | `https://www.launchpulse.io/**` |
-| | `https://signalscore.lovable.app/**` |
-| | `https://id-preview--f6080332-94e1-4aef-bfee-6cc8143489f0.lovable.app/**` |
+## Technical Changes
 
-### Step 2: Request a New Password Reset
+### File: `src/pages/ResetPassword.tsx`
 
-1. Go to **https://www.launchpulse.io** (the published site, NOT localhost)
-2. Click "Forgot password?"
-3. Enter your email
-4. Check your email for the new reset link
-5. Click the link - it should now go to `https://www.launchpulse.io/reset-password`
-6. Set your new password
+**Current logic (broken):**
+```typescript
+if (user) {
+  return <Navigate to="/" replace />;
+}
+```
 
-### Step 3: Login with New Password
+**New logic:**
+```typescript
+// Track if we're in password recovery mode
+const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
-After successfully resetting, login should work.
+// In the auth listener:
+if (event === 'PASSWORD_RECOVERY') {
+  setIsPasswordRecovery(true);  // Mark that we're recovering password
+  setCheckingSession(false);
+  setNoSession(false);
+}
 
-## Why This Happened
+// Updated redirect check:
+if (user && !isPasswordRecovery) {
+  return <Navigate to="/" replace />;
+}
+```
+
+This ensures:
+- If you're logged in normally and visit `/reset-password` → redirects to home
+- If you arrived via password recovery link → shows the password reset form
+
+## Flow After Fix
 
 ```text
-Old Flow (Broken):
-1. You clicked "Forgot password" from localhost:3000
-2. Code used window.location.origin → captured localhost
-3. Email link pointed to localhost:3000/reset-password
-4. localhost isn't running → reset form never loaded
-5. Password never changed → old password still active
-6. You tried logging in with "new" password → fails
+Password Recovery Flow:
+1. Click recovery link → lands on /reset-password#token=xxx
+2. Supabase fires PASSWORD_RECOVERY event
+3. isPasswordRecovery = true
+4. user is set (recovery creates a session)
+5. Check: user && !isPasswordRecovery → false (don't redirect)
+6. Password reset form is displayed ✓
+7. User enters new password and submits
+8. Success → navigate to "/"
+
+Normal Login Flow:
+1. User logs in normally
+2. user is set
+3. If they visit /reset-password directly
+4. isPasswordRecovery = false
+5. Check: user && !isPasswordRecovery → true (redirect)
+6. Redirects to "/" ✓
 ```
 
-## Code Already Fixed
+## Files to Modify
 
-I already updated `src/hooks/use-auth.tsx` to hardcode the production URL:
+| File | Change |
+|------|--------|
+| `src/pages/ResetPassword.tsx` | Add `isPasswordRecovery` state, update redirect logic |
 
-```typescript
-const resetPassword = async (email: string) => {
-  const productionUrl = 'https://www.launchpulse.io';
-  const redirectUrl = `${productionUrl}/reset-password`;
-  // ...
-};
-```
+## Why This Works
 
-This fix is deployed if you published. But **the Supabase Dashboard settings must also be updated** for this to work completely.
-
-## Verification Steps
-
-After completing the above:
-
-1. Test password reset from the **published site** (not localhost)
-2. Verify the email link points to `https://www.launchpulse.io/reset-password`
-3. Complete the password reset
-4. Login with the new password
-
-## Files
-
-No additional code changes needed - the fix was already implemented. This is a configuration issue in Supabase Dashboard.
-
-## Technical Details
-
-The auth logs confirm:
-- All requests show `referer: http://localhost:3000` - indicating requests came from local environment
-- `error_code: "invalid_credentials"` at 20:08:27 UTC - login failed because password was never updated
-- Password reset emails were sent but pointed to localhost
+The `PASSWORD_RECOVERY` event is fired by Supabase **only** when processing a valid recovery token from an email link. Regular logins fire `SIGNED_IN` instead. By tracking this event, we can distinguish between the two scenarios.
