@@ -191,7 +191,7 @@ export default function Pricing() {
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
               Platform Plans
             </h2>
-            <p className="text-lg text-white/60">
+            <p className="text-lg text-white/70">
               Choose the plan that fits your team size and needs
             </p>
           </div>
@@ -209,10 +209,10 @@ export default function Pricing() {
                 )}
                 <CardHeader className="pt-8">
                   <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                  <p className="text-sm text-white/60">{plan.description}</p>
+                  <p className="text-sm text-white/70">{plan.description}</p>
                   <div className="mt-4">
                     <span className="text-5xl font-bold">{plan.price}</span>
-                    <span className="text-white/60">{plan.period}</span>
+                    <span className="text-white/70">{plan.period}</span>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -251,7 +251,7 @@ export default function Pricing() {
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
               Enrichment Credit Packs
             </h2>
-            <p className="text-lg text-white/60 max-w-2xl mx-auto">
+            <p className="text-lg text-white/70 max-w-2xl mx-auto">
               Need more data? Add credits to any plan. Save 60-85% vs Apollo, ZoomInfo, and Clay.
             </p>
           </div>
