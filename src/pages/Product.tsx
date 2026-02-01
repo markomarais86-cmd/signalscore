@@ -2,7 +2,6 @@ import { GradientBackground } from "@/components/ui/GradientBackground";
 import { Button } from "@/components/ui/button";
 import { MarketingNav, MarketingFooter, MarketingHero } from "@/components/marketing";
 import {
-  ArrowRight,
   Target,
   BarChart3,
   Users,
@@ -13,6 +12,25 @@ import {
   Briefcase,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+
+// Diagonal arrow SVG matching original launchpulse.org
+function DiagonalArrow({ className }: { className?: string }) {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="18" 
+      height="18" 
+      viewBox="0 0 18 18" 
+      fill="none"
+      className={className}
+    >
+      <path 
+        d="M4.38237 12.4016L10.5268 6.25717L5.7538 6.25717L5.7538 4.7574L13.0872 4.7574L13.0872 12.0908L11.5874 12.0908V7.31783L5.44303 13.4622L4.38237 12.4016Z" 
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 
 const productFeatures = [
   {
@@ -120,12 +138,12 @@ export default function Product() {
         <MarketingHero
           headline={
             <>
-              <span className="text-white/40">Transform Raw CRM Data into</span>
+              <span className="text-white/40">LaunchPulse connects to your CRM</span>
               <br />
-              <span className="text-primary">Precision GTM Intelligence</span>
+              <span className="text-white">and transforms raw activity and outcome history</span>
             </>
           }
-          subheadline="LaunchPulse connects to your CRM and transforms raw activity and outcome history into a precise, continuously refined map of who to target, why they convert, and where your pipeline is leaking."
+          subheadline="into clear ICP, TAM, persona, and data-quality insights—built to improve pipeline yield and targeting precision."
           primaryCta={{ label: "Request Demo", href: "/contact" }}
         />
 
@@ -202,9 +220,9 @@ export default function Product() {
                   ))}
                 </ul>
                 <Link to="/pricing">
-                  <Button variant="default">
+                  <Button variant="default" className="gap-2">
                     See Pricing
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                    <DiagonalArrow />
                   </Button>
                 </Link>
               </div>
@@ -274,20 +292,22 @@ export default function Product() {
           </div>
         </section>
 
-        {/* CTA Section - Simplified */}
-        <section className="container mx-auto px-6 py-24 text-center">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">
-            Ready to See <span className="text-primary">Your Data</span> Differently?
-          </h2>
-          <p className="text-xl text-white/60 mb-10 max-w-2xl mx-auto">
-            Connect your CRM and discover insights you've been missing.
-          </p>
-          <Link to="/contact">
-            <Button size="xl" variant="default" className="text-lg">
-              Request Demo
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-          </Link>
+        {/* CTA Section - Left aligned matching original */}
+        <section className="container mx-auto px-6 py-24">
+          <div className="max-w-2xl">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6">
+              Ready to See<br /><span className="text-primary">Your Data</span> Differently?
+            </h2>
+            <p className="text-lg text-white/60 mb-8">
+              Connect your CRM and discover insights you've been missing.
+            </p>
+            <Link to="/contact">
+              <Button size="xl" variant="default" className="text-lg gap-2">
+                Request Demo
+                <DiagonalArrow />
+              </Button>
+            </Link>
+          </div>
         </section>
 
         <MarketingFooter />

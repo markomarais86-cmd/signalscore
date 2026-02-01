@@ -9,6 +9,11 @@ interface FeatureCardProps {
 }
 
 export function FeatureCard({ icon: Icon, iconUrl, title, description, delay = 0 }: FeatureCardProps) {
+  // Split title for styling - all but last word green, last word white
+  const words = title.split(' ');
+  const greenPart = words.slice(0, -1).join(' ');
+  const whitePart = words[words.length - 1];
+  
   return (
     <div
       className="p-6 rounded-xl border border-white/10 bg-white/5 animate-fade-in"
@@ -21,7 +26,10 @@ export function FeatureCard({ icon: Icon, iconUrl, title, description, delay = 0
           <Icon className="h-7 w-7 text-primary" />
         ) : null}
       </div>
-      <h3 className="text-xl font-semibold mb-3">{title}</h3>
+      <h3 className="text-xl font-semibold mb-3">
+        {greenPart && <span className="text-primary">{greenPart} </span>}
+        <span className="text-white">{whitePart}</span>
+      </h3>
       <p className="text-white/60 text-base leading-relaxed">
         {description}
       </p>

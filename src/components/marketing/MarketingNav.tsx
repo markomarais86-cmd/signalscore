@@ -10,6 +10,25 @@ const navLinks = [
   { href: "/pricing", label: "Pricing" },
 ];
 
+// Diagonal arrow SVG matching original launchpulse.org
+function DiagonalArrow({ className }: { className?: string }) {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="16" 
+      height="16" 
+      viewBox="0 0 18 18" 
+      fill="none"
+      className={className}
+    >
+      <path 
+        d="M4.38237 12.4016L10.5268 6.25717L5.7538 6.25717L5.7538 4.7574L13.0872 4.7574L13.0872 12.0908L11.5874 12.0908V7.31783L5.44303 13.4622L4.38237 12.4016Z" 
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 export function MarketingNav() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
@@ -17,7 +36,7 @@ export function MarketingNav() {
   const isActive = (href: string) => location.pathname === href;
 
   return (
-    <header className="border-b border-white/10 bg-background/50 backdrop-blur-xl sticky top-0 z-50">
+    <header className="border-b border-white/10 bg-black sticky top-0 z-50">
       <div className="container mx-auto px-6 h-16 flex items-center justify-between">
         <Link to="/landing">
           <img 
@@ -52,7 +71,10 @@ export function MarketingNav() {
             </Button>
           </Link>
           <Link to="/contact">
-            <Button variant="default">Request Demo</Button>
+            <Button variant="default" className="gap-2">
+              Request Demo
+              <DiagonalArrow />
+            </Button>
           </Link>
         </div>
 
@@ -68,7 +90,7 @@ export function MarketingNav() {
 
       {/* Mobile Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-white/10 bg-background/95 backdrop-blur-xl">
+        <div className="md:hidden border-t border-white/10 bg-black">
           <nav className="container mx-auto px-6 py-4 flex flex-col gap-4">
             {navLinks.map((link) => (
               <Link
@@ -91,8 +113,9 @@ export function MarketingNav() {
                 </Button>
               </Link>
               <Link to="/contact" onClick={() => setMobileMenuOpen(false)}>
-                <Button variant="default" className="w-full">
+                <Button variant="default" className="w-full gap-2">
                   Request Demo
+                  <DiagonalArrow />
                 </Button>
               </Link>
             </div>

@@ -1,7 +1,25 @@
 import { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
+
+// Diagonal arrow SVG matching original launchpulse.org
+function DiagonalArrow({ className }: { className?: string }) {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="18" 
+      height="18" 
+      viewBox="0 0 18 18" 
+      fill="none"
+      className={className}
+    >
+      <path 
+        d="M4.38237 12.4016L10.5268 6.25717L5.7538 6.25717L5.7538 4.7574L13.0872 4.7574L13.0872 12.0908L11.5874 12.0908V7.31783L5.44303 13.4622L4.38237 12.4016Z" 
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 
 interface MarketingHeroProps {
   headline: ReactNode;
@@ -41,9 +59,9 @@ export function MarketingHero({
           style={{ animationDelay: "0.4s" }}
         >
           <Link to={primaryCta.href}>
-            <Button size="xl" variant="default" className="text-lg">
+            <Button size="xl" variant="default" className="text-lg gap-2">
               {primaryCta.label}
-              <ArrowRight className="ml-2 h-5 w-5" />
+              <DiagonalArrow />
             </Button>
           </Link>
         </div>
