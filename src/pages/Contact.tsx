@@ -53,7 +53,7 @@ export default function Contact() {
               </div>
 
               <div className="mt-12 p-6 bg-white/5 rounded-xl border border-white/10">
-                <h3 className="font-semibold mb-3">What happens next?</h3>
+                <h3 className="font-semibold mb-3 text-white">What happens next?</h3>
                 <ul className="space-y-3 text-sm text-white/60">
                   <li className="flex items-start gap-3">
                     <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium shrink-0">
