@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { MarketingNav, MarketingFooter, MarketingHero } from "@/components/marketing";
 import {
   Check,
-  X,
   Zap,
   HelpCircle,
 } from "lucide-react";
@@ -37,54 +36,69 @@ function DiagonalArrow({ className }: { className?: string }) {
 
 const platformPlans = [
   {
-    name: "Starter",
-    price: "$299",
-    period: "/month",
-    description: "For teams getting started with ICP intelligence",
+    name: "Pilot",
+    price: "£6,000",
+    period: "/ 90 days",
+    bestFor: "Validation & ROI proof",
     features: [
-      "2,500 accounts",
-      "5 users",
-      "1 CRM integration",
-      "AI ICP Builder",
-      "Basic TAM Generator",
-      "50 enrichment credits/mo",
-      "Email support",
+      "Up to 3,000 accounts",
+      "1 ICP Model",
+      "Country segmentation",
+      "3 months history",
+      "Basic AI Agents",
+      "1 integration (manual)",
+      "500 credits (total)",
     ],
-    cta: "Request Demo",
+    cta: "Start Pilot",
     popular: false,
   },
   {
     name: "Professional",
-    price: "$699",
-    period: "/month",
-    description: "For growing teams serious about GTM optimization",
+    price: "From £999",
+    period: "–£1,299 / mo",
+    bestFor: "Core revenue teams",
     features: [
-      "10,000 accounts",
-      "15 users",
-      "Unlimited CRM integrations",
-      "Advanced TAM with segmentation",
-      "Persona Conversion Insights",
-      "AI Agents",
-      "250 enrichment credits/mo",
-      "Priority support",
+      "Up to 10,000 accounts",
+      "Up to 3 ICP Models",
+      "Country segmentation",
+      "12 months history",
+      "Standard AI Agents",
+      "Up to 2 integrations",
+      "1,000 credits / mo",
     ],
     cta: "Request Demo",
     popular: true,
   },
   {
+    name: "Growth",
+    price: "From £1,799",
+    period: "–£2,499 / mo",
+    bestFor: "Scaling GTM teams",
+    features: [
+      "Up to 30,000 accounts",
+      "Up to 10 ICP Models",
+      "Sub-industry + Region",
+      "24 months history",
+      "Advanced AI Agents",
+      "Unlimited integrations",
+      "3,000 credits / mo",
+    ],
+    cta: "Get Pricing",
+    popular: false,
+  },
+  {
     name: "Enterprise",
     price: "Custom",
-    period: "",
-    description: "For organizations requiring advanced features and scale",
+    period: "(£40K+ / yr)",
+    bestFor: "Enterprise / PE",
     features: [
       "Unlimited accounts",
-      "Unlimited users",
-      "All integrations + API access",
-      "SSO/SAML authentication",
-      "Custom enrichment volume",
-      "Dedicated success manager",
-      "SLA guarantees",
-      "Custom reporting",
+      "Unlimited ICP Models",
+      "Custom segmentation",
+      "Full history",
+      "Custom AI Agents",
+      "Custom integrations",
+      "10K+ credits / mo",
     ],
     cta: "Contact Sales",
     popular: false,
@@ -94,55 +108,53 @@ const platformPlans = [
 const creditPacks = [
   {
     id: "starter",
-    name: "Starter Pack",
-    credits: 250,
-    price: 49,
-    perCredit: 0.2,
+    name: "Starter",
+    credits: 200,
+    price: 79,
     popular: false,
   },
   {
     id: "growth",
-    name: "Growth Pack",
+    name: "Growth",
     credits: 1000,
-    price: 149,
-    perCredit: 0.15,
+    price: 299,
     popular: true,
   },
   {
     id: "scale",
-    name: "Scale Pack",
+    name: "Scale",
     credits: 5000,
-    price: 499,
-    perCredit: 0.1,
+    price: 1099,
     popular: false,
   },
   {
     id: "enterprise",
-    name: "Enterprise Pack",
+    name: "Enterprise",
     credits: 25000,
-    price: 1999,
-    perCredit: 0.08,
+    price: null,
     popular: false,
   },
 ];
 
 const featureComparison = [
-  { feature: "AI ICP Builder", starter: true, professional: true, enterprise: true },
-  { feature: "TAM Generator", starter: "Basic", professional: "Advanced", enterprise: "Advanced" },
-  { feature: "CRM Sync", starter: "1", professional: "Unlimited", enterprise: "Unlimited" },
-  { feature: "Persona Insights", starter: false, professional: true, enterprise: true },
-  { feature: "AI Agents", starter: false, professional: true, enterprise: true },
-  { feature: "API Access", starter: false, professional: false, enterprise: true },
-  { feature: "SSO/SAML", starter: false, professional: false, enterprise: true },
-  { feature: "Credits/mo", starter: "50", professional: "250", enterprise: "Custom" },
-  { feature: "Support", starter: "Email", professional: "Priority", enterprise: "Dedicated" },
+  { feature: "ICP & TAM Engine", pilot: true, professional: true, growth: true, enterprise: true },
+  { feature: "Revenue Signal Index", pilot: true, professional: true, growth: true, enterprise: true },
+  { feature: "Board Dashboards", pilot: true, professional: true, growth: true, enterprise: true },
+  { feature: "Persona Conversion Analysis", pilot: true, professional: true, growth: true, enterprise: true },
+  { feature: "Multi-Region Analytics", pilot: false, professional: true, growth: true, enterprise: true },
+  { feature: "Sub-Industry Modeling", pilot: false, professional: false, growth: true, enterprise: true },
+  { feature: "Benchmarking Index", pilot: false, professional: false, growth: true, enterprise: true },
+  { feature: "Portfolio View", pilot: false, professional: false, growth: false, enterprise: true },
+  { feature: "API Access", pilot: false, professional: false, growth: false, enterprise: true },
+  { feature: "SSO / SLA", pilot: false, professional: false, growth: false, enterprise: true },
+  { feature: "Dedicated Success Manager", pilot: false, professional: false, growth: false, enterprise: true },
 ];
 
 const faqs = [
   {
     question: "What's included in enrichment credits?",
     answer:
-      "Each credit allows you to enrich one lead or account with verified data including emails, phone numbers, firmographic details, and more. Our multi-source verification waterfall ensures high accuracy across all data points.",
+      "Credits are used for enrichment, verification, and AI research. Each credit allows you to enrich or verify one data point across our multi-source waterfall.",
   },
   {
     question: "Do credits roll over?",
@@ -150,19 +162,19 @@ const faqs = [
       "Monthly included credits do not roll over. However, credits purchased through add-on packs never expire and can be used at any time.",
   },
   {
-    question: "Can I buy credits without a platform subscription?",
+    question: "What's the difference between Pilot and Professional?",
     answer:
-      "Enrichment credits require an active platform subscription. This ensures you have the full LaunchPulse experience to make the most of your enriched data.",
+      "Pilot is a 90-day validation program designed to prove ROI before committing to a monthly subscription. Professional is our core plan for revenue teams with ongoing needs.",
   },
   {
-    question: "How does your pricing compare to competitors?",
+    question: "Can I upgrade mid-contract?",
     answer:
-      "LaunchPulse enrichment is 60-85% cheaper than Apollo ($0.50/credit), 90%+ cheaper than ZoomInfo ($1.50-3.00/contact), and 40-70% cheaper than Clay ($0.08-0.84/record).",
+      "Yes. Upgrades are applied immediately with prorated billing. Plans scale as your GTM complexity grows.",
   },
   {
-    question: "What counts as one credit?",
+    question: "Is there annual billing?",
     answer:
-      "One credit = one enrichment attempt. Quick account enrichments typically use 1-2 credits, full lead enrichments 3-5 credits, and deep research with verification 5-10 credits depending on fields requested.",
+      "Yes. Annual contracts receive preferential pricing. Pilot customers who convert within 90 days retain their negotiated pricing for their first annual term.",
   },
 ];
 
@@ -176,8 +188,7 @@ export default function Pricing() {
         <MarketingHero
           headline={
             <>
-              <span className="text-white">Simple,</span>{" "}
-              <span className="text-primary">Transparent</span>
+              <span className="text-white">Simple, Transparent</span>
               <br />
               <span className="text-white">Pricing</span>
             </>
@@ -192,37 +203,37 @@ export default function Pricing() {
               Platform Plans
             </h2>
             <p className="text-lg text-white/70">
-              Choose the plan that fits your team size and needs
+              SignalScore is priced based on data volume, intelligence depth, and business impact
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
             {platformPlans.map((plan, index) => (
               <div
                 key={index}
-                className={`relative rounded-xl border border-white/10 bg-[#1F2227] transition-all duration-300 hover:-translate-y-1 ${plan.popular ? "md:scale-105 border-primary/30 z-10" : ""}`}
+                className={`relative rounded-xl border border-white/10 bg-[#1F2227] transition-all duration-300 hover:-translate-y-1 ${plan.popular ? "border-primary/30" : ""}`}
               >
                 {plan.popular && (
-                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground shadow-glow-sm">
+                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
                     Most Popular
                   </Badge>
                 )}
-                <CardHeader className="pt-8">
-                  <CardTitle className="text-2xl">{plan.name}</CardTitle>
-                  <p className="text-sm text-white/70">{plan.description}</p>
+                <CardHeader className="pt-8 pb-4">
+                  <CardTitle className="text-xl">{plan.name}</CardTitle>
+                  <p className="text-sm text-primary">{plan.bestFor}</p>
                   <div className="mt-4">
-                    <span className="text-5xl font-bold">{plan.price}</span>
-                    <span className="text-white/70">{plan.period}</span>
+                    <span className="text-3xl font-bold text-white">{plan.price}</span>
+                    <span className="text-sm text-white/50">{plan.period}</span>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <ul className="space-y-3">
+                <CardContent className="space-y-4">
+                  <ul className="space-y-2">
                     {plan.features.map((feature, idx) => (
-                      <li key={idx} className="flex items-start gap-3">
-                        <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Check className="h-3 w-3 text-primary" />
+                      <li key={idx} className="flex items-start gap-2">
+                        <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Check className="h-2.5 w-2.5 text-primary" />
                         </div>
-                        <span className="text-sm">{feature}</span>
+                        <span className="text-sm text-white/80">{feature}</span>
                       </li>
                     ))}
                   </ul>
@@ -230,7 +241,7 @@ export default function Pricing() {
                     <Button
                       className="w-full"
                       variant={plan.popular ? "glow" : "outline"}
-                      size="lg"
+                      size="sm"
                     >
                       {plan.cta}
                     </Button>
@@ -249,10 +260,10 @@ export default function Pricing() {
               <span className="text-sm font-medium text-primary">Add-On</span>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
-              Enrichment Credit Packs
+              Additional Enrichment Capacity
             </h2>
             <p className="text-lg text-white/70 max-w-2xl mx-auto">
-              Need more data? Add credits to any plan. Save 60-85% vs Apollo, ZoomInfo, and Clay.
+              All plans include monthly credits. Extra capacity is available as needed.
             </p>
           </div>
 
@@ -263,22 +274,21 @@ export default function Pricing() {
                 className={`relative rounded-xl border border-white/10 bg-[#1F2227] transition-all duration-300 hover:-translate-y-1 ${pack.popular ? "border-primary/50" : ""}`}
               >
                 {pack.popular && (
-                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground shadow-glow-sm">
-                    Best Value
+                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
+                    Popular
                   </Badge>
                 )}
                 <CardContent className="pt-8 text-center">
-                  <h3 className="font-semibold mb-2">{pack.name}</h3>
+                  <h3 className="font-semibold mb-2 text-white">{pack.name}</h3>
                   <div className="text-4xl font-bold text-primary mb-1">
                     {pack.credits.toLocaleString()}
                   </div>
                   <p className="text-sm text-white/50 mb-4">credits</p>
-                  <div className="text-2xl font-bold mb-1">${pack.price}</div>
-                  <p className="text-sm text-white/50 mb-6">
-                    ${pack.perCredit.toFixed(2)}/credit
-                  </p>
+                  <div className="text-2xl font-bold mb-4 text-white">
+                    {pack.price ? `$${pack.price}` : "Custom"}
+                  </div>
                   <Button variant="outline" size="sm" className="w-full">
-                    Add to Plan
+                    {pack.price ? "Add to Plan" : "Contact Sales"}
                   </Button>
                 </CardContent>
               </div>
@@ -287,8 +297,7 @@ export default function Pricing() {
 
           <div className="mt-12 text-center">
             <p className="text-sm text-white/50">
-              <strong>Usage examples:</strong> Quick account enrich: 1-2 credits • Full lead
-              enrichment: 3-5 credits • Deep research with verification: 5-10 credits
+              Credits are used for enrichment, verification, and AI research.
             </p>
           </div>
         </section>
@@ -297,67 +306,102 @@ export default function Pricing() {
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
-              Feature Comparison
+              Platform Capabilities
             </h2>
           </div>
 
-          <div className="max-w-4xl mx-auto overflow-hidden rounded-xl border border-white/10 bg-[#1F2227]">
+          <div className="max-w-5xl mx-auto overflow-hidden rounded-xl border border-white/10 bg-[#1F2227]">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-white/10">
-                    <th className="text-left p-4 font-semibold">Feature</th>
-                    <th className="text-center p-4 font-semibold">Starter</th>
-                    <th className="text-center p-4 font-semibold text-primary">
-                      Professional
-                    </th>
-                    <th className="text-center p-4 font-semibold">Enterprise</th>
+                    <th className="text-left p-4 font-semibold text-white">Capability</th>
+                    <th className="text-center p-4 font-semibold text-white">Pilot</th>
+                    <th className="text-center p-4 font-semibold text-primary">Professional</th>
+                    <th className="text-center p-4 font-semibold text-white">Growth</th>
+                    <th className="text-center p-4 font-semibold text-white">Enterprise</th>
                   </tr>
                 </thead>
                 <tbody>
                   {featureComparison.map((row, index) => (
-                    <tr
-                      key={index}
-                      className="border-b border-white/10 last:border-0"
-                    >
-                      <td className="p-4 text-sm">{row.feature}</td>
+                    <tr key={index} className="border-b border-white/10 last:border-0">
+                      <td className="p-4 text-sm text-white">{row.feature}</td>
                       <td className="p-4 text-center">
-                        {typeof row.starter === "boolean" ? (
-                          row.starter ? (
-                            <Check className="h-5 w-5 text-primary mx-auto" />
-                          ) : (
-                            <X className="h-5 w-5 text-white/30 mx-auto" />
-                          )
+                        {row.pilot ? (
+                          <Check className="h-5 w-5 text-primary mx-auto" />
                         ) : (
-                          <span className="text-sm">{row.starter}</span>
+                          <span className="text-white/30">—</span>
                         )}
                       </td>
                       <td className="p-4 text-center bg-primary/5">
-                        {typeof row.professional === "boolean" ? (
-                          row.professional ? (
-                            <Check className="h-5 w-5 text-primary mx-auto" />
-                          ) : (
-                            <X className="h-5 w-5 text-white/30 mx-auto" />
-                          )
+                        {row.professional ? (
+                          <Check className="h-5 w-5 text-primary mx-auto" />
                         ) : (
-                          <span className="text-sm font-medium">{row.professional}</span>
+                          <span className="text-white/30">—</span>
                         )}
                       </td>
                       <td className="p-4 text-center">
-                        {typeof row.enterprise === "boolean" ? (
-                          row.enterprise ? (
-                            <Check className="h-5 w-5 text-primary mx-auto" />
-                          ) : (
-                            <X className="h-5 w-5 text-white/30 mx-auto" />
-                          )
+                        {row.growth ? (
+                          <Check className="h-5 w-5 text-primary mx-auto" />
                         ) : (
-                          <span className="text-sm">{row.enterprise}</span>
+                          <span className="text-white/30">—</span>
+                        )}
+                      </td>
+                      <td className="p-4 text-center">
+                        {row.enterprise ? (
+                          <Check className="h-5 w-5 text-primary mx-auto" />
+                        ) : (
+                          <span className="text-white/30">—</span>
                         )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </section>
+
+        {/* How It Works */}
+        <section className="container mx-auto px-6 py-24">
+          <div className="max-w-3xl mx-auto text-center">
+            <h2 className="text-3xl md:text-4xl font-bold mb-6 text-white">
+              How SignalScore Pricing Works
+            </h2>
+            <p className="text-lg text-white/70 mb-8">
+              SignalScore is priced based on data volume, intelligence depth, and business impact — not user seats.
+            </p>
+            <div className="grid md:grid-cols-2 gap-6">
+              {[
+                "Core analytics",
+                "AI insights",
+                "Integrated enrichment",
+                "Monthly credit allocation",
+              ].map((item, idx) => (
+                <div key={idx} className="flex items-center gap-3 p-4 rounded-lg bg-[#1F2227] border border-white/10">
+                  <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                    <Check className="h-3 w-3 text-primary" />
+                  </div>
+                  <span className="text-white">{item}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-8 text-white/50">
+              Plans scale as your GTM complexity grows.
+            </p>
+          </div>
+        </section>
+
+        {/* Pilot Conversion Guarantee */}
+        <section className="container mx-auto px-6 py-16">
+          <div className="max-w-3xl mx-auto">
+            <div className="p-8 rounded-xl border border-primary/30 bg-primary/5 text-center">
+              <h3 className="text-2xl font-bold mb-4 text-white">
+                Pilot Conversion Guarantee
+              </h3>
+              <p className="text-lg text-white/70">
+                Pilot customers who convert within 90 days retain their negotiated pricing for their first annual term.
+              </p>
             </div>
           </div>
         </section>
@@ -405,7 +449,7 @@ export default function Pricing() {
                 Ready to Get<br />Started?
               </h2>
               <p className="text-lg text-white/80 mb-8">
-                Schedule a demo and see how LaunchPulse can transform your GTM strategy.
+                Schedule a demo and see how SignalScore can transform your GTM strategy.
               </p>
               <Link to="/contact">
                 <Button size="xl" variant="default" className="text-lg gap-2">
