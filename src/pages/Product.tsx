@@ -267,7 +267,7 @@ export default function Product() {
         {/* Use Cases */}
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4 text-white">
               Built for <span className="text-primary">GTM Teams</span>
             </h2>
             <p className="text-xl text-white/60 max-w-2xl mx-auto">
