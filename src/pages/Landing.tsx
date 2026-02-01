@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
 import { GradientBackground } from "@/components/ui/GradientBackground";
-import { ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   MarketingNav,
@@ -10,6 +9,25 @@ import {
   PainPointCard,
   HeroDashboardMockup,
 } from "@/components/marketing";
+
+// Diagonal arrow SVG matching original launchpulse.org
+function DiagonalArrow({ className }: { className?: string }) {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="18" 
+      height="18" 
+      viewBox="0 0 18 18" 
+      fill="none"
+      className={className}
+    >
+      <path 
+        d="M4.38237 12.4016L10.5268 6.25717L5.7538 6.25717L5.7538 4.7574L13.0872 4.7574L13.0872 12.0908L11.5874 12.0908V7.31783L5.44303 13.4622L4.38237 12.4016Z" 
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 
 const features = [
   {
@@ -61,35 +79,40 @@ export default function Landing() {
           <HeroDashboardMockup className="mt-16" />
         </MarketingHero>
 
-        {/* Pain Points Section */}
-        <section className="container mx-auto px-6 py-16 relative overflow-hidden">
-          {/* Floating decoration SVGs - matching original */}
-          <img 
-            src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695055dccf22527a26df6e62_icp-01.svg"
-            alt=""
-            className="absolute left-0 md:left-10 top-1/2 -translate-y-1/2 w-24 md:w-32 opacity-80 hidden lg:block"
-          />
-          <img 
-            src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/694e6fd27d17f86e6ce24884_total-01.svg"
-            alt=""
-            className="absolute right-0 md:right-10 top-1/2 -translate-y-1/2 w-24 md:w-32 opacity-80 hidden lg:block"
-          />
-          {/* Gray background shape */}
-          <img 
-            src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695012c6ca938bbd9d2d6114_bg_Grey.webp"
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover opacity-20 pointer-events-none"
-          />
-          
-          <div className="text-center mb-12 relative z-10">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Why GTM Teams performance stalls even when activity is high:
-            </h2>
-          </div>
-          <div className="grid md:grid-cols-2 gap-4 max-w-3xl mx-auto relative z-10">
-            {painPoints.map((point, index) => (
-              <PainPointCard key={index} text={point} delay={0.1 * index} />
-            ))}
+        {/* Pain Points Section - 2 column layout matching original */}
+        <section className="container mx-auto px-6 py-24">
+          <div className="grid lg:grid-cols-2 gap-16 items-center max-w-6xl mx-auto">
+            {/* Left side - Text content */}
+            <div>
+              <h2 className="text-3xl md:text-4xl font-bold mb-8">
+                Why GTM Teams<br />
+                <span className="text-white/50">performance stalls even when activity is high:</span>
+              </h2>
+              <div className="space-y-5">
+                {painPoints.map((point, index) => (
+                  <PainPointCard key={index} text={point} delay={0.1 * index} />
+                ))}
+              </div>
+            </div>
+            
+            {/* Right side - Images */}
+            <div className="relative hidden lg:block h-[400px]">
+              <img 
+                src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695055dccf22527a26df6e62_icp-01.svg"
+                alt="ICP Chart"
+                className="absolute left-0 top-0 w-96"
+              />
+              <img 
+                src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/694e6fd27d17f86e6ce24884_total-01.svg"
+                alt="Revenue Stats"
+                className="absolute right-0 bottom-0 w-72"
+              />
+              <img 
+                src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695012c6ca938bbd9d2d6114_bg_Grey.webp"
+                alt=""
+                className="absolute inset-0 w-full h-full object-cover opacity-30 -z-10"
+              />
+            </div>
           </div>
         </section>
 
@@ -97,7 +120,7 @@ export default function Landing() {
         <section className="container mx-auto px-6 py-24">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
-              What <span className="text-primary">LaunchPulse</span> Delivers
+              What LaunchPulse Delivers
             </h2>
           </div>
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
@@ -113,20 +136,22 @@ export default function Landing() {
           </div>
         </section>
 
-        {/* CTA Section - Simplified */}
-        <section className="container mx-auto px-6 py-24 text-center">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">
-            Request Early Access
-          </h2>
-          <p className="text-xl text-white/60 mb-10 max-w-2xl mx-auto">
-            Get a fast, explainable view of: who converts, who you should target next, and what's blocking yield today. Request early access to see LaunchPulse mapped against your CRM reality.
-          </p>
-          <Link to="/contact">
-            <Button variant="default" size="xl" className="text-lg">
-              Request Demo
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-          </Link>
+        {/* CTA Section - Left aligned matching original */}
+        <section className="container mx-auto px-6 py-24">
+          <div className="max-w-2xl">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6">
+              Request Early<br />Access
+            </h2>
+            <p className="text-lg text-white/60 mb-8">
+              Get a fast, explainable view of: who converts, who you should target next, and what's blocking yield today. Request early access to see LaunchPulse mapped against your CRM reality.
+            </p>
+            <Link to="/contact">
+              <Button variant="default" size="xl" className="text-lg gap-2">
+                Request Demo
+                <DiagonalArrow />
+              </Button>
+            </Link>
+          </div>
         </section>
 
         <MarketingFooter />

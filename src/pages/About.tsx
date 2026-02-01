@@ -1,8 +1,27 @@
 import { GradientBackground } from "@/components/ui/GradientBackground";
 import { Button } from "@/components/ui/button";
 import { MarketingNav, MarketingFooter, MarketingHero } from "@/components/marketing";
-import { ArrowRight, Target, Lightbulb, Layers, Zap } from "lucide-react";
+import { Target, Lightbulb, Layers, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
+
+// Diagonal arrow SVG matching original launchpulse.org
+function DiagonalArrow({ className }: { className?: string }) {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="18" 
+      height="18" 
+      viewBox="0 0 18 18" 
+      fill="none"
+      className={className}
+    >
+      <path 
+        d="M4.38237 12.4016L10.5268 6.25717L5.7538 6.25717L5.7538 4.7574L13.0872 4.7574L13.0872 12.0908L11.5874 12.0908V7.31783L5.44303 13.4622L4.38237 12.4016Z" 
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
 
 const differentiators = [
   {
@@ -41,12 +60,12 @@ export default function About() {
         <MarketingHero
           headline={
             <>
-              <span className="text-white/40">LaunchPulse exists to make</span>
+              <span className="text-white/40">LaunchPulse exists to</span>
               <br />
-              <span className="text-primary">GTM targeting measurable, explainable, and operational</span>
+              <span className="text-white">make GTM targeting measurable, explainable, and operational</span>
             </>
           }
-          subheadline="We believe go-to-market teams deserve tools that show their work. No black boxes. No magic scores. Just clear, actionable intelligence that aligns your strategy with your best customers."
+          subheadline="Who to prioritise, why they convert, and where your CRM reality is diverging from your ICP—so execution is anchored to evidence, not assumptions."
         />
 
         {/* The LaunchPulse Difference */}
@@ -105,21 +124,23 @@ export default function About() {
           </div>
         </section>
 
-        {/* CTA Section - Simplified */}
-        <section className="container mx-auto px-6 py-24 text-center">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">
-            Ready to See <span className="text-primary">LaunchPulse</span> in Action?
-          </h2>
-          <p className="text-xl text-white/60 mb-10 max-w-2xl mx-auto">
-            Schedule a demo and discover how precision GTM intelligence can
-            transform your pipeline.
-          </p>
-          <Link to="/contact">
-            <Button size="xl" variant="default" className="text-lg">
-              Request Demo
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-          </Link>
+        {/* CTA Section - Left aligned matching original */}
+        <section className="container mx-auto px-6 py-24">
+          <div className="max-w-2xl">
+            <h2 className="text-4xl md:text-5xl font-bold mb-6">
+              Ready to See<br /><span className="text-primary">LaunchPulse</span> in Action?
+            </h2>
+            <p className="text-lg text-white/60 mb-8">
+              Schedule a demo and discover how precision GTM intelligence can
+              transform your pipeline.
+            </p>
+            <Link to="/contact">
+              <Button size="xl" variant="default" className="text-lg gap-2">
+                Request Demo
+                <DiagonalArrow />
+              </Button>
+            </Link>
+          </div>
         </section>
 
         <MarketingFooter />
