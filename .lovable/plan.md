@@ -1,127 +1,107 @@
 
-# Authentication Redirect URL Audit
 
-## Summary
+# Google Analytics Setup Plan for launchpulse.io
 
-I've audited all authentication-related redirect URLs in the codebase. Here's what I found:
+## Overview
+This plan adds Google Analytics 4 (GA4) tracking to your LaunchPulse website, enabling you to track page views, user behavior, and conversions across both marketing pages and the authenticated app.
 
-## Current State
+---
 
-### Correctly Using launchpulse.io (Hardcoded)
+## Prerequisites (You'll Need to Do This First)
 
-| File | Line | URL | Purpose |
-|------|------|-----|---------|
-| `src/hooks/use-auth.tsx` | 317-318 | `https://www.launchpulse.io/reset-password` | Password reset redirect |
-| `src/components/settings/CreateOrganizationDialog.tsx` | 75 | `https://launchpulse.io/auth?invite=` | Org admin invitation link |
+Before I can implement the code, you need to:
 
-### Using `window.location.origin` (Dynamic)
+1. **Go to** [Google Analytics](https://analytics.google.com/)
+2. **Create a new GA4 property** for launchpulse.io
+3. **Get your Measurement ID** (looks like `G-XXXXXXXXXX`)
 
-| File | Line | Pattern | Purpose |
-|------|------|---------|---------|
-| `src/hooks/use-auth.tsx` | 223 | `${window.location.origin}/` | Default signup redirect |
-| `src/components/AuthSystem.tsx` | 200-202 | `${window.location.origin}/auth?invite=` | Signup with invite redirect |
-| `src/components/settings/InvitationsManager.tsx` | 113 | `${window.location.origin}/auth?invite=` | Resend invitation URL |
-| `src/components/settings/InviteUserModal.tsx` | 70 | `${window.location.origin}/auth?invite=` | New invitation URL |
-| `src/components/settings/IntegrationManager.tsx` | 516 | `${window.location.origin}/settings?tab=integrations` | OAuth redirect |
+---
 
-### Problematic: OAuth Error Redirect
+## Implementation Steps
 
-| File | Line | Issue |
-|------|------|-------|
-| `supabase/functions/oauth-callback/index.ts` | 239 | Broken URL construction: `SUPABASE_URL.replace('supabase.co', '') + '/settings'` |
+### Step 1: Add Google Analytics Script to index.html
 
-## Issues Found
+Add the GA4 tracking script to the `<head>` section of your index.html file. This loads Google's gtag.js library and initializes tracking with your Measurement ID.
 
-### Issue 1: Inconsistent Invitation URLs (Medium Priority)
+**Location:** `index.html` (in the `<head>` section, before the closing `</head>` tag)
 
-- `CreateOrganizationDialog.tsx` hardcodes `https://launchpulse.io/auth?invite=`
-- Other invitation components use `window.location.origin`
-
-**Problem**: When testing in preview environments, `CreateOrganizationDialog` will send emails with production URLs that won't work for testing.
-
-**Recommendation**: Use `window.location.origin` consistently, OR create a helper function that:
-- Uses `https://launchpulse.io` when in production
-- Uses `window.location.origin` when in development/preview
-
-### Issue 2: OAuth Error Redirect is Broken (High Priority)
-
-```typescript
-// Line 239 - This produces an invalid URL
-const redirectUrl = new URL(SUPABASE_URL.replace('supabase.co', '') + '/settings');
+```html
+<!-- Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-XXXXXXXXXX');
+</script>
 ```
 
-When `SUPABASE_URL` is `https://dhyfbaptcprxxixgnpby.supabase.co`:
-- After replace: `https://dhyfbaptcprxxixgnpby./settings`
-- This is not a valid URL!
+### Step 2: Create Analytics Utility (Optional but Recommended)
 
-**Recommendation**: Hardcode to `https://launchpulse.io/settings` or use the stored `redirect_url` from the oauth_state table.
+Create a reusable analytics helper for tracking custom events like signups, form submissions, and feature usage.
 
-### Issue 3: Dynamic URLs May Cause Email Deliverability Issues (Low Priority)
+**Location:** `src/lib/analytics.ts` (new file)
 
-Using `window.location.origin` for invitation emails means:
-- Emails from preview environments contain preview URLs
-- These look suspicious and may affect deliverability
-- Users who receive emails from preview environments may get confused
+This utility will:
+- Provide type-safe event tracking functions
+- Handle cases where GA isn't loaded (dev environment)
+- Track key conversion events like signups, pricing clicks, and feature engagement
 
-**Recommendation**: For invitation emails specifically, always use the production domain.
+### Step 3: Add Route Change Tracking
 
-## Recommended Changes
+Since LaunchPulse is a Single Page Application (SPA), we need to track page views when users navigate between routes. This will be added to your App.tsx using React Router's location changes.
 
-### 1. Fix OAuth Error Redirect (Critical)
+**Location:** `src/App.tsx`
 
-```typescript
-// supabase/functions/oauth-callback/index.ts line 237-243
-function redirectWithError(error: string, description: string): Response {
-  // Use production domain for error redirects
-  const redirectUrl = new URL('https://launchpulse.io/settings');
-  redirectUrl.searchParams.set('oauth_error', error);
-  redirectUrl.searchParams.set('oauth_error_description', description);
-  
-  return Response.redirect(redirectUrl.toString(), 302);
-}
-```
+This ensures every page navigation is tracked, not just the initial page load.
 
-### 2. Standardize Invitation URLs
+---
 
-Create a utility function:
+## Events to Track (Recommended)
 
-```typescript
-// src/lib/url-utils.ts
-export function getProductionUrl(): string {
-  return 'https://launchpulse.io';
-}
+| Event Name | Trigger | Purpose |
+|------------|---------|---------|
+| `page_view` | Route change | Track which pages users visit |
+| `sign_up` | User creates account | Conversion tracking |
+| `login` | User logs in | User engagement |
+| `cta_click` | "Get Started" buttons | Marketing funnel |
+| `pricing_view` | Visit pricing page | Purchase intent |
+| `contact_form_submit` | Contact form submission | Lead generation |
 
-export function getInviteUrl(token: string): string {
-  // Always use production for email links
-  return `${getProductionUrl()}/auth?invite=${token}`;
-}
-```
+---
 
-Update all invitation components to use this helper:
-- `InviteUserModal.tsx`
-- `InvitationsManager.tsx`  
-- `CreateOrganizationDialog.tsx`
+## Privacy Considerations
 
-### 3. Keep Dynamic for OAuth Redirects
+The implementation will:
+- Only load GA on the production site (not in development)
+- Respect any cookie consent preferences (if you add a consent banner later)
+- Anonymize IP addresses for GDPR compliance
 
-OAuth success redirects should continue using `window.location.origin` since users need to return to the environment they started from.
+---
 
-## Files to Modify
+## Technical Notes
 
-| File | Change |
-|------|--------|
-| `supabase/functions/oauth-callback/index.ts` | Fix broken error redirect URL |
-| `src/lib/url-utils.ts` | Create new utility file |
-| `src/components/settings/InviteUserModal.tsx` | Use standardized invite URL |
-| `src/components/settings/InvitationsManager.tsx` | Use standardized invite URL |
-| `src/components/settings/CreateOrganizationDialog.tsx` | Use standardized invite URL |
+- **No environment variable needed** for the Measurement ID since it's a public identifier
+- **Works with your existing SEOHead component** - no conflicts
+- **Minimal performance impact** - gtag.js loads asynchronously
 
-## Summary Table
+---
 
-| URL Type | Current Approach | Recommended Approach |
-|----------|-----------------|---------------------|
-| Password reset | ✅ Hardcoded production | Keep as-is |
-| Email confirmations | 🟡 Dynamic origin | Consider hardcoding production |
-| Invitation emails | 🟡 Mixed | Standardize to production |
-| OAuth success | ✅ Dynamic origin | Keep as-is (correct) |
-| OAuth error | ❌ Broken | Fix to production URL |
+## After Implementation
+
+Once I add the code, you'll need to:
+
+1. **Replace** `G-XXXXXXXXXX` with your actual Measurement ID
+2. **Publish** the changes to make them live
+3. **Verify** in Google Analytics Real-Time view by visiting your site
+
+---
+
+## Summary of Files to Modify/Create
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `index.html` | Modify | Add GA4 script tags |
+| `src/lib/analytics.ts` | Create | Analytics utility for custom events |
+| `src/App.tsx` | Modify | Add SPA page view tracking |
+
