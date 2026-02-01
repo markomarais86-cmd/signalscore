@@ -1,4 +1,4 @@
-import { Target, BarChart3, Database, Zap } from "lucide-react";
+import { Zap } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { GradientBackground } from "@/components/ui/GradientBackground";
 import {
@@ -10,21 +10,28 @@ import {
   HeroDashboardMockup,
 } from "@/components/marketing";
 
+// Feature icons from launchpulse.org CDN
+const FEATURE_ICONS = {
+  icpBuilder: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/69696639d97eebd4bc9bcd01_build-01.svg",
+  tamGenerator: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696964446c7c72967b3789de_Tam%20Generator.svg",
+  crmInsight: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a48e374f363cbe28776a0_persona.svg",
+};
+
 const features = [
   {
-    icon: Target,
+    iconUrl: FEATURE_ICONS.icpBuilder,
     title: "AI ICP Builder",
     description:
       "Define and validate your Ideal Customer Profile based on real CRM patterns—not guesswork. Our AI analyzes your closed-won deals to surface the attributes that actually drive revenue.",
   },
   {
-    icon: BarChart3,
+    iconUrl: FEATURE_ICONS.tamGenerator,
     title: "TAM Generator",
     description:
       "Build dynamic, segmentable Total Addressable Market lists aligned to your ICP. See exactly how much of your market you're covering and where the biggest whitespace opportunities are.",
   },
   {
-    icon: Database,
+    iconUrl: FEATURE_ICONS.crmInsight,
     title: "CRM Insight Layer",
     description:
       "Surface gaps in your data, personas, segments, and coverage. Understand where pipeline misalignment comes from and get actionable recommendations to fix it.",
@@ -62,9 +69,10 @@ export default function Landing() {
           badge="Where GTM Meets ICP Precision"
           headline={
             <>
-              <span className="gradient-text">AI-Driven ICP and TAM</span>
+              <span className="text-muted-foreground/80">AI-Driven ICP and TAM</span>
               <br />
-              <span className="text-foreground">Intelligence for High-Performance GTM Teams</span>
+              <span className="text-muted-foreground/80">Intelligence for </span>
+              <span className="text-foreground">High-Performance GTM Teams</span>
             </>
           }
           subheadline="LaunchPulse pinpoints your highest-converting customer profile, validates ICP alignment inside your CRM, and exposes where pipeline yield is being constrained by data quality, persona coverage, or segment misfit."
@@ -76,7 +84,16 @@ export default function Landing() {
         </MarketingHero>
 
         {/* Pain Points Section */}
-        <section className="container mx-auto px-6 py-16">
+        <section className="container mx-auto px-6 py-16 relative">
+          {/* Floating dashboard image for pain points section */}
+          <div className="absolute right-0 top-0 w-64 md:w-80 opacity-60 hidden lg:block">
+            <img 
+              src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695055dccf22527a26df6e62_icp-01.svg"
+              alt="ICP Analysis"
+              className="w-full floating-card"
+            />
+          </div>
+          
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
               Why GTM Teams <span className="gradient-text">Stall</span>
@@ -85,7 +102,7 @@ export default function Landing() {
               Most go-to-market teams struggle with these challenges every day
             </p>
           </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto relative z-10">
             {painPoints.map((point, index) => (
               <PainPointCard key={index} text={point} delay={0.1 * index} />
             ))}
@@ -93,8 +110,17 @@ export default function Landing() {
         </section>
 
         {/* Stats Section */}
-        <section className="container mx-auto px-6 py-16">
-          <div className="grid md:grid-cols-4 gap-6">
+        <section className="container mx-auto px-6 py-16 relative">
+          {/* Floating stats image */}
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-48 md:w-64 opacity-50 hidden lg:block">
+            <img 
+              src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/694e6fd27d17f86e6ce24884_total-01.svg"
+              alt="Revenue Stats"
+              className="w-full floating-card-left"
+            />
+          </div>
+          
+          <div className="grid md:grid-cols-4 gap-6 relative z-10">
             {stats.map((stat, index) => (
               <Card
                 key={index}
@@ -129,6 +155,7 @@ export default function Landing() {
               <FeatureCard
                 key={index}
                 icon={feature.icon}
+                iconUrl={feature.iconUrl}
                 title={feature.title}
                 description={feature.description}
                 delay={0.1 * index}
