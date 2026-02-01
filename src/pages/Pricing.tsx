@@ -297,7 +297,7 @@ export default function Pricing() {
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="w-full"
+                    className="w-full text-white"
                     onClick={() => handlePricingRequest(`${pack.name} Credit Pack`)}
                   >
                     Get Pricing
