@@ -10,6 +10,9 @@ export function MarketingFooter() {
           src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/69497386bcff6817bd62fe29_light-01.svg" 
           alt="LaunchPulse" 
           className="h-6"
+          width="136"
+          height="24"
+          loading="lazy"
         />
         <div className="flex items-center gap-6">
           <Link 
