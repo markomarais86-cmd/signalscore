@@ -34,7 +34,7 @@ const differentiators = [
 
 export default function About() {
   return (
-    <GradientBackground variant="hero" showOrbs>
+    <GradientBackground variant="hero" showOrbs forceDark>
       <main>
         <MarketingNav />
 

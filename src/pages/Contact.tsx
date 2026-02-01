@@ -5,7 +5,7 @@ import { Mail } from "lucide-react";
 
 export default function Contact() {
   return (
-    <GradientBackground variant="hero" showOrbs>
+    <GradientBackground variant="hero" showOrbs forceDark>
       <main>
         <MarketingNav />
 
