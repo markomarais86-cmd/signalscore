@@ -1,8 +1,16 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
+import { getVariantFromConfig } from "@/lib/ab-testing";
+import { trackABVariant } from "@/lib/analytics";
+
+interface DescriptionVariants {
+  experimentId: string;
+  variants: Record<string, string>;
+}
 
 interface SEOHeadProps {
   title: string;
   description: string;
+  descriptionVariants?: DescriptionVariants;
   canonicalPath?: string;
   ogImage?: string;
 }
@@ -10,10 +18,12 @@ interface SEOHeadProps {
 /**
  * SEOHead - Dynamic meta tag management for each page
  * Updates document title and meta tags on mount
+ * Supports A/B testing of meta descriptions
  */
 export function SEOHead({
   title,
   description,
+  descriptionVariants,
   canonicalPath = "",
   ogImage = "/og/og-default.png",
 }: SEOHeadProps) {
@@ -22,6 +32,35 @@ export function SEOHead({
   const absoluteOgImage = ogImage.startsWith("http") 
     ? ogImage 
     : `${baseUrl}${ogImage}`;
+
+  // Determine the final description to use
+  // If variants are provided, select one deterministically
+  const { finalDescription, variantKey, experimentId } = useMemo(() => {
+    if (descriptionVariants && Object.keys(descriptionVariants.variants).length > 0) {
+      const result = getVariantFromConfig(
+        descriptionVariants.experimentId,
+        descriptionVariants.variants
+      );
+      return {
+        finalDescription: result.value,
+        variantKey: result.variantKey,
+        experimentId: descriptionVariants.experimentId,
+      };
+    }
+    return {
+      finalDescription: description,
+      variantKey: null,
+      experimentId: null,
+    };
+  }, [description, descriptionVariants]);
+
+  useEffect(() => {
+    // Track A/B variant if one was selected
+    if (variantKey && experimentId) {
+      trackABVariant(experimentId, variantKey, canonicalPath);
+    }
+  }, [variantKey, experimentId, canonicalPath]);
+
   useEffect(() => {
     // Update document title
     document.title = title;
@@ -29,7 +68,7 @@ export function SEOHead({
     // Update meta description
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
-      metaDescription.setAttribute("content", description);
+      metaDescription.setAttribute("content", finalDescription);
     }
 
     // Update Open Graph tags
@@ -40,7 +79,7 @@ export function SEOHead({
 
     const ogDesc = document.querySelector('meta[property="og:description"]');
     if (ogDesc) {
-      ogDesc.setAttribute("content", description);
+      ogDesc.setAttribute("content", finalDescription);
     }
 
     const ogImg = document.querySelector('meta[property="og:image"]');
@@ -56,7 +95,7 @@ export function SEOHead({
 
     const twitterDesc = document.querySelector('meta[name="twitter:description"]');
     if (twitterDesc) {
-      twitterDesc.setAttribute("content", description);
+      twitterDesc.setAttribute("content", finalDescription);
     }
 
     const twitterImg = document.querySelector('meta[name="twitter:image"]');
@@ -65,7 +104,6 @@ export function SEOHead({
     }
 
     // Update canonical URL
-    const baseUrl = "https://launchpulse.io";
     const fullCanonicalUrl = `${baseUrl}${canonicalPath}`;
     
     let canonicalLink = document.querySelector('link[rel="canonical"]');
@@ -82,7 +120,7 @@ export function SEOHead({
     if (twitterUrl) {
       twitterUrl.setAttribute("content", fullCanonicalUrl);
     }
-  }, [title, description, canonicalPath, ogImage]);
+  }, [title, finalDescription, canonicalPath, ogImage, absoluteOgImage]);
 
   return null;
 }

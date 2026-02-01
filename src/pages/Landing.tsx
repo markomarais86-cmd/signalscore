@@ -5,6 +5,7 @@ import { SEOHead } from "@/components/SEOHead";
 import { DiagonalArrow } from "@/components/ui/DiagonalArrow";
 import { Link } from "react-router-dom";
 import { Target, BarChart3, Users, Zap } from "lucide-react";
+import { SEO_EXPERIMENTS } from "@/lib/seo-variants";
 import {
   MarketingNav,
   MarketingFooter,
@@ -60,7 +61,8 @@ export default function Landing() {
     <GradientBackground variant="hero" showOrbs forceDark>
       <SEOHead
         title="LaunchPulse - AI-Driven ICP & TAM Intelligence Platform"
-        description="Stop guessing which accounts convert. LaunchPulse uses AI to analyze your CRM data and reveal your true ICP in under 24 hours. Request a free demo."
+        description={SEO_EXPERIMENTS.landing.variants.control}
+        descriptionVariants={SEO_EXPERIMENTS.landing}
         canonicalPath="/landing"
         ogImage="/og/og-landing.png"
       />

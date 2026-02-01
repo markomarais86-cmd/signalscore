@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { SEOHead } from "@/components/SEOHead";
 import { DiagonalArrow } from "@/components/ui/DiagonalArrow";
 import { MarketingNav, MarketingFooter, MarketingHero, DemoRequestForm } from "@/components/marketing";
+import { SEO_EXPERIMENTS } from "@/lib/seo-variants";
 import {
   Check,
   Zap,
@@ -211,7 +212,8 @@ export default function Pricing() {
     <GradientBackground variant="hero" showOrbs forceDark>
       <SEOHead
         title="LaunchPulse Pricing - Simple, Transparent Plans"
-        description="No per-seat pricing. LaunchPulse plans start with a 90-day Pilot to prove ROI. Includes AI enrichment credits up to 85% cheaper than competitors."
+        description={SEO_EXPERIMENTS.pricing.variants.control}
+        descriptionVariants={SEO_EXPERIMENTS.pricing}
         canonicalPath="/pricing"
         ogImage="/og/og-pricing.png"
       />
