@@ -1,99 +1,112 @@
 
 
-# Fix CRM Badge Count Showing 0 Instead of 14,360
+# Improve Pricing Page Demo Request Emails
 
 ## Problem Summary
 
-The CRM filter badge shows **0** instead of **14,360** accounts because of a race condition in `useSourceFilterStats`.
+When someone clicks a pricing plan button, you receive a demo request email but it's not immediately clear which plan they selected:
 
-| What's happening | What should happen |
-|------------------|-------------------|
-| `filterStats?.crm` returns `0` | Should return `14,360` |
-
-**Root Cause:** The `useSourceFilterStats` hook tries to derive values from the `useDashboardData` cache, but runs its query *before* the dashboard data is loaded. The fallback returns `crm: 0`.
-
-```typescript
-// Current problematic code in use-dashboard-data.ts
-export function useSourceFilterStats(orgId: string | undefined) {
-  const { data: dashboardData } = useDashboardData(orgId, 'crm');  // <-- May not be loaded yet
-  
-  return useQuery({
-    queryFn: async () => {
-      if (dashboardData?.metrics) {  // <-- FALSE on initial load!
-        return { crm: dashboardData.metrics.total_crm_accounts, ... };
-      }
-      // Falls through to:
-      return { crm: 0, ... };  // <-- BUG: Returns 0!
-    },
-  });
-}
-```
-
----
+| Current State | Issue |
+|--------------|-------|
+| Email subject: `New Demo Request from John` | No plan mentioned |
+| Source field: `pricing-professional` | Buried at the bottom, cryptic format |
 
 ## Solution
 
-Make `useSourceFilterStats` **wait for dashboard data** before running, or fetch its own data independently.
+Make the selected plan prominent and clear in both the email subject line and body.
 
-### Option A: Derive from Cache (Simpler - Recommended)
+### Changes
 
-Don't use a separate `useQuery` - directly derive from the dashboard cache:
-
-```typescript
-export function useSourceFilterStats(orgId: string | undefined) {
-  const { data: dashboardData, isLoading } = useDashboardData(orgId, 'crm');
-  
-  // Directly derive stats from loaded dashboard data
-  const stats = dashboardData?.metrics 
-    ? {
-        crm: dashboardData.metrics.total_crm_accounts || dashboardData.metrics.total_accounts || 0,
-        database: dashboardData.tamData?.totalAccounts || 0,
-      }
-    : { crm: 0, database: 0 };
-  
-  return { 
-    data: stats, 
-    isLoading 
-  };
-}
+**1. Improve email subject to include the selected plan:**
+```
+Current:  "New Demo Request from John"
+Improved: "New Demo Request: Professional Plan - John"
 ```
 
-This ensures:
-1. No race condition - stats come from the same data source
-2. Stats update automatically when dashboard data refreshes
-3. Badge shows correct count as soon as dashboard loads
+**2. Add a highlighted "Selected Plan" row at the top of the notification email:**
+
+| Field | Value |
+|-------|-------|
+| **Selected Plan** | Professional (styled prominently) |
+| Name | John Smith |
+| Email | john@company.com |
+| ... | ... |
+
+**3. Parse the source to extract a clean plan name:**
+```typescript
+// Convert "pricing-professional" → "Professional Plan"
+// Convert "pricing-growth-credit-pack" → "Growth Credit Pack"
+const planName = parsePlanFromSource(data.source);
+```
 
 ### Files to Modify
 
 | File | Changes |
 |------|---------|
-| `src/hooks/use-dashboard-data.ts` | Simplify `useSourceFilterStats` to derive from cache directly |
+| `supabase/functions/demo-request/index.ts` | Add plan parsing logic, update email subject, add highlighted plan row |
 
 ---
 
 ## Technical Details
 
-### Why the Current Implementation Fails
+### Plan Name Parsing Logic
 
-The current hook structure:
-1. `useSourceFilterStats` creates its own React Query with key `['source-filter-stats', orgId]`
-2. Both queries start executing at the same time on page load
-3. When `useSourceFilterStats.queryFn` runs, `dashboardData` is still `undefined`
-4. The fallback returns `{ crm: 0, database: ... }`
-5. Later, dashboard data loads, but the stats query is already cached with `crm: 0`
-6. The stats query never re-runs because its dependencies (`orgId`) haven't changed
+```typescript
+function getPlanDisplayName(source: string | undefined): string {
+  if (!source) return "General Inquiry";
+  
+  // Handle pricing page sources: "pricing-professional" → "Professional Plan"
+  if (source.startsWith('pricing-')) {
+    const planPart = source.replace('pricing-', '');
+    
+    // Handle credit packs: "starter-credit-pack" → "Starter Credit Pack"
+    if (planPart.includes('credit-pack')) {
+      return planPart
+        .replace('-credit-pack', '')
+        .split('-')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ') + ' Credit Pack';
+    }
+    
+    // Handle platform plans: "professional" → "Professional Plan"
+    return planPart
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ') + ' Plan';
+  }
+  
+  return source; // Return as-is for other sources
+}
+```
 
-### The Fix
+### Updated Email Subject
 
-By making `useSourceFilterStats` directly return derived data from `useDashboardData`, we eliminate the race condition. The component will re-render when dashboard data arrives, and the derived stats will have the correct values.
+```typescript
+const planDisplayName = getPlanDisplayName(data.source);
+const emailSubject = `New Demo Request: ${planDisplayName} - ${data.name}`;
+```
+
+### Updated Notification Email HTML
+
+Add a highlighted row at the top:
+```html
+<tr style="background-color: #6366f1;">
+  <td style="padding: 12px; border: 1px solid #ddd; color: white;">
+    <strong>Selected Plan</strong>
+  </td>
+  <td style="padding: 12px; border: 1px solid #ddd; color: white; font-weight: bold;">
+    Professional Plan
+  </td>
+</tr>
+```
 
 ---
 
 ## Expected Outcome
 
 After this fix:
-1. CRM badge will show **14,360** immediately after dashboard loads
-2. Database badge will show the Apollo TAM count
-3. No more race condition between data loading
-4. Stats automatically update when dashboard data refreshes
+1. Email subject will clearly show: **"New Demo Request: Professional Plan - John Smith"**
+2. The selected plan will be highlighted at the top of the email body
+3. You'll immediately know which pricing tier the prospect is interested in
+4. Credit pack requests will also be clearly identified
 
