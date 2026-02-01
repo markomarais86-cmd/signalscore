@@ -1,5 +1,4 @@
 import { GradientBackground } from "@/components/ui/GradientBackground";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MarketingNav, MarketingFooter, MarketingHero } from "@/components/marketing";
 import { ArrowRight, Target, Lightbulb, Layers, Zap } from "lucide-react";
@@ -42,7 +41,7 @@ export default function About() {
         <MarketingHero
           headline={
             <>
-              <span className="text-foreground">LaunchPulse exists to make</span>
+              <span className="text-white/40">LaunchPulse exists to make</span>
               <br />
               <span className="text-primary">GTM targeting measurable, explainable, and operational</span>
             </>
@@ -63,23 +62,19 @@ export default function About() {
 
           <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
             {differentiators.map((item, index) => (
-              <Card
+              <div
                 key={index}
-                variant="glass"
-                hover="lift"
-                className="animate-fade-in"
+                className="p-8 rounded-xl border border-white/10 bg-white/5 animate-fade-in"
                 style={{ animationDelay: `${0.1 * index}s` }}
               >
-                <CardContent className="p-8">
-                  <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20">
-                    <item.icon className="h-7 w-7 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-3">{item.title}</h3>
-                  <p className="text-white/70 leading-relaxed">
-                    {item.description}
-                  </p>
-                </CardContent>
-              </Card>
+                <div className="w-14 h-14 rounded-xl flex items-center justify-center mb-6 bg-primary/10 border border-primary/20">
+                  <item.icon className="h-7 w-7 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold mb-3">{item.title}</h3>
+                <p className="text-white/70 leading-relaxed">
+                  {item.description}
+                </p>
+              </div>
             ))}
           </div>
         </section>
@@ -110,32 +105,21 @@ export default function About() {
           </div>
         </section>
 
-        {/* CTA Section */}
-        <section className="container mx-auto px-6 py-24">
-          <Card variant="gradient" className="overflow-hidden relative">
-            <div
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-20 pointer-events-none"
-              style={{
-                background:
-                  "radial-gradient(circle, hsl(161 85% 60% / 0.3), transparent 60%)",
-              }}
-            />
-            <CardContent className="pt-16 pb-16 text-center relative z-10">
-              <h2 className="text-4xl md:text-5xl font-bold mb-4">
-                Ready to See <span className="text-primary">LaunchPulse</span> in Action?
-              </h2>
-              <p className="text-xl text-white/60 mb-10 max-w-2xl mx-auto">
-                Schedule a demo and discover how precision GTM intelligence can
-                transform your pipeline.
-              </p>
-              <Link to="/contact">
-                <Button size="xl" variant="glow" className="text-lg">
-                  Request Demo
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+        {/* CTA Section - Simplified */}
+        <section className="container mx-auto px-6 py-24 text-center">
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+            Ready to See <span className="text-primary">LaunchPulse</span> in Action?
+          </h2>
+          <p className="text-xl text-white/60 mb-10 max-w-2xl mx-auto">
+            Schedule a demo and discover how precision GTM intelligence can
+            transform your pipeline.
+          </p>
+          <Link to="/contact">
+            <Button size="xl" variant="default" className="text-lg">
+              Request Demo
+              <ArrowRight className="ml-2 h-5 w-5" />
+            </Button>
+          </Link>
         </section>
 
         <MarketingFooter />
