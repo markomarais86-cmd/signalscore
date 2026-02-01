@@ -31,71 +31,52 @@ export function GradientBackground({
   return (
     <div className={cn(
       "relative min-h-screen overflow-hidden",
-      isDark ? "hero-gradient" : "bg-white",
+      isDark ? "bg-black" : "bg-white",
       className
     )}>
-      {/* Animated Gradient Mesh Overlay - only in dark mode */}
-      {isDark && <div className="absolute inset-0 bg-gradient-mesh pointer-events-none" />}
-      
-      {/* Floating Orbs - only in dark mode - PROMINENT like login screen */}
+      {/* Pattern 2.0: Curved Aurora Glow at Bottom - Brand Guidelines */}
       {showOrbs && isDark && (
         <>
-          {/* Main left glow - matching login screen prominence */}
+          {/* Main bottom aurora glow - curved effect */}
           <div 
-            className="floating-orb w-[900px] h-[900px] top-[10%] -left-[300px] animate-float"
-            style={{ background: 'radial-gradient(circle, hsl(161 85% 45% / 0.45), hsl(161 80% 40% / 0.20) 40%, transparent 65%)' }}
-          />
-          
-          {/* Top center wash */}
-          <div 
-            className="floating-orb w-[800px] h-[600px] -top-[200px] left-[25%] animate-float-delayed"
-            style={{ background: 'radial-gradient(ellipse, hsl(161 88% 50% / 0.35), hsl(170 80% 45% / 0.12) 50%, transparent 70%)' }}
-          />
-          
-          {/* Right side accent */}
-          <div 
-            className="floating-orb w-[600px] h-[700px] top-[15%] right-[-150px] animate-float"
-            style={{ 
-              background: 'radial-gradient(circle, hsl(170 85% 50% / 0.28), hsl(161 80% 45% / 0.10) 45%, transparent 65%)',
-              animationDelay: '0.5s'
+            className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[200%] h-[60vh] pointer-events-none"
+            style={{
+              background: `radial-gradient(ellipse 50% 80% at 50% 100%, 
+                hsl(158 88% 59% / 0.35) 0%, 
+                hsl(158 88% 59% / 0.15) 30%, 
+                transparent 70%)`
             }}
           />
           
-          {/* Bottom-left orb */}
+          {/* Subtle top-left accent */}
           <div 
-            className="floating-orb w-[550px] h-[550px] bottom-[0%] left-[5%] animate-float-delayed"
-            style={{ 
-              background: 'radial-gradient(circle, hsl(165 80% 45% / 0.25), hsl(180 70% 40% / 0.10) 45%, transparent 65%)',
-              animationDelay: '1.5s'
+            className="absolute top-0 left-0 w-[50%] h-[40%] pointer-events-none"
+            style={{
+              background: `radial-gradient(ellipse 80% 80% at 0% 0%, 
+                hsl(158 88% 59% / 0.08) 0%, 
+                transparent 60%)`
             }}
           />
           
-          {/* Bottom-right accent */}
+          {/* Very subtle top-right accent */}
           <div 
-            className="floating-orb w-[450px] h-[450px] bottom-[15%] right-[8%] animate-float"
-            style={{ 
-              background: 'radial-gradient(circle, hsl(161 85% 50% / 0.20), transparent 55%)',
-              animationDelay: '2s'
-            }}
-          />
-          
-          {/* Center ambient glow */}
-          <div 
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1200px] h-[900px] rounded-full pointer-events-none"
-            style={{ 
-              background: 'radial-gradient(ellipse, hsl(161 85% 50% / 0.12), transparent 55%)'
+            className="absolute top-0 right-0 w-[40%] h-[30%] pointer-events-none"
+            style={{
+              background: `radial-gradient(ellipse 80% 80% at 100% 0%, 
+                hsl(158 88% 59% / 0.05) 0%, 
+                transparent 60%)`
             }}
           />
         </>
       )}
       
-      {/* Grid Pattern Overlay - only in dark mode */}
+      {/* Grid Pattern Overlay - very subtle */}
       {isDark && (
         <div 
-          className="absolute inset-0 opacity-[0.02] pointer-events-none"
+          className="absolute inset-0 opacity-[0.015] pointer-events-none"
           style={{
-            backgroundImage: `linear-gradient(hsl(161 85% 60% / 0.3) 1px, transparent 1px),
-                             linear-gradient(90deg, hsl(161 85% 60% / 0.3) 1px, transparent 1px)`,
+            backgroundImage: `linear-gradient(hsl(158 88% 59% / 0.4) 1px, transparent 1px),
+                             linear-gradient(90deg, hsl(158 88% 59% / 0.4) 1px, transparent 1px)`,
             backgroundSize: '60px 60px'
           }}
         />

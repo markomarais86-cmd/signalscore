@@ -84,50 +84,56 @@
   }
 
   .dark {
-    /* LaunchPulse Premium Dark Mode - True Black like Webflow */
-    --background: 240 10% 4%; /* Deep black #0A0A0F */
-    --foreground: 0 0% 98%;
+    /* LaunchPulse Brand - TRUE BLACK #000000 */
+    --background: 0 0% 0%; /* #000000 */
+    --foreground: 0 0% 100%; /* White */
 
-    --card: 240 10% 12%; /* Slightly lighter for cards with green tint */
-    --card-foreground: 0 0% 98%;
+    /* Dark Grey for cards - #1F2227 */
+    --card: 216 12% 14%; /* #1F2227 */
+    --card-foreground: 0 0% 100%;
 
-    --popover: 240 10% 8%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 216 12% 10%;
+    --popover-foreground: 0 0% 100%;
 
-    --primary: 161 85% 60%; /* Mint green */
-    --primary-foreground: 240 10% 4%;
+    /* Primary Lime #3CF1AE */
+    --primary: 158 88% 59%; /* #3CF1AE */
+    --primary-foreground: 0 0% 0%;
 
-    --secondary: 161 88% 67%;
-    --secondary-foreground: 240 10% 4%;
+    /* Light Green #5CF4BC */
+    --secondary: 158 88% 66%; /* #5CF4BC */
+    --secondary-foreground: 0 0% 0%;
 
-    --muted: 240 5% 12%;
-    --muted-foreground: 0 0% 65%;
+    /* Grey #5F6C72 for muted */
+    --muted: 195 8% 41%; /* #5F6C72 */
+    --muted-foreground: 220 9% 73%; /* #B3B7C0 Platinum */
 
-    --accent: 161 85% 60%;
-    --accent-foreground: 240 10% 4%;
+    /* Dark Green accent #1AB97E */
+    --accent: 158 76% 41%; /* #1AB97E */
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 5% 16%;
-    --input: 240 5% 16%;
-    --ring: 161 85% 60%;
+    /* Borders - subtle on true black */
+    --border: 216 12% 20%;
+    --input: 216 12% 20%;
+    --ring: 158 88% 59%;
 
     /* Chart colors - dark mode */
-    --chart-1: 161 85% 60%;
-    --chart-2: 161 88% 67%;
+    --chart-1: 158 88% 59%;
+    --chart-2: 158 88% 66%;
     --chart-3: 0 0% 75%;
     --chart-4: 0 0% 50%;
     --chart-5: 0 0% 30%;
 
-    --sidebar-background: 240 10% 4% / 0.85;
-    --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 161 85% 60%;
-    --sidebar-primary-foreground: 240 10% 4%;
-    --sidebar-accent: 240 5% 12%;
-    --sidebar-accent-foreground: 161 85% 60%;
-    --sidebar-border: 240 5% 16%;
-    --sidebar-ring: 161 85% 60%;
+    --sidebar-background: 0 0% 0%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 158 88% 59%;
+    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-accent: 216 12% 14%;
+    --sidebar-accent-foreground: 158 88% 59%;
+    --sidebar-border: 216 12% 20%;
+    --sidebar-ring: 158 88% 59%;
   }
 }
 
@@ -146,7 +152,7 @@
 }
 
 @layer components {
-  /* Glassmorphism Card */
+  /* Glassmorphism Card - Brand Dark Grey #1F2227 */
   .glass-card {
     @apply bg-card/40 backdrop-blur-xl border border-border/50;
     box-shadow: 
@@ -156,9 +162,10 @@
   }
   
   .dark .glass-card {
-    @apply bg-card/60 border-border/30;
+    background: rgba(31, 34, 39, 0.8); /* #1F2227 with opacity */
+    border-color: rgba(95, 108, 114, 0.3); /* #5F6C72 */
     box-shadow: 
-      0 0 0 1px hsl(161 85% 60% / 0.05),
+      0 0 0 1px hsl(158 88% 59% / 0.05),
       0 8px 32px -8px hsl(0 0% 0% / 0.5),
       inset 0 1px 0 hsl(0 0% 100% / 0.02);
   }
@@ -247,20 +254,10 @@
     );
   }
   
-  /* Hero Gradient Background - Premium Green/Mint Theme - Login Screen Match */
+  /* Hero Gradient Background - Brand Pattern 2.0 - True Black with aurora at bottom */
   .hero-gradient {
     @apply relative overflow-hidden;
-    background: 
-      /* Main left-side glow - PROMINENT like login screen */
-      radial-gradient(ellipse 80% 80% at 15% 40%, hsl(161 85% 45% / 0.35), transparent 50%),
-      /* Top center glow - visible wash */
-      radial-gradient(ellipse 100% 70% at 50% -20%, hsl(161 85% 50% / 0.30), transparent 55%),
-      /* Right side accent */
-      radial-gradient(ellipse 60% 60% at 95% 30%, hsl(170 80% 50% / 0.22), transparent 50%),
-      /* Bottom accent */
-      radial-gradient(ellipse 80% 50% at 50% 100%, hsl(165 75% 40% / 0.18), transparent 45%),
-      /* Base dark gradient with slight warmth */
-      linear-gradient(180deg, hsl(200 15% 7%) 0%, hsl(210 12% 5%) 50%, hsl(220 10% 4%) 100%);
+    background: #000000; /* True black base */
   }
   
   /* Feature Card */

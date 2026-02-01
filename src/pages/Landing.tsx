@@ -69,10 +69,10 @@ export default function Landing() {
           badge="Where GTM Meets ICP Precision"
           headline={
             <>
-              <span className="text-muted-foreground/80">AI-Driven ICP and TAM</span>
+              <span className="text-white">Where GTM Meets </span>
+              <span className="text-primary">ICP</span>
               <br />
-              <span className="text-muted-foreground/80">Intelligence for </span>
-              <span className="text-foreground">High-Performance GTM Teams</span>
+              <span className="text-primary">Precision</span>
             </>
           }
           subheadline="LaunchPulse pinpoints your highest-converting customer profile, validates ICP alignment inside your CRM, and exposes where pipeline yield is being constrained by data quality, persona coverage, or segment misfit."
