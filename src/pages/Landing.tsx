@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { GradientBackground } from "@/components/ui/GradientBackground";
 import { Link } from "react-router-dom";
+import { Target, BarChart3, Users, Zap } from "lucide-react";
 import {
   MarketingNav,
   MarketingFooter,
@@ -31,22 +32,28 @@ function DiagonalArrow({ className }: { className?: string }) {
 
 const features = [
   {
-    iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/69696639d97eebd4bc9bcd01_build-01.svg",
+    icon: Target,
     title: "AI ICP Builder",
     description:
       "Define and validate your ICP using real conversion patterns from your CRM—so targeting is based on evidence, not internal opinion.",
   },
   {
-    iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696964446c7c72967b3789de_Tam%20Generator.svg",
+    icon: BarChart3,
     title: "TAM Generator",
     description:
       "Generate a dynamic, segmentable TAM that stays aligned to your ICP and can be operationalised by territory, industry, size band, region, and buyer persona.",
   },
   {
-    iconUrl: "https://cdn.prod.website-files.com/694961d117761a0a17d0744b/696a48e374f363cbe28776a0_persona.svg",
+    icon: Users,
     title: "CRM Insight Layer",
     description:
       "Diagnose pipeline misalignment by surfacing data quality risk, persona coverage gaps, segment leakage, and where GTM effort is being misallocated.",
+  },
+  {
+    icon: Zap,
+    title: "Data Enrichment",
+    description:
+      "AI-powered enrichment waterfall verifies data across multiple premium sources to deliver highest accuracy at a fraction of competitor costs.",
   },
 ];
 
@@ -131,11 +138,11 @@ export default function Landing() {
               What LaunchPulse Delivers
             </h2>
           </div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8 max-w-6xl mx-auto">
             {features.map((feature, index) => (
               <FeatureCard
                 key={index}
-                iconUrl={feature.iconUrl}
+                icon={feature.icon}
                 title={feature.title}
                 description={feature.description}
                 delay={0.1 * index}
