@@ -10,6 +10,7 @@ import { OrganizationMetrics } from "@/hooks/use-platform-admin";
 import { AlertCircle, CheckCircle, XCircle, Building2, Users, Database, Layers } from "lucide-react";
 import { toastError } from "@/lib/friendly-errors";
 import { PLAN_TIER_LIST, getPlanTierFromId, getPlanUuid, getPlanTierFromUuid, type PlanTier } from "@/lib/plan-tiers";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface OrganizationManagementDialogProps {
   org: OrganizationMetrics | null;
@@ -24,6 +25,7 @@ export const OrganizationManagementDialog = ({
   onOpenChange,
   onUpdate
 }: OrganizationManagementDialogProps) => {
+  const queryClient = useQueryClient();
   const [status, setStatus] = useState(org?.status || 'active');
   // Convert database UUID to tier name for display/selection
   const [planTier, setPlanTier] = useState<PlanTier>(getPlanTierFromUuid(org?.plan_id) || 'free');
@@ -68,6 +70,10 @@ export const OrganizationManagementDialog = ({
         meta: { status, planTier, planUuid, creditLimit }
       });
 
+      // Invalidate React Query cache to refresh the organization list
+      await queryClient.invalidateQueries({ queryKey: ["platform-admin-organizations"] });
+      await queryClient.invalidateQueries({ queryKey: ["platform-admin-metrics"] });
+      
       toast.success("Organization updated successfully");
       onUpdate();
       onOpenChange(false);

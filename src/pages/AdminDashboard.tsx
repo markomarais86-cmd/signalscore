@@ -573,7 +573,10 @@ export default function AdminDashboard() {
           org={organizationMetrics.find(o => o.id === managingOrg)!}
           open={!!managingOrg}
           onOpenChange={(open) => !open && setManagingOrg(null)}
-          onUpdate={() => window.location.reload()}
+          onUpdate={() => {
+            // Just close the dialog - usePlatformAdmin will refetch via React Query
+            setManagingOrg(null);
+          }}
         />
       )}
 
