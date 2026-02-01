@@ -230,7 +230,7 @@ export default function Pricing() {
                   </Badge>
                 )}
                 <CardHeader className="pt-8 pb-4">
-                  <CardTitle className="text-xl text-white">{plan.name}</CardTitle>
+                  <CardTitle className="text-xl !text-white">{plan.name}</CardTitle>
                   <p className="text-sm text-primary">{plan.bestFor}</p>
                   <div className="mt-4">
                     <span className="text-3xl font-bold text-white">{plan.price}</span>
