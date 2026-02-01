@@ -1,130 +1,112 @@
 
-# Fix AI Chat Connection Error
+# Fix React Error #310 - Hook Ordering Issue
 
-## Problem
+## Problem Identified
 
-The "Failed to connect to AI assistant" error occurs because the frontend sends the wrong authentication token to the AI chat edge function.
+The error "Rendered more hooks than during the previous render" (React error #310) occurs in `ResetPassword.tsx` because the `useActionState` hook is called **after** conditional early returns.
 
-## Root Cause
+### Current Code Flow (Broken)
 
-In `src/hooks/use-ai-chat.tsx`, the code uses a **hardcoded Supabase anon key** instead of the user's **session access token**:
-
-```typescript
-// Current (broken) - line 395
-Authorization: `Bearer eyJhbGciOiJI...` // This is the anon key
+```text
+Line 18-23:  useState hooks (3 hooks)
+Line 25-82:  useEffect hook
+Line 85-87:  if (user && !isPasswordRecovery) → EARLY RETURN ❌
+Line 90-98:  if (checkingSession) → EARLY RETURN ❌
+Line 101-143: if (noSession) → EARLY RETURN ❌
+Line 189:    useActionState hook ← Only called if ALL above conditions are false
 ```
 
-However, the edge function `ai-chat` requires a valid user session to:
-1. Authenticate the request (`validateAuth(req)`)  
-2. Look up the user's `org_id` from `user_profiles`
+When a user is logged in, the component returns at line 85-87, and `useActionState` never gets called. But when the state changes (e.g., `isPasswordRecovery` becomes true), the early return is skipped and `useActionState` is called - causing the hooks count to differ between renders.
 
-Without the user's session token, the edge function returns a 401 Unauthorized error, which the frontend catches and displays as "Failed to connect to AI assistant."
+### React Rules of Hooks
 
-## Comparison with Working Code
-
-Another streaming AI hook (`src/hooks/useAccountAI.ts`) works correctly because it properly gets the session token:
-
-```typescript
-// Working pattern from useAccountAI.ts (lines 25-38)
-const { data: sessionData } = await supabase.auth.getSession();
-const token = sessionData?.session?.access_token;
-
-if (!token) {
-  throw new Error('Not authenticated');
-}
-
-const response = await fetch(url, {
-  headers: {
-    'Authorization': `Bearer ${token}`,  // User's session token
-  },
-});
-```
+Hooks must be called:
+- At the top level of the component
+- In the same order on every render
+- Never inside conditions, loops, or early returns
 
 ## Solution
 
-Update `src/hooks/use-ai-chat.tsx` to:
+Move the `useActionState` hook declaration to the top of the component, **before** all conditional early returns.
 
-1. Get the user's session token before making the request
-2. Handle the case where the user is not authenticated
-3. Use the dynamic session token instead of the hardcoded anon key
+### File: `src/pages/ResetPassword.tsx`
 
-## Technical Changes
-
-### File: `src/hooks/use-ai-chat.tsx`
-
-**Before (lines 377-402):**
+**Move this line:**
 ```typescript
-try {
-  const enhancedContext = {
-    ...options.context,
-    ...
-  };
-
-  const CHAT_URL = `https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/ai-chat`;
-  
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000);
-  
-  const resp = await fetch(CHAT_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer eyJhbGciOi...`, // Hardcoded anon key
-    },
-    body: JSON.stringify({ ... }),
-    signal: controller.signal,
-  });
+// FROM Line 189 (after conditional returns)
+const [state, formAction, isPending] = useActionState(resetAction, initialFormState);
 ```
 
-**After:**
+**TO right after the other hooks (around line 24):**
 ```typescript
-try {
-  // Get user's session token for authentication
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData?.session?.access_token;
-  
-  if (!token) {
-    toast.error('Please log in to use the AI assistant');
-    setIsLoading(false);
-    return;
+const { user } = useAuth();
+const navigate = useNavigate();
+const { toast } = useToast();
+const [noSession, setNoSession] = useState(false);
+const [checkingSession, setCheckingSession] = useState(true);
+const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+
+// Move useActionState here - before any conditional returns
+const [state, formAction, isPending] = useActionState(resetAction, initialFormState);
+```
+
+However, there's a complication: `resetAction` is defined **after** the early returns. We need to also move `resetAction` definition before its usage.
+
+### Complete Fix
+
+1. Define `resetAction` as a callback function before the hook call
+2. Move `useActionState` to the top of the component with other hooks
+3. Keep the early returns as they are (they only affect rendering, not hook calls)
+
+### Updated Code Structure
+
+```typescript
+export default function ResetPassword() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [noSession, setNoSession] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+
+  // Define the reset action (moved up)
+  const resetAction = async (prevState: FormState, formData: FormData): Promise<FormState> => {
+    // ... action implementation
+  };
+
+  // All hooks declared before any returns
+  const [state, formAction, isPending] = useActionState(resetAction, initialFormState);
+
+  useEffect(() => {
+    // ... auth state listener
+  }, []);
+
+  // NOW conditional early returns are safe
+  if (user && !isPasswordRecovery) {
+    return <Navigate to="/" replace />;
   }
 
-  const enhancedContext = {
-    ...options.context,
-    ...
-  };
+  if (checkingSession) {
+    return <Loader />;
+  }
 
-  const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
-  
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000);
-  
-  const resp = await fetch(CHAT_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,  // Use session token
-    },
-    body: JSON.stringify({ ... }),
-    signal: controller.signal,
-  });
+  if (noSession) {
+    return <NoSessionView />;
+  }
+
+  // Main form render
+  return <ResetForm />;
+}
 ```
-
-## Additional Improvements
-
-1. **Use environment variable for URL**: Replace hardcoded Supabase URL with `import.meta.env.VITE_SUPABASE_URL`
-2. **Better error handling**: Show specific error message when not authenticated
-3. **Follow existing pattern**: Match the working pattern from `useAccountAI.ts`
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/hooks/use-ai-chat.tsx` | Get session token before fetch, use dynamic URL, update Authorization header |
+| `src/pages/ResetPassword.tsx` | Move `resetAction` and `useActionState` before conditional returns |
 
-## Expected Outcome
+## Why This Fixes the Issue
 
-After this fix:
-- AI chat will authenticate properly with the user's session
-- The edge function will successfully look up the user's org_id
-- AI responses will stream correctly to the chat interface
+- Hooks are always called in the same order on every render
+- Early returns only affect what JSX is rendered, not hook execution
+- React can track hooks properly because the count never changes
