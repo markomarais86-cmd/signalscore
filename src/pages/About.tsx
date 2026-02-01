@@ -57,7 +57,7 @@ export default function About() {
             <h2 className="text-4xl md:text-5xl font-bold mb-4">
               The <span className="gradient-text">LaunchPulse</span> Difference
             </h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-xl text-white/60 max-w-2xl mx-auto">
               Built for revenue teams who demand precision and transparency
             </p>
           </div>
@@ -76,7 +76,7 @@ export default function About() {
                     <item.icon className="h-7 w-7 text-primary" />
                   </div>
                   <h3 className="text-xl font-semibold mb-3">{item.title}</h3>
-                  <p className="text-muted-foreground leading-relaxed">
+                  <p className="text-white/70 leading-relaxed">
                     {item.description}
                   </p>
                 </CardContent>
@@ -91,7 +91,7 @@ export default function About() {
             <h2 className="text-3xl md:text-4xl font-bold mb-8">
               Built by <span className="gradient-text">GTM Operators</span>
             </h2>
-            <div className="space-y-6 text-lg text-muted-foreground text-left">
+            <div className="space-y-6 text-lg text-white/70 text-left">
               <p>
                 We've spent years watching revenue teams struggle with the same problems:
                 ICPs defined by intuition, TAMs that are static spreadsheets, and CRM data
@@ -125,7 +125,7 @@ export default function About() {
               <h2 className="text-4xl md:text-5xl font-bold mb-4">
                 Ready to See <span className="gradient-text">LaunchPulse</span> in Action?
               </h2>
-              <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
+              <p className="text-xl text-white/60 mb-10 max-w-2xl mx-auto">
                 Schedule a demo and discover how precision GTM intelligence can
                 transform your pipeline.
               </p>
