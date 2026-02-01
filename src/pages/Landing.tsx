@@ -60,7 +60,7 @@ export default function Landing() {
     <GradientBackground variant="hero" showOrbs forceDark>
       <SEOHead
         title="LaunchPulse - AI-Driven ICP & TAM Intelligence Platform"
-        description="Transform your go-to-market strategy with precision ICP targeting, TAM generation, and CRM insights. LaunchPulse pinpoints your highest-converting customer profile."
+        description="Stop guessing which accounts convert. LaunchPulse uses AI to analyze your CRM data and reveal your true ICP in under 24 hours. Request a free demo."
         canonicalPath="/landing"
       />
       <main>

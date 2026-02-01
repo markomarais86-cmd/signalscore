@@ -117,7 +117,7 @@ export default function Product() {
     <GradientBackground variant="hero" showOrbs forceDark>
       <SEOHead
         title="LaunchPulse Product - ICP Builder & TAM Generator"
-        description="Connect your CRM and transform raw activity into clear ICP, TAM, persona, and data-quality insights. Built to improve pipeline yield and targeting precision."
+        description="See exactly why deals close and where pipeline leaks. LaunchPulse reveals ICP patterns, persona conversion rates, and data gaps your CRM is hiding."
         canonicalPath="/product"
       />
       <main>
