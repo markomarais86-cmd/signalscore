@@ -158,10 +158,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           sessionStorage.removeItem('user_profile_cache');
           setLoading(false);
           
-          // Redirect to auth page when signed out
+          // Redirect to landing page when signed out
           if (event === 'SIGNED_OUT') {
-            authLogger.info('User signed out, redirecting to /auth');
-            window.location.href = '/auth';
+            authLogger.info('User signed out, redirecting to /landing');
+            window.location.href = '/landing';
           }
         }
       }
