@@ -113,7 +113,7 @@ const useCases = [
 
 export default function Product() {
   return (
-    <GradientBackground variant="hero" showOrbs>
+    <GradientBackground variant="hero" showOrbs forceDark>
       <main>
         <MarketingNav />
 

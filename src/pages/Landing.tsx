@@ -7,6 +7,7 @@ import {
   MarketingHero,
   FeatureCard,
   PainPointCard,
+  HeroDashboardMockup,
 } from "@/components/marketing";
 
 const features = [
@@ -52,7 +53,7 @@ const stats = [
 
 export default function Landing() {
   return (
-    <GradientBackground variant="hero" showOrbs>
+    <GradientBackground variant="hero" showOrbs forceDark>
       <main>
         <MarketingNav />
 
@@ -70,7 +71,9 @@ export default function Landing() {
           primaryCta={{ label: "Request Demo", href: "/contact" }}
           secondaryCta={{ label: "Watch Demo" }}
           footnote="No credit card required • Setup in 5 minutes"
-        />
+        >
+          <HeroDashboardMockup className="mt-16" />
+        </MarketingHero>
 
         {/* Pain Points Section */}
         <section className="container mx-auto px-6 py-16">

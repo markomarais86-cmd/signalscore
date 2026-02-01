@@ -151,7 +151,7 @@ const faqs = [
 
 export default function Pricing() {
   return (
-    <GradientBackground variant="hero" showOrbs>
+    <GradientBackground variant="hero" showOrbs forceDark>
       <main>
         <MarketingNav />
 

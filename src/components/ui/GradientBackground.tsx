@@ -7,13 +7,15 @@ interface GradientBackgroundProps {
   className?: string;
   variant?: "hero" | "subtle" | "auth";
   showOrbs?: boolean;
+  forceDark?: boolean;
 }
 
 export function GradientBackground({ 
   children, 
   className,
   variant = "hero",
-  showOrbs = true 
+  showOrbs = true,
+  forceDark = false
 }: GradientBackgroundProps) {
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -23,8 +25,8 @@ export function GradientBackground({
     setMounted(true);
   }, []);
 
-  // Default to dark mode styling until mounted to prevent flash
-  const isDark = !mounted || resolvedTheme === "dark";
+  // Force dark for marketing pages, otherwise use theme
+  const isDark = forceDark || !mounted || resolvedTheme === "dark";
 
   return (
     <div className={cn(
