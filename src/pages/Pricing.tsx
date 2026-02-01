@@ -213,6 +213,7 @@ export default function Pricing() {
         title="LaunchPulse Pricing - Simple, Transparent Plans"
         description="No per-seat pricing. LaunchPulse plans start with a 90-day Pilot to prove ROI. Includes AI enrichment credits up to 85% cheaper than competitors."
         canonicalPath="/pricing"
+        ogImage="/og/og-pricing.png"
       />
       <main>
         <MarketingNav />

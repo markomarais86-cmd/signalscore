@@ -62,6 +62,7 @@ export default function Landing() {
         title="LaunchPulse - AI-Driven ICP & TAM Intelligence Platform"
         description="Stop guessing which accounts convert. LaunchPulse uses AI to analyze your CRM data and reveal your true ICP in under 24 hours. Request a free demo."
         canonicalPath="/landing"
+        ogImage="/og/og-landing.png"
       />
       <main>
         <MarketingNav />

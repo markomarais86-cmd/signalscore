@@ -23,6 +23,7 @@ const NotFound = () => {
         title="Page Not Found - LaunchPulse"
         description="The page you're looking for doesn't exist or has been moved."
         canonicalPath="/404"
+        ogImage="/og/og-default.png"
       />
       <div className="min-h-screen flex items-center justify-center p-4">
         <Card variant="glass" className="w-full max-w-md border-border/30 text-center">
