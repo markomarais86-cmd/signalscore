@@ -13,17 +13,25 @@
 // TYPES
 // ============================================================================
 
+// ACCURACY IMPROVEMENT #4: Enhanced phone classification types
+export interface PhoneClassification {
+  type: 'direct' | 'mobile' | 'office' | 'main' | 'switchboard';
+  confidence: number;
+  reason: string;
+}
+
 export interface PhoneEntry {
   number: string;
-  type: 'direct' | 'mobile' | 'office' | 'main';
+  type: 'direct' | 'mobile' | 'office' | 'main' | 'switchboard';
   source: string;
   confidence: number;
+  classification?: PhoneClassification;
   citation?: string;
 }
 
 export interface ValidatedPhone {
   number: string;          // E.164 format
-  type: 'direct' | 'mobile' | 'office' | 'main';
+  type: 'direct' | 'mobile' | 'office' | 'main' | 'switchboard';
   source: string;
   confidence: number;
   is_valid: boolean;
@@ -380,27 +388,11 @@ export function filterValidPhones(phones: PhoneEntry[]): ValidatedPhone[] {
 
 /**
  * Classify phone type based on context keywords
+ * Legacy function - use classifyPhoneTypeAdvanced for enhanced classification
  */
-export function classifyPhoneType(context: string): 'direct' | 'mobile' | 'office' | 'main' {
-  const lower = context.toLowerCase();
-  
-  if (/\b(cell|mobile|personal|direct\s*line)\b/.test(lower)) {
-    return 'mobile';
-  }
-  if (/\b(direct|personal|private)\b/.test(lower)) {
-    return 'direct';
-  }
-  if (/\b(toll[- ]?free|800|888|877|866|855|844|833)\b/.test(lower)) {
-    return 'office';
-  }
-  if (/\b(office|work|business|company|corporate|headquarters|hq)\b/.test(lower)) {
-    return 'office';
-  }
-  if (/\b(main|primary|general)\b/.test(lower)) {
-    return 'main';
-  }
-  
-  return 'main';
+export function classifyPhoneType(context: string): 'direct' | 'mobile' | 'office' | 'main' | 'switchboard' {
+  const result = classifyPhoneTypeAdvanced(context, context);
+  return result.type;
 }
 
 /**
@@ -410,6 +402,121 @@ export function isTollFree(phone: string): boolean {
   const digits = phone.replace(/\D/g, '');
   const areaCode = digits.length === 11 ? digits.substring(1, 4) : digits.substring(0, 3);
   return TOLL_FREE_PREFIXES.includes(areaCode);
+}
+
+// ============================================================================
+// ACCURACY IMPROVEMENT #4: ENHANCED PHONE CLASSIFICATION
+// ============================================================================
+
+/**
+ * Enhanced phone classification with confidence scoring
+ * Distinguishes between direct dials, mobiles, and switchboard numbers
+ */
+export function classifyPhoneTypeAdvanced(
+  phone: string,
+  context: string,
+  companySize?: number
+): PhoneClassification {
+  const lower = context.toLowerCase();
+  
+  // Check for toll-free (always switchboard for outbound)
+  if (isTollFree(phone)) {
+    return { 
+      type: 'switchboard', 
+      confidence: 95, 
+      reason: 'Toll-free number' 
+    };
+  }
+  
+  // Mobile indicators (high dialable value)
+  if (/\b(cell|mobile|personal|direct\s*line)\b/.test(lower)) {
+    return { type: 'mobile', confidence: 85, reason: 'Context indicates mobile' };
+  }
+  
+  // Direct dial indicators
+  if (/\b(direct|personal|private|desk)\b/.test(lower)) {
+    return { type: 'direct', confidence: 80, reason: 'Context indicates direct line' };
+  }
+  
+  // Switchboard indicators
+  if (/\b(main|general|reception|operator|switchboard|headquarters|hq|corporate)\b/.test(lower)) {
+    return { type: 'switchboard', confidence: 85, reason: 'Context indicates switchboard' };
+  }
+  
+  // Large companies (>500 employees) - assume switchboard unless proven otherwise
+  if (companySize && companySize > 500) {
+    return { type: 'switchboard', confidence: 70, reason: 'Large company, likely switchboard' };
+  }
+  
+  // Extension patterns (x123, ext 456) indicate office/switchboard
+  if (/x\d+|ext\.?\s*\d+/i.test(context)) {
+    return { type: 'office', confidence: 75, reason: 'Has extension' };
+  }
+  
+  // Default for small companies - more likely to be direct
+  if (companySize && companySize < 50) {
+    return { type: 'direct', confidence: 60, reason: 'Small company, likely reaches decision maker' };
+  }
+  
+  return { type: 'main', confidence: 50, reason: 'Unknown type' };
+}
+
+// ============================================================================
+// ACCURACY IMPROVEMENT #5: ENTERPRISE PHONE SUPPRESSION
+// ============================================================================
+
+// Enterprise domains where AI-generated phone numbers should be suppressed
+const ENTERPRISE_PHONE_SUPPRESSION_DOMAINS = [
+  'amazon.com', 'aws.amazon.com', 'google.com', 'microsoft.com', 'apple.com',
+  'facebook.com', 'meta.com', 'ibm.com', 'oracle.com', 'salesforce.com',
+  'allstate.com', 'statefarm.com', 'geico.com', 'progressive.com',
+  'wellsfargo.com', 'bankofamerica.com', 'chase.com', 'citi.com', 'jpmorgan.com',
+  'walmart.com', 'target.com', 'costco.com', 'homedepot.com', 'lowes.com',
+  'att.com', 'verizon.com', 't-mobile.com', 'comcast.com', 'spectrum.com',
+  'deloitte.com', 'pwc.com', 'ey.com', 'kpmg.com', 'accenture.com',
+  'unitedhealth.com', 'cigna.com', 'anthem.com', 'humana.com', 'aetna.com',
+  'fedex.com', 'ups.com', 'usps.com',
+];
+
+/**
+ * Check if AI-generated phone should be suppressed for enterprise domains
+ * AI providers often hallucinate switchboard or generic numbers for large enterprises
+ */
+export function shouldSuppressAIPhone(
+  domain: string | undefined,
+  employeeCount: number | undefined,
+  source: string
+): { suppress: boolean; reason?: string } {
+  // Only suppress AI-generated phones, not website-scraped ones
+  const aiSources = ['perplexity', 'anthropic', 'openai', 'xai', 'lovable', 'ai_', 'gemini', 'claude', 'grok'];
+  const isAISource = aiSources.some(s => source.toLowerCase().includes(s));
+  
+  if (!isAISource) {
+    return { suppress: false };
+  }
+  
+  // Suppress for known enterprise domains
+  if (domain) {
+    const domainLower = domain.toLowerCase();
+    for (const ent of ENTERPRISE_PHONE_SUPPRESSION_DOMAINS) {
+      if (domainLower.includes(ent) || ent.includes(domainLower)) {
+        return { 
+          suppress: true, 
+          reason: `Enterprise domain ${domain} - AI phone likely switchboard or hallucinated` 
+        };
+      }
+    }
+  }
+  
+  // Suppress for very large companies
+  if (employeeCount && employeeCount > 10000) {
+    return { 
+      suppress: true, 
+      reason: `Large enterprise (${employeeCount} employees) - AI phone unreliable` 
+    };
+  }
+  
+  return { suppress: false };
 }
 
 /**

@@ -39,7 +39,10 @@ import {
   isPhoneMatchingCountry,
   extractPhonesFromText,
   classifyPhoneType,
-  type PhoneEntry 
+  classifyPhoneTypeAdvanced,
+  shouldSuppressAIPhone,
+  type PhoneEntry,
+  type PhoneClassification,
 } from './phone-utils.ts';
 import {
   getCachedEnrichment,
@@ -242,6 +245,214 @@ const PROVIDER_COSTS = {
 // UTILITY FUNCTIONS
 // ============================================================================
 
+// ============================================================================
+// ACCURACY IMPROVEMENT #1: GENERIC EMAIL FILTER
+// Generic email prefixes that should NOT be parsed as first names
+// ============================================================================
+const GENERIC_EMAIL_PREFIXES = [
+  'info', 'contact', 'hello', 'hi', 'sales', 'support', 'admin', 
+  'office', 'help', 'team', 'general', 'mail', 'email', 'enquiry',
+  'inquiry', 'billing', 'accounts', 'service', 'customerservice',
+  'feedback', 'press', 'media', 'marketing', 'hr', 'careers', 
+  'jobs', 'legal', 'privacy', 'webmaster', 'noreply', 'no-reply',
+  'donotreply', 'notifications', 'alerts', 'newsletter', 'subscribe',
+  'orders', 'booking', 'bookings', 'reservations', 'helpdesk',
+  'reception', 'frontdesk', 'compliance', 'finance', 'payroll',
+];
+
+// ============================================================================
+// ACCURACY IMPROVEMENT #2: CROSS-SOURCE VOTING FUNCTIONS
+// ============================================================================
+function computeMedianEmployeeCount(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 !== 0 
+    ? sorted[mid] 
+    : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+}
+
+function computeMajorityRevenueRange(values: string[]): string | null {
+  if (values.length === 0) return null;
+  const counts: Record<string, number> = {};
+  for (const v of values) {
+    counts[v] = (counts[v] || 0) + 1;
+  }
+  // Return value with most votes (ties go to first)
+  let maxCount = 0;
+  let winner: string | null = null;
+  for (const [value, count] of Object.entries(counts)) {
+    if (count > maxCount) {
+      maxCount = count;
+      winner = value;
+    }
+  }
+  return winner;
+}
+
+// ============================================================================
+// ACCURACY IMPROVEMENT #3: FIRMOGRAPHIC SANITY CHECKS
+// ============================================================================
+interface FirmographicValidation {
+  isValid: boolean;
+  reason?: string;
+}
+
+function validateEmployeeRevenuePair(
+  employeeCount: number | undefined, 
+  revenueRange: string | undefined
+): FirmographicValidation {
+  if (!employeeCount || !revenueRange) return { isValid: true };
+  
+  // Revenue per employee sanity checks
+  const revenueMap: Record<string, { min: number; max: number }> = {
+    '$0-$1M': { min: 0, max: 1000000 },
+    '$1M-$5M': { min: 1000000, max: 5000000 },
+    '$5M-$10M': { min: 5000000, max: 10000000 },
+    '$10M-$25M': { min: 10000000, max: 25000000 },
+    '$25M-$50M': { min: 25000000, max: 50000000 },
+    '$50M-$100M': { min: 50000000, max: 100000000 },
+    '$100M-$500M': { min: 100000000, max: 500000000 },
+    '$500M-$1B': { min: 500000000, max: 1000000000 },
+    '$1B-$10B': { min: 1000000000, max: 10000000000 },
+    '$10B+': { min: 10000000000, max: Infinity },
+  };
+  
+  const range = revenueMap[revenueRange];
+  if (!range) return { isValid: true };
+  
+  const avgRevenue = (range.min + Math.min(range.max, 100000000000)) / 2;
+  const revenuePerEmployee = avgRevenue / employeeCount;
+  
+  // Typical B2B: $100K-$500K per employee. 
+  // Reject if <$50K or >$5M per employee (hallucination indicators)
+  if (revenuePerEmployee < 50000) {
+    return { isValid: false, reason: `Too few employees (${employeeCount}) for ${revenueRange}` };
+  }
+  if (revenuePerEmployee > 5000000) {
+    return { isValid: false, reason: `Too many employees (${employeeCount}) for ${revenueRange}` };
+  }
+  
+  return { isValid: true };
+}
+
+function validateEmployeeCountForDomain(
+  employeeCount: number,
+  domain: string | undefined
+): FirmographicValidation {
+  if (!domain) return { isValid: true };
+  
+  // Large enterprise domains - don't accept small counts
+  const enterpriseDomains = ['amazon.com', 'google.com', 'microsoft.com', 'apple.com', 
+    'facebook.com', 'meta.com', 'ibm.com', 'oracle.com', 'salesforce.com',
+    'walmart.com', 'target.com', 'costco.com', 'homedepot.com',
+    'att.com', 'verizon.com', 't-mobile.com', 'comcast.com'];
+  const isEnterprise = enterpriseDomains.some(d => domain.toLowerCase().includes(d));
+  
+  if (isEnterprise && employeeCount < 1000) {
+    return { isValid: false, reason: `Enterprise domain ${domain} unlikely to have only ${employeeCount} employees` };
+  }
+  
+  // SMB indicators - reject very high counts
+  const smbIndicators = ['shop', 'store', 'local', 'family', 'small'];
+  const isSMB = smbIndicators.some(ind => domain.toLowerCase().includes(ind));
+  
+  if (isSMB && employeeCount > 500) {
+    return { isValid: false, reason: `SMB-indicating domain unlikely to have ${employeeCount} employees` };
+  }
+  
+  return { isValid: true };
+}
+
+// ============================================================================
+// ACCURACY IMPROVEMENT #6: TITLE NORMALIZATION
+// ============================================================================
+const TITLE_NORMALIZATION_MAP: Record<string, string> = {
+  // Owner variants → Owner
+  'proprietor': 'Owner',
+  'business owner': 'Owner',
+  'shop owner': 'Owner',
+  'store owner': 'Owner',
+  'sole proprietor': 'Owner',
+  
+  // Founder variants → Founder/Co-Founder
+  'co-founder': 'Co-Founder',
+  'cofounder': 'Co-Founder',
+  'founding partner': 'Co-Founder',
+  'founder and ceo': 'Founder & CEO',
+  'founder & ceo': 'Founder & CEO',
+  'founder/ceo': 'Founder & CEO',
+  
+  // CEO variants
+  'chief executive': 'CEO',
+  'chief executive officer': 'CEO',
+  
+  // CTO variants  
+  'chief technology officer': 'CTO',
+  'chief technical officer': 'CTO',
+  'vp engineering': 'VP of Engineering',
+  'vp of engineering': 'VP of Engineering',
+  'vice president of engineering': 'VP of Engineering',
+  'vice president, engineering': 'VP of Engineering',
+  
+  // CFO variants
+  'chief financial officer': 'CFO',
+  'finance director': 'Director of Finance',
+  
+  // COO variants
+  'chief operating officer': 'COO',
+  'chief operations officer': 'COO',
+  
+  // CMO variants
+  'chief marketing officer': 'CMO',
+  'vp marketing': 'VP of Marketing',
+  'vp of marketing': 'VP of Marketing',
+  
+  // CRO variants
+  'chief revenue officer': 'CRO',
+  'vp sales': 'VP of Sales',
+  'vp of sales': 'VP of Sales',
+  
+  // President variants
+  'company president': 'President',
+  
+  // Partner variants
+  'managing partner': 'Managing Partner',
+  'senior partner': 'Senior Partner',
+  'general partner': 'General Partner',
+  
+  // Director variants
+  'director of sales': 'Sales Director',
+  'director of marketing': 'Marketing Director',
+  'director of operations': 'Operations Director',
+  'director of engineering': 'Engineering Director',
+  'director of finance': 'Finance Director',
+  'director of hr': 'HR Director',
+  'director of human resources': 'HR Director',
+};
+
+export function normalizeTitle(title: string | undefined): string | undefined {
+  if (!title) return title;
+  
+  const lowerTitle = title.toLowerCase().trim();
+  
+  // Check for exact match first
+  if (TITLE_NORMALIZATION_MAP[lowerTitle]) {
+    return TITLE_NORMALIZATION_MAP[lowerTitle];
+  }
+  
+  // Check for partial matches (e.g., "Founder & CEO" should normalize Founder part)
+  for (const [variant, normalized] of Object.entries(TITLE_NORMALIZATION_MAP)) {
+    if (lowerTitle.includes(variant)) {
+      // Replace the variant with normalized version
+      return title.replace(new RegExp(variant, 'i'), normalized);
+    }
+  }
+  
+  // Return original with proper casing
+  return title;
+}
+
 export function extractDomain(input: string): string | null {
   if (!input) return null;
   let domain = input.toLowerCase().trim();
@@ -255,6 +466,12 @@ export function extractNameFromEmail(email: string): { first_name?: string; last
   if (!email || !email.includes('@')) return null;
   
   const local = email.split('@')[0].toLowerCase();
+  
+  // ACCURACY IMPROVEMENT #1: Check for generic email prefixes first
+  if (GENERIC_EMAIL_PREFIXES.includes(local)) {
+    console.log(`[provider-waterfall] Skipping generic email prefix: ${local}`);
+    return null;
+  }
   
   // Common patterns: first.last, first_last, first-last
   const dotMatch = local.match(/^([a-z]+)\.([a-z]+)$/);
@@ -283,6 +500,7 @@ export function extractNameFromEmail(email: string): { first_name?: string; last
   
   // Single word email (e.g., marko@company.com) - use as first name ONLY
   // DO NOT split single words - let AI discover the last name
+  // ALSO skip if it matches generic prefixes
   if (/^[a-z]+$/.test(local) && local.length >= 2) {
     return {
       first_name: local.charAt(0).toUpperCase() + local.slice(1),
@@ -578,6 +796,13 @@ Return ONLY a valid JSON object with ALL fields you can find.`;
         
         // Validate phone fields with country awareness
         if (['phone', 'mobile', 'direct_phone'].includes(targetField)) {
+          // ACCURACY IMPROVEMENT #5: Check enterprise phone suppression first
+          const suppressCheck = shouldSuppressAIPhone(domain, data.employee_count, 'perplexity');
+          if (suppressCheck.suppress) {
+            console.log(`[provider-waterfall] Perplexity: SUPPRESSED ${targetField} - ${suppressCheck.reason}`);
+            continue;
+          }
+          
           // Use international sanitization with country context
           const sanitized = sanitizePhoneInternational(value, authoritativeCountry);
           if (!sanitized) {
@@ -593,6 +818,11 @@ Return ONLY a valid JSON object with ALL fields you can find.`;
           
           value = sanitized;
           console.log(`[provider-waterfall] Perplexity: Validated ${targetField}: ${sanitized} for country ${authoritativeCountry || 'unknown'}`);
+        }
+        
+        // ACCURACY IMPROVEMENT #6: Normalize title values
+        if (targetField === 'title' && typeof value === 'string') {
+          value = normalizeTitle(value) || value;
         }
         
         (data as any)[targetField] = value;
@@ -935,6 +1165,10 @@ Return ONLY a valid JSON object with the requested fields.`;
     // Track which provider filled each field (for precedence)
     const fieldProviders: Record<string, { provider: AIProvider; value: any; confidence: number }> = {};
     
+    // ACCURACY IMPROVEMENT #2: Collect all values for voting on key firmographic fields
+    const employeeCountVotes: number[] = [];
+    const revenueRangeVotes: string[] = [];
+    
     // Track per-provider stats for logging
     const providerStats: Record<string, { fieldsAttempted: string[]; fieldsWon: string[]; fieldsLost: string[]; skipped: boolean; reason?: string }> = {};
     
@@ -1011,6 +1245,13 @@ Return ONLY a valid JSON object with the requested fields.`;
           
           // PHONE VALIDATION: Validate phone fields with country awareness
           if (['phone', 'mobile', 'direct_phone'].includes(field)) {
+            // ACCURACY IMPROVEMENT #5: Check enterprise phone suppression first
+            const suppressCheck = shouldSuppressAIPhone(domain, data.employee_count, providerName);
+            if (suppressCheck.suppress) {
+              console.log(`[provider-waterfall] Multi-AI (${providerName}): SUPPRESSED ${field} - ${suppressCheck.reason}`);
+              continue;
+            }
+            
             // Use international sanitization with country context
             const sanitized = sanitizePhoneInternational(value, authoritativeCountry);
             if (!sanitized) {
@@ -1026,6 +1267,29 @@ Return ONLY a valid JSON object with the requested fields.`;
             
             value = sanitized;
             console.log(`[provider-waterfall] Multi-AI (${providerName}): Validated ${field}: ${sanitized} for country ${authoritativeCountry || 'unknown'}`);
+          }
+          
+          // ACCURACY IMPROVEMENT #6: Normalize title values
+          if (field === 'title' && typeof value === 'string') {
+            value = normalizeTitle(value) || value;
+          }
+          
+          // ACCURACY IMPROVEMENT #2: Collect votes for firmographic fields
+          if (field === 'employee_count' && typeof value === 'number' && value > 0) {
+            employeeCountVotes.push(value);
+          }
+          if (field === 'revenue_range' && typeof value === 'string') {
+            revenueRangeVotes.push(value);
+          }
+          
+          // ACCURACY IMPROVEMENT #3: Validate firmographic combinations
+          if (field === 'employee_count' && typeof value === 'number') {
+            // Check domain-based validation
+            const domainValidation = validateEmployeeCountForDomain(value, domain);
+            if (!domainValidation.isValid) {
+              console.log(`[provider-waterfall] Multi-AI (${providerName}): REJECTED ${field} ${value} - ${domainValidation.reason}`);
+              continue;
+            }
           }
           
           // Check if this provider has precedence for this field
@@ -1062,6 +1326,57 @@ Return ONLY a valid JSON object with the requested fields.`;
         providerStats[providerName].skipped = true;
         providerStats[providerName].reason = 'JSON parse error';
         console.warn(`[provider-waterfall] Failed to parse ${response.provider} response`);
+      }
+    }
+    
+    // =========================================================================
+    // ACCURACY IMPROVEMENT #2: Apply cross-source voting for key firmographic fields
+    // =========================================================================
+    
+    // Override employee_count with median if we have multiple sources
+    if (employeeCountVotes.length >= 2 && !verifiedFields.has('employee_count')) {
+      const votedEmployeeCount = computeMedianEmployeeCount(employeeCountVotes);
+      console.log(`[provider-waterfall] VOTED employee_count: ${votedEmployeeCount} from ${employeeCountVotes.length} sources: [${employeeCountVotes.join(', ')}]`);
+      
+      // Validate the voted value
+      const domainValidation = validateEmployeeCountForDomain(votedEmployeeCount, domain);
+      if (domainValidation.isValid) {
+        // Override whatever single provider picked
+        if (fieldProviders['employee_count']) {
+          fieldProviders['employee_count'].value = votedEmployeeCount;
+        } else {
+          fieldProviders['employee_count'] = { provider: 'perplexity', value: votedEmployeeCount, confidence: 0.85 };
+        }
+      } else {
+        console.log(`[provider-waterfall] Voted employee_count ${votedEmployeeCount} failed validation: ${domainValidation.reason}`);
+      }
+    }
+    
+    // Override revenue_range with majority vote if we have multiple sources
+    if (revenueRangeVotes.length >= 2 && !verifiedFields.has('revenue_range')) {
+      const votedRevenueRange = computeMajorityRevenueRange(revenueRangeVotes);
+      if (votedRevenueRange) {
+        console.log(`[provider-waterfall] VOTED revenue_range: ${votedRevenueRange} from ${revenueRangeVotes.length} sources`);
+        
+        // Override whatever single provider picked
+        if (fieldProviders['revenue_range']) {
+          fieldProviders['revenue_range'].value = votedRevenueRange;
+        } else {
+          fieldProviders['revenue_range'] = { provider: 'perplexity', value: votedRevenueRange, confidence: 0.85 };
+        }
+      }
+    }
+    
+    // ACCURACY IMPROVEMENT #3: Final firmographic validation before applying
+    const finalEmployeeCount = fieldProviders['employee_count']?.value;
+    const finalRevenueRange = fieldProviders['revenue_range']?.value;
+    if (finalEmployeeCount && finalRevenueRange) {
+      const pairValidation = validateEmployeeRevenuePair(finalEmployeeCount, finalRevenueRange);
+      if (!pairValidation.isValid) {
+        console.log(`[provider-waterfall] FIRMOGRAPHIC MISMATCH: ${pairValidation.reason}`);
+        // Clear the less reliable field (revenue is often harder to verify than headcount)
+        delete fieldProviders['revenue_range'];
+        console.log(`[provider-waterfall] Removed revenue_range due to mismatch with employee_count`);
       }
     }
     

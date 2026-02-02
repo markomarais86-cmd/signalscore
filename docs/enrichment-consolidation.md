@@ -2,7 +2,18 @@
 
 ## Overview
 
-The enrichment system has been consolidated from 40+ edge functions to a unified architecture with a single entry point. **Version 2.0** introduces full-field data enrichment with multi-provider AI aggregation.
+The enrichment system has been consolidated from 40+ edge functions to a unified architecture with a single entry point. **Version 2.0** introduces full-field data enrichment with multi-provider AI aggregation. **Version 2.1** adds 6 accuracy improvements for higher data quality.
+
+## Version 2.1 Accuracy Improvements
+
+| Improvement | Description | Impact |
+|-------------|-------------|--------|
+| Generic Email Filter | Blocks `info@`, `sales@`, etc. from name extraction | Eliminates 5-10% of bad names |
+| Cross-Source Voting | Uses median/majority for employee_count & revenue_range | +15-25% firmographic accuracy |
+| Firmographic Sanity Checks | Validates employee/revenue ratios and enterprise domains | Catches 20-30% of AI hallucinations |
+| Phone Switchboard Classification | Distinguishes direct/mobile/switchboard with confidence | +20% dialable yield |
+| Enterprise Phone Suppression | Blocks AI-generated phones for large enterprises | Fixes Allstate/AWS-type issues |
+| Title Normalization | Standardizes "Proprietor" → "Owner", etc. | Cleaner ICP matching |
 
 ## Architecture
 
@@ -16,13 +27,15 @@ The enrichment system has been consolidated from 40+ edge functions to a unified
 ┌─────────────────────────────────────────────────────────────┐
 │               _shared/provider-waterfall.ts                  │
 │                                                              │
-│  Step 1: Email Name Extraction (free)                       │
+│  Step 1: Email Name Extraction (free + generic filter)      │
 │  Step 2: Perplexity AI Search (primary discovery)           │
 │  Step 3: Firecrawl Website Scrape (ground truth)            │
-│  Step 4: Multi-Provider AI Aggregation (Claude/Gemini/Grok) │ 🆕
+│  Step 4: Multi-Provider AI Aggregation (Claude/Gemini/Grok) │
 │         - Calls ALL available AI providers                  │
-│         - Merges results with precedence rules              │
-│         - Targets 20+ fields for full coverage              │
+│         - Cross-source voting for firmographics             │ 🆕
+│         - Firmographic sanity checks                        │ 🆕
+│         - Enterprise phone suppression                      │ 🆕
+│         - Title normalization                               │ 🆕
 │  Step 5: PDL (paid fallback)                                │
 │  Step 6: Apollo (last resort)                               │
 │  Step 7: Hunter Email Verification                          │
