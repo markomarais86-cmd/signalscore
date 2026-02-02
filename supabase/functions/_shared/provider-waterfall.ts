@@ -51,6 +51,20 @@ import {
   getEmailCacheKey,
   getCompanyCacheKey,
 } from './enrichment-cache.ts';
+import {
+  validateEmailMatchesDomain,
+  validateNAICSIndustryMatch,
+  validateCityStateMatch,
+  validateLinkedInUrl as validateLinkedInUrlAccuracy,
+  normalizeLinkedInUrl,
+  validateTechStack,
+  computeFieldConfidence,
+  aggregateFieldVotes,
+  employeeCountsAgree,
+  aggregateEmployeeCounts,
+  type FieldVote,
+  type FieldConfidence,
+} from './accuracy-validators.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // Cache configuration
@@ -1080,6 +1094,15 @@ Return ONLY a valid JSON object with ALL fields you can find.`;
           continue;
         }
         
+        // ACCURACY IMPROVEMENT #10: Validate email matches company domain
+        if (targetField === 'email' && typeof value === 'string') {
+          const emailValidation = validateEmailMatchesDomain(value, domain);
+          if (!emailValidation.isValid) {
+            console.log(`[provider-waterfall] Perplexity: REJECTED ${targetField} - ${emailValidation.reason}`);
+            continue;
+          }
+        }
+        
         // Validate phone fields with country awareness
         if (['phone', 'mobile', 'direct_phone'].includes(targetField)) {
           // ACCURACY IMPROVEMENT #5: Check enterprise phone suppression first
@@ -1137,12 +1160,51 @@ Return ONLY a valid JSON object with ALL fields you can find.`;
         
         // ACCURACY IMPROVEMENT #9: Extract and validate LinkedIn URLs
         if (targetField === 'linkedin_url' || targetField === 'linkedin_company_url') {
-          const extractedUrl = extractLinkedInUrl(value);
-          if (!extractedUrl) {
+          // Use normalizeLinkedInUrl for better URL cleaning
+          const normalizedUrl = normalizeLinkedInUrl(value);
+          if (!normalizedUrl) {
             console.log(`[provider-waterfall] Perplexity: REJECTED invalid ${targetField}: ${value}`);
             continue;
           }
-          value = extractedUrl;
+          value = normalizedUrl;
+        }
+        
+        // ACCURACY IMPROVEMENT #12: Validate tech stack items against whitelist
+        if (targetField === 'tech_stack' && Array.isArray(value)) {
+          const validatedTech = validateTechStack(value);
+          if (validatedTech.length === 0) {
+            console.log(`[provider-waterfall] Perplexity: REJECTED ${targetField} - no valid tech items`);
+            continue;
+          }
+          if (validatedTech.length < value.length) {
+            console.log(`[provider-waterfall] Perplexity: Filtered tech_stack from ${value.length} to ${validatedTech.length} items`);
+          }
+          value = validatedTech;
+        }
+        
+        // ACCURACY IMPROVEMENT #11: Validate NAICS-industry match
+        if (targetField === 'naics' && data.industry) {
+          const naicsValidation = validateNAICSIndustryMatch(value, data.industry);
+          if (!naicsValidation.isValid) {
+            console.log(`[provider-waterfall] Perplexity: REJECTED ${targetField} - ${naicsValidation.reason}`);
+            continue;
+          }
+        }
+        
+        // ACCURACY IMPROVEMENT #13: Validate city/state match
+        if (targetField === 'city' && data.state) {
+          const locationValidation = validateCityStateMatch(value, data.state);
+          if (!locationValidation.isValid) {
+            console.log(`[provider-waterfall] Perplexity: REJECTED ${targetField} - ${locationValidation.reason}`);
+            continue;
+          }
+        }
+        if (targetField === 'state' && data.city) {
+          const locationValidation = validateCityStateMatch(data.city, value);
+          if (!locationValidation.isValid) {
+            console.log(`[provider-waterfall] Perplexity: REJECTED ${targetField} - ${locationValidation.reason}`);
+            continue;
+          }
         }
         
         (data as any)[targetField] = value;
@@ -1497,6 +1559,9 @@ Return ONLY a valid JSON object with the requested fields.`;
     const employeeCountVotes: number[] = [];
     const revenueRangeVotes: string[] = [];
     
+    // ACCURACY IMPROVEMENT #14: Track field votes for source agreement scoring
+    const allFieldVotes: Record<string, FieldVote[]> = {};
+    
     // Track per-provider stats for logging
     const providerStats: Record<string, { fieldsAttempted: string[]; fieldsWon: string[]; fieldsLost: string[]; skipped: boolean; reason?: string }> = {};
     
@@ -1597,9 +1662,38 @@ Return ONLY a valid JSON object with the requested fields.`;
             console.log(`[provider-waterfall] Multi-AI (${providerName}): Validated ${field}: ${sanitized} for country ${authoritativeCountry || 'unknown'}`);
           }
           
+          // ACCURACY IMPROVEMENT #10: Validate email matches company domain
+          if (field === 'email' && typeof value === 'string') {
+            const emailValidation = validateEmailMatchesDomain(value, domain);
+            if (!emailValidation.isValid) {
+              console.log(`[provider-waterfall] Multi-AI (${providerName}): REJECTED ${field} - ${emailValidation.reason}`);
+              continue;
+            }
+          }
+          
           // ACCURACY IMPROVEMENT #6: Normalize title values
           if (field === 'title' && typeof value === 'string') {
             value = normalizeTitle(value) || value;
+          }
+          
+          // ACCURACY IMPROVEMENT #9: Validate and normalize LinkedIn URLs
+          if (field === 'linkedin_url' || field === 'linkedin_company_url') {
+            const normalizedUrl = normalizeLinkedInUrl(value);
+            if (!normalizedUrl) {
+              console.log(`[provider-waterfall] Multi-AI (${providerName}): REJECTED invalid ${field}: ${value}`);
+              continue;
+            }
+            value = normalizedUrl;
+          }
+          
+          // ACCURACY IMPROVEMENT #12: Validate tech stack items
+          if (field === 'tech_stack' && Array.isArray(value)) {
+            const validatedTech = validateTechStack(value);
+            if (validatedTech.length === 0) {
+              console.log(`[provider-waterfall] Multi-AI (${providerName}): REJECTED ${field} - no valid tech items`);
+              continue;
+            }
+            value = validatedTech;
           }
           
           // ACCURACY IMPROVEMENT #2: Collect votes for firmographic fields
@@ -1610,12 +1704,41 @@ Return ONLY a valid JSON object with the requested fields.`;
             revenueRangeVotes.push(value);
           }
           
+          // ACCURACY IMPROVEMENT #14: Track all field votes for source agreement scoring
+          if (!allFieldVotes[field]) allFieldVotes[field] = [];
+          allFieldVotes[field].push({ source: providerName, value });
+          
           // ACCURACY IMPROVEMENT #3: Validate firmographic combinations
           if (field === 'employee_count' && typeof value === 'number') {
             // Check domain-based validation
             const domainValidation = validateEmployeeCountForDomain(value, domain);
             if (!domainValidation.isValid) {
               console.log(`[provider-waterfall] Multi-AI (${providerName}): REJECTED ${field} ${value} - ${domainValidation.reason}`);
+              continue;
+            }
+          }
+          
+          // ACCURACY IMPROVEMENT #11: Validate NAICS-industry match
+          if (field === 'naics' && data.industry) {
+            const naicsValidation = validateNAICSIndustryMatch(value, data.industry);
+            if (!naicsValidation.isValid) {
+              console.log(`[provider-waterfall] Multi-AI (${providerName}): REJECTED ${field} - ${naicsValidation.reason}`);
+              continue;
+            }
+          }
+          
+          // ACCURACY IMPROVEMENT #13: Validate city/state match
+          if (field === 'city' && data.state) {
+            const locationValidation = validateCityStateMatch(value, data.state);
+            if (!locationValidation.isValid) {
+              console.log(`[provider-waterfall] Multi-AI (${providerName}): REJECTED ${field} - ${locationValidation.reason}`);
+              continue;
+            }
+          }
+          if (field === 'state' && data.city) {
+            const locationValidation = validateCityStateMatch(data.city, value);
+            if (!locationValidation.isValid) {
+              console.log(`[provider-waterfall] Multi-AI (${providerName}): REJECTED ${field} - ${locationValidation.reason}`);
               continue;
             }
           }
@@ -1658,25 +1781,52 @@ Return ONLY a valid JSON object with the requested fields.`;
     }
     
     // =========================================================================
+    // ACCURACY IMPROVEMENT #14: Apply source agreement scoring
+    // =========================================================================
+    
+    // Log agreement scores for fields with multiple sources
+    for (const [field, votes] of Object.entries(allFieldVotes)) {
+      if (votes.length >= 2) {
+        const confidence = computeFieldConfidence(votes);
+        console.log(`[provider-waterfall] SOURCE AGREEMENT for ${field}: ${confidence.agreementScore}% (${confidence.voteCount}/${votes.length} sources agree)`);
+        
+        // If agreement score is high (75%+), boost confidence in final field
+        if (confidence.agreementScore >= 75 && fieldProviders[field]) {
+          const boostedConfidence = Math.min(0.99, fieldProviders[field].confidence * 1.1);
+          console.log(`[provider-waterfall] Boosted ${field} confidence from ${Math.round(fieldProviders[field].confidence * 100)}% to ${Math.round(boostedConfidence * 100)}% (high agreement)`);
+          fieldProviders[field].confidence = boostedConfidence;
+        }
+      }
+    }
+    
+    // =========================================================================
     // ACCURACY IMPROVEMENT #2: Apply cross-source voting for key firmographic fields
     // =========================================================================
     
-    // Override employee_count with median if we have multiple sources
+    // Override employee_count with tolerance-aware aggregation if we have multiple sources
     if (employeeCountVotes.length >= 2 && !verifiedFields.has('employee_count')) {
-      const votedEmployeeCount = computeMedianEmployeeCount(employeeCountVotes);
-      console.log(`[provider-waterfall] VOTED employee_count: ${votedEmployeeCount} from ${employeeCountVotes.length} sources: [${employeeCountVotes.join(', ')}]`);
-      
-      // Validate the voted value
-      const domainValidation = validateEmployeeCountForDomain(votedEmployeeCount, domain);
-      if (domainValidation.isValid) {
-        // Override whatever single provider picked
-        if (fieldProviders['employee_count']) {
-          fieldProviders['employee_count'].value = votedEmployeeCount;
+      // ACCURACY IMPROVEMENT #15: Use tolerance-aware aggregation for employee counts
+      const aggregatedCount = aggregateEmployeeCounts(employeeCountVotes);
+      if (aggregatedCount) {
+        // Check if votes agree within tolerance
+        const agreementCount = employeeCountVotes.filter(v => employeeCountsAgree(v, aggregatedCount)).length;
+        console.log(`[provider-waterfall] EMPLOYEE_COUNT aggregation: ${aggregatedCount} (${agreementCount}/${employeeCountVotes.length} agree within tolerance) from [${employeeCountVotes.join(', ')}]`);
+        
+        // Validate the aggregated value
+        const domainValidation = validateEmployeeCountForDomain(aggregatedCount, domain);
+        if (domainValidation.isValid) {
+          // Override whatever single provider picked
+          const highAgreement = agreementCount >= Math.ceil(employeeCountVotes.length * 0.6);
+          const confidence = highAgreement ? 0.90 : 0.80;
+          if (fieldProviders['employee_count']) {
+            fieldProviders['employee_count'].value = aggregatedCount;
+            fieldProviders['employee_count'].confidence = confidence;
+          } else {
+            fieldProviders['employee_count'] = { provider: 'perplexity' as AIProvider, value: aggregatedCount, confidence };
+          }
         } else {
-          fieldProviders['employee_count'] = { provider: 'perplexity', value: votedEmployeeCount, confidence: 0.85 };
+          console.log(`[provider-waterfall] Aggregated employee_count ${aggregatedCount} failed validation: ${domainValidation.reason}`);
         }
-      } else {
-        console.log(`[provider-waterfall] Voted employee_count ${votedEmployeeCount} failed validation: ${domainValidation.reason}`);
       }
     }
     

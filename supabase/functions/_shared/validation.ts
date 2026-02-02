@@ -165,6 +165,136 @@ export function validateDomain(value: unknown, fieldName: string, required: bool
   return normalized;
 }
 
+// ============================================================================
+// ACCURACY IMPROVEMENT #10: EMAIL DOMAIN VALIDATION
+// ============================================================================
+
+const GENERIC_EMAIL_PROVIDERS = [
+  'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'aol.com',
+  'icloud.com', 'live.com', 'msn.com', 'protonmail.com', 'zoho.com',
+  'yandex.com', 'mail.com', 'gmx.com', 'fastmail.com', 'tutanota.com',
+  'qq.com', '163.com', 'sina.com', 'mail.ru', 'rediffmail.com',
+];
+
+export interface EmailDomainValidationResult {
+  isValid: boolean;
+  reason?: string;
+}
+
+/**
+ * Validate that an email belongs to the company domain
+ * Prevents AI from returning generic or wrong-company emails
+ */
+export function validateEmailMatchesDomain(
+  email: string, 
+  companyDomain: string | undefined
+): EmailDomainValidationResult {
+  if (!email || !email.includes('@')) {
+    return { isValid: false, reason: 'Invalid email format' };
+  }
+  
+  const emailDomain = email.split('@')[1]?.toLowerCase();
+  if (!emailDomain) {
+    return { isValid: false, reason: 'Could not extract email domain' };
+  }
+  
+  // Reject generic email providers when enriching company contacts
+  if (GENERIC_EMAIL_PROVIDERS.includes(emailDomain)) {
+    return { 
+      isValid: false, 
+      reason: `Generic email provider (${emailDomain}) - expected company email` 
+    };
+  }
+  
+  // If we have a company domain, validate match
+  if (companyDomain) {
+    const targetDomain = companyDomain.toLowerCase().replace(/^www\./, '');
+    
+    // Exact match or subdomain match (e.g., uk.company.com for company.com)
+    const emailMatchesDomain = 
+      emailDomain === targetDomain || 
+      emailDomain.endsWith(`.${targetDomain}`);
+    
+    if (!emailMatchesDomain) {
+      return { 
+        isValid: false, 
+        reason: `Email domain ${emailDomain} doesn't match company domain ${targetDomain}` 
+      };
+    }
+  }
+  
+  return { isValid: true };
+}
+
+// ============================================================================
+// ACCURACY IMPROVEMENT #11: LINKEDIN URL FORMAT VALIDATION
+// ============================================================================
+
+/**
+ * Validate LinkedIn URL format for profiles and company pages
+ */
+export function validateLinkedInUrlFormat(
+  url: string | undefined, 
+  type: 'profile' | 'company'
+): boolean {
+  if (!url) return false;
+  
+  // Must start with https://
+  if (!url.startsWith('https://')) return false;
+  
+  // Remove trailing slashes for consistent matching
+  const cleanUrl = url.replace(/\/+$/, '');
+  
+  if (type === 'profile') {
+    // Profile URL pattern: https://linkedin.com/in/username
+    // Allow: letters, numbers, hyphens, underscores
+    const profilePattern = /^https:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9\-_]+$/i;
+    return profilePattern.test(cleanUrl);
+  }
+  
+  // Company URL pattern: https://linkedin.com/company/company-name
+  const companyPattern = /^https:\/\/(www\.)?linkedin\.com\/company\/[a-zA-Z0-9\-_]+$/i;
+  return companyPattern.test(cleanUrl);
+}
+
+/**
+ * Attempt to fix common LinkedIn URL issues and return normalized URL
+ */
+export function normalizeLinkedInUrl(url: string | undefined): string | null {
+  if (!url) return null;
+  
+  let normalized = url.trim();
+  
+  // Add https:// if missing
+  if (normalized.startsWith('linkedin.com')) {
+    normalized = 'https://' + normalized;
+  } else if (normalized.startsWith('www.linkedin.com')) {
+    normalized = 'https://' + normalized;
+  }
+  
+  // Ensure https not http
+  normalized = normalized.replace(/^http:\/\//, 'https://');
+  
+  // Remove trailing slashes
+  normalized = normalized.replace(/\/+$/, '');
+  
+  // Remove query parameters and fragments
+  normalized = normalized.split('?')[0].split('#')[0];
+  
+  // Validate the cleaned URL
+  const isProfile = normalized.includes('/in/');
+  const isCompany = normalized.includes('/company/');
+  
+  if (isProfile && validateLinkedInUrlFormat(normalized, 'profile')) {
+    return normalized;
+  }
+  if (isCompany && validateLinkedInUrlFormat(normalized, 'company')) {
+    return normalized;
+  }
+  
+  return null;
+}
+
 /**
  * Sanitize text by removing control characters
  * Used for company names, titles, etc. before API calls or database storage
