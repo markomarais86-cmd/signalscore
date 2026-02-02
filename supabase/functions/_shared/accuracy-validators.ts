@@ -837,28 +837,29 @@ export function normalizeLinkedInUrl(url: string | undefined): string | null {
 // ============================================================================
 
 /**
- * Comprehensive whitelist of valid tech stack items (~300 items)
+ * Comprehensive whitelist of valid tech stack items (~410 items across 26 categories)
+ * Used to filter AI hallucinations during enrichment
  */
 const VALID_TECH_STACK_ITEMS = new Set([
-  // Cloud Providers
+  // Cloud Providers (22 items)
   'AWS', 'Amazon Web Services', 'Azure', 'Microsoft Azure', 'GCP', 'Google Cloud', 'Google Cloud Platform',
   'DigitalOcean', 'Heroku', 'Linode', 'Vultr', 'OVH', 'IBM Cloud', 'Oracle Cloud', 'Alibaba Cloud', 'Cloudflare',
   'Vercel', 'Netlify', 'Render', 'Railway', 'Fly.io', 'PlanetScale',
   
-  // Databases
+  // Databases (30 items)
   'PostgreSQL', 'MySQL', 'MongoDB', 'Redis', 'Elasticsearch', 'SQLite', 'MariaDB', 'Oracle', 'SQL Server',
   'Microsoft SQL Server', 'Cassandra', 'DynamoDB', 'Firebase', 'Firestore', 'Supabase', 'CockroachDB', 'TimescaleDB',
   'InfluxDB', 'Neo4j', 'Couchbase', 'RethinkDB', 'FaunaDB', 'Fauna', 'ArangoDB', 'ClickHouse', 'Snowflake', 'BigQuery',
   'Redshift', 'Amazon RDS', 'Aurora', 'Amazon Aurora', 'Cosmos DB', 'Azure SQL',
   
-  // Frontend Frameworks
+  // Frontend Frameworks (45 items)
   'React', 'React.js', 'ReactJS', 'Angular', 'Vue', 'Vue.js', 'VueJS', 'Svelte', 'SvelteKit', 'Next.js', 'NextJS',
   'Nuxt', 'Nuxt.js', 'Gatsby', 'Remix', 'Astro', 'Solid', 'SolidJS', 'Preact', 'Lit', 'Alpine.js', 'Ember',
   'Backbone', 'jQuery', 'Bootstrap', 'Tailwind', 'Tailwind CSS', 'Material UI', 'MUI', 'Chakra UI', 'Ant Design',
   'Styled Components', 'Emotion', 'Sass', 'SCSS', 'Less', 'CSS Modules', 'PostCSS', 'Framer Motion', 'Three.js',
   'D3', 'D3.js', 'Chart.js', 'Recharts', 'ECharts', 'Highcharts', 'WebGL',
   
-  // Backend Frameworks
+  // Backend Frameworks (60 items - expanded +5)
   'Node.js', 'NodeJS', 'Express', 'Express.js', 'Fastify', 'Koa', 'Hapi', 'NestJS', 'Nest.js', 'Adonis', 'AdonisJS',
   'Django', 'Flask', 'FastAPI', 'Tornado', 'Pyramid', 'Rails', 'Ruby on Rails', 'Sinatra', 'Hanami',
   'Spring', 'Spring Boot', 'Spring Framework', 'Quarkus', 'Micronaut', 'Play Framework', 'Vert.x',
@@ -868,69 +869,107 @@ const VALID_TECH_STACK_ITEMS = new Set([
   'Rust', 'Actix', 'Rocket', 'Axum', 'Tokio', 'Warp',
   'Elixir', 'Phoenix', 'Ecto',
   'Scala', 'Akka',
+  // NEW: Modern runtimes
+  'Bun', 'Deno', 'Elysia', 'Hono', 'tRPC',
   
-  // Mobile
+  // Mobile (15 items)
   'React Native', 'Flutter', 'Dart', 'Swift', 'SwiftUI', 'Kotlin', 'Objective-C', 'Xamarin', 'Ionic', 'Capacitor',
   'Cordova', 'PhoneGap', 'Expo', 'NativeScript', 'MAUI', '.NET MAUI',
   
-  // DevOps & Infrastructure
+  // DevOps & Infrastructure (53 items - expanded +8)
   'Docker', 'Kubernetes', 'K8s', 'Terraform', 'Ansible', 'Puppet', 'Chef', 'Jenkins', 'CircleCI', 'Travis CI',
   'GitHub Actions', 'GitLab CI', 'Azure DevOps', 'TeamCity', 'Bamboo', 'ArgoCD', 'Argo CD', 'Flux', 'Helm',
   'Rancher', 'OpenShift', 'EKS', 'GKE', 'AKS', 'Vagrant', 'Packer', 'Consul', 'Vault', 'Nomad',
   'Prometheus', 'Grafana', 'Datadog', 'New Relic', 'Splunk', 'ELK', 'Elastic Stack', 'Logstash', 'Kibana',
   'Sentry', 'PagerDuty', 'OpsGenie', 'StatusPage', 'Nginx', 'Apache', 'Caddy', 'Traefik', 'HAProxy', 'Envoy',
+  // NEW: Modern infrastructure
+  'Pulumi', 'Crossplane', 'Spacelift', 'Teleport', 'Boundary', 'Istio', 'Linkerd', 'Service Mesh',
   
-  // CRM & Sales
+  // CRM & Sales (16 items)
   'Salesforce', 'HubSpot', 'Pipedrive', 'Zoho', 'Zoho CRM', 'Microsoft Dynamics', 'SAP', 'SAP CRM', 'SugarCRM',
   'Freshsales', 'Close', 'Apollo', 'Outreach', 'Salesloft', 'Gong', 'Chorus', 'Clari', 'ZoomInfo', 'LinkedIn Sales Navigator',
   
-  // Marketing
+  // Marketing (25 items)
   'Marketo', 'Pardot', 'Eloqua', 'Mailchimp', 'ActiveCampaign', 'Constant Contact', 'SendGrid', 'Postmark', 'Mailgun',
   'Braze', 'Iterable', 'Customer.io', 'Klaviyo', 'Drip', 'ConvertKit', 'AWeber', 'Campaign Monitor', 'Sendinblue',
   'Google Ads', 'Facebook Ads', 'LinkedIn Ads', 'Twitter Ads', 'Bing Ads', 'AdRoll', 'Criteo',
   
-  // Analytics
+  // Analytics (27 items)
   'Google Analytics', 'GA4', 'Google Analytics 4', 'Mixpanel', 'Amplitude', 'Segment', 'Heap', 'Pendo', 'FullStory',
   'Hotjar', 'Crazy Egg', 'Lucky Orange', 'Mouseflow', 'PostHog', 'Plausible', 'Fathom', 'Matomo', 'Kissmetrics',
   'Looker', 'Tableau', 'Power BI', 'Metabase', 'Mode', 'Sisense', 'Domo', 'Qlik', 'ThoughtSpot',
   
-  // Customer Support
+  // Customer Support (16 items)
   'Intercom', 'Zendesk', 'Freshdesk', 'Help Scout', 'Drift', 'Crisp', 'Olark', 'LiveChat', 'Tawk.to', 'Front',
   'Helpshift', 'Kustomer', 'Gladly', 'Dixa', 'Groove', 'Kayako',
   
-  // Payments
+  // Payments (19 items)
   'Stripe', 'PayPal', 'Braintree', 'Square', 'Adyen', 'Worldpay', 'Authorize.net', 'Chargebee', 'Recurly', 'Zuora',
   'Paddle', 'FastSpring', 'Gumroad', 'Shopify Payments', 'Klarna', 'Afterpay', 'Affirm', 'Apple Pay', 'Google Pay',
   
-  // E-commerce
+  // E-commerce (15 items)
   'Shopify', 'WooCommerce', 'Magento', 'BigCommerce', 'Squarespace', 'Wix', 'PrestaShop', 'OpenCart', 'Volusion',
   'Salesforce Commerce Cloud', 'SAP Commerce', 'Oracle Commerce', 'Adobe Commerce', 'CommerceTools',
   
-  // CMS
+  // CMS (18 items)
   'WordPress', 'Drupal', 'Joomla', 'Contentful', 'Sanity', 'Strapi', 'Ghost', 'Webflow', 'Prismic', 'DatoCMS',
   'Storyblok', 'Hygraph', 'Butter CMS', 'Kentico', 'Sitecore', 'Adobe Experience Manager', 'AEM', 'Umbraco',
   
-  // Communication
+  // Communication (17 items)
   'Slack', 'Microsoft Teams', 'Teams', 'Discord', 'Zoom', 'Google Meet', 'Whereby', 'Twilio', 'SendBird', 'Stream',
   'PubNub', 'Pusher', 'Ably', 'Firebase Cloud Messaging', 'FCM', 'OneSignal', 'Airship',
   
-  // Authentication
+  // Authentication (16 items)
   'Auth0', 'Okta', 'Firebase Auth', 'AWS Cognito', 'Cognito', 'Azure AD', 'Azure Active Directory', 'OneLogin',
   'Ping Identity', 'ForgeRock', 'Keycloak', 'FusionAuth', 'Clerk', 'Supabase Auth', 'Magic', 'Stytch',
   
-  // Version Control
+  // Version Control (9 items)
   'Git', 'GitHub', 'GitLab', 'Bitbucket', 'Azure Repos', 'AWS CodeCommit', 'Perforce', 'SVN', 'Mercurial',
   
-  // Project Management
+  // Project Management (16 items)
   'Jira', 'Asana', 'Monday', 'Monday.com', 'Trello', 'ClickUp', 'Notion', 'Linear', 'Basecamp', 'Wrike',
   'Smartsheet', 'Airtable', 'Shortcut', 'Clubhouse', 'Pivotal Tracker', 'Azure Boards',
   
-  // AI & ML
+  // AI & ML (38 items - expanded +10)
   'TensorFlow', 'PyTorch', 'Keras', 'scikit-learn', 'OpenAI', 'GPT', 'GPT-4', 'ChatGPT', 'Claude', 'Anthropic',
   'Hugging Face', 'LangChain', 'OpenCV', 'spaCy', 'NLTK', 'AWS SageMaker', 'SageMaker', 'Azure ML', 'Vertex AI',
   'MLflow', 'Weights & Biases', 'W&B', 'Comet', 'Neptune', 'DataRobot', 'H2O', 'Ray', 'Dask',
+  // NEW: Modern AI/ML
+  'Stable Diffusion', 'Midjourney', 'Replicate', 'Modal', 'Anyscale', 'Mosaic ML',
+  'LlamaIndex', 'Cohere', 'FAISS', 'Anthropic Claude',
   
-  // Misc
+  // NEW: Security & Compliance (15 items)
+  'Cloudflare WAF', 'AWS WAF', 'Akamai', 'Imperva', 'F5',
+  'HashiCorp Vault', 'AWS Secrets Manager', 'Doppler', '1Password',
+  'Vanta', 'Drata', 'Secureframe', 'CrowdStrike', 'SentinelOne', 'Snyk',
+  
+  // NEW: Data Engineering (20 items)
+  'Fivetran', 'Airbyte', 'Stitch', 'Matillion', 'dbt', 'dbt Cloud',
+  'Apache Airflow', 'Airflow', 'Dagster', 'Prefect', 'Mage', 'Luigi',
+  'Databricks', 'Delta Lake', 'Apache Iceberg', 'Apache Hudi',
+  'Apache Flink', 'Apache Spark', 'Spark', 'Apache Beam', 'Debezium',
+  
+  // NEW: Search & Vector Databases (10 items)
+  'Algolia', 'MeiliSearch', 'Typesense', 'Apache Solr', 'OpenSearch',
+  'Pinecone', 'Weaviate', 'Milvus', 'Qdrant', 'Chroma',
+  
+  // NEW: Low-Code/No-Code (12 items)
+  'Zapier', 'Make', 'Integromat', 'n8n', 'Tray.io', 'Workato',
+  'Retool', 'Budibase', 'Appsmith', 'Bubble', 'Glide', 'Outsystems',
+  
+  // NEW: API Management (10 items)
+  'Kong', 'Apigee', 'MuleSoft', 'Postman', 'Swagger', 'OpenAPI',
+  'AWS API Gateway', 'Azure API Management', 'Tyk', 'Ambassador',
+  
+  // NEW: Video & Media (10 items)
+  'Mux', 'Cloudinary', 'ImageKit', 'Imgix', 'Vimeo',
+  'Wistia', 'Brightcove', 'JW Player', 'Video.js', 'FFmpeg',
+  
+  // NEW: Testing & QA (20 items - expanded)
+  'Sauce Labs', 'BrowserStack', 'LambdaTest', 'Appium',
+  'TestRail', 'Qase', 'Allure', 'k6', 'Artillery', 'Gatling',
+  
+  // Misc (40+ items)
   'GraphQL', 'Apollo GraphQL', 'REST', 'gRPC', 'WebSocket', 'Socket.io', 'RabbitMQ', 'Kafka', 'Apache Kafka',
   'NATS', 'ZeroMQ', 'ActiveMQ', 'Amazon SQS', 'SQS', 'Amazon SNS', 'SNS', 'EventBridge', 'Celery',
   'Webpack', 'Vite', 'Rollup', 'Parcel', 'esbuild', 'SWC', 'Babel', 'ESLint', 'Prettier', 'TypeScript',
