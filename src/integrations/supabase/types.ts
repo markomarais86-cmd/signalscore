@@ -3356,6 +3356,7 @@ export type Database = {
           hit_count: number | null
           id: string
           last_accessed_at: string | null
+          org_id: string | null
           sources: string[] | null
           total_cost: number | null
         }
@@ -3369,6 +3370,7 @@ export type Database = {
           hit_count?: number | null
           id?: string
           last_accessed_at?: string | null
+          org_id?: string | null
           sources?: string[] | null
           total_cost?: number | null
         }
@@ -3382,10 +3384,19 @@ export type Database = {
           hit_count?: number | null
           id?: string
           last_accessed_at?: string | null
+          org_id?: string | null
           sources?: string[] | null
           total_cost?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_cache_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       enrichment_costs: {
         Row: {
@@ -7753,15 +7764,29 @@ export type Database = {
           total_enriched: number
         }[]
       }
-      get_enrichment_cache: {
-        Args: { p_cache_key: string; p_cache_type: string }
-        Returns: {
-          confidence: number
-          enriched_data: Json
-          hit: boolean
-          sources: string[]
-        }[]
-      }
+      get_enrichment_cache:
+        | {
+            Args: { p_cache_key: string; p_cache_type: string }
+            Returns: {
+              confidence: number
+              enriched_data: Json
+              hit: boolean
+              sources: string[]
+            }[]
+          }
+        | {
+            Args: {
+              p_cache_key: string
+              p_cache_type: string
+              p_org_id?: string
+            }
+            Returns: {
+              confidence: number
+              enriched_data: Json
+              hit: boolean
+              sources: string[]
+            }[]
+          }
       get_enrichment_page_stats: {
         Args: { p_org_id: string }
         Returns: {
@@ -8050,18 +8075,32 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: undefined
       }
-      set_enrichment_cache: {
-        Args: {
-          p_cache_key: string
-          p_cache_type: string
-          p_confidence: number
-          p_enriched_data: Json
-          p_sources: string[]
-          p_total_cost?: number
-          p_ttl_days?: number
-        }
-        Returns: string
-      }
+      set_enrichment_cache:
+        | {
+            Args: {
+              p_cache_key: string
+              p_cache_type: string
+              p_confidence: number
+              p_enriched_data: Json
+              p_sources: string[]
+              p_total_cost?: number
+              p_ttl_days?: number
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_cache_key: string
+              p_cache_type: string
+              p_confidence: number
+              p_enriched_data: Json
+              p_org_id?: string
+              p_sources: string[]
+              p_total_cost?: number
+              p_ttl_days?: number
+            }
+            Returns: string
+          }
       set_firmographic_auto_sync: {
         Args: { p_enabled: boolean; p_org_id: string }
         Returns: Json
