@@ -50,6 +50,37 @@ export function getCompanyCacheKey(companyName: string, domain?: string): string
 /**
  * Check cache for existing enrichment data (non-blocking, safe)
  */
+/**
+ * Apply confidence decay based on cache age
+ * Fresher data = higher confidence, stale data = reduced confidence
+ */
+function applyConfidenceDecay(baseConfidence: number, cacheAgeDays: number): number {
+  // No decay for first 7 days
+  if (cacheAgeDays <= 7) return baseConfidence;
+  
+  // Calculate weeks old (after first week)
+  const weeksOld = Math.floor((cacheAgeDays - 7) / 7);
+  
+  // Decay 2% per week, minimum 70% of original confidence
+  const decayFactor = Math.max(0.7, 1 - (weeksOld * 0.02));
+  
+  return baseConfidence * decayFactor;
+}
+
+/**
+ * Calculate cache age in days from timestamp
+ */
+function getCacheAgeDays(createdAt: string): number {
+  const created = new Date(createdAt);
+  const now = new Date();
+  const diffMs = now.getTime() - created.getTime();
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Check cache for existing enrichment data (non-blocking, safe)
+ * IMPROVEMENT #6: Applies confidence decay for stale cached data
+ */
 export async function getCachedEnrichment(
   supabase: SupabaseClient,
   cacheKey: string,
@@ -60,7 +91,7 @@ export async function getCachedEnrichment(
   try {
     const { data, error } = await supabase
       .from('enrichment_cache')
-      .select('enriched_data, sources, confidence')
+      .select('enriched_data, sources, confidence, created_at, hit_count')
       .eq('cache_key', cacheKey)
       .eq('cache_type', cacheType)
       .gt('expires_at', new Date().toISOString())
@@ -68,6 +99,15 @@ export async function getCachedEnrichment(
 
     if (error || !data) {
       return null;
+    }
+
+    // IMPROVEMENT #6: Apply confidence decay based on cache age
+    const cacheAgeDays = getCacheAgeDays(data.created_at);
+    const originalConfidence = data.confidence || 0.9;
+    const adjustedConfidence = applyConfidenceDecay(originalConfidence, cacheAgeDays);
+    
+    if (cacheAgeDays > 7) {
+      console.log(`[enrichment-cache] Confidence decay applied: ${Math.round(originalConfidence * 100)}% → ${Math.round(adjustedConfidence * 100)}% (${cacheAgeDays} days old)`);
     }
 
     // Update hit count in background (don't wait)
@@ -79,11 +119,11 @@ export async function getCachedEnrichment(
       .then(() => {})
       .catch(() => {});
 
-    console.log(`[enrichment-cache] HIT for ${cacheType}:${cacheKey.slice(0, 20)}...`);
+    console.log(`[enrichment-cache] HIT for ${cacheType}:${cacheKey.slice(0, 20)}... (age: ${cacheAgeDays}d, confidence: ${Math.round(adjustedConfidence * 100)}%)`);
     return {
       enriched_data: data.enriched_data || {},
       sources: data.sources || [],
-      confidence: data.confidence || 0,
+      confidence: adjustedConfidence,
       hit: true,
     };
   } catch (error) {
