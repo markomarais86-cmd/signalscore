@@ -250,6 +250,7 @@ const PROVIDER_COSTS = {
 // Generic email prefixes that should NOT be parsed as first names
 // ============================================================================
 const GENERIC_EMAIL_PREFIXES = [
+  // Core generic prefixes
   'info', 'contact', 'hello', 'hi', 'sales', 'support', 'admin', 
   'office', 'help', 'team', 'general', 'mail', 'email', 'enquiry',
   'inquiry', 'billing', 'accounts', 'service', 'customerservice',
@@ -258,6 +259,20 @@ const GENERIC_EMAIL_PREFIXES = [
   'donotreply', 'notifications', 'alerts', 'newsletter', 'subscribe',
   'orders', 'booking', 'bookings', 'reservations', 'helpdesk',
   'reception', 'frontdesk', 'compliance', 'finance', 'payroll',
+  // Scheduling & Appointments
+  'appointments', 'scheduling', 'calendar',
+  // Extended Support
+  'tickets', 'techsupport', 'itsupport', 'customercare',
+  // Operations & Logistics
+  'dispatch', 'logistics', 'shipping', 'warehouse', 'fulfillment',
+  // Business & Partnerships
+  'purchasing', 'procurement', 'vendor', 'vendors', 'partners',
+  // Communications & Events
+  'communications', 'pr', 'events', 'membership', 'members',
+  // Administrative
+  'registrar', 'admissions', 'enrollment', 'records',
+  // Safety & Security
+  'safety', 'security', 'emergency',
 ];
 
 // ============================================================================
