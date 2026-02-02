@@ -1,189 +1,170 @@
 
-# Fix Authentication Race Conditions & Page Refresh Issues
+# GA4 Custom Dimensions Setup for A/B Testing
 
-## Problem Analysis
+## Overview
 
-Based on my investigation of the codebase, I've identified **two root causes** for the issues you're experiencing:
+Configure GA4 custom dimensions for `experiment_id` and `variant_id` to enable proper segmentation and analysis of A/B test results. This involves both GA4 Admin configuration (manual steps) and code updates to properly set dimensions.
 
-### Issue 1: Data Disappears and Reappears on Dashboard
+---
 
-**Root Cause**: Race condition between `initAuth()` and `onAuthStateChange` in `use-auth.tsx`
+## Current State
 
-The current flow has a critical timing issue:
-1. `initAuth()` runs and sets `loading = false` at line 203
-2. `onAuthStateChange` fires AFTER this and also tries to set loading state
-3. During this gap, `user` can briefly be `null` while profile is still loading
-4. This causes `ProtectedRoute` to show skeleton → content → skeleton → content
+The codebase already tracks A/B experiments via the `trackABVariant()` function which sends:
+- Event name: `ab_experiment_view`
+- Event parameters: `experiment_id`, `variant_id`, `page_path`
 
-**Code Evidence** (use-auth.tsx lines 170-203):
+However, these are only event-scoped parameters. To analyze user behavior across sessions by variant, we need **user-scoped custom dimensions**.
+
+---
+
+## Implementation Plan
+
+### Part 1: GA4 Admin Configuration (Manual Steps)
+
+You'll need to configure these in your GA4 property:
+
+**Navigate to**: GA4 Admin → Custom definitions → Create custom dimensions
+
+| Dimension Name | Scope | Event Parameter |
+|----------------|-------|-----------------|
+| Experiment ID | User | `experiment_id` |
+| Variant ID | User | `variant_id` |
+| Active Experiments | User | `active_experiments` |
+
+This allows GA4 to:
+- Track which variant each user was assigned
+- Segment all user behavior by variant
+- Compare conversion rates across variants
+
+---
+
+### Part 2: Code Changes
+
+#### File 1: `src/lib/analytics.ts`
+
+**Changes:**
+1. Add a function to set user-scoped properties via `gtag('set')`
+2. Update `trackABVariant()` to also set user properties
+3. Add a helper to track all active experiments as a combined string
+
 ```typescript
-// initAuth sets loading=false BEFORE onAuthStateChange might fire
-const initAuth = async () => {
-  // ... gets session
-  setLoading(false);  // ← Sets loading false too early
+// New function to set user-scoped custom dimensions
+export const setABTestUserProperties = (
+  experimentId: string,
+  variantId: string
+): void => {
+  if (!isGAAvailable()) return;
+  
+  // Set as user properties (persisted across sessions)
+  window.gtag?.('set', 'user_properties', {
+    experiment_id: experimentId,
+    variant_id: variantId,
+    // Combined format for multi-experiment analysis
+    active_experiments: `${experimentId}:${variantId}`,
+  });
+};
+
+// Updated trackABVariant to also set user properties
+export const trackABVariant = (
+  experimentId: string,
+  variantId: string,
+  pagePath: string
+): void => {
+  if (!isGAAvailable()) return;
+  
+  // Set user-scoped properties for segmentation
+  setABTestUserProperties(experimentId, variantId);
+  
+  // Track the event (for event-level analysis)
+  window.gtag?.('event', 'ab_experiment_view', {
+    experiment_id: experimentId,
+    variant_id: variantId,
+    page_path: pagePath,
+  });
 };
 ```
 
-### Issue 2: Page Refresh Redirects to Landing Page
-
-**Root Cause**: `ProtectedRoute` checks `!user` before auth initialization completes
-
-The current check at line 46:
-```typescript
-if (!user) {
-  return <Navigate to="/landing" ... />;
-}
-```
-
-This fires BEFORE `getSession()` has a chance to restore the session from localStorage, causing an immediate redirect.
-
----
-
-## Solution Overview
-
-Implement a **separate initial load phase** that distinguishes between:
-- **Initial Auth Load**: Wait for session restoration + profile fetch
-- **Ongoing Auth Changes**: Handle sign-in/out events without blocking UI
-
-This follows the proven pattern from the Stack Overflow solution in the context.
-
----
-
-## Implementation Details
-
-### File 1: `src/hooks/use-auth.tsx`
+#### File 2: `src/lib/ab-testing.ts`
 
 **Changes:**
-1. Add `initialLoadComplete` state to track first-time auth resolution
-2. Only set `loading = false` AFTER both session AND profile are resolved
-3. Keep `onAuthStateChange` for ongoing updates but don't let it control loading
-4. Remove duplicate profile fetch in `initAuth()` - let `onAuthStateChange` handle it
+1. Add localStorage tracking of all assigned experiments
+2. Export function to get all user's experiment assignments
 
-**Key Logic Change:**
 ```typescript
-// NEW: Track if initial load is complete
-const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+const EXPERIMENTS_KEY = 'lp_ab_experiments';
 
+// Track experiment assignment in localStorage
+export const recordExperimentAssignment = (
+  experimentId: string,
+  variantId: string
+): void => {
+  const stored = localStorage.getItem(EXPERIMENTS_KEY);
+  const experiments = stored ? JSON.parse(stored) : {};
+  experiments[experimentId] = variantId;
+  localStorage.setItem(EXPERIMENTS_KEY, JSON.stringify(experiments));
+};
+
+// Get all experiment assignments for the user
+export const getAllExperimentAssignments = (): Record<string, string> => {
+  const stored = localStorage.getItem(EXPERIMENTS_KEY);
+  return stored ? JSON.parse(stored) : {};
+};
+```
+
+#### File 3: `src/components/SEOHead.tsx`
+
+**Changes:**
+1. Import and call `recordExperimentAssignment` when variant is selected
+
+```typescript
+import { recordExperimentAssignment } from "@/lib/ab-testing";
+
+// Inside useEffect for tracking
 useEffect(() => {
-  let mounted = true;
-  
-  // Setup listener FIRST (for ongoing changes)
-  const { data: { subscription } } = supabase.auth.onAuthStateChange(
-    (event, session) => {
-      // Only handle ongoing changes if initial load is complete
-      if (!initialLoadComplete && event !== 'INITIAL_SESSION') return;
-      
-      setSession(session);
-      setUser(session?.user ?? null);
-      // ... rest of handler
-    }
-  );
-
-  // THEN do initial load
-  const initializeAuth = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!mounted) return;
-      
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      // Fetch profile BEFORE setting loading false
-      if (session?.user) {
-        await fetchAndCacheProfile(session.user.id);
-      }
-    } finally {
-      if (mounted) {
-        setInitialLoadComplete(true);
-        setLoading(false);  // Only now is it safe
-      }
-    }
-  };
-  
-  initializeAuth();
-  return () => { mounted = false; subscription.unsubscribe(); };
-}, []);
+  if (variantKey && experimentId) {
+    recordExperimentAssignment(experimentId, variantKey);
+    trackABVariant(experimentId, variantKey, canonicalPath);
+  }
+}, [variantKey, experimentId, canonicalPath]);
 ```
 
-### File 2: `src/components/ProtectedRoute.tsx`
+#### File 4: `src/hooks/usePageTracking.ts`
 
 **Changes:**
-1. Wait for `loading` to be false AND initial auth to complete before redirecting
-2. Add explicit check for auth initialization state
+1. On page load, restore and re-send all experiment assignments as user properties
+2. This ensures GA4 has the user's variant info even on return visits
 
-**Updated Logic:**
 ```typescript
-export function ProtectedRoute({ children }: ProtectedRouteProps) {
-  const { user, userProfile, loading } = useAuth();
-  
-  // Show skeleton while auth is initializing
-  if (loading) {
-    return <DashboardSkeleton />;
-  }
+import { getAllExperimentAssignments } from '@/lib/ab-testing';
+import { setABTestUserProperties } from '@/lib/analytics';
 
-  // Only redirect AFTER loading is complete and we know there's no user
-  if (!user) {
-    return <Navigate to="/landing" state={{ from: location }} replace />;
-  }
+export function usePageTracking(): void {
+  const location = useLocation();
 
-  return <>{children}</>;
+  useEffect(() => {
+    trackPageView(location.pathname + location.search);
+    
+    // Restore experiment assignments on each page view
+    const experiments = getAllExperimentAssignments();
+    Object.entries(experiments).forEach(([expId, variantId]) => {
+      setABTestUserProperties(expId, variantId);
+    });
+  }, [location]);
 }
 ```
 
-The key fix is removing the `loading && user === undefined` condition that was causing the race.
-
 ---
 
-## Visual Flow Comparison
+## GA4 Analysis Capabilities After Implementation
 
-### Before (Broken)
+With custom dimensions configured, you'll be able to:
 
-```
-Page Refresh
-    │
-    ▼
-ProtectedRoute checks user
-    │
-    ▼
-user = null (session not restored yet)
-    │
-    ▼
-REDIRECT TO /landing ❌
-```
-
-### After (Fixed)
-
-```
-Page Refresh
-    │
-    ▼
-ProtectedRoute checks loading
-    │
-    ▼
-loading = true → Show Skeleton
-    │
-    ▼
-getSession() restores session
-    │
-    ▼
-fetchProfile() completes
-    │
-    ▼
-loading = false, user = {...}
-    │
-    ▼
-RENDER DASHBOARD ✓
-```
-
----
-
-## Additional Improvements
-
-### Realtime Listener Debouncing
-The `useDataChangeListener` hook already has good debouncing (30s between triggers), but I'll verify it's not causing extra re-renders by ensuring the dashboard's `refetch()` calls are properly throttled.
-
-### Profile Cache Alignment
-Ensure the cached profile is checked BEFORE any redirect logic runs by moving cache restoration earlier in the init flow.
+| Analysis | How |
+|----------|-----|
+| Compare conversion rates | Create segments by `variant_id`, compare Goal completions |
+| Track engagement by variant | Filter any report by `experiment_id` |
+| Build funnel comparisons | Use Explorations with variant dimension breakdown |
+| Monitor experiment impact | Create custom dashboards showing variant performance |
 
 ---
 
@@ -191,16 +172,26 @@ Ensure the cached profile is checked BEFORE any redirect logic runs by moving ca
 
 | File | Action |
 |------|--------|
-| `src/hooks/use-auth.tsx` | Update - Fix race condition with `initialLoadComplete` state |
-| `src/components/ProtectedRoute.tsx` | Update - Simplify loading check to wait for full auth init |
+| `src/lib/analytics.ts` | Add `setABTestUserProperties()`, update `trackABVariant()` |
+| `src/lib/ab-testing.ts` | Add experiment assignment tracking functions |
+| `src/components/SEOHead.tsx` | Record assignments when variant selected |
+| `src/hooks/usePageTracking.ts` | Restore user properties on page load |
 
 ---
 
-## Testing Checklist
+## Post-Implementation: GA4 Setup Checklist
 
-After implementation:
-1. Refresh page while logged in → Should stay on current page
-2. Navigate between tabs → Data should not flash/disappear
-3. Wait on dashboard → No unexpected data reloads
-4. Sign out → Should redirect to /landing
-5. Sign in → Should redirect to dashboard
+After code deployment, complete these steps in GA4 Admin:
+
+1. Go to **Admin → Custom definitions → Custom dimensions**
+2. Click **Create custom dimension**
+3. Create these three dimensions:
+
+| Display Name | Scope | Description | Event Parameter |
+|--------------|-------|-------------|-----------------|
+| Experiment ID | User | A/B test experiment identifier | experiment_id |
+| Variant ID | User | Assigned variant for experiment | variant_id |
+| Active Experiments | User | All experiment:variant pairs | active_experiments |
+
+4. Wait 24-48 hours for data to populate
+5. Verify in **Realtime** report → User properties
