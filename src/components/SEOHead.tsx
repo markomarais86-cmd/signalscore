@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { getVariantFromConfig } from "@/lib/ab-testing";
+import { getVariantFromConfig, recordExperimentAssignment } from "@/lib/ab-testing";
 import { trackABVariant } from "@/lib/analytics";
 
 interface DescriptionVariants {
@@ -57,6 +57,8 @@ export function SEOHead({
   useEffect(() => {
     // Track A/B variant if one was selected
     if (variantKey && experimentId) {
+      // Record assignment for cross-session tracking
+      recordExperimentAssignment(experimentId, variantKey);
       trackABVariant(experimentId, variantKey, canonicalPath);
     }
   }, [variantKey, experimentId, canonicalPath]);
