@@ -108,8 +108,28 @@ export const trackEvent = (
 };
 
 /**
+ * Set user-scoped custom dimensions for A/B testing
+ * These persist across sessions and allow segmentation in GA4
+ */
+export const setABTestUserProperties = (
+  experimentId: string,
+  variantId: string
+): void => {
+  if (!isGAAvailable()) return;
+  
+  // Set as user properties (persisted across sessions)
+  window.gtag?.('set', 'user_properties', {
+    experiment_id: experimentId,
+    variant_id: variantId,
+    // Combined format for multi-experiment analysis
+    active_experiments: `${experimentId}:${variantId}`,
+  });
+};
+
+/**
  * Track which A/B variant was shown to the user
  * Used for SEO meta description experiments and other A/B tests
+ * Also sets user-scoped properties for cross-session analysis
  */
 export const trackABVariant = (
   experimentId: string,
@@ -118,6 +138,10 @@ export const trackABVariant = (
 ): void => {
   if (!isGAAvailable()) return;
   
+  // Set user-scoped properties for segmentation
+  setABTestUserProperties(experimentId, variantId);
+  
+  // Track the event (for event-level analysis)
   window.gtag?.('event', 'ab_experiment_view', {
     experiment_id: experimentId,
     variant_id: variantId,

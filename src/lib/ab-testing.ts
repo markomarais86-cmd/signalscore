@@ -4,6 +4,7 @@
  */
 
 const USER_ID_KEY = 'lp_ab_user_id';
+const EXPERIMENTS_KEY = 'lp_ab_experiments';
 
 /**
  * Generate a random UUID v4
@@ -92,4 +93,39 @@ export const getVariantFromConfig = <T>(
     variantKey: selectedKey,
     value: variants[selectedKey],
   };
+};
+
+/**
+ * Record an experiment assignment in localStorage
+ * Used to persist variant assignments for cross-session GA4 tracking
+ */
+export const recordExperimentAssignment = (
+  experimentId: string,
+  variantId: string
+): void => {
+  if (typeof window === 'undefined') return;
+  
+  try {
+    const stored = localStorage.getItem(EXPERIMENTS_KEY);
+    const experiments = stored ? JSON.parse(stored) : {};
+    experiments[experimentId] = variantId;
+    localStorage.setItem(EXPERIMENTS_KEY, JSON.stringify(experiments));
+  } catch {
+    // Silently fail if localStorage is unavailable
+  }
+};
+
+/**
+ * Get all experiment assignments for the current user
+ * Returns a map of experimentId -> variantId
+ */
+export const getAllExperimentAssignments = (): Record<string, string> => {
+  if (typeof window === 'undefined') return {};
+  
+  try {
+    const stored = localStorage.getItem(EXPERIMENTS_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
 };
