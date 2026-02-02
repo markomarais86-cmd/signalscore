@@ -1,197 +1,218 @@
 
 
-# Enhanced City/State Validation Plan
+# Comprehensive Tech Stack Whitelist Expansion Plan
 
-## Current State (Already Implemented)
+## Current State
 
-The `accuracy-validators.ts` file already contains a comprehensive city/state mapping:
+The `VALID_TECH_STACK_ITEMS` set in `accuracy-validators.ts` contains approximately **300 technology names** across 15 categories:
 
-| Coverage | Count |
-|----------|-------|
-| **States Mapped** | 50 + DC (100%) |
-| **Format Support** | Both abbreviations (`CA`) and full names (`California`) |
-| **Total Cities** | ~500 major cities |
-| **Validation Logic** | Fuzzy matching with partial string comparison |
-
-## Enhancement Plan
-
-### Part 1: Expand City Coverage (+200 cities)
-
-Add more cities to states with currently limited coverage:
-
-**Small State Expansion:**
-- Delaware: Add Lewes, Rehoboth Beach, Claymont
-- Rhode Island: Add Lincoln, Cumberland, West Warwick
-- Vermont: Add Essex, Brattleboro, Hartford
-- Wyoming: Add Cody, Powell, Douglas
-- Alaska: Add Palmer, North Pole, Seward
-
-**Suburb Expansion (Major Metros):**
-- NYC Metro: Westchester, White Plains suburbs
-- Chicago Metro: Naperville suburbs, Aurora suburbs
-- LA Metro: South Bay cities, Inland Empire
-- Dallas/Houston Metro: Cypress, Katy, The Colony
-
-### Part 2: Add Common Abbreviations & Nicknames
-
-```typescript
-// City alias mapping for fuzzy matching
-const CITY_ALIASES: Record<string, string[]> = {
-  'Los Angeles': ['LA', 'L.A.'],
-  'San Francisco': ['SF', 'S.F.', 'Frisco'],
-  'New York': ['NYC', 'NY City', 'New York City'],
-  'Las Vegas': ['Vegas', 'LV'],
-  'Philadelphia': ['Philly', 'PHL'],
-  'District of Columbia': ['DC', 'D.C.', 'Washington DC'],
-  // ... 20+ common aliases
-};
-```
-
-### Part 3: Add State-Level Validation Config
-
-```typescript
-// Allow strict mode for critical enrichment
-interface CityValidationOptions {
-  strictMode?: boolean;  // If true, reject unknown cities
-  allowSuburbs?: boolean; // If false, only validate major cities
-}
-```
-
-### Part 4: Add County-Level Fallback (Optional)
-
-For cities not in the main list, check against county data:
-```typescript
-const US_STATE_COUNTIES: Record<string, string[]> = {
-  'CA': ['Los Angeles County', 'Orange County', 'San Diego County', ...],
-  // Provides broader coverage for edge cases
-};
-```
+| Category | Current Count | Items |
+|----------|---------------|-------|
+| Cloud Providers | 22 | AWS, Azure, GCP, DigitalOcean, Heroku, etc. |
+| Databases | 30 | PostgreSQL, MySQL, MongoDB, Redis, etc. |
+| Frontend Frameworks | 45 | React, Vue, Angular, Next.js, Tailwind, etc. |
+| Backend Frameworks | 55 | Node.js, Django, Spring, Rails, Laravel, etc. |
+| Mobile | 15 | React Native, Flutter, Swift, Kotlin, etc. |
+| DevOps & Infrastructure | 45 | Docker, Kubernetes, Terraform, Jenkins, etc. |
+| CRM & Sales | 16 | Salesforce, HubSpot, Pipedrive, etc. |
+| Marketing | 25 | Marketo, Mailchimp, SendGrid, etc. |
+| Analytics | 27 | Google Analytics, Mixpanel, Amplitude, etc. |
+| Customer Support | 16 | Intercom, Zendesk, Freshdesk, etc. |
+| Payments | 19 | Stripe, PayPal, Braintree, etc. |
+| E-commerce | 15 | Shopify, WooCommerce, Magento, etc. |
+| CMS | 18 | WordPress, Contentful, Strapi, etc. |
+| Communication | 17 | Slack, Teams, Twilio, etc. |
+| Authentication | 16 | Auth0, Okta, Clerk, etc. |
+| Version Control | 9 | Git, GitHub, GitLab, etc. |
+| Project Management | 16 | Jira, Asana, Linear, etc. |
+| AI & ML | 28 | TensorFlow, PyTorch, OpenAI, etc. |
+| Misc | 40 | GraphQL, Kafka, TypeScript, Jest, etc. |
 
 ---
 
-## Files to Modify
+## Expansion Plan: +100 New Technologies
 
-| File | Changes |
-|------|---------|
-| `supabase/functions/_shared/accuracy-validators.ts` | 1) Add ~200 more cities across all states. 2) Add CITY_ALIASES mapping. 3) Update validateCityStateMatch to check aliases. 4) Add strictMode option. |
+### New Category 1: Security & Compliance (+15 items)
+Essential security tools often found in enterprise tech stacks:
+- **WAF/Protection**: Cloudflare WAF, AWS WAF, Akamai, Imperva, F5
+- **Secret Management**: HashiCorp Vault, AWS Secrets Manager, Doppler, 1Password
+- **Compliance**: Vanta, Drata, Secureframe, SOC2, GDPR
+
+### New Category 2: Data Engineering (+20 items)
+ETL, data pipelines, and data orchestration tools:
+- **ETL/ELT**: Fivetran, Airbyte, Stitch, Matillion, dbt, dbt Cloud
+- **Orchestration**: Apache Airflow, Dagster, Prefect, Mage, Luigi
+- **Data Lakes**: Databricks, Delta Lake, Apache Iceberg, Apache Hudi
+- **Streaming**: Apache Flink, Apache Spark, Apache Beam, Debezium
+
+### New Category 3: Search & Discovery (+10 items)
+Search engines and content discovery:
+- Algolia, MeiliSearch, Typesense, Apache Solr, OpenSearch
+- Pinecone, Weaviate, Milvus, Qdrant, Chroma
+
+### New Category 4: Low-Code/No-Code (+12 items)
+Growing category for enterprise integrations:
+- Zapier, Make, Integromat, n8n, Tray.io, Workato
+- Retool, Budibase, Appsmith, Bubble, Glide, Outsystems
+
+### New Category 5: API Management (+10 items)
+API gateways and documentation:
+- Kong, Apigee, MuleSoft, Postman, Swagger, OpenAPI
+- AWS API Gateway, Azure API Management, Tyk, Ambassador
+
+### New Category 6: Video & Media (+10 items)
+Video processing and streaming:
+- Mux, Cloudinary, ImageKit, Imgix, Vimeo
+- Wistia, Brightcove, JW Player, Video.js, FFmpeg
+
+### New Category 7: Testing & QA (+10 items)
+Expanded testing tools:
+- Sauce Labs, BrowserStack, LambdaTest, Appium
+- TestRail, Qase, Allure, k6, Artillery, Gatling
+
+### Existing Category Expansions (+23 items)
+
+**DevOps (+8)**:
+- Pulumi, Crossplane, Spacelift, Teleport, Boundary, Istio, Linkerd, Service Mesh
+
+**AI & ML (+10)**:
+- Stable Diffusion, Midjourney, Replicate, Modal, Anyscale, Mosaic ML
+- LlamaIndex, Pinecone, Vector DB, FAISS, Cohere, Anthropic Claude
+
+**Backend (+5)**:
+- Bun, Deno, Elysia, Hono, tRPC
 
 ---
 
 ## Implementation Details
 
-### Enhanced City Lists (Examples)
+### File to Modify
+- `supabase/functions/_shared/accuracy-validators.ts`
 
-**California - Add 30+ cities:**
-```typescript
-'CA': [
-  // Current cities... plus:
-  'Chico', 'Redlands', 'Arcadia', 'Whittier', 'Newport Beach',
-  'San Clemente', 'Laguna Beach', 'Hermosa Beach', 'Manhattan Beach',
-  'Rancho Mirage', 'Palm Springs', 'Palm Desert', 'Indio', 'Coachella',
-  'Gilroy', 'Morgan Hill', 'Los Gatos', 'Saratoga', 'Campbell',
-  'Millbrae', 'San Bruno', 'Pacifica', 'Half Moon Bay', 'Livermore',
-  'Dublin', 'San Leandro', 'Union City', 'Alameda', 'Emeryville'
-],
-```
-
-**Texas - Add 20+ cities:**
-```typescript
-'TX': [
-  // Current cities... plus:
-  'Katy', 'Cypress', 'Spring', 'Tomball', 'Humble', 'Conroe',
-  'Temple', 'Tyler', 'Longview', 'San Marcos', 'New Braunfels',
-  'Pflugerville', 'Georgetown', 'Cedar Park', 'Flower Mound',
-  'Coppell', 'Rockwall', 'Mansfield', 'Burleson', 'Weatherford'
-],
-```
-
-### Alias Matching Logic
+### Enhanced VALID_TECH_STACK_ITEMS Structure
 
 ```typescript
-function normalizeCityName(city: string): string[] {
-  const variants = [city.toLowerCase().trim()];
+const VALID_TECH_STACK_ITEMS = new Set([
+  // Cloud Providers (22 items) - existing
+  'AWS', 'Amazon Web Services', 'Azure', 'Microsoft Azure', ...
   
-  // Check if this city has known aliases
-  for (const [canonical, aliases] of Object.entries(CITY_ALIASES)) {
-    if (canonical.toLowerCase() === city.toLowerCase()) {
-      aliases.forEach(alias => variants.push(alias.toLowerCase()));
-    }
-    // Also check if input is an alias
-    if (aliases.some(a => a.toLowerCase() === city.toLowerCase())) {
-      variants.push(canonical.toLowerCase());
-    }
-  }
+  // Databases (30 items) - existing
+  'PostgreSQL', 'MySQL', 'MongoDB', ...
   
-  return variants;
-}
+  // Frontend Frameworks (45 items) - existing
+  'React', 'Vue', 'Angular', ...
+  
+  // Backend Frameworks (60 items) - expanded +5
+  'Node.js', 'Django', 'Spring', ...
+  'Bun', 'Deno', 'Elysia', 'Hono', 'tRPC',
+  
+  // Mobile (15 items) - existing
+  'React Native', 'Flutter', ...
+  
+  // DevOps & Infrastructure (53 items) - expanded +8
+  'Docker', 'Kubernetes', ...
+  'Pulumi', 'Crossplane', 'Spacelift', 'Teleport', 'Boundary', 
+  'Istio', 'Linkerd', 'Service Mesh',
+  
+  // CRM & Sales (16 items) - existing
+  'Salesforce', 'HubSpot', ...
+  
+  // Marketing (25 items) - existing
+  'Marketo', 'Mailchimp', ...
+  
+  // Analytics (27 items) - existing
+  'Google Analytics', 'Mixpanel', ...
+  
+  // Customer Support (16 items) - existing
+  'Intercom', 'Zendesk', ...
+  
+  // Payments (19 items) - existing
+  'Stripe', 'PayPal', ...
+  
+  // E-commerce (15 items) - existing
+  'Shopify', 'WooCommerce', ...
+  
+  // CMS (18 items) - existing
+  'WordPress', 'Contentful', ...
+  
+  // Communication (17 items) - existing
+  'Slack', 'Teams', ...
+  
+  // Authentication (16 items) - existing
+  'Auth0', 'Okta', ...
+  
+  // Version Control (9 items) - existing
+  'Git', 'GitHub', ...
+  
+  // Project Management (16 items) - existing
+  'Jira', 'Asana', ...
+  
+  // AI & ML (38 items) - expanded +10
+  'TensorFlow', 'PyTorch', ...
+  'Stable Diffusion', 'Midjourney', 'Replicate', 'Modal', 'Anyscale',
+  'LlamaIndex', 'Cohere', 'FAISS', 'Mosaic ML', 'Anthropic Claude',
+  
+  // NEW: Security & Compliance (15 items)
+  'Cloudflare WAF', 'AWS WAF', 'Akamai', 'Imperva', 'F5',
+  'HashiCorp Vault', 'AWS Secrets Manager', 'Doppler', '1Password',
+  'Vanta', 'Drata', 'Secureframe', 'CrowdStrike', 'SentinelOne', 'Snyk',
+  
+  // NEW: Data Engineering (20 items)
+  'Fivetran', 'Airbyte', 'Stitch', 'Matillion', 'dbt', 'dbt Cloud',
+  'Apache Airflow', 'Airflow', 'Dagster', 'Prefect', 'Mage', 'Luigi',
+  'Databricks', 'Delta Lake', 'Apache Iceberg', 'Apache Hudi',
+  'Apache Flink', 'Apache Spark', 'Spark', 'Apache Beam', 'Debezium',
+  
+  // NEW: Search & Vector Databases (10 items)
+  'Algolia', 'MeiliSearch', 'Typesense', 'Apache Solr', 'OpenSearch',
+  'Pinecone', 'Weaviate', 'Milvus', 'Qdrant', 'Chroma',
+  
+  // NEW: Low-Code/No-Code (12 items)
+  'Zapier', 'Make', 'Integromat', 'n8n', 'Tray.io', 'Workato',
+  'Retool', 'Budibase', 'Appsmith', 'Bubble', 'Glide', 'Outsystems',
+  
+  // NEW: API Management (10 items)
+  'Kong', 'Apigee', 'MuleSoft', 'Postman', 'Swagger', 'OpenAPI',
+  'AWS API Gateway', 'Azure API Management', 'Tyk', 'Ambassador',
+  
+  // NEW: Video & Media (10 items)
+  'Mux', 'Cloudinary', 'ImageKit', 'Imgix', 'Vimeo',
+  'Wistia', 'Brightcove', 'JW Player', 'Video.js', 'FFmpeg',
+  
+  // NEW: Testing & QA (10 items)
+  'Sauce Labs', 'BrowserStack', 'LambdaTest', 'Appium',
+  'TestRail', 'Qase', 'Allure', 'k6', 'Artillery', 'Gatling',
+  
+  // Misc - expanded
+  'GraphQL', 'Kafka', 'TypeScript', ...
+]);
 ```
 
-### Updated Validation Function
+---
 
-```typescript
-export function validateCityStateMatch(
-  city: string | undefined, 
-  state: string | undefined,
-  options: CityValidationOptions = {}
-): LocationValidationResult {
-  if (!city || !state) {
-    return { isValid: true };
-  }
-  
-  const validCities = US_STATE_CITIES[state] || US_STATE_CITIES[state.toUpperCase()];
-  if (!validCities) {
-    // Unknown state - might be international
-    return options.strictMode 
-      ? { isValid: false, reason: `Unknown state: ${state}` }
-      : { isValid: true };
-  }
-  
-  // Get all variants of the city name (including aliases)
-  const cityVariants = normalizeCityName(city);
-  
-  // Check for match against valid cities
-  const matches = validCities.some(validCity => {
-    const validLower = validCity.toLowerCase();
-    return cityVariants.some(variant => 
-      variant === validLower ||
-      variant.includes(validLower) ||
-      validLower.includes(variant)
-    );
-  });
-  
-  if (!matches) {
-    return { 
-      isValid: false, 
-      reason: `City "${city}" is not a recognized city in ${state}` 
-    };
-  }
-  
-  return { isValid: true };
-}
-```
+## Summary of Changes
+
+| Metric | Current | After |
+|--------|---------|-------|
+| **Total Items** | ~300 | ~410 |
+| **Categories** | 19 | 26 (+7 new) |
+| **Security Tools** | 0 | 15 |
+| **Data Engineering** | 0 | 20 |
+| **Vector Databases** | 0 | 10 |
+| **Low-Code/No-Code** | 0 | 12 |
+| **API Management** | 0 | 10 |
+| **Video & Media** | 0 | 10 |
+| **Testing & QA** | ~10 | 20 |
 
 ---
 
 ## Expected Impact
 
-| Metric | Current | After |
-|--------|---------|-------|
-| **City Coverage** | ~500 cities | ~700+ cities |
-| **Alias Support** | None | 30+ common aliases |
-| **Small State Coverage** | 5-8 cities each | 10-15 cities each |
-| **Metro Area Coverage** | Major cities only | +suburbs included |
-| **Validation Accuracy** | ~85% | 95%+ |
-
----
-
-## Summary of New Cities by Region
-
-| Region | States | New Cities Added |
-|--------|--------|------------------|
-| **Northeast** | ME, NH, VT, MA, RI, CT, NY, NJ, PA | +40 cities |
-| **Southeast** | DE, MD, VA, WV, NC, SC, GA, FL | +35 cities |
-| **Midwest** | OH, IN, IL, MI, WI, MN, IA, MO, ND, SD, NE, KS | +45 cities |
-| **Southwest** | TX, OK, NM, AZ | +35 cities |
-| **West** | CO, UT, NV, CA, OR, WA, ID, MT, WY, AK, HI | +45 cities |
-| **Total** | 50 states + DC | ~200 new cities |
+| Benefit | Description |
+|---------|-------------|
+| **Reduced Hallucinations** | 35% more tech items validated against whitelist |
+| **Enterprise Coverage** | Security, compliance, and data engineering tools included |
+| **Modern Stack Support** | AI/ML expansion includes vector databases, LLM tools |
+| **Low-Code Recognition** | Zapier, Retool, n8n now validated |
+| **Better SMB Coverage** | Video/media tools for content-focused businesses |
 
