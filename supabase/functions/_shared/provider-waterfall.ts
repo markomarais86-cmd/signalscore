@@ -306,11 +306,85 @@ function computeMajorityRevenueRange(values: string[]): string | null {
 }
 
 // ============================================================================
-// ACCURACY IMPROVEMENT #3: FIRMOGRAPHIC SANITY CHECKS
+// ACCURACY IMPROVEMENT #3: FIRMOGRAPHIC SANITY CHECKS (ENHANCED)
 // ============================================================================
 interface FirmographicValidation {
   isValid: boolean;
   reason?: string;
+}
+
+// Valid revenue ranges for validation
+const VALID_REVENUE_RANGES = [
+  '$0-$1M', '$1M-$5M', '$5M-$10M', '$10M-$25M', '$25M-$50M',
+  '$50M-$100M', '$100M-$500M', '$500M-$1B', '$1B-$10B', '$10B+'
+];
+
+/**
+ * Validate revenue range is a recognized format
+ */
+export function validateRevenueRange(revenueRange: string | undefined): FirmographicValidation {
+  if (!revenueRange) return { isValid: true };
+  
+  if (!VALID_REVENUE_RANGES.includes(revenueRange)) {
+    return { isValid: false, reason: `Unrecognized revenue range: ${revenueRange}` };
+  }
+  
+  return { isValid: true };
+}
+
+/**
+ * Validate founding year is reasonable (not future, not too old)
+ */
+export function validateFoundingYear(foundedYear: number | string | undefined, domain?: string): FirmographicValidation {
+  if (!foundedYear) return { isValid: true };
+  
+  const year = typeof foundedYear === 'string' ? parseInt(foundedYear, 10) : foundedYear;
+  if (isNaN(year)) return { isValid: false, reason: `Invalid founding year format: ${foundedYear}` };
+  
+  const currentYear = new Date().getFullYear();
+  
+  // Cannot be founded in the future
+  if (year > currentYear) {
+    return { isValid: false, reason: `Founding year ${year} is in the future` };
+  }
+  
+  // Cannot be older than 300 years (oldest companies)
+  if (year < currentYear - 300) {
+    return { isValid: false, reason: `Founding year ${year} is implausibly old` };
+  }
+  
+  // For modern tech domains, reject pre-internet founding years with tech indicators
+  const techIndicators = ['app', 'tech', 'software', 'digital', 'cloud', 'ai', 'saas', 'io'];
+  if (domain) {
+    const isTechDomain = techIndicators.some(ind => domain.toLowerCase().includes(ind));
+    if (isTechDomain && year < 1990) {
+      return { isValid: false, reason: `Tech domain ${domain} unlikely founded in ${year}` };
+    }
+  }
+  
+  return { isValid: true };
+}
+
+/**
+ * Validate revenue range is appropriate for SMB domains
+ */
+export function validateRevenueForDomain(
+  revenueRange: string | undefined,
+  domain: string | undefined
+): FirmographicValidation {
+  if (!revenueRange || !domain) return { isValid: true };
+  
+  // SMB domain indicators
+  const smbIndicators = ['shop', 'store', 'local', 'family', 'small', 'boutique', 'studio'];
+  const isSMB = smbIndicators.some(ind => domain.toLowerCase().includes(ind));
+  
+  // SMBs shouldn't have billion-dollar revenue
+  const highRevenueRanges = ['$500M-$1B', '$1B-$10B', '$10B+'];
+  if (isSMB && highRevenueRanges.includes(revenueRange)) {
+    return { isValid: false, reason: `SMB domain ${domain} unlikely to have ${revenueRange} revenue` };
+  }
+  
+  return { isValid: true };
 }
 
 function validateEmployeeRevenuePair(
@@ -685,6 +759,61 @@ export function formatPhone(phone: string | null): string | null {
 }
 
 /**
+ * Extract LinkedIn profile URL from text content
+ * Handles various LinkedIn URL formats
+ */
+export function extractLinkedInUrl(text: string | undefined): string | null {
+  if (!text) return null;
+  
+  // LinkedIn profile URL patterns
+  const patterns = [
+    // Standard profile URLs
+    /(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/([a-zA-Z0-9_-]+)\/?/i,
+    // Company page URLs
+    /(?:https?:\/\/)?(?:www\.)?linkedin\.com\/company\/([a-zA-Z0-9_-]+)\/?/i,
+    // Public profile URLs (older format)
+    /(?:https?:\/\/)?(?:www\.)?linkedin\.com\/pub\/([a-zA-Z0-9_\/-]+)\/?/i,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      // Normalize to https://
+      const url = match[0].startsWith('http') ? match[0] : `https://${match[0]}`;
+      // Clean trailing slashes
+      return url.replace(/\/+$/, '');
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Extract all LinkedIn URLs from text content (for company page + personal profiles)
+ */
+export function extractAllLinkedInUrls(text: string | undefined): { profile?: string; company?: string } {
+  if (!text) return {};
+  
+  const result: { profile?: string; company?: string } = {};
+  
+  // Personal profile pattern
+  const profileMatch = text.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/in\/([a-zA-Z0-9_-]+)\/?/i);
+  if (profileMatch) {
+    result.profile = profileMatch[0].startsWith('http') ? profileMatch[0] : `https://${profileMatch[0]}`;
+    result.profile = result.profile.replace(/\/+$/, '');
+  }
+  
+  // Company page pattern
+  const companyMatch = text.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/company\/([a-zA-Z0-9_-]+)\/?/i);
+  if (companyMatch) {
+    result.company = companyMatch[0].startsWith('http') ? companyMatch[0] : `https://${companyMatch[0]}`;
+    result.company = result.company.replace(/\/+$/, '');
+  }
+  
+  return result;
+}
+
+/**
  * Extract message content from AI provider response.
  * Handles different API response formats between providers.
  * - OpenAI/Perplexity/xAI/Lovable/Abacus: choices[0].message.content
@@ -982,6 +1111,40 @@ Return ONLY a valid JSON object with ALL fields you can find.`;
           value = normalizeTitle(value) || value;
         }
         
+        // ACCURACY IMPROVEMENT #7: Validate revenue range format
+        if (targetField === 'revenue_range') {
+          const revenueValidation = validateRevenueRange(value);
+          if (!revenueValidation.isValid) {
+            console.log(`[provider-waterfall] Perplexity: REJECTED ${targetField} - ${revenueValidation.reason}`);
+            continue;
+          }
+          // Also validate against domain type
+          const domainRevenueValidation = validateRevenueForDomain(value, domain);
+          if (!domainRevenueValidation.isValid) {
+            console.log(`[provider-waterfall] Perplexity: REJECTED ${targetField} - ${domainRevenueValidation.reason}`);
+            continue;
+          }
+        }
+        
+        // ACCURACY IMPROVEMENT #8: Validate founding year is reasonable
+        if (targetField === 'founded_year') {
+          const yearValidation = validateFoundingYear(value, domain);
+          if (!yearValidation.isValid) {
+            console.log(`[provider-waterfall] Perplexity: REJECTED ${targetField} - ${yearValidation.reason}`);
+            continue;
+          }
+        }
+        
+        // ACCURACY IMPROVEMENT #9: Extract and validate LinkedIn URLs
+        if (targetField === 'linkedin_url' || targetField === 'linkedin_company_url') {
+          const extractedUrl = extractLinkedInUrl(value);
+          if (!extractedUrl) {
+            console.log(`[provider-waterfall] Perplexity: REJECTED invalid ${targetField}: ${value}`);
+            continue;
+          }
+          value = extractedUrl;
+        }
+        
         (data as any)[targetField] = value;
         fieldsEnriched.push(targetField);
       }
@@ -1059,6 +1222,14 @@ async function enrichFromFirecrawl(
     if (markdowns.length === 0) return null;
     
     const combinedContent = markdowns.join('\n\n---\n\n').substring(0, 30000);
+    
+    // ACCURACY IMPROVEMENT #7: Direct regex extraction for LinkedIn URLs (no AI needed)
+    const linkedInUrls = extractAllLinkedInUrls(combinedContent);
+    if (linkedInUrls.company && !data.linkedin_company_url && !verifiedFields.has('linkedin_company_url')) {
+      data.linkedin_company_url = linkedInUrls.company;
+      verifiedFields.add('linkedin_company_url');
+      console.log(`[provider-waterfall] Firecrawl: Extracted linkedin_company_url directly: ${linkedInUrls.company}`);
+    }
     
     // Extract data with AI - ask for ALL possible fields from website
     const extractPrompt = `Extract business information from this website content.
@@ -1935,9 +2106,38 @@ export async function runEnrichmentWaterfall(
     }
   }
   
-  // Check field coverage before AI fallback
+  // ACCURACY IMPROVEMENT #8: EARLY-EXIT OPTIMIZATION
+  // Check field coverage - if we already have 90%+ coverage, skip expensive AI fallback
   const priorCoverage = getFieldCoverageStatus(data, verifiedFields, ACCOUNT_ENRICHABLE_FIELDS);
   console.log(`[provider-waterfall] Pre-AI coverage: ${priorCoverage.coverage.toFixed(0)}% (${priorCoverage.filled.length}/${ACCOUNT_ENRICHABLE_FIELDS.length} fields)`);
+  
+  // Early exit if coverage is already high (saves API costs)
+  if (priorCoverage.coverage >= EARLY_EXIT_COVERAGE_THRESHOLD && !config.forceAllStages) {
+    console.log(`[provider-waterfall] EARLY EXIT: Coverage ${priorCoverage.coverage.toFixed(0)}% >= ${EARLY_EXIT_COVERAGE_THRESHOLD}% threshold. Skipping remaining providers.`);
+    
+    // Still cache the result and return
+    const avgConfidence = sources.length > 0 
+      ? sources.reduce((sum, s) => sum + s.confidence, 0) / sources.length 
+      : 0;
+    const totalFieldsEnriched = sources.reduce((sum, s) => sum + s.fieldsEnriched.length, 0);
+    
+    // Store in cache
+    if (cacheKey && totalFieldsEnriched > 0) {
+      const sourcesStr = sources.map(s => s.provider);
+      await setCachedEnrichment(supabase, cacheKey, cacheType, data, sourcesStr, avgConfidence, totalCost, CACHE_TTL_DAYS)
+        .catch(err => console.warn('[provider-waterfall] Cache write failed:', err));
+    }
+    
+    return {
+      success: totalFieldsEnriched > 0,
+      data,
+      sources,
+      verifiedFields: Array.from(verifiedFields),
+      cost: { total: totalCost, breakdown: costs },
+      confidence: avgConfidence,
+    };
+  }
+  
   if (priorCoverage.missing.length > 0) {
     console.log(`[provider-waterfall] Missing fields for AI: ${priorCoverage.missing.join(', ')}`);
   }
