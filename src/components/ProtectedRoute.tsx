@@ -15,13 +15,11 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const location = useLocation();
   const queryClient = useQueryClient();
 
-  // Phase B: Prefetch dashboard data as soon as user is authenticated
+  // Prefetch dashboard data as soon as user is authenticated
   useEffect(() => {
     if (user && userProfile?.org_id && location.pathname === '/') {
       authLogger.debug('Prefetching dashboard data');
       
-      // Prefetch dashboard metrics
-      // Prefetch using the same cached function as useDashboardData
       queryClient.prefetchQuery({
         queryKey: ['dashboard-metrics', userProfile.org_id, 'crm'],
         queryFn: async () => {
@@ -33,16 +31,17 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
           if (error) throw error;
           return data;
         },
-        staleTime: 2 * 60 * 1000, // 2 minutes - aligned with useDashboardData
+        staleTime: 2 * 60 * 1000,
       });
     }
   }, [user, userProfile, location.pathname, queryClient]);
 
-  // Phase B: Show skeleton instead of spinner for better perceived performance
-  if (loading && user === undefined) {
+  // Show skeleton while auth is initializing - wait for full init before deciding
+  if (loading) {
     return <DashboardSkeleton />;
   }
 
+  // Only redirect AFTER loading is complete and we confirmed no user
   if (!user) {
     return <Navigate to="/landing" state={{ from: location }} replace />;
   }

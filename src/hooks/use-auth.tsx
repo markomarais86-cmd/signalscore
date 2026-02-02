@@ -53,16 +53,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const { toast } = useToast();
-  
-  // Phase A: Removed loadingRef - no longer needed without safety timeout
 
   useEffect(() => {
     let mounted = true;
     let profileFetchInProgress = false;
     
     // Helper function to fetch and cache profile
-    const fetchAndCacheProfile = async (userId: string) => {
+    const fetchAndCacheProfile = async (userId: string): Promise<void> => {
       if (profileFetchInProgress) return;
       profileFetchInProgress = true;
       
@@ -80,13 +79,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else if (profile) {
           authLogger.info('User profile loaded:', profile);
           setUserProfile(profile as UserProfile);
-          // Cache the profile with 60 second expiry for instant login
-          // Using sessionStorage for security - clears on browser close
           sessionStorage.setItem('user_profile_cache', JSON.stringify({
             profile,
             timestamp: Date.now()
           }));
-          // Check if this is a first-time user (new org with no data)
+          
           if (profile.org_id) {
             const { count } = await supabase
               .from('accounts')
@@ -95,7 +92,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               .limit(1);
             
             if (count === 0) {
-              // New user with no data - trigger onboarding
               localStorage.setItem('show_onboarding', 'true');
             }
           }
@@ -105,60 +101,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
     
-    // Set up auth state listener
+    // Set up auth state listener for ONGOING changes (after initial load)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         authLogger.info('State change event:', event);
         if (!mounted) return;
         
+        // Skip handling during initial load - initializeAuth handles that
+        if (!initialLoadComplete && event === 'INITIAL_SESSION') {
+          return;
+        }
+        
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Set Sentry user context for error tracking (async, non-blocking)
           setUserContextSafe({
             id: session.user.id,
             email: session.user.email,
           });
           
-          // Phase A & B: Use cached profile for INSTANT render
-          const cached = sessionStorage.getItem('user_profile_cache');
-          let usedCache = false;
-          
-          if (cached) {
-            try {
-              const { profile, timestamp } = JSON.parse(cached);
-              // Use cache if less than 60 seconds old for instant login
-              if (Date.now() - timestamp < 60 * 1000) {
-                authLogger.debug('Using cached profile for instant render');
-                setUserProfile(profile as UserProfile);
-                setLoading(false);
-                usedCache = true;
-              }
-            } catch (e) {
-              sessionStorage.removeItem('user_profile_cache');
-            }
-          }
-          
-          // Always fetch fresh profile in background to keep cache updated
-          // But don't block the UI if we have a recent cache
+          // Refresh profile in background for ongoing auth changes
           setTimeout(() => {
             fetchAndCacheProfile(session.user.id);
           }, 0);
-          
-          // Only wait for profile if no cache was used
-          if (!usedCache) {
-            setLoading(false);
-          }
         } else {
-          // Clear Sentry user context on sign out (async, non-blocking)
           clearUserContextSafe();
-          
           setUserProfile(null);
           sessionStorage.removeItem('user_profile_cache');
-          setLoading(false);
           
-          // Redirect to landing page when signed out
           if (event === 'SIGNED_OUT') {
             authLogger.info('User signed out, redirecting to /landing');
             window.location.href = '/landing';
@@ -167,8 +138,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // Check for existing session - Phase C: Remove duplicate profile fetch
-    const initAuth = async () => {
+    // Initialize auth - restore session and profile BEFORE setting loading false
+    const initializeAuth = async () => {
       try {
         // Check cache first for instant restore
         const cached = sessionStorage.getItem('user_profile_cache');
@@ -197,27 +168,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         
-        // Profile fetch will be handled by onAuthStateChange
-        // This eliminates the duplicate fetch
-        
-        setLoading(false);
+        // Fetch profile BEFORE setting loading false to prevent race
+        if (session?.user) {
+          setUserContextSafe({
+            id: session.user.id,
+            email: session.user.email,
+          });
+          await fetchAndCacheProfile(session.user.id);
+        }
       } catch (error) {
         authLogger.error('Fatal error during init:', error);
+      } finally {
         if (mounted) {
+          setInitialLoadComplete(true);
           setLoading(false);
         }
       }
     };
 
-    initAuth();
-    
-    // Phase A: Safety timeout removed - trust Supabase auth state listener
+    initializeAuth();
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [initialLoadComplete]);
 
   const signUp = async (email: string, password: string, fullName: string, customRedirectUrl?: string) => {
     const redirectUrl = customRedirectUrl || `${window.location.origin}/`;
