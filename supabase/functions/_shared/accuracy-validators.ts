@@ -247,27 +247,109 @@ export function validateNAICSIndustryMatch(
 // ============================================================================
 
 /**
+ * City aliases for common abbreviations and nicknames
+ * Enables matching "LA" to "Los Angeles", "NYC" to "New York", etc.
+ */
+const CITY_ALIASES: Record<string, string[]> = {
+  // California
+  'Los Angeles': ['LA', 'L.A.'],
+  'San Francisco': ['SF', 'S.F.', 'Frisco', 'Bay Area'],
+  
+  // New York
+  'New York': ['NYC', 'NY City', 'New York City', 'Manhattan'],
+  
+  // Nevada
+  'Las Vegas': ['Vegas', 'LV'],
+  
+  // Pennsylvania
+  'Philadelphia': ['Philly', 'PHL'],
+  
+  // Texas
+  'Dallas': ['DFW', 'Big D'],
+  'Houston': ['HTX', 'H-Town'],
+  'San Antonio': ['SA', 'San Antone'],
+  
+  // Florida
+  'Miami': ['MIA'],
+  'Tampa': ['Tampa Bay'],
+  
+  // Illinois
+  'Chicago': ['Chi-Town', 'CHI'],
+  
+  // District of Columbia
+  'Washington': ['DC', 'D.C.', 'Washington DC', 'Washington D.C.'],
+  
+  // Massachusetts
+  'Boston': ['Beantown'],
+  
+  // Georgia
+  'Atlanta': ['ATL', 'Hotlanta'],
+  
+  // Arizona
+  'Phoenix': ['PHX', 'The Valley'],
+  
+  // Colorado
+  'Denver': ['Mile High City'],
+  
+  // Oregon
+  'Portland': ['PDX', 'Stumptown'],
+  
+  // Washington
+  'Seattle': ['SEA', 'Emerald City'],
+  
+  // Minnesota
+  'Minneapolis': ['MPLS', 'Mill City'],
+  'Saint Paul': ['St. Paul', 'St Paul'],
+  
+  // Missouri
+  'Saint Louis': ['St. Louis', 'St Louis', 'STL'],
+  
+  // Louisiana
+  'New Orleans': ['NOLA', 'The Big Easy'],
+  
+  // Tennessee
+  'Nashville': ['Music City'],
+  
+  // Michigan
+  'Detroit': ['Motor City', 'Motown'],
+  
+  // Kentucky
+  'Louisville': ['Lou', 'Derby City'],
+  
+  // New Jersey
+  'Atlantic City': ['AC'],
+  
+  // Ohio
+  'Cincinnati': ['Cincy', 'The Nati'],
+  'Cleveland': ['CLE', 'The Land'],
+};
+
+/**
  * US state abbreviation to major cities mapping
- * Contains 500+ major cities across all 50 states
+ * Contains 700+ cities across all 50 states including suburbs
  */
 const US_STATE_CITIES: Record<string, string[]> = {
   // Alabama
-  'AL': ['Birmingham', 'Montgomery', 'Huntsville', 'Mobile', 'Tuscaloosa', 'Hoover', 'Dothan', 'Auburn', 'Decatur', 'Madison'],
+  'AL': ['Birmingham', 'Montgomery', 'Huntsville', 'Mobile', 'Tuscaloosa', 'Hoover', 'Dothan', 'Auburn', 'Decatur', 'Madison',
+         'Florence', 'Gadsden', 'Vestavia Hills', 'Prattville', 'Phenix City', 'Alabaster', 'Bessemer', 'Enterprise', 'Opelika', 'Homewood'],
   'Alabama': ['Birmingham', 'Montgomery', 'Huntsville', 'Mobile', 'Tuscaloosa', 'Hoover', 'Dothan', 'Auburn'],
   
-  // Alaska
-  'AK': ['Anchorage', 'Fairbanks', 'Juneau', 'Sitka', 'Ketchikan', 'Wasilla', 'Kenai', 'Kodiak'],
+  // Alaska - Enhanced coverage
+  'AK': ['Anchorage', 'Fairbanks', 'Juneau', 'Sitka', 'Ketchikan', 'Wasilla', 'Kenai', 'Kodiak',
+         'Palmer', 'North Pole', 'Seward', 'Homer', 'Valdez', 'Bethel', 'Nome', 'Barrow', 'Soldotna', 'Petersburg'],
   'Alaska': ['Anchorage', 'Fairbanks', 'Juneau', 'Sitka', 'Ketchikan', 'Wasilla'],
   
   // Arizona
-  'AZ': ['Phoenix', 'Tucson', 'Mesa', 'Chandler', 'Scottsdale', 'Gilbert', 'Glendale', 'Tempe', 'Peoria', 'Surprise', 'Yuma', 'Flagstaff'],
+  'AZ': ['Phoenix', 'Tucson', 'Mesa', 'Chandler', 'Scottsdale', 'Gilbert', 'Glendale', 'Tempe', 'Peoria', 'Surprise', 'Yuma', 'Flagstaff',
+         'Goodyear', 'Avondale', 'Buckeye', 'Casa Grande', 'Lake Havasu City', 'Maricopa', 'Sierra Vista', 'Prescott', 'Apache Junction', 'Queen Creek'],
   'Arizona': ['Phoenix', 'Tucson', 'Mesa', 'Chandler', 'Scottsdale', 'Gilbert', 'Glendale', 'Tempe'],
   
   // Arkansas
-  'AR': ['Little Rock', 'Fort Smith', 'Fayetteville', 'Springdale', 'Jonesboro', 'Rogers', 'Conway', 'Bentonville', 'Pine Bluff'],
+  'AR': ['Little Rock', 'Fort Smith', 'Fayetteville', 'Springdale', 'Jonesboro', 'Rogers', 'Conway', 'Bentonville', 'Pine Bluff',
+         'North Little Rock', 'Hot Springs', 'Benton', 'Texarkana', 'Sherwood', 'Jacksonville', 'Russellville', 'Bella Vista', 'West Memphis', 'Paragould', 'Cabot'],
   'Arkansas': ['Little Rock', 'Fort Smith', 'Fayetteville', 'Springdale', 'Jonesboro'],
   
-  // California
+  // California - Massively expanded with suburbs
   'CA': ['Los Angeles', 'San Diego', 'San Jose', 'San Francisco', 'Fresno', 'Sacramento', 'Long Beach', 'Oakland', 'Bakersfield', 'Anaheim', 
          'Santa Ana', 'Riverside', 'Stockton', 'Irvine', 'Chula Vista', 'Fremont', 'San Bernardino', 'Modesto', 'Fontana', 'Moreno Valley',
          'Glendale', 'Huntington Beach', 'Santa Clarita', 'Garden Grove', 'Oceanside', 'Rancho Cucamonga', 'Ontario', 'Santa Rosa', 'Elk Grove',
@@ -276,210 +358,317 @@ const US_STATE_CITIES: Record<string, string[]> = {
          'Downey', 'Costa Mesa', 'Inglewood', 'Carlsbad', 'Fairfield', 'Ventura', 'Temecula', 'Antioch', 'Richmond', 'West Covina',
          'Murrieta', 'Norwalk', 'Daly City', 'Burbank', 'El Cajon', 'Rialto', 'San Mateo', 'Clovis', 'Compton', 'Jurupa Valley',
          'Vista', 'South Gate', 'Mission Viejo', 'Vacaville', 'Carson', 'Hesperia', 'Santa Maria', 'Redding', 'Westminster', 'Santa Monica',
-         'Palo Alto', 'Mountain View', 'Cupertino', 'Menlo Park', 'Redwood City', 'San Ramon', 'Pleasanton', 'Walnut Creek', 'Foster City'],
+         'Palo Alto', 'Mountain View', 'Cupertino', 'Menlo Park', 'Redwood City', 'San Ramon', 'Pleasanton', 'Walnut Creek', 'Foster City',
+         // New additions - South Bay, Inland Empire, Beach Cities
+         'Chico', 'Redlands', 'Arcadia', 'Whittier', 'Newport Beach', 'San Clemente', 'Laguna Beach', 'Hermosa Beach', 'Manhattan Beach',
+         'Rancho Mirage', 'Palm Springs', 'Palm Desert', 'Indio', 'Coachella', 'Gilroy', 'Morgan Hill', 'Los Gatos', 'Saratoga', 'Campbell',
+         'Millbrae', 'San Bruno', 'Pacifica', 'Half Moon Bay', 'Livermore', 'Dublin', 'San Leandro', 'Union City', 'Alameda', 'Emeryville',
+         'Napa', 'Santa Cruz', 'Monterey', 'Carmel', 'San Luis Obispo', 'Santa Barbara', 'Oxnard', 'Camarillo', 'Solvang', 'Lompoc',
+         'Petaluma', 'Novato', 'San Rafael', 'Mill Valley', 'Tiburon', 'Sausalito', 'Danville', 'Lafayette', 'Orinda', 'Moraga',
+         'Cerritos', 'La Mirada', 'Lakewood', 'Paramount', 'Bellflower', 'Cypress', 'Buena Park', 'La Habra', 'Brea', 'Yorba Linda',
+         'Lake Forest', 'Laguna Niguel', 'Aliso Viejo', 'Dana Point', 'San Juan Capistrano', 'Rancho Santa Margarita', 'Ladera Ranch'],
   'California': ['Los Angeles', 'San Diego', 'San Jose', 'San Francisco', 'Fresno', 'Sacramento', 'Oakland'],
   
-  // Colorado
+  // Colorado - Enhanced with Front Range suburbs
   'CO': ['Denver', 'Colorado Springs', 'Aurora', 'Fort Collins', 'Lakewood', 'Thornton', 'Arvada', 'Westminster', 'Pueblo', 'Centennial',
-         'Boulder', 'Greeley', 'Longmont', 'Loveland', 'Grand Junction', 'Broomfield', 'Castle Rock', 'Commerce City', 'Parker', 'Littleton'],
+         'Boulder', 'Greeley', 'Longmont', 'Loveland', 'Grand Junction', 'Broomfield', 'Castle Rock', 'Commerce City', 'Parker', 'Littleton',
+         'Highlands Ranch', 'Northglenn', 'Brighton', 'Englewood', 'Wheat Ridge', 'Golden', 'Louisville', 'Lafayette', 'Erie', 'Superior',
+         'Frederick', 'Firestone', 'Windsor', 'Durango', 'Steamboat Springs', 'Aspen', 'Vail', 'Breckenridge', 'Telluride', 'Glenwood Springs'],
   'Colorado': ['Denver', 'Colorado Springs', 'Aurora', 'Fort Collins', 'Boulder', 'Lakewood'],
   
-  // Connecticut
-  'CT': ['Bridgeport', 'New Haven', 'Hartford', 'Stamford', 'Waterbury', 'Norwalk', 'Danbury', 'New Britain', 'Bristol', 'West Hartford', 'Meriden', 'Greenwich'],
+  // Connecticut - Enhanced coverage
+  'CT': ['Bridgeport', 'New Haven', 'Hartford', 'Stamford', 'Waterbury', 'Norwalk', 'Danbury', 'New Britain', 'Bristol', 'West Hartford', 'Meriden', 'Greenwich',
+         'Fairfield', 'Hamden', 'Manchester', 'East Hartford', 'Milford', 'Stratford', 'Middletown', 'Shelton', 'Norwich', 'Torrington',
+         'Westport', 'Darien', 'New Canaan', 'Ridgefield', 'Wilton', 'Trumbull', 'Monroe', 'Newtown', 'Glastonbury', 'Farmington'],
   'Connecticut': ['Bridgeport', 'New Haven', 'Hartford', 'Stamford', 'Waterbury', 'Norwalk'],
   
-  // Delaware
-  'DE': ['Wilmington', 'Dover', 'Newark', 'Middletown', 'Smyrna', 'Milford', 'Seaford', 'Georgetown'],
+  // Delaware - Enhanced coverage
+  'DE': ['Wilmington', 'Dover', 'Newark', 'Middletown', 'Smyrna', 'Milford', 'Seaford', 'Georgetown',
+         'Lewes', 'Rehoboth Beach', 'Claymont', 'Elsmere', 'New Castle', 'Bear', 'Hockessin', 'Pike Creek', 'Brookside', 'Glasgow', 'Bethany Beach', 'Dewey Beach'],
   'Delaware': ['Wilmington', 'Dover', 'Newark', 'Middletown'],
   
-  // Florida
+  // Florida - Enhanced with suburban cities
   'FL': ['Jacksonville', 'Miami', 'Tampa', 'Orlando', 'St. Petersburg', 'Hialeah', 'Port St. Lucie', 'Cape Coral', 'Tallahassee', 'Fort Lauderdale',
          'Pembroke Pines', 'Hollywood', 'Miramar', 'Gainesville', 'Coral Springs', 'Miami Gardens', 'Clearwater', 'Palm Bay', 'Pompano Beach',
-         'West Palm Beach', 'Lakeland', 'Davie', 'Boca Raton', 'Sunrise', 'Plantation', 'Deerfield Beach', 'Deltona', 'Palm Coast', 'Fort Myers', 'Naples'],
+         'West Palm Beach', 'Lakeland', 'Davie', 'Boca Raton', 'Sunrise', 'Plantation', 'Deerfield Beach', 'Deltona', 'Palm Coast', 'Fort Myers', 'Naples',
+         'Sarasota', 'Bradenton', 'Melbourne', 'Kissimmee', 'Ocala', 'Daytona Beach', 'Pensacola', 'Panama City', 'Key West', 'Destin',
+         'Aventura', 'Weston', 'Coral Gables', 'Miami Beach', 'Coconut Creek', 'Margate', 'Tamarac', 'Jupiter', 'Wellington', 'Royal Palm Beach',
+         'Boynton Beach', 'Delray Beach', 'Lake Worth', 'Riviera Beach', 'Sanford', 'Winter Park', 'Oviedo', 'Winter Garden', 'Apopka', 'Clermont'],
   'Florida': ['Jacksonville', 'Miami', 'Tampa', 'Orlando', 'St. Petersburg', 'Fort Lauderdale'],
   
-  // Georgia
-  'GA': ['Atlanta', 'Augusta', 'Columbus', 'Savannah', 'Athens', 'Sandy Springs', 'Roswell', 'Macon', 'Johns Creek', 'Albany', 'Warner Robins', 'Alpharetta', 'Marietta'],
+  // Georgia - Enhanced with Atlanta suburbs
+  'GA': ['Atlanta', 'Augusta', 'Columbus', 'Savannah', 'Athens', 'Sandy Springs', 'Roswell', 'Macon', 'Johns Creek', 'Albany', 'Warner Robins', 'Alpharetta', 'Marietta',
+         'Brookhaven', 'Smyrna', 'Dunwoody', 'Peachtree City', 'Kennesaw', 'Lawrenceville', 'Duluth', 'Gainesville', 'Woodstock', 'Canton', 'Newnan',
+         'Carrollton', 'Griffin', 'Dalton', 'LaGrange', 'Rome', 'Valdosta', 'Statesboro', 'Brunswick', 'Douglasville', 'Acworth', 'Tucker', 'Decatur'],
   'Georgia': ['Atlanta', 'Augusta', 'Columbus', 'Savannah', 'Athens', 'Macon'],
   
-  // Hawaii
-  'HI': ['Honolulu', 'Pearl City', 'Hilo', 'Kailua', 'Waipahu', 'Kaneohe', 'Mililani Town', 'Kahului'],
+  // Hawaii - Enhanced coverage
+  'HI': ['Honolulu', 'Pearl City', 'Hilo', 'Kailua', 'Waipahu', 'Kaneohe', 'Mililani Town', 'Kahului',
+         'Kapolei', 'Ewa Beach', 'Lahaina', 'Kihei', 'Wailea', 'Kona', 'Kailua-Kona', 'Captain Cook', 'Waimea', 'Lihue', 'Poipu', 'Princeville'],
   'Hawaii': ['Honolulu', 'Pearl City', 'Hilo', 'Kailua'],
   
-  // Idaho
-  'ID': ['Boise', 'Meridian', 'Nampa', 'Idaho Falls', 'Pocatello', 'Caldwell', 'Coeur d\'Alene', 'Twin Falls'],
+  // Idaho - Enhanced coverage
+  'ID': ['Boise', 'Meridian', 'Nampa', 'Idaho Falls', 'Pocatello', 'Caldwell', 'Coeur d\'Alene', 'Twin Falls',
+         'Post Falls', 'Lewiston', 'Rexburg', 'Moscow', 'Eagle', 'Kuna', 'Ammon', 'Chubbuck', 'Mountain Home', 'Sandpoint', 'Sun Valley', 'Ketchum'],
   'Idaho': ['Boise', 'Meridian', 'Nampa', 'Idaho Falls', 'Pocatello'],
   
-  // Illinois
+  // Illinois - Enhanced with Chicago suburbs
   'IL': ['Chicago', 'Aurora', 'Rockford', 'Joliet', 'Naperville', 'Springfield', 'Peoria', 'Elgin', 'Champaign', 'Waukegan',
-         'Cicero', 'Bloomington', 'Arlington Heights', 'Evanston', 'Schaumburg', 'Decatur', 'Bolingbrook', 'Palatine', 'Skokie'],
+         'Cicero', 'Bloomington', 'Arlington Heights', 'Evanston', 'Schaumburg', 'Decatur', 'Bolingbrook', 'Palatine', 'Skokie',
+         'Des Plaines', 'Orland Park', 'Tinley Park', 'Oak Lawn', 'Berwyn', 'Mount Prospect', 'Normal', 'Oak Park', 'Downers Grove', 'Wheaton',
+         'Elmhurst', 'Lombard', 'Buffalo Grove', 'Hoffman Estates', 'Glenview', 'Bartlett', 'Crystal Lake', 'Carol Stream', 'Romeoville', 'Plainfield',
+         'Oswego', 'Lisle', 'Woodridge', 'Addison', 'Hanover Park', 'St. Charles', 'Geneva', 'Batavia', 'Lake Zurich', 'Vernon Hills'],
   'Illinois': ['Chicago', 'Aurora', 'Rockford', 'Joliet', 'Naperville', 'Springfield'],
   
-  // Indiana
-  'IN': ['Indianapolis', 'Fort Wayne', 'Evansville', 'South Bend', 'Carmel', 'Bloomington', 'Fishers', 'Hammond', 'Gary', 'Lafayette', 'Muncie', 'Terre Haute'],
+  // Indiana - Enhanced coverage
+  'IN': ['Indianapolis', 'Fort Wayne', 'Evansville', 'South Bend', 'Carmel', 'Bloomington', 'Fishers', 'Hammond', 'Gary', 'Lafayette', 'Muncie', 'Terre Haute',
+         'Noblesville', 'Westfield', 'Greenwood', 'Kokomo', 'Mishawaka', 'Lawrence', 'Jeffersonville', 'Anderson', 'Columbus', 'Elkhart',
+         'Valparaiso', 'Portage', 'Crown Point', 'Schererville', 'Merrillville', 'Goshen', 'New Albany', 'Richmond', 'Zionsville', 'Avon'],
   'Indiana': ['Indianapolis', 'Fort Wayne', 'Evansville', 'South Bend', 'Carmel', 'Bloomington'],
   
-  // Iowa
-  'IA': ['Des Moines', 'Cedar Rapids', 'Davenport', 'Sioux City', 'Iowa City', 'Waterloo', 'Ames', 'West Des Moines', 'Council Bluffs', 'Dubuque'],
+  // Iowa - Enhanced coverage
+  'IA': ['Des Moines', 'Cedar Rapids', 'Davenport', 'Sioux City', 'Iowa City', 'Waterloo', 'Ames', 'West Des Moines', 'Council Bluffs', 'Dubuque',
+         'Ankeny', 'Urbandale', 'Bettendorf', 'Marion', 'Cedar Falls', 'Coralville', 'Johnston', 'Clinton', 'Mason City', 'Fort Dodge', 'Burlington', 'Ottumwa'],
   'Iowa': ['Des Moines', 'Cedar Rapids', 'Davenport', 'Sioux City', 'Iowa City'],
   
-  // Kansas
-  'KS': ['Wichita', 'Overland Park', 'Kansas City', 'Olathe', 'Topeka', 'Lawrence', 'Shawnee', 'Manhattan', 'Lenexa', 'Salina'],
+  // Kansas - Enhanced coverage
+  'KS': ['Wichita', 'Overland Park', 'Kansas City', 'Olathe', 'Topeka', 'Lawrence', 'Shawnee', 'Manhattan', 'Lenexa', 'Salina',
+         'Hutchinson', 'Leavenworth', 'Leawood', 'Dodge City', 'Garden City', 'Emporia', 'Derby', 'Prairie Village', 'Hays', 'Liberal', 'Junction City', 'Pittsburg'],
   'Kansas': ['Wichita', 'Overland Park', 'Kansas City', 'Olathe', 'Topeka', 'Lawrence'],
   
-  // Kentucky
-  'KY': ['Louisville', 'Lexington', 'Bowling Green', 'Owensboro', 'Covington', 'Hopkinsville', 'Richmond', 'Florence', 'Georgetown'],
+  // Kentucky - Enhanced coverage
+  'KY': ['Louisville', 'Lexington', 'Bowling Green', 'Owensboro', 'Covington', 'Hopkinsville', 'Richmond', 'Florence', 'Georgetown',
+         'Elizabethtown', 'Nicholasville', 'Henderson', 'Frankfort', 'Paducah', 'Ashland', 'Radcliff', 'Murray', 'Danville', 'Erlanger', 'Burlington', 'Winchester', 'St. Matthews'],
   'Kentucky': ['Louisville', 'Lexington', 'Bowling Green', 'Owensboro', 'Covington'],
   
-  // Louisiana
-  'LA': ['New Orleans', 'Baton Rouge', 'Shreveport', 'Metairie', 'Lafayette', 'Lake Charles', 'Kenner', 'Bossier City', 'Monroe', 'Alexandria'],
+  // Louisiana - Enhanced coverage
+  'LA': ['New Orleans', 'Baton Rouge', 'Shreveport', 'Metairie', 'Lafayette', 'Lake Charles', 'Kenner', 'Bossier City', 'Monroe', 'Alexandria',
+         'Houma', 'Marrero', 'New Iberia', 'Slidell', 'Central', 'Ruston', 'Hammond', 'Harvey', 'Natchitoches', 'Sulphur', 'Zachary', 'Mandeville', 'Covington'],
   'Louisiana': ['New Orleans', 'Baton Rouge', 'Shreveport', 'Lafayette', 'Lake Charles'],
   
-  // Maine
-  'ME': ['Portland', 'Lewiston', 'Bangor', 'South Portland', 'Auburn', 'Biddeford', 'Sanford', 'Scarborough'],
+  // Maine - Enhanced coverage
+  'ME': ['Portland', 'Lewiston', 'Bangor', 'South Portland', 'Auburn', 'Biddeford', 'Sanford', 'Scarborough',
+         'Brunswick', 'Westbrook', 'Saco', 'Augusta', 'Waterville', 'Presque Isle', 'Gorham', 'Falmouth', 'Kennebunk', 'Kittery', 'Bar Harbor', 'Camden', 'Rockland'],
   'Maine': ['Portland', 'Lewiston', 'Bangor', 'South Portland', 'Auburn'],
   
-  // Maryland
-  'MD': ['Baltimore', 'Frederick', 'Rockville', 'Gaithersburg', 'Bowie', 'Hagerstown', 'Annapolis', 'College Park', 'Salisbury', 'Bethesda', 'Silver Spring'],
+  // Maryland - Enhanced with DC suburbs
+  'MD': ['Baltimore', 'Frederick', 'Rockville', 'Gaithersburg', 'Bowie', 'Hagerstown', 'Annapolis', 'College Park', 'Salisbury', 'Bethesda', 'Silver Spring',
+         'Columbia', 'Germantown', 'Waldorf', 'Glen Burnie', 'Ellicott City', 'Dundalk', 'Towson', 'Potomac', 'Aspen Hill', 'Wheaton', 'Catonsville',
+         'Pikesville', 'Parkville', 'Randallstown', 'Severna Park', 'Laurel', 'Greenbelt', 'Takoma Park', 'Hyattsville', 'Chevy Chase', 'Kensington'],
   'Maryland': ['Baltimore', 'Frederick', 'Rockville', 'Gaithersburg', 'Annapolis'],
   
-  // Massachusetts
+  // Massachusetts - Enhanced with Boston suburbs
   'MA': ['Boston', 'Worcester', 'Springfield', 'Cambridge', 'Lowell', 'Brockton', 'New Bedford', 'Quincy', 'Lynn', 'Fall River', 
-         'Newton', 'Lawrence', 'Somerville', 'Framingham', 'Haverhill', 'Waltham', 'Malden', 'Brookline', 'Medford', 'Taunton'],
+         'Newton', 'Lawrence', 'Somerville', 'Framingham', 'Haverhill', 'Waltham', 'Malden', 'Brookline', 'Medford', 'Taunton',
+         'Plymouth', 'Weymouth', 'Peabody', 'Revere', 'Methuen', 'Barnstable', 'Pittsfield', 'Attleboro', 'Everett', 'Salem',
+         'Beverly', 'Marlborough', 'Arlington', 'Watertown', 'Needham', 'Wellesley', 'Lexington', 'Concord', 'Natick', 'Dedham',
+         'Burlington', 'Andover', 'Chelmsford', 'Billerica', 'Woburn', 'Reading', 'Wakefield', 'Stoneham', 'Norwood', 'Canton'],
   'Massachusetts': ['Boston', 'Worcester', 'Springfield', 'Cambridge', 'Lowell'],
   
-  // Michigan
+  // Michigan - Enhanced coverage
   'MI': ['Detroit', 'Grand Rapids', 'Warren', 'Sterling Heights', 'Ann Arbor', 'Lansing', 'Flint', 'Dearborn', 'Livonia', 'Troy',
-         'Westland', 'Farmington Hills', 'Kalamazoo', 'Wyoming', 'Rochester Hills', 'Southfield', 'Taylor', 'Pontiac', 'St. Clair Shores', 'Royal Oak'],
+         'Westland', 'Farmington Hills', 'Kalamazoo', 'Wyoming', 'Rochester Hills', 'Southfield', 'Taylor', 'Pontiac', 'St. Clair Shores', 'Royal Oak',
+         'Novi', 'Canton', 'Waterford', 'Clinton Township', 'Shelby Township', 'Macomb Township', 'Battle Creek', 'Muskegon', 'Holland', 'Portage',
+         'Saginaw', 'Bay City', 'Midland', 'East Lansing', 'Auburn Hills', 'Birmingham', 'Bloomfield Hills', 'Northville', 'Plymouth', 'Traverse City'],
   'Michigan': ['Detroit', 'Grand Rapids', 'Warren', 'Ann Arbor', 'Lansing', 'Flint'],
   
-  // Minnesota
-  'MN': ['Minneapolis', 'Saint Paul', 'St. Paul', 'Rochester', 'Bloomington', 'Duluth', 'Brooklyn Park', 'Plymouth', 'St. Cloud', 'Woodbury', 'Eagan', 'Maple Grove', 'Eden Prairie'],
+  // Minnesota - Enhanced with Twin Cities suburbs
+  'MN': ['Minneapolis', 'Saint Paul', 'St. Paul', 'Rochester', 'Bloomington', 'Duluth', 'Brooklyn Park', 'Plymouth', 'St. Cloud', 'Woodbury', 'Eagan', 'Maple Grove', 'Eden Prairie',
+         'Burnsville', 'Lakeville', 'Blaine', 'Coon Rapids', 'Apple Valley', 'Edina', 'Minnetonka', 'St. Louis Park', 'Shakopee', 'Richfield', 'Cottage Grove',
+         'Moorhead', 'Mankato', 'Inver Grove Heights', 'Savage', 'Roseville', 'Fridley', 'Shoreview', 'Maplewood', 'Oakdale', 'Chaska', 'Prior Lake', 'Andover'],
   'Minnesota': ['Minneapolis', 'Saint Paul', 'St. Paul', 'Rochester', 'Bloomington', 'Duluth'],
   
-  // Mississippi
-  'MS': ['Jackson', 'Gulfport', 'Southaven', 'Hattiesburg', 'Biloxi', 'Meridian', 'Tupelo', 'Greenville', 'Olive Branch', 'Horn Lake'],
+  // Mississippi - Enhanced coverage
+  'MS': ['Jackson', 'Gulfport', 'Southaven', 'Hattiesburg', 'Biloxi', 'Meridian', 'Tupelo', 'Greenville', 'Olive Branch', 'Horn Lake',
+         'Pearl', 'Madison', 'Clinton', 'Brandon', 'Starkville', 'Columbus', 'Vicksburg', 'Pascagoula', 'Ocean Springs', 'Ridgeland', 'Flowood', 'Oxford'],
   'Mississippi': ['Jackson', 'Gulfport', 'Southaven', 'Hattiesburg', 'Biloxi'],
   
-  // Missouri
-  'MO': ['Kansas City', 'St. Louis', 'Saint Louis', 'Springfield', 'Independence', 'Columbia', 'Lee\'s Summit', 'O\'Fallon', 'St. Joseph', 'St. Charles', 'Blue Springs', 'St. Peters'],
+  // Missouri - Enhanced coverage
+  'MO': ['Kansas City', 'St. Louis', 'Saint Louis', 'Springfield', 'Independence', 'Columbia', 'Lee\'s Summit', 'O\'Fallon', 'St. Joseph', 'St. Charles', 'Blue Springs', 'St. Peters',
+         'Florissant', 'Joplin', 'Chesterfield', 'Jefferson City', 'Cape Girardeau', 'Wildwood', 'University City', 'Ballwin', 'Raytown', 'Liberty',
+         'Gladstone', 'Wentzville', 'Maryland Heights', 'Hazelwood', 'Creve Coeur', 'Webster Groves', 'Kirkwood', 'Clayton', 'Ferguson', 'Overland'],
   'Missouri': ['Kansas City', 'St. Louis', 'Saint Louis', 'Springfield', 'Independence', 'Columbia'],
   
-  // Montana
-  'MT': ['Billings', 'Missoula', 'Great Falls', 'Bozeman', 'Butte', 'Helena', 'Kalispell', 'Havre'],
+  // Montana - Enhanced coverage
+  'MT': ['Billings', 'Missoula', 'Great Falls', 'Bozeman', 'Butte', 'Helena', 'Kalispell', 'Havre',
+         'Anaconda', 'Miles City', 'Livingston', 'Whitefish', 'Belgrade', 'Laurel', 'Sidney', 'Lewistown', 'Polson', 'Hamilton', 'Dillon', 'Columbia Falls'],
   'Montana': ['Billings', 'Missoula', 'Great Falls', 'Bozeman', 'Butte', 'Helena'],
   
-  // Nebraska
-  'NE': ['Omaha', 'Lincoln', 'Bellevue', 'Grand Island', 'Kearney', 'Fremont', 'Hastings', 'Norfolk', 'North Platte'],
+  // Nebraska - Enhanced coverage
+  'NE': ['Omaha', 'Lincoln', 'Bellevue', 'Grand Island', 'Kearney', 'Fremont', 'Hastings', 'Norfolk', 'North Platte',
+         'Papillion', 'La Vista', 'Columbus', 'Scottsbluff', 'South Sioux City', 'Beatrice', 'Lexington', 'Gering', 'Alliance', 'Blair', 'York', 'McCook', 'Seward'],
   'Nebraska': ['Omaha', 'Lincoln', 'Bellevue', 'Grand Island', 'Kearney'],
   
-  // Nevada
-  'NV': ['Las Vegas', 'Henderson', 'Reno', 'North Las Vegas', 'Sparks', 'Carson City', 'Fernley', 'Elko'],
+  // Nevada - Enhanced coverage
+  'NV': ['Las Vegas', 'Henderson', 'Reno', 'North Las Vegas', 'Sparks', 'Carson City', 'Fernley', 'Elko',
+         'Mesquite', 'Boulder City', 'Fallon', 'Winnemucca', 'Summerlin', 'Enterprise', 'Paradise', 'Sunrise Manor', 'Spring Valley', 'Whitney', 'Pahrump', 'Laughlin'],
   'Nevada': ['Las Vegas', 'Henderson', 'Reno', 'North Las Vegas', 'Sparks', 'Carson City'],
   
-  // New Hampshire
-  'NH': ['Manchester', 'Nashua', 'Concord', 'Derry', 'Dover', 'Rochester', 'Salem', 'Merrimack'],
+  // New Hampshire - Enhanced coverage
+  'NH': ['Manchester', 'Nashua', 'Concord', 'Derry', 'Dover', 'Rochester', 'Salem', 'Merrimack',
+         'Hudson', 'Londonderry', 'Keene', 'Portsmouth', 'Laconia', 'Lebanon', 'Hampton', 'Exeter', 'Hanover', 'Durham', 'Bedford', 'Amherst', 'Windham', 'Milford'],
   'New Hampshire': ['Manchester', 'Nashua', 'Concord', 'Derry', 'Dover'],
   
-  // New Jersey
+  // New Jersey - Enhanced with more suburbs
   'NJ': ['Newark', 'Jersey City', 'Paterson', 'Elizabeth', 'Lakewood', 'Edison', 'Woodbridge', 'Toms River', 'Trenton', 'Clifton',
-         'Camden', 'Brick', 'Cherry Hill', 'Passaic', 'Union City', 'Old Bridge', 'Middletown', 'Bayonne', 'East Orange', 'Franklin', 'Princeton', 'Hoboken'],
+         'Camden', 'Brick', 'Cherry Hill', 'Passaic', 'Union City', 'Old Bridge', 'Middletown', 'Bayonne', 'East Orange', 'Franklin', 'Princeton', 'Hoboken',
+         'North Bergen', 'Vineland', 'Union', 'Piscataway', 'New Brunswick', 'Jackson', 'Wayne', 'Irvington', 'Parsippany', 'Howell',
+         'Perth Amboy', 'Plainfield', 'Bloomfield', 'West New York', 'East Brunswick', 'Hackensack', 'Sayreville', 'Kearny', 'Linden', 'Atlantic City',
+         'Montclair', 'West Orange', 'Livingston', 'Millburn', 'Short Hills', 'Summit', 'Morristown', 'Madison', 'Red Bank', 'Long Branch'],
   'New Jersey': ['Newark', 'Jersey City', 'Paterson', 'Elizabeth', 'Trenton', 'Camden'],
   
-  // New Mexico
-  'NM': ['Albuquerque', 'Las Cruces', 'Rio Rancho', 'Santa Fe', 'Roswell', 'Farmington', 'Clovis', 'Hobbs', 'Alamogordo'],
+  // New Mexico - Enhanced coverage
+  'NM': ['Albuquerque', 'Las Cruces', 'Rio Rancho', 'Santa Fe', 'Roswell', 'Farmington', 'Clovis', 'Hobbs', 'Alamogordo',
+         'Carlsbad', 'Gallup', 'Deming', 'Los Lunas', 'Sunland Park', 'Las Vegas', 'Portales', 'Artesia', 'Lovington', 'Espanola', 'Silver City', 'Taos', 'Los Alamos'],
   'New Mexico': ['Albuquerque', 'Las Cruces', 'Rio Rancho', 'Santa Fe', 'Roswell'],
   
-  // New York
+  // New York - Enhanced with NYC boroughs and suburbs
   'NY': ['New York', 'New York City', 'NYC', 'Buffalo', 'Rochester', 'Yonkers', 'Syracuse', 'Albany', 'New Rochelle', 'Mount Vernon',
          'Schenectady', 'Utica', 'White Plains', 'Troy', 'Niagara Falls', 'Binghamton', 'Freeport', 'Long Beach', 'Ithaca', 'Poughkeepsie',
-         'Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island'],
+         'Manhattan', 'Brooklyn', 'Queens', 'Bronx', 'Staten Island',
+         'Hempstead', 'Brookhaven', 'Islip', 'Oyster Bay', 'Huntington', 'Babylon', 'Smithtown', 'Southampton', 'Riverhead', 'East Hampton',
+         'Garden City', 'Great Neck', 'Port Washington', 'Manhasset', 'Mineola', 'Westbury', 'Jericho', 'Syosset', 'Massapequa', 'Levittown',
+         'Tarrytown', 'Sleepy Hollow', 'Mamaroneck', 'Larchmont', 'Rye', 'Harrison', 'Scarsdale', 'Bronxville', 'Tuckahoe', 'Eastchester', 'Pelham'],
   'New York': ['New York', 'New York City', 'NYC', 'Buffalo', 'Rochester', 'Syracuse', 'Albany'],
   
-  // North Carolina
+  // North Carolina - Enhanced coverage
   'NC': ['Charlotte', 'Raleigh', 'Greensboro', 'Durham', 'Winston-Salem', 'Fayetteville', 'Cary', 'Wilmington', 'High Point', 'Concord',
-         'Greenville', 'Asheville', 'Gastonia', 'Jacksonville', 'Chapel Hill', 'Huntersville', 'Apex', 'Wake Forest', 'Kannapolis'],
+         'Greenville', 'Asheville', 'Gastonia', 'Jacksonville', 'Chapel Hill', 'Huntersville', 'Apex', 'Wake Forest', 'Kannapolis',
+         'Indian Trail', 'Mooresville', 'Rocky Mount', 'Burlington', 'Wilson', 'Hickory', 'Salisbury', 'Monroe', 'Matthews', 'Cornelius', 'Davidson',
+         'Pinehurst', 'Southern Pines', 'Sanford', 'Goldsboro', 'New Bern', 'Morehead City', 'Boone', 'Lumberton', 'Statesville', 'Thomasville'],
   'North Carolina': ['Charlotte', 'Raleigh', 'Greensboro', 'Durham', 'Winston-Salem', 'Fayetteville'],
   
-  // North Dakota
-  'ND': ['Fargo', 'Bismarck', 'Grand Forks', 'Minot', 'West Fargo', 'Williston', 'Mandan', 'Dickinson'],
+  // North Dakota - Enhanced coverage
+  'ND': ['Fargo', 'Bismarck', 'Grand Forks', 'Minot', 'West Fargo', 'Williston', 'Mandan', 'Dickinson',
+         'Jamestown', 'Wahpeton', 'Devils Lake', 'Valley City', 'Grafton', 'Beulah', 'Rugby', 'Bottineau', 'Watford City', 'Hazen', 'Carrington', 'Cavalier'],
   'North Dakota': ['Fargo', 'Bismarck', 'Grand Forks', 'Minot', 'West Fargo'],
   
-  // Ohio
+  // Ohio - Enhanced with Columbus/Cleveland suburbs
   'OH': ['Columbus', 'Cleveland', 'Cincinnati', 'Toledo', 'Akron', 'Dayton', 'Parma', 'Canton', 'Youngstown', 'Lorain',
-         'Hamilton', 'Springfield', 'Kettering', 'Elyria', 'Lakewood', 'Cuyahoga Falls', 'Middletown', 'Newark', 'Dublin', 'Westerville'],
+         'Hamilton', 'Springfield', 'Kettering', 'Elyria', 'Lakewood', 'Cuyahoga Falls', 'Middletown', 'Newark', 'Dublin', 'Westerville',
+         'Mentor', 'Beavercreek', 'Cleveland Heights', 'Strongsville', 'Fairfield', 'Grove City', 'Upper Arlington', 'Reynoldsburg', 'Hilliard', 'Lancaster',
+         'Warren', 'Mansfield', 'Findlay', 'Lima', 'Marion', 'Zanesville', 'Delaware', 'Wooster', 'Bowling Green', 'Mason', 'Solon', 'Hudson'],
   'Ohio': ['Columbus', 'Cleveland', 'Cincinnati', 'Toledo', 'Akron', 'Dayton'],
   
-  // Oklahoma
-  'OK': ['Oklahoma City', 'Tulsa', 'Norman', 'Broken Arrow', 'Edmond', 'Lawton', 'Moore', 'Midwest City', 'Enid', 'Stillwater'],
+  // Oklahoma - Enhanced coverage
+  'OK': ['Oklahoma City', 'Tulsa', 'Norman', 'Broken Arrow', 'Edmond', 'Lawton', 'Moore', 'Midwest City', 'Enid', 'Stillwater',
+         'Muskogee', 'Bartlesville', 'Owasso', 'Shawnee', 'Ponca City', 'Ardmore', 'Duncan', 'Del City', 'Yukon', 'Bixby',
+         'Jenks', 'Sand Springs', 'Sapulpa', 'Claremore', 'Mustang', 'Bethany', 'Altus', 'McAlester', 'El Reno', 'Tahlequah'],
   'Oklahoma': ['Oklahoma City', 'Tulsa', 'Norman', 'Broken Arrow', 'Edmond', 'Lawton'],
   
-  // Oregon
-  'OR': ['Portland', 'Eugene', 'Salem', 'Gresham', 'Hillsboro', 'Beaverton', 'Bend', 'Medford', 'Springfield', 'Corvallis', 'Albany', 'Tigard', 'Lake Oswego'],
+  // Oregon - Enhanced coverage
+  'OR': ['Portland', 'Eugene', 'Salem', 'Gresham', 'Hillsboro', 'Beaverton', 'Bend', 'Medford', 'Springfield', 'Corvallis', 'Albany', 'Tigard', 'Lake Oswego',
+         'Aloha', 'Keizer', 'Grants Pass', 'Oregon City', 'McMinnville', 'Redmond', 'Tualatin', 'West Linn', 'Woodburn', 'Forest Grove', 'Wilsonville',
+         'Newberg', 'Roseburg', 'Klamath Falls', 'Ashland', 'Milwaukie', 'Coos Bay', 'Canby', 'Pendleton', 'Hermiston', 'La Grande', 'Newport', 'Astoria'],
   'Oregon': ['Portland', 'Eugene', 'Salem', 'Gresham', 'Hillsboro', 'Beaverton', 'Bend'],
   
-  // Pennsylvania
+  // Pennsylvania - Enhanced with Philly/Pittsburgh suburbs
   'PA': ['Philadelphia', 'Pittsburgh', 'Allentown', 'Reading', 'Erie', 'Scranton', 'Bethlehem', 'Lancaster', 'Harrisburg', 'York',
-         'State College', 'Wilkes-Barre', 'Chester', 'Altoona', 'Norristown', 'King of Prussia', 'Conshohocken'],
+         'State College', 'Wilkes-Barre', 'Chester', 'Altoona', 'Norristown', 'King of Prussia', 'Conshohocken',
+         'Bensalem', 'Abington', 'Lower Merion', 'Upper Darby', 'Haverford', 'Radnor', 'Media', 'West Chester', 'Downingtown', 'Exton', 'Malvern',
+         'Plymouth Meeting', 'Blue Bell', 'Lansdale', 'Doylestown', 'Newtown', 'Warminster', 'Levittown', 'Bristol', 'Easton', 'Pottstown',
+         'Phoenixville', 'Collegeville', 'Royersford', 'Norristown', 'Ardmore', 'Bryn Mawr', 'Wayne', 'Devon', 'Villanova', 'Gladwyne'],
   'Pennsylvania': ['Philadelphia', 'Pittsburgh', 'Allentown', 'Reading', 'Erie', 'Harrisburg'],
   
-  // Rhode Island
-  'RI': ['Providence', 'Warwick', 'Cranston', 'Pawtucket', 'East Providence', 'Woonsocket', 'Newport', 'Central Falls'],
+  // Rhode Island - Enhanced coverage
+  'RI': ['Providence', 'Warwick', 'Cranston', 'Pawtucket', 'East Providence', 'Woonsocket', 'Newport', 'Central Falls',
+         'Lincoln', 'Cumberland', 'West Warwick', 'North Providence', 'South Kingstown', 'Coventry', 'Johnston', 'North Kingstown', 'Bristol', 'Barrington',
+         'Middletown', 'Portsmouth', 'Westerly', 'Narragansett', 'Smithfield', 'East Greenwich', 'North Smithfield', 'Tiverton', 'Warren'],
   'Rhode Island': ['Providence', 'Warwick', 'Cranston', 'Pawtucket', 'Newport'],
   
-  // South Carolina
-  'SC': ['Charleston', 'Columbia', 'North Charleston', 'Mount Pleasant', 'Rock Hill', 'Greenville', 'Summerville', 'Sumter', 'Spartanburg', 'Hilton Head', 'Myrtle Beach'],
+  // South Carolina - Enhanced coverage
+  'SC': ['Charleston', 'Columbia', 'North Charleston', 'Mount Pleasant', 'Rock Hill', 'Greenville', 'Summerville', 'Sumter', 'Spartanburg', 'Hilton Head', 'Myrtle Beach',
+         'Florence', 'Goose Creek', 'Aiken', 'Anderson', 'Greer', 'Mauldin', 'Simpsonville', 'Conway', 'Bluffton', 'Beaufort', 'Fort Mill', 'Lexington',
+         'Easley', 'North Augusta', 'Hanahan', 'West Columbia', 'Irmo', 'Tega Cay', 'Daniel Island', 'James Island', 'Kiawah Island', 'Pawleys Island'],
   'South Carolina': ['Charleston', 'Columbia', 'Greenville', 'Rock Hill', 'Spartanburg'],
   
-  // South Dakota
-  'SD': ['Sioux Falls', 'Rapid City', 'Aberdeen', 'Brookings', 'Watertown', 'Mitchell', 'Yankton', 'Pierre'],
+  // South Dakota - Enhanced coverage
+  'SD': ['Sioux Falls', 'Rapid City', 'Aberdeen', 'Brookings', 'Watertown', 'Mitchell', 'Yankton', 'Pierre',
+         'Huron', 'Vermillion', 'Spearfish', 'Brandon', 'Box Elder', 'Madison', 'Sturgis', 'Belle Fourche', 'Lead', 'Deadwood', 'Hot Springs', 'Custer'],
   'South Dakota': ['Sioux Falls', 'Rapid City', 'Aberdeen', 'Brookings', 'Watertown'],
   
-  // Tennessee
-  'TN': ['Nashville', 'Memphis', 'Knoxville', 'Chattanooga', 'Clarksville', 'Murfreesboro', 'Franklin', 'Jackson', 'Johnson City', 'Bartlett', 'Hendersonville'],
+  // Tennessee - Enhanced with Nashville suburbs
+  'TN': ['Nashville', 'Memphis', 'Knoxville', 'Chattanooga', 'Clarksville', 'Murfreesboro', 'Franklin', 'Jackson', 'Johnson City', 'Bartlett', 'Hendersonville',
+         'Kingsport', 'Collierville', 'Smyrna', 'Cleveland', 'Brentwood', 'Germantown', 'Columbia', 'Spring Hill', 'La Vergne', 'Gallatin', 'Cookeville',
+         'Lebanon', 'Mount Juliet', 'Morristown', 'Oak Ridge', 'Maryville', 'Bristol', 'Farragut', 'Sevierville', 'Pigeon Forge', 'Gatlinburg'],
   'Tennessee': ['Nashville', 'Memphis', 'Knoxville', 'Chattanooga', 'Clarksville', 'Murfreesboro'],
   
-  // Texas
+  // Texas - Massively expanded with Houston/Dallas suburbs
   'TX': ['Houston', 'San Antonio', 'Dallas', 'Austin', 'Fort Worth', 'El Paso', 'Arlington', 'Corpus Christi', 'Plano', 'Laredo',
          'Lubbock', 'Garland', 'Irving', 'Amarillo', 'Grand Prairie', 'Brownsville', 'McKinney', 'Frisco', 'Pasadena', 'Mesquite',
          'Killeen', 'McAllen', 'Waco', 'Denton', 'Carrollton', 'Midland', 'Abilene', 'Beaumont', 'Round Rock', 'Odessa',
-         'Pearland', 'Richardson', 'The Woodlands', 'College Station', 'League City', 'Allen', 'Sugar Land', 'Edinburg', 'Mission', 'Lewisville'],
+         'Pearland', 'Richardson', 'The Woodlands', 'College Station', 'League City', 'Allen', 'Sugar Land', 'Edinburg', 'Mission', 'Lewisville',
+         // New additions - Houston suburbs
+         'Katy', 'Cypress', 'Spring', 'Tomball', 'Humble', 'Conroe', 'Kingwood', 'Missouri City', 'Stafford', 'Friendswood',
+         'Clear Lake', 'Webster', 'Seabrook', 'La Porte', 'Deer Park', 'Baytown', 'Mont Belvieu', 'Atascocita', 'Cinco Ranch',
+         // Dallas-Fort Worth suburbs
+         'Flower Mound', 'Coppell', 'Rockwall', 'Mansfield', 'Burleson', 'Weatherford', 'Southlake', 'Keller', 'Grapevine', 'Colleyville',
+         'Trophy Club', 'Roanoke', 'Argyle', 'Highland Village', 'Corinth', 'The Colony', 'Little Elm', 'Prosper', 'Celina', 'Anna',
+         'Wylie', 'Murphy', 'Sachse', 'Rowlett', 'Sunnyvale', 'Forney', 'Heath', 'Fate', 'Lucas', 'Fairview',
+         // Austin suburbs
+         'Cedar Park', 'Georgetown', 'Pflugerville', 'Leander', 'Kyle', 'Buda', 'Lakeway', 'Bee Cave', 'Dripping Springs', 'Manor',
+         'Hutto', 'Taylor', 'Bastrop', 'San Marcos', 'New Braunfels', 'Seguin', 'Schertz', 'Cibolo', 'Live Oak', 'Universal City',
+         // Other Texas cities
+         'Temple', 'Tyler', 'Longview', 'Victoria', 'Bryan', 'Harlingen', 'Pharr', 'Weslaco', 'Port Arthur', 'Galveston',
+         'Texarkana', 'San Angelo', 'Wichita Falls', 'Sherman', 'Denison', 'Nacogdoches', 'Lufkin'],
   'Texas': ['Houston', 'San Antonio', 'Dallas', 'Austin', 'Fort Worth', 'El Paso', 'Arlington'],
   
-  // Utah
-  'UT': ['Salt Lake City', 'West Valley City', 'Provo', 'West Jordan', 'Orem', 'Sandy', 'Ogden', 'St. George', 'Layton', 'Taylorsville', 'Lehi', 'Logan'],
+  // Utah - Enhanced coverage
+  'UT': ['Salt Lake City', 'West Valley City', 'Provo', 'West Jordan', 'Orem', 'Sandy', 'Ogden', 'St. George', 'Layton', 'Taylorsville', 'Lehi', 'Logan',
+         'Murray', 'Draper', 'Bountiful', 'Riverton', 'Herriman', 'Spanish Fork', 'Roy', 'Pleasant Grove', 'Cottonwood Heights', 'Tooele',
+         'Springville', 'Cedar City', 'Midvale', 'Kaysville', 'Holladay', 'American Fork', 'Clearfield', 'Syracuse', 'South Jordan', 'Eagle Mountain', 'Saratoga Springs'],
   'Utah': ['Salt Lake City', 'West Valley City', 'Provo', 'West Jordan', 'Orem', 'Sandy', 'Ogden'],
   
-  // Vermont
-  'VT': ['Burlington', 'South Burlington', 'Rutland', 'Barre', 'Montpelier', 'St. Albans', 'Winooski', 'Bennington'],
+  // Vermont - Enhanced coverage
+  'VT': ['Burlington', 'South Burlington', 'Rutland', 'Barre', 'Montpelier', 'St. Albans', 'Winooski', 'Bennington',
+         'Essex', 'Brattleboro', 'Hartford', 'Milton', 'Colchester', 'Williston', 'Essex Junction', 'St. Johnsbury', 'Middlebury', 'Springfield', 'Newport', 'Vergennes', 'Stowe', 'Woodstock'],
   'Vermont': ['Burlington', 'South Burlington', 'Rutland', 'Montpelier'],
   
-  // Virginia
+  // Virginia - Enhanced with DC suburbs
   'VA': ['Virginia Beach', 'Norfolk', 'Chesapeake', 'Richmond', 'Newport News', 'Alexandria', 'Hampton', 'Roanoke', 'Portsmouth', 'Suffolk',
-         'Lynchburg', 'Harrisonburg', 'Charlottesville', 'Danville', 'Manassas', 'Arlington', 'Fairfax', 'Falls Church', 'McLean', 'Tysons'],
+         'Lynchburg', 'Harrisonburg', 'Charlottesville', 'Danville', 'Manassas', 'Arlington', 'Fairfax', 'Falls Church', 'McLean', 'Tysons',
+         'Ashburn', 'Leesburg', 'Sterling', 'Reston', 'Herndon', 'Vienna', 'Great Falls', 'Annandale', 'Burke', 'Springfield',
+         'Centreville', 'Chantilly', 'Bristow', 'Gainesville', 'Haymarket', 'Warrenton', 'Fredericksburg', 'Stafford', 'Woodbridge', 'Dale City',
+         'Lake Ridge', 'Dumfries', 'Lorton', 'Mount Vernon', 'Fort Hunt', 'Belle Haven', 'Franconia', 'Kingstowne', 'Newington', 'Occoquan'],
   'Virginia': ['Virginia Beach', 'Norfolk', 'Richmond', 'Chesapeake', 'Alexandria', 'Newport News'],
   
-  // Washington
+  // Washington - Enhanced with Seattle suburbs
   'WA': ['Seattle', 'Spokane', 'Tacoma', 'Vancouver', 'Bellevue', 'Kent', 'Everett', 'Renton', 'Spokane Valley', 'Federal Way',
-         'Yakima', 'Bellingham', 'Kirkland', 'Kennewick', 'Auburn', 'Redmond', 'Marysville', 'Pasco', 'Richland', 'Sammamish', 'Olympia', 'Bothell'],
+         'Yakima', 'Bellingham', 'Kirkland', 'Kennewick', 'Auburn', 'Redmond', 'Marysville', 'Pasco', 'Richland', 'Sammamish', 'Olympia', 'Bothell',
+         'Issaquah', 'Burien', 'SeaTac', 'Tukwila', 'Woodinville', 'Mercer Island', 'Bainbridge Island', 'Newcastle', 'Maple Valley', 'Covington',
+         'Lake Forest Park', 'Shoreline', 'Mountlake Terrace', 'Lynnwood', 'Edmonds', 'Mukilteo', 'Lake Stevens', 'Snohomish', 'Monroe',
+         'Bonney Lake', 'Puyallup', 'Sumner', 'Fife', 'University Place', 'Lakewood', 'DuPont', 'Joint Base Lewis-McChord', 'Gig Harbor', 'Bremerton'],
   'Washington': ['Seattle', 'Spokane', 'Tacoma', 'Vancouver', 'Bellevue', 'Everett'],
   
   // Washington DC
-  'DC': ['Washington', 'Washington DC', 'Washington, D.C.', 'D.C.'],
+  'DC': ['Washington', 'Washington DC', 'Washington, D.C.', 'D.C.', 'Georgetown', 'Capitol Hill', 'Dupont Circle', 'Adams Morgan', 'Foggy Bottom', 'Navy Yard'],
   'District of Columbia': ['Washington', 'Washington DC'],
   
-  // West Virginia
-  'WV': ['Charleston', 'Huntington', 'Morgantown', 'Parkersburg', 'Wheeling', 'Weirton', 'Fairmont', 'Martinsburg', 'Beckley'],
+  // West Virginia - Enhanced coverage
+  'WV': ['Charleston', 'Huntington', 'Morgantown', 'Parkersburg', 'Wheeling', 'Weirton', 'Fairmont', 'Martinsburg', 'Beckley',
+         'Clarksburg', 'South Charleston', 'Teays Valley', 'St. Albans', 'Vienna', 'Bluefield', 'Bridgeport', 'Oak Hill', 'Dunbar', 'Elkins', 'Nitro', 'Hurricane', 'Princeton'],
   'West Virginia': ['Charleston', 'Huntington', 'Morgantown', 'Parkersburg', 'Wheeling'],
   
-  // Wisconsin
-  'WI': ['Milwaukee', 'Madison', 'Green Bay', 'Kenosha', 'Racine', 'Appleton', 'Waukesha', 'Eau Claire', 'Oshkosh', 'Janesville', 'West Allis', 'La Crosse'],
+  // Wisconsin - Enhanced with Milwaukee suburbs
+  'WI': ['Milwaukee', 'Madison', 'Green Bay', 'Kenosha', 'Racine', 'Appleton', 'Waukesha', 'Eau Claire', 'Oshkosh', 'Janesville', 'West Allis', 'La Crosse',
+         'Sheboygan', 'Wauwatosa', 'Fond du Lac', 'New Berlin', 'Brookfield', 'Greenfield', 'Franklin', 'Beloit', 'Menomonee Falls', 'Oak Creek',
+         'Fitchburg', 'Sun Prairie', 'Middleton', 'Verona', 'Waunakee', 'Stoughton', 'De Pere', 'Ashwaubenon', 'Howard', 'Suamico',
+         'Mequon', 'Cedarburg', 'Grafton', 'Port Washington', 'West Bend', 'Germantown', 'Pewaukee', 'Hartland', 'Oconomowoc', 'Delafield'],
   'Wisconsin': ['Milwaukee', 'Madison', 'Green Bay', 'Kenosha', 'Racine', 'Appleton'],
   
-  // Wyoming
-  'WY': ['Cheyenne', 'Casper', 'Laramie', 'Gillette', 'Rock Springs', 'Sheridan', 'Green River', 'Evanston', 'Riverton', 'Jackson'],
+  // Wyoming - Enhanced coverage
+  'WY': ['Cheyenne', 'Casper', 'Laramie', 'Gillette', 'Rock Springs', 'Sheridan', 'Green River', 'Evanston', 'Riverton', 'Jackson',
+         'Cody', 'Powell', 'Douglas', 'Rawlins', 'Lander', 'Torrington', 'Worland', 'Buffalo', 'Thermopolis', 'Newcastle', 'Wheatland', 'Afton'],
   'Wyoming': ['Cheyenne', 'Casper', 'Laramie', 'Gillette', 'Rock Springs'],
 };
+
+/**
+ * Validation options for city/state matching
+ */
+export interface CityValidationOptions {
+  strictMode?: boolean;    // If true, reject unknown cities
+  allowSuburbs?: boolean;  // If false, only validate major cities
+}
 
 export interface LocationValidationResult {
   isValid: boolean;
@@ -487,44 +676,91 @@ export interface LocationValidationResult {
 }
 
 /**
+ * Normalize city name to get all possible variants (canonical + aliases)
+ */
+function normalizeCityName(city: string): string[] {
+  const variants = [city.toLowerCase().trim()];
+  
+  // Check if this city has known aliases
+  for (const [canonical, aliases] of Object.entries(CITY_ALIASES)) {
+    if (canonical.toLowerCase() === city.toLowerCase().trim()) {
+      // Add all aliases for this canonical name
+      aliases.forEach(alias => variants.push(alias.toLowerCase()));
+    }
+    // Also check if input is an alias - add the canonical name
+    if (aliases.some(a => a.toLowerCase() === city.toLowerCase().trim())) {
+      variants.push(canonical.toLowerCase());
+    }
+  }
+  
+  return variants;
+}
+
+/**
  * Validate city/state combination for US addresses
  * Returns invalid if city cannot exist in the given state
+ * Supports city aliases (e.g., "LA" for "Los Angeles", "NYC" for "New York")
  */
 export function validateCityStateMatch(
   city: string | undefined, 
-  state: string | undefined
+  state: string | undefined,
+  options: CityValidationOptions = {}
 ): LocationValidationResult {
   if (!city || !state) {
     return { isValid: true }; // Can't validate without both
   }
   
+  // Try to get valid cities for the state
   const validCities = US_STATE_CITIES[state] || US_STATE_CITIES[state.toUpperCase()];
+  
   if (!validCities) {
-    // Unknown state - allow it through (might be international)
-    return { isValid: true };
+    // Unknown state - might be international
+    return options.strictMode 
+      ? { isValid: false, reason: `Unknown state: ${state}` }
+      : { isValid: true };
   }
   
-  // Normalize city name for comparison
-  const cityLower = city.toLowerCase().trim();
+  // Get all variants of the city name (including aliases)
+  const cityVariants = normalizeCityName(city);
   
-  // Check for exact or fuzzy match
+  // Check for match against valid cities
   const matches = validCities.some(validCity => {
     const validLower = validCity.toLowerCase();
-    return (
-      cityLower === validLower ||
-      cityLower.includes(validLower) ||
-      validLower.includes(cityLower)
+    return cityVariants.some(variant => 
+      variant === validLower ||
+      variant.includes(validLower) ||
+      validLower.includes(variant)
     );
   });
   
   if (!matches) {
+    // If not in strict mode, allow unknown cities through
+    if (!options.strictMode) {
+      return { isValid: true };
+    }
     return { 
       isValid: false, 
-      reason: `City "${city}" is not a known city in ${state}` 
+      reason: `City "${city}" is not a recognized city in ${state}` 
     };
   }
   
   return { isValid: true };
+}
+
+/**
+ * Get the canonical city name from an alias
+ * Returns the input if no alias mapping found
+ */
+export function getCanonicalCityName(city: string): string {
+  const cityLower = city.toLowerCase().trim();
+  
+  for (const [canonical, aliases] of Object.entries(CITY_ALIASES)) {
+    if (aliases.some(a => a.toLowerCase() === cityLower)) {
+      return canonical;
+    }
+  }
+  
+  return city;
 }
 
 // ============================================================================
