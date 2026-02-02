@@ -368,14 +368,14 @@ function validateEmployeeCountForDomain(
 // ACCURACY IMPROVEMENT #6: TITLE NORMALIZATION
 // ============================================================================
 const TITLE_NORMALIZATION_MAP: Record<string, string> = {
-  // Owner variants → Owner
+  // ==================== OWNER VARIANTS ====================
   'proprietor': 'Owner',
   'business owner': 'Owner',
   'shop owner': 'Owner',
   'store owner': 'Owner',
   'sole proprietor': 'Owner',
   
-  // Founder variants → Founder/Co-Founder
+  // ==================== FOUNDER VARIANTS ====================
   'co-founder': 'Co-Founder',
   'cofounder': 'Co-Founder',
   'founding partner': 'Co-Founder',
@@ -383,45 +383,159 @@ const TITLE_NORMALIZATION_MAP: Record<string, string> = {
   'founder & ceo': 'Founder & CEO',
   'founder/ceo': 'Founder & CEO',
   
-  // CEO variants
+  // ==================== C-SUITE VARIANTS ====================
+  // CEO
   'chief executive': 'CEO',
   'chief executive officer': 'CEO',
   
-  // CTO variants  
+  // CTO
   'chief technology officer': 'CTO',
   'chief technical officer': 'CTO',
+  
+  // CFO
+  'chief financial officer': 'CFO',
+  
+  // COO
+  'chief operating officer': 'COO',
+  'chief operations officer': 'COO',
+  
+  // CMO
+  'chief marketing officer': 'CMO',
+  
+  // CRO
+  'chief revenue officer': 'CRO',
+  
+  // CPO
+  'chief product officer': 'CPO',
+  'cpo': 'CPO',
+  
+  // CHRO
+  'chief human resources officer': 'CHRO',
+  'chro': 'CHRO',
+  'chief people officer': 'Chief People Officer',
+  
+  // CIO
+  'chief information officer': 'CIO',
+  'cio': 'CIO',
+  
+  // CSO
+  'chief security officer': 'CSO',
+  'cso': 'CSO',
+  
+  // CDO
+  'chief data officer': 'CDO',
+  'cdo': 'CDO',
+  
+  // CCO
+  'chief commercial officer': 'CCO',
+  'cco': 'CCO',
+  
+  // Other C-Suite
+  'chief digital officer': 'Chief Digital Officer',
+  'chief strategy officer': 'Chief Strategy Officer',
+  'chief growth officer': 'Chief Growth Officer',
+  'chief customer officer': 'Chief Customer Officer',
+  
+  // EVP/SVP
+  'executive vice president': 'EVP',
+  'evp': 'EVP',
+  'senior vice president': 'SVP',
+  'svp': 'SVP',
+  
+  // President
+  'company president': 'President',
+  
+  // ==================== VP VARIANTS ====================
+  // VP Engineering
   'vp engineering': 'VP of Engineering',
   'vp of engineering': 'VP of Engineering',
   'vice president of engineering': 'VP of Engineering',
   'vice president, engineering': 'VP of Engineering',
+  'vp, engineering': 'VP of Engineering',
   
-  // CFO variants
-  'chief financial officer': 'CFO',
-  'finance director': 'Director of Finance',
-  
-  // COO variants
-  'chief operating officer': 'COO',
-  'chief operations officer': 'COO',
-  
-  // CMO variants
-  'chief marketing officer': 'CMO',
+  // VP Marketing
   'vp marketing': 'VP of Marketing',
   'vp of marketing': 'VP of Marketing',
+  'vice president of marketing': 'VP of Marketing',
+  'vice president, marketing': 'VP of Marketing',
+  'vp, marketing': 'VP of Marketing',
   
-  // CRO variants
-  'chief revenue officer': 'CRO',
+  // VP Sales
   'vp sales': 'VP of Sales',
   'vp of sales': 'VP of Sales',
+  'vice president of sales': 'VP of Sales',
+  'vice president, sales': 'VP of Sales',
+  'vp, sales': 'VP of Sales',
   
-  // President variants
-  'company president': 'President',
+  // VP Product
+  'vp product': 'VP of Product',
+  'vp of product': 'VP of Product',
+  'vice president of product': 'VP of Product',
   
-  // Partner variants
-  'managing partner': 'Managing Partner',
-  'senior partner': 'Senior Partner',
-  'general partner': 'General Partner',
+  // VP Operations
+  'vp operations': 'VP of Operations',
+  'vp of operations': 'VP of Operations',
+  'vice president of operations': 'VP of Operations',
   
-  // Director variants
+  // VP Business Development
+  'vp business development': 'VP of Business Development',
+  'vp of business development': 'VP of Business Development',
+  
+  // VP Customer Success
+  'vp customer success': 'VP of Customer Success',
+  'vp of customer success': 'VP of Customer Success',
+  
+  // ==================== HEAD OF VARIANTS ====================
+  'head of sales': 'Head of Sales',
+  'head of marketing': 'Head of Marketing',
+  'head of engineering': 'Head of Engineering',
+  'head of product': 'Head of Product',
+  'head of operations': 'Head of Operations',
+  'head of hr': 'Head of HR',
+  'head of human resources': 'Head of HR',
+  'head of finance': 'Head of Finance',
+  'head of growth': 'Head of Growth',
+  'head of customer success': 'Head of Customer Success',
+  'head of business development': 'Head of Business Development',
+  
+  // ==================== LEAD/PRINCIPAL/STAFF VARIANTS ====================
+  'lead developer': 'Lead Developer',
+  'lead software developer': 'Lead Developer',
+  'lead engineer': 'Lead Engineer',
+  'lead software engineer': 'Lead Engineer',
+  'principal engineer': 'Principal Engineer',
+  'principal software engineer': 'Principal Engineer',
+  'staff engineer': 'Staff Engineer',
+  'staff software engineer': 'Staff Engineer',
+  'senior developer': 'Senior Developer',
+  'senior software developer': 'Senior Developer',
+  'senior engineer': 'Senior Engineer',
+  'senior software engineer': 'Senior Engineer',
+  'tech lead': 'Tech Lead',
+  'technical lead': 'Tech Lead',
+  'engineering lead': 'Engineering Lead',
+  'development lead': 'Development Lead',
+  
+  // ==================== MANAGER VARIANTS ====================
+  'general manager': 'General Manager',
+  'operations manager': 'Operations Manager',
+  'sales manager': 'Sales Manager',
+  'marketing manager': 'Marketing Manager',
+  'product manager': 'Product Manager',
+  'project manager': 'Project Manager',
+  'program manager': 'Program Manager',
+  'account manager': 'Account Manager',
+  'customer success manager': 'Customer Success Manager',
+  'engineering manager': 'Engineering Manager',
+  'development manager': 'Development Manager',
+  'it manager': 'IT Manager',
+  'hr manager': 'HR Manager',
+  'human resources manager': 'HR Manager',
+  'office manager': 'Office Manager',
+  'regional manager': 'Regional Manager',
+  'branch manager': 'Branch Manager',
+  
+  // ==================== DIRECTOR VARIANTS ====================
   'director of sales': 'Sales Director',
   'director of marketing': 'Marketing Director',
   'director of operations': 'Operations Director',
@@ -429,6 +543,34 @@ const TITLE_NORMALIZATION_MAP: Record<string, string> = {
   'director of finance': 'Finance Director',
   'director of hr': 'HR Director',
   'director of human resources': 'HR Director',
+  'director of product': 'Product Director',
+  'director of it': 'IT Director',
+  'director of information technology': 'IT Director',
+  'director of customer success': 'Customer Success Director',
+  'director of business development': 'Business Development Director',
+  'director of growth': 'Growth Director',
+  'creative director': 'Creative Director',
+  'art director': 'Art Director',
+  'technical director': 'Technical Director',
+  'managing director': 'Managing Director',
+  'executive director': 'Executive Director',
+  'finance director': 'Finance Director',
+  
+  // ==================== PARTNER VARIANTS ====================
+  'managing partner': 'Managing Partner',
+  'senior partner': 'Senior Partner',
+  'general partner': 'General Partner',
+  
+  // ==================== CONSULTANT & ADVISOR VARIANTS ====================
+  'consultant': 'Consultant',
+  'senior consultant': 'Senior Consultant',
+  'principal consultant': 'Principal Consultant',
+  'management consultant': 'Management Consultant',
+  'advisor': 'Advisor',
+  'senior advisor': 'Senior Advisor',
+  'strategic advisor': 'Strategic Advisor',
+  'board advisor': 'Board Advisor',
+  'board member': 'Board Member',
 };
 
 export function normalizeTitle(title: string | undefined): string | undefined {
