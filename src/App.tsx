@@ -12,6 +12,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { useEffect } from "react";
+import { useAuth } from "./hooks/use-auth";
 import { useOnboarding } from "./hooks/use-onboarding";
 import { usePageTracking } from "./hooks/usePageTracking";
 import { logger } from "./lib/logger";
@@ -55,6 +56,27 @@ function PageTracker() {
   return null;
 }
 
+/**
+ * LandingRedirectWrapper - Shows Landing for guests, redirects authenticated users to dashboard
+ * This ensures "/" shows the marketing page for SEO while maintaining app functionality
+ */
+function LandingRedirectWrapper() {
+  const { user, loading } = useAuth();
+  
+  // While loading, show nothing (prevents flash)
+  if (loading) {
+    return null;
+  }
+  
+  // Authenticated users go to dashboard
+  if (user) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  
+  // Unauthenticated users see the landing page
+  return <Landing />;
+}
+
 function AppContent() {
   const { startOnboarding } = useOnboarding();
 
@@ -81,7 +103,8 @@ function AppContent() {
         <OnboardingWizard />
         <Routes>
                 {/* Public Marketing Pages */}
-                <Route path="/landing" element={<Landing />} />
+                <Route path="/" element={<LandingRedirectWrapper />} />
+                <Route path="/landing" element={<Navigate to="/" replace />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/product" element={<Product />} />
                 <Route path="/pricing" element={<Pricing />} />
@@ -93,7 +116,7 @@ function AppContent() {
                 <Route path="/terms" element={<TermsOfService />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
                 <Route
-                  path="/"
+                  path="/dashboard"
                   element={
                     <ProtectedRoute>
                       <Layout>

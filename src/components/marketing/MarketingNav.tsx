@@ -6,7 +6,7 @@ import { BrandLogo } from "@/components/BrandLogo";
 import { Menu, X } from "lucide-react";
 
 const navLinks = [
-  { href: "/landing", label: "Home" },
+  { href: "/", label: "Home" },
   { href: "/about", label: "About" },
   { href: "/product", label: "Product" },
   { href: "/pricing", label: "Pricing" },
@@ -16,13 +16,19 @@ export function MarketingNav() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
 
-  const isActive = (href: string) => location.pathname === href;
+  const isActive = (href: string) => {
+    // For root path, also check if we're on legacy /landing
+    if (href === "/") {
+      return location.pathname === "/" || location.pathname === "/landing";
+    }
+    return location.pathname === href;
+  };
 
   return (
     <>
       <header className="border-b border-white/10 bg-black fixed top-0 left-0 right-0 z-50">
       <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-        <Link to="/landing">
+        <Link to="/">
           <BrandLogo variant="dark" collapsed={false} />
         </Link>
 

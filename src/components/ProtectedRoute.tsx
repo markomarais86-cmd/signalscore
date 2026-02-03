@@ -43,7 +43,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   // Only redirect AFTER loading is complete and we confirmed no user
   if (!user) {
-    return <Navigate to="/landing" state={{ from: location }} replace />;
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   return <>{children}</>;

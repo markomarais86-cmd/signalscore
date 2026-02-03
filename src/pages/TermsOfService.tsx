@@ -10,7 +10,7 @@ export default function TermsOfService() {
   return (
     <GradientBackground forceDark>
       <SEOHead
-        title="Terms of Service - LaunchPulse"
+        title="LaunchPulse | Terms"
         description="LaunchPulse Terms of Service: Your rights and responsibilities when using our AI-powered ICP and TAM intelligence platform."
         canonicalPath="/terms"
         ogImage="/og/og-default.png"
@@ -18,7 +18,7 @@ export default function TermsOfService() {
       <MarketingNav />
       <main className="min-h-screen">
         <div className="container max-w-4xl mx-auto px-4 py-12">
-          <Link to="/landing">
+          <Link to="/">
             <Button variant="ghost" className="mb-8 text-white/60 hover:text-white">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Home
