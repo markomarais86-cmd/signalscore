@@ -10,7 +10,7 @@ export default function PrivacyPolicy() {
   return (
     <GradientBackground forceDark>
       <SEOHead
-        title="Privacy Policy - LaunchPulse"
+        title="LaunchPulse | Privacy"
         description="LaunchPulse Privacy Policy: How we protect your CRM and business data. GDPR-compliant practices for our ICP intelligence platform."
         canonicalPath="/privacy"
         ogImage="/og/og-default.png"
@@ -18,7 +18,7 @@ export default function PrivacyPolicy() {
       <MarketingNav />
       <main className="min-h-screen">
         <div className="container max-w-4xl mx-auto px-4 py-12">
-          <Link to="/landing">
+          <Link to="/">
             <Button variant="ghost" className="mb-8 text-white/60 hover:text-white">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Home

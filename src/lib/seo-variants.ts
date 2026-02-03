@@ -20,7 +20,7 @@ export const SEO_EXPERIMENTS: Record<string, SEOExperiment> = {
   landing: {
     experimentId: 'landing_meta_v1',
     variants: {
-      control: "Stop guessing which accounts convert. LaunchPulse uses AI to analyze your CRM data and reveal your true ICP in under 24 hours. Request a free demo.",
+      control: "LaunchPulse pinpoints your highest-converting customer profile, validates ICP alignment inside your CRM, and exposes where pipeline yield is being constrained.",
       power_words: "14,000+ accounts scored with 99% accuracy. LaunchPulse AI reveals which prospects convert—and why. Get insights in under 24 hours.",
       social_proof: "RevOps teams close 2x faster with AI-powered ICP intelligence. See exactly which accounts match your best customers. Free demo available.",
     },

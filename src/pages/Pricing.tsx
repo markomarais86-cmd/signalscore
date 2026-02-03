@@ -211,7 +211,7 @@ export default function Pricing() {
   return (
     <GradientBackground variant="hero" showOrbs forceDark>
       <SEOHead
-        title="LaunchPulse Pricing - Simple, Transparent Plans"
+        title="LaunchPulse | Pricing"
         description={SEO_EXPERIMENTS.pricing.variants.control}
         descriptionVariants={SEO_EXPERIMENTS.pricing}
         canonicalPath="/pricing"

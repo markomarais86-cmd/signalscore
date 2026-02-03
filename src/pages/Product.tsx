@@ -117,7 +117,7 @@ export default function Product() {
   return (
     <GradientBackground variant="hero" showOrbs forceDark>
       <SEOHead
-        title="LaunchPulse Product - ICP Builder & TAM Generator"
+        title="LaunchPulse | Product"
         description={SEO_EXPERIMENTS.product.variants.control}
         descriptionVariants={SEO_EXPERIMENTS.product}
         canonicalPath="/product"

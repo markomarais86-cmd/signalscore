@@ -60,10 +60,10 @@ export default function Landing() {
   return (
     <GradientBackground variant="hero" showOrbs forceDark>
       <SEOHead
-        title="LaunchPulse - AI-Driven ICP & TAM Intelligence Platform"
+        title="LaunchPulse"
         description={SEO_EXPERIMENTS.landing.variants.control}
         descriptionVariants={SEO_EXPERIMENTS.landing}
-        canonicalPath="/landing"
+        canonicalPath="/"
         ogImage="/og/og-landing.png"
       />
       <main>

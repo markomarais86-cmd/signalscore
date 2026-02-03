@@ -9,7 +9,7 @@ export default function Contact() {
   return (
     <GradientBackground variant="hero" showOrbs forceDark>
       <SEOHead
-        title="Contact LaunchPulse - Request a Demo"
+        title="LaunchPulse | Contact"
         description="Book a personalized LaunchPulse demo in 30 seconds. Our team responds within 24 hours to show you exactly where your pipeline is leaking revenue."
         canonicalPath="/contact"
         ogImage="/og/og-contact.png"
