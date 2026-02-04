@@ -1,60 +1,83 @@
 
-# Fix Floating Dashboard Elements on Mobile
 
-## Problem
+# Optimize Hero Text Sizing for Mobile Readability
 
-The TAM indicator and ICP donut chart are positioned with negative offsets (`-left-4`, `-right-4` on mobile) which causes them to extend outside the container boundaries. On mobile devices with `overflow-hidden` on parent elements, these get clipped.
+## Current State
 
-## Solution
+The hero section has these text sizing issues on mobile (390px):
 
-Reposition the floating elements so they stay within the visible area on mobile while maintaining the attractive overlapping effect on larger screens.
+| Element | Current Mobile Size | Issue |
+|---------|---------------------|-------|
+| Headline (h1) | `text-4xl` (36px) | Too large for 3-line headline, causes awkward wrapping |
+| Subheadline | `text-lg` (18px) | Acceptable but could be slightly smaller on tiny screens |
+| Section padding | `pt-24` (96px) | Pushes content down, less room for headline |
 
-## Changes
+## Proposed Changes
 
-**File: `src/components/marketing/HeroDashboardMockup.tsx`**
+### 1. Reduce headline size on mobile
 
-### 1. Add horizontal padding to container
-Add padding to the container that creates space for the floating elements on mobile:
+**File: `src/components/marketing/MarketingHero.tsx`**
+
+Change the headline sizing from:
 ```tsx
-className="relative max-w-5xl mx-auto px-8 md:px-0"
+className="text-4xl sm:text-5xl md:text-7xl ..."
 ```
 
-### 2. Adjust TAM indicator positioning
-Change from negative to positive offset on mobile:
+To:
 ```tsx
-// Before
-className="absolute -left-4 md:-left-16 bottom-10 md:bottom-20 ..."
-
-// After  
-className="absolute left-0 md:-left-16 bottom-4 md:bottom-20 ..."
+className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl ..."
 ```
 
-### 3. Adjust ICP chart positioning
-Change from negative to positive offset on mobile:
-```tsx
-// Before
-className="absolute -right-4 md:-right-16 top-10 md:top-20 ..."
+This creates a smoother scale:
+- Mobile (< 640px): 30px (text-3xl)
+- Small tablets (640px+): 36px (text-4xl)  
+- Medium tablets (768px+): 48px (text-5xl)
+- Desktop (1024px+): 72px (text-7xl)
 
-// After
-className="absolute right-0 md:-right-16 top-4 md:top-20 ..."
+### 2. Optimize subheadline for small screens
+
+Change from:
+```tsx
+className="text-lg md:text-xl ..."
 ```
 
-### 4. Reduce mobile sizes slightly (optional polish)
-The current `w-28` and `w-24` can feel large on small screens. Consider:
+To:
 ```tsx
-// TAM: w-24 sm:w-28 md:w-60
-// ICP: w-20 sm:w-24 md:w-60
+className="text-base sm:text-lg md:text-xl ..."
+```
+
+This gives slightly more breathing room on the smallest screens (16px vs 18px).
+
+### 3. Reduce top padding on mobile
+
+Change from:
+```tsx
+className="container mx-auto px-6 pt-24 pb-20 ..."
+```
+
+To:
+```tsx
+className="container mx-auto px-6 pt-16 sm:pt-20 md:pt-24 pb-16 sm:pb-20 ..."
+```
+
+This reclaims vertical space on mobile so the headline doesn't feel cramped.
+
+### 4. Tighten line height on mobile headline
+
+Add `leading-tight` to the headline for better mobile density:
+```tsx
+className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-bold font-heading mb-6 leading-tight animate-fade-in"
 ```
 
 ## Visual Result
 
 | Screen | Before | After |
 |--------|--------|-------|
-| Mobile (390px) | Elements clipped on edges | Elements visible, tucked at edges |
-| Tablet (768px+) | Elements extend outside | Same attractive overlap effect |
+| Mobile (390px) | Large 36px headline, cramped | Comfortable 30px, better spacing |
+| Tablet (768px) | 72px headline (too big) | 48px headline (balanced) |
+| Desktop (1024px+) | 72px headline | Same 72px headline |
 
-## Technical Notes
+## Files to Modify
 
-- The `md:` breakpoint (768px) maintains the desktop overlap effect
-- Using `left-0` and `right-0` on mobile keeps elements flush with container edge
-- The padding approach ensures no content is lost to overflow clipping
+- `src/components/marketing/MarketingHero.tsx` (all changes in one file)
+
