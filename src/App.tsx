@@ -22,6 +22,7 @@ import About from "./pages/About";
 import Product from "./pages/Product";
 import Pricing from "./pages/Pricing";
 import Contact from "./pages/Contact";
+import Demo from "./pages/Demo";
 import Auth from "./pages/Auth";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -109,6 +110,7 @@ function AppContent() {
                 <Route path="/product" element={<Product />} />
                 <Route path="/pricing" element={<Pricing />} />
                 <Route path="/contact" element={<Contact />} />
+                <Route path="/demo" element={<Demo />} />
                 
                 {/* Auth Pages */}
                 <Route path="/auth" element={<Auth />} />
