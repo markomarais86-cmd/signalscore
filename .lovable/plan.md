@@ -1,74 +1,60 @@
 
-# Fix: LaunchPulse Logo Text Invisible on Mobile (and Desktop Dark Mode)
+# Fix Floating Dashboard Elements on Mobile
 
 ## Problem
 
-The "Pulse" portion of the logo is invisible on the marketing site because of a color logic bug. The logo shows "Launch" in green/teal, but "Pulse" appears as black text on a black background.
-
-## Root Cause
-
-In `BrandLogo.tsx`, when `variant="dark"` is passed (indicating the logo is on a dark background), the code incorrectly applies `text-background` to the "Pulse" text.
-
-In your theme:
-- `--background` = pure black (#000000)
-- `--foreground` = white
-
-So `text-background` renders as **black text on the black marketing header** = invisible.
+The TAM indicator and ICP donut chart are positioned with negative offsets (`-left-4`, `-right-4` on mobile) which causes them to extend outside the container boundaries. On mobile devices with `overflow-hidden` on parent elements, these get clipped.
 
 ## Solution
 
-Swap the color logic so that:
-- `variant="light"` (light backgrounds) → use dark text colors
-- `variant="dark"` (dark backgrounds) → use light text colors
+Reposition the floating elements so they stay within the visible area on mobile while maintaining the attractive overlapping effect on larger screens.
 
-## Code Change
+## Changes
 
-**File:** `src/components/BrandLogo.tsx`
+**File: `src/components/marketing/HeroDashboardMockup.tsx`**
 
-**Before (lines 65-76):**
+### 1. Add horizontal padding to container
+Add padding to the container that creates space for the floating elements on mobile:
 ```tsx
-<div className={cn(
-  "text-2xl font-bold font-heading tracking-tight",
-  variant === "light" ? "text-foreground" : "text-background"
-)}>
-  <span className={cn(
-    "font-heading font-semibold",
-    variant === "light" ? "text-primary" : "text-primary"
-  )}>Launch</span>
-  <span className={cn(
-    variant === "light" ? "text-foreground" : "text-background"
-  )}>Pulse</span>
-</div>
+className="relative max-w-5xl mx-auto px-8 md:px-0"
 ```
 
-**After:**
+### 2. Adjust TAM indicator positioning
+Change from negative to positive offset on mobile:
 ```tsx
-<div className={cn(
-  "text-2xl font-bold font-heading tracking-tight",
-  variant === "light" ? "text-foreground" : "text-foreground"
-)}>
-  <span className={cn(
-    "font-heading font-semibold",
-    "text-primary"
-  )}>Launch</span>
-  <span className={cn(
-    variant === "light" ? "text-foreground" : "text-white"
-  )}>Pulse</span>
-</div>
+// Before
+className="absolute -left-4 md:-left-16 bottom-10 md:bottom-20 ..."
+
+// After  
+className="absolute left-0 md:-left-16 bottom-4 md:bottom-20 ..."
 ```
 
-The key fix is changing `text-background` to `text-white` for the dark variant, ensuring "Pulse" is visible on the black marketing header.
+### 3. Adjust ICP chart positioning
+Change from negative to positive offset on mobile:
+```tsx
+// Before
+className="absolute -right-4 md:-right-16 top-10 md:top-20 ..."
+
+// After
+className="absolute right-0 md:-right-16 top-4 md:top-20 ..."
+```
+
+### 4. Reduce mobile sizes slightly (optional polish)
+The current `w-28` and `w-24` can feel large on small screens. Consider:
+```tsx
+// TAM: w-24 sm:w-28 md:w-60
+// ICP: w-20 sm:w-24 md:w-60
+```
 
 ## Visual Result
 
-| Before | After |
-|--------|-------|
-| Logo shows: **Launch** | Logo shows: **LaunchPulse** |
-| "Pulse" = black on black | "Pulse" = white on black |
+| Screen | Before | After |
+|--------|--------|-------|
+| Mobile (390px) | Elements clipped on edges | Elements visible, tucked at edges |
+| Tablet (768px+) | Elements extend outside | Same attractive overlap effect |
 
-## Verification
+## Technical Notes
 
-After the fix, verify on:
-- Mobile marketing homepage header
-- Desktop marketing homepage header  
-- Dashboard sidebar (should still work correctly in light mode)
+- The `md:` breakpoint (768px) maintains the desktop overlap effect
+- Using `left-0` and `right-0` on mobile keeps elements flush with container edge
+- The padding approach ensures no content is lost to overflow clipping
