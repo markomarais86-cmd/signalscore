@@ -62,16 +62,16 @@ export function BrandLogo({
     <div className={cn("flex flex-col", className)}>
       <div className="flex items-center gap-2">
         <LaunchPulseMark className="w-8 h-8" />
-        <div className={cn(
+      <div className={cn(
           "text-2xl font-bold font-heading tracking-tight",
-          variant === "light" ? "text-foreground" : "text-background"
+          "text-foreground"
         )}>
           <span className={cn(
             "font-heading font-semibold",
-            variant === "light" ? "text-primary" : "text-primary"
+            "text-primary"
           )}>Launch</span>
           <span className={cn(
-            variant === "light" ? "text-foreground" : "text-background"
+            variant === "light" ? "text-foreground" : "text-white"
           )}>Pulse</span>
         </div>
       </div>
