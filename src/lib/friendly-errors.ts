@@ -30,6 +30,8 @@ const ERROR_MAPPINGS: Record<string, string> = {
   'forbidden': 'You don\'t have permission to perform this action.',
   
   // Rate limiting
+  'email rate limit': 'Too many reset attempts. Please wait about 60 minutes before trying again.',
+  'over_email_send_rate_limit': 'Too many reset attempts. Please wait about 60 minutes before trying again.',
   'rate limit': 'Too many requests. Please wait a moment and try again.',
   'too many requests': 'Too many requests. Please wait a moment and try again.',
   

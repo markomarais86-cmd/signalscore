@@ -3,6 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { authLogger } from '@/lib/logger';
+import { friendlyErrorMessage } from '@/lib/friendly-errors';
 
 // Helper functions for Sentry (loaded dynamically)
 const setUserContextSafe = async (user: { id: string; email?: string }) => {
@@ -297,9 +298,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) {
+      const friendlyMsg = error.message?.toLowerCase().includes('rate limit') || (error as any).status === 429
+        ? 'Too many reset attempts. Please wait about 60 minutes before trying again.'
+        : friendlyErrorMessage(error.message);
       toast({
         title: "Password reset failed",
-        description: error.message,
+        description: friendlyMsg,
         variant: "destructive"
       });
     } else {
