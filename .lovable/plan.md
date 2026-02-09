@@ -1,83 +1,33 @@
 
 
-# Optimize Hero Text Sizing for Mobile Readability
+## Fix Password Reset: Add the Missing Webhook Secret
 
-## Current State
+### The Problem
 
-The hero section has these text sizing issues on mobile (390px):
+The `send-auth-email` Edge Function crashes because it tries to verify a webhook signature using `SEND_EMAIL_HOOK_SECRET`, which was never added to the secrets. This breaks the entire password reset flow.
 
-| Element | Current Mobile Size | Issue |
-|---------|---------------------|-------|
-| Headline (h1) | `text-4xl` (36px) | Too large for 3-line headline, causes awkward wrapping |
-| Subheadline | `text-lg` (18px) | Acceptable but could be slightly smaller on tiny screens |
-| Section padding | `pt-24` (96px) | Pushes content down, less room for headline |
+### What You Need to Do
 
-## Proposed Changes
+1. **Go to your Supabase Dashboard**:  
+   [Authentication > Hooks](https://supabase.com/dashboard/project/dhyfbaptcprxxixgnpby/auth/hooks)
 
-### 1. Reduce headline size on mobile
+2. **Find the "Send Email" hook** — it should be pointing to your `send-auth-email` Edge Function
 
-**File: `src/components/marketing/MarketingHero.tsx`**
+3. **Copy the hook secret** — it will look something like `whsec_xxxxxxxxxxxxxxxxxxxxxxxx`
+   - If no hook is configured yet, you'll need to create one:
+     - Hook type: "Send Email"
+     - Endpoint: `https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/send-auth-email`
+     - It will generate a secret for you — copy that
 
-Change the headline sizing from:
-```tsx
-className="text-4xl sm:text-5xl md:text-7xl ..."
-```
+4. **I will then add it** as `SEND_EMAIL_HOOK_SECRET` to your Edge Function secrets using the add_secret tool
 
-To:
-```tsx
-className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl ..."
-```
+### After the Secret Is Added
 
-This creates a smoother scale:
-- Mobile (< 640px): 30px (text-3xl)
-- Small tablets (640px+): 36px (text-4xl)  
-- Medium tablets (768px+): 48px (text-5xl)
-- Desktop (1024px+): 72px (text-7xl)
+- Password reset requests will flow through correctly
+- The Edge Function will verify the webhook, render the email template, and send via Resend
+- No code changes needed — the function is already correctly written
 
-### 2. Optimize subheadline for small screens
+### Quick Workaround (Optional)
 
-Change from:
-```tsx
-className="text-lg md:text-xl ..."
-```
-
-To:
-```tsx
-className="text-base sm:text-lg md:text-xl ..."
-```
-
-This gives slightly more breathing room on the smallest screens (16px vs 18px).
-
-### 3. Reduce top padding on mobile
-
-Change from:
-```tsx
-className="container mx-auto px-6 pt-24 pb-20 ..."
-```
-
-To:
-```tsx
-className="container mx-auto px-6 pt-16 sm:pt-20 md:pt-24 pb-16 sm:pb-20 ..."
-```
-
-This reclaims vertical space on mobile so the headline doesn't feel cramped.
-
-### 4. Tighten line height on mobile headline
-
-Add `leading-tight` to the headline for better mobile density:
-```tsx
-className="text-3xl sm:text-4xl md:text-5xl lg:text-7xl font-bold font-heading mb-6 leading-tight animate-fade-in"
-```
-
-## Visual Result
-
-| Screen | Before | After |
-|--------|--------|-------|
-| Mobile (390px) | Large 36px headline, cramped | Comfortable 30px, better spacing |
-| Tablet (768px) | 72px headline (too big) | 48px headline (balanced) |
-| Desktop (1024px+) | 72px headline | Same 72px headline |
-
-## Files to Modify
-
-- `src/components/marketing/MarketingHero.tsx` (all changes in one file)
+If you need to log in right now while we set this up, you can manually reset your password in the [Supabase Users panel](https://supabase.com/dashboard/project/dhyfbaptcprxxixgnpby/auth/users) by clicking on your user and updating the password directly.
 
