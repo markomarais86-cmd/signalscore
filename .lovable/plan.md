@@ -1,33 +1,28 @@
 
 
-## Fix Password Reset: Add the Missing Webhook Secret
+## Add Rate Limit Error Handling to Password Reset
 
-### The Problem
+### Problem
+When users hit the email rate limit during password reset, they get no clear feedback. The Supabase API returns a 429 status with "email rate limit exceeded", but the UI doesn't handle this specific error.
 
-The `send-auth-email` Edge Function crashes because it tries to verify a webhook signature using `SEND_EMAIL_HOOK_SECRET`, which was never added to the secrets. This breaks the entire password reset flow.
+### Changes
 
-### What You Need to Do
+**File: `src/pages/ResetPassword.tsx`** (or wherever the reset request is triggered)
 
-1. **Go to your Supabase Dashboard**:  
-   [Authentication > Hooks](https://supabase.com/dashboard/project/dhyfbaptcprxxixgnpby/auth/hooks)
+First, I need to find where the password reset *request* (the "send me a reset link" form) lives -- this is likely on the Auth page since the user is on `/auth`.
 
-2. **Find the "Send Email" hook** — it should be pointing to your `send-auth-email` Edge Function
+**File: `src/lib/friendly-errors.ts`**
+- The mapping `'rate limit': 'Too many requests. Please wait a moment and try again.'` already exists but is generic. Add a more specific mapping for the email rate limit scenario.
 
-3. **Copy the hook secret** — it will look something like `whsec_xxxxxxxxxxxxxxxxxxxxxxxx`
-   - If no hook is configured yet, you'll need to create one:
-     - Hook type: "Send Email"
-     - Endpoint: `https://dhyfbaptcprxxixgnpby.supabase.co/functions/v1/send-auth-email`
-     - It will generate a secret for you — copy that
+### Technical Details
 
-4. **I will then add it** as `SEND_EMAIL_HOOK_SECRET` to your Edge Function secrets using the add_secret tool
+1. **`src/lib/friendly-errors.ts`** -- Add a specific mapping:
+   - Key: `'email rate limit'` with message: `"Too many reset attempts. Please wait about 60 minutes before trying again."`
+   - Key: `'over_email_send_rate_limit'` with message: same as above
+   - Place these before the generic `'rate limit'` entry so they match first
 
-### After the Secret Is Added
+2. **Auth page (password reset request handler)** -- Ensure the error from `supabase.auth.resetPasswordForEmail()` is caught and displayed using the friendly error system. The 429 response message or error code should flow through `friendlyErrorMessage()` and display in the UI (e.g., as an alert or toast).
 
-- Password reset requests will flow through correctly
-- The Edge Function will verify the webhook, render the email template, and send via Resend
-- No code changes needed — the function is already correctly written
-
-### Quick Workaround (Optional)
-
-If you need to log in right now while we set this up, you can manually reset your password in the [Supabase Users panel](https://supabase.com/dashboard/project/dhyfbaptcprxxixgnpby/auth/users) by clicking on your user and updating the password directly.
+### Result
+When a user hits the rate limit, they'll see: *"Too many reset attempts. Please wait about 60 minutes before trying again."* instead of a generic or missing error message.
 
