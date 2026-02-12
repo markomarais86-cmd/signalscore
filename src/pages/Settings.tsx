@@ -70,6 +70,7 @@ const AIProviderSettings = lazy(() => import("@/components/settings/AIProviderSe
 const DataUploadContent = lazy(() => import("@/components/settings/DataUploadContent"));
 const ServiceHealthStatus = lazy(() => import("@/components/settings/ServiceHealthStatus").then(m => ({ default: m.ServiceHealthStatus })));
 const RoutingRulesSettings = lazy(() => import("@/components/settings/RoutingRulesSettings").then(m => ({ default: m.RoutingRulesSettings })));
+const AdPlatformAPISettings = lazy(() => import("@/components/settings/AdPlatformAPISettings").then(m => ({ default: m.AdPlatformAPISettings })));
 
 interface TeamMember {
   id: string;
@@ -591,13 +592,18 @@ export default function Settings() {
                       <CampaignExportHistory />
                       <WebhookLogViewer />
                       <ZapierIntegration />
-                      <ClayIncomingWebhooks />
+                    <ClayIncomingWebhooks />
                     </Suspense>
                   </AccordionContent>
                 </AccordionItem>
               </>
             )}
           </Accordion>
+
+          {/* Ad Platform Conversion Tracking */}
+          <Suspense fallback={<SettingsSkeleton />}>
+            <AdPlatformAPISettings />
+          </Suspense>
         </TabsContent>
 
         {/* Security */}
