@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "npm:resend@2.0.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.88.0";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -21,11 +22,9 @@ interface DemoRequest {
 function getPlanDisplayName(source: string | undefined): string | null {
   if (!source) return null;
   
-  // Handle pricing page sources: "pricing-professional" → "Professional Plan"
   if (source.startsWith('pricing-')) {
     const planPart = source.replace('pricing-', '');
     
-    // Handle credit packs: "starter-credit-pack" → "Starter Credit Pack"
     if (planPart.includes('credit-pack')) {
       return planPart
         .replace('-credit-pack', '')
@@ -34,18 +33,16 @@ function getPlanDisplayName(source: string | undefined): string | null {
         .join(' ') + ' Credit Pack';
     }
     
-    // Handle platform plans: "professional" → "Professional Plan"
     return planPart
       .split('-')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ') + ' Plan';
   }
   
-  return null; // Return null for non-pricing sources
+  return null;
 }
 
 const handler = async (req: Request): Promise<Response> => {
-  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -54,7 +51,6 @@ const handler = async (req: Request): Promise<Response> => {
     const data: DemoRequest = await req.json();
     console.log("Received demo request:", data);
 
-    // Validate required fields
     if (!data.name || !data.email) {
       return new Response(
         JSON.stringify({ error: "Name and email are required" }),
@@ -65,12 +61,10 @@ const handler = async (req: Request): Promise<Response> => {
     const timestamp = new Date().toISOString();
     const planDisplayName = getPlanDisplayName(data.source);
     
-    // Build email subject with plan if from pricing page
     const emailSubject = planDisplayName 
       ? `New Demo Request: ${planDisplayName} - ${data.name}`
       : `New Demo Request from ${data.name}`;
 
-    // Build the selected plan row if applicable
     const selectedPlanRow = planDisplayName ? `
         <tr style="background-color: #6366f1;">
           <td style="padding: 12px; border: 1px solid #5558e3; color: white;">
@@ -82,7 +76,6 @@ const handler = async (req: Request): Promise<Response> => {
         </tr>
     ` : '';
 
-    // Send notification email to contact@launchpulse.io
     const notificationHtml = `
       <h1>New Demo Request</h1>
       <table style="border-collapse: collapse; width: 100%;">
@@ -133,7 +126,6 @@ const handler = async (req: Request): Promise<Response> => {
     });
     console.log("Notification email sent:", notificationResult);
 
-    // Send confirmation email to the requester
     const confirmationHtml = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #1a1a2e;">Thanks for your interest in LaunchPulse!</h1>
@@ -159,6 +151,35 @@ const handler = async (req: Request): Promise<Response> => {
       html: confirmationHtml,
     });
     console.log("Confirmation email sent:", confirmationResult);
+
+    // Persist lead to marketing_leads table
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+      const { error: insertError } = await supabaseAdmin
+        .from("marketing_leads")
+        .upsert(
+          {
+            email: data.email,
+            name: data.name,
+            company: data.company || null,
+            subject: data.subject || null,
+            message: data.message || null,
+            source: data.source || "demo-contact",
+          },
+          { onConflict: "email,source" }
+        );
+
+      if (insertError) {
+        console.error("Failed to insert marketing lead:", insertError);
+      } else {
+        console.log("Marketing lead saved successfully");
+      }
+    } catch (dbError) {
+      console.error("Database error saving marketing lead:", dbError);
+    }
 
     return new Response(
       JSON.stringify({ 

@@ -6,3 +6,4 @@ export { PainPointCard } from "./PainPointCard";
 export { DemoRequestForm } from "./DemoRequestForm";
 export { HeroDashboardMockup } from "./HeroDashboardMockup";
 export { FeatureIllustration } from "./FeatureIllustration";
+export { NewsletterSignup } from "./NewsletterSignup";

@@ -13,6 +13,7 @@ import {
   FeatureCard,
   PainPointCard,
   HeroDashboardMockup,
+  NewsletterSignup,
 } from "@/components/marketing";
 
 // Trust stats for social proof
@@ -175,6 +176,14 @@ export default function Landing() {
           </div>
         </section>
 
+        {/* Newsletter Section */}
+        <section className="container mx-auto px-6 py-20">
+          <ScrollReveal animation="fade-up">
+            <div className="max-w-2xl mx-auto rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-10">
+              <NewsletterSignup source="newsletter-landing" />
+            </div>
+          </ScrollReveal>
+        </section>
 
         {/* CTA Section - With Business Man Background */}
         <ScrollReveal animation="fade-up">
