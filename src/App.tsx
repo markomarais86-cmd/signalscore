@@ -8,12 +8,14 @@ import { OnboardingProvider } from "./hooks/use-onboarding";
 import { CampaignContextProvider } from "./hooks/use-campaign-context";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { Layout } from "./components/Layout";
+import { CustomerLayout } from "./components/CustomerLayout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { useEffect } from "react";
 import { useAuth } from "./hooks/use-auth";
 import { useOnboarding } from "./hooks/use-onboarding";
+import { useRoles } from "./hooks/use-roles";
 import { usePageTracking } from "./hooks/usePageTracking";
 import { logger } from "./lib/logger";
 import ExecutiveDashboard from "./pages/ExecutiveDashboard";
@@ -43,6 +45,8 @@ import Segmentation from "./pages/Segmentation";
 import Trends from "./pages/Trends";
 import NotFound from "./pages/NotFound";
 import AIAgents from "./pages/AIAgents";
+import CustomerDashboard from "./pages/CustomerDashboard";
+import { RoleAwareLayout } from "./components/RoleAwareLayout";
 import Enrichment from "./pages/Enrichment";
 import QuickEnrich from "./pages/QuickEnrich";
 import AgentTester from "./pages/AgentTester";
@@ -69,15 +73,19 @@ function PageTracker() {
  */
 function LandingRedirectWrapper() {
   const { user, loading } = useAuth();
+  const { isSuperAdmin, isOrgAdmin, loading: rolesLoading } = useRoles();
   
   // While loading, show nothing (prevents flash)
-  if (loading) {
+  if (loading || rolesLoading) {
     return null;
   }
   
-  // Authenticated users go to dashboard
+  // Authenticated users go to appropriate dashboard
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    if (isSuperAdmin || isOrgAdmin) {
+      return <Navigate to="/dashboard" replace />;
+    }
+    return <Navigate to="/my-dashboard" replace />;
   }
   
   // Unauthenticated users see the landing page
@@ -137,6 +145,16 @@ function AppContent() {
                   }
                 />
                 <Route
+                  path="/my-dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <CustomerLayout>
+                        <CustomerDashboard />
+                      </CustomerLayout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/icp-manager"
                   element={
                     <ProtectedRoute>
@@ -160,9 +178,9 @@ function AppContent() {
                   path="/leads"
                   element={
                     <ProtectedRoute>
-                      <Layout>
+                      <RoleAwareLayout>
                         <Leads />
-                      </Layout>
+                      </RoleAwareLayout>
                     </ProtectedRoute>
                   }
                 />
@@ -180,9 +198,9 @@ function AppContent() {
                   path="/settings"
                   element={
                     <ProtectedRoute>
-                      <Layout>
+                      <RoleAwareLayout>
                         <Settings />
-                      </Layout>
+                      </RoleAwareLayout>
                     </ProtectedRoute>
                   }
                 />
@@ -230,9 +248,9 @@ function AppContent() {
                   path="/opportunities"
                   element={
                     <ProtectedRoute>
-                      <Layout>
+                      <RoleAwareLayout>
                         <Opportunities />
-                      </Layout>
+                      </RoleAwareLayout>
                     </ProtectedRoute>
                   }
                 />
@@ -367,9 +385,9 @@ function AppContent() {
                   path="/tasks"
                   element={
                     <ProtectedRoute>
-                      <Layout>
+                      <RoleAwareLayout>
                         <Tasks />
-                      </Layout>
+                      </RoleAwareLayout>
                     </ProtectedRoute>
                   }
                 />
