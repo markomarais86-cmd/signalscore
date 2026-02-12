@@ -14,6 +14,7 @@ import {
   PainPointCard,
   HeroDashboardMockup,
   NewsletterSignup,
+  QuizFunnel,
 } from "@/components/marketing";
 
 // Trust stats for social proof
@@ -174,6 +175,25 @@ export default function Landing() {
               </ScrollReveal>
             ))}
           </div>
+        </section>
+
+        {/* Quiz Funnel Section */}
+        <section className="container mx-auto px-6 py-20">
+          <ScrollReveal animation="fade-up">
+            <div className="max-w-2xl mx-auto">
+              <div className="text-center mb-8">
+                <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">
+                  See How LaunchPulse Fits Your Team
+                </h2>
+                <p className="text-white/60">
+                  Answer 5 quick questions and we'll tailor your demo to your exact GTM challenges.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-sm p-8">
+                <QuizFunnel source="landing-quiz" />
+              </div>
+            </div>
+          </ScrollReveal>
         </section>
 
         {/* Newsletter Section */}

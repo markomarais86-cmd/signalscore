@@ -7,3 +7,5 @@ export { DemoRequestForm } from "./DemoRequestForm";
 export { HeroDashboardMockup } from "./HeroDashboardMockup";
 export { FeatureIllustration } from "./FeatureIllustration";
 export { NewsletterSignup } from "./NewsletterSignup";
+export { QuizFunnel } from "./QuizFunnel";
+export { TrackingPixels } from "./TrackingPixels";
