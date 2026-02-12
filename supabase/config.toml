@@ -413,3 +413,12 @@ verify_jwt = false
 
 [functions.send-auth-email]
 verify_jwt = false
+
+[functions.validate-phone]
+verify_jwt = false
+
+[functions.push-conversion-event]
+verify_jwt = false
+
+[functions.calendly-webhook]
+verify_jwt = false

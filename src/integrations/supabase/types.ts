@@ -4566,6 +4566,50 @@ export type Database = {
           },
         ]
       }
+      funnel_events: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          event_source: string | null
+          event_status: string
+          event_type: string
+          id: string
+          lead_id: string | null
+          metadata: Json | null
+          org_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          event_source?: string | null
+          event_status?: string
+          event_type: string
+          id?: string
+          lead_id?: string | null
+          metadata?: Json | null
+          org_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          event_source?: string | null
+          event_status?: string
+          event_type?: string
+          id?: string
+          lead_id?: string | null
+          metadata?: Json | null
+          org_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       icp_feature_weights: {
         Row: {
           computed_at: string | null
@@ -5750,6 +5794,9 @@ export type Database = {
           name: string | null
           otp_status: string | null
           phone: string | null
+          phone_carrier: string | null
+          phone_line_type: string | null
+          phone_valid: boolean | null
           phone_verified: boolean | null
           qualification_score: number | null
           routed_at: string | null
@@ -5782,6 +5829,9 @@ export type Database = {
           name?: string | null
           otp_status?: string | null
           phone?: string | null
+          phone_carrier?: string | null
+          phone_line_type?: string | null
+          phone_valid?: boolean | null
           phone_verified?: boolean | null
           qualification_score?: number | null
           routed_at?: string | null
@@ -5814,6 +5864,9 @@ export type Database = {
           name?: string | null
           otp_status?: string | null
           phone?: string | null
+          phone_carrier?: string | null
+          phone_line_type?: string | null
+          phone_valid?: boolean | null
           phone_verified?: boolean | null
           qualification_score?: number | null
           routed_at?: string | null

@@ -8,6 +8,7 @@ import { trackDemoRequest } from "@/lib/analytics";
 import { useTrackingParams } from "@/hooks/useUTMParams";
 import { CheckCircle, Loader2, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PhoneVerificationStep } from "./PhoneVerificationStep";
 
 const QUIZ_STEPS = [
   {
@@ -88,8 +89,12 @@ export function QuizFunnel({ source = "quiz-funnel", onComplete }: QuizFunnelPro
   const [isSuccess, setIsSuccess] = useState(false);
   const { utmParams, clickIds, funnelVariant } = useTrackingParams();
 
-  const totalSteps = QUIZ_STEPS.length + 1;
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [leadId, setLeadId] = useState<string | null>(null);
+
+  const totalSteps = QUIZ_STEPS.length + 2; // quiz + contact + phone
   const isContactStep = step === QUIZ_STEPS.length;
+  const isPhoneStep = step === QUIZ_STEPS.length + 1;
   const currentQuiz = QUIZ_STEPS[step];
   const progress = ((step + 1) / totalSteps) * 100;
 
@@ -99,7 +104,7 @@ export function QuizFunnel({ source = "quiz-funnel", onComplete }: QuizFunnelPro
     setTimeout(() => setStep((s) => s + 1), 300);
   };
 
-  const handleSubmit = async () => {
+  const handleContactSubmit = async () => {
     if (!contactInfo.name || !contactInfo.email) {
       toast.error("Please fill in your name and email.");
       return;
@@ -108,7 +113,7 @@ export function QuizFunnel({ source = "quiz-funnel", onComplete }: QuizFunnelPro
     try {
       const qualificationScore = calculateScore(answers);
 
-      const { error } = await supabase.functions.invoke("demo-request", {
+      const { data, error } = await supabase.functions.invoke("demo-request", {
         body: {
           ...contactInfo,
           source,
@@ -133,15 +138,38 @@ export function QuizFunnel({ source = "quiz-funnel", onComplete }: QuizFunnelPro
         timeline: answers.timeline,
       } as any);
 
-      setIsSuccess(true);
+      // Try to get lead ID for phone verification step
+      try {
+        const { data: savedLead } = await supabase
+          .from("marketing_leads" as any)
+          .select("id")
+          .eq("email", contactInfo.email)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+        if (savedLead) setLeadId((savedLead as any).id);
+      } catch { /* non-critical */ }
+
       trackDemoRequest(source);
-      onComplete?.();
+      // Move to phone verification step instead of finishing
+      setStep(QUIZ_STEPS.length + 1);
     } catch (err) {
       console.error("Quiz submission error:", err);
       toast.error("Something went wrong. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handlePhoneVerified = (_phone: string, _result: any) => {
+    setPhoneVerified(true);
+    setIsSuccess(true);
+    onComplete?.();
+  };
+
+  const handleSkipPhone = () => {
+    setIsSuccess(true);
+    onComplete?.();
   };
 
   if (isSuccess) {
@@ -235,7 +263,7 @@ export function QuizFunnel({ source = "quiz-funnel", onComplete }: QuizFunnelPro
             variant="glow"
             size="lg"
             className="w-full"
-            onClick={handleSubmit}
+            onClick={handleContactSubmit}
             disabled={isSubmitting}
           >
             {isSubmitting ? (
@@ -254,8 +282,17 @@ export function QuizFunnel({ source = "quiz-funnel", onComplete }: QuizFunnelPro
         </div>
       )}
 
+      {/* Phone verification step */}
+      {isPhoneStep && (
+        <PhoneVerificationStep
+          leadId={leadId || undefined}
+          onVerified={handlePhoneVerified}
+          onSkip={handleSkipPhone}
+        />
+      )}
+
       {/* Navigation */}
-      {step > 0 && (
+      {step > 0 && !isPhoneStep && (
         <button
           onClick={() => setStep((s) => s - 1)}
           className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
