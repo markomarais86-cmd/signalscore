@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { trackDemoRequest } from "@/lib/analytics";
-import { useUTMParams } from "@/hooks/useUTMParams";
-import { CheckCircle, Loader2, ArrowRight, ArrowLeft } from "lucide-react";
+import { useTrackingParams } from "@/hooks/useUTMParams";
+import { CheckCircle, Loader2, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const QUIZ_STEPS = [
@@ -64,16 +64,12 @@ const QUIZ_STEPS = [
 
 function calculateScore(answers: Record<string, string>): number {
   let score = 0;
-  // Company size scoring
   const sizeMap: Record<string, number> = { "1-10": 10, "11-50": 20, "51-200": 30, "200+": 25 };
   score += sizeMap[answers.company_size] || 0;
-  // Budget scoring
   const budgetMap: Record<string, number> = { under_1k: 5, "1k_5k": 15, "5k_20k": 25, "20k_plus": 30 };
   score += budgetMap[answers.budget_range] || 0;
-  // Timeline scoring
   const timelineMap: Record<string, number> = { immediately: 30, "1_3_months": 20, "3_6_months": 10, exploring: 5 };
   score += timelineMap[answers.timeline] || 0;
-  // CRM scoring (existing CRM = higher intent)
   const crmMap: Record<string, number> = { salesforce: 10, hubspot: 10, other_crm: 5, none: 0 };
   score += crmMap[answers.current_tools] || 0;
   return score;
@@ -90,9 +86,9 @@ export function QuizFunnel({ source = "quiz-funnel", onComplete }: QuizFunnelPro
   const [contactInfo, setContactInfo] = useState({ name: "", email: "", company: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const utmParams = useUTMParams();
+  const { utmParams, clickIds, funnelVariant } = useTrackingParams();
 
-  const totalSteps = QUIZ_STEPS.length + 1; // quiz + contact form
+  const totalSteps = QUIZ_STEPS.length + 1;
   const isContactStep = step === QUIZ_STEPS.length;
   const currentQuiz = QUIZ_STEPS[step];
   const progress = ((step + 1) / totalSteps) * 100;
@@ -100,7 +96,6 @@ export function QuizFunnel({ source = "quiz-funnel", onComplete }: QuizFunnelPro
   const selectAnswer = (value: string) => {
     if (!currentQuiz) return;
     setAnswers((prev) => ({ ...prev, [currentQuiz.id]: value }));
-    // Auto-advance after selection
     setTimeout(() => setStep((s) => s + 1), 300);
   };
 
@@ -113,12 +108,13 @@ export function QuizFunnel({ source = "quiz-funnel", onComplete }: QuizFunnelPro
     try {
       const qualificationScore = calculateScore(answers);
 
-      // Submit demo request with UTM + quiz data
       const { error } = await supabase.functions.invoke("demo-request", {
         body: {
           ...contactInfo,
           source,
           ...utmParams,
+          click_ids: clickIds,
+          funnel_variant: funnelVariant,
           quiz_answers: answers,
           qualification_score: qualificationScore,
         },
@@ -126,7 +122,6 @@ export function QuizFunnel({ source = "quiz-funnel", onComplete }: QuizFunnelPro
 
       if (error) throw error;
 
-      // Also save quiz responses directly
       await supabase.from("quiz_responses" as any).insert({
         email: contactInfo.email,
         answers,

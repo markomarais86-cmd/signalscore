@@ -1,15 +1,23 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle2, Clock, Phone, Mail, Calendar, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Clock, Phone, Mail, Calendar, AlertTriangle, Linkedin } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import type { LeadTask } from "@/hooks/use-tasks";
+
+const tierColors: Record<string, string> = {
+  P1: "bg-red-500/10 text-red-600 border-red-500/30",
+  P2: "bg-amber-500/10 text-amber-600 border-amber-500/30",
+  P3: "bg-blue-500/10 text-blue-600 border-blue-500/30",
+};
 
 const taskTypeIcons: Record<string, React.ElementType> = {
   call: Phone,
   email: Mail,
   demo: Calendar,
   follow_up: Clock,
+  linkedin: Linkedin,
+  meeting: Calendar,
 };
 
 const statusColors: Record<string, string> = {
@@ -47,6 +55,11 @@ export function TaskCard({ task, onComplete, onStartProgress }: TaskCardProps) {
                 <Badge variant="outline" className={statusColors[displayStatus] || ""}>
                   {displayStatus}
                 </Badge>
+                {task.title.match(/^\[(P[123])\]/) && (
+                  <Badge variant="outline" className={tierColors[task.title.match(/^\[(P[123])\]/)![1]] || ""}>
+                    {task.title.match(/^\[(P[123])\]/)![1]}
+                  </Badge>
+                )}
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   {isOverdue && task.status !== "completed" ? (
                     <><AlertTriangle className="h-3 w-3 text-destructive" /> Overdue</>

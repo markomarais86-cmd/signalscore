@@ -134,7 +134,9 @@ export function RoutingRulesSettings() {
             <Route className="h-5 w-5 text-primary" />
             <div>
               <CardTitle>Lead Routing Rules</CardTitle>
-              <CardDescription>Automatically assign incoming leads to reps with SLA timers</CardDescription>
+              <CardDescription>
+                Automatically assign incoming leads to reps with tier-based SLAs (P1: 5m, P2: 2h, P3: 24h)
+              </CardDescription>
             </div>
           </div>
           <Dialog open={showCreate} onOpenChange={setShowCreate}>

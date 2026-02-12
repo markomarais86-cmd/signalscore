@@ -5712,13 +5712,18 @@ export type Database = {
       marketing_leads: {
         Row: {
           assigned_to: string | null
+          click_ids: Json | null
           company: string | null
           created_at: string
           email: string
+          funnel_variant: string | null
           id: string
           ip_address: string | null
+          lp_tier: string | null
+          meeting_booked_at: string | null
           message: string | null
           name: string | null
+          otp_status: string | null
           phone: string | null
           phone_verified: boolean | null
           qualification_score: number | null
@@ -5739,13 +5744,18 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          click_ids?: Json | null
           company?: string | null
           created_at?: string
           email: string
+          funnel_variant?: string | null
           id?: string
           ip_address?: string | null
+          lp_tier?: string | null
+          meeting_booked_at?: string | null
           message?: string | null
           name?: string | null
+          otp_status?: string | null
           phone?: string | null
           phone_verified?: boolean | null
           qualification_score?: number | null
@@ -5766,13 +5776,18 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          click_ids?: Json | null
           company?: string | null
           created_at?: string
           email?: string
+          funnel_variant?: string | null
           id?: string
           ip_address?: string | null
+          lp_tier?: string | null
+          meeting_booked_at?: string | null
           message?: string | null
           name?: string | null
+          otp_status?: string | null
           phone?: string | null
           phone_verified?: boolean | null
           qualification_score?: number | null
