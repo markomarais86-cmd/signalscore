@@ -33,7 +33,8 @@ import {
   GitBranch,
   BarChart3,
   Bot,
-  Target
+  Target,
+  Route
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
@@ -68,6 +69,7 @@ const ScoreRefreshPanel = lazy(() => import("@/components/settings/ScoreRefreshP
 const AIProviderSettings = lazy(() => import("@/components/settings/AIProviderSettings").then(m => ({ default: m.AIProviderSettings })));
 const DataUploadContent = lazy(() => import("@/components/settings/DataUploadContent"));
 const ServiceHealthStatus = lazy(() => import("@/components/settings/ServiceHealthStatus").then(m => ({ default: m.ServiceHealthStatus })));
+const RoutingRulesSettings = lazy(() => import("@/components/settings/RoutingRulesSettings").then(m => ({ default: m.RoutingRulesSettings })));
 
 interface TeamMember {
   id: string;
@@ -265,6 +267,12 @@ export default function Settings() {
             <span className="hidden sm:inline">Integrations</span>
           </TabsTrigger>
           {isAdmin && (
+            <TabsTrigger value="routing" className="flex items-center gap-2 flex-shrink-0">
+              <Route className="h-4 w-4" />
+              <span className="hidden sm:inline">Routing</span>
+            </TabsTrigger>
+          )}
+          {isAdmin && (
             <TabsTrigger value="automation" className="flex items-center gap-2 flex-shrink-0">
               <Bot className="h-4 w-4" />
               <span className="hidden sm:inline">Automation & AI</span>
@@ -402,6 +410,15 @@ export default function Settings() {
             <AccountExclusions />
           </Suspense>
         </TabsContent>
+
+        {/* Routing Rules - Admin Only */}
+        {isAdmin && (
+          <TabsContent value="routing" className="space-y-6">
+            <Suspense fallback={<SettingsSkeleton />}>
+              <RoutingRulesSettings />
+            </Suspense>
+          </TabsContent>
+        )}
 
         {/* Automation & AI: Automation, AI Agents - Admin Only */}
         {isAdmin && (

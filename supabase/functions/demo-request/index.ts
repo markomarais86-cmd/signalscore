@@ -189,6 +189,41 @@ const handler = async (req: Request): Promise<Response> => {
         console.error("Failed to insert marketing lead:", insertError);
       } else {
         console.log("Marketing lead saved successfully");
+
+        // Trigger lead routing
+        try {
+          const { data: savedLead } = await supabaseAdmin
+            .from("marketing_leads")
+            .select("id, org_id, email, name, company, qualification_score")
+            .eq("email", data.email)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
+
+          if (savedLead?.org_id) {
+            const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+            await fetch(`${supabaseUrl}/functions/v1/route-lead`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({
+                lead_id: savedLead.id,
+                org_id: savedLead.org_id,
+                lead_data: {
+                  email: savedLead.email,
+                  name: savedLead.name,
+                  company: savedLead.company,
+                  qualification_score: savedLead.qualification_score,
+                },
+              }),
+            });
+            console.log("Lead routing triggered");
+          }
+        } catch (routeErr) {
+          console.error("Lead routing failed (non-fatal):", routeErr);
+        }
       }
     } catch (dbError) {
       console.error("Database error saving marketing lead:", dbError);
