@@ -49,6 +49,7 @@ import AgentTester from "./pages/AgentTester";
 import AITest from "./pages/AITest";
 import Help from "./pages/Help";
 import APIAccess from "./pages/APIAccess";
+import Tasks from "./pages/Tasks";
 
 import PipelineAnalyticsPage from "./pages/PipelineAnalyticsPage";
 import AIFeedbackPage from "./pages/AIFeedbackPage";
@@ -327,6 +328,16 @@ function AppContent() {
                   element={
                     <ProtectedRoute>
                       <Help />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/tasks"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Tasks />
+                      </Layout>
                     </ProtectedRoute>
                   }
                 />

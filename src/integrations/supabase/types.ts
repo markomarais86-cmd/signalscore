@@ -5260,6 +5260,119 @@ export type Database = {
           },
         ]
       }
+      lead_routing_rules: {
+        Row: {
+          assigned_to: string | null
+          auto_tasks: Json
+          conditions: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          org_id: string
+          priority: number
+          sla_minutes: number
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          auto_tasks?: Json
+          conditions?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          org_id: string
+          priority?: number
+          sla_minutes?: number
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          auto_tasks?: Json
+          conditions?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          org_id?: string
+          priority?: number
+          sla_minutes?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_routing_rules_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_tasks: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          due_at: string
+          id: string
+          lead_id: string
+          lead_type: string
+          org_id: string
+          routing_rule_id: string | null
+          status: string
+          task_type: string
+          title: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_at: string
+          id?: string
+          lead_id: string
+          lead_type?: string
+          org_id: string
+          routing_rule_id?: string | null
+          status?: string
+          task_type?: string
+          title: string
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_at?: string
+          id?: string
+          lead_id?: string
+          lead_type?: string
+          org_id?: string
+          routing_rule_id?: string | null
+          status?: string
+          task_type?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_tasks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_tasks_routing_rule_id_fkey"
+            columns: ["routing_rule_id"]
+            isOneToOne: false
+            referencedRelation: "lead_routing_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       Leads: {
         Row: {
           account_external_id: string | null
@@ -5598,6 +5711,7 @@ export type Database = {
       }
       marketing_leads: {
         Row: {
+          assigned_to: string | null
           company: string | null
           created_at: string
           email: string
@@ -5608,6 +5722,10 @@ export type Database = {
           phone: string | null
           phone_verified: boolean | null
           qualification_score: number | null
+          routed_at: string | null
+          routing_rule_id: string | null
+          sla_breached: boolean | null
+          sla_deadline: string | null
           source: string
           status: string
           subject: string | null
@@ -5620,6 +5738,7 @@ export type Database = {
           utm_term: string | null
         }
         Insert: {
+          assigned_to?: string | null
           company?: string | null
           created_at?: string
           email: string
@@ -5630,6 +5749,10 @@ export type Database = {
           phone?: string | null
           phone_verified?: boolean | null
           qualification_score?: number | null
+          routed_at?: string | null
+          routing_rule_id?: string | null
+          sla_breached?: boolean | null
+          sla_deadline?: string | null
           source: string
           status?: string
           subject?: string | null
@@ -5642,6 +5765,7 @@ export type Database = {
           utm_term?: string | null
         }
         Update: {
+          assigned_to?: string | null
           company?: string | null
           created_at?: string
           email?: string
@@ -5652,6 +5776,10 @@ export type Database = {
           phone?: string | null
           phone_verified?: boolean | null
           qualification_score?: number | null
+          routed_at?: string | null
+          routing_rule_id?: string | null
+          sla_breached?: boolean | null
+          sla_deadline?: string | null
           source?: string
           status?: string
           subject?: string | null
@@ -5663,7 +5791,15 @@ export type Database = {
           utm_source?: string | null
           utm_term?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "marketing_leads_routing_rule_id_fkey"
+            columns: ["routing_rule_id"]
+            isOneToOne: false
+            referencedRelation: "lead_routing_rules"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       master_account_data: {
         Row: {

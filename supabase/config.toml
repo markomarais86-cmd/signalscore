@@ -399,6 +399,12 @@ verify_jwt = true
 [functions.demo-request]
 verify_jwt = false
 
+[functions.route-lead]
+verify_jwt = false
+
+[functions.check-sla-breaches]
+verify_jwt = false
+
 [functions.prewarm-enrichment-cache]
 verify_jwt = true
 
