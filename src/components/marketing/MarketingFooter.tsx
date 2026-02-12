@@ -19,18 +19,21 @@ export function MarketingFooter() {
           height="24"
           loading="lazy"
         />
-        <div className="flex items-center gap-6">
-          <Link 
-            to="/privacy" 
-            className="text-sm text-white/50 hover:text-white transition-colors"
-          >
+        <div className="flex items-center gap-6 flex-wrap">
+          <Link to="/privacy" className="text-sm text-white/50 hover:text-white transition-colors">
             Privacy Policy
           </Link>
-          <Link 
-            to="/terms" 
-            className="text-sm text-white/50 hover:text-white transition-colors"
-          >
+          <Link to="/terms" className="text-sm text-white/50 hover:text-white transition-colors">
             Terms of Service
+          </Link>
+          <Link to="/dpa" className="text-sm text-white/50 hover:text-white transition-colors">
+            DPA
+          </Link>
+          <Link to="/security" className="text-sm text-white/50 hover:text-white transition-colors">
+            Security
+          </Link>
+          <Link to="/subprocessors" className="text-sm text-white/50 hover:text-white transition-colors">
+            Subprocessors
           </Link>
         </div>
         <p className="text-sm text-white/50">

@@ -102,7 +102,36 @@ export default function TermsOfService() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold mb-4 text-white">9. Changes to Terms</h2>
+              <h2 className="text-2xl font-semibold mb-4 text-white">9. Data Processing</h2>
+              <p className="text-white/70 leading-relaxed">
+                When you upload personal data to the Service, LaunchPulse acts as a data processor on your behalf. 
+                Our processing obligations are governed by our{" "}
+                <Link to="/dpa" className="text-primary hover:underline">Data Processing Agreement</Link>, 
+                which forms part of these Terms. You remain the data controller for all personal data you upload.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold mb-4 text-white">10. Indemnification</h2>
+              <p className="text-white/70 leading-relaxed">
+                You agree to indemnify and hold harmless LaunchPulse from any claims, damages, or expenses arising 
+                from your use of the Service, your violation of these Terms, or your violation of any rights of a 
+                third party. LaunchPulse shall indemnify you against claims arising from our breach of data 
+                protection obligations as described in our Data Processing Agreement.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold mb-4 text-white">11. Service Levels</h2>
+              <p className="text-white/70 leading-relaxed">
+                LaunchPulse targets 99.9% uptime for the Service, excluding scheduled maintenance windows. 
+                This is a target, not a guarantee. We do not offer service level credits or compensation for 
+                downtime unless separately agreed in an enterprise agreement.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold mb-4 text-white">12. Changes to Terms</h2>
               <p className="text-white/70 leading-relaxed">
                 We reserve the right to modify these terms at any time. We will notify users of any material 
                 changes by posting the new Terms of Service on this page and updating the "Last updated" date.
@@ -110,7 +139,16 @@ export default function TermsOfService() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold mb-4 text-white">10. Contact Us</h2>
+              <h2 className="text-2xl font-semibold mb-4 text-white">13. Governing Law and Jurisdiction</h2>
+              <p className="text-white/70 leading-relaxed">
+                These Terms shall be governed by and construed in accordance with the laws of England and Wales. 
+                Any disputes arising under these Terms shall be subject to the exclusive jurisdiction of the 
+                courts of England and Wales.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold mb-4 text-white">14. Contact Us</h2>
               <p className="text-white/70 leading-relaxed">
                 If you have any questions about these Terms of Service, please contact us at support@launchpulse.io.
               </p>
