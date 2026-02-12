@@ -5,9 +5,6 @@ import { renderAsync } from 'npm:@react-email/components@0.0.22'
 import { PasswordResetEmail } from './_templates/password-reset.tsx'
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY') as string)
-const rawHookSecret = Deno.env.get('SEND_EMAIL_HOOK_SECRET') as string
-// standardwebhooks expects base64-encoded secret without the whsec_ prefix
-const hookSecret = rawHookSecret.replace(/^whsec_/, '')
 
 interface AuthEmailPayload {
   user: {
@@ -35,29 +32,58 @@ Deno.serve(async (req) => {
     })
   }
 
+  // Get and validate the hook secret inside the handler
+  const rawHookSecret = Deno.env.get('SEND_EMAIL_HOOK_SECRET')
+  if (!rawHookSecret) {
+    console.error('SEND_EMAIL_HOOK_SECRET is not set')
+    return new Response(
+      JSON.stringify({ error: { http_code: 500, message: 'Missing hook secret configuration' } }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Supabase hook secrets can be in format: "v1,whsec_<base64>" or "whsec_<base64>" or raw base64
+  // The standardwebhooks library expects just the raw base64 part
+  let hookSecret = rawHookSecret
+  if (hookSecret.includes('whsec_')) {
+    // Extract everything after 'whsec_'
+    hookSecret = hookSecret.split('whsec_').pop() || hookSecret
+  }
+
+  console.log(`Hook secret length: ${hookSecret.length}, starts with: ${hookSecret.substring(0, 4)}...`)
+
   const payload = await req.text()
   const headers = Object.fromEntries(req.headers)
 
   // Verify webhook signature
-  const wh = new Webhook(hookSecret)
+  let wh: InstanceType<typeof Webhook>
+  try {
+    wh = new Webhook(hookSecret)
+  } catch (error) {
+    console.error('Failed to initialize Webhook with secret:', error.message)
+    // Try with the raw secret (without stripping prefix) as fallback
+    try {
+      wh = new Webhook(rawHookSecret)
+      console.log('Webhook initialized with raw secret (including prefix)')
+    } catch (error2) {
+      console.error('Failed with raw secret too:', error2.message)
+      return new Response(
+        JSON.stringify({ error: { http_code: 500, message: 'Invalid hook secret format' } }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      )
+    }
+  }
+
   let data: AuthEmailPayload
 
   try {
-    data = wh.verify(payload, headers) as AuthEmailPayload
+    data = wh!.verify(payload, headers) as AuthEmailPayload
     console.log('Webhook verified successfully')
   } catch (error) {
     console.error('Webhook verification failed:', error)
     return new Response(
-      JSON.stringify({
-        error: {
-          http_code: 401,
-          message: 'Webhook verification failed',
-        },
-      }),
-      {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ error: { http_code: 401, message: 'Webhook verification failed' } }),
+      { status: 401, headers: { 'Content-Type': 'application/json' } }
     )
   }
 
@@ -69,7 +95,6 @@ Deno.serve(async (req) => {
   // Only handle password reset (recovery) emails for now
   if (email_action_type !== 'recovery') {
     console.log(`Skipping email type: ${email_action_type} (not yet implemented)`)
-    // Return success but don't send - let Supabase send the default
     return new Response(JSON.stringify({}), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -77,11 +102,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Construct the reset URL
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
     const resetUrl = `${supabaseUrl}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${redirect_to}`
 
-    // Render the email template
     const html = await renderAsync(
       React.createElement(PasswordResetEmail, {
         resetUrl,
@@ -89,7 +112,6 @@ Deno.serve(async (req) => {
       })
     )
 
-    // Send via Resend
     const { data: emailResult, error: emailError } = await resend.emails.send({
       from: 'LaunchPulse <noreply@launchpulse.io>',
       to: [user.email],
@@ -111,16 +133,8 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Error sending password reset email:', error)
     return new Response(
-      JSON.stringify({
-        error: {
-          http_code: 500,
-          message: error.message || 'Failed to send email',
-        },
-      }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ error: { http_code: 500, message: error.message || 'Failed to send email' } }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     )
   }
 })
