@@ -1,195 +1,98 @@
 
+# Update `route-lead` with Capacity and Working Hours Checks
 
-# Managed Demand Engine: Customer Onboarding for "Done-For-You" Lead Generation
+## What Changes
 
-## The Model
+The `route-lead` edge function currently assigns a lead to whichever rep is specified on the first matching routing rule (`matchedRule.assigned_to`), with no checks on whether that rep is available or at capacity. This update adds two guardrails before assignment:
 
-LaunchPulse runs the entire demand engine on behalf of each customer. Customers don't touch ad platforms, funnels, or conversion tracking. They log in and see qualified leads, tasks, and pipeline -- ready to work. You bill them for the service.
+1. **Working hours check**: Is the assigned rep currently within their working hours (based on their timezone)?
+2. **Daily capacity check**: Has the rep already received their `max_leads_per_day` today?
 
-## What You Need From Each Customer
+If either check fails, the system overflows to the next available rep in the same org.
 
-There are two categories of inputs: **required to launch** and **needed for optimization**.
+---
 
-### Required to Launch (Day 1)
-
-| Input | Why | Where It Lives Today |
-|-------|-----|---------------------|
-| Company name, logo, brand colors | White-label the landing pages and quiz funnel to their brand | Not captured -- needs `org_onboarding_config` |
-| ICP definition (industries, company sizes, geographies, titles) | Target the right audience in ads and score leads correctly | `icp_profiles` table (exists) |
-| Sales team roster (names, emails, territories) | Route leads to the right rep, create tasks for them | `user_profiles` (partially exists -- needs territory/capacity fields) |
-| Routing preferences (geo/size/industry rules) | Assign leads based on their sales org structure | `lead_routing_rules` (exists) |
-| Calendly/booking link(s) per rep | Let qualified leads book directly after the funnel | Not captured -- needs field on user_profiles or org config |
-| Value proposition and messaging | Populate quiz intro, landing page copy, email templates | Not captured -- needs `org_campaign_config` |
-
-### Needed for Optimization (Week 2+)
-
-| Input | Why |
-|-------|-----|
-| CRM credentials (Salesforce/HubSpot) | Sync leads and deals bi-directionally |
-| Historical closed-won data | Train scoring model on what "good" looks like for them |
-| Competitor list | Use in quiz disqualification and ad targeting |
-| Objection handling notes | Feed into AI follow-up email sequences |
-
-## What You Build
-
-### A. Database: Customer Onboarding Config
-
-A new `org_onboarding_config` table stores everything LaunchPulse needs to run campaigns for a customer:
+## Logic Flow
 
 ```text
-org_onboarding_config
----------------------
-org_id (FK)
-company_name, logo_url, brand_primary_color, brand_secondary_color
-website_url
-value_proposition (text -- elevator pitch)
-target_persona_description (text)
-calendly_base_url
-onboarding_status: draft | ready | active | paused
-launched_at, paused_at
-monthly_lead_target (integer)
+Rule matched -> assigned_to = rep X
+  |
+  v
+Fetch ALL reps for this org (from user_profiles)
+  with: working_hours_start, working_hours_end, timezone, max_leads_per_day
+  |
+  v
+Count today's leads per rep (from marketing_leads WHERE routed_at = today)
+  |
+  v
+Is rep X available? (within working hours AND under daily cap)
+  YES -> assign to rep X (current behavior)
+  NO  -> iterate through other org reps to find first available
+         -> if found, assign to overflow rep
+         -> if none available, assign to rep X anyway (best effort, log warning)
 ```
-
-### B. Database: Campaign Config (per customer)
-
-A new `org_campaign_config` table lets you manage what campaigns are running for each customer:
-
-```text
-org_campaign_config
--------------------
-org_id (FK)
-campaign_name
-platform (google | meta | linkedin)
-ad_account_id (YOUR ad account, not theirs)
-monthly_budget_cents
-landing_page_variant
-quiz_variant
-status: draft | active | paused | completed
-start_date, end_date
-```
-
-### C. Database: Rep Profiles Extension
-
-Add fields to `user_profiles` for routing intelligence:
-
-- `territory` (text array -- countries/regions this rep covers)
-- `max_leads_per_day` (integer -- capacity cap)
-- `calendly_url` (text -- personal booking link)
-- `working_hours_start`, `working_hours_end` (time -- for SLA calculation)
-
-### D. Super-Admin Customer Onboarding Wizard
-
-A new page at `/admin/customer-onboarding` (super-admin only) with a step-by-step wizard:
-
-1. **Company Profile** -- name, logo upload, colors, website, value prop
-2. **ICP Setup** -- industries, sizes, geos, titles (feeds into existing `icp_profiles`)
-3. **Sales Team** -- add reps with territories, capacity, Calendly links
-4. **Routing Rules** -- auto-generate default rules from ICP + territories
-5. **Campaign Setup** -- which platforms, budget, landing page variant
-6. **Review and Launch** -- summary card, "Activate" button that sets status to `active`
-
-### E. Customer Dashboard (What They See)
-
-Customers log in and see a simplified view -- no ad platform config, no funnel setup. Just:
-
-- **Lead feed**: New qualified leads with contact info, company, score, and quiz answers
-- **Task list**: "Call Jane at Acme within 5 minutes" with SLA countdown
-- **Pipeline**: Their deals moving through stages
-- **Monthly report**: Leads delivered, meetings booked, pipeline generated, cost per lead
-
-### F. Edge Function Updates
-
-- **`demo-request`**: Use `org_onboarding_config` to resolve which customer's funnel captured this lead (based on `funnel_variant` or landing page domain)
-- **`route-lead`**: Check rep capacity (`max_leads_per_day`) before assignment; respect working hours for SLA start time
-- **Landing page / quiz**: Dynamically load branding from `org_onboarding_config` based on URL parameter or subdomain
 
 ---
 
 ## Technical Details
 
-### Migration: `org_onboarding_config`
+### File: `supabase/functions/route-lead/index.ts`
 
-```sql
-CREATE TABLE public.org_onboarding_config (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL UNIQUE REFERENCES public.organizations(id) ON DELETE CASCADE,
-  company_name TEXT,
-  logo_url TEXT,
-  brand_primary_color TEXT DEFAULT '#6366f1',
-  brand_secondary_color TEXT DEFAULT '#818cf8',
-  website_url TEXT,
-  value_proposition TEXT,
-  target_persona_description TEXT,
-  calendly_base_url TEXT,
-  onboarding_status TEXT NOT NULL DEFAULT 'draft'
-    CHECK (onboarding_status IN ('draft', 'ready', 'active', 'paused')),
-  monthly_lead_target INTEGER DEFAULT 50,
-  launched_at TIMESTAMPTZ,
-  paused_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-ALTER TABLE public.org_onboarding_config ENABLE ROW LEVEL SECURITY;
+**New helper function: `findAvailableRep`**
+
+```typescript
+async function findAvailableRep(
+  supabase, org_id, preferredRepId, now
+): Promise<{ repId: string; overflowed: boolean }>
 ```
 
-### Migration: `org_campaign_config`
+This function:
+1. Fetches all reps in the org from `user_profiles` with columns: `user_id`, `working_hours_start`, `working_hours_end`, `timezone`, `max_leads_per_day`
+2. Counts today's assigned leads per rep by querying `marketing_leads` where `org_id` matches and `routed_at` is today (in each rep's timezone)
+3. Builds an availability check per rep:
+   - Convert `now` to the rep's timezone and compare against `working_hours_start` / `working_hours_end`
+   - Compare today's lead count against `max_leads_per_day`
+4. If the preferred rep passes both checks, return them
+5. Otherwise, iterate through other reps (sorted by fewest leads today) and return the first available
+6. If no reps are available at all, fall back to the preferred rep with `overflowed: false` and a console warning
 
-```sql
-CREATE TABLE public.org_campaign_config (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  campaign_name TEXT NOT NULL,
-  platform TEXT NOT NULL CHECK (platform IN ('google', 'meta', 'linkedin', 'tiktok')),
-  ad_account_id TEXT,
-  monthly_budget_cents INTEGER,
-  landing_page_variant TEXT,
-  quiz_variant TEXT,
-  status TEXT NOT NULL DEFAULT 'draft'
-    CHECK (status IN ('draft', 'active', 'paused', 'completed')),
-  start_date DATE,
-  end_date DATE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-ALTER TABLE public.org_campaign_config ENABLE ROW LEVEL SECURITY;
+**Changes to the main handler (around lines 122-151)**
+
+After a routing rule is matched and `matchedRule.assigned_to` is determined:
+- Call `findAvailableRep(supabase, org_id, matchedRule.assigned_to, now)`
+- Use the returned `repId` instead of `matchedRule.assigned_to` for:
+  - `updatePayload.assigned_to`
+  - Task creation (`assigned_to` field)
+  - Alert metadata
+- If `overflowed` is true, log the overflow event and include `overflow_from` and `overflow_to` in the response
+
+**Working hours logic detail**
+
+Since Deno doesn't have native timezone-aware date formatting, the function will:
+- Use `Intl.DateTimeFormat` with the rep's timezone to extract current hour/minute
+- Compare against `working_hours_start` and `working_hours_end` (stored as TIME, e.g. "09:00", "17:00")
+- Handle overnight edge cases (e.g., if start > end, treat as wrapping past midnight)
+
+**Daily count query**
+
+```typescript
+const today = new Date(now);
+today.setUTCHours(0, 0, 0, 0);
+
+const { data: counts } = await supabase
+  .from("marketing_leads")
+  .select("assigned_to")
+  .eq("org_id", org_id)
+  .gte("routed_at", today.toISOString())
+  .not("assigned_to", "is", null);
 ```
 
-### Migration: user_profiles extension
+Then group by `assigned_to` in-memory to get per-rep counts.
 
-```sql
-ALTER TABLE public.user_profiles
-  ADD COLUMN IF NOT EXISTS territory TEXT[] DEFAULT '{}',
-  ADD COLUMN IF NOT EXISTS max_leads_per_day INTEGER DEFAULT 20,
-  ADD COLUMN IF NOT EXISTS calendly_url TEXT,
-  ADD COLUMN IF NOT EXISTS working_hours_start TIME DEFAULT '09:00',
-  ADD COLUMN IF NOT EXISTS working_hours_end TIME DEFAULT '17:00',
-  ADD COLUMN IF NOT EXISTS timezone TEXT DEFAULT 'America/New_York';
-```
+**Response additions**
 
-### New UI Components
+The response JSON will include two new optional fields:
+- `overflow: true/false` -- whether the lead was reassigned from the rule's preferred rep
+- `overflow_reason: "capacity" | "working_hours" | null` -- why overflow happened
 
-| File | Purpose |
-|------|---------|
-| `src/pages/admin/CustomerOnboarding.tsx` | Multi-step wizard for super-admins to set up a new customer |
-| `src/components/admin/OnboardingStepCompany.tsx` | Step 1: Company profile, logo, colors, value prop |
-| `src/components/admin/OnboardingStepICP.tsx` | Step 2: ICP definition (writes to `icp_profiles`) |
-| `src/components/admin/OnboardingStepTeam.tsx` | Step 3: Add reps with territories and Calendly links |
-| `src/components/admin/OnboardingStepRouting.tsx` | Step 4: Auto-generate routing rules from ICP + territories |
-| `src/components/admin/OnboardingStepCampaigns.tsx` | Step 5: Campaign platform, budget, variants |
-| `src/components/admin/OnboardingStepReview.tsx` | Step 6: Summary + "Activate" button |
-| `src/components/admin/CustomerList.tsx` | Table of all customers with status badges (draft/active/paused) and lead counts |
-
-### Route Changes
-
-- Add `/admin/customer-onboarding` and `/admin/customer-onboarding/:orgId` routes
-- Add "Customer Onboarding" link to the admin sidebar
-
-### Implementation Sequence
-
-1. Database migrations (3 tables + user_profiles extension)
-2. `CustomerList.tsx` -- overview of all managed customers
-3. Multi-step onboarding wizard (6 steps)
-4. Update `route-lead` to respect capacity and working hours
-5. Dynamic quiz/landing page branding from `org_onboarding_config`
-6. Customer-facing simplified dashboard view
-
+No database schema changes are needed -- all required columns already exist on `user_profiles`.
