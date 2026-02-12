@@ -1,104 +1,140 @@
 
 
-# Customer-Facing Simplified Dashboard
+# Dynamic MQL/SQL Branding + Customer Sidebar Reorganization
 
 ## Overview
 
-Create a new `/my-dashboard` page and a simplified sidebar layout specifically for non-admin, non-super-admin users ("customer" users). This gives customers a clean, focused view of only their leads, tasks, and pipeline -- no ICP Manager, Enrichment, AI Agents, Analytics, Admin, or other power-user controls.
+Two changes in one implementation:
 
-## Approach: Role-Based Layout Switching
+1. **Dynamic branding from `org_onboarding_config`** -- applies to BOTH the public MQL/SQL quiz funnel landing page AND the logged-in customer dashboard/sidebar (logo, colors, company name)
+2. **Customer Sidebar reorganization** -- group Tasks and Opportunities under a collapsible "Sales" dropdown
 
-Rather than building an entirely separate app shell, we'll create:
+---
 
-1. **A new `CustomerLayout` component** -- a simplified version of `Layout` with a stripped-down sidebar showing only: Dashboard, Leads, Tasks, Opportunities, Settings, and Sign Out.
-2. **A new `CustomerDashboard` page** -- a single-page overview combining key metrics from leads, tasks, and pipeline in a clean card-based layout.
-3. **Role-based routing in `App.tsx`** -- customer users (role = `user`, not `admin` or `super_admin`) get routed to the customer layout; admin/super-admin users see the existing full layout.
+## Part 1: Customer Sidebar -- "Sales" Dropdown
 
-## New Files
+### Modify `src/components/CustomerSidebar.tsx`
 
-### 1. `src/components/CustomerSidebar.tsx`
-A minimal sidebar with only 5 nav items:
-- **My Dashboard** (`/my-dashboard`)
-- **Leads** (`/leads`)
-- **Tasks** (`/tasks`)
-- **Opportunities** (`/opportunities`)
-- **Settings** (`/settings`)
+Restructure the flat navigation into:
 
-Plus footer with user name and Sign Out button. Uses the same `Sidebar` UI primitives from `@/components/ui/sidebar`. No Build, Configure, Analytics, or Admin sections.
+- **Dashboard** (top-level)
+- **Leads** (top-level)
+- **Sales** (collapsible group containing):
+  - Tasks
+  - Opportunities
+- **Settings** (top-level)
 
-### 2. `src/components/CustomerLayout.tsx`
-A simplified layout wrapper (like `Layout.tsx`) that uses `CustomerSidebar` instead of `AppSidebar`. Keeps the header bar (with theme toggle) but removes:
-- Command Palette trigger
-- Export Queue Manager
-- AI Chat floating widget
-- Campaign Builder
-- Help Panel and Notification Center (optional: keep Notification Center)
+Use the same `Collapsible` + `CollapsibleTrigger` + `CollapsibleContent` pattern already used in `AppSidebar.tsx` (Build/Configure sections). Auto-expand the Sales group when the current route is `/tasks` or `/opportunities`.
 
-### 3. `src/pages/CustomerDashboard.tsx`
-A single overview page with three sections:
+---
 
-**Section A -- Key Metrics (4 cards)**
-- Total Leads assigned to this user
-- Tasks pending/overdue
-- Open deals count
-- Pipeline value (sum of open deal amounts)
+## Part 2: Database Changes for Branded Pages
 
-**Section B -- My Tasks (condensed list)**
-- Shows top 5 pending/overdue tasks using existing `TaskCard` component
-- "View All" link to `/tasks`
+### Migration SQL
 
-**Section C -- My Pipeline (mini deal board)**
-- Horizontal summary of deal stages with counts and values
-- Uses data from `useOpportunities` hook
-- "View All" link to `/opportunities`
+1. **Add `slug` column to `organizations`**:
+   - `ALTER TABLE organizations ADD COLUMN slug TEXT UNIQUE`
+   - Create index on `slug`
 
-### 4. Modifications to `src/App.tsx`
-Add new route:
+2. **Create `get_branded_config_by_slug` RPC** (SECURITY DEFINER):
+   - Joins `organizations.slug` with `org_onboarding_config`
+   - Returns only public branding fields: `company_name`, `logo_url`, `brand_primary_color`, `brand_secondary_color`, `value_proposition`, `target_persona_description`, `calendly_base_url`
+   - Filters by `onboarding_status = 'active'`
+   - Callable by anonymous users (for public landing pages)
+
+3. **Create `get_branded_config_by_org_id` RPC** (SECURITY DEFINER):
+   - Same fields but looks up by `org_id` directly
+   - For authenticated users viewing their own customer dashboard
+   - Validates caller belongs to the org
+
+---
+
+## Part 3: Branding Hook
+
+### Create `src/hooks/useBrandedConfig.ts`
+
+Two modes:
+- **By slug** (public pages): calls `get_branded_config_by_slug` RPC
+- **By org_id** (logged-in dashboard): calls `get_branded_config_by_org_id` RPC
+
+Returns a `BrandConfig` type:
 ```
-/my-dashboard -> CustomerLayout > CustomerDashboard
-```
-
-Update `LandingRedirectWrapper` to redirect customer-role users to `/my-dashboard` instead of `/dashboard`.
-
-For the existing `/leads`, `/tasks`, `/opportunities`, and `/settings` routes, wrap them conditionally:
-- If user role is `admin` or `super_admin`: use existing `Layout`
-- If user role is `user`: use `CustomerLayout`
-
-This will be implemented via a new `RoleAwareLayout` component that checks `useRoles()` and renders the appropriate layout.
-
-## Technical Details
-
-### `RoleAwareLayout` component
-```typescript
-// src/components/RoleAwareLayout.tsx
-function RoleAwareLayout({ children }) {
-  const { isSuperAdmin, isOrgAdmin } = useRoles();
-  if (isSuperAdmin || isOrgAdmin) return <Layout>{children}</Layout>;
-  return <CustomerLayout>{children}</CustomerLayout>;
+{
+  company_name, logo_url, brand_primary_color,
+  brand_secondary_color, value_proposition
 }
 ```
 
-This is used in App.tsx for shared routes (`/leads`, `/tasks`, `/opportunities`, `/settings`) so they automatically get the right chrome.
+---
 
-### Data scoping
-- **Leads**: Already scoped by `org_id` via `useInfiniteLeads` hook -- no changes needed
-- **Tasks**: Already scoped by `org_id` via `useTasks` hook -- no changes needed  
-- **Opportunities**: Already scoped by `org_id` via `useOpportunities` hook -- no changes needed
-- **CustomerDashboard metrics**: Will query the same hooks/RPCs but display simplified summaries
+## Part 4: Public Branded Landing Page (MQL/SQL Only)
 
-### Routes that remain admin-only (unchanged, keep `Layout`)
-`/dashboard`, `/icp-manager`, `/accounts`, `/enrichment`, `/ai-agents`, `/admin/*`, `/data-upload`, all analytics pages, `/reports`, etc.
+### Create `src/pages/BrandedLanding.tsx`
 
-### No database changes required
-All data is already properly scoped by `org_id` through existing RLS policies and hooks.
+- Route: `/p/:orgSlug`
+- Reads `orgSlug` from URL params
+- Fetches brand config via `useBrandedConfig(slug)`
+- Shows loading skeleton while fetching; redirects to default landing on invalid/inactive slug
+- Renders a branded version of the marketing page with:
+  - Customer logo in nav (via `BrandedMarketingNav`)
+  - CSS custom properties (`--brand-primary`, `--brand-secondary`) on wrapper div
+  - `value_proposition` as hero subheadline
+  - `company_name` in headline
+  - QuizFunnel receives `orgSlug` as source and `brandConfig` for color overrides
+
+### Create `src/components/marketing/BrandedMarketingNav.tsx`
+
+- Variant of `MarketingNav` that accepts `logoUrl`, `companyName`, `primaryColor`
+- Shows customer logo instead of LaunchPulse logo
+- Applies brand color to CTA button
+
+### Modify `src/components/marketing/QuizFunnel.tsx`
+
+- Add optional `brandConfig` prop with `primaryColor`
+- When provided, apply `primaryColor` to progress bar fill and selected option highlight via inline styles
+- Pass `orgSlug` in submission payload for lead attribution
+
+---
+
+## Part 5: Customer Dashboard Branding
+
+### Modify `src/components/CustomerSidebar.tsx`
+
+- Fetch brand config using `useBrandedConfig({ orgId })` from the logged-in user's `org_id`
+- If `logo_url` exists, show customer logo instead of `BrandLogo`
+- Apply `brand_primary_color` as accent color for active nav items via CSS custom property
+
+### Modify `src/components/CustomerLayout.tsx`
+
+- Pass brand config down or apply `--brand-primary` CSS variable on the layout wrapper
+- Header accent and footer can pick up the brand color
+
+### Modify `src/pages/CustomerDashboard.tsx`
+
+- Show `company_name` in the greeting/header area (e.g., "Welcome back, {company_name}")
+- Metric card accents use brand color
+
+---
+
+## Part 6: Routing
+
+### Modify `src/App.tsx`
+
+- Add route: `<Route path="/p/:orgSlug" element={<BrandedLanding />} />`
+
+---
 
 ## Files Changed Summary
 
 | File | Action |
 |------|--------|
-| `src/components/CustomerSidebar.tsx` | Create -- minimal 5-item sidebar |
-| `src/components/CustomerLayout.tsx` | Create -- simplified layout shell |
-| `src/components/RoleAwareLayout.tsx` | Create -- switches layout by role |
-| `src/pages/CustomerDashboard.tsx` | Create -- overview with metrics, tasks, pipeline |
-| `src/App.tsx` | Modify -- add `/my-dashboard` route, update shared routes to use `RoleAwareLayout`, update redirect logic |
+| Migration SQL | Create -- add `slug` to organizations, create 2 RPCs |
+| `src/hooks/useBrandedConfig.ts` | Create -- fetches brand config by slug or org_id |
+| `src/pages/BrandedLanding.tsx` | Create -- public branded MQL/SQL landing page |
+| `src/components/marketing/BrandedMarketingNav.tsx` | Create -- brand-aware nav for landing page |
+| `src/components/marketing/QuizFunnel.tsx` | Modify -- accept optional `brandConfig` for color overrides |
+| `src/components/CustomerSidebar.tsx` | Modify -- add "Sales" collapsible group + brand logo/colors |
+| `src/components/CustomerLayout.tsx` | Modify -- apply brand CSS variables |
+| `src/pages/CustomerDashboard.tsx` | Modify -- show company name, brand-colored accents |
+| `src/App.tsx` | Modify -- add `/p/:orgSlug` route |
 
