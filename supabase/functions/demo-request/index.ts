@@ -22,30 +22,21 @@ interface DemoRequest {
   utm_campaign?: string;
   utm_content?: string;
   utm_term?: string;
+  click_ids?: Record<string, string>;
+  funnel_variant?: string;
   quiz_answers?: Record<string, string>;
   qualification_score?: number;
 }
 
 function getPlanDisplayName(source: string | undefined): string | null {
   if (!source) return null;
-  
   if (source.startsWith('pricing-')) {
     const planPart = source.replace('pricing-', '');
-    
     if (planPart.includes('credit-pack')) {
-      return planPart
-        .replace('-credit-pack', '')
-        .split('-')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ') + ' Credit Pack';
+      return planPart.replace('-credit-pack', '').split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') + ' Credit Pack';
     }
-    
-    return planPart
-      .split('-')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ') + ' Plan';
+    return planPart.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') + ' Plan';
   }
-  
   return null;
 }
 
@@ -74,12 +65,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     const selectedPlanRow = planDisplayName ? `
         <tr style="background-color: #6366f1;">
-          <td style="padding: 12px; border: 1px solid #5558e3; color: white;">
-            <strong>Selected Plan</strong>
-          </td>
-          <td style="padding: 12px; border: 1px solid #5558e3; color: white; font-weight: bold; font-size: 16px;">
-            ${planDisplayName}
-          </td>
+          <td style="padding: 12px; border: 1px solid #5558e3; color: white;"><strong>Selected Plan</strong></td>
+          <td style="padding: 12px; border: 1px solid #5558e3; color: white; font-weight: bold; font-size: 16px;">${planDisplayName}</td>
         </tr>
     ` : '';
 
@@ -87,40 +74,13 @@ const handler = async (req: Request): Promise<Response> => {
       <h1>New Demo Request</h1>
       <table style="border-collapse: collapse; width: 100%;">
         ${selectedPlanRow}
-        <tr>
-          <td style="padding: 8px; border: 1px solid #ddd;"><strong>Name</strong></td>
-          <td style="padding: 8px; border: 1px solid #ddd;">${data.name}</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px; border: 1px solid #ddd;"><strong>Email</strong></td>
-          <td style="padding: 8px; border: 1px solid #ddd;"><a href="mailto:${data.email}">${data.email}</a></td>
-        </tr>
-        ${data.company ? `
-        <tr>
-          <td style="padding: 8px; border: 1px solid #ddd;"><strong>Company</strong></td>
-          <td style="padding: 8px; border: 1px solid #ddd;">${data.company}</td>
-        </tr>
-        ` : ''}
-        ${data.subject ? `
-        <tr>
-          <td style="padding: 8px; border: 1px solid #ddd;"><strong>Subject</strong></td>
-          <td style="padding: 8px; border: 1px solid #ddd;">${data.subject}</td>
-        </tr>
-        ` : ''}
-        ${data.message ? `
-        <tr>
-          <td style="padding: 8px; border: 1px solid #ddd;"><strong>Message</strong></td>
-          <td style="padding: 8px; border: 1px solid #ddd;">${data.message}</td>
-        </tr>
-        ` : ''}
-        <tr>
-          <td style="padding: 8px; border: 1px solid #ddd;"><strong>Source</strong></td>
-          <td style="padding: 8px; border: 1px solid #ddd;">${data.source || 'website'}</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px; border: 1px solid #ddd;"><strong>Submitted At</strong></td>
-          <td style="padding: 8px; border: 1px solid #ddd;">${timestamp}</td>
-        </tr>
+        <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Name</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${data.name}</td></tr>
+        <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Email</strong></td><td style="padding: 8px; border: 1px solid #ddd;"><a href="mailto:${data.email}">${data.email}</a></td></tr>
+        ${data.company ? `<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Company</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${data.company}</td></tr>` : ''}
+        ${data.subject ? `<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Subject</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${data.subject}</td></tr>` : ''}
+        ${data.message ? `<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Message</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${data.message}</td></tr>` : ''}
+        <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Source</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${data.source || 'website'}</td></tr>
+        <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Submitted At</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${timestamp}</td></tr>
       </table>
     `;
 
@@ -181,6 +141,8 @@ const handler = async (req: Request): Promise<Response> => {
             utm_content: data.utm_content || null,
             utm_term: data.utm_term || null,
             qualification_score: data.qualification_score || null,
+            click_ids: data.click_ids && Object.keys(data.click_ids).length > 0 ? data.click_ids : null,
+            funnel_variant: data.funnel_variant || null,
           },
           { onConflict: "email,source" }
         );
@@ -201,7 +163,6 @@ const handler = async (req: Request): Promise<Response> => {
             .single();
 
           if (savedLead?.org_id) {
-            const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
             await fetch(`${supabaseUrl}/functions/v1/route-lead`, {
               method: "POST",
               headers: {
@@ -230,10 +191,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "Demo request received successfully" 
-      }),
+      JSON.stringify({ success: true, message: "Demo request received successfully" }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
     );
   } catch (error: any) {
