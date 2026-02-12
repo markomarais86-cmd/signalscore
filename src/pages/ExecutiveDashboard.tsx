@@ -27,6 +27,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
+import { FunnelHealthDashboard } from "@/components/marketing/FunnelHealthDashboard";
 
 // Simplified components
 import { SimplifiedHeroMetrics } from "@/components/executive/SimplifiedHeroMetrics";
@@ -660,6 +661,9 @@ export default function ExecutiveDashboard() {
                   totalScored={totalScores}
                 />
               </div>
+
+              {/* Funnel Health */}
+              <FunnelHealthDashboard />
             </div>
           </>
         )}
