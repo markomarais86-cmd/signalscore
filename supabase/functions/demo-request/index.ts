@@ -181,6 +181,29 @@ const handler = async (req: Request): Promise<Response> => {
               }),
             });
             console.log("Lead routing triggered");
+
+            // Push "Lead" conversion event (non-fatal)
+            try {
+              await fetch(`${supabaseUrl}/functions/v1/push-conversion-event`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${supabaseServiceKey}`,
+                },
+                body: JSON.stringify({
+                  event_name: "Lead",
+                  lead_id: savedLead.id,
+                  email: data.email,
+                  click_ids: data.click_ids || {},
+                  utm_source: data.utm_source,
+                  utm_campaign: data.utm_campaign,
+                  org_id: savedLead.org_id,
+                }),
+              });
+              console.log("Lead conversion event pushed");
+            } catch (convErr) {
+              console.error("Conversion push failed (non-fatal):", convErr);
+            }
           }
         } catch (routeErr) {
           console.error("Lead routing failed (non-fatal):", routeErr);

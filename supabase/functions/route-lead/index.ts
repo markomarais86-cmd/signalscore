@@ -213,6 +213,28 @@ const handler = async (req: Request): Promise<Response> => {
       console.error("Alert send failed (non-fatal):", alertErr);
     }
 
+    // Push conversion event for qualified leads (P1/P2 only)
+    if (tierConfig.tier !== "P3") {
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/push-conversion-event`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({
+            event_name: "QualifiedLead",
+            lead_id: lead_id,
+            email: lead.email,
+            org_id: org_id,
+          }),
+        });
+        console.log(`QualifiedLead conversion event pushed for ${tierConfig.tier} lead ${lead_id}`);
+      } catch (convErr) {
+        console.error("Conversion push failed (non-fatal):", convErr);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         routed: !!matchedRule,
