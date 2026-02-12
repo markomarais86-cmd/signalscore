@@ -1,98 +1,104 @@
 
-# Update `route-lead` with Capacity and Working Hours Checks
 
-## What Changes
+# Customer-Facing Simplified Dashboard
 
-The `route-lead` edge function currently assigns a lead to whichever rep is specified on the first matching routing rule (`matchedRule.assigned_to`), with no checks on whether that rep is available or at capacity. This update adds two guardrails before assignment:
+## Overview
 
-1. **Working hours check**: Is the assigned rep currently within their working hours (based on their timezone)?
-2. **Daily capacity check**: Has the rep already received their `max_leads_per_day` today?
+Create a new `/my-dashboard` page and a simplified sidebar layout specifically for non-admin, non-super-admin users ("customer" users). This gives customers a clean, focused view of only their leads, tasks, and pipeline -- no ICP Manager, Enrichment, AI Agents, Analytics, Admin, or other power-user controls.
 
-If either check fails, the system overflows to the next available rep in the same org.
+## Approach: Role-Based Layout Switching
 
----
+Rather than building an entirely separate app shell, we'll create:
 
-## Logic Flow
+1. **A new `CustomerLayout` component** -- a simplified version of `Layout` with a stripped-down sidebar showing only: Dashboard, Leads, Tasks, Opportunities, Settings, and Sign Out.
+2. **A new `CustomerDashboard` page** -- a single-page overview combining key metrics from leads, tasks, and pipeline in a clean card-based layout.
+3. **Role-based routing in `App.tsx`** -- customer users (role = `user`, not `admin` or `super_admin`) get routed to the customer layout; admin/super-admin users see the existing full layout.
 
-```text
-Rule matched -> assigned_to = rep X
-  |
-  v
-Fetch ALL reps for this org (from user_profiles)
-  with: working_hours_start, working_hours_end, timezone, max_leads_per_day
-  |
-  v
-Count today's leads per rep (from marketing_leads WHERE routed_at = today)
-  |
-  v
-Is rep X available? (within working hours AND under daily cap)
-  YES -> assign to rep X (current behavior)
-  NO  -> iterate through other org reps to find first available
-         -> if found, assign to overflow rep
-         -> if none available, assign to rep X anyway (best effort, log warning)
+## New Files
+
+### 1. `src/components/CustomerSidebar.tsx`
+A minimal sidebar with only 5 nav items:
+- **My Dashboard** (`/my-dashboard`)
+- **Leads** (`/leads`)
+- **Tasks** (`/tasks`)
+- **Opportunities** (`/opportunities`)
+- **Settings** (`/settings`)
+
+Plus footer with user name and Sign Out button. Uses the same `Sidebar` UI primitives from `@/components/ui/sidebar`. No Build, Configure, Analytics, or Admin sections.
+
+### 2. `src/components/CustomerLayout.tsx`
+A simplified layout wrapper (like `Layout.tsx`) that uses `CustomerSidebar` instead of `AppSidebar`. Keeps the header bar (with theme toggle) but removes:
+- Command Palette trigger
+- Export Queue Manager
+- AI Chat floating widget
+- Campaign Builder
+- Help Panel and Notification Center (optional: keep Notification Center)
+
+### 3. `src/pages/CustomerDashboard.tsx`
+A single overview page with three sections:
+
+**Section A -- Key Metrics (4 cards)**
+- Total Leads assigned to this user
+- Tasks pending/overdue
+- Open deals count
+- Pipeline value (sum of open deal amounts)
+
+**Section B -- My Tasks (condensed list)**
+- Shows top 5 pending/overdue tasks using existing `TaskCard` component
+- "View All" link to `/tasks`
+
+**Section C -- My Pipeline (mini deal board)**
+- Horizontal summary of deal stages with counts and values
+- Uses data from `useOpportunities` hook
+- "View All" link to `/opportunities`
+
+### 4. Modifications to `src/App.tsx`
+Add new route:
+```
+/my-dashboard -> CustomerLayout > CustomerDashboard
 ```
 
----
+Update `LandingRedirectWrapper` to redirect customer-role users to `/my-dashboard` instead of `/dashboard`.
+
+For the existing `/leads`, `/tasks`, `/opportunities`, and `/settings` routes, wrap them conditionally:
+- If user role is `admin` or `super_admin`: use existing `Layout`
+- If user role is `user`: use `CustomerLayout`
+
+This will be implemented via a new `RoleAwareLayout` component that checks `useRoles()` and renders the appropriate layout.
 
 ## Technical Details
 
-### File: `supabase/functions/route-lead/index.ts`
-
-**New helper function: `findAvailableRep`**
-
+### `RoleAwareLayout` component
 ```typescript
-async function findAvailableRep(
-  supabase, org_id, preferredRepId, now
-): Promise<{ repId: string; overflowed: boolean }>
+// src/components/RoleAwareLayout.tsx
+function RoleAwareLayout({ children }) {
+  const { isSuperAdmin, isOrgAdmin } = useRoles();
+  if (isSuperAdmin || isOrgAdmin) return <Layout>{children}</Layout>;
+  return <CustomerLayout>{children}</CustomerLayout>;
+}
 ```
 
-This function:
-1. Fetches all reps in the org from `user_profiles` with columns: `user_id`, `working_hours_start`, `working_hours_end`, `timezone`, `max_leads_per_day`
-2. Counts today's assigned leads per rep by querying `marketing_leads` where `org_id` matches and `routed_at` is today (in each rep's timezone)
-3. Builds an availability check per rep:
-   - Convert `now` to the rep's timezone and compare against `working_hours_start` / `working_hours_end`
-   - Compare today's lead count against `max_leads_per_day`
-4. If the preferred rep passes both checks, return them
-5. Otherwise, iterate through other reps (sorted by fewest leads today) and return the first available
-6. If no reps are available at all, fall back to the preferred rep with `overflowed: false` and a console warning
+This is used in App.tsx for shared routes (`/leads`, `/tasks`, `/opportunities`, `/settings`) so they automatically get the right chrome.
 
-**Changes to the main handler (around lines 122-151)**
+### Data scoping
+- **Leads**: Already scoped by `org_id` via `useInfiniteLeads` hook -- no changes needed
+- **Tasks**: Already scoped by `org_id` via `useTasks` hook -- no changes needed  
+- **Opportunities**: Already scoped by `org_id` via `useOpportunities` hook -- no changes needed
+- **CustomerDashboard metrics**: Will query the same hooks/RPCs but display simplified summaries
 
-After a routing rule is matched and `matchedRule.assigned_to` is determined:
-- Call `findAvailableRep(supabase, org_id, matchedRule.assigned_to, now)`
-- Use the returned `repId` instead of `matchedRule.assigned_to` for:
-  - `updatePayload.assigned_to`
-  - Task creation (`assigned_to` field)
-  - Alert metadata
-- If `overflowed` is true, log the overflow event and include `overflow_from` and `overflow_to` in the response
+### Routes that remain admin-only (unchanged, keep `Layout`)
+`/dashboard`, `/icp-manager`, `/accounts`, `/enrichment`, `/ai-agents`, `/admin/*`, `/data-upload`, all analytics pages, `/reports`, etc.
 
-**Working hours logic detail**
+### No database changes required
+All data is already properly scoped by `org_id` through existing RLS policies and hooks.
 
-Since Deno doesn't have native timezone-aware date formatting, the function will:
-- Use `Intl.DateTimeFormat` with the rep's timezone to extract current hour/minute
-- Compare against `working_hours_start` and `working_hours_end` (stored as TIME, e.g. "09:00", "17:00")
-- Handle overnight edge cases (e.g., if start > end, treat as wrapping past midnight)
+## Files Changed Summary
 
-**Daily count query**
+| File | Action |
+|------|--------|
+| `src/components/CustomerSidebar.tsx` | Create -- minimal 5-item sidebar |
+| `src/components/CustomerLayout.tsx` | Create -- simplified layout shell |
+| `src/components/RoleAwareLayout.tsx` | Create -- switches layout by role |
+| `src/pages/CustomerDashboard.tsx` | Create -- overview with metrics, tasks, pipeline |
+| `src/App.tsx` | Modify -- add `/my-dashboard` route, update shared routes to use `RoleAwareLayout`, update redirect logic |
 
-```typescript
-const today = new Date(now);
-today.setUTCHours(0, 0, 0, 0);
-
-const { data: counts } = await supabase
-  .from("marketing_leads")
-  .select("assigned_to")
-  .eq("org_id", org_id)
-  .gte("routed_at", today.toISOString())
-  .not("assigned_to", "is", null);
-```
-
-Then group by `assigned_to` in-memory to get per-rep counts.
-
-**Response additions**
-
-The response JSON will include two new optional fields:
-- `overflow: true/false` -- whether the lead was reassigned from the rule's preferred rep
-- `overflow_reason: "capacity" | "working_hours" | null` -- why overflow happened
-
-No database schema changes are needed -- all required columns already exist on `user_profiles`.
