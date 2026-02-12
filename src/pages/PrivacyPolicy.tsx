@@ -139,7 +139,64 @@ export default function PrivacyPolicy() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold mb-4 text-white">10. Changes to This Policy</h2>
+              <h2 className="text-2xl font-semibold mb-4 text-white">10. Data Controller</h2>
+              <p className="text-white/70 leading-relaxed mb-4">
+                The data controller responsible for your personal data is:
+              </p>
+              <p className="text-white/70 leading-relaxed">
+                LaunchPulse Ltd<br />
+                Registered in England and Wales<br />
+                Email: privacy@launchpulse.io<br />
+                Data Protection Contact: dpo@launchpulse.io
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold mb-4 text-white">11. Legal Basis for Processing</h2>
+              <p className="text-white/70 leading-relaxed mb-4">
+                Under the General Data Protection Regulation (GDPR), we process your personal data on the following legal bases:
+              </p>
+              <ul className="list-disc list-inside text-white/70 space-y-2">
+                <li><strong className="text-white/90">Contract performance</strong> — Processing necessary to provide the Service you have subscribed to (Article 6(1)(b))</li>
+                <li><strong className="text-white/90">Legitimate interest</strong> — Analytics, fraud prevention, and service improvement where our interests do not override your rights (Article 6(1)(f))</li>
+                <li><strong className="text-white/90">Consent</strong> — Marketing communications and optional cookies, which you may withdraw at any time (Article 6(1)(a))</li>
+                <li><strong className="text-white/90">Legal obligation</strong> — Where required by applicable law (Article 6(1)(c))</li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold mb-4 text-white">12. International Data Transfers</h2>
+              <p className="text-white/70 leading-relaxed">
+                Our Service is hosted on Supabase infrastructure (AWS) in the United States. If you are located 
+                in the European Economic Area (EEA) or United Kingdom, your data may be transferred to the US. 
+                We rely on Standard Contractual Clauses (SCCs) approved by the European Commission to ensure 
+                adequate protection for international transfers. You may request a copy of the applicable SCCs 
+                by contacting privacy@launchpulse.io.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold mb-4 text-white">13. Automated Decision-Making</h2>
+              <p className="text-white/70 leading-relaxed">
+                LaunchPulse uses artificial intelligence to generate Ideal Customer Profile (ICP) scores, 
+                propensity scores, and account insights. These automated processes assist in prioritising 
+                accounts but do not make decisions with legal or similarly significant effects on individuals. 
+                You have the right to request human review of any AI-generated score or recommendation by 
+                contacting support@launchpulse.io.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold mb-4 text-white">14. Subprocessors</h2>
+              <p className="text-white/70 leading-relaxed">
+                We use third-party service providers (subprocessors) to operate parts of the Service. A full 
+                list of our current subprocessors, including their purposes and locations, is available at 
+                our <Link to="/subprocessors" className="text-primary hover:underline">Subprocessors page</Link>.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-2xl font-semibold mb-4 text-white">15. Changes to This Policy</h2>
               <p className="text-white/70 leading-relaxed">
                 We may update this Privacy Policy from time to time. We will notify you of any changes by 
                 posting the new Privacy Policy on this page and updating the "Last updated" date.
@@ -147,10 +204,10 @@ export default function PrivacyPolicy() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold mb-4 text-white">11. Contact Us</h2>
+              <h2 className="text-2xl font-semibold mb-4 text-white">16. Contact Us</h2>
               <p className="text-white/70 leading-relaxed">
                 If you have any questions about this Privacy Policy or our data practices, please contact us 
-                at contact@launchpulse.io.
+                at privacy@launchpulse.io. To exercise your data subject rights, email dpo@launchpulse.io.
               </p>
             </section>
           </div>

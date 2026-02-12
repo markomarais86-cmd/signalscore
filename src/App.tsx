@@ -26,6 +26,9 @@ import Demo from "./pages/Demo";
 import Auth from "./pages/Auth";
 import TermsOfService from "./pages/TermsOfService";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import DataProcessingAgreement from "./pages/DataProcessingAgreement";
+import Security from "./pages/Security";
+import Subprocessors from "./pages/Subprocessors";
 import ResetPassword from "./pages/ResetPassword";
 import ICPManager from "./pages/ICPManager";
 import Leads from "./pages/Leads";
@@ -117,6 +120,9 @@ function AppContent() {
                 <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/terms" element={<TermsOfService />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/dpa" element={<DataProcessingAgreement />} />
+                <Route path="/security" element={<Security />} />
+                <Route path="/subprocessors" element={<Subprocessors />} />
                 <Route
                   path="/dashboard"
                   element={
