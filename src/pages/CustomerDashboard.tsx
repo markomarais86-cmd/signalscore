@@ -6,6 +6,7 @@ import { Users, ClipboardList, Kanban, DollarSign, ArrowRight, CheckCircle2, Clo
 import { useTasks } from "@/hooks/use-tasks";
 import { useOpportunities, DEAL_STAGES } from "@/hooks/use-opportunities";
 import { useAuth } from "@/hooks/use-auth";
+import { useBrandedConfig } from "@/hooks/useBrandedConfig";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -28,9 +29,15 @@ function useLeadCount() {
 }
 
 export default function CustomerDashboard() {
+  const { userProfile } = useAuth();
+  const { data: brandConfig } = useBrandedConfig({ orgId: userProfile?.org_id || undefined });
   const { tasks, isLoading: tasksLoading } = useTasks();
   const { data: deals, isLoading: dealsLoading } = useOpportunities();
   const { data: leadCount, isLoading: leadsLoading } = useLeadCount();
+
+  const hasBrand = !!brandConfig?.brand_primary_color;
+  const brandStyle = hasBrand ? { color: "var(--brand-primary)" } : undefined;
+  const brandBgStyle = hasBrand ? { backgroundColor: "var(--brand-primary)", opacity: 0.1 } : undefined;
 
   const pendingTasks = tasks.filter((t) => t.status === "pending" || t.status === "overdue");
   const overdueTasks = tasks.filter((t) => t.status === "overdue" || (t.status === "pending" && new Date(t.due_at) < new Date()));
@@ -55,11 +62,16 @@ export default function CustomerDashboard() {
     <div className="space-y-6">
       {/* Hero */}
       <div className="flex items-center gap-4">
-        <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-          <Kanban className="h-6 w-6 text-primary" />
+        <div
+          className={`h-12 w-12 rounded-xl flex items-center justify-center ${hasBrand ? "" : "bg-primary/10"}`}
+          style={hasBrand ? { backgroundColor: "color-mix(in srgb, var(--brand-primary) 15%, transparent)" } : undefined}
+        >
+          <Kanban className={hasBrand ? "h-6 w-6" : "h-6 w-6 text-primary"} style={brandStyle} />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">My Dashboard</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            {brandConfig?.company_name ? `Welcome back, ${brandConfig.company_name}` : "My Dashboard"}
+          </h1>
           <p className="text-sm text-muted-foreground">Your leads, tasks, and pipeline at a glance</p>
         </div>
       </div>
@@ -73,7 +85,7 @@ export default function CustomerDashboard() {
                 <p className="text-sm text-muted-foreground">Total Leads</p>
                 <p className="text-2xl font-bold text-foreground">{leadsLoading ? "—" : leadCount}</p>
               </div>
-              <Users className="h-8 w-8 text-primary/60" />
+              <Users className={hasBrand ? "h-8 w-8 opacity-60" : "h-8 w-8 text-primary/60"} style={brandStyle} />
             </div>
           </CardContent>
         </Card>
@@ -90,7 +102,7 @@ export default function CustomerDashboard() {
                   </p>
                 )}
               </div>
-              <ClipboardList className="h-8 w-8 text-primary/60" />
+              <ClipboardList className={hasBrand ? "h-8 w-8 opacity-60" : "h-8 w-8 text-primary/60"} style={brandStyle} />
             </div>
           </CardContent>
         </Card>
@@ -102,7 +114,7 @@ export default function CustomerDashboard() {
                 <p className="text-sm text-muted-foreground">Open Deals</p>
                 <p className="text-2xl font-bold text-foreground">{dealsLoading ? "—" : openDeals.length}</p>
               </div>
-              <Kanban className="h-8 w-8 text-primary/60" />
+              <Kanban className={hasBrand ? "h-8 w-8 opacity-60" : "h-8 w-8 text-primary/60"} style={brandStyle} />
             </div>
           </CardContent>
         </Card>
@@ -114,7 +126,7 @@ export default function CustomerDashboard() {
                 <p className="text-sm text-muted-foreground">Pipeline Value</p>
                 <p className="text-2xl font-bold text-foreground">{dealsLoading ? "—" : formatCurrency(pipelineValue)}</p>
               </div>
-              <DollarSign className="h-8 w-8 text-primary/60" />
+              <DollarSign className={hasBrand ? "h-8 w-8 opacity-60" : "h-8 w-8 text-primary/60"} style={brandStyle} />
             </div>
           </CardContent>
         </Card>
