@@ -19,6 +19,7 @@ import { usePlatformAdmin } from '@/hooks/use-platform-admin';
 import { FeatureToggles } from '@/components/settings/FeatureToggles';
 import { OrganizationFeatureFlags } from '@/components/platform-admin/OrganizationFeatureFlags';
 import { CreditManagementDashboard } from '@/components/platform-admin/CreditManagementDashboard';
+import { MarketingLeadsTab } from '@/components/platform-admin/MarketingLeadsTab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
@@ -331,6 +332,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="invitations">Invitations</TabsTrigger>
           <TabsTrigger value="feature-flags">Feature Flags</TabsTrigger>
+          <TabsTrigger value="marketing-leads">Marketing Leads</TabsTrigger>
           <TabsTrigger value="audit">Audit Logs</TabsTrigger>
         </TabsList>
 
@@ -560,6 +562,10 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
             </div>
+        </TabsContent>
+
+        <TabsContent value="marketing-leads">
+          <MarketingLeadsTab />
         </TabsContent>
 
         <TabsContent value="audit">
