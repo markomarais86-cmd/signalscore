@@ -3,3 +3,7 @@ export { PipelineFunnelChart } from './PipelineFunnelChart';
 export { SalesVelocityGauge } from './SalesVelocityGauge';
 export { DealsAtRiskTable } from './DealsAtRiskTable';
 export { LossReasonsChart } from './LossReasonsChart';
+export { DealStageBoard } from './DealStageBoard';
+export { DealDetailDialog } from './DealDetailDialog';
+export { CreateDealDialog } from './CreateDealDialog';
+export { RevenueAttributionPanel } from './RevenueAttributionPanel';
