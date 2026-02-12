@@ -6399,6 +6399,7 @@ export type Database = {
           name: string
           plan_id: string | null
           scoring_version: string | null
+          slug: string | null
           status: string | null
         }
         Insert: {
@@ -6412,6 +6413,7 @@ export type Database = {
           name: string
           plan_id?: string | null
           scoring_version?: string | null
+          slug?: string | null
           status?: string | null
         }
         Update: {
@@ -6425,6 +6427,7 @@ export type Database = {
           name?: string
           plan_id?: string | null
           scoring_version?: string | null
+          slug?: string | null
           status?: string | null
         }
         Relationships: [
@@ -8218,6 +8221,32 @@ export type Database = {
       generate_invitation_token: { Args: never; Returns: string }
       generate_sample_data: { Args: never; Returns: Json }
       get_active_icp_id: { Args: { p_org_id: string }; Returns: string }
+      get_branded_config_by_org_id: {
+        Args: { p_org_id: string }
+        Returns: {
+          brand_primary_color: string
+          brand_secondary_color: string
+          calendly_base_url: string
+          company_name: string
+          logo_url: string
+          org_id: string
+          target_persona_description: string
+          value_proposition: string
+        }[]
+      }
+      get_branded_config_by_slug: {
+        Args: { p_slug: string }
+        Returns: {
+          brand_primary_color: string
+          brand_secondary_color: string
+          calendly_base_url: string
+          company_name: string
+          logo_url: string
+          org_id: string
+          target_persona_description: string
+          value_proposition: string
+        }[]
+      }
       get_country_drilldown: {
         Args: { p_industry: string; p_org_id: string }
         Returns: {

@@ -3,15 +3,25 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { CustomerSidebar } from "@/components/CustomerSidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
+import { useBrandedConfig } from "@/hooks/useBrandedConfig";
+import { useAuth } from "@/hooks/use-auth";
 
 interface CustomerLayoutProps {
   children: ReactNode;
 }
 
 export function CustomerLayout({ children }: CustomerLayoutProps) {
+  const { userProfile } = useAuth();
+  const orgId = userProfile?.org_id;
+  const { data: brandConfig } = useBrandedConfig({ orgId: orgId || undefined });
+
+  const brandStyles = brandConfig?.brand_primary_color
+    ? { "--brand-primary": brandConfig.brand_primary_color } as React.CSSProperties
+    : undefined;
+
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
+      <div className="min-h-screen flex w-full bg-background" style={brandStyles}>
         <CustomerSidebar />
         <main className="flex-1 flex flex-col">
           <header className="relative z-20 border-b bg-card/80 dark:bg-card/60 backdrop-blur-sm shadow-sm">
