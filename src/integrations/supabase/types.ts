@@ -2697,13 +2697,18 @@ export type Database = {
         Row: {
           account_external_id: string | null
           amount: number | null
+          attribution_click_ids: Json | null
+          attribution_funnel_variant: string | null
+          attribution_utm: Json | null
           closed_date: string | null
           created_at: string
           deal_type: string | null
           expected_close_date: string | null
           external_id: string | null
           id: string
+          loss_category: string | null
           loss_reason: string | null
+          marketing_lead_id: string | null
           metadata: Json | null
           name: string
           org_id: string
@@ -2714,17 +2719,23 @@ export type Database = {
           stage: string
           status: string
           updated_at: string
+          win_reason: string | null
         }
         Insert: {
           account_external_id?: string | null
           amount?: number | null
+          attribution_click_ids?: Json | null
+          attribution_funnel_variant?: string | null
+          attribution_utm?: Json | null
           closed_date?: string | null
           created_at?: string
           deal_type?: string | null
           expected_close_date?: string | null
           external_id?: string | null
           id?: string
+          loss_category?: string | null
           loss_reason?: string | null
+          marketing_lead_id?: string | null
           metadata?: Json | null
           name: string
           org_id: string
@@ -2735,17 +2746,23 @@ export type Database = {
           stage: string
           status?: string
           updated_at?: string
+          win_reason?: string | null
         }
         Update: {
           account_external_id?: string | null
           amount?: number | null
+          attribution_click_ids?: Json | null
+          attribution_funnel_variant?: string | null
+          attribution_utm?: Json | null
           closed_date?: string | null
           created_at?: string
           deal_type?: string | null
           expected_close_date?: string | null
           external_id?: string | null
           id?: string
+          loss_category?: string | null
           loss_reason?: string | null
+          marketing_lead_id?: string | null
           metadata?: Json | null
           name?: string
           org_id?: string
@@ -2756,8 +2773,16 @@ export type Database = {
           stage?: string
           status?: string
           updated_at?: string
+          win_reason?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "deals_marketing_lead_id_fkey"
+            columns: ["marketing_lead_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_leads"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "deals_org_id_fkey"
             columns: ["org_id"]

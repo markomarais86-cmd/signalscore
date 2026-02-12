@@ -52,6 +52,7 @@ import APIAccess from "./pages/APIAccess";
 import Tasks from "./pages/Tasks";
 
 import PipelineAnalyticsPage from "./pages/PipelineAnalyticsPage";
+import Opportunities from "./pages/Opportunities";
 import AIFeedbackPage from "./pages/AIFeedbackPage";
 
 const queryClient = new QueryClient();
@@ -204,6 +205,16 @@ function AppContent() {
                     </ProtectedRoute>
                   }
                   />
+                <Route
+                  path="/opportunities"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Opportunities />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/pipeline-analytics"
                   element={
