@@ -5,7 +5,9 @@ import { renderAsync } from 'npm:@react-email/components@0.0.22'
 import { PasswordResetEmail } from './_templates/password-reset.tsx'
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY') as string)
-const hookSecret = Deno.env.get('SEND_EMAIL_HOOK_SECRET') as string
+const rawHookSecret = Deno.env.get('SEND_EMAIL_HOOK_SECRET') as string
+// standardwebhooks expects base64-encoded secret without the whsec_ prefix
+const hookSecret = rawHookSecret.replace(/^whsec_/, '')
 
 interface AuthEmailPayload {
   user: {
