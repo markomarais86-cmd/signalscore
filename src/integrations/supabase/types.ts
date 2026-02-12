@@ -6266,6 +6266,127 @@ export type Database = {
           },
         ]
       }
+      org_campaign_config: {
+        Row: {
+          ad_account_id: string | null
+          campaign_name: string
+          created_at: string
+          end_date: string | null
+          id: string
+          landing_page_variant: string | null
+          monthly_budget_cents: number | null
+          org_id: string
+          platform: string
+          quiz_variant: string | null
+          start_date: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          ad_account_id?: string | null
+          campaign_name: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          landing_page_variant?: string | null
+          monthly_budget_cents?: number | null
+          org_id: string
+          platform: string
+          quiz_variant?: string | null
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          ad_account_id?: string | null
+          campaign_name?: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          landing_page_variant?: string | null
+          monthly_budget_cents?: number | null
+          org_id?: string
+          platform?: string
+          quiz_variant?: string | null
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_campaign_config_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_onboarding_config: {
+        Row: {
+          brand_primary_color: string | null
+          brand_secondary_color: string | null
+          calendly_base_url: string | null
+          company_name: string | null
+          created_at: string
+          id: string
+          launched_at: string | null
+          logo_url: string | null
+          monthly_lead_target: number | null
+          onboarding_status: string
+          org_id: string
+          paused_at: string | null
+          target_persona_description: string | null
+          updated_at: string
+          value_proposition: string | null
+          website_url: string | null
+        }
+        Insert: {
+          brand_primary_color?: string | null
+          brand_secondary_color?: string | null
+          calendly_base_url?: string | null
+          company_name?: string | null
+          created_at?: string
+          id?: string
+          launched_at?: string | null
+          logo_url?: string | null
+          monthly_lead_target?: number | null
+          onboarding_status?: string
+          org_id: string
+          paused_at?: string | null
+          target_persona_description?: string | null
+          updated_at?: string
+          value_proposition?: string | null
+          website_url?: string | null
+        }
+        Update: {
+          brand_primary_color?: string | null
+          brand_secondary_color?: string | null
+          calendly_base_url?: string | null
+          company_name?: string | null
+          created_at?: string
+          id?: string
+          launched_at?: string | null
+          logo_url?: string | null
+          monthly_lead_target?: number | null
+          onboarding_status?: string
+          org_id?: string
+          paused_at?: string | null
+          target_persona_description?: string | null
+          updated_at?: string
+          value_proposition?: string | null
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_onboarding_config_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string | null
@@ -7347,25 +7468,43 @@ export type Database = {
       }
       user_profiles: {
         Row: {
+          calendly_url: string | null
           created_at: string | null
           full_name: string | null
+          max_leads_per_day: number | null
           org_id: string
           role: string
+          territory: string[] | null
+          timezone: string | null
           user_id: string
+          working_hours_end: string | null
+          working_hours_start: string | null
         }
         Insert: {
+          calendly_url?: string | null
           created_at?: string | null
           full_name?: string | null
+          max_leads_per_day?: number | null
           org_id: string
           role: string
+          territory?: string[] | null
+          timezone?: string | null
           user_id: string
+          working_hours_end?: string | null
+          working_hours_start?: string | null
         }
         Update: {
+          calendly_url?: string | null
           created_at?: string | null
           full_name?: string | null
+          max_leads_per_day?: number | null
           org_id?: string
           role?: string
+          territory?: string[] | null
+          timezone?: string | null
           user_id?: string
+          working_hours_end?: string | null
+          working_hours_start?: string | null
         }
         Relationships: [
           {
