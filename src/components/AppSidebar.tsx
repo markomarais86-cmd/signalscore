@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign, FileText, Users, BarChart3, Bot, HelpCircle, Sparkles, ChevronDown, ClipboardList, Kanban, UserPlus } from "lucide-react";
+import { Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign, FileText, Users, BarChart3, Bot, HelpCircle, Sparkles, ChevronDown, ClipboardList, Kanban, UserPlus, ShoppingCart } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
@@ -27,6 +27,10 @@ const coreNavigation = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Accounts", url: "/accounts", icon: Database },
   { title: "Leads", url: "/leads", icon: Users },
+];
+
+// Sales section - collapsible
+const salesNavigation = [
   { title: "Opportunities", url: "/opportunities", icon: Kanban },
   { title: "Tasks", url: "/tasks", icon: ClipboardList },
 ];
@@ -56,6 +60,9 @@ export function AppSidebar() {
     items.some(item => isActive(item.url));
 
   // Auto-expand sections based on current route
+  const [salesOpen, setSalesOpen] = useState(() =>
+    salesNavigation.some(item => currentPath.startsWith(item.url))
+  );
   const [buildOpen, setBuildOpen] = useState(() => 
     buildNavigation.some(item => currentPath.startsWith(item.url))
   );
@@ -119,6 +126,38 @@ export function AppSidebar() {
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Sales Section - Collapsible */}
+        <SidebarGroup>
+          <Collapsible open={salesOpen} onOpenChange={setSalesOpen}>
+            <CollapsibleTrigger className="flex w-full items-center justify-between px-2 py-1.5 text-xs text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
+              <span className="flex items-center gap-2">
+                <ShoppingCart className="h-3.5 w-3.5" />
+                Sales
+              </span>
+              <ChevronDown className={cn("h-4 w-4 transition-transform", salesOpen && "rotate-180")} />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <SidebarGroupContent>
+                <SidebarMenu className="space-y-1 mt-1">
+                  {salesNavigation.map((item) => (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton asChild>
+                        <NavLink
+                          to={item.url}
+                          className={getNavCls(item.url)}
+                        >
+                          <item.icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </CollapsibleContent>
+          </Collapsible>
         </SidebarGroup>
 
         {/* Build Section - Collapsible */}
