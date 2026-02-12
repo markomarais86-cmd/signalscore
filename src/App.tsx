@@ -50,6 +50,7 @@ import AITest from "./pages/AITest";
 import Help from "./pages/Help";
 import APIAccess from "./pages/APIAccess";
 import Tasks from "./pages/Tasks";
+import CustomerOnboarding from "./pages/admin/CustomerOnboarding";
 
 import PipelineAnalyticsPage from "./pages/PipelineAnalyticsPage";
 import Opportunities from "./pages/Opportunities";
@@ -191,6 +192,26 @@ function AppContent() {
                     <ProtectedRoute>
                       <Layout>
                         <AdminDashboard />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/customer-onboarding"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <CustomerOnboarding />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin/customer-onboarding/:orgId"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <CustomerOnboarding />
                       </Layout>
                     </ProtectedRoute>
                   }
