@@ -17,6 +17,13 @@ interface DemoRequest {
   subject?: string;
   message?: string;
   source?: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_content?: string;
+  utm_term?: string;
+  quiz_answers?: Record<string, string>;
+  qualification_score?: number;
 }
 
 function getPlanDisplayName(source: string | undefined): string | null {
@@ -168,6 +175,12 @@ const handler = async (req: Request): Promise<Response> => {
             subject: data.subject || null,
             message: data.message || null,
             source: data.source || "demo-contact",
+            utm_source: data.utm_source || null,
+            utm_medium: data.utm_medium || null,
+            utm_campaign: data.utm_campaign || null,
+            utm_content: data.utm_content || null,
+            utm_term: data.utm_term || null,
+            qualification_score: data.qualification_score || null,
           },
           { onConflict: "email,source" }
         );

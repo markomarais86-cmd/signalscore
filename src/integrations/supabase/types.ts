@@ -5605,11 +5605,19 @@ export type Database = {
           ip_address: string | null
           message: string | null
           name: string | null
+          phone: string | null
+          phone_verified: boolean | null
+          qualification_score: number | null
           source: string
           status: string
           subject: string | null
           updated_at: string
           user_agent: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
         }
         Insert: {
           company?: string | null
@@ -5619,11 +5627,19 @@ export type Database = {
           ip_address?: string | null
           message?: string | null
           name?: string | null
+          phone?: string | null
+          phone_verified?: boolean | null
+          qualification_score?: number | null
           source: string
           status?: string
           subject?: string | null
           updated_at?: string
           user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Update: {
           company?: string | null
@@ -5633,11 +5649,19 @@ export type Database = {
           ip_address?: string | null
           message?: string | null
           name?: string | null
+          phone?: string | null
+          phone_verified?: boolean | null
+          qualification_score?: number | null
           source?: string
           status?: string
           subject?: string | null
           updated_at?: string
           user_agent?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
         }
         Relationships: []
       }
@@ -6360,6 +6384,56 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      quiz_responses: {
+        Row: {
+          answers: Json
+          budget_range: string | null
+          company_size: string | null
+          created_at: string
+          current_tools: string | null
+          email: string
+          id: string
+          industry: string | null
+          marketing_lead_id: string | null
+          qualification_score: number | null
+          timeline: string | null
+        }
+        Insert: {
+          answers?: Json
+          budget_range?: string | null
+          company_size?: string | null
+          created_at?: string
+          current_tools?: string | null
+          email: string
+          id?: string
+          industry?: string | null
+          marketing_lead_id?: string | null
+          qualification_score?: number | null
+          timeline?: string | null
+        }
+        Update: {
+          answers?: Json
+          budget_range?: string | null
+          company_size?: string | null
+          created_at?: string
+          current_tools?: string | null
+          email?: string
+          id?: string
+          industry?: string | null
+          marketing_lead_id?: string | null
+          qualification_score?: number | null
+          timeline?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_responses_marketing_lead_id_fkey"
+            columns: ["marketing_lead_id"]
+            isOneToOne: false
+            referencedRelation: "marketing_leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rate_limits: {
         Row: {

@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Loader2, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { trackDemoRequest } from "@/lib/analytics";
+import { useUTMParams } from "@/hooks/useUTMParams";
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -29,6 +30,7 @@ interface DemoRequestFormProps {
 export function DemoRequestForm({ source = "website", onSuccess }: DemoRequestFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const utmParams = useUTMParams();
 
   const {
     register,
@@ -43,7 +45,7 @@ export function DemoRequestForm({ source = "website", onSuccess }: DemoRequestFo
     setIsSubmitting(true);
     try {
       const { data: response, error } = await supabase.functions.invoke('demo-request', {
-        body: { ...data, source },
+        body: { ...data, source, ...utmParams },
       });
 
       if (error) {
