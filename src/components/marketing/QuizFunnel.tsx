@@ -76,12 +76,17 @@ function calculateScore(answers: Record<string, string>): number {
   return score;
 }
 
+interface QuizBrandConfig {
+  primaryColor?: string;
+}
+
 interface QuizFunnelProps {
   source?: string;
   onComplete?: () => void;
+  brandConfig?: QuizBrandConfig;
 }
 
-export function QuizFunnel({ source = "quiz-funnel", onComplete }: QuizFunnelProps) {
+export function QuizFunnel({ source = "quiz-funnel", onComplete, brandConfig }: QuizFunnelProps) {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [contactInfo, setContactInfo] = useState({ name: "", email: "", company: "" });
@@ -197,7 +202,7 @@ export function QuizFunnel({ source = "quiz-funnel", onComplete }: QuizFunnelPro
         <div className="h-1.5 bg-muted rounded-full overflow-hidden">
           <div
             className="h-full bg-primary rounded-full transition-all duration-500"
-            style={{ width: `${progress}%` }}
+            style={{ width: `${progress}%`, backgroundColor: brandConfig?.primaryColor || undefined }}
           />
         </div>
       </div>
@@ -217,6 +222,11 @@ export function QuizFunnel({ source = "quiz-funnel", onComplete }: QuizFunnelPro
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border bg-card"
                 )}
+                style={
+                  answers[currentQuiz.id] === option.value && brandConfig?.primaryColor
+                    ? { borderColor: brandConfig.primaryColor, color: brandConfig.primaryColor, backgroundColor: `${brandConfig.primaryColor}15` }
+                    : undefined
+                }
               >
                 <span className="font-medium">{option.label}</span>
               </button>

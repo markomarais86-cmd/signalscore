@@ -59,6 +59,7 @@ import CustomerOnboarding from "./pages/admin/CustomerOnboarding";
 import PipelineAnalyticsPage from "./pages/PipelineAnalyticsPage";
 import Opportunities from "./pages/Opportunities";
 import AIFeedbackPage from "./pages/AIFeedbackPage";
+import BrandedLanding from "./pages/BrandedLanding";
 
 const queryClient = new QueryClient();
 
@@ -134,6 +135,7 @@ function AppContent() {
                 <Route path="/dpa" element={<DataProcessingAgreement />} />
                 <Route path="/security" element={<Security />} />
                 <Route path="/subprocessors" element={<Subprocessors />} />
+                <Route path="/p/:orgSlug" element={<BrandedLanding />} />
                 <Route
                   path="/dashboard"
                   element={
