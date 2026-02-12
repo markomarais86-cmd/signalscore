@@ -1,111 +1,104 @@
 
 
-## Marketing Lead Capture System
+## Compliance and Security Hardening -- Implementation Plan
 
-### Overview
-Build a complete lead capture pipeline: a `marketing_leads` database table to store all inbound interest, a newsletter signup widget for the landing page and footer, persist demo requests to the database (not just email), and an admin tab to view/export/manage all captured leads.
-
----
-
-### Part 1: Database -- `marketing_leads` table
-
-Create a new Supabase migration with:
-
-```text
-Table: marketing_leads
-- id            UUID (PK, default gen_random_uuid())
-- email         TEXT NOT NULL
-- name          TEXT
-- company       TEXT
-- subject       TEXT
-- message       TEXT
-- source        TEXT NOT NULL (e.g. 'newsletter-landing', 'newsletter-footer', 'demo-contact', 'demo-pricing-professional')
-- status        TEXT DEFAULT 'new' (values: new, contacted, converted, unsubscribed)
-- ip_address    TEXT
-- user_agent    TEXT
-- created_at    TIMESTAMPTZ DEFAULT now()
-- updated_at    TIMESTAMPTZ DEFAULT now()
-```
-
-RLS policy:
-- Enable RLS on the table
-- **INSERT**: Allow anonymous inserts (so unauthenticated visitors can submit)
-- **SELECT/UPDATE/DELETE**: Restrict to platform admins only (using existing `is_platform_admin()` function)
-
-Add a unique partial index on `(email, source)` to prevent duplicate signups from the same source, while allowing the same email across different sources.
+This plan covers the code changes needed to publish your legal/compliance pages and upgrade the existing Privacy Policy and Terms of Service with GDPR-required content.
 
 ---
 
-### Part 2: Save demo requests to database
+### Part 1: Upgrade Privacy Policy
 
-**File: `supabase/functions/demo-request/index.ts`**
+**File: `src/pages/PrivacyPolicy.tsx`**
 
-After sending emails, insert the lead into `marketing_leads` using the service-role Supabase client:
-- Import `createClient` from `@supabase/supabase-js`
-- Use `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` env vars
-- Insert: email, name, company, subject, message, source
-- This runs server-side so it bypasses RLS correctly
-- If the insert fails, log the error but still return success (email was already sent)
-
----
-
-### Part 3: Newsletter signup widget
-
-**New file: `src/components/marketing/NewsletterSignup.tsx`**
-
-A compact email capture component with:
-- Single email input + submit button (inline layout)
-- Heading: "Stay in the loop" or "Get GTM insights"
-- Submits directly to Supabase `marketing_leads` table via the anon client (allowed by the INSERT RLS policy)
-- Source field set based on placement (e.g. `newsletter-landing`, `newsletter-footer`)
-- Success state with confirmation message
-- Duplicate email handling (graceful -- show success even if already subscribed)
-- Privacy policy link
-
-**Update: `src/components/marketing/index.ts`**
-- Export the new `NewsletterSignup` component
+Add the following new sections after existing content:
+- **Data Controller Identity** -- LaunchPulse company name, address, contact email, and data protection contact
+- **Legal Basis for Processing** -- Legitimate interest, contract performance, consent (GDPR Article 6)
+- **International Data Transfers** -- Supabase/AWS US hosting, Standard Contractual Clauses (SCCs)
+- **Automated Decision-Making** -- Disclosure that AI is used for ICP scoring; right to request human review
+- **Subprocessors** -- Link to the new `/subprocessors` page listing all third-party services
 
 ---
 
-### Part 4: Add widget to Landing page and Footer
+### Part 2: Upgrade Terms of Service
 
-**File: `src/pages/Landing.tsx`**
-- Add `NewsletterSignup` component between the Features section and the CTA section
-- Wrapped in a subtle section with dark glass styling to match the page
+**File: `src/pages/TermsOfService.tsx`**
+
+Add four new sections:
+- **Data Processing** -- Reference to the DPA at `/dpa`; confirms LaunchPulse acts as data processor
+- **Indemnification** -- Mutual indemnification clause
+- **Service Level** -- Uptime target or explicit disclaimer of SLA
+- **Governing Law and Jurisdiction** -- England and Wales (matching UK ICO registration)
+
+---
+
+### Part 3: New Page -- Data Processing Agreement (`/dpa`)
+
+**New file: `src/pages/DataProcessingAgreement.tsx`**
+
+Same layout as Privacy/Terms (GradientBackground, MarketingNav, MarketingFooter). Sections:
+- Definitions (controller, processor, data subject, personal data)
+- Scope and purpose of processing
+- Processor obligations (security measures, confidentiality, assistance)
+- Sub-processing (with link to `/subprocessors`)
+- Data breach notification (72-hour commitment per GDPR Article 33)
+- Data deletion/return on termination
+- Audit rights
+- Liability and indemnification
+
+---
+
+### Part 4: New Page -- Security Overview (`/security`)
+
+**New file: `src/pages/Security.tsx`**
+
+Sections:
+- Infrastructure (Supabase on AWS, encryption at rest AES-256, TLS 1.2+ in transit)
+- Authentication and access controls (RLS, org-level isolation, MFA roadmap)
+- Data isolation (multi-tenant with org_id scoping)
+- Incident response process
+- Compliance (Supabase SOC 2 Type II)
+- Responsible disclosure / security contact email
+
+---
+
+### Part 5: New Page -- Subprocessors (`/subprocessors`)
+
+**New file: `src/pages/Subprocessors.tsx`**
+
+A styled table listing:
+| Subprocessor | Purpose | Location |
+|---|---|---|
+| Supabase | Database, auth, storage | USA |
+| OpenAI | AI scoring and insights | USA |
+| Resend | Transactional email | USA |
+| Sentry | Error monitoring | USA |
+| Google Analytics | Website analytics | USA |
+
+---
+
+### Part 6: Update Footer and Routing
 
 **File: `src/components/marketing/MarketingFooter.tsx`**
-- Add a compact version of `NewsletterSignup` above the copyright/links row
-- Source set to `newsletter-footer`
+- Add links for: DPA, Security, Subprocessors (alongside existing Privacy Policy and Terms)
 
----
-
-### Part 5: Admin leads view
-
-**File: `src/pages/AdminDashboard.tsx`**
-
-Add a new "Marketing Leads" tab to the existing admin dashboard:
-- Table showing: email, name, company, source, status, created_at
-- Search/filter by email, source, or status
-- Status dropdown to update lead status (new / contacted / converted / unsubscribed)
-- Export to CSV button
-- Lead count summary cards (total, new this week, by source)
+**File: `src/App.tsx`**
+- Add three new public routes: `/dpa`, `/security`, `/subprocessors`
+- Import the three new page components
 
 ---
 
 ### Technical Details
 
-**Files to create:**
-- `src/components/marketing/NewsletterSignup.tsx` -- the signup widget
-- Supabase migration for `marketing_leads` table
+**New files (3):**
+- `src/pages/DataProcessingAgreement.tsx`
+- `src/pages/Security.tsx`
+- `src/pages/Subprocessors.tsx`
 
-**Files to modify:**
-- `supabase/functions/demo-request/index.ts` -- add database insert after email send
-- `src/components/marketing/index.ts` -- export new component
-- `src/pages/Landing.tsx` -- add newsletter section
-- `src/components/marketing/MarketingFooter.tsx` -- add footer signup
-- `src/pages/AdminDashboard.tsx` -- add Marketing Leads tab
+**Modified files (4):**
+- `src/pages/PrivacyPolicy.tsx` -- add 5 GDPR sections
+- `src/pages/TermsOfService.tsx` -- add 4 sections
+- `src/components/marketing/MarketingFooter.tsx` -- add 3 footer links
+- `src/App.tsx` -- add 3 routes + 3 imports
 
-**No new routes needed** -- the admin view lives inside the existing `/admin` page as a new tab.
-
-**Edge function redeployment required** for the demo-request changes.
+No database changes required. No edge function changes.
 
