@@ -174,6 +174,38 @@ serve(async (req) => {
 
     if (icpError) throw icpError;
 
+    // Also populate org_onboarding_config with extracted data (if fields are empty)
+    try {
+      const { data: existingConfig } = await supabase
+        .from("org_onboarding_config")
+        .select("id, value_proposition, target_persona_description")
+        .eq("org_id", effectiveOrgId)
+        .maybeSingle();
+
+      const updates: Record<string, string> = {};
+      if (!existingConfig?.value_proposition && icpData.description) {
+        updates.value_proposition = icpData.description;
+      }
+      if (!existingConfig?.target_persona_description && icpData.persona_job_titles?.length) {
+        updates.target_persona_description = icpData.persona_job_titles.join(", ");
+      }
+
+      if (Object.keys(updates).length > 0) {
+        if (existingConfig) {
+          await supabase
+            .from("org_onboarding_config")
+            .update(updates)
+            .eq("org_id", effectiveOrgId);
+        } else {
+          await supabase
+            .from("org_onboarding_config")
+            .insert({ org_id: effectiveOrgId, ...updates });
+        }
+      }
+    } catch (configErr) {
+      console.error("Failed to update onboarding config (non-fatal):", configErr);
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
