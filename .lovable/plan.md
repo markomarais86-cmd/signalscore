@@ -1,79 +1,142 @@
 
-# Redesign the Board PDF Report: Branded, Insightful, Story-Driven
+# Fix Board PDF Report: Data Bugs, Branding, and Content Quality
 
-## The Problem
-The current PDF export is a bare-bones data dump with serious issues:
-- **No real branding** -- just "Organization" as the company name, generic LaunchPulse colors
-- **NaN values** in industry/size breakdowns (data formatting bugs)
-- **No AI insights or recommendations** -- the most valuable part of the dashboard is missing
-- **No storytelling** -- just raw tables with no narrative or executive summary
-- **No risks/actions** -- the risk detection and AI insights that power the dashboard are absent
-- **Poor visual design** -- plain tables, no charts or visual hierarchy
+## Problems Identified from the PDF
 
-## What the New Report Will Include
+### 1. Everything says "Organization" instead of the actual company name
+**Root cause**: The `org_onboarding_config` table has 0 rows. The `get_branded_config_by_org_id` RPC returns nothing, so `brandConfig` is null and everything falls back to "Organization".
 
-The redesigned PDF will be an 8-page executive board report that tells a data-driven story:
+**Fix**: In `use-branded-report.ts`, fall back to fetching the org name from the `organizations` table directly when brand config is null.
 
-### Page 1: Cover Page (improved)
-- Customer's logo (properly sized) and company name from brand config
-- Report title with date
-- Branded color scheme from org's brand_primary_color/brand_secondary_color
+### 2. Top Prospects page is empty ("No scored prospects available")
+**Root cause**: The query selects `overall_score`, `fit_score`, `intent_score` but the actual `scores` table columns are `overall`, `fit`, `intent`. The query silently returns nothing.
 
-### Page 2: Executive Summary with Narrative
-- Key metrics cards (same as now, but with bug fixes)
-- **NEW: AI-generated narrative paragraph** summarizing the state of the pipeline ("Your ICP analysis covers 14,360 accounts. 62% are high-fit, indicating strong market alignment. Key opportunity: 8,972 accounts match your ideal profile...")
-- Score distribution bar (existing, improved)
+**Fix**: Change the column names in the query from `overall_score`/`fit_score`/`intent_score` to `overall`/`fit`/`intent`.
 
-### Page 3: ICP Profile Deep Dive
-- Profile table (fix confidence display -- currently shows "5000%" instead of "50%")
-- **NEW: Per-profile insight** -- target industries, geographies, and match quality narrative
+### 3. Industry and Company Size breakdowns show 0 accounts
+**Root cause**: The JSONB values are structured as `{accounts: 6695, percentage: 10}` but `safeNumber()` only checks for `.count`, not `.accounts`. So `safeNumber({accounts: 6695})` returns 0.
 
-### Page 4: TAM/SAM/SOM with Visual Funnel
-- Fix NaN bug in industry/size breakdowns (account values stored as strings in JSONB)
-- **NEW: Visual funnel diagram** showing TAM > SAM > SOM progression
-- Industry and size tables (with NaN fix)
+**Fix**: Update `safeNumber()` in `use-branded-report.ts` to also check for `.accounts` property.
 
-### Page 5: Geographic Analysis
-- Fix 0-count geography display (country codes like "Gb", "Es" need normalization)
-- Top markets with percentage bars
+### 4. Geography shows 0 counts and un-normalized country codes (Gb, Es, Pl)
+**Root cause**: The geography RPC returns data, but some country values are ISO-2 codes ("Gb", "Es") instead of full names. The accounts themselves have proper counts (9201 US, 2676 UK, etc.) but the report shows 0.
 
-### Page 6: Top Prospects (fix empty state)
-- The data fetch uses `overall_score` column but the scores table may use `overall` -- will verify and fix
-- Show actual scored accounts with fit/intent/overall scores
+**Fix**: 
+- Add a country code normalization map in the PDF export
+- Deduplicate entries that appear as both codes and names (e.g., "United Kingdom" and "Gb" should merge)
 
-### Page 7: AI Insights and Recommendations (NEW)
-- Pull insights from the `generate-icp-insights` edge function (same data as UnifiedInsightsPanel)
-- Group by priority: Critical, High, Medium
-- Each insight shows: title, description, impact, recommended action
-- Risk items from `detectRisks()` included with severity badges
+### 5. No Leads/Contacts data in the report
+The dashboard shows lead coverage, multi-threading stats, etc., but the PDF has zero mention of leads or contacts.
 
-### Page 8: Strategic Next Steps (NEW)
-- Data quality summary with completeness score
-- Actionable recommendations based on risks detected
-- "Prepared by [Company Name] using LaunchPulse" footer branding
+**Fix**: Add lead statistics to the data fetch and include them in the Executive Summary section.
+
+### 6. Footer branding says "LaunchPulse" generically
+The footer says "Prepared by Organization using LaunchPulse" which doesn't look professional when the org name is missing.
+
+**Fix**: Use the resolved company name throughout, and make the LaunchPulse attribution subtle.
+
+### 7. SAM shows 0 when it should be 13,956 (high + medium fit)
+**Root cause**: `sam = metrics.highFitAccounts + metrics.mediumFitAccounts` is correct, but the funnel shows `data.sam` = 0 in the PDF. This is likely because the metrics are correct but the TAM/SAM/SOM visual uses the wrong values. Looking at the PDF: TAM shows 66,949 (correct from external_data_sources) but the table shows TAM=13,956 (which is actually the sam value). The logic is computing correctly but displaying incorrectly.
+
+**Fix**: Verify the TAM/SAM/SOM assignment and ensure SAM = high + medium = 8972 + 4984 = 13,956.
 
 ## Technical Changes
 
-### File 1: `src/utils/branded-pdf-export.ts` (major rewrite)
-- Add `insights` and `risks` fields to `BrandedReportData` interface
-- Fix NaN bug: parse JSONB breakdown values with `Number()` fallback to 0
-- Fix confidence display: values are 0-1 decimals, not percentages (remove extra *100)
-- Add Page 7 (AI Insights) and Page 8 (Next Steps) rendering
-- Add executive narrative generator function that creates a plain-English summary from the metrics
-- Improve visual design: better spacing, colored score badges, section dividers
-- Add visual funnel for TAM/SAM/SOM using colored rectangles
+### File 1: `src/hooks/use-branded-report.ts`
 
-### File 2: `src/hooks/use-branded-report.ts` (add insight fetching)
-- Fetch AI insights by invoking `generate-icp-insights` edge function during report generation
-- Fetch risks using `detectRisks()` utility
-- Pass insights and risks data into `BrandedReportData`
-- Fix score column reference (verify `overall_score` vs `overall`)
+**Score column fix (critical)**:
+```typescript
+// BEFORE (broken):
+.select('account_external_id, overall_score, fit_score, intent_score, org_id')
+.order('overall_score', { ascending: false })
 
-### File 3: `src/components/executive/ExportToPdf.tsx` (minor)
-- No structural changes needed, but will pass insights loading state if needed
+// AFTER (fixed):
+.select('account_external_id, overall, fit, intent, org_id')
+.order('overall', { ascending: false })
+```
 
-## Data Bug Fixes
-- **NaN in industry/size**: The JSONB `industry_breakdown` stores values that need explicit `Number()` conversion -- already done in the hook but the values themselves may be objects not numbers
-- **Confidence 5000%**: `p.confidence_score` is likely stored as a raw number (e.g., 50) not a 0-1 decimal, so `Math.round(p.confidence * 100)` produces 5000. Fix: cap at 100 or detect scale
-- **Empty geography**: The RPC `get_geography_distribution` with `p_source_filter: 'crm'` may return 0 counts if data is in the 'database' source -- will use the same source filter logic as the dashboard
-- **Empty top prospects**: The `overall_score` column name needs verification against the actual scores table schema
+Also fix the mapping:
+```typescript
+// BEFORE:
+fitScore: s.fit_score || 0,
+intentScore: s.intent_score || 0,
+overallScore: s.overall_score || 0,
+
+// AFTER:
+fitScore: s.fit || 0,
+intentScore: s.intent || 0,
+overallScore: s.overall || 0,
+```
+
+**safeNumber fix (critical)**:
+```typescript
+// BEFORE:
+if (typeof val === 'object' && val.count != null) return Number(val.count) || 0;
+
+// AFTER:
+if (typeof val === 'object') {
+  if (val.accounts != null) return Number(val.accounts) || 0;
+  if (val.count != null) return Number(val.count) || 0;
+}
+```
+
+**Org name fallback**:
+Add a query to `organizations` table to get the org name when brand config is null:
+```typescript
+const orgNameRes = await supabase
+  .from('organizations')
+  .select('name')
+  .eq('id', effectiveOrgId)
+  .maybeSingle();
+const orgName = brandConfig?.company_name || orgNameRes?.data?.name || 'Organization';
+```
+
+**Lead stats fetch**:
+Add a count query for leads to include lead coverage in the report:
+```typescript
+const leadsRes = await supabase
+  .from('Leads')
+  .select('id', { count: 'exact', head: true })
+  .eq('org_id', effectiveOrgId);
+```
+
+### File 2: `src/utils/branded-pdf-export.ts`
+
+**Country code normalization**:
+Add an ISO-2 to full name map and merge duplicates:
+```typescript
+const COUNTRY_NAMES: Record<string, string> = {
+  'us': 'United States', 'gb': 'United Kingdom', 'de': 'Germany',
+  'fr': 'France', 'es': 'Spain', 'it': 'Italy', 'pl': 'Poland',
+  'ro': 'Romania', 'bg': 'Bulgaria', // ... etc
+};
+```
+
+Normalize country names in geography data before rendering and merge duplicates (e.g., "Gb" + "United Kingdom" = single "United Kingdom" entry).
+
+**Add lead stats to report data interface**:
+```typescript
+// Add to BrandedReportData
+leadStats?: {
+  totalLeads: number;
+  leadCoverage: number;
+};
+```
+
+Display lead count in Executive Summary metrics grid alongside existing metrics.
+
+**Improve narrative to include leads**:
+Update `generateNarrative()` to mention lead coverage when available.
+
+### File 3: No other files need changes
+
+## Summary of Fixes
+
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| "Organization" everywhere | Empty org_onboarding_config | Fallback to organizations.name |
+| Empty Top Prospects | Wrong column names (overall_score vs overall) | Fix column names in query |
+| Zero industry/size values | safeNumber checks .count not .accounts | Add .accounts check |
+| Zero geography counts | Un-normalized country codes | Add ISO-2 normalization map |
+| No lead data | Not fetched | Add Leads count query |
+| SAM = 0 | Possibly related to metrics | Verify computation path |
