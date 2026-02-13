@@ -6399,8 +6399,12 @@ export type Database = {
           name: string
           plan_id: string | null
           scoring_version: string | null
+          service_type: string
           slug: string | null
           status: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          subscription_status: string | null
         }
         Insert: {
           created_at?: string | null
@@ -6413,8 +6417,12 @@ export type Database = {
           name: string
           plan_id?: string | null
           scoring_version?: string | null
+          service_type?: string
           slug?: string | null
           status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string | null
         }
         Update: {
           created_at?: string | null
@@ -6427,8 +6435,12 @@ export type Database = {
           name?: string
           plan_id?: string | null
           scoring_version?: string | null
+          service_type?: string
           slug?: string | null
           status?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string | null
         }
         Relationships: [
           {
