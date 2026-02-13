@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,7 @@ interface ApiKey {
 
 export default function APIAccess() {
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -47,19 +49,19 @@ export default function APIAccess() {
   const [showKey, setShowKey] = useState(false);
 
   useEffect(() => {
-    if (userProfile?.org_id) {
+    if (effectiveOrgId) {
       loadApiKeys();
     }
-  }, [userProfile?.org_id]);
+  }, [effectiveOrgId]);
 
   const loadApiKeys = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
     
     try {
       const { data, error } = await supabase
         .from("api_keys")
         .select("id, name, key_prefix, created_at, last_used_at, is_active, scopes")
-        .eq("org_id", userProfile.org_id)
+        .eq("org_id", effectiveOrgId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -72,7 +74,7 @@ export default function APIAccess() {
   };
 
   const createApiKey = async () => {
-    if (!userProfile?.org_id || !newKeyName.trim()) return;
+    if (!effectiveOrgId || !newKeyName.trim()) return;
 
     try {
       setCreating(true);

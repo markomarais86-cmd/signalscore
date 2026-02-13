@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Play, RefreshCw, CheckCircle2, XCircle, Clock } from "lucide-react";
@@ -10,6 +11,7 @@ import { agentLogger } from "@/lib/logger";
 
 export default function AgentTester() {
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const [runningAgents, setRunningAgents] = useState<Set<string>>(new Set());
   const [results, setResults] = useState<Record<string, any>>({});
 
@@ -41,7 +43,7 @@ export default function AgentTester() {
   ];
 
   const runAgent = async (agentId: string, functionName: string) => {
-    if (!userProfile?.org_id) {
+    if (!effectiveOrgId) {
       toast.error('Organization not found');
       return;
     }
@@ -54,7 +56,7 @@ export default function AgentTester() {
       const { data, error } = await supabase.functions.invoke(functionName, {
         body: {
           agent_id: agentId,
-          org_id: userProfile.org_id
+          org_id: effectiveOrgId
         }
       });
 

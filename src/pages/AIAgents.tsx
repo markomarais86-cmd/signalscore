@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -37,28 +38,29 @@ interface AgentRun {
 
 export default function AIAgents() {
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const queryClient = useQueryClient();
   const { isConnected, registeredAgents } = useAgentRealtime();
 
   const { data: agents, isLoading: agentsLoading, refetch } = useQuery({
-    queryKey: ["ai-agents", userProfile?.org_id],
+    queryKey: ["ai-agents", effectiveOrgId],
     queryFn: async () => {
-      if (!userProfile?.org_id) throw new Error("No organization found");
+      if (!effectiveOrgId) throw new Error("No organization found");
       const { data, error } = await supabase
         .from("ai_agents")
         .select("*")
-        .eq("org_id", userProfile.org_id)
+        .eq("org_id", effectiveOrgId)
         .order("created_at", { ascending: true });
       if (error) throw error;
       return data as Agent[];
     },
-    enabled: !!userProfile?.org_id,
+    enabled: !!effectiveOrgId,
   });
 
   const { data: recentRuns, isLoading: runsLoading } = useQuery({
-    queryKey: ["ai-agent-runs", userProfile?.org_id],
+    queryKey: ["ai-agent-runs", effectiveOrgId],
     queryFn: async () => {
-      if (!userProfile?.org_id) throw new Error("No organization found");
+      if (!effectiveOrgId) throw new Error("No organization found");
       const { data, error } = await supabase
         .from("ai_agent_runs")
         .select("*")
@@ -67,7 +69,7 @@ export default function AIAgents() {
       if (error) throw error;
       return data as AgentRun[];
     },
-    enabled: !!userProfile?.org_id,
+    enabled: !!effectiveOrgId,
     refetchInterval: 10000,
   });
 

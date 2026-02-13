@@ -26,6 +26,7 @@ import {
   Target
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parseCSV, LEADS_HEADERS, generateCSVTemplate } from "@/utils/csv-parser";
@@ -62,6 +63,7 @@ interface CostBreakdown {
 export default function QuickEnrich() {
   const navigate = useNavigate();
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const [step, setStep] = useState<WizardStep>("upload");
   
   // Upload state
@@ -173,7 +175,7 @@ export default function QuickEnrich() {
   };
 
   const handleUpload = async (file: File, rawData: any[], mapping: FieldMapping) => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
 
     setUploading(true);
     setUploadProgress(0);
@@ -191,7 +193,7 @@ export default function QuickEnrich() {
         body: {
           data: rawData,
           mapping: mapping,
-          orgId: userProfile.org_id,
+          orgId: effectiveOrgId,
           isExternalDatabase: false
         }
       });
@@ -226,7 +228,7 @@ export default function QuickEnrich() {
   };
 
   const startEnrichment = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
 
     try {
       setStep("process");
@@ -265,7 +267,7 @@ export default function QuickEnrich() {
 
       const { data, error } = await supabase.functions.invoke("enrich-unified", {
         body: {
-          org_id: userProfile.org_id,
+          org_id: effectiveOrgId,
           record_type: 'account',
           records,
           config: {
@@ -316,7 +318,7 @@ export default function QuickEnrich() {
   };
 
   const exportData = async (type: "accounts" | "leads") => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
 
     try {
       toast.info(`Preparing ${type} export...`);
@@ -356,7 +358,7 @@ export default function QuickEnrich() {
         const { data: leads, error } = await supabase
           .from("Leads")
           .select("*")
-          .eq("org_id", userProfile.org_id)
+          .eq("org_id", effectiveOrgId)
           .in("account_external_id", externalIds)
           .order("company");
 
