@@ -1,5 +1,7 @@
 import jsPDF from 'jspdf';
 import { BrandConfig } from '@/hooks/useBrandedConfig';
+import { RiskItem } from '@/utils/risk-detector';
+import { ICPInsight } from '@/hooks/use-icp-insights';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -52,12 +54,18 @@ export interface BrandedReportData {
     intentScore: number;
     overallScore: number;
   }>;
+
+  // Page 7 – AI Insights (NEW)
+  insights: ICPInsight[];
+
+  // Page 8 – Risks & Next Steps (NEW)
+  risks: RiskItem[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_PRIMARY: [number, number, number] = [8, 51, 105]; // LaunchPulse navy
-const DEFAULT_SECONDARY: [number, number, number] = [60, 241, 174]; // LaunchPulse green
+const DEFAULT_PRIMARY: [number, number, number] = [8, 51, 105];
+const DEFAULT_SECONDARY: [number, number, number] = [60, 241, 174];
 
 function hexToRgb(hex: string | null | undefined): [number, number, number] | null {
   if (!hex) return null;
@@ -76,6 +84,53 @@ function lightenRgb(rgb: [number, number, number], factor = 0.85): [number, numb
   return rgb.map(c => Math.round(c + (255 - c) * factor)) as [number, number, number];
 }
 
+/** Normalize confidence: if value > 1 treat it as already a percentage */
+function normalizeConfidence(val: number): number {
+  if (val > 1) return Math.min(Math.round(val), 100);
+  return Math.round(val * 100);
+}
+
+/** Safe number display */
+function safeNum(val: any): number {
+  const n = Number(val);
+  return isNaN(n) ? 0 : n;
+}
+
+/** Generate executive narrative from metrics */
+function generateNarrative(data: BrandedReportData): string {
+  const m = data.metrics;
+  const highPct = m.scoredAccounts > 0 ? Math.round((m.highFitAccounts / m.scoredAccounts) * 100) : 0;
+  const scoredPct = m.totalAccounts > 0 ? Math.round((m.scoredAccounts / m.totalAccounts) * 100) : 0;
+
+  let narrative = `Your ICP analysis covers ${m.totalAccounts.toLocaleString()} accounts`;
+  if (m.scoredAccounts > 0) {
+    narrative += `, of which ${m.scoredAccounts.toLocaleString()} (${scoredPct}%) have been scored`;
+  }
+  narrative += '. ';
+
+  if (highPct >= 50) {
+    narrative += `${highPct}% are high-fit, indicating strong market alignment. `;
+  } else if (highPct >= 20) {
+    narrative += `${highPct}% are high-fit, showing a focused addressable market. `;
+  } else {
+    narrative += `Only ${highPct}% are high-fit — consider refining your ICP criteria for better targeting. `;
+  }
+
+  if (m.campaignReadyAccounts > 0) {
+    narrative += `${m.campaignReadyAccounts.toLocaleString()} accounts are campaign-ready for immediate outreach. `;
+  }
+
+  if (m.dataCompleteness < 60) {
+    narrative += `Data completeness is at ${m.dataCompleteness}% — enrichment is recommended to improve scoring accuracy.`;
+  } else if (m.dataCompleteness < 80) {
+    narrative += `Data completeness stands at ${m.dataCompleteness}%, with room for improvement through targeted enrichment.`;
+  } else {
+    narrative += `Data quality is strong at ${m.dataCompleteness}% completeness.`;
+  }
+
+  return narrative;
+}
+
 // ─── PDF Generator ───────────────────────────────────────────────────────────
 
 export async function generateBrandedPDF(
@@ -85,15 +140,15 @@ export async function generateBrandedPDF(
   const doc = new jsPDF('p', 'mm', 'a4');
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
-  const M = 15; // margin
-  const CW = W - 2 * M; // content width
+  const M = 15;
+  const CW = W - 2 * M;
   const { primary, secondary } = getBrandColors(brand);
   const lightBg = lightenRgb(primary, 0.92);
   const companyName = brand?.company_name || data.companyName || 'Organization';
 
-  // ─── Shared helpers ──────────────────────────────────────────────────────
-
   let y = M;
+
+  // ─── Shared helpers ──────────────────────────────────────────────────────
 
   const addHeader = (title: string) => {
     doc.setFillColor(...primary);
@@ -110,7 +165,7 @@ export async function generateBrandedPDF(
     doc.setTextColor(140, 140, 140);
     doc.text(`Page ${pageNum} of ${totalPages}`, W / 2, H - 8, { align: 'center' });
     doc.text('Confidential', W - M, H - 8, { align: 'right' });
-    doc.text(`Prepared by LaunchPulse`, M, H - 8);
+    doc.text(`Prepared by ${companyName} using LaunchPulse`, M, H - 8);
   };
 
   const sectionTitle = (text: string) => {
@@ -118,7 +173,11 @@ export async function generateBrandedPDF(
     doc.setTextColor(...primary);
     doc.setFont('helvetica', 'bold');
     doc.text(text, M, y);
-    y += 10;
+    y += 2;
+    // Accent underline
+    doc.setFillColor(...secondary);
+    doc.rect(M, y, 40, 1.5, 'F');
+    y += 8;
     doc.setFont('helvetica', 'normal');
   };
 
@@ -153,60 +212,102 @@ export async function generateBrandedPDF(
     return false;
   };
 
+  const severityColor = (severity: string): [number, number, number] => {
+    switch (severity) {
+      case 'critical': return [220, 38, 38];
+      case 'high': return [234, 88, 12];
+      case 'medium': return [202, 138, 4];
+      case 'low': return [22, 163, 74];
+      default: return [100, 100, 100];
+    }
+  };
+
+  const priorityColor = (priority: string): [number, number, number] => {
+    switch (priority) {
+      case 'high': return [220, 38, 38];
+      case 'medium': return [202, 138, 4];
+      case 'low': return [22, 163, 74];
+      default: return [100, 100, 100];
+    }
+  };
+
   // ─── Page 1: Cover ───────────────────────────────────────────────────────
 
-  // Full-height brand bar
   doc.setFillColor(...primary);
-  doc.rect(0, 0, W, 80, 'F');
+  doc.rect(0, 0, W, H, 'F');
 
-  // Logo or company name
+  // Subtle pattern overlay
+  doc.setFillColor(255, 255, 255);
+  doc.setGState(new (doc as any).GState({ opacity: 0.05 }));
+  for (let i = 0; i < 8; i++) {
+    doc.rect(0, i * 38, W, 1, 'F');
+  }
+  doc.setGState(new (doc as any).GState({ opacity: 1 }));
+
+  // Logo
   if (data.logoBase64) {
     try {
-      doc.addImage(data.logoBase64, 'PNG', W / 2 - 20, 15, 40, 20);
+      doc.addImage(data.logoBase64, 'PNG', W / 2 - 25, 50, 50, 25);
     } catch {
-      doc.setFontSize(28);
+      doc.setFontSize(36);
       doc.setTextColor(255, 255, 255);
-      doc.text(companyName, W / 2, 30, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.text(companyName, W / 2, 70, { align: 'center' });
     }
   } else {
-    doc.setFontSize(28);
+    doc.setFontSize(36);
     doc.setTextColor(255, 255, 255);
-    doc.text(companyName, W / 2, 30, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.text(companyName, W / 2, 70, { align: 'center' });
   }
 
-  // Subtitle on cover
-  doc.setFontSize(12);
-  doc.setTextColor(255, 255, 255);
-  doc.text('ICP & Market Intelligence Report', W / 2, 55, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
 
-  // Secondary accent line
+  // Accent line
   doc.setFillColor(...secondary);
-  doc.rect(W / 2 - 30, 65, 60, 2, 'F');
+  doc.rect(W / 2 - 40, 90, 80, 3, 'F');
 
-  // Date & attribution
-  doc.setFontSize(11);
-  doc.setTextColor(80, 80, 80);
-  doc.text(`Prepared by LaunchPulse`, W / 2, 100, { align: 'center' });
-  doc.text(data.generatedAt, W / 2, 108, { align: 'center' });
+  // Title
+  doc.setFontSize(22);
+  doc.setTextColor(255, 255, 255);
+  doc.text('ICP & Market Intelligence', W / 2, 115, { align: 'center' });
+  doc.text('Board Report', W / 2, 127, { align: 'center' });
+
+  // Date
+  doc.setFontSize(13);
+  doc.setTextColor(200, 210, 230);
+  doc.text(data.generatedAt, W / 2, 150, { align: 'center' });
+
+  // Bottom attribution
+  doc.setFontSize(9);
+  doc.setTextColor(160, 180, 210);
+  doc.text(`Prepared by ${companyName} using LaunchPulse`, W / 2, H - 25, { align: 'center' });
 
   // ─── Page 2: Executive Summary ────────────────────────────────────────────
 
   doc.addPage();
   addHeader('Executive Summary');
-
   sectionTitle('Executive Summary');
 
+  // Narrative paragraph
+  const narrative = generateNarrative(data);
+  doc.setFontSize(10);
+  doc.setTextColor(60, 60, 60);
+  const narrativeLines = doc.splitTextToSize(narrative, CW);
+  doc.text(narrativeLines, M, y);
+  y += narrativeLines.length * 5 + 6;
+
   // Metrics grid (2 columns)
-  const m = data.metrics;
-  const highFitPct = m.scoredAccounts > 0 ? Math.round((m.highFitAccounts / m.scoredAccounts) * 100) : 0;
+  const met = data.metrics;
+  const highFitPct = met.scoredAccounts > 0 ? Math.round((met.highFitAccounts / met.scoredAccounts) * 100) : 0;
 
   const metricItems = [
-    { label: 'Total Accounts', value: m.totalAccounts.toLocaleString() },
-    { label: 'Scored Accounts', value: m.scoredAccounts.toLocaleString() },
-    { label: 'High-Fit Accounts', value: `${m.highFitAccounts.toLocaleString()} (${highFitPct}%)` },
-    { label: 'Medium-Fit Accounts', value: m.mediumFitAccounts.toLocaleString() },
-    { label: 'Campaign-Ready', value: m.campaignReadyAccounts.toLocaleString() },
-    { label: 'Data Completeness', value: `${m.dataCompleteness}%` },
+    { label: 'Total Accounts', value: met.totalAccounts.toLocaleString() },
+    { label: 'Scored Accounts', value: met.scoredAccounts.toLocaleString() },
+    { label: 'High-Fit Accounts', value: `${met.highFitAccounts.toLocaleString()} (${highFitPct}%)` },
+    { label: 'Medium-Fit Accounts', value: met.mediumFitAccounts.toLocaleString() },
+    { label: 'Campaign-Ready', value: met.campaignReadyAccounts.toLocaleString() },
+    { label: 'Data Completeness', value: `${met.dataCompleteness}%` },
   ];
 
   metricItems.forEach((item, i) => {
@@ -259,52 +360,72 @@ export async function generateBrandedPDF(
   doc.setFont('helvetica', 'normal');
   y += 6;
 
-  const total = m.highFitAccounts + m.mediumFitAccounts + m.lowFitAccounts;
+  const total = met.highFitAccounts + met.mediumFitAccounts + met.lowFitAccounts;
   if (total > 0) {
     const barW = CW;
     const barH = 10;
-    const hW = (m.highFitAccounts / total) * barW;
-    const mW = (m.mediumFitAccounts / total) * barW;
-    const lW = (m.lowFitAccounts / total) * barW;
+    const hW = (met.highFitAccounts / total) * barW;
+    const mW = (met.mediumFitAccounts / total) * barW;
+    const lW = (met.lowFitAccounts / total) * barW;
 
-    doc.setFillColor(34, 197, 94); // green
+    doc.setFillColor(34, 197, 94);
     doc.roundedRect(M, y, hW, barH, 2, 2, 'F');
-    doc.setFillColor(250, 204, 21); // yellow
+    doc.setFillColor(250, 204, 21);
     doc.rect(M + hW, y, mW, barH, 'F');
-    doc.setFillColor(239, 68, 68); // red
+    doc.setFillColor(239, 68, 68);
     doc.roundedRect(M + hW + mW, y, lW, barH, 2, 2, 'F');
 
     y += barH + 5;
     doc.setFontSize(7);
     doc.setTextColor(80, 80, 80);
-    doc.text(`High: ${m.highFitAccounts}  |  Medium: ${m.mediumFitAccounts}  |  Low: ${m.lowFitAccounts}`, M, y);
+    doc.text(`High: ${met.highFitAccounts}  |  Medium: ${met.mediumFitAccounts}  |  Low: ${met.lowFitAccounts}`, M, y);
   }
 
-  // ─── Page 3: ICP Profile Summary ──────────────────────────────────────────
+  // ─── Page 3: ICP Profile Deep Dive ────────────────────────────────────────
 
   doc.addPage();
-  addHeader('ICP Profile Summary');
-  sectionTitle('ICP Profile Summary');
+  addHeader('ICP Profile Deep Dive');
+  sectionTitle('ICP Profile Deep Dive');
 
   if (data.icpProfiles.length > 0) {
-    const cols = [
-      { label: 'Profile Name', x: M },
-      { label: 'Industries', x: M + 45 },
-      { label: 'Sizes', x: M + 95 },
-      { label: 'Matches', x: M + 135 },
-      { label: 'Confidence', x: M + 160 },
-    ];
-    tableHeader(cols);
+    data.icpProfiles.forEach((p, idx) => {
+      if (idx > 0) checkPageBreak(45);
 
-    data.icpProfiles.forEach((p, i) => {
-      checkPageBreak(8);
-      tableRow([
-        { text: (p.name || 'Unnamed').substring(0, 22), x: M },
-        { text: (p.targetIndustries || []).slice(0, 2).join(', ').substring(0, 24), x: M + 45 },
-        { text: (p.companySizes || []).slice(0, 2).join(', ').substring(0, 18), x: M + 95 },
-        { text: p.matchCount.toLocaleString(), x: M + 135 },
-        { text: `${Math.round(p.confidence * 100)}%`, x: M + 160 },
-      ], i);
+      // Profile card header
+      doc.setFillColor(...lightenRgb(primary, 0.88));
+      doc.roundedRect(M, y - 4, CW, 10, 2, 2, 'F');
+      doc.setFontSize(11);
+      doc.setTextColor(...primary);
+      doc.setFont('helvetica', 'bold');
+      doc.text(p.name || 'Unnamed Profile', M + 4, y + 3);
+      // Confidence badge
+      const conf = normalizeConfidence(p.confidence);
+      const confColor: [number, number, number] = conf >= 70 ? [34, 197, 94] : conf >= 40 ? [250, 204, 21] : [239, 68, 68];
+      doc.setFillColor(...confColor);
+      doc.roundedRect(W - M - 30, y - 3, 26, 8, 2, 2, 'F');
+      doc.setFontSize(8);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`${conf}% conf`, W - M - 28, y + 2);
+      doc.setFont('helvetica', 'normal');
+      y += 12;
+
+      // Details
+      doc.setFontSize(8);
+      doc.setTextColor(80, 80, 80);
+      if (p.targetIndustries.length > 0) {
+        doc.text(`Industries: ${p.targetIndustries.slice(0, 5).join(', ')}`, M + 4, y);
+        y += 5;
+      }
+      if (p.companySizes.length > 0) {
+        doc.text(`Company Sizes: ${p.companySizes.join(', ')}`, M + 4, y);
+        y += 5;
+      }
+      if (p.geographies.length > 0) {
+        doc.text(`Geographies: ${p.geographies.slice(0, 5).join(', ')}`, M + 4, y);
+        y += 5;
+      }
+      doc.text(`Matching Accounts: ${safeNum(p.matchCount).toLocaleString()}  |  TAM Estimate: ${safeNum(p.tamEstimate).toLocaleString()}`, M + 4, y);
+      y += 8;
     });
   } else {
     doc.setFontSize(10);
@@ -318,36 +439,37 @@ export async function generateBrandedPDF(
   addHeader('TAM / SAM / SOM Analysis');
   sectionTitle('Total Addressable Market');
 
-  // TAM/SAM/SOM cards
-  const tamItems = [
-    { label: 'TAM (Total Addressable Market)', value: data.tam.toLocaleString(), desc: 'Total external database accounts' },
-    { label: 'SAM (Serviceable Available Market)', value: data.sam.toLocaleString(), desc: 'High + medium fit accounts' },
-    { label: 'SOM (Serviceable Obtainable Market)', value: data.som.toLocaleString(), desc: 'Campaign-ready accounts' },
+  // Visual funnel
+  const funnelData = [
+    { label: 'TAM — Total Addressable Market', value: data.tam, color: lightenRgb(primary, 0.6) },
+    { label: 'SAM — Serviceable Available Market', value: data.sam, color: lightenRgb(primary, 0.3) },
+    { label: 'SOM — Serviceable Obtainable Market', value: data.som, color: primary },
   ];
+  const maxFunnelW = CW - 20;
+  const funnelH = 22;
 
-  tamItems.forEach(item => {
-    doc.setFillColor(...lightBg);
-    doc.roundedRect(M, y - 4, CW, 20, 2, 2, 'F');
+  funnelData.forEach((item, i) => {
+    const ratio = data.tam > 0 ? Math.max(item.value / data.tam, 0.15) : (1 - i * 0.3);
+    const barWidth = maxFunnelW * ratio;
+    const xOffset = M + (maxFunnelW - barWidth) / 2 + 10;
+
+    doc.setFillColor(...item.color);
+    doc.roundedRect(xOffset, y, barWidth, funnelH, 3, 3, 'F');
 
     doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text(item.label, M + 4, y + 1);
-
-    doc.setFontSize(16);
-    doc.setTextColor(...primary);
+    doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.text(item.value, M + 4, y + 11);
-    doc.setFont('helvetica', 'normal');
-
+    doc.text(`${safeNum(item.value).toLocaleString()}`, xOffset + barWidth / 2, y + 9, { align: 'center' });
     doc.setFontSize(7);
-    doc.setTextColor(140, 140, 140);
-    doc.text(item.desc, M + 60, y + 11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(item.label, xOffset + barWidth / 2, y + 16, { align: 'center' });
 
-    y += 24;
+    y += funnelH + 4;
   });
 
+  y += 6;
+
   // Industry breakdown
-  y += 4;
   if (data.industryBreakdown.length > 0) {
     doc.setFontSize(12);
     doc.setTextColor(...primary);
@@ -367,8 +489,8 @@ export async function generateBrandedPDF(
       checkPageBreak(8);
       tableRow([
         { text: item.name.substring(0, 45), x: M },
-        { text: item.accounts.toLocaleString(), x: M + 100 },
-        { text: `${item.percentage.toFixed(1)}%`, x: M + 140 },
+        { text: safeNum(item.accounts).toLocaleString(), x: M + 100 },
+        { text: `${safeNum(item.percentage).toFixed(1)}%`, x: M + 140 },
       ], i);
     });
   }
@@ -394,8 +516,8 @@ export async function generateBrandedPDF(
       checkPageBreak(8);
       tableRow([
         { text: item.name.substring(0, 45), x: M },
-        { text: item.accounts.toLocaleString(), x: M + 100 },
-        { text: `${item.percentage.toFixed(1)}%`, x: M + 140 },
+        { text: safeNum(item.accounts).toLocaleString(), x: M + 100 },
+        { text: `${safeNum(item.percentage).toFixed(1)}%`, x: M + 140 },
       ], i);
     });
   }
@@ -407,29 +529,51 @@ export async function generateBrandedPDF(
   sectionTitle('Geographic Distribution');
 
   if (data.geographyDistribution.length > 0) {
-    // Concentration summary
     const top3 = data.geographyDistribution.slice(0, 3);
-    const top3Pct = top3.reduce((sum, g) => sum + g.percentage, 0);
+    const top3Pct = top3.reduce((sum, g) => sum + safeNum(g.percentage), 0);
     doc.setFontSize(10);
     doc.setTextColor(80, 80, 80);
     doc.text(`Top 3 markets represent ${top3Pct.toFixed(1)}% of all accounts`, M, y);
     y += 10;
 
-    const geoCols = [
-      { label: 'Country', x: M },
-      { label: 'Accounts', x: M + 100 },
-      { label: '% Share', x: M + 140 },
-    ];
-    tableHeader(geoCols);
+    // Visual bars for top 10
+    data.geographyDistribution.slice(0, 10).forEach((item, i) => {
+      checkPageBreak(12);
+      const pct = safeNum(item.percentage);
+      const barWidth = (pct / 100) * (CW - 60);
 
-    data.geographyDistribution.slice(0, 15).forEach((item, i) => {
-      checkPageBreak(8);
-      tableRow([
-        { text: item.country.substring(0, 45), x: M },
-        { text: item.accounts.toLocaleString(), x: M + 100 },
-        { text: `${item.percentage.toFixed(1)}%`, x: M + 140 },
-      ], i);
+      doc.setFontSize(8);
+      doc.setTextColor(50, 50, 50);
+      doc.text(item.country.substring(0, 20), M, y + 3);
+
+      doc.setFillColor(...lightenRgb(primary, 0.7));
+      doc.roundedRect(M + 50, y - 1, barWidth, 6, 1, 1, 'F');
+
+      doc.setFontSize(7);
+      doc.setTextColor(80, 80, 80);
+      doc.text(`${safeNum(item.accounts).toLocaleString()} (${pct.toFixed(1)}%)`, M + 55 + barWidth, y + 3);
+
+      y += 10;
     });
+
+    // Rest as table if more than 10
+    if (data.geographyDistribution.length > 10) {
+      y += 4;
+      const geoCols = [
+        { label: 'Country', x: M },
+        { label: 'Accounts', x: M + 100 },
+        { label: '% Share', x: M + 140 },
+      ];
+      tableHeader(geoCols);
+      data.geographyDistribution.slice(10, 25).forEach((item, i) => {
+        checkPageBreak(8);
+        tableRow([
+          { text: item.country.substring(0, 45), x: M },
+          { text: safeNum(item.accounts).toLocaleString(), x: M + 100 },
+          { text: `${safeNum(item.percentage).toFixed(1)}%`, x: M + 140 },
+        ], i);
+      });
+    }
   } else {
     doc.setFontSize(10);
     doc.setTextColor(120, 120, 120);
@@ -456,21 +600,210 @@ export async function generateBrandedPDF(
 
     data.topProspects.slice(0, 20).forEach((p, i) => {
       checkPageBreak(8);
-      tableRow([
-        { text: (p.name || 'N/A').substring(0, 20), x: M },
-        { text: (p.industry || 'N/A').substring(0, 18), x: M + 42 },
-        { text: (p.size || 'N/A').substring(0, 10), x: M + 82 },
-        { text: (p.country || 'N/A').substring(0, 14), x: M + 102 },
-        { text: String(p.fitScore || 0), x: M + 132 },
-        { text: String(p.intentScore || 0), x: M + 148 },
-        { text: String(p.overallScore || 0), x: M + 165 },
-      ], i);
+
+      // Score badge coloring
+      const scoreText = String(safeNum(p.overallScore));
+      const scoreColor: [number, number, number] = safeNum(p.overallScore) >= 70
+        ? [34, 197, 94] : safeNum(p.overallScore) >= 40
+        ? [250, 204, 21] : [239, 68, 68];
+
+      if (i % 2 === 0) {
+        doc.setFillColor(...lightBg);
+        doc.rect(M, y - 4, CW, 7, 'F');
+      }
+      doc.setFontSize(8);
+      doc.setTextColor(50, 50, 50);
+      doc.text((p.name || 'N/A').substring(0, 20), M, y);
+      doc.text((p.industry || 'N/A').substring(0, 18), M + 42, y);
+      doc.text((p.size || 'N/A').substring(0, 10), M + 82, y);
+      doc.text((p.country || 'N/A').substring(0, 14), M + 102, y);
+      doc.text(String(safeNum(p.fitScore)), M + 132, y);
+      doc.text(String(safeNum(p.intentScore)), M + 148, y);
+
+      // Colored overall score
+      doc.setTextColor(...scoreColor);
+      doc.setFont('helvetica', 'bold');
+      doc.text(scoreText, M + 165, y);
+      doc.setFont('helvetica', 'normal');
+      y += 7;
     });
   } else {
     doc.setFontSize(10);
     doc.setTextColor(120, 120, 120);
     doc.text('No scored prospects available.', M, y);
   }
+
+  // ─── Page 7: AI Insights & Recommendations ───────────────────────────────
+
+  doc.addPage();
+  addHeader('AI Insights & Recommendations');
+  sectionTitle('AI-Powered Insights');
+
+  if (data.insights.length > 0) {
+    // Group by priority
+    const byPriority: Record<string, ICPInsight[]> = { high: [], medium: [], low: [] };
+    data.insights.forEach(ins => {
+      const key = ins.priority || 'medium';
+      if (!byPriority[key]) byPriority[key] = [];
+      byPriority[key].push(ins);
+    });
+
+    (['high', 'medium', 'low'] as const).forEach(prio => {
+      const items = byPriority[prio];
+      if (!items || items.length === 0) return;
+
+      checkPageBreak(20);
+
+      // Priority header
+      const prioLabel = prio.charAt(0).toUpperCase() + prio.slice(1) + ' Priority';
+      doc.setFillColor(...priorityColor(prio));
+      doc.roundedRect(M, y - 3, 4, 8, 1, 1, 'F');
+      doc.setFontSize(11);
+      doc.setTextColor(...priorityColor(prio));
+      doc.setFont('helvetica', 'bold');
+      doc.text(prioLabel, M + 8, y + 2);
+      doc.setFont('helvetica', 'normal');
+      y += 10;
+
+      items.forEach(insight => {
+        checkPageBreak(25);
+
+        // Insight card
+        doc.setFillColor(...lightenRgb(priorityColor(prio), 0.9));
+        const cardStartY = y - 3;
+
+        doc.setFontSize(9);
+        doc.setTextColor(40, 40, 40);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${insight.title}`, M + 4, y + 1);
+        doc.setFont('helvetica', 'normal');
+        y += 5;
+
+        doc.setFontSize(8);
+        doc.setTextColor(70, 70, 70);
+        const descLines = doc.splitTextToSize(insight.description, CW - 12);
+        doc.text(descLines, M + 4, y);
+        y += descLines.length * 4;
+
+        if (insight.impact) {
+          doc.setTextColor(...primaryColor());
+          doc.setFont('helvetica', 'italic');
+          doc.text(`Impact: ${insight.impact}`, M + 4, y + 1);
+          doc.setFont('helvetica', 'normal');
+          y += 5;
+        }
+
+        if (insight.nextAction) {
+          doc.setTextColor(...secondary);
+          doc.text(`→ ${insight.nextAction}`, M + 4, y + 1);
+          y += 5;
+        }
+
+        const cardH = y - cardStartY + 2;
+        doc.setFillColor(...lightenRgb(priorityColor(prio), 0.92));
+        // Draw behind (we re-render text over it — simpler to just draw the bg first in a real scenario)
+        // For jsPDF we skip bg rect to avoid overwriting text; the priority dot is sufficient
+        y += 4;
+      });
+      y += 2;
+    });
+  } else {
+    doc.setFontSize(10);
+    doc.setTextColor(120, 120, 120);
+    doc.text('No AI insights available. Generate insights from the dashboard first.', M, y);
+  }
+
+  // Helper for primary color reference (avoids closure issue)
+  function primaryColor(): [number, number, number] { return primary; }
+
+  // ─── Page 8: Strategic Next Steps ─────────────────────────────────────────
+
+  doc.addPage();
+  addHeader('Strategic Next Steps');
+  sectionTitle('Risks & Action Items');
+
+  if (data.risks.length > 0) {
+    data.risks.forEach((risk, i) => {
+      checkPageBreak(22);
+
+      // Severity badge
+      const sColor = severityColor(risk.severity);
+      doc.setFillColor(...sColor);
+      doc.roundedRect(M, y - 3, CW, 1.5, 0.5, 0.5, 'F');
+      y += 2;
+
+      // Severity label
+      doc.setFillColor(...sColor);
+      doc.roundedRect(M, y - 3, 22, 7, 2, 2, 'F');
+      doc.setFontSize(7);
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.text(risk.severity.toUpperCase(), M + 2, y + 1);
+
+      // Title
+      doc.setFontSize(10);
+      doc.setTextColor(40, 40, 40);
+      doc.text(risk.title, M + 26, y + 1);
+      doc.setFont('helvetica', 'normal');
+      y += 7;
+
+      // Description
+      doc.setFontSize(8);
+      doc.setTextColor(80, 80, 80);
+      const riskLines = doc.splitTextToSize(risk.description, CW - 8);
+      doc.text(riskLines, M + 4, y);
+      y += riskLines.length * 4;
+
+      // Impact
+      if (risk.impact) {
+        doc.setTextColor(100, 100, 100);
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Impact: ${risk.impact}`, M + 4, y + 1);
+        doc.setFont('helvetica', 'normal');
+        y += 5;
+      }
+
+      // Fix action
+      if (risk.fix) {
+        doc.setTextColor(...secondary);
+        doc.text(`Recommended: ${risk.fix.label}`, M + 4, y + 1);
+        y += 5;
+      }
+
+      y += 4;
+    });
+  } else {
+    doc.setFontSize(10);
+    doc.setTextColor(120, 120, 120);
+    doc.text('No risks detected — your data is in good shape!', M, y);
+  }
+
+  // Data quality summary
+  y += 8;
+  checkPageBreak(30);
+  doc.setFontSize(12);
+  doc.setTextColor(...primary);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Data Quality Summary', M, y);
+  doc.setFont('helvetica', 'normal');
+  y += 8;
+
+  // Completeness bar
+  const compPct = met.dataCompleteness;
+  const compBarW = CW - 40;
+  doc.setFillColor(230, 230, 230);
+  doc.roundedRect(M, y, compBarW, 8, 2, 2, 'F');
+  const compColor: [number, number, number] = compPct >= 80 ? [34, 197, 94] : compPct >= 60 ? [250, 204, 21] : [239, 68, 68];
+  doc.setFillColor(...compColor);
+  doc.roundedRect(M, y, compBarW * (compPct / 100), 8, 2, 2, 'F');
+  doc.setFontSize(9);
+  doc.setTextColor(50, 50, 50);
+  doc.text(`${compPct}%`, M + compBarW + 4, y + 6);
+  y += 14;
+
+  doc.setFontSize(8);
+  doc.setTextColor(100, 100, 100);
+  doc.text(`Total Accounts: ${met.totalAccounts.toLocaleString()}  |  Scored: ${met.scoredAccounts.toLocaleString()}  |  Campaign-Ready: ${met.campaignReadyAccounts.toLocaleString()}`, M, y);
 
   // ─── Footers on all pages ─────────────────────────────────────────────────
 
@@ -481,6 +814,6 @@ export async function generateBrandedPDF(
   }
 
   // Save
-  const fileName = `${companyName.replace(/\s+/g, '_')}_ICP_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+  const fileName = `${companyName.replace(/\s+/g, '_')}_Board_Report_${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(fileName);
 }
