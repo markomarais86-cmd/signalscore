@@ -1,88 +1,103 @@
 
 
-# Upload ZoomInfo Reference Data to Master Account DB
+# Fix Large Leads Upload (300MB+ CSV Support)
 
 ## Problem
 
-The `upload-master-data` edge function maps CSV columns to wrong field names (`domain`, `company_name`, `founded_year`) that don't match the actual `master_account_data` table columns (`Company`, `Website`, `Founded Year`). The table already has 28,287 records and uses the raw CSV header names as column names.
-
-Your CSV has ~70,466 data rows -- too large for a single edge function call (would timeout). We need **client-side chunking** like before.
+The Data Upload page sends the **entire CSV dataset in a single edge function call** (line 215 of `DataUpload.tsx`). Supabase Edge Functions have a ~6MB request body limit, so a 300MB CSV (likely 500K-1M+ rows) will fail immediately.
 
 ## Solution
 
-### 1. Fix the Edge Function (`upload-master-data`)
+Apply the same **client-side chunking** pattern already working for Reference DB uploads. The browser reads and parses the CSV locally, then sends it in 5,000-row batches to the `bulk-upload` edge function. No need to upload via Supabase dashboard or Google Drive.
 
-Rewrite `mapRowToRecord()` to return objects matching the actual table columns:
+## What Changes
 
-- `Company` (not `company_name`)
-- `Website` (not `domain`)
-- `Founded Year`, `HQ Phone`, `Annual Revenue`, `No. of Employees`, `NAICS 1`-`4`, `Industry`, `Secondary Industry`, `Business Model`, `HQ Address`, `HQ City`, `HQ State`, `HQ Postal Code`, `HQ Country`, `Lead Source`, `Lead Source Details`
-- Auto-compute derived columns: `domain_normalized` (from Website), `revenue_range` (from Annual Revenue), `employee_count_int` (parsed integer), `founded_year_int` (parsed integer)
+### 1. Chunked Upload in `DataUpload.tsx`
 
-The function will accept a JSON body with `{ rows: [...] }` (pre-parsed array of objects) instead of raw CSV, since the browser will do the CSV parsing.
+Replace the single `supabase.functions.invoke('bulk-upload', { body: { data: rawData, ... } })` call with a loop that:
 
-Upsert on `domain_normalized` to deduplicate.
+1. Splits `rawData` into chunks of 5,000 rows
+2. Sends each chunk sequentially to `bulk-upload`
+3. Updates progress bar per-batch (e.g., "Batch 3 of 40...")
+4. Accumulates results (inserted counts, errors)
+5. Runs `bulk_match_all_leads` once at the end (not per batch)
 
-### 2. Add Reference DB Upload Tab in Settings
+### 2. Update `bulk-upload` Edge Function
 
-Add a **"Reference DB"** tab to `DataUploadContent.tsx` (alongside Leads and Closed Won):
+The function already processes in 1,000-row sub-batches internally, so it handles chunked input well. Minor change needed:
 
-- File picker for CSV
-- Client-side CSV parsing using the existing `parseCSV()` utility
-- Chunked upload: sends 5,000 rows per batch to `upload-master-data`
-- Real-time progress bar showing batch X of Y
-- Summary on completion: records upserted, duplicates skipped, errors
+- Add a `skipMatching` parameter so per-chunk calls skip the matching step
+- Only the final call (or the client after all chunks) triggers matching
+- This prevents running `bulk_match_all_leads` 40+ times
 
-### 3. Client-Side Chunking Flow
+### 3. Progress UX
 
-```text
-Browser                          Edge Function
-  |                                    |
-  |-- Parse CSV (70K rows) ---------->|
-  |                                    |
-  |-- Batch 1 (rows 1-5000) -------->|-- upsert to master_account_data
-  |<-- { upserted: 4950 } -----------|
-  |                                    |
-  |-- Batch 2 (rows 5001-10000) ---->|-- upsert to master_account_data
-  |<-- { upserted: 4980 } -----------|
-  |                                    |
-  |   ... (14 batches total) ...      |
-  |                                    |
-  |-- Show final summary              |
-```
+- Show a real progress bar: "Uploading batch 12 of 40 (60,000 / 200,000 leads)"
+- After all chunks uploaded, show "Matching leads to accounts..."
+- Final summary with total inserted, matched, and errors
 
 ## Technical Details
 
-### Edge Function Changes (`supabase/functions/upload-master-data/index.ts`)
+### File: `src/pages/DataUpload.tsx`
 
-- Remove the CSV parsing logic (browser handles this now)
-- Accept `{ rows: object[] }` JSON body
-- For each row, compute:
-  - `domain_normalized`: strip protocol/www from `Website`, lowercase
-  - `revenue_range`: bucket `Annual Revenue` into ranges
-  - `employee_count_int`: parse `No. of Employees` to integer
-  - `founded_year_int`: parse `Founded Year` to integer
-- Upsert batch to `master_account_data` on conflict `domain_normalized`
-- Return `{ upserted, errors }`
+In the `rawData.length > 5000` branch (lines 206-234), replace the single call with:
 
-### UI Changes (`src/components/settings/DataUploadContent.tsx`)
+```text
+const CHUNK_SIZE = 5000;
+const totalChunks = Math.ceil(rawData.length / CHUNK_SIZE);
+let totalInserted = 0;
 
-- Add "Reference DB" tab trigger (visible in advanced mode or always for admins)
-- New upload handler `handleReferenceUpload(file)`:
-  1. Read CSV text, parse with `parseCSV()`
-  2. Split into chunks of 5,000
-  3. For each chunk, call `supabase.functions.invoke('upload-master-data', { body: { rows: chunk } })`
-  4. Accumulate results, update progress bar
-  5. Show final summary with total upserted, current DB count
+for (let i = 0; i < totalChunks; i++) {
+  const chunk = rawData.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+  setUploadProgress(20 + Math.round((i / totalChunks) * 60));
+  // call bulk-upload with { data: chunk, mapping, orgId, skipMatching: true }
+  // accumulate totalInserted
+}
 
-### Files to Modify
+// After all chunks: call bulk-upload once more with { triggerMatching: true, orgId }
+// or call match-leads-to-accounts directly
+setUploadProgress(85);
+```
 
-| File | Change |
-|------|--------|
-| `supabase/functions/upload-master-data/index.ts` | Rewrite to accept JSON rows, map to correct column names, compute derived fields |
-| `src/components/settings/DataUploadContent.tsx` | Add "Reference DB" tab with chunked upload logic |
+### File: `supabase/functions/bulk-upload/index.ts`
 
-### No Database Changes Needed
+- Accept `skipMatching: boolean` parameter (default false)
+- When `skipMatching` is true, skip the `bulk_match_all_leads` RPC call and contact creation
+- Add a separate mode: when `triggerMatchingOnly: true` is sent (with no data), just run matching and scoring
 
-The `master_account_data` table already exists with the correct schema. The unique constraint on `domain_normalized` handles deduplication.
+### No Database Changes
 
+The `Leads` table already exists with all columns. The `bulk_match_all_leads` function already exists. No new tables or migrations needed.
+
+## Flow
+
+```text
+Browser (300MB CSV)                    Edge Function (bulk-upload)
+  |                                          |
+  |-- Parse CSV locally (~1M rows) -------> |
+  |                                          |
+  |-- Chunk 1 (rows 1-5000) + skip match -->|-- upsert 5 x 1000 batches
+  |<-- { inserted: 4950 } ------------------|
+  |                                          |
+  |-- Chunk 2 (rows 5001-10000) ----------->|-- upsert 5 x 1000 batches  
+  |<-- { inserted: 4980 } ------------------|
+  |                                          |
+  |   ... (~40-200 chunks) ...               |
+  |                                          |
+  |-- Final: triggerMatchingOnly=true ------>|-- bulk_match_all_leads
+  |<-- { matched: X, accounts_created: Y } -|
+  |                                          |
+  |-- Show summary                           |
+```
+
+## What You Do
+
+1. Approve this plan
+2. I make the code changes
+3. Go to **Data Upload > Leads tab** in the app
+4. Pick your 300MB CSV using the file browser (no size limit from browser file picker)
+5. Map your columns as usual
+6. Watch the progress bar as it uploads in batches
+7. Done -- leads are in the system, matched to accounts, and scored
+
+No need for Supabase dashboard uploads or Google Drive access.
