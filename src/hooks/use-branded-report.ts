@@ -3,6 +3,8 @@ import { useEffectiveOrg } from '@/hooks/use-effective-org';
 import { useBrandedConfig } from '@/hooks/useBrandedConfig';
 import { supabase } from '@/integrations/supabase/client';
 import { generateBrandedPDF, BrandedReportData } from '@/utils/branded-pdf-export';
+import { detectRisks } from '@/utils/risk-detector';
+import { ICPInsight } from '@/hooks/use-icp-insights';
 import { toast } from 'sonner';
 
 /** Convert a remote image URL to a base64 PNG string. Returns null on failure. */
@@ -38,6 +40,14 @@ function categorizeEmployeeCount(count: number | null): string {
   return '5000+';
 }
 
+/** Safe number extraction from JSONB values that may be objects or strings */
+function safeNumber(val: any): number {
+  if (val == null) return 0;
+  if (typeof val === 'number') return val;
+  if (typeof val === 'object' && val.count != null) return Number(val.count) || 0;
+  return Number(val) || 0;
+}
+
 export function useBrandedReport() {
   const { effectiveOrgId } = useEffectiveOrg();
   const { data: brandConfig } = useBrandedConfig({
@@ -53,20 +63,24 @@ export function useBrandedReport() {
 
     setIsGenerating(true);
     try {
-      // Parallel data fetches
-      const [metricsRes, icpRes, tamRes, geoRes, topAccountsRes] = await Promise.all([
+      // Parallel data fetches — including insights and risks
+      const [metricsRes, icpRes, tamRes, geoRes, topAccountsRes, insightsRes] = await Promise.all([
         supabase.rpc('get_dashboard_metrics_cached' as any, { p_org_id: effectiveOrgId }),
         supabase.from('icp_profiles').select('*').eq('org_id', effectiveOrgId).eq('status', 'active'),
         supabase.from('external_data_sources')
           .select('total_accounts, industry_breakdown, company_size_breakdown')
           .eq('org_id', effectiveOrgId).eq('is_active', true)
           .order('last_synced_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.rpc('get_geography_distribution', { p_org_id: effectiveOrgId, p_source_filter: 'crm' }),
+        supabase.rpc('get_geography_distribution', { p_org_id: effectiveOrgId, p_source_filter: 'all' }),
         supabase.from('scores')
           .select('account_external_id, overall_score, fit_score, intent_score, org_id')
           .eq('org_id', effectiveOrgId)
           .order('overall_score', { ascending: false })
           .limit(20),
+        // Fetch AI insights from edge function
+        supabase.functions.invoke('generate-icp-insights', {
+          body: { org_id: effectiveOrgId },
+        }).catch(() => ({ data: null, error: null })),
       ]);
 
       const raw = Array.isArray(metricsRes.data) ? (metricsRes.data as any)?.[0] : metricsRes.data as any;
@@ -80,7 +94,7 @@ export function useBrandedReport() {
         dataCompleteness: Math.round(raw?.data_completeness || 0),
       };
 
-      // ICP profiles
+      // ICP profiles — fix confidence normalization
       const icpProfiles = (icpRes.data || []).map((p: any) => ({
         name: p.name || 'Unnamed',
         targetIndustries: p.target_industries || [],
@@ -88,7 +102,7 @@ export function useBrandedReport() {
         geographies: p.target_geographies || [],
         matchCount: p.match_count || 0,
         tamEstimate: p.tam_estimate || 0,
-        confidence: p.confidence_score || 0,
+        confidence: p.confidence_score || 0, // normalizeConfidence handles this in the PDF
       }));
 
       // TAM / SAM / SOM
@@ -96,28 +110,28 @@ export function useBrandedReport() {
       const sam = metrics.highFitAccounts + metrics.mediumFitAccounts;
       const som = metrics.campaignReadyAccounts;
 
-      // Industry breakdown from external data
-      const industryRaw = tamRes.data?.industry_breakdown as Record<string, number> | null;
+      // Industry breakdown — safe number parsing for JSONB
+      const industryRaw = tamRes.data?.industry_breakdown as Record<string, any> | null;
       const industryBreakdown = industryRaw
         ? Object.entries(industryRaw)
-            .map(([name, accounts]) => ({ name, accounts: Number(accounts), percentage: 0 }))
+            .map(([name, val]) => ({ name, accounts: safeNumber(val), percentage: 0 }))
             .sort((a, b) => b.accounts - a.accounts)
             .slice(0, 10)
         : [];
       const indTotal = industryBreakdown.reduce((s, i) => s + i.accounts, 0);
       industryBreakdown.forEach(i => { i.percentage = indTotal > 0 ? (i.accounts / indTotal) * 100 : 0; });
 
-      // Size breakdown
-      const sizeRaw = tamRes.data?.company_size_breakdown as Record<string, number> | null;
+      // Size breakdown — safe number parsing for JSONB
+      const sizeRaw = tamRes.data?.company_size_breakdown as Record<string, any> | null;
       const sizeBreakdown = sizeRaw
         ? Object.entries(sizeRaw)
-            .map(([name, accounts]) => ({ name, accounts: Number(accounts), percentage: 0 }))
+            .map(([name, val]) => ({ name, accounts: safeNumber(val), percentage: 0 }))
             .sort((a, b) => b.accounts - a.accounts)
         : [];
       const sizeTotal = sizeBreakdown.reduce((s, i) => s + i.accounts, 0);
       sizeBreakdown.forEach(i => { i.percentage = sizeTotal > 0 ? (i.accounts / sizeTotal) * 100 : 0; });
 
-      // Geography
+      // Geography — using 'all' source filter
       const geoData = (geoRes.data || []) as any[];
       const geoTotal = geoData.reduce((s: number, g: any) => s + (g.account_count || 0), 0);
       const geographyDistribution = geoData.map((g: any) => ({
@@ -126,7 +140,7 @@ export function useBrandedReport() {
         percentage: geoTotal > 0 ? ((g.account_count || 0) / geoTotal) * 100 : 0,
       }));
 
-      // Top prospects – fetch account details for the top scored accounts
+      // Top prospects
       const topScores = topAccountsRes.data || [];
       let topProspects: BrandedReportData['topProspects'] = [];
       if (topScores.length > 0) {
@@ -152,6 +166,12 @@ export function useBrandedReport() {
         });
       }
 
+      // AI Insights
+      const insights: ICPInsight[] = (insightsRes as any)?.data?.insights || [];
+
+      // Risks — detect from metrics
+      const risks = await detectRisks(effectiveOrgId, raw).catch(() => []);
+
       // Logo
       const logoBase64 = brandConfig?.logo_url ? await logoToBase64(brandConfig.logo_url) : null;
 
@@ -170,6 +190,8 @@ export function useBrandedReport() {
         sizeBreakdown,
         geographyDistribution,
         topProspects,
+        insights,
+        risks,
       };
 
       await generateBrandedPDF(reportData, brandConfig ?? null);
