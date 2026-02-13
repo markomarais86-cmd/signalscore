@@ -1,66 +1,157 @@
 
 
-# Fix Multi-Page Issues: Accounts, Dashboard, Onboarding, and AI ICP
+# Executive Intelligence View — Full Implementation Plan
 
-## Issue Summary
+## Current State vs. Spec
 
-There are 5 distinct problems to fix:
+The existing Executive Dashboard has basic coverage for about 40% of the spec. Here's what maps and what's entirely new:
 
-### 1. Accounts Page Not Loading (Database Fix)
+| Spec Section | Status | Current Component |
+|---|---|---|
+| 1. Growth Command Center | Partial | `SimplifiedHeroMetrics` — needs different KPIs |
+| 2. Strategic Position View | NEW | No quadrant matrix or segment health bars |
+| 3. Revenue Opportunity Engine | Partial | `SimpleTAMCard` — needs scenario modelling |
+| 4. Account Monetisation View | NEW | No priority accounts table with readiness |
+| 5. Territory & Expansion | Partial | `SimpleGeographyCard` — needs Core/Expansion/White Space layers |
+| 6. Persona & Buying Committee | NEW | No persona coverage analysis |
+| 7. Data Quality & Revenue Leakage | Partial | `DataHealthWidget` — needs revenue framing |
+| 8. AI Strategy Engine | NEW | `UnifiedInsightsPanel` exists but no quarterly playbooks |
+| 9. Execution Roadmap | NEW | No 90-day plan |
+| 10. Board Report Generator | Partial | PDF export exists — needs all 7 mandatory sections |
+| 11. Consulting Overlay Mode | NEW | No advisor mode |
+| 12. Governance Rules | Apply | Language/UX rules to enforce across all views |
+| 13. Customer Journey | Workflow | Onboarding flow changes |
+| 14. Commercial Outcome | Positioning | No code changes |
 
-**Root Cause**: The `get_filtered_accounts` database function declares `enrichment_overall_score` as `numeric` in its return type, but the actual `accounts` table column is `integer`. This type mismatch causes PostgreSQL error 42804.
+## Phased Approach
 
-**Fix**: Alter the database function to cast `enrichment_overall_score` to `numeric`, or change the return type to `integer`. The simplest fix is to cast the column in the function: `a.enrichment_overall_score::numeric as enrichment_overall_score`.
+Given the scope (~14 major features), this should be built in 4 phases to keep each deliverable testable.
 
-### 2. Remove Funnel Health from Dashboard
+---
 
-**Root Cause**: The `FunnelHealthDashboard` component is rendered at the bottom of the Executive Dashboard.
+### Phase 1: Rebrand + Hero KPIs + Language Governance (Foundation)
 
-**Fix**: Remove the `<FunnelHealthDashboard />` component and its import from `src/pages/ExecutiveDashboard.tsx` (lines 31 and 654).
+**Goal**: Transform the dashboard header and top-level metrics to match the spec's "Growth Command Center" language.
 
-### 3. LaunchPulse Onboarding Shows "Not Started"
+**Changes**:
+- Rename "Executive Dashboard" to "Growth Command Center" in the page header
+- Replace `SimplifiedHeroMetrics` KPIs from (Total Accounts / Total Leads / Campaign Ready) to the spec's 5 tiles:
+  - Market Coverage % (accounts in system / TAM estimate)
+  - Revenue-Ready % (accounts with usable contacts / total)
+  - Priority Accounts (high-fit + high-readiness count)
+  - Pipeline Potential (modelled upside from TAM/SAM/SOM)
+  - Revenue at Risk (from data gaps, pulled from DataHealthWidget logic)
+- Apply governance rules: no "records", no "rows" — use Revenue/Risk/Opportunity/Impact language
+- Colour-code tiles vs benchmarks (green >70%, amber 40-70%, red <40%)
+- Every tile shows a "So What" subtitle
 
-**Root Cause**: There is no row in `org_onboarding_config` for the LaunchPulse org (`726a0dc0-...`). The onboarding card shows "Not started" when no config exists.
+**Files**: `ExecutiveDashboard.tsx`, `SimplifiedHeroMetrics.tsx` (rewrite)
 
-**Fix**: Either auto-create a config row when the org already has data (accounts, ICPs, etc.), or update the Customer Onboarding page to detect existing data and show a more accurate status like "Active" even without a config row. The pragmatic fix is to insert an `org_onboarding_config` row for LaunchPulse with `onboarding_status = 'active'` and populate `company_name` from the `organizations` table.
+---
 
-### 4. AI ICP Recommendations Fail for Ninety One Life
+### Phase 2: Strategic Views (Sections 2, 4, 6, 7)
 
-**Root Cause**: The `generate-icp-recommendations` edge function only looks at the `accounts` table to build its AI prompt. Ninety One Life has 0 accounts, so the AI gets an empty dataset and produces no useful recommendations.
+**Goal**: Add the analytical depth layers beneath the hero.
 
-**Fix**: Update the edge function to also query `org_onboarding_config` for company context (website URL, value proposition, target persona description) and the `organizations` table for the company name. This way, even with no accounts, the AI can generate ICP recommendations based on the onboarding data that was uploaded.
+**2a. ICP Performance Matrix (Section 2)**
+- New component: `ICPPerformanceMatrix.tsx`
+- 2x2 quadrant chart (High/Low Value vs High/Low Fit)
+- Plots segments with "Core Focus / Test / Prune / Ignore" labels
+- Segment Health Bars showing Coverage, Penetration, Conversion, Growth per segment
+- Each segment tagged: "Invest / Maintain / Exit"
 
-### 5. Ninety One Life Onboarding Incomplete
+**2b. Priority Revenue Accounts (Section 4)**
+- New component: `PriorityAccountsTable.tsx`
+- Table: Account | Segment | Est Value | Readiness | Coverage | Next Action
+- Readiness = composite of Data + Intent + Persona + History scores
+- Every row has a recommended action (auto-generated from score logic)
+- Filter out "dead rows" (accounts with 0 readiness)
 
-**Root Cause**: The onboarding config for Ninety One Life exists with status "draft" but `value_proposition` and other fields are empty. The data from the uploaded documents may not have been saved back to the config.
+**2c. Decision-Maker Penetration (Section 6)**
+- New component: `PersonaCoveragePanel.tsx`
+- For each segment: Persona | Coverage % | Gap | Risk
+- Flag "Single-Threaded Deals" (accounts with only 1 contact)
+- Data source: `Leads` table grouped by title/role per account
 
-**Fix**: This ties into issue 4. Once the AI ICP generation uses onboarding data, the workflow will function. Additionally, the onboarding wizard should check if the ICP document parsing already populated data and reflect that in the status.
+**2d. Revenue Integrity Monitor (Section 7)**
+- Enhance existing `DataHealthWidget.tsx`
+- Reframe from "Data Health" to "Revenue Integrity Monitor"
+- Add leakage table: Leakage Source | Impact | Recovery Value
+- Sources: Missing contacts, Stale data, No intent, No enrichment
+- Auto-calculate: "You are losing ~$X/month due to data gaps"
 
-## Technical Changes
+**Files**: 4 new components in `src/components/executive/`, update `ExecutiveDashboard.tsx` layout
 
-### Database Migration (SQL)
-```sql
--- Fix the get_filtered_accounts function return type mismatch
-CREATE OR REPLACE FUNCTION get_filtered_accounts(...)
-RETURNS TABLE(
-  ...
-  enrichment_overall_score numeric,  -- keep as numeric
-  ...
-)
--- Change the SELECT to cast: a.enrichment_overall_score::numeric
-```
+---
 
-### `src/pages/ExecutiveDashboard.tsx`
-- Remove line 31: `import { FunnelHealthDashboard } ...`
-- Remove line 654: `<FunnelHealthDashboard />`
+### Phase 3: Revenue Engine + Geography + AI Playbook (Sections 3, 5, 8, 9)
 
-### `supabase/functions/generate-icp-recommendations/index.ts`
-- Add a query to `org_onboarding_config` for the org's website, value proposition, and target persona
-- Add a query to `organizations` for the company name
-- Include this context in the AI prompt so recommendations work even with 0 accounts
-- When accounts are empty, generate a "seed ICP" recommendation based on the onboarding data instead of returning empty results
+**3a. Revenue Potential Model (Section 3)**
+- Enhance `SimpleTAMCard.tsx` to add Conservative / Base / Aggressive scenarios
+- Add win-rate band and pipeline velocity metrics
+- Auto-calculate 3 scenarios using configurable multipliers
+- Keep the existing settings popover for deal size / conversion
 
-### `src/pages/admin/CustomerOnboarding.tsx`
-- In the org card grid, when no `org_onboarding_config` row exists but the org has accounts/ICPs/leads, show status as "Active" instead of "Not started"
-- Query account counts per org to determine data presence
+**3b. Geographic Growth Map (Section 5)**
+- Enhance `SimpleGeographyCard.tsx` with 3 layers:
+  - Core (fully monetised regions)
+  - Expansion (high upside)
+  - White Space (untapped)
+- Each region shows: Pipeline, Coverage, Growth trend, Risk
+- Classification logic based on account density + conversion rates
+
+**3c. Growth Playbook (Section 8)**
+- New component: `GrowthPlaybook.tsx`
+- Auto-generates 3 quarterly plays: Vertical, Geo, Persona
+- Each play: Why | Impact | Steps | Link to Campaign
+- Uses AI (edge function) to generate plays from account/ICP data
+- New edge function: `generate-growth-plays`
+
+**3d. 90-Day Activation Plan (Section 9)**
+- New component: `ActivationRoadmap.tsx`
+- 30/60/90 day phased table: Phase | Actions | Owner | Expected Outcome
+- Auto-generated from Growth Playbook plays
+- Editable inline (saves to `org_onboarding_config` or new table)
+
+**Files**: Enhance 2 components, create 2 new components, 1 new edge function
+
+---
+
+### Phase 4: Export Engine + Advisor Mode (Sections 10, 11)
+
+**4a. Board Report Generator (Section 10)**
+- Enhance `branded-pdf-export.ts` to include ALL 7 mandatory sections:
+  1. Executive Summary
+  2. Market Position (ICP quadrant)
+  3. Revenue Model (TAM/SAM/SOM with scenarios)
+  4. Priority Accounts (top 20 with readiness)
+  5. Growth Plays (from AI Strategy Engine)
+  6. Risk & Leakage (Revenue Integrity data)
+  7. Activation Plan (90-day roadmap)
+- No optional sections — all always included
+
+**4b. Consulting Overlay Mode (Section 11)**
+- New component: `AdvisorModeOverlay.tsx`
+- Toggle visible only to admin/consultant roles
+- Features: Manual annotations on any card, Scenario overlays, Custom plays, Margin modelling
+- Stored per-org in a new `advisor_annotations` table
+- Pricing sensitivity calculator
+
+**Files**: Enhance PDF export, 1 new component, 1 new DB table, role-based visibility
+
+---
+
+## Technical Notes
+
+- **No new pages** — all sections render as cards/panels within the existing `ExecutiveDashboard.tsx`, keeping the single-scroll experience
+- **Navigation**: Sections can be jumped to via the existing Command Palette (Cmd+K)
+- **Data sources**: All metrics derive from existing tables (`accounts`, `scores`, `Leads`, `icp_profiles`, `external_data_sources`) — no new data ingestion needed except the `advisor_annotations` table in Phase 4
+- **Edge functions**: 1 new function (`generate-growth-plays`) in Phase 3
+- **Language governance**: Applied incrementally — Phase 1 sets the pattern, Phases 2-4 follow it
+- **Performance**: Each section uses independent React Query hooks with 5-min stale times, so adding sections won't cascade re-renders
+- **DataHealthWidget bug**: Currently uses `userProfile?.org_id` instead of `effectiveOrgId` — will be fixed in Phase 1
+
+## Recommended Starting Point
+
+Phase 1 is the quickest win (2-3 components to modify, no new DB tables, no edge functions). It immediately transforms the look and language of the dashboard. Should I proceed with Phase 1?
 
