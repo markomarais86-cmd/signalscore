@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import * as pdfjsLib from "pdfjs-dist";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Sparkles, Upload } from "lucide-react";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 interface AICustomerOnboardingDialogProps {
   open: boolean;
@@ -30,17 +33,37 @@ export function AICustomerOnboardingDialog({
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [documentText, setDocumentText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-
+  const [isParsingFile, setIsParsingFile] = useState(false);
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.type === "text/plain") {
+    if (file.type === "application/pdf") {
+      setIsParsingFile(true);
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let fullText = "";
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          const pageText = content.items.map((item: any) => item.str).join(" ");
+          fullText += pageText + "\n\n";
+        }
+        setDocumentText((prev) => (prev ? prev + "\n\n" + fullText : fullText));
+        toast.success(`Extracted text from ${pdf.numPages} pages of ${file.name}`);
+      } catch (err) {
+        console.error("PDF parsing error:", err);
+        toast.error("Failed to parse PDF. Try pasting the text content directly.");
+      } finally {
+        setIsParsingFile(false);
+      }
+    } else if (file.type === "text/plain" || file.name.endsWith(".csv")) {
       const text = await file.text();
       setDocumentText((prev) => (prev ? prev + "\n\n" + text : text));
       toast.success(`Loaded ${file.name}`);
     } else {
-      toast.info("For PDFs/PPTX, please copy-paste the text content into the box below.");
+      toast.info("Unsupported format. Please upload a PDF or text file, or paste content directly.");
     }
   };
 
@@ -119,17 +142,21 @@ export function AICustomerOnboardingDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="doc-upload">Upload Text File (optional)</Label>
+            <Label htmlFor="doc-upload">Upload Document (optional)</Label>
             <div className="flex items-center gap-2">
               <Input
                 id="doc-upload"
                 type="file"
-                accept=".txt,.csv"
+                accept=".txt,.csv,.pdf"
                 onChange={handleFileUpload}
-                disabled={isProcessing}
+                disabled={isProcessing || isParsingFile}
                 className="flex-1"
               />
-              <Upload className="h-4 w-4 text-muted-foreground" />
+              {isParsingFile ? (
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              ) : (
+                <Upload className="h-4 w-4 text-muted-foreground" />
+              )}
             </div>
           </div>
 
