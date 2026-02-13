@@ -37,6 +37,7 @@ import {
   Route
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useRoles } from "@/hooks/use-roles";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -109,6 +110,7 @@ export default function Settings() {
   });
   
   const { userProfile, user } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const { isSuperAdmin, isOrgAdmin } = useRoles();
   const isAdmin = isSuperAdmin || isOrgAdmin;
   const { toast } = useToast();
@@ -133,11 +135,11 @@ export default function Settings() {
       });
 
       // Load organization settings
-      if (userProfile.org_id) {
+      if (effectiveOrgId) {
         const { data: org, error: orgError } = await supabase
           .from('organizations')
           .select('name')
-          .eq('id', userProfile.org_id)
+          .eq('id', effectiveOrgId)
           .single();
         
         if (org && !orgError) {
@@ -161,11 +163,11 @@ export default function Settings() {
   };
 
   const loadTeamMembers = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
     
     try {
       const { data, error } = await supabase.rpc('get_users_with_emails', {
-        p_org_id: userProfile.org_id
+        p_org_id: effectiveOrgId
       });
       
       if (error) {
@@ -588,7 +590,7 @@ export default function Settings() {
                       <IntegrationHealthDashboard />
                       <IntegrationCredentialManager />
                       <IntegrationManager />
-                      {userProfile?.org_id && <CRMSyncHistory orgId={userProfile.org_id} />}
+                      {effectiveOrgId && <CRMSyncHistory orgId={effectiveOrgId} />}
                       <CampaignExportHistory />
                       <WebhookLogViewer />
                       <ZapierIntegration />

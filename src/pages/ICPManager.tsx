@@ -6,6 +6,7 @@ import { Plus, Target, Wand2, Edit, Trash2, BarChart3, Users, MapPin, Building, 
 import { LaunchPulseMark } from '@/components/BrandLogo';
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useToast } from "@/hooks/use-toast";
 import { icpLogger } from "@/lib/logger";
 import { useOnboarding } from "@/hooks/use-onboarding";
@@ -40,6 +41,7 @@ export default function ICPManager() {
   const [detailTab, setDetailTab] = useState<string>('overview');
   const [discoveryIcpId, setDiscoveryIcpId] = useState<string>('');
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
   const { flags } = useFeatureFlags();
@@ -94,13 +96,13 @@ export default function ICPManager() {
   }, [searchParams, icps, loading, toast]);
 
   useEffect(() => {
-    if (userProfile?.org_id) {
+    if (effectiveOrgId) {
       loadICPs();
     }
-  }, [userProfile?.org_id]);
+  }, [effectiveOrgId]);
 
   const loadICPs = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
     
     setLoading(true);
     try {
@@ -108,7 +110,7 @@ export default function ICPManager() {
       if (flags.demo_mode) {
         const demoICPs: ICPProfile[] = DEMO_ICP_PROFILES.map(profile => ({
           ...profile,
-          org_id: userProfile.org_id,
+          org_id: effectiveOrgId,
           created_at: new Date().toISOString(),
           status: 'active' as const
         }));
@@ -119,7 +121,7 @@ export default function ICPManager() {
       const { data, error } = await supabase
         .from('icp_profiles')
         .select('*')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', effectiveOrgId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -183,21 +185,21 @@ export default function ICPManager() {
     
     // Automatically trigger fast SQL-based re-scoring and Apollo sync
     icpLogger.info("ICP saved successfully, triggering automatic re-scoring and Apollo sync...");
-    if (userProfile?.org_id) {
+    if (effectiveOrgId) {
       await triggerRescoring();
       await triggerApolloSync();
     }
   };
 
   const triggerApolloSync = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
     
     try {
       icpLogger.info('Syncing Apollo data with updated ICP...');
       
       const { data, error } = await supabase.functions.invoke('sync-external-provider', {
         body: {
-          org_id: userProfile.org_id,
+          org_id: effectiveOrgId,
           provider: 'apollo'
         }
       });
@@ -224,16 +226,16 @@ export default function ICPManager() {
   };
 
   const triggerRescoring = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
     
     try {
       icpLogger.info('Starting automatic background rescoring...');
-      icpLogger.debug('Invoking edge function with org_id:', userProfile.org_id);
+      icpLogger.debug('Invoking edge function with org_id:', effectiveOrgId);
       
       // Call edge function for background processing
       const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
         body: {
-          org_id: userProfile.org_id,
+          org_id: effectiveOrgId,
           icp_id: null,
           chunk_size: 5000
         }
@@ -298,12 +300,12 @@ export default function ICPManager() {
   };
 
   const handleAIRecommendations = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
     
     setLoadingRecommendation(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-icp-recommendations', {
-        body: { org_id: userProfile.org_id }
+        body: { org_id: effectiveOrgId }
       });
 
       if (error) throw error;

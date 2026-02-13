@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useToast } from "@/hooks/use-toast";
 import { uploadLogger } from "@/lib/logger";
 import { useOnboarding } from "@/hooks/use-onboarding";
@@ -54,28 +55,29 @@ export default function DataUpload() {
     return saved === 'true';
   });
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
   const { validationResult, validateDataWithMapping, setValidationResult } = useCSVValidator();
 
   useEffect(() => {
-    if (userProfile?.org_id) {
+    if (effectiveOrgId) {
       loadTotalRecords();
     }
-  }, [userProfile?.org_id]);
+  }, [effectiveOrgId]);
 
   const loadTotalRecords = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
     
     const leadsRes = await supabase
       .from('Leads')
       .select('*', { count: 'exact', head: true })
-      .eq('org_id', userProfile.org_id);
+      .eq('org_id', effectiveOrgId);
 
     const unlinkedRes = await supabase
       .from('Leads')
       .select('*', { count: 'exact', head: true })
-      .eq('org_id', userProfile.org_id)
+      .eq('org_id', effectiveOrgId)
       .is('account_external_id', null);
 
     setTotalRecords(leadsRes.count || 0);
@@ -165,7 +167,7 @@ export default function DataUpload() {
   };
 
   const handleFileUpload = async (mapping: FieldMapping) => {
-    if (!pendingFile || !userProfile?.org_id) {
+    if (!pendingFile || !effectiveOrgId) {
       toast({
         title: "Upload Error",
         description: !pendingFile ? "No file selected" : "Authentication required",
@@ -179,7 +181,7 @@ export default function DataUpload() {
     setUploadResult(null);
     setShowFieldMapping(false);
 
-    const orgId = userProfile.org_id;
+    const orgId = effectiveOrgId;
     let insertedLeads = 0;
     const errors: string[] = [];
 

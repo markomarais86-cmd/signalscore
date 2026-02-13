@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "./use-auth";
+import { useEffectiveOrg } from "./use-effective-org";
 
 export interface CapitalMetrics {
   totalInvestment: number;
@@ -26,8 +26,8 @@ async function fetchCapitalMetrics(orgId: string): Promise<CapitalMetrics> {
 }
 
 export function useCapitalData() {
-  const { userProfile } = useAuth();
-  const orgId = userProfile?.org_id;
+  const { effectiveOrgId } = useEffectiveOrg();
+  const orgId = effectiveOrgId;
 
   const query = useQuery({
     queryKey: ['capital-metrics', orgId],
