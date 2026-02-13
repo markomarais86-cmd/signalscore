@@ -22,6 +22,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ClosedWonInsights } from "@/components/icp/ClosedWonInsights";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ICPRecommendationDialog } from "@/components/icp/ICPRecommendationDialog";
+import { AIICPBuilderDialog } from "@/components/icp/AIICPBuilderDialog";
 import { ICPGridSkeleton } from "@/components/ICPGridSkeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
@@ -38,6 +39,7 @@ export default function ICPManager() {
   const [showCampaignBuilder, setShowCampaignBuilder] = useState(false);
   const [selectedICPForCampaign, setSelectedICPForCampaign] = useState<string | undefined>();
   const [selectedIcp, setSelectedIcp] = useState<ICPProfile | null>(null);
+  const [aiBuilderOpen, setAiBuilderOpen] = useState(false);
   const [detailTab, setDetailTab] = useState<string>('overview');
   const [discoveryIcpId, setDiscoveryIcpId] = useState<string>('');
   const { userProfile } = useAuth();
@@ -402,22 +404,12 @@ export default function ICPManager() {
           </div>
           <div className="flex gap-2">
             <Button 
-              onClick={handleAIRecommendations} 
+              onClick={() => setAiBuilderOpen(true)} 
               variant="outline"
-              disabled={loadingRecommendation}
               className="flex items-center gap-2"
             >
-              {loadingRecommendation ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <LaunchPulseMark className="h-4 w-4" />
-                  AI ICP Builder
-                </>
-              )}
+              <LaunchPulseMark className="h-4 w-4" />
+              AI ICP Builder
             </Button>
             <Button onClick={handleCreateNew} className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
@@ -712,6 +704,25 @@ export default function ICPManager() {
         data={aiRecommendation}
       />
       
+      {/* AI ICP Builder Dialog */}
+      <AIICPBuilderDialog
+        open={aiBuilderOpen}
+        onOpenChange={setAiBuilderOpen}
+        orgId={effectiveOrgId || ""}
+        orgName=""
+        onSuccess={async (icpId) => {
+          await loadICPs();
+          const { data } = await supabase
+            .from('icp_profiles')
+            .select('*')
+            .eq('id', icpId)
+            .maybeSingle();
+          if (data) {
+            setSelectedIcp({ ...data, status: (data.status || 'draft') as 'draft' | 'active' | 'archived' } as ICPProfile);
+          }
+        }}
+      />
+
       {/* Campaign Builder */}
       <CampaignBuilderV2
         isOpen={showCampaignBuilder}
