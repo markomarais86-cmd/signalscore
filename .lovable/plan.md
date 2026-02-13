@@ -1,103 +1,61 @@
 
 
-# Fix Large Leads Upload (300MB+ CSV Support)
+# Fix AI ICP for 91.life (Healthcare Company)
 
-## Problem
+## Problems Found
 
-The Data Upload page sends the **entire CSV dataset in a single edge function call** (line 215 of `DataUpload.tsx`). Supabase Edge Functions have a ~6MB request body limit, so a 300MB CSV (likely 500K-1M+ rows) will fail immediately.
+There are three issues causing wrong ICP data:
 
-## Solution
+### 1. Wrong Existing ICP Data
+The current ICP profile for 91.life (id: `207c6c62-...`) contains Financial Services / Asset Management data from "Ninety One" (the investment firm). This needs to be deleted so the correct healthcare-focused ICP can be generated.
 
-Apply the same **client-side chunking** pattern already working for Reference DB uploads. The browser reads and parses the CSV locally, then sends it in 5,000-row batches to the `bulk-upload` edge function. No need to upload via Supabase dashboard or Google Drive.
+### 2. AI ICP Assistant Shows Wrong Data
+The "AI ICP Assistant" panel (the one showing Business Services, Finance, Construction) queries the `accounts` table which contains your uploaded ZoomInfo reference data (general B2B companies). It does NOT look at 91.life's uploaded ICP documents at all. This panel needs to also incorporate the org's onboarding config and existing ICP data so it knows 91.life sells into healthcare.
 
-## What Changes
+### 3. Empty Onboarding Context
+The `org_onboarding_config` for 91.life has blank `value_proposition` and `target_persona_description`. Without this context, the AI has no idea that 91.life is a health/longevity platform selling into healthcare.
 
-### 1. Chunked Upload in `DataUpload.tsx`
+## What Will Change
 
-Replace the single `supabase.functions.invoke('bulk-upload', { body: { data: rawData, ... } })` call with a loop that:
+### Step 1: Delete the Wrong ICP
+Remove the incorrect "Ninety One Life - Primary ICP" (Financial Services) profile so it does not confuse future AI calls.
 
-1. Splits `rawData` into chunks of 5,000 rows
-2. Sends each chunk sequentially to `bulk-upload`
-3. Updates progress bar per-batch (e.g., "Batch 3 of 40...")
-4. Accumulates results (inserted counts, errors)
-5. Runs `bulk_match_all_leads` once at the end (not per batch)
+### Step 2: Update Onboarding Config
+Populate 91.life's `org_onboarding_config` with the correct context from the uploaded documents:
+- `value_proposition`: Health and longevity platform helping employers reduce healthcare costs through preventive wellness programs
+- `target_persona_description`: CPO, VP HR, Benefits Manager, Wellness Director at mid-to-large employers in Healthcare, Insurance, and Corporate Wellness
 
-### 2. Update `bulk-upload` Edge Function
+### Step 3: Fix the AI ICP Assistant Panel
+Update `generate-icp-recommendations` edge function to filter the `accounts` table by the org's existing ICP criteria (industries from icp_profiles) rather than showing raw top-3 from all accounts. When an ICP exists with specific industries like Healthcare, the data insights should reflect healthcare accounts, not all 14k generic companies.
 
-The function already processes in 1,000-row sub-batches internally, so it handles chunked input well. Minor change needed:
-
-- Add a `skipMatching` parameter so per-chunk calls skip the matching step
-- Only the final call (or the client after all chunks) triggers matching
-- This prevents running `bulk_match_all_leads` 40+ times
-
-### 3. Progress UX
-
-- Show a real progress bar: "Uploading batch 12 of 40 (60,000 / 200,000 leads)"
-- After all chunks uploaded, show "Matching leads to accounts..."
-- Final summary with total inserted, matched, and errors
+### Step 4: Prevent Duplicate ICPs on Re-parse
+Update `parse-icp-document` to check for an existing `ai-parsed` ICP for the same org and UPDATE it instead of creating a duplicate. This way re-uploading documents fixes the ICP in place.
 
 ## Technical Details
 
-### File: `src/pages/DataUpload.tsx`
+### Data Fix (one-time)
+- Delete ICP `207c6c62-9d9d-4ba8-af1c-f997066baa01` (wrong Financial Services data)
+- Update `org_onboarding_config` for org `cd592f73-...` with correct value_proposition and target_persona_description
 
-In the `rawData.length > 5000` branch (lines 206-234), replace the single call with:
+### Edge Function: `generate-icp-recommendations` 
+- After fetching `accounts`, also fetch the org's active `icp_profiles` industries
+- If ICP industries exist, filter the account analysis to only show accounts matching those industries (or at minimum, include ICP context prominently in the AI prompt)
+- Pass the `onboarding_config.value_proposition` to the AI so it understands the company sells into healthcare, not financial services
 
-```text
-const CHUNK_SIZE = 5000;
-const totalChunks = Math.ceil(rawData.length / CHUNK_SIZE);
-let totalInserted = 0;
+### Edge Function: `parse-icp-document`
+- Before inserting, check if an ICP with `template_source = 'ai-parsed'` already exists for that org
+- If yes, UPDATE the existing row instead of INSERT
+- This prevents duplicate ICPs when re-uploading corrected documents
 
-for (let i = 0; i < totalChunks; i++) {
-  const chunk = rawData.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-  setUploadProgress(20 + Math.round((i / totalChunks) * 60));
-  // call bulk-upload with { data: chunk, mapping, orgId, skipMatching: true }
-  // accumulate totalInserted
-}
+### Files to Modify
 
-// After all chunks: call bulk-upload once more with { triggerMatching: true, orgId }
-// or call match-leads-to-accounts directly
-setUploadProgress(85);
-```
+| File | Change |
+|------|--------|
+| `supabase/functions/generate-icp-recommendations/index.ts` | Filter account analysis by ICP industries; pass value_proposition context |
+| `supabase/functions/parse-icp-document/index.ts` | Upsert instead of always insert for ai-parsed ICPs |
 
-### File: `supabase/functions/bulk-upload/index.ts`
-
-- Accept `skipMatching: boolean` parameter (default false)
-- When `skipMatching` is true, skip the `bulk_match_all_leads` RPC call and contact creation
-- Add a separate mode: when `triggerMatchingOnly: true` is sent (with no data), just run matching and scoring
-
-### No Database Changes
-
-The `Leads` table already exists with all columns. The `bulk_match_all_leads` function already exists. No new tables or migrations needed.
-
-## Flow
-
-```text
-Browser (300MB CSV)                    Edge Function (bulk-upload)
-  |                                          |
-  |-- Parse CSV locally (~1M rows) -------> |
-  |                                          |
-  |-- Chunk 1 (rows 1-5000) + skip match -->|-- upsert 5 x 1000 batches
-  |<-- { inserted: 4950 } ------------------|
-  |                                          |
-  |-- Chunk 2 (rows 5001-10000) ----------->|-- upsert 5 x 1000 batches  
-  |<-- { inserted: 4980 } ------------------|
-  |                                          |
-  |   ... (~40-200 chunks) ...               |
-  |                                          |
-  |-- Final: triggerMatchingOnly=true ------>|-- bulk_match_all_leads
-  |<-- { matched: X, accounts_created: Y } -|
-  |                                          |
-  |-- Show summary                           |
-```
-
-## What You Do
-
-1. Approve this plan
-2. I make the code changes
-3. Go to **Data Upload > Leads tab** in the app
-4. Pick your 300MB CSV using the file browser (no size limit from browser file picker)
-5. Map your columns as usual
-6. Watch the progress bar as it uploads in batches
-7. Done -- leads are in the system, matched to accounts, and scored
-
-No need for Supabase dashboard uploads or Google Drive access.
+### After the Fix
+1. The wrong Financial Services ICP is gone
+2. Re-upload the 91.life PDF via AI ICP Builder
+3. New ICP is created with Healthcare, Insurance, Corporate Wellness industries
+4. The AI ICP Assistant panel will show healthcare-relevant data insights instead of generic Business Services / Finance
