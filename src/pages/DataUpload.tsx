@@ -203,35 +203,67 @@ export default function DataUpload() {
       
       setUploadProgress(20);
 
-      // Use edge function for large uploads (>5000 records)
+      // Use edge function for large uploads (>5000 records) with chunking
       if (rawData.length > 5000) {
-        uploadLogger.info(`Using edge function for bulk upload of ${rawData.length} leads`);
+        const CHUNK_SIZE = 5000;
+        const totalChunks = Math.ceil(rawData.length / CHUNK_SIZE);
+        uploadLogger.info(`Using chunked edge function upload: ${rawData.length} leads in ${totalChunks} batches`);
         
         toast({
           title: "Large Upload Detected",
-          description: `Processing ${rawData.length} leads in the background for optimal performance...`,
+          description: `Processing ${formatNumber(rawData.length)} leads in ${totalChunks} batches...`,
         });
 
-        const { data, error } = await supabase.functions.invoke('bulk-upload', {
+        for (let i = 0; i < totalChunks; i++) {
+          const chunk = rawData.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+          const batchProgress = 20 + Math.round((i / totalChunks) * 60);
+          setUploadProgress(batchProgress);
+
+          uploadLogger.info(`Uploading batch ${i + 1} of ${totalChunks} (${chunk.length} rows)`);
+
+          const { data: chunkResult, error: chunkError } = await supabase.functions.invoke('bulk-upload', {
+            body: {
+              data: chunk,
+              mapping: mapping,
+              orgId: orgId,
+              isExternalDatabase: pendingFile.isExternalDatabase || false,
+              skipMatching: true
+            }
+          });
+
+          if (chunkError) {
+            errors.push(`Batch ${i + 1}: ${chunkError.message}`);
+            uploadLogger.error(`Batch ${i + 1} failed:`, chunkError);
+          } else {
+            insertedLeads += chunkResult?.insertedLeads || 0;
+            if (chunkResult?.errors) errors.push(...chunkResult.errors);
+          }
+        }
+
+        setUploadProgress(82);
+
+        // Now trigger matching once
+        toast({
+          title: "Upload Complete!",
+          description: `${formatNumber(insertedLeads)} leads uploaded. Now matching to accounts...`,
+        });
+
+        uploadLogger.info('Triggering bulk matching after all chunks...');
+        const { data: matchData, error: matchError } = await supabase.functions.invoke('bulk-upload', {
           body: {
-            data: rawData,
-            mapping: mapping,
             orgId: orgId,
-            isExternalDatabase: pendingFile.isExternalDatabase || false
+            isExternalDatabase: pendingFile.isExternalDatabase || false,
+            triggerMatchingOnly: true
           }
         });
 
-        if (error) throw error;
+        if (matchError) {
+          errors.push(`Matching: ${matchError.message}`);
+        } else if (matchData?.matching) {
+          uploadLogger.info('Matching result:', matchData.matching);
+        }
 
-        insertedLeads = data.insertedLeads || 0;
-        errors.push(...(data.errors || []));
-
-        setUploadProgress(80);
-
-        toast({
-          title: "Upload Complete!",
-          description: `Uploaded ${insertedLeads} leads. Now matching to accounts...`,
-        });
+        setUploadProgress(90);
 
       } else {
         // Optimized upload for smaller datasets
