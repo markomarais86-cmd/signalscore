@@ -15,6 +15,7 @@ import { useOnboarding } from "@/hooks/use-onboarding";
 import { formatNumber } from "@/utils/format-numbers";
 import { ClosedWonUpload } from "@/components/data-upload/ClosedWonUpload";
 import { DataProcessingPipeline } from "@/components/data-upload/DataProcessingPipeline";
+import { ReferenceDBUpload } from "@/components/settings/ReferenceDBUpload";
 import { BulkLeadMatcher } from "@/components/data-upload/BulkLeadMatcher";
 import { parseCSV, LEADS_HEADERS, generateCSVTemplate } from "@/utils/csv-parser";
 
@@ -396,6 +397,10 @@ export default function DataUploadContent() {
               Pipeline
             </TabsTrigger>
           )}
+          <TabsTrigger value="reference-db" className="gap-2">
+            <Database className="h-4 w-4" />
+            Reference DB
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="leads" className="space-y-6">
@@ -522,6 +527,10 @@ export default function DataUploadContent() {
             <DataProcessingPipeline />
           </TabsContent>
         )}
+
+        <TabsContent value="reference-db">
+          <ReferenceDBUpload />
+        </TabsContent>
       </Tabs>
 
       <Alert>
