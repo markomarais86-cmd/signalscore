@@ -102,6 +102,55 @@ export type Database = {
           },
         ]
       }
+      account_segments: {
+        Row: {
+          account_id: string
+          assigned_at: string
+          assigned_by: string | null
+          id: string
+          org_id: string
+          segment_id: string
+        }
+        Insert: {
+          account_id: string
+          assigned_at?: string
+          assigned_by?: string | null
+          id?: string
+          org_id: string
+          segment_id: string
+        }
+        Update: {
+          account_id?: string
+          assigned_at?: string
+          assigned_by?: string | null
+          id?: string
+          org_id?: string
+          segment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_segments_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_segments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_segments_segment_id_fkey"
+            columns: ["segment_id"]
+            isOneToOne: false
+            referencedRelation: "segments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       account_signals: {
         Row: {
           account_external_id: string
@@ -7224,6 +7273,7 @@ export type Database = {
           name: string
           org_id: string
           query_config: Json
+          status: string
           updated_at: string
         }
         Insert: {
@@ -7235,6 +7285,7 @@ export type Database = {
           name: string
           org_id: string
           query_config?: Json
+          status?: string
           updated_at?: string
         }
         Update: {
@@ -7246,6 +7297,7 @@ export type Database = {
           name?: string
           org_id?: string
           query_config?: Json
+          status?: string
           updated_at?: string
         }
         Relationships: [
@@ -8232,6 +8284,7 @@ export type Database = {
       gdpr_export_user_data: { Args: { target_user_id: string }; Returns: Json }
       generate_invitation_token: { Args: never; Returns: string }
       generate_sample_data: { Args: never; Returns: Json }
+      get_account_lineage: { Args: { p_account_id: string }; Returns: Json }
       get_active_icp_id: { Args: { p_org_id: string }; Returns: string }
       get_branded_config_by_org_id: {
         Args: { p_org_id: string }

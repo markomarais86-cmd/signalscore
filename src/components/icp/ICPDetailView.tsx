@@ -8,6 +8,7 @@ import { LaunchPulseDiscovery } from '@/components/discovery/LaunchPulseDiscover
 import { ICPMatchedAccountsTab } from './ICPMatchedAccountsTab';
 import { ICPTAMAnalysisTab } from './ICPTAMAnalysisTab';
 import { ICPAnalyticsTab } from './ICPAnalyticsTab';
+import { ICPRuleBuilder } from './ICPRuleBuilder';
 import { WhitespaceMappingCard } from './WhitespaceMappingCard';
 import { useUnifiedEnrichment } from '@/hooks/use-unified-enrichment';
 import { useAuth } from '@/hooks/use-auth';
@@ -296,10 +297,14 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview" className="flex items-center gap-2">
             <Target className="h-4 w-4" />
             Overview
+          </TabsTrigger>
+          <TabsTrigger value="weights" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Weights
           </TabsTrigger>
           <TabsTrigger value="accounts" className="flex items-center gap-2">
             <Building className="h-4 w-4" />
@@ -310,14 +315,19 @@ export function ICPDetailView({ icp, onBack, onEdit, defaultTab = 'overview' }: 
             Discover New
           </TabsTrigger>
           <TabsTrigger value="analytics" className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
+            <BarChart3 className="h-4 w-4" />
             Analytics
           </TabsTrigger>
           <TabsTrigger value="tam" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
+            <DollarSign className="h-4 w-4" />
             TAM Analysis
           </TabsTrigger>
         </TabsList>
+
+        {/* Weights Tab */}
+        <TabsContent value="weights" className="space-y-6">
+          <ICPRuleBuilder icpId={icp.id} />
+        </TabsContent>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
