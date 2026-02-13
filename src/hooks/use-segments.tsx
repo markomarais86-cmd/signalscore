@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './use-auth';
+import { useEffectiveOrg } from './use-effective-org';
 import { useToast } from './use-toast';
 
 export interface Segment {
@@ -19,17 +20,19 @@ export function useSegments() {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const { toast } = useToast();
 
-  const loadSegments = async () => {
-    if (!userProfile?.org_id) return;
+  const orgId = effectiveOrgId || userProfile?.org_id;
 
+  const loadSegments = async () => {
+    if (!orgId) return;
     setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('segments')
         .select('*')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', orgId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -47,14 +50,14 @@ export function useSegments() {
   };
 
   const createSegment = async (segment: Partial<Segment>) => {
-    if (!userProfile?.org_id) return null;
+    if (!orgId) return null;
 
     try {
       const { data, error } = await supabase
         .from('segments')
         .insert([{
-          org_id: userProfile.org_id,
-          created_by: userProfile.user_id,
+          org_id: orgId,
+          created_by: userProfile?.user_id || null,
           name: segment.name || 'Untitled Segment',
           description: segment.description,
           query_config: segment.query_config || {},
@@ -135,7 +138,7 @@ export function useSegments() {
 
   useEffect(() => {
     loadSegments();
-  }, [userProfile?.org_id]);
+  }, [orgId]);
 
   return {
     segments,
