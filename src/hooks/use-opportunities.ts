@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { useEffectiveOrg } from '@/hooks/use-effective-org';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 
@@ -57,8 +58,7 @@ export interface StageHistory {
 }
 
 export function useOpportunities(stage?: string) {
-  const { userProfile } = useAuth();
-  const orgId = userProfile?.org_id;
+  const { effectiveOrgId: orgId } = useEffectiveOrg();
 
   return useQuery({
     queryKey: ['opportunities', orgId, stage],

@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import { formatNumber } from "@/utils/format-numbers";
 import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useToast } from "@/hooks/use-toast";
 import { leadsLogger } from "@/lib/logger";
 import { Label } from "@/components/ui/label";
@@ -96,6 +97,7 @@ export default function Leads() {
   const [hasAttemptedMatch, setHasAttemptedMatch] = useState(false);
   const [activeView, setActiveView] = useState<'all' | 'enriched'>('all');
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const { toast } = useToast();
   const { flags } = useFeatureFlags();
 
@@ -141,7 +143,7 @@ export default function Leads() {
     retry,
     lastError
   } = useInfiniteLeads({
-    orgId: userProfile?.org_id || null,
+    orgId: effectiveOrgId || null,
     pageSize: 25,
     searchTerm,
     statusFilter: statusFilter !== 'all' ? statusFilter : undefined,
@@ -153,7 +155,7 @@ export default function Leads() {
   });
 
   // Fetch database-level metrics (accurate counts across all 63k+ leads)
-  const { data: metrics, isLoading: metricsLoading } = useLeadsMetrics(userProfile?.org_id);
+  const { data: metrics, isLoading: metricsLoading } = useLeadsMetrics(effectiveOrgId);
 
   // Enriched leads data (for enriched tab)
   const {
@@ -165,7 +167,7 @@ export default function Leads() {
     loadMore: enrichedLoadMore,
     refresh: enrichedRefresh
   } = useEnrichedLeads({
-    orgId: userProfile?.org_id || null,
+    orgId: effectiveOrgId || null,
     searchTerm: enrichedSearchTerm,
     enrichmentSource,
     confidenceLevel,
@@ -176,7 +178,7 @@ export default function Leads() {
     sortDirection
   });
 
-  const enrichedMetrics = useEnrichedLeadsMetrics(userProfile?.org_id || null);
+  const enrichedMetrics = useEnrichedLeadsMetrics(effectiveOrgId || null);
 
   // Set up infinite scroll observer
   const { observerTarget } = useInfiniteScroll({
@@ -205,12 +207,12 @@ export default function Leads() {
   };
 
   const handleReEnrich = async (lead: EnrichedLead) => {
-    if (!lead.email || !userProfile?.org_id) return;
+    if (!lead.email || !effectiveOrgId) return;
     
     try {
       await supabase.functions.invoke('enrich-unified', {
         body: { 
-          org_id: userProfile.org_id, 
+          org_id: effectiveOrgId, 
           leads: [{ email: lead.email, first_name: lead.first_name, last_name: lead.last_name, company: lead.company }],
           save_to_db: true
         }
@@ -227,7 +229,7 @@ export default function Leads() {
   // Removed auto-match on page load - it causes timeouts and poor UX
 
   const handleAutoMatch = async () => {
-    if (!userProfile?.org_id) {
+    if (!effectiveOrgId) {
       toast({
         title: "Error",
         description: "No organization ID found",
@@ -248,7 +250,7 @@ export default function Leads() {
       
       // Call the fast SQL function directly
       const { data, error } = await supabase.rpc('match_leads_to_accounts_fast', {
-        p_org_id: userProfile.org_id
+        p_org_id: effectiveOrgId
       });
 
       if (error) {
@@ -296,7 +298,7 @@ export default function Leads() {
     try {
       const { data, error } = await supabase.functions.invoke('score-accounts', {
         body: {
-          org_id: userProfile?.org_id,
+          org_id: effectiveOrgId,
           account_ids: [lead.account_external_id]
         }
       });
@@ -1159,7 +1161,7 @@ export default function Leads() {
           <EnrichedLeadsHeader
             selectedLeads={selectedEnrichedLeads}
             allLeads={enrichedLeads}
-            orgId={userProfile?.org_id || null}
+            orgId={effectiveOrgId || null}
             onRefresh={enrichedRefresh}
             onClearSelection={() => setSelectedEnrichedIds(new Set())}
           />

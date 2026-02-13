@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useEffectiveOrg } from '@/hooks/use-effective-org';
 import { icpLogger, scoringLogger } from '@/lib/logger';
 
 interface ICPProfile {
@@ -36,28 +36,28 @@ interface ICPScore {
 }
 
 export function useICPScoring() {
-  const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const [icpProfiles, setIcpProfiles] = useState<ICPProfile[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [scores, setScores] = useState<ICPScore[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (userProfile?.org_id) {
+    if (effectiveOrgId) {
       loadData();
     }
-  }, [userProfile?.org_id]);
+  }, [effectiveOrgId]);
 
   const loadData = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
     
     setLoading(true);
     try {
       // Load ICP profiles
       const { data: icpData, error: icpError } = await supabase
         .from('icp_profiles')
-        .select('*')
-        .eq('org_id', userProfile.org_id);
+          .select('*')
+          .eq('org_id', effectiveOrgId);
 
       if (icpError) throw icpError;
       icpLogger.debug('Loaded ICP profiles:', icpData?.length || 0);
@@ -67,7 +67,7 @@ export function useICPScoring() {
       const { count } = await supabase
         .from('accounts')
         .select('*', { count: 'exact', head: true })
-        .eq('org_id', userProfile.org_id);
+          .eq('org_id', effectiveOrgId);
 
       icpLogger.debug('Total accounts in database:', count || 0);
 
@@ -75,7 +75,7 @@ export function useICPScoring() {
       const { data: accountData, error: accountError } = await supabase
         .from('accounts')
         .select('*')
-        .eq('org_id', userProfile.org_id)
+          .eq('org_id', effectiveOrgId)
         .limit(50000);
 
       if (accountError) throw accountError;
@@ -86,7 +86,7 @@ export function useICPScoring() {
       const { data: scoresData, error: scoresError } = await supabase
         .from('scores')
         .select('id, account_external_id, overall, fit, reasons')
-        .eq('org_id', userProfile.org_id);
+        .eq('org_id', effectiveOrgId);
 
       if (scoresError) throw scoresError;
       
@@ -176,7 +176,7 @@ export function useICPScoring() {
   };
 
   const scoreAllAccounts = async () => {
-    if (!userProfile?.org_id || icpProfiles.length === 0 || accounts.length === 0) return;
+    if (!effectiveOrgId || icpProfiles.length === 0 || accounts.length === 0) return;
 
     setLoading(true);
     const newScores: ICPScore[] = [];
@@ -189,7 +189,7 @@ export function useICPScoring() {
             .rpc('calculate_account_score', {
               p_account_external_id: account.external_id,
               p_icp_id: icp.id,
-              p_org_id: userProfile.org_id
+              p_org_id: effectiveOrgId
             });
 
           if (error) {
@@ -211,7 +211,7 @@ export function useICPScoring() {
             const { error: upsertError } = await supabase
               .from('scores')
               .upsert({
-                org_id: userProfile.org_id,
+                org_id: effectiveOrgId,
                 account_external_id: account.external_id,
                 overall: (scoreResult as any).overall || 0,
                 fit: (scoreResult as any).fit || 0,

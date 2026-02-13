@@ -6,6 +6,7 @@ import { AuthProvider } from "./hooks/use-auth";
 import { FeatureFlagsProvider } from "./hooks/use-feature-flags";
 import { OnboardingProvider } from "./hooks/use-onboarding";
 import { CampaignContextProvider } from "./hooks/use-campaign-context";
+import { OrgSwitcherProvider } from "./contexts/OrgSwitcherContext";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { Layout } from "./components/Layout";
 import { CustomerLayout } from "./components/CustomerLayout";
@@ -415,17 +416,19 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="dark" storageKey="launchpulse-theme">
         <AuthProvider>
-          <OnboardingProvider>
-            <CampaignContextProvider>
-              <FeatureFlagsProvider>
+          <OrgSwitcherProvider>
+            <OnboardingProvider>
+              <CampaignContextProvider>
+                <FeatureFlagsProvider>
                 <TooltipProvider>
                   <ErrorBoundary>
                     <AppContent />
                   </ErrorBoundary>
                 </TooltipProvider>
-              </FeatureFlagsProvider>
-            </CampaignContextProvider>
-          </OnboardingProvider>
+                </FeatureFlagsProvider>
+              </CampaignContextProvider>
+            </OnboardingProvider>
+          </OrgSwitcherProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
