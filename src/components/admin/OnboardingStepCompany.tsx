@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   orgId: string;
@@ -13,7 +14,8 @@ interface Props {
   onActivate?: () => void;
 }
 
-export function OnboardingStepCompany({ config, onSave }: Props) {
+export function OnboardingStepCompany({ orgId, config, onSave }: Props) {
+  const [serviceType, setServiceType] = useState<"managed" | "self_service">("managed");
   const [values, setValues] = useState({
     company_name: "",
     logo_url: "",
@@ -24,7 +26,6 @@ export function OnboardingStepCompany({ config, onSave }: Props) {
     target_persona_description: "",
     calendly_base_url: "",
     monthly_lead_target: 50,
-    service_type: "managed" as "managed" | "self_service",
   });
 
   useEffect(() => {
@@ -40,12 +41,20 @@ export function OnboardingStepCompany({ config, onSave }: Props) {
         target_persona_description: (config.target_persona_description as string) || "",
         calendly_base_url: (config.calendly_base_url as string) || "",
         monthly_lead_target: (config.monthly_lead_target as number) || 50,
-        service_type: (config.service_type as "managed" | "self_service") || "managed",
       }));
     }
   }, [config]);
 
+  useEffect(() => {
+    // Load service_type from organizations table
+    supabase.from("organizations").select("service_type").eq("id", orgId).single().then(({ data }) => {
+      if (data?.service_type) setServiceType(data.service_type as "managed" | "self_service");
+    });
+  }, [orgId]);
+
   const handleSave = async () => {
+    // Save service_type to organizations table separately
+    await supabase.from("organizations").update({ service_type: serviceType }).eq("id", orgId);
     await onSave(values);
     toast.success("Company profile saved");
   };
@@ -61,8 +70,8 @@ export function OnboardingStepCompany({ config, onSave }: Props) {
         <div className="space-y-2">
           <Label>Service Type</Label>
           <Select
-            value={values.service_type}
-            onValueChange={(v) => setValues({ ...values, service_type: v as "managed" | "self_service" })}
+            value={serviceType}
+            onValueChange={(v) => setServiceType(v as "managed" | "self_service")}
           >
             <SelectTrigger>
               <SelectValue />
