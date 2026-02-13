@@ -1,92 +1,104 @@
 
-# AI-Powered Customer Onboarding from ICP Documents
 
-## What This Builds
+# Fix Board Report: Correct Branding, Geography Bug, and Polish
 
-A new feature that lets you upload ICP documents (like the 91Life PDF/PowerPoint) and have AI automatically:
-1. **Parse the document** and extract all ICP fields (industries, company sizes, revenue ranges, geographies, personas, buying triggers, etc.)
-2. **Create a new organization** (e.g., "91Life") if one doesn't exist yet
-3. **Auto-populate and save an ICP profile** to `icp_profiles` for that org
-4. Redirect you to the Customer Onboarding wizard with everything pre-filled
+## Issues Found
 
-## Where It Lives
+### Critical Data Bug
+**Geography shows 0 for ALL countries**: The `get_geography_distribution` RPC returns a `count` field, but `use-branded-report.ts` reads `g.account_count`. So every country gets `0 || 0 = 0`. This is why the entire geography page is zeroed out despite having 62,760 US accounts, 9,371 UK accounts, etc.
 
-The entry point will be on the **Customer Onboarding page** (`/admin/customer-onboarding`). Right now it shows a grid of existing orgs. We'll add:
-- A prominent "AI Onboard Customer" button at the top
-- Clicking it opens a dialog/flow where you:
-  1. Enter the company name + website (e.g., "91Life", "https://91.life")
-  2. Upload one or more ICP documents (PDF, PPTX-as-PDF, etc.)
-  3. Click "Generate" -- AI parses the docs, creates the org + ICP, and drops you into the onboarding wizard
+### Branding Issues
+1. **Wrong default colors**: The PDF uses dark navy blue `rgb(8, 51, 105)` as the primary, but LaunchPulse's actual brand primary is **teal/mint `#3CF1AE`** (`rgb(60, 241, 174)`) with a **black** background -- as seen on launchpulse.io
+2. **Organization name**: Stored as "Launchpulse" in the database (lowercase p). The PDF should display "LaunchPulse" with proper casing
+3. **No logo**: Since `org_onboarding_config` is empty, there's no `logo_url`. The PDF should embed the LaunchPulse SVG mark as a fallback
+4. **Redundant footer**: "Prepared by Launchpulse using LaunchPulse" looks unprofessional -- when the company IS LaunchPulse, it should just say "Powered by LaunchPulse"
 
-## Technical Implementation
+### Data Display Issues
+5. **Lead Coverage 371%**: Technically correct (53k leads / 14k accounts) but looks like a bug. Should cap at a sensible display or reframe as "Leads per Account: 3.7x"
+6. **SOM = 0**: Campaign-ready accounts is 0, which is accurate but could use context
 
-### 1. New Edge Function: `parse-icp-document`
-- Receives: document text content, company name, website URL, org_id (optional)
-- Uses Lovable AI (gemini-3-flash-preview) with structured tool calling to extract:
-  - Industries (primary + secondary + excluded)
-  - Company sizes (employee ranges)
-  - Revenue ranges
-  - Geographies
-  - Persona job titles, seniority levels, departments, decision roles
-  - Buying triggers
-  - Company stages, tech stack, growth indicators
-  - SIC/NAICS codes (stored in description/tags)
-- Creates the organization in `organizations` table if no org_id provided
-- Inserts the ICP profile into `icp_profiles` with all extracted fields
-- Returns the new org_id and icp_id
+## Technical Changes
 
-### 2. Frontend: `AICustomerOnboardingDialog` component
-- A dialog triggered from the Customer Onboarding page
-- Fields: Company Name, Website URL, file upload (drag-and-drop)
-- On submit:
-  - Reads the PDF text client-side (since jsPDF is already installed; or we send raw text extracted from the document)
-  - Actually, since the documents are complex PDFs, we'll upload them to Supabase Storage and have the edge function use the document content passed as text
-  - The user pastes or the system extracts text from the uploaded PDF
-  - Calls the `parse-icp-document` edge function
-  - On success, navigates to `/admin/customer-onboarding/{new_org_id}`
+### File 1: `src/hooks/use-branded-report.ts`
 
-### 3. Modified Files
-- **`src/pages/admin/CustomerOnboarding.tsx`**: Add "AI Onboard Customer" button to `CustomerOrgPicker` component
-- **New: `src/components/admin/AICustomerOnboardingDialog.tsx`**: The dialog with company name, website, document upload
-- **New: `supabase/functions/parse-icp-document/index.ts`**: Edge function that uses AI to extract ICP data and create org + ICP profile
+**Fix geography field name** (the critical bug):
+```typescript
+// Line 143 - BEFORE (broken):
+const geoTotal = geoData.reduce((s, g) => s + (g.account_count || 0), 0);
 
-### 4. AI Prompt Strategy
-The edge function will use tool calling (structured output) to ensure we get clean, typed data back from the AI:
-
-```
-Tool: extract_icp_profile
-Parameters:
-  - company_name: string
-  - description: string  
-  - industries: string[]
-  - excluded_industries: string[]
-  - company_sizes: number[] (employee counts)
-  - revenue_ranges: string[]
-  - geographies: string[]
-  - persona_job_titles: string[]
-  - persona_seniority_levels: string[]
-  - persona_departments: string[]
-  - persona_decision_roles: string[]
-  - buying_triggers: string[]
-  - company_stages: string[]
-  - growth_stage: string[]
-  - budget_indicators: string[]
-  - use_case: string
+// AFTER (fixed - RPC returns 'count' not 'account_count'):
+const geoTotal = geoData.reduce((s, g) => s + (g.count || 0), 0);
 ```
 
-### 5. Document Handling
-Since we can't parse PDFs natively in an edge function, the approach is:
-- The frontend dialog will have a large textarea where the user can paste the document content (or we pre-populate it from uploaded text)
-- For a more polished experience, we can add a file upload that reads the PDF as text on the client side
-- The raw text gets sent to the edge function for AI parsing
+Same fix on lines 144-147 where `g.account_count` appears -- change all to `g.count`.
 
-## User Flow
+**Fix company name casing**:
+```typescript
+// Line 185 - add a casing fix for known brands
+const rawName = brandConfig?.company_name || orgRes.data?.name || 'Organization';
+const resolvedCompanyName = rawName === 'Launchpulse' ? 'LaunchPulse' : rawName;
+```
 
-1. Super admin goes to `/admin/customer-onboarding`
-2. Clicks "AI Onboard Customer" button
-3. Dialog opens -- enters "91Life" as company name, "https://91.life" as website
-4. Pastes or uploads the ICP document content
-5. Clicks "Generate ICP"
-6. AI processes the document, creates org "91Life" and an active ICP profile
-7. User is redirected to `/admin/customer-onboarding/{91life_org_id}` with ICP step showing the populated profile
-8. User can continue through the remaining onboarding steps (Team, Routing, Campaigns, Review)
+**Fix lead coverage display** -- cap at 100% or reframe:
+```typescript
+// Line 207 - change lead coverage to "leads per account" ratio
+leadCoverage: metrics.totalAccounts > 0 
+  ? Math.min(Math.round((totalLeads / metrics.totalAccounts) * 100), 100) 
+  : 0,
+leadsPerAccount: metrics.totalAccounts > 0 
+  ? parseFloat((totalLeads / metrics.totalAccounts).toFixed(1)) 
+  : 0,
+```
+
+### File 2: `src/utils/branded-pdf-export.ts`
+
+**Update default brand colors** to match LaunchPulse:
+```typescript
+// Line 73-74 - BEFORE:
+const DEFAULT_PRIMARY: [number, number, number] = [8, 51, 105];    // navy
+const DEFAULT_SECONDARY: [number, number, number] = [60, 241, 174]; // teal
+
+// AFTER - match launchpulse.io:
+const DEFAULT_PRIMARY: [number, number, number] = [60, 241, 174];   // #3CF1AE teal
+const DEFAULT_SECONDARY: [number, number, number] = [15, 15, 15];   // near-black
+const DEFAULT_DARK: [number, number, number] = [0, 0, 0];           // true black for backgrounds
+```
+
+**Redesign cover page** to use black background with teal accent (matching launchpulse.io):
+- Background: true black (#000000) instead of navy
+- Title text: white with teal accent underline
+- Company name: teal/mint colored
+- Add the LaunchPulse SVG mark as a vector fallback when no logo_url exists
+
+**Fix header/footer branding**:
+- Header bar: use dark background with teal accent instead of navy
+- Footer: When company IS LaunchPulse, show "Powered by LaunchPulse" not "Prepared by LaunchPulse using LaunchPulse"
+
+**Update metric card colors** to use teal instead of navy for values and labels.
+
+**Update lead stats display**:
+- Show "Leads per Account: 3.7x" instead of "Lead Coverage: 371%"
+- Add `leadsPerAccount` to the `BrandedReportData` interface
+
+### File 3: `src/utils/branded-pdf-export.ts` (interface update)
+
+Add `leadsPerAccount` to `leadStats`:
+```typescript
+leadStats?: {
+  totalLeads: number;
+  leadCoverage: number;
+  leadsPerAccount: number;
+};
+```
+
+## Summary
+
+| Bug | Root Cause | Fix |
+|-----|-----------|-----|
+| Geography all 0s | Hook reads `account_count`, RPC returns `count` | Change field name to `count` |
+| Wrong colors (navy) | DEFAULT_PRIMARY is `(8,51,105)` | Change to `(60,241,174)` teal |
+| "Launchpulse" casing | DB has lowercase p | Add casing override for known brand |
+| Lead Coverage 371% | More leads than accounts | Cap at 100% or show as "per account" ratio |
+| Redundant footer | Same company name repeated | Detect self-reference, simplify |
+| No logo | Empty brand config | Embed SVG mark as fallback |
+
