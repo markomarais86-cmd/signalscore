@@ -1,89 +1,136 @@
 
 
-# Admin Org-Switcher Plan
+# Branded PDF Report Exports
 
 ## Overview
-Add an organization selector to the admin dashboard header so super admins can scope all data views to any customer organization. This enables the "consulting mode" workflow -- doing the work on behalf of a client.
 
-## Architecture
+Create a comprehensive, client-branded PDF report generator that produces professional consulting deliverables. The report will pull data from the currently selected organization (via the org-switcher) and apply that organization's branding (logo, colors, company name) to every page. This replaces the existing hardcoded "LaunchPulse navy/green" styling in the current PDF generators.
 
-The core idea is a React context (`OrgSwitcherContext`) that overrides the `org_id` used by all data hooks. Today, every hook reads `userProfile?.org_id`. With the switcher, super admins get an "effective org ID" that can be changed via a dropdown in the header.
+## What Exists Today
+
+- **Two PDF generators** (`src/utils/pdf-export.ts` and `src/utils/icp10-pdf-export.ts`) using jsPDF, both hardcoded with LaunchPulse brand colors
+- **Brand config system** (`useBrandedConfig` hook) that fetches `brand_primary_color`, `brand_secondary_color`, `logo_url`, and `company_name` per org
+- **Dashboard data hooks** that provide all the raw data: metrics, ICP profiles, TAM data, geography distribution, scores
+- **Export dropdown** (`ExportToPdf.tsx`) in the executive dashboard header with PDF/PPTX/CSV options (PPTX and CSV marked "Soon")
+
+## Report Structure (6-page PDF)
 
 ```text
-+--------------------------------------------------+
-|  Header:  [Sidebar] [Cmd+K]   [OrgDropdown v] ...|
-+--------------------------------------------------+
-|                                                    |
-|  Dashboard / Accounts / Leads / ICPs / Scoring     |
-|  (all scoped to selected org)                      |
-+--------------------------------------------------+
+Page 1 - Cover Page
+  Client logo (fetched from logo_url) + company name
+  "ICP & Market Intelligence Report"
+  Prepared by LaunchPulse | Date
+  Branded header bar using client's primary color
+
+Page 2 - Executive Summary
+  Key metrics grid: Total Accounts, Scored Accounts, High-Fit %
+  ICP profile count + active profiles listed
+  Data completeness score
+  Quick-view score distribution (high/medium/low fit)
+
+Page 3 - ICP Profile Summary
+  Table of all active ICP profiles with:
+    Name, target industries, company sizes, geographies
+    Match count, TAM estimate, confidence score
+
+Page 4 - TAM / SAM / SOM Analysis
+  TAM: Total external database accounts (from external_data_sources)
+  SAM: Accounts matching active ICP criteria (high + medium fit)
+  SOM: High-fit accounts with qualified leads (campaign-ready)
+  Industry breakdown table (top 10)
+  Company size breakdown table
+
+Page 5 - Geographic Analysis
+  Country distribution table (top 15)
+  Concentration metrics (top 3 country %)
+  Regional summary
+
+Page 6 - Top Prospects
+  Top 20 accounts ranked by overall score
+  Columns: Name, Industry, Size, Country, Fit Score, Intent, Overall
 ```
 
 ## New Files
 
-### 1. `src/contexts/OrgSwitcherContext.tsx`
-- Creates a context providing: `effectiveOrgId`, `selectedOrg`, `setSelectedOrgId`, `isImpersonating` (true when viewing a different org), and `resetToOwnOrg`
-- On mount (for super admins only), fetches the list of organizations from the `organizations` table
-- Defaults `effectiveOrgId` to the user's own `userProfile.org_id`
-- When a different org is selected, `effectiveOrgId` updates, which cascades through all hooks
-- Non-super-admin users always get their own org_id (no override possible)
-- Persists selection to `sessionStorage` so it survives page refreshes
+### 1. `src/utils/branded-pdf-export.ts`
 
-### 2. `src/hooks/use-effective-org.ts`
-- A convenience hook: returns `effectiveOrgId` from the context
-- This becomes the single replacement for `userProfile?.org_id` across all data hooks
+The main PDF generation engine. Key design decisions:
 
-### 3. `src/components/OrgSwitcher.tsx`
-- A dropdown (using the existing Select component) shown in the Layout header, only visible to super admins
-- Displays org name + a colored dot for status
-- Shows a subtle banner/badge when impersonating ("Viewing as: Acme Corp")
-- Includes a "Back to my org" option at the top
+- **Accepts a `BrandConfig` parameter** to dynamically set header color, footer text, and cover logo
+- **Accepts all data as a single typed interface** (`BrandedReportData`) so the caller gathers data, not the PDF util
+- **Reuses `jsPDF`** (already installed) -- no new dependencies
+- **Logo handling**: Fetches the `logo_url` as an image, converts to base64 via canvas, and embeds in the PDF cover page. Falls back to text-only if logo fails to load
+- **Color system**: Parses `brand_primary_color` (hex string) into RGB for jsPDF fill/draw calls. Falls back to LaunchPulse navy if no brand color
+- **TAM/SAM/SOM calculation**: TAM = total external DB accounts, SAM = high + medium fit accounts, SOM = campaign-ready accounts. These are derived from the dashboard metrics already available
+
+### 2. `src/hooks/use-branded-report.ts`
+
+A hook that orchestrates data gathering and PDF generation:
+
+- Uses `useEffectiveOrg()` to get the current org ID
+- Uses `useBrandedConfig({ orgId })` to get brand colors/logo
+- Fetches dashboard data, geography data, ICP profiles, and top accounts (by score)
+- Exposes a `generateReport()` async function and `isGenerating` loading state
+- Handles the logo-to-base64 conversion
+- Calls the `generateBrandedPDF()` util with all assembled data
 
 ## Modified Files
 
-### 4. `src/App.tsx` (or wherever providers are composed)
-- Wrap the app with `<OrgSwitcherProvider>` inside `<AuthProvider>` (needs auth context)
+### 3. `src/components/executive/ExportToPdf.tsx`
 
-### 5. `src/components/Layout.tsx`
-- Add the `<OrgSwitcher />` component to the header bar, between the sidebar trigger and the right-side icons
-- Add a thin colored banner below the header when impersonating (e.g., "Viewing data for: Acme Corp")
+- Wire the `'pdf'` menu item to call the new `use-branded-report` hook's `generateReport()` function
+- Show a loading spinner on the button while generating
+- Remove "(Soon)" from PDF option if present, keep it on PPTX/CSV
 
-### 6. Refactor data hooks to use `useEffectiveOrg()`
-The following hooks currently read `userProfile?.org_id` and will be updated to use `useEffectiveOrg()` instead. This is a mechanical find-and-replace:
+### 4. `src/utils/pdf-export.ts` (minor)
 
-- `use-dashboard-data.ts` -- already takes `orgId` as param; callers will pass `effectiveOrgId`
-- `use-infinite-accounts.tsx` -- replace org_id source
-- `use-infinite-leads.tsx` -- replace org_id source
-- `use-icp-scoring.tsx` -- replace org_id source
-- `use-icp-insights.tsx` -- replace org_id source
-- `use-tasks.ts` -- replace org_id source
-- `use-opportunities.ts` -- replace org_id source
-- `use-trend-data.ts` -- replace org_id source
-- `use-market-intelligence.tsx` -- replace org_id source
-- `useAccountSignals.ts` -- replace org_id source
+- Refactor to accept optional brand colors parameter instead of hardcoded LaunchPulse colors
+- This way the existing TAM report also gets branded when called from the new flow
 
-Pages that call these hooks and pass `userProfile?.org_id` directly (like the executive dashboard) will also be updated to use `effectiveOrgId`.
+### 5. `src/utils/icp10-pdf-export.ts` (minor)
 
-**Note**: This is incremental. We start with the core hooks above; remaining hooks (enrichment, campaigns, etc.) can be migrated later without breaking anything.
+- Same brand-color parameterization as above
 
-## Security Considerations
+## Technical Details
 
-- The org-switcher context only allows overriding for super admins (checked via `useRoles().isSuperAdmin`)
-- RLS policies already scope data by `org_id`; super admins need existing RLS bypass or a policy that allows super_admin role to read any org's data
-- We will verify that existing RLS policies use `has_role(auth.uid(), 'super_admin')` checks for cross-org access; if not, a small migration will add those policies
+### Brand Color Parsing
+```text
+Input:  "#3B82F6" (from brand_primary_color)
+Output: [59, 130, 246] (RGB array for jsPDF)
+Fallback: [8, 51, 105] (LaunchPulse navy)
+```
 
-## State Preservation
+### Logo Embedding
+```text
+1. Fetch logo_url via Image() with crossOrigin="anonymous"
+2. Draw to offscreen canvas
+3. Convert to base64 PNG via canvas.toDataURL()
+4. Embed in jsPDF via doc.addImage()
+5. Fallback: render company_name as large text if logo fails
+```
 
-- When switching orgs, React Query cache keys already include `orgId`, so each org's data is cached independently
-- Switching back to a previously viewed org will show cached data instantly while refetching in the background
-- No page navigation occurs on switch -- only the data refreshes
+### Data Flow
+```text
+User clicks "Export Report" > "Board PDF Report"
+  -> useEffectiveOrg() provides orgId
+  -> useBrandedConfig({ orgId }) provides brand colors + logo
+  -> Parallel fetch: dashboard metrics, geography, top accounts by score
+  -> Assemble BrandedReportData object
+  -> generateBrandedPDF(data, brandConfig) creates the jsPDF doc
+  -> doc.save() triggers browser download
+```
+
+### TAM/SAM/SOM Derivation (from existing dashboard metrics)
+```text
+TAM = tamData.totalAccounts (external database size)
+SAM = metrics.high_fit_accounts + metrics.medium_fit_accounts
+SOM = metrics.campaign_ready_accounts
+```
 
 ## Implementation Order
 
-1. Create `OrgSwitcherContext` and `use-effective-org` hook
-2. Create `OrgSwitcher` dropdown component
-3. Wire into `Layout.tsx` header and App providers
-4. Migrate core data hooks (dashboard, accounts, leads, ICPs, scoring) to use `effectiveOrgId`
-5. Verify RLS policies allow super admin cross-org reads
-6. Test end-to-end with org switching
+1. Create `src/utils/branded-pdf-export.ts` with the 6-page branded PDF generator
+2. Create `src/hooks/use-branded-report.ts` to orchestrate data fetching and generation
+3. Update `ExportToPdf.tsx` to wire the PDF button to the new hook
+4. Optionally refactor the two existing PDF utils to accept brand colors (can be done later)
 
