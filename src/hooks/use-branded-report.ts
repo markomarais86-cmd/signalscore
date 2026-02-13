@@ -140,11 +140,11 @@ export function useBrandedReport() {
 
       // Geography — using 'all' source filter
       const geoData = (geoRes.data || []) as any[];
-      const geoTotal = geoData.reduce((s: number, g: any) => s + (g.account_count || 0), 0);
+      const geoTotal = geoData.reduce((s: number, g: any) => s + (g.count || 0), 0);
       const geographyDistribution = geoData.map((g: any) => ({
         country: g.country || 'Unknown',
-        accounts: g.account_count || 0,
-        percentage: geoTotal > 0 ? ((g.account_count || 0) / geoTotal) * 100 : 0,
+        accounts: g.count || 0,
+        percentage: geoTotal > 0 ? ((g.count || 0) / geoTotal) * 100 : 0,
       }));
 
       // Top prospects
@@ -182,7 +182,8 @@ export function useBrandedReport() {
       // Logo
       const logoBase64 = brandConfig?.logo_url ? await logoToBase64(brandConfig.logo_url) : null;
 
-      const resolvedCompanyName = brandConfig?.company_name || orgRes.data?.name || 'Organization';
+      const rawName = brandConfig?.company_name || orgRes.data?.name || 'Organization';
+      const resolvedCompanyName = rawName.toLowerCase() === 'launchpulse' ? 'LaunchPulse' : rawName;
       const totalLeads = leadsRes.count || 0;
 
       const reportData: BrandedReportData = {
@@ -204,7 +205,8 @@ export function useBrandedReport() {
         risks,
         leadStats: {
           totalLeads,
-          leadCoverage: metrics.totalAccounts > 0 ? Math.round((totalLeads / metrics.totalAccounts) * 100) : 0,
+          leadCoverage: metrics.totalAccounts > 0 ? Math.min(Math.round((totalLeads / metrics.totalAccounts) * 100), 100) : 0,
+          leadsPerAccount: metrics.totalAccounts > 0 ? parseFloat((totalLeads / metrics.totalAccounts).toFixed(1)) : 0,
         },
       };
 

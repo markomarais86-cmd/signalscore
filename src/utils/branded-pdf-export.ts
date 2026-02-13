@@ -65,13 +65,15 @@ export interface BrandedReportData {
   leadStats?: {
     totalLeads: number;
     leadCoverage: number;
+    leadsPerAccount: number;
   };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_PRIMARY: [number, number, number] = [8, 51, 105];
-const DEFAULT_SECONDARY: [number, number, number] = [60, 241, 174];
+const DEFAULT_PRIMARY: [number, number, number] = [60, 241, 174];   // #3CF1AE teal
+const DEFAULT_SECONDARY: [number, number, number] = [15, 15, 15];  // near-black
+const DEFAULT_DARK: [number, number, number] = [0, 0, 0];          // true black for backgrounds
 
 // ISO-2 country code normalization
 const COUNTRY_CODE_MAP: Record<string, string> = {
@@ -125,7 +127,8 @@ function hexToRgb(hex: string | null | undefined): [number, number, number] | nu
 function getBrandColors(brand: BrandConfig | null) {
   const primary = hexToRgb(brand?.brand_primary_color) ?? DEFAULT_PRIMARY;
   const secondary = hexToRgb(brand?.brand_secondary_color) ?? DEFAULT_SECONDARY;
-  return { primary, secondary };
+  const dark = DEFAULT_DARK;
+  return { primary, secondary, dark };
 }
 
 function lightenRgb(rgb: [number, number, number], factor = 0.85): [number, number, number] {
@@ -194,20 +197,25 @@ export async function generateBrandedPDF(
   const H = doc.internal.pageSize.getHeight();
   const M = 15;
   const CW = W - 2 * M;
-  const { primary, secondary } = getBrandColors(brand);
+  const { primary, secondary, dark } = getBrandColors(brand);
   const lightBg = lightenRgb(primary, 0.92);
   const companyName = brand?.company_name || data.companyName || 'Organization';
+  const isLaunchPulse = companyName.toLowerCase().replace(/\s/g, '') === 'launchpulse';
 
   let y = M;
 
   // ─── Shared helpers ──────────────────────────────────────────────────────
 
   const addHeader = (title: string) => {
-    doc.setFillColor(...primary);
+    doc.setFillColor(...dark);
     doc.rect(0, 0, W, 12, 'F');
+    // Teal accent line at bottom of header
+    doc.setFillColor(...primary);
+    doc.rect(0, 12, W, 1, 'F');
     doc.setFontSize(8);
-    doc.setTextColor(255, 255, 255);
+    doc.setTextColor(...primary);
     doc.text(companyName, M, 8);
+    doc.setTextColor(255, 255, 255);
     doc.text(title, W - M, 8, { align: 'right' });
     y = 22;
   };
@@ -217,28 +225,29 @@ export async function generateBrandedPDF(
     doc.setTextColor(140, 140, 140);
     doc.text(`Page ${pageNum} of ${totalPages}`, W / 2, H - 8, { align: 'center' });
     doc.text('Confidential', W - M, H - 8, { align: 'right' });
-    doc.text(`Prepared by ${companyName} using LaunchPulse`, M, H - 8);
+    const footerText = isLaunchPulse ? 'Powered by LaunchPulse' : `Prepared by ${companyName} using LaunchPulse`;
+    doc.text(footerText, M, H - 8);
   };
 
   const sectionTitle = (text: string) => {
     doc.setFontSize(16);
-    doc.setTextColor(...primary);
+    doc.setTextColor(...dark);
     doc.setFont('helvetica', 'bold');
     doc.text(text, M, y);
     y += 2;
-    // Accent underline
-    doc.setFillColor(...secondary);
+    // Accent underline in teal
+    doc.setFillColor(...primary);
     doc.rect(M, y, 40, 1.5, 'F');
     y += 8;
     doc.setFont('helvetica', 'normal');
   };
 
   const tableHeader = (cols: { label: string; x: number }[]) => {
-    doc.setFillColor(...primary);
+    doc.setFillColor(...dark);
     doc.rect(M, y - 5, CW, 8, 'F');
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
+    doc.setTextColor(...primary);
     cols.forEach(c => doc.text(c.label, c.x, y));
     y += 6;
     doc.setFont('helvetica', 'normal');
@@ -285,38 +294,39 @@ export async function generateBrandedPDF(
 
   // ─── Page 1: Cover ───────────────────────────────────────────────────────
 
-  doc.setFillColor(...primary);
+  doc.setFillColor(...dark);
   doc.rect(0, 0, W, H, 'F');
 
   // Subtle pattern overlay
-  doc.setFillColor(255, 255, 255);
-  doc.setGState(new (doc as any).GState({ opacity: 0.05 }));
+  doc.setFillColor(...primary);
+  doc.setGState(new (doc as any).GState({ opacity: 0.08 }));
   for (let i = 0; i < 8; i++) {
     doc.rect(0, i * 38, W, 1, 'F');
   }
   doc.setGState(new (doc as any).GState({ opacity: 1 }));
 
-  // Logo
+  // Logo or fallback brand mark
   if (data.logoBase64) {
     try {
       doc.addImage(data.logoBase64, 'PNG', W / 2 - 25, 50, 50, 25);
     } catch {
       doc.setFontSize(36);
-      doc.setTextColor(255, 255, 255);
+      doc.setTextColor(...primary);
       doc.setFont('helvetica', 'bold');
       doc.text(companyName, W / 2, 70, { align: 'center' });
     }
   } else {
+    // Draw LaunchPulse-style mark: teal text on black
     doc.setFontSize(36);
-    doc.setTextColor(255, 255, 255);
+    doc.setTextColor(...primary);
     doc.setFont('helvetica', 'bold');
     doc.text(companyName, W / 2, 70, { align: 'center' });
   }
 
   doc.setFont('helvetica', 'normal');
 
-  // Accent line
-  doc.setFillColor(...secondary);
+  // Accent line (teal)
+  doc.setFillColor(...primary);
   doc.rect(W / 2 - 40, 90, 80, 3, 'F');
 
   // Title
@@ -327,13 +337,14 @@ export async function generateBrandedPDF(
 
   // Date
   doc.setFontSize(13);
-  doc.setTextColor(200, 210, 230);
+  doc.setTextColor(160, 170, 180);
   doc.text(data.generatedAt, W / 2, 150, { align: 'center' });
 
   // Bottom attribution
   doc.setFontSize(9);
-  doc.setTextColor(160, 180, 210);
-  doc.text(`Prepared by ${companyName} using LaunchPulse`, W / 2, H - 25, { align: 'center' });
+  doc.setTextColor(100, 110, 120);
+  const coverFooter = isLaunchPulse ? 'Powered by LaunchPulse' : `Prepared by ${companyName} using LaunchPulse`;
+  doc.text(coverFooter, W / 2, H - 25, { align: 'center' });
 
   // ─── Page 2: Executive Summary ────────────────────────────────────────────
 
@@ -362,7 +373,7 @@ export async function generateBrandedPDF(
     { label: 'Data Completeness', value: `${met.dataCompleteness}%` },
     ...(data.leadStats ? [
       { label: 'Total Leads', value: data.leadStats.totalLeads.toLocaleString() },
-      { label: 'Lead Coverage', value: `${data.leadStats.leadCoverage}%` },
+      { label: 'Leads per Account', value: data.leadStats.leadsPerAccount ? `${data.leadStats.leadsPerAccount}x` : `${data.leadStats.leadCoverage}%` },
     ] : []),
   ];
 
@@ -379,7 +390,7 @@ export async function generateBrandedPDF(
     doc.text(item.label, xBase + 4, y + 1);
 
     doc.setFontSize(13);
-    doc.setTextColor(...primary);
+    doc.setTextColor(...dark);
     doc.setFont('helvetica', 'bold');
     doc.text(item.value, xBase + 4, y + 9);
     doc.setFont('helvetica', 'normal');
@@ -392,7 +403,7 @@ export async function generateBrandedPDF(
 
   // ICP profiles overview
   doc.setFontSize(12);
-  doc.setTextColor(...primary);
+  doc.setTextColor(...dark);
   doc.setFont('helvetica', 'bold');
   doc.text(`Active ICP Profiles: ${data.icpProfileCount}`, M, y);
   doc.setFont('helvetica', 'normal');
@@ -410,7 +421,7 @@ export async function generateBrandedPDF(
   // Score distribution bar
   y += 8;
   doc.setFontSize(10);
-  doc.setTextColor(...primary);
+  doc.setTextColor(...dark);
   doc.setFont('helvetica', 'bold');
   doc.text('Score Distribution', M, y);
   doc.setFont('helvetica', 'normal');
@@ -451,7 +462,7 @@ export async function generateBrandedPDF(
       doc.setFillColor(...lightenRgb(primary, 0.88));
       doc.roundedRect(M, y - 4, CW, 10, 2, 2, 'F');
       doc.setFontSize(11);
-      doc.setTextColor(...primary);
+      doc.setTextColor(...dark);
       doc.setFont('helvetica', 'bold');
       doc.text(p.name || 'Unnamed Profile', M + 4, y + 3);
       // Confidence badge
@@ -528,7 +539,7 @@ export async function generateBrandedPDF(
   // Industry breakdown
   if (data.industryBreakdown.length > 0) {
     doc.setFontSize(12);
-    doc.setTextColor(...primary);
+    doc.setTextColor(...dark);
     doc.setFont('helvetica', 'bold');
     doc.text('Industry Breakdown (Top 10)', M, y);
     doc.setFont('helvetica', 'normal');
@@ -555,7 +566,7 @@ export async function generateBrandedPDF(
   y += 6;
   if (data.sizeBreakdown.length > 0 && !checkPageBreak(40)) {
     doc.setFontSize(12);
-    doc.setTextColor(...primary);
+    doc.setTextColor(...dark);
     doc.setFont('helvetica', 'bold');
     doc.text('Company Size Breakdown', M, y);
     doc.setFont('helvetica', 'normal');
@@ -744,7 +755,7 @@ export async function generateBrandedPDF(
         y += descLines.length * 4;
 
         if (insight.impact) {
-          doc.setTextColor(...primaryColor());
+          doc.setTextColor(...dark);
           doc.setFont('helvetica', 'italic');
           doc.text(`Impact: ${insight.impact}`, M + 4, y + 1);
           doc.setFont('helvetica', 'normal');
@@ -840,7 +851,7 @@ export async function generateBrandedPDF(
   y += 8;
   checkPageBreak(30);
   doc.setFontSize(12);
-  doc.setTextColor(...primary);
+  doc.setTextColor(...dark);
   doc.setFont('helvetica', 'bold');
   doc.text('Data Quality Summary', M, y);
   doc.setFont('helvetica', 'normal');
