@@ -1,51 +1,32 @@
 
-
-# Add "Create New Organization" to the Org Switcher Dropdown
+# Add "Create New Organization" Button to Customer Onboarding Page
 
 ## What This Does
-Adds a quick-create option directly inside the org switcher dropdown in the header, so you can create a new client organization from anywhere in the app without navigating to Customer Onboarding.
+Adds a quick-create button next to the existing "AI Onboard Customer" button on the customer onboarding list page. It reuses the existing `QuickCreateOrgDialog` component and navigates to the new org's onboarding wizard after creation.
 
 ## Changes
 
-### 1. Create a lightweight "Quick Create Org" dialog
-A simpler version of `CreateOrganizationDialog` that only requires an organization name (no admin email/invitation flow). This is for the consulting use case where you just need to set up an org to start working in it.
+### `src/pages/admin/CustomerOnboarding.tsx`
 
-- New component: `src/components/QuickCreateOrgDialog.tsx`
-- Single input: organization name
-- On success: inserts into `organizations` table, refreshes the org list, and auto-selects the new org
+1. **Import** the existing `QuickCreateOrgDialog` component and `Plus` icon from lucide-react
+2. **Add state** `quickCreateOpen` to the `CustomerOrgPicker` component
+3. **Add a second button** ("+ New Organization") next to the "AI Onboard Customer" button in the header area
+4. **Render** `QuickCreateOrgDialog` with an `onSuccess` callback that navigates to `/admin/customer-onboarding/{newOrgId}` and invalidates the `all-orgs` query so the list updates
+5. **Wrap** the two buttons in a `flex gap-2` container
 
-### 2. Update `OrgSwitcherContext` to expose a `refreshOrgs` function
-Currently the org list is only fetched once on mount. We need a `refreshOrgs` callback so the dropdown updates after creating a new org without requiring a page reload.
+### No new files needed
+The `QuickCreateOrgDialog` component already exists at `src/components/QuickCreateOrgDialog.tsx` and does exactly what's needed -- a simple dialog with one name input that inserts into the `organizations` table.
 
-### 3. Update `OrgSwitcher.tsx`
-- Replace Radix `Select` with a `Popover` + custom list (since `Select` doesn't support non-selectable items like buttons)
-- Add a separator and a "+ New Organization" button at the bottom of the dropdown
-- Clicking it opens the `QuickCreateOrgDialog`
-- On success, the new org appears in the list and is auto-selected
+## Technical Detail
 
-## Technical Details
+In the `CustomerOrgPicker` function (~line 214-222), the header section changes from one button to two:
 
-### `OrgSwitcherContext.tsx` changes
-- Extract `fetchOrgs` into a stable callback
-- Expose `refreshOrgs` in the context type and provider value
+```
+[Manage your customers' demand engine setup]
 
-### `OrgSwitcher.tsx` changes
-- Switch from `Select` to `Popover` + `Command` (cmdk) for the dropdown, matching the existing project dependency
-- Add `Plus` icon import from lucide-react
-- Add state for `quickCreateOpen` dialog
-- Render `QuickCreateOrgDialog` with an `onSuccess` that calls `refreshOrgs()` and `setSelectedOrgId(newOrgId)`
+[+ New Organization]  [AI Onboard Customer]
+```
 
-### `QuickCreateOrgDialog.tsx` (new file)
-- Simple dialog with one text input for org name
-- Inserts into `organizations` table via Supabase client
-- Returns the new org ID on success so the switcher can auto-select it
-- Shows toast confirmation
-
-### Flow
-1. Admin clicks org switcher dropdown
-2. Sees list of orgs + "+ New Organization" at the bottom
-3. Clicks "+ New Organization" -- small dialog appears
-4. Types "Ninety One Life" and clicks Create
-5. Org is created, list refreshes, new org is auto-selected
-6. Admin is now in that org's context immediately
-
+The `onSuccess` handler will:
+1. Invalidate `all-orgs` query (so the grid refreshes)
+2. Navigate to the new org's onboarding wizard via `navigate(/admin/customer-onboarding/${orgId})`
