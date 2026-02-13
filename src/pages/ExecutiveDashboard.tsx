@@ -406,7 +406,7 @@ export default function ExecutiveDashboard() {
       <div className="flex items-center justify-between flex-wrap gap-3 lg:gap-4">
         <div>
           <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">Growth Command Center</h1>
-          <p className="text-xs lg:text-sm text-muted-foreground mt-1">Revenue intelligence across your market — filter by source for focused insights</p>
+          <p className="text-xs lg:text-sm text-muted-foreground mt-1">Real-time revenue intelligence across your total addressable market</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           
