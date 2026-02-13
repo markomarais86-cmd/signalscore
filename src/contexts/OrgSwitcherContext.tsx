@@ -17,6 +17,7 @@ interface OrgSwitcherContextType {
   isLoadingOrgs: boolean;
   setSelectedOrgId: (orgId: string) => void;
   resetToOwnOrg: () => void;
+  refreshOrgs: () => Promise<void>;
 }
 
 const OrgSwitcherContext = createContext<OrgSwitcherContextType | undefined>(undefined);
@@ -37,28 +38,24 @@ export function OrgSwitcherProvider({ children }: { children: ReactNode }) {
     return null;
   });
 
+  const fetchOrgs = useCallback(async () => {
+    setIsLoadingOrgs(true);
+    const { data, error } = await supabase
+      .from('organizations')
+      .select('id, name, status')
+      .order('name');
+
+    if (!error && data) {
+      setOrganizations(data as Organization[]);
+    }
+    setIsLoadingOrgs(false);
+  }, []);
+
   // Fetch all orgs for super admins
   useEffect(() => {
     if (rolesLoading || !isSuperAdmin || !ownOrgId) return;
-
-    let mounted = true;
-    setIsLoadingOrgs(true);
-
-    const fetchOrgs = async () => {
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('id, name, status')
-        .order('name');
-
-      if (mounted && !error && data) {
-        setOrganizations(data as Organization[]);
-      }
-      if (mounted) setIsLoadingOrgs(false);
-    };
-
     fetchOrgs();
-    return () => { mounted = false; };
-  }, [isSuperAdmin, rolesLoading, ownOrgId]);
+  }, [isSuperAdmin, rolesLoading, ownOrgId, fetchOrgs]);
 
   const setSelectedOrgId = useCallback((orgId: string) => {
     setSelectedOrgIdState(orgId);
@@ -84,6 +81,7 @@ export function OrgSwitcherProvider({ children }: { children: ReactNode }) {
       isLoadingOrgs,
       setSelectedOrgId,
       resetToOwnOrg,
+      refreshOrgs: fetchOrgs,
     }}>
       {children}
     </OrgSwitcherContext.Provider>
