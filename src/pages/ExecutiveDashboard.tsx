@@ -9,6 +9,7 @@ import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { TrendingUp, Target, Database, Download, MapPin, Building2, Settings, AlertCircle, Users, RefreshCw, Activity, Search } from "lucide-react";
 import { LaunchPulseMark } from '@/components/BrandLogo';
 import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useDashboardData, useGeographyData, useSourceFilterStats } from "@/hooks/use-dashboard-data";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { useDataChangeListener } from "@/hooks/use-data-change-listener";
@@ -44,6 +45,7 @@ import { dashboardLogger } from "@/lib/logger";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const { completeStep } = useOnboarding();
   const navigate = useNavigate();
   const sidebar = useSidebar();
@@ -56,9 +58,9 @@ export default function ExecutiveDashboard() {
   const [syncBreakdown, setSyncBreakdown] = useState<any>(null);
   
   // Use optimized React Query hooks with source filtering
-  const { data: dashboardData, isLoading, error: queryError, refetch } = useDashboardData(userProfile?.org_id, sourceFilter);
-  const { data: geographyData } = useGeographyData(userProfile?.org_id, !!dashboardData, sourceFilter);
-  const { data: filterStats } = useSourceFilterStats(userProfile?.org_id);
+  const { data: dashboardData, isLoading, error: queryError, refetch } = useDashboardData(effectiveOrgId, sourceFilter);
+  const { data: geographyData } = useGeographyData(effectiveOrgId, !!dashboardData, sourceFilter);
+  const { data: filterStats } = useSourceFilterStats(effectiveOrgId);
 
   const [isEnrichmentModalOpen, setIsEnrichmentModalOpen] = useState(false);
   const [showAISuggestions, setShowAISuggestions] = useState(true);
@@ -144,39 +146,39 @@ export default function ExecutiveDashboard() {
   useEffect(() => {
     if (dashboardData) {
       // Calculate 30-day trends
-      calculateTrends(userProfile?.org_id || '', dashboardData?.metrics, '30d')
+      calculateTrends(effectiveOrgId || '', dashboardData?.metrics, '30d')
         .then(setTrendData)
         .catch((e) => dashboardLogger.error('Failed to calculate trends:', e));
       
       // Calculate 7-day (weekly) trends for fit levels
-      calculateTrends(userProfile?.org_id || '', dashboardData?.metrics, '7d')
+      calculateTrends(effectiveOrgId || '', dashboardData?.metrics, '7d')
         .then(setWeeklyTrendData)
         .catch((e) => dashboardLogger.error('Failed to calculate weekly trends:', e));
 
       // Detect risks asynchronously
-      detectRisks(userProfile?.org_id || '', dashboardData?.metrics)
+      detectRisks(effectiveOrgId || '', dashboardData?.metrics)
         .then(setRisks)
         .catch((e) => dashboardLogger.error('Failed to detect risks:', e));
       
       // Generate insights if we have data
-      if (totalScores > 0 && userProfile?.org_id) {
+      if (totalScores > 0 && effectiveOrgId) {
         generateInsights();
       }
 
       // Check for stale data and active scoring jobs
       checkDataFreshness();
     }
-  }, [dashboardData?.metrics, userProfile?.org_id, totalScores]); // Fix: use dashboardData.metrics instead of dashboardData
+  }, [dashboardData?.metrics, effectiveOrgId, totalScores]);
 
   const checkDataFreshness = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
 
     try {
       // Check for active scoring jobs
       const { data: activeJob } = await supabase
         .from('bulk_scoring_jobs')
         .select('*')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', effectiveOrgId!)
         .eq('status', 'processing')
         .order('started_at', { ascending: false })
         .limit(1)
@@ -188,7 +190,7 @@ export default function ExecutiveDashboard() {
       const { data: latestICP } = await supabase
         .from('icp_profiles')
         .select('created_at')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', effectiveOrgId!)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -196,7 +198,7 @@ export default function ExecutiveDashboard() {
       const { data: latestScore } = await supabase
         .from('scores')
         .select('computed_at')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', effectiveOrgId!)
         .order('computed_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -211,14 +213,14 @@ export default function ExecutiveDashboard() {
       const { data: primaryICP } = await supabase
         .from('icp_profiles')
         .select('created_at')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', effectiveOrgId!)
         .eq('is_primary', true)
         .maybeSingle();
 
       const { data: apolloData } = await supabase
         .from('external_data_sources')
         .select('last_synced_at')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', effectiveOrgId!)
         .eq('provider', 'apollo')
         .maybeSingle();
 
@@ -239,7 +241,7 @@ export default function ExecutiveDashboard() {
 
   // Poll for active scoring job status every 3 seconds
   useEffect(() => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
 
     checkDataFreshness();
     
@@ -249,13 +251,13 @@ export default function ExecutiveDashboard() {
     }, 3000);
     
     return () => clearInterval(interval);
-  }, [userProfile?.org_id]);
+  }, [effectiveOrgId]);
 
   useEffect(() => {
-    if (userProfile?.org_id) {
+    if (effectiveOrgId) {
       completeStep('viewed_dashboard');
     }
-  }, [userProfile?.org_id]); // Remove completeStep from deps to prevent infinite loops
+  }, [effectiveOrgId]);
 
   useEffect(() => {
     if (!insightsLoading && insights?.length === 0) {
@@ -266,7 +268,7 @@ export default function ExecutiveDashboard() {
   }, [insights, insightsLoading]);
 
   const handleRefreshInsights = async () => {
-    if (!userProfile?.org_id) {
+    if (!effectiveOrgId) {
       toast.error("Can't refresh insights - No organization ID found");
       return;
     }
@@ -285,7 +287,7 @@ export default function ExecutiveDashboard() {
   };
 
   const handleSyncApollo = async () => {
-    if (!userProfile?.org_id) {
+    if (!effectiveOrgId) {
       toast.error('Organization not found');
       return;
     }
@@ -298,7 +300,7 @@ export default function ExecutiveDashboard() {
     try {
       const { data, error } = await supabase.functions.invoke('sync-external-provider', {
         body: {
-          org_id: userProfile.org_id,
+          org_id: effectiveOrgId,
           provider: 'apollo'
         }
       });
@@ -385,7 +387,7 @@ export default function ExecutiveDashboard() {
     try {
       dashboardLogger.debug('Manual scoring trigger clicked');
       const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
-        body: { org_id: userProfile.org_id, chunk_size: 5000 }
+        body: { org_id: effectiveOrgId, chunk_size: 5000 }
       });
       if (error) {
         toast.error(error.message || 'Failed to start scoring');
@@ -654,7 +656,7 @@ export default function ExecutiveDashboard() {
                 <UnifiedInsightsPanel
                   risks={risks}
                   insights={insights || []}
-                  orgId={userProfile?.org_id}
+                  orgId={effectiveOrgId}
                   onRefresh={handleRefreshInsights}
                   campaignReadyCount={campaignReadyAccounts}
                   completenessScore={dataCompleteness}

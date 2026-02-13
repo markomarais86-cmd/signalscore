@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "./use-auth";
+import { useEffectiveOrg } from "./use-effective-org";
 
 export interface TrendPoint {
   date: string;
@@ -30,8 +30,7 @@ async function fetchTrendMetrics(orgId: string, days: number): Promise<TrendMetr
 }
 
 export function useTrendData(days: number = 90) {
-  const { userProfile } = useAuth();
-  const orgId = userProfile?.org_id;
+  const { effectiveOrgId: orgId } = useEffectiveOrg();
 
   const query = useQuery({
     queryKey: ['trend-metrics', orgId, days],

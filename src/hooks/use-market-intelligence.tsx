@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 
 export interface MarketIntelligence {
   // Summary metrics
@@ -82,8 +82,7 @@ interface UseMarketIntelligenceOptions {
 }
 
 export function useMarketIntelligence(options: UseMarketIntelligenceOptions = {}) {
-  const { userProfile } = useAuth();
-  const orgId = userProfile?.org_id;
+  const { effectiveOrgId: orgId } = useEffectiveOrg();
   
   const { dataSource = 'all', fitScoreMin = 0, fitScoreMax = 100 } = options;
 

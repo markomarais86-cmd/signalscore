@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { toast } from "sonner";
 
 export interface AccountSignal {
@@ -35,18 +35,18 @@ export function useAccountSignals(options?: {
   limit?: number;
   includeDissmissed?: boolean;
 }) {
-  const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const queryClient = useQueryClient();
 
   const { data: signals, isLoading, error, refetch } = useQuery({
-    queryKey: ['account-signals', userProfile?.org_id, options],
+    queryKey: ['account-signals', effectiveOrgId, options],
     queryFn: async (): Promise<AccountSignal[]> => {
-      if (!userProfile?.org_id) return [];
+      if (!effectiveOrgId) return [];
 
       let query = supabase
         .from('account_signals')
         .select('*')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', effectiveOrgId)
         .order('created_at', { ascending: false });
 
       if (!options?.includeDissmissed) {
@@ -72,7 +72,7 @@ export function useAccountSignals(options?: {
       if (error) throw error;
       return (data || []) as AccountSignal[];
     },
-    enabled: !!userProfile?.org_id,
+    enabled: !!effectiveOrgId,
     staleTime: 30000, // 30 seconds
   });
 
@@ -123,10 +123,10 @@ export function useAccountSignals(options?: {
 
   const detectSignals = useMutation({
     mutationFn: async () => {
-      if (!userProfile?.org_id) throw new Error('No org ID');
+      if (!effectiveOrgId) throw new Error('No org ID');
       
       const { data, error } = await supabase.functions.invoke('detect-account-signals', {
-        body: { org_id: userProfile.org_id },
+        body: { org_id: effectiveOrgId },
       });
 
       if (error) throw error;

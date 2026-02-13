@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from './use-auth';
+import { useEffectiveOrg } from '@/hooks/use-effective-org';
 import { useToast } from './use-toast';
 import { insightsLogger } from '@/lib/logger';
 
@@ -39,7 +39,7 @@ export function useICPInsights() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [usingFallback, setUsingFallback] = useState(false);
-  const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const { toast } = useToast();
   
   const lastRefreshRef = useRef<number>(0);
@@ -49,7 +49,7 @@ export function useICPInsights() {
   const clearError = useCallback(() => setError(null), []);
 
   const generateInsights = useCallback(async (icpId?: string, forceRefresh = false, isAutoRefresh = false) => {
-    if (!userProfile?.org_id) {
+    if (!effectiveOrgId) {
       if (!isAutoRefresh) {
         toast({
           title: "Error",
@@ -77,8 +77,8 @@ export function useICPInsights() {
     }
 
     // Check cache first (versioned to invalidate when edge function changes)
-    const cacheKey = `icp_insights_${CACHE_VERSION}_${userProfile.org_id}`;
-    const timestampKey = `icp_insights_timestamp_${CACHE_VERSION}_${userProfile.org_id}`;
+    const cacheKey = `icp_insights_${CACHE_VERSION}_${effectiveOrgId}`;
+    const timestampKey = `icp_insights_timestamp_${CACHE_VERSION}_${effectiveOrgId}`;
     
     if (!forceRefresh) {
       try {
@@ -110,7 +110,7 @@ export function useICPInsights() {
     try {
       const { data, error } = await supabase.functions.invoke('generate-icp-insights', {
         body: {
-          org_id: userProfile.org_id,
+          org_id: effectiveOrgId,
           icp_id: icpId,
         },
       });
@@ -181,13 +181,13 @@ export function useICPInsights() {
     } finally {
       setLoading(false);
     }
-  }, [userProfile, toast, clearError]);
+  }, [effectiveOrgId, toast, clearError]);
 
   // Auto-refresh: Listen to database changes
   useEffect(() => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
 
-    insightsLogger.info('Setting up ICP insights auto-refresh for org:', userProfile.org_id);
+    insightsLogger.info('Setting up ICP insights auto-refresh for org:', effectiveOrgId);
 
     // Debounced refresh function to batch multiple changes
     const scheduleRefresh = () => {
@@ -212,7 +212,7 @@ export function useICPInsights() {
           event: 'INSERT',
           schema: 'public',
           table: 'Leads',
-          filter: `org_id=eq.${userProfile.org_id}`
+          filter: `org_id=eq.${effectiveOrgId}`
         },
         (payload) => {
           insightsLogger.debug('New lead detected, scheduling insights refresh');
@@ -230,7 +230,7 @@ export function useICPInsights() {
           event: '*',
           schema: 'public',
           table: 'scores',
-          filter: `org_id=eq.${userProfile.org_id}`
+          filter: `org_id=eq.${effectiveOrgId}`
         },
         (payload) => {
           insightsLogger.debug('Score updated, scheduling insights refresh');
@@ -247,7 +247,7 @@ export function useICPInsights() {
       supabase.removeChannel(leadsChannel);
       supabase.removeChannel(scoresChannel);
     };
-  }, [userProfile?.org_id, generateInsights]);
+  }, [effectiveOrgId, generateInsights]);
 
   return {
     loading,

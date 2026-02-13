@@ -11,6 +11,7 @@ import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import { useCampaignContext } from "@/hooks/use-campaign-context";
 
 import { GlobalCommandPalette, CommandPaletteTrigger } from "@/components/GlobalCommandPalette";
+import { OrgSwitcher, ImpersonationBanner } from "@/components/OrgSwitcher";
 
 interface LayoutProps {
   children: ReactNode;
@@ -30,6 +31,7 @@ export function Layout({ children }: LayoutProps) {
               <div className="flex items-center gap-4">
                 <SidebarTrigger />
                 <CommandPaletteTrigger />
+                <OrgSwitcher />
               </div>
               <div className="flex items-center gap-2">
                 <ExportQueueManager />
@@ -39,6 +41,7 @@ export function Layout({ children }: LayoutProps) {
               </div>
             </div>
           </header>
+          <ImpersonationBanner />
           <div className="flex-1 p-2 sm:p-3 lg:p-4 overflow-auto">
             {children}
           </div>

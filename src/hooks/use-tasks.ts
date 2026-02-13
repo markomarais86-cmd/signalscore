@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useToast } from "@/hooks/use-toast";
 
 export interface LeadTask {
@@ -20,18 +20,18 @@ export interface LeadTask {
 }
 
 export function useTasks(filters?: { status?: string; task_type?: string }) {
-  const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const tasksQuery = useQuery({
-    queryKey: ["lead_tasks", userProfile?.org_id, filters],
+    queryKey: ["lead_tasks", effectiveOrgId, filters],
     queryFn: async () => {
-      if (!userProfile?.org_id) return [];
+      if (!effectiveOrgId) return [];
       let query = supabase
         .from("lead_tasks")
         .select("*")
-        .eq("org_id", userProfile.org_id)
+        .eq("org_id", effectiveOrgId)
         .order("due_at", { ascending: true });
 
       if (filters?.status) query = query.eq("status", filters.status);
@@ -41,7 +41,7 @@ export function useTasks(filters?: { status?: string; task_type?: string }) {
       if (error) throw error;
       return (data || []) as LeadTask[];
     },
-    enabled: !!userProfile?.org_id,
+    enabled: !!effectiveOrgId,
   });
 
   const updateTask = useMutation({

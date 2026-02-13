@@ -3,6 +3,7 @@ import { useSearchParams, useLocation, useNavigate, Link } from "react-router-do
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useToast } from "@/hooks/use-toast";
 import { LaunchPulseMark } from "@/components/BrandLogo";
 import { useOnboarding } from "@/hooks/use-onboarding";
@@ -127,18 +128,19 @@ export default function Accounts() {
   const [uniqueStates, setUniqueStates] = useState<string[]>([]);
   
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
 
   // Fetch integration config on mount
   useEffect(() => {
     const fetchIntegrationConfig = async () => {
-      if (!userProfile?.org_id) return;
+      if (!effectiveOrgId) return;
       
       const { data } = await supabase
         .from('integration_configs')
         .select('id, integration_type, status')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', effectiveOrgId)
         .eq('status', 'connected')
         .in('integration_type', ['salesforce', 'hubspot'])
         .maybeSingle();
@@ -149,17 +151,17 @@ export default function Accounts() {
     };
     
     fetchIntegrationConfig();
-  }, [userProfile?.org_id]);
+  }, [effectiveOrgId]);
 
   // Fetch active ICP as fallback when icpContext is missing
   useEffect(() => {
     const fetchActiveIcp = async () => {
-      if (!userProfile?.org_id || icpContext?.icpId) return;
+      if (!effectiveOrgId || icpContext?.icpId) return;
       
       const { data } = await supabase
         .from('icp_profiles')
         .select('id')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', effectiveOrgId)
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -171,10 +173,10 @@ export default function Accounts() {
     };
     
     fetchActiveIcp();
-  }, [userProfile?.org_id, icpContext?.icpId]);
+  }, [effectiveOrgId, icpContext?.icpId]);
 
   // Fetch predictions for accounts
-  const { data: predictionsData, isPending: isPredictionsLoading } = useBatchPredictions(userProfile?.org_id || null);
+  const { data: predictionsData, isPending: isPredictionsLoading } = useBatchPredictions(effectiveOrgId || null);
   
   // Create predictions map for fast lookup
   const predictionsMap = useMemo(() => {
@@ -209,7 +211,7 @@ export default function Accounts() {
     retry,
     lastError
   } = useInfiniteAccounts({
-    orgId: userProfile?.org_id || null,
+    orgId: effectiveOrgId || null,
     pageSize: 25,
     searchTerm,
     industryFilter,
@@ -218,7 +220,7 @@ export default function Accounts() {
     fitFilter,
     countryFilter,
     campaignReadyFilter,
-    enabled: !!userProfile?.org_id,
+    enabled: !!effectiveOrgId,
     mode: displayMode,
     integrationConfigId: integrationConfigId || undefined,
     sortField,
@@ -281,13 +283,13 @@ export default function Accounts() {
 
   // Check ICP and scoring status
   useEffect(() => {
-    if (!userProfile?.org_id || accounts.length === 0) return;
+    if (!effectiveOrgId || accounts.length === 0) return;
 
     const checkICPStatus = async () => {
       const { data: icpData } = await supabase
         .from('icp_profiles')
         .select('id')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', effectiveOrgId)
         .eq('status', 'active');
 
       const hasICP = (icpData?.length || 0) > 0;
@@ -302,17 +304,17 @@ export default function Accounts() {
     };
 
     checkICPStatus();
-  }, [userProfile?.org_id, accounts, completeStep]);
+  }, [effectiveOrgId, accounts, completeStep]);
 
   // Load summary stats
   useEffect(() => {
-    if (userProfile?.org_id) {
+    if (effectiveOrgId) {
       loadSummaryStats();
     }
-  }, [userProfile?.org_id]);
+  }, [effectiveOrgId]);
 
   const loadSummaryStats = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
     
     try {
       const [
@@ -326,30 +328,30 @@ export default function Accounts() {
         supabase
           .from('accounts')
           .select('*', { count: 'exact', head: true })
-          .eq('org_id', userProfile.org_id),
+          .eq('org_id', effectiveOrgId),
         supabase
           .from('accounts')
           .select('*', { count: 'exact', head: true })
-          .eq('org_id', userProfile.org_id)
+          .eq('org_id', effectiveOrgId)
           .in('data_source', ['crm', 'both', 'closed_won']),
         supabase
           .from('accounts')
           .select('*', { count: 'exact', head: true })
-          .eq('org_id', userProfile.org_id)
+          .eq('org_id', effectiveOrgId)
           .eq('data_source', 'database'),
         supabase
           .rpc('count_high_fit_accounts_by_source', {
-            p_org_id: userProfile.org_id,
+            p_org_id: effectiveOrgId,
             p_data_source: 'crm'
           }),
         supabase
           .rpc('count_high_fit_leads_total', {
-            p_org_id: userProfile.org_id
+            p_org_id: effectiveOrgId
           }),
         supabase
           .from('accounts')
           .select('name, domain, industry_norm, employee_count, revenue_range, country')
-          .eq('org_id', userProfile.org_id)
+          .eq('org_id', effectiveOrgId)
           .limit(50000)
       ]);
 
@@ -399,12 +401,12 @@ export default function Accounts() {
   // Fetch filter options
   useEffect(() => {
     const fetchFilterOptions = async () => {
-      if (!userProfile?.org_id) return;
+      if (!effectiveOrgId) return;
       
       const { data } = await supabase
         .from('accounts')
         .select('country, state_province')
-        .eq('org_id', userProfile.org_id);
+        .eq('org_id', effectiveOrgId);
       
       const countries = Array.from(new Set((data || []).map(a => a.country).filter(Boolean))).sort();
       const states = Array.from(new Set((data || []).map(a => a.state_province).filter(Boolean))).sort();
@@ -414,7 +416,7 @@ export default function Accounts() {
     };
     
     fetchFilterOptions();
-  }, [userProfile?.org_id]);
+  }, [effectiveOrgId]);
 
   const clearFilters = () => {
     setSearchParams({});
