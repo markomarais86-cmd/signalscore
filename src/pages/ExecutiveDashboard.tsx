@@ -30,7 +30,7 @@ import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboa
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
 
 // Simplified components
-import { SimplifiedHeroMetrics } from "@/components/executive/SimplifiedHeroMetrics";
+import { GrowthCommandKPIs } from "@/components/executive/GrowthCommandKPIs";
 import { ICPDonutChart } from "@/components/executive/ICPDonutChart";
 import { ICPCoveragePanel } from "@/components/executive/ICPCoveragePanel";
 import { SimpleICPTable } from "@/components/executive/SimpleICPTable";
@@ -405,8 +405,8 @@ export default function ExecutiveDashboard() {
       {/* Header Section - Simplified */}
       <div className="flex items-center justify-between flex-wrap gap-3 lg:gap-4">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">Executive Dashboard</h1>
-          <p className="text-xs lg:text-sm text-muted-foreground mt-1">Filter data by source to focus on your CRM, database, or combined view</p>
+          <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">Growth Command Center</h1>
+          <p className="text-xs lg:text-sm text-muted-foreground mt-1">Revenue intelligence across your market — filter by source for focused insights</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           
@@ -573,13 +573,20 @@ export default function ExecutiveDashboard() {
           </div>
         ) : (
           <>
-            {/* Simplified Hero Metrics - Floating Cards */}
-            <SimplifiedHeroMetrics
+            {/* Growth Command Center KPIs */}
+            <GrowthCommandKPIs
               totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-              totalLeads={sourceFilter === 'database' ? (tamData?.totalLeads || 0) : totalLeads}
-              campaignReady={campaignReadyLeads}
-              sourceFilter={sourceFilter}
-              tamProvider={tamData?.provider}
+              tamEstimate={tamData?.totalAccounts || totalAccounts}
+              accountsWithContacts={dashboardData?.metrics?.linked_leads || 0}
+              highFitAccounts={highFitAccounts}
+              campaignReadyAccounts={campaignReadyAccounts}
+              pipelinePotential={campaignReadyAccounts * 75000 * 0.25}
+              revenueAtRisk={
+                totalAccounts > 0
+                  ? Math.round((1 - dataCompleteness / 100) * totalAccounts * 75000 * 0.1)
+                  : 0
+              }
+              averageDealSize={75000}
             />
 
             {/* Central ICP Coverage Panel - Source-filtered */}
