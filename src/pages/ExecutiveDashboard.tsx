@@ -39,8 +39,8 @@ import { SimpleTAMCard } from "@/components/executive/SimpleTAMCard";
 import { SimpleGeographyCard } from "@/components/executive/SimpleGeographyCard";
 import { DataHealthWidget } from "@/components/executive/DataHealthWidget";
 
-import { CommandPalette, CommandPaletteTrigger } from "@/components/executive/CommandPalette";
-import { StatusBar, useStatusItems } from "@/components/executive/StatusBar";
+import { StatusBar, buildStatusItems } from "@/components/executive/StatusBar";
+import { ExportToPdf } from "@/components/executive/ExportToPdf";
 import { dashboardLogger } from "@/lib/logger";
 
 export default function ExecutiveDashboard() {
@@ -364,7 +364,7 @@ export default function ExecutiveDashboard() {
   const showEmptyState = effectiveAccountCount === 0 && !isLoading;
 
   // Build status items for StatusBar
-  const statusItems = useStatusItems({
+  const statusItems = buildStatusItems({
     activeScoringJob,
     apolloStale,
     isDataStale,
@@ -402,19 +402,6 @@ export default function ExecutiveDashboard() {
 
   return (
     <div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-6 lg:space-y-8 min-h-screen pb-8">
-      {/* Command Palette - Global keyboard shortcut */}
-      <CommandPalette
-        onScoreAccounts={handleScoreAccounts}
-        onEnrich={() => setIsEnrichmentModalOpen(true)}
-        onSyncApollo={handleSyncApollo}
-        onRefresh={() => {
-          refetch();
-          toast.success('Refreshing dashboard data...');
-        }}
-        onToggleHealth={() => setShowHealthDashboard(!showHealthDashboard)}
-        isScoring={!!activeScoringJob}
-        isSyncing={isSyncing}
-      />
 
       {/* Header Section - Simplified */}
       <div className="flex items-center justify-between flex-wrap gap-3 lg:gap-4">
@@ -423,8 +410,6 @@ export default function ExecutiveDashboard() {
           <p className="text-xs lg:text-sm text-muted-foreground mt-1">Filter data by source to focus on your CRM, database, or combined view</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Command Palette Trigger - for users who don't know keyboard shortcut */}
-          <CommandPaletteTrigger />
           
           <SourceFilterToggle
             value={sourceFilter}
@@ -494,6 +479,7 @@ export default function ExecutiveDashboard() {
               <Activity className="mr-2 h-4 w-4" />
               Health
             </Button>
+            <ExportToPdf onExport={() => {}} />
           </div>
           
           <QuickCampaignButton 
