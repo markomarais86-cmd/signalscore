@@ -1,68 +1,88 @@
 
 
-# Fix AI ICP Generation for 91.life
+# Upload ZoomInfo Reference Data to Master Account DB
 
-## Root Cause
+## Problem
 
-The "AI ICP Builder" button on the ICP Manager page calls `generate-icp-recommendations`, which only produces action-item recommendations (e.g., "Define your ICP", "Sync data sources") -- it never actually creates an ICP profile. The function that CAN create ICPs from documents (`parse-icp-document`) is only accessible from the Admin Customer Onboarding dialog.
+The `upload-master-data` edge function maps CSV columns to wrong field names (`domain`, `company_name`, `founded_year`) that don't match the actual `master_account_data` table columns (`Company`, `Website`, `Founded Year`). The table already has 28,287 records and uses the raw CSV header names as column names.
 
-Additionally, the existing ICP for Ninety One Life contains incorrect data (Financial Services / Asset Management) because it was parsed as Ninety One (the investment firm), not 91.life (the health/longevity platform).
+Your CSV has ~70,466 data rows -- too large for a single edge function call (would timeout). We need **client-side chunking** like before.
 
-## What Will Change
+## Solution
 
-### 1. Add Document-Based ICP Creation to ICP Manager
+### 1. Fix the Edge Function (`upload-master-data`)
 
-Add a dialog (similar to the AI Customer Onboarding dialog) directly on the ICP Manager page so users can paste or upload ICP documents and generate a proper ICP profile without going through Admin > Customer Onboarding.
+Rewrite `mapRowToRecord()` to return objects matching the actual table columns:
 
-- New component: `src/components/icp/AIICPBuilderDialog.tsx`
-- Accepts company name (pre-filled from org), document text (paste or PDF upload), and optional website URL
-- Calls `parse-icp-document` with the current org_id so the ICP is created under the right organization
-- On success, refreshes the ICP list and opens the new ICP detail view
+- `Company` (not `company_name`)
+- `Website` (not `domain`)
+- `Founded Year`, `HQ Phone`, `Annual Revenue`, `No. of Employees`, `NAICS 1`-`4`, `Industry`, `Secondary Industry`, `Business Model`, `HQ Address`, `HQ City`, `HQ State`, `HQ Postal Code`, `HQ Country`, `Lead Source`, `Lead Source Details`
+- Auto-compute derived columns: `domain_normalized` (from Website), `revenue_range` (from Annual Revenue), `employee_count_int` (parsed integer), `founded_year_int` (parsed integer)
 
-### 2. Update the "AI ICP Builder" Button
+The function will accept a JSON body with `{ rows: [...] }` (pre-parsed array of objects) instead of raw CSV, since the browser will do the CSV parsing.
 
-Change the ICP Manager's "AI ICP Builder" button to open this new dialog instead of calling `generate-icp-recommendations`.
+Upsert on `domain_normalized` to deduplicate.
 
-- File: `src/pages/ICPManager.tsx`
-- Replace `handleAIRecommendations()` with dialog open state
+### 2. Add Reference DB Upload Tab in Settings
 
-### 3. Fix the Existing Wrong ICP Data
+Add a **"Reference DB"** tab to `DataUploadContent.tsx` (alongside Leads and Closed Won):
 
-Update the `parse-icp-document` edge function to handle the case where an org already has an ICP with `template_source = 'ai-parsed'` -- instead of always inserting a new one, offer to update or replace the existing one.
+- File picker for CSV
+- Client-side CSV parsing using the existing `parseCSV()` utility
+- Chunked upload: sends 5,000 rows per batch to `upload-master-data`
+- Real-time progress bar showing batch X of Y
+- Summary on completion: records upserted, duplicates skipped, errors
 
-### 4. Populate Onboarding Config
+### 3. Client-Side Chunking Flow
 
-When `parse-icp-document` creates an ICP, also update the `org_onboarding_config` row with the extracted `value_proposition` (from the ICP description) and `target_persona_description` (from extracted persona titles). This ensures that future AI recommendations have context.
+```text
+Browser                          Edge Function
+  |                                    |
+  |-- Parse CSV (70K rows) ---------->|
+  |                                    |
+  |-- Batch 1 (rows 1-5000) -------->|-- upsert to master_account_data
+  |<-- { upserted: 4950 } -----------|
+  |                                    |
+  |-- Batch 2 (rows 5001-10000) ---->|-- upsert to master_account_data
+  |<-- { upserted: 4980 } -----------|
+  |                                    |
+  |   ... (14 batches total) ...      |
+  |                                    |
+  |-- Show final summary              |
+```
 
 ## Technical Details
 
-### New File: `src/components/icp/AIICPBuilderDialog.tsx`
-- Reuses the same PDF parsing logic from `AICustomerOnboardingDialog` (pdfjs-dist client-side extraction)
-- Pre-fills company name from the current organization
-- Calls `parse-icp-document` with `{ document_text, company_name, website_url, org_id }` -- passing `org_id` explicitly so it doesn't create a new org
-- Shows loading state while AI processes
-- On success, triggers ICP list refresh and navigates to the new ICP
+### Edge Function Changes (`supabase/functions/upload-master-data/index.ts`)
 
-### Modified File: `src/pages/ICPManager.tsx`
-- Import and render `AIICPBuilderDialog`
-- Replace `handleAIRecommendations` with a simple `setAiBuilderOpen(true)` toggle
-- Add callback to refresh ICPs and select the new one after creation
+- Remove the CSV parsing logic (browser handles this now)
+- Accept `{ rows: object[] }` JSON body
+- For each row, compute:
+  - `domain_normalized`: strip protocol/www from `Website`, lowercase
+  - `revenue_range`: bucket `Annual Revenue` into ranges
+  - `employee_count_int`: parse `No. of Employees` to integer
+  - `founded_year_int`: parse `Founded Year` to integer
+- Upsert batch to `master_account_data` on conflict `domain_normalized`
+- Return `{ upserted, errors }`
 
-### Modified File: `supabase/functions/parse-icp-document/index.ts`
-- After creating the ICP, also upsert `org_onboarding_config.value_proposition` and `target_persona_description` from the extracted data (only if currently empty)
-- This ensures the onboarding context is populated for downstream AI features
+### UI Changes (`src/components/settings/DataUploadContent.tsx`)
 
-### Data Fix
-- Delete or update the existing incorrect ICP (`207c6c62-...`) for Ninety One Life
-- The user can then re-upload the correct 91.life documents through the new dialog
+- Add "Reference DB" tab trigger (visible in advanced mode or always for admins)
+- New upload handler `handleReferenceUpload(file)`:
+  1. Read CSV text, parse with `parseCSV()`
+  2. Split into chunks of 5,000
+  3. For each chunk, call `supabase.functions.invoke('upload-master-data', { body: { rows: chunk } })`
+  4. Accumulate results, update progress bar
+  5. Show final summary with total upserted, current DB count
 
-## User Flow After Fix
+### Files to Modify
 
-1. Go to ICP Manager for Ninety One Life
-2. Click "AI ICP Builder"
-3. Dialog opens with company name pre-filled as "Ninety One Life"
-4. Upload the PDF or paste document content
-5. Click "Generate ICP"
-6. AI extracts all fields (industries: Health/Wellness/Fitness, geographies: US/Canada/UK, personas: CPO/VP HR/Benefits Manager, etc.)
-7. ICP profile is created and displayed immediately
+| File | Change |
+|------|--------|
+| `supabase/functions/upload-master-data/index.ts` | Rewrite to accept JSON rows, map to correct column names, compute derived fields |
+| `src/components/settings/DataUploadContent.tsx` | Add "Reference DB" tab with chunked upload logic |
+
+### No Database Changes Needed
+
+The `master_account_data` table already exists with the correct schema. The unique constraint on `domain_normalized` handles deduplication.
 
