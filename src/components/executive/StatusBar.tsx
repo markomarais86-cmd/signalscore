@@ -193,8 +193,8 @@ export function StatusBar({ items, className }: StatusBarProps) {
   );
 }
 
-// Hook to build status items from dashboard state
-export function useStatusItems({
+// Build status items from dashboard state
+export function buildStatusItems({
   activeScoringJob,
   apolloStale,
   isDataStale,
