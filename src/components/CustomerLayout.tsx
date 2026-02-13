@@ -3,8 +3,10 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { CustomerSidebar } from "@/components/CustomerSidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
+import { ManagedUpgradeBanner } from "@/components/ManagedUpgradeBanner";
 import { useBrandedConfig } from "@/hooks/useBrandedConfig";
 import { useAuth } from "@/hooks/use-auth";
+import { useServiceType } from "@/hooks/use-service-type";
 
 interface CustomerLayoutProps {
   children: ReactNode;
@@ -12,6 +14,7 @@ interface CustomerLayoutProps {
 
 export function CustomerLayout({ children }: CustomerLayoutProps) {
   const { userProfile } = useAuth();
+  const { isManaged } = useServiceType();
   const orgId = userProfile?.org_id;
   const { data: brandConfig } = useBrandedConfig({ orgId: orgId || undefined });
 
@@ -35,7 +38,8 @@ export function CustomerLayout({ children }: CustomerLayoutProps) {
               </div>
             </div>
           </header>
-          <div className="flex-1 p-2 sm:p-3 lg:p-4 overflow-auto">
+          <div className="flex-1 p-2 sm:p-3 lg:p-4 overflow-auto space-y-4">
+            {isManaged && <ManagedUpgradeBanner />}
             {children}
           </div>
           <footer className="border-t bg-card/80 dark:bg-card/60 backdrop-blur-sm px-6 py-3 text-xs text-muted-foreground">

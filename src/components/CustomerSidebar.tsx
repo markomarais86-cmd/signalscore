@@ -1,8 +1,9 @@
-import { LayoutDashboard, Users, ClipboardList, Kanban, Settings, LogOut, ChevronDown, ShoppingCart } from "lucide-react";
+import { LayoutDashboard, Users, ClipboardList, Kanban, Settings, LogOut, ChevronDown, ShoppingCart, Upload, Target, Building2 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { BrandLogo } from "@/components/BrandLogo";
 import { useBrandedConfig } from "@/hooks/useBrandedConfig";
+import { useServiceType } from "@/hooks/use-service-type";
 import {
   Sidebar,
   SidebarContent,
@@ -27,6 +28,13 @@ const salesNav = [
   { title: "Opportunities", url: "/opportunities", icon: Kanban },
 ];
 
+// Self-service only nav items
+const selfServiceNav = [
+  { title: "Data Upload", url: "/data-upload", icon: Upload },
+  { title: "ICP Manager", url: "/icp-manager", icon: Target },
+  { title: "Accounts", url: "/accounts", icon: Building2 },
+];
+
 const bottomNav = [
   { title: "Settings", url: "/settings", icon: Settings },
 ];
@@ -37,6 +45,7 @@ export function CustomerSidebar() {
   const currentPath = location.pathname;
   const orgId = userProfile?.org_id;
   const { data: brandConfig } = useBrandedConfig({ orgId: orgId || undefined });
+  const { isSelfService } = useServiceType();
 
   const isActive = (path: string) => currentPath.startsWith(path);
   const isSalesActive = salesNav.some((item) => isActive(item.url));
@@ -94,6 +103,18 @@ export function CustomerSidebar() {
                   </CollapsibleContent>
                 </SidebarMenuItem>
               </Collapsible>
+
+              {/* Self-service only tools */}
+              {isSelfService && selfServiceNav.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink to={item.url} className={getNavCls(item.url)}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
 
               {bottomNav.map((item) => (
                 <SidebarMenuItem key={item.title}>

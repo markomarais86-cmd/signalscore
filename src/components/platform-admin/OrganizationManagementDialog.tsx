@@ -27,6 +27,9 @@ export const OrganizationManagementDialog = ({
 }: OrganizationManagementDialogProps) => {
   const queryClient = useQueryClient();
   const [status, setStatus] = useState(org?.status || 'active');
+  const [serviceType, setServiceType] = useState<'managed' | 'self_service'>(
+    (org as any)?.service_type || 'self_service'
+  );
   // Convert database UUID to tier name for display/selection
   const [planTier, setPlanTier] = useState<PlanTier>(getPlanTierFromUuid(org?.plan_id) || 'free');
   const [creditLimit, setCreditLimit] = useState(org?.enrichment_credits_total || 1000);
@@ -36,6 +39,7 @@ export const OrganizationManagementDialog = ({
   useEffect(() => {
     if (org) {
       setStatus(org.status || 'active');
+      setServiceType((org as any)?.service_type || 'self_service');
       setPlanTier(getPlanTierFromUuid(org.plan_id) || 'free');
       setCreditLimit(org.enrichment_credits_total || 1000);
     }
@@ -55,6 +59,7 @@ export const OrganizationManagementDialog = ({
         .from("organizations")
         .update({
           status,
+          service_type: serviceType,
           plan_id: planUuid,
           enrichment_credits_total: creditLimit
         })
@@ -67,7 +72,7 @@ export const OrganizationManagementDialog = ({
         org_id: org.id,
         actor: "super_admin",
         action: "organization_updated",
-        meta: { status, planTier, planUuid, creditLimit }
+        meta: { status, serviceType, planTier, planUuid, creditLimit }
       });
 
       // Invalidate React Query cache to refresh the organization list
@@ -128,6 +133,23 @@ export const OrganizationManagementDialog = ({
           </div>
 
           <div className="space-y-4">
+            {/* Service Type */}
+            <div>
+              <Label htmlFor="serviceType">Service Type</Label>
+              <Select value={serviceType} onValueChange={(v) => setServiceType(v as 'managed' | 'self_service')}>
+                <SelectTrigger id="serviceType">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="managed">Managed (Consulting)</SelectItem>
+                  <SelectItem value="self_service">Self-Service (Platform)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Managed: read-only dashboard. Self-service: full platform tools.
+              </p>
+            </div>
+
             {/* Plan Selection */}
             <div>
               <Label htmlFor="plan">Plan Tier</Label>

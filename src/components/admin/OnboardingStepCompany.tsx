@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 
 interface Props {
@@ -23,6 +24,7 @@ export function OnboardingStepCompany({ config, onSave }: Props) {
     target_persona_description: "",
     calendly_base_url: "",
     monthly_lead_target: 50,
+    service_type: "managed" as "managed" | "self_service",
   });
 
   useEffect(() => {
@@ -38,6 +40,7 @@ export function OnboardingStepCompany({ config, onSave }: Props) {
         target_persona_description: (config.target_persona_description as string) || "",
         calendly_base_url: (config.calendly_base_url as string) || "",
         monthly_lead_target: (config.monthly_lead_target as number) || 50,
+        service_type: (config.service_type as "managed" | "self_service") || "managed",
       }));
     }
   }, [config]);
@@ -55,6 +58,24 @@ export function OnboardingStepCompany({ config, onSave }: Props) {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Service Type</Label>
+          <Select
+            value={values.service_type}
+            onValueChange={(v) => setValues({ ...values, service_type: v as "managed" | "self_service" })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="managed">Managed (Consulting)</SelectItem>
+              <SelectItem value="self_service">Self-Service (Platform)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Managed: LaunchPulse runs their demand engine. Self-Service: customer has full platform access.
+          </p>
+        </div>
         <div className="space-y-2">
           <Label>Company Name</Label>
           <Input value={values.company_name} onChange={(e) => setValues({ ...values, company_name: e.target.value })} placeholder="Acme Corp" />

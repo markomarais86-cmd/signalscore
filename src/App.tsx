@@ -61,6 +61,7 @@ import PipelineAnalyticsPage from "./pages/PipelineAnalyticsPage";
 import Opportunities from "./pages/Opportunities";
 import AIFeedbackPage from "./pages/AIFeedbackPage";
 import BrandedLanding from "./pages/BrandedLanding";
+import CustomerUpgrade from "./pages/CustomerUpgrade";
 
 const queryClient = new QueryClient();
 
@@ -137,6 +138,16 @@ function AppContent() {
                 <Route path="/security" element={<Security />} />
                 <Route path="/subprocessors" element={<Subprocessors />} />
                 <Route path="/p/:orgSlug" element={<BrandedLanding />} />
+                <Route
+                  path="/upgrade"
+                  element={
+                    <ProtectedRoute>
+                      <CustomerLayout>
+                        <CustomerUpgrade />
+                      </CustomerLayout>
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path="/dashboard"
                   element={
