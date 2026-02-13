@@ -54,10 +54,12 @@ const fuzzyMatchIndustry = (input: string): { primary: string; sub: string | nul
 }
 
 interface UploadRequest {
-  data: any[]
-  mapping: Record<string, string>
+  data?: any[]
+  mapping?: Record<string, string>
   orgId: string
   isExternalDatabase?: boolean
+  skipMatching?: boolean
+  triggerMatchingOnly?: boolean
 }
 
 // Helper function to normalize revenue to standard ranges
@@ -133,8 +135,145 @@ Deno.serve(async (req) => {
       }
     )
 
-    const { data, mapping, orgId, isExternalDatabase = false }: UploadRequest = await req.json()
-    console.log(`🚀 Starting bulk upload: ${data.length} leads for org ${orgId}`)
+    const { data, mapping, orgId, isExternalDatabase = false, skipMatching = false, triggerMatchingOnly = false }: UploadRequest = await req.json()
+
+    // ── Trigger-matching-only mode ──
+    if (triggerMatchingOnly) {
+      console.log(`🔗 triggerMatchingOnly for org ${orgId}`)
+      
+      let matchResult = null;
+      let createdAccountIds: string[] = [];
+      const errors: string[] = [];
+
+      const matchStart = Date.now();
+      const { data: matchData, error: matchError } = await supabaseClient.rpc('bulk_match_all_leads', {
+        p_org_id: orgId
+      });
+
+      if (matchError) {
+        console.error('⚠️ Bulk match error:', matchError.message)
+        errors.push(`Matching: ${matchError.message}`)
+      } else {
+        matchResult = matchData;
+        console.log(`✅ Bulk matching completed in ${Date.now() - matchStart}ms:`, matchResult)
+      }
+
+      // Score new accounts if ICP exists
+      if (matchResult?.accounts_created > 0) {
+        const { data: icpData } = await supabaseClient
+          .from('icp_profiles')
+          .select('id')
+          .eq('org_id', orgId)
+          .eq('status', 'active')
+          .limit(1)
+          .single()
+
+        const { data: newAccounts } = await supabaseClient
+          .from('accounts')
+          .select('id, external_id')
+          .eq('org_id', orgId)
+          .like('external_id', 'AUTO_%')
+          .order('updated_at', { ascending: false })
+          .limit(matchResult.accounts_created)
+
+        if (newAccounts && newAccounts.length > 0) {
+          createdAccountIds = newAccounts.map(a => a.id)
+          const accountExternalIds = newAccounts.map(a => a.external_id)
+
+          if (icpData?.id) {
+            console.log(`🎯 Scoring ${accountExternalIds.length} new accounts...`)
+            const { error: scoreError } = await supabaseClient
+              .rpc('bulk_score_accounts_batch', {
+                p_org_id: orgId,
+                p_account_ids: accountExternalIds,
+                p_icp_id: icpData.id
+              })
+            if (scoreError) console.error('⚠️ Scoring error:', scoreError.message)
+            else console.log(`✅ Scored ${accountExternalIds.length} accounts`)
+          }
+        }
+      }
+
+      // Create contacts from linked leads if external database
+      if (isExternalDatabase) {
+        console.log('👤 Creating contacts from linked leads...')
+        const { data: linkedLeads } = await supabaseClient
+          .from('Leads')
+          .select('account_external_id, first_name, last_name, email, title, phone, mobile, country, state_province')
+          .eq('org_id', orgId)
+          .not('account_external_id', 'is', null)
+          .not('email', 'is', null)
+        
+        if (linkedLeads && linkedLeads.length > 0) {
+          const contactsMap = new Map<string, any>()
+          linkedLeads.forEach(lead => {
+            if (!lead.email || !lead.account_external_id) return
+            const contactKey = `${lead.account_external_id}_${lead.email.toLowerCase()}`
+            if (!contactsMap.has(contactKey)) {
+              contactsMap.set(contactKey, {
+                org_id: orgId,
+                external_id: `contact_${lead.email}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                account_external_id: lead.account_external_id,
+                first_name: lead.first_name || null,
+                last_name: lead.last_name || null,
+                email: lead.email,
+                title_raw: lead.title || null,
+                persona: mapTitleToPersona(lead.title),
+                phone: lead.phone || null,
+                mobile: lead.mobile || null,
+                country: lead.country || null,
+                state_province: lead.state_province || null,
+                data_source: 'database',
+                enriched_from: 'lead_upload'
+              })
+            }
+          })
+          
+          const contactsData = Array.from(contactsMap.values())
+          console.log(`Creating ${contactsData.length} unique contacts`)
+          const { error: contactsError } = await supabaseClient
+            .from('contacts')
+            .upsert(contactsData, { onConflict: 'org_id,external_id', ignoreDuplicates: true })
+          if (contactsError) console.error('⚠️ Contact creation failed:', contactsError.message)
+        }
+      }
+
+      // Pre-warm cache
+      if (createdAccountIds.length > 0) {
+        EdgeRuntime.waitUntil(
+          supabaseClient.functions.invoke('prewarm-enrichment-cache', {
+            body: { org_id: orgId, account_ids: createdAccountIds.slice(0, 500), priority: 'medium' },
+          }).catch(err => console.warn('⚠️ Pre-warm error:', err.message))
+        )
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          triggerMatchingOnly: true,
+          matching: matchResult ? {
+            matched_to_existing: matchResult.matched_to_existing || 0,
+            accounts_created: matchResult.accounts_created || 0,
+            linked_to_new: matchResult.linked_to_new || 0,
+            total_processed: matchResult.total_processed || 0,
+            duration_ms: matchResult.duration_ms || 0
+          } : null,
+          created_account_ids: createdAccountIds,
+          errors: errors.length > 0 ? errors : undefined
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ── Normal data upload mode ──
+    if (!data || !mapping) {
+      return new Response(
+        JSON.stringify({ error: 'Missing data or mapping', success: false }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    console.log(`🚀 Starting bulk upload: ${data.length} leads for org ${orgId} (skipMatching=${skipMatching})`)
 
     let insertedLeads = 0
     const errors: string[] = []
@@ -151,7 +290,6 @@ Deno.serve(async (req) => {
       const batch = data.slice(i, Math.min(i + BATCH_SIZE, data.length))
       console.log(`Processing batch: rows ${i + 1} to ${i + batch.length}`)
 
-      // Deduplicate leads by external_id within this batch
       const leadsMap = new Map<string, any>()
       batch.forEach((row, idx) => {
         const firstName = reverseMapping.first_name && row[reverseMapping.first_name]
@@ -189,7 +327,6 @@ Deno.serve(async (req) => {
       
       const leadsData = Array.from(leadsMap.values())
 
-      // Insert leads
       const { data: result, error } = await supabaseClient
         .from('Leads')
         .upsert(leadsData, { onConflict: 'org_id,external_id', ignoreDuplicates: false })
@@ -206,7 +343,20 @@ Deno.serve(async (req) => {
 
     console.log(`✅ Upload complete: ${insertedLeads} leads`)
 
-    // ALWAYS auto-match leads using the high-performance database function
+    // If skipMatching, return immediately without matching/scoring
+    if (skipMatching) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          inserted: insertedLeads,
+          insertedLeads: insertedLeads,
+          errors: errors.length > 0 ? errors : undefined
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ── Full matching + scoring (original behavior for small uploads) ──
     let matchResult = null;
     let createdAccountIds: string[] = [];
     
@@ -223,12 +373,10 @@ Deno.serve(async (req) => {
         errors.push(`Matching: ${matchError.message}`)
       } else {
         matchResult = matchData;
-        const matchDuration = Date.now() - matchStart;
-        console.log(`✅ Bulk matching completed in ${matchDuration}ms:`, matchResult)
+        console.log(`✅ Bulk matching completed in ${Date.now() - matchStart}ms:`, matchResult)
       }
     }
 
-    // Score new accounts if ICP exists and accounts were created
     if (matchResult?.accounts_created > 0) {
       const { data: icpData } = await supabaseClient
         .from('icp_profiles')
@@ -238,7 +386,6 @@ Deno.serve(async (req) => {
         .limit(1)
         .single()
 
-      // Get the newly created account IDs (those with AUTO_ prefix from recent)
       const { data: newAccounts } = await supabaseClient
         .from('accounts')
         .select('id, external_id')
@@ -248,31 +395,23 @@ Deno.serve(async (req) => {
         .limit(matchResult.accounts_created)
 
       if (newAccounts && newAccounts.length > 0) {
-        // Store the created account IDs to return
         createdAccountIds = newAccounts.map(a => a.id)
         const accountExternalIds = newAccounts.map(a => a.external_id)
-        console.log(`📦 Created ${createdAccountIds.length} account IDs for enrichment`)
 
         if (icpData?.id) {
           console.log(`🎯 Triggering scoring for ${matchResult.accounts_created} new accounts...`)
-          
           const { error: scoreError } = await supabaseClient
             .rpc('bulk_score_accounts_batch', {
               p_org_id: orgId,
               p_account_ids: accountExternalIds,
               p_icp_id: icpData.id
             })
-
-          if (scoreError) {
-            console.error('⚠️ Scoring error:', scoreError.message)
-          } else {
-            console.log(`✅ Scored ${accountExternalIds.length} accounts`)
-          }
+          if (scoreError) console.error('⚠️ Scoring error:', scoreError.message)
+          else console.log(`✅ Scored ${accountExternalIds.length} accounts`)
         }
       }
     }
 
-    // Create contacts from linked leads if external database
     if (isExternalDatabase && insertedLeads > 0) {
       console.log('👤 Creating contacts from linked leads...')
       const { data: linkedLeads } = await supabaseClient
@@ -286,7 +425,6 @@ Deno.serve(async (req) => {
         const contactsMap = new Map<string, any>()
         linkedLeads.forEach(lead => {
           if (!lead.email || !lead.account_external_id) return
-          
           const contactKey = `${lead.account_external_id}_${lead.email.toLowerCase()}`
           if (!contactsMap.has(contactKey)) {
             contactsMap.set(contactKey, {
@@ -310,36 +448,18 @@ Deno.serve(async (req) => {
         
         const contactsData = Array.from(contactsMap.values())
         console.log(`Creating ${contactsData.length} unique contacts`)
-        
         const { error: contactsError } = await supabaseClient
           .from('contacts')
           .upsert(contactsData, { onConflict: 'org_id,external_id', ignoreDuplicates: true })
-        
-        if (contactsError) {
-          console.error('⚠️ Contact creation failed:', contactsError.message)
-        }
+        if (contactsError) console.error('⚠️ Contact creation failed:', contactsError.message)
       }
     }
 
-    // Trigger background cache pre-warming for newly created accounts
     if (createdAccountIds.length > 0) {
-      console.log('🔥 Triggering background enrichment cache pre-warming...')
       EdgeRuntime.waitUntil(
         supabaseClient.functions.invoke('prewarm-enrichment-cache', {
-          body: {
-            org_id: orgId,
-            account_ids: createdAccountIds.slice(0, 500), // Limit to 500 accounts
-            priority: 'medium',
-          },
-        }).then(res => {
-          if (res.error) {
-            console.warn('⚠️ Pre-warm failed:', res.error.message)
-          } else {
-            console.log('✅ Pre-warm queued successfully')
-          }
-        }).catch(err => {
-          console.warn('⚠️ Pre-warm error:', err.message)
-        })
+          body: { org_id: orgId, account_ids: createdAccountIds.slice(0, 500), priority: 'medium' },
+        }).catch(err => console.warn('⚠️ Pre-warm error:', err.message))
       )
     }
 
@@ -347,9 +467,9 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         inserted: insertedLeads,
-        insertedLeads: insertedLeads, // Alias for frontend compat
-        matchedAccounts: matchResult?.accounts_created || 0, // Alias for frontend compat
-        created_account_ids: createdAccountIds, // NEW: Return created account IDs for enrichment
+        insertedLeads: insertedLeads,
+        matchedAccounts: matchResult?.accounts_created || 0,
+        created_account_ids: createdAccountIds,
         matching: matchResult ? {
           matched_to_existing: matchResult.matched_to_existing || 0,
           accounts_created: matchResult.accounts_created || 0,
