@@ -60,12 +60,60 @@ export interface BrandedReportData {
 
   // Page 8 – Risks & Next Steps (NEW)
   risks: RiskItem[];
+
+  // Lead stats
+  leadStats?: {
+    totalLeads: number;
+    leadCoverage: number;
+  };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_PRIMARY: [number, number, number] = [8, 51, 105];
 const DEFAULT_SECONDARY: [number, number, number] = [60, 241, 174];
+
+// ISO-2 country code normalization
+const COUNTRY_CODE_MAP: Record<string, string> = {
+  'us': 'United States', 'gb': 'United Kingdom', 'uk': 'United Kingdom',
+  'de': 'Germany', 'fr': 'France', 'es': 'Spain', 'it': 'Italy',
+  'nl': 'Netherlands', 'be': 'Belgium', 'ch': 'Switzerland', 'at': 'Austria',
+  'se': 'Sweden', 'no': 'Norway', 'dk': 'Denmark', 'fi': 'Finland',
+  'pl': 'Poland', 'cz': 'Czechia', 'ro': 'Romania', 'bg': 'Bulgaria',
+  'pt': 'Portugal', 'ie': 'Ireland', 'gr': 'Greece', 'hu': 'Hungary',
+  'hr': 'Croatia', 'sk': 'Slovakia', 'si': 'Slovenia', 'lt': 'Lithuania',
+  'lv': 'Latvia', 'ee': 'Estonia', 'ca': 'Canada', 'au': 'Australia',
+  'nz': 'New Zealand', 'jp': 'Japan', 'kr': 'South Korea', 'cn': 'China',
+  'in': 'India', 'br': 'Brazil', 'mx': 'Mexico', 'ar': 'Argentina',
+  'za': 'South Africa', 'sg': 'Singapore', 'hk': 'Hong Kong',
+  'ae': 'United Arab Emirates', 'il': 'Israel', 'tr': 'Turkey',
+  'ru': 'Russia', 'ua': 'Ukraine', 'th': 'Thailand', 'ph': 'Philippines',
+  'my': 'Malaysia', 'id': 'Indonesia', 'vn': 'Vietnam', 'tw': 'Taiwan',
+  'co': 'Colombia', 'cl': 'Chile', 'pe': 'Peru',
+};
+
+function normalizeCountryName(raw: string): string {
+  const lower = raw.trim().toLowerCase();
+  return COUNTRY_CODE_MAP[lower] || (raw.charAt(0).toUpperCase() + raw.slice(1));
+}
+
+function normalizeAndMergeGeo(
+  geo: Array<{ country: string; accounts: number; percentage: number }>
+): Array<{ country: string; accounts: number; percentage: number }> {
+  const merged = new Map<string, number>();
+  geo.forEach(g => {
+    const name = normalizeCountryName(g.country);
+    merged.set(name, (merged.get(name) || 0) + g.accounts);
+  });
+  const totalAccounts = Array.from(merged.values()).reduce((s, v) => s + v, 0);
+  return Array.from(merged.entries())
+    .map(([country, accounts]) => ({
+      country,
+      accounts,
+      percentage: totalAccounts > 0 ? (accounts / totalAccounts) * 100 : 0,
+    }))
+    .sort((a, b) => b.accounts - a.accounts);
+}
 
 function hexToRgb(hex: string | null | undefined): [number, number, number] | null {
   if (!hex) return null;
@@ -118,6 +166,10 @@ function generateNarrative(data: BrandedReportData): string {
 
   if (m.campaignReadyAccounts > 0) {
     narrative += `${m.campaignReadyAccounts.toLocaleString()} accounts are campaign-ready for immediate outreach. `;
+  }
+
+  if (data.leadStats && data.leadStats.totalLeads > 0) {
+    narrative += `Your database includes ${data.leadStats.totalLeads.toLocaleString()} leads across these accounts. `;
   }
 
   if (m.dataCompleteness < 60) {
@@ -308,6 +360,10 @@ export async function generateBrandedPDF(
     { label: 'Medium-Fit Accounts', value: met.mediumFitAccounts.toLocaleString() },
     { label: 'Campaign-Ready', value: met.campaignReadyAccounts.toLocaleString() },
     { label: 'Data Completeness', value: `${met.dataCompleteness}%` },
+    ...(data.leadStats ? [
+      { label: 'Total Leads', value: data.leadStats.totalLeads.toLocaleString() },
+      { label: 'Lead Coverage', value: `${data.leadStats.leadCoverage}%` },
+    ] : []),
   ];
 
   metricItems.forEach((item, i) => {
@@ -528,8 +584,10 @@ export async function generateBrandedPDF(
   addHeader('Geographic Analysis');
   sectionTitle('Geographic Distribution');
 
-  if (data.geographyDistribution.length > 0) {
-    const top3 = data.geographyDistribution.slice(0, 3);
+  const normalizedGeo = normalizeAndMergeGeo(data.geographyDistribution);
+
+  if (normalizedGeo.length > 0) {
+    const top3 = normalizedGeo.slice(0, 3);
     const top3Pct = top3.reduce((sum, g) => sum + safeNum(g.percentage), 0);
     doc.setFontSize(10);
     doc.setTextColor(80, 80, 80);
@@ -537,7 +595,7 @@ export async function generateBrandedPDF(
     y += 10;
 
     // Visual bars for top 10
-    data.geographyDistribution.slice(0, 10).forEach((item, i) => {
+    normalizedGeo.slice(0, 10).forEach((item, i) => {
       checkPageBreak(12);
       const pct = safeNum(item.percentage);
       const barWidth = (pct / 100) * (CW - 60);
@@ -547,7 +605,7 @@ export async function generateBrandedPDF(
       doc.text(item.country.substring(0, 20), M, y + 3);
 
       doc.setFillColor(...lightenRgb(primary, 0.7));
-      doc.roundedRect(M + 50, y - 1, barWidth, 6, 1, 1, 'F');
+      doc.roundedRect(M + 50, y - 1, Math.max(barWidth, 1), 6, 1, 1, 'F');
 
       doc.setFontSize(7);
       doc.setTextColor(80, 80, 80);
@@ -557,7 +615,7 @@ export async function generateBrandedPDF(
     });
 
     // Rest as table if more than 10
-    if (data.geographyDistribution.length > 10) {
+    if (normalizedGeo.length > 10) {
       y += 4;
       const geoCols = [
         { label: 'Country', x: M },
@@ -565,7 +623,7 @@ export async function generateBrandedPDF(
         { label: '% Share', x: M + 140 },
       ];
       tableHeader(geoCols);
-      data.geographyDistribution.slice(10, 25).forEach((item, i) => {
+      normalizedGeo.slice(10, 25).forEach((item, i) => {
         checkPageBreak(8);
         tableRow([
           { text: item.country.substring(0, 45), x: M },

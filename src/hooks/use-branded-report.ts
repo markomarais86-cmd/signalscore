@@ -44,7 +44,10 @@ function categorizeEmployeeCount(count: number | null): string {
 function safeNumber(val: any): number {
   if (val == null) return 0;
   if (typeof val === 'number') return val;
-  if (typeof val === 'object' && val.count != null) return Number(val.count) || 0;
+  if (typeof val === 'object') {
+    if (val.accounts != null) return Number(val.accounts) || 0;
+    if (val.count != null) return Number(val.count) || 0;
+  }
   return Number(val) || 0;
 }
 
@@ -64,7 +67,7 @@ export function useBrandedReport() {
     setIsGenerating(true);
     try {
       // Parallel data fetches — including insights and risks
-      const [metricsRes, icpRes, tamRes, geoRes, topAccountsRes, insightsRes] = await Promise.all([
+      const [metricsRes, icpRes, tamRes, geoRes, topAccountsRes, insightsRes, orgRes, leadsRes] = await Promise.all([
         supabase.rpc('get_dashboard_metrics_cached' as any, { p_org_id: effectiveOrgId }),
         supabase.from('icp_profiles').select('*').eq('org_id', effectiveOrgId).eq('status', 'active'),
         supabase.from('external_data_sources')
@@ -73,14 +76,18 @@ export function useBrandedReport() {
           .order('last_synced_at', { ascending: false }).limit(1).maybeSingle(),
         supabase.rpc('get_geography_distribution', { p_org_id: effectiveOrgId, p_source_filter: 'all' }),
         supabase.from('scores')
-          .select('account_external_id, overall_score, fit_score, intent_score, org_id')
+          .select('account_external_id, overall, fit, intent, org_id')
           .eq('org_id', effectiveOrgId)
-          .order('overall_score', { ascending: false })
+          .order('overall', { ascending: false })
           .limit(20),
         // Fetch AI insights from edge function
         supabase.functions.invoke('generate-icp-insights', {
           body: { org_id: effectiveOrgId },
         }).catch(() => ({ data: null, error: null })),
+        // Fallback org name
+        supabase.from('organizations').select('name').eq('id', effectiveOrgId).maybeSingle(),
+        // Lead stats
+        supabase.from('Leads').select('id', { count: 'exact', head: true }).eq('org_id', effectiveOrgId),
       ]);
 
       const raw = Array.isArray(metricsRes.data) ? (metricsRes.data as any)?.[0] : metricsRes.data as any;
@@ -159,9 +166,9 @@ export function useBrandedReport() {
             industry: acct?.industry_norm || 'N/A',
             size: categorizeEmployeeCount(acct?.employee_count),
             country: acct?.country || 'N/A',
-            fitScore: s.fit_score || 0,
-            intentScore: s.intent_score || 0,
-            overallScore: s.overall_score || 0,
+            fitScore: s.fit || 0,
+            intentScore: s.intent || 0,
+            overallScore: s.overall || 0,
           };
         });
       }
@@ -175,8 +182,11 @@ export function useBrandedReport() {
       // Logo
       const logoBase64 = brandConfig?.logo_url ? await logoToBase64(brandConfig.logo_url) : null;
 
+      const resolvedCompanyName = brandConfig?.company_name || orgRes.data?.name || 'Organization';
+      const totalLeads = leadsRes.count || 0;
+
       const reportData: BrandedReportData = {
-        companyName: brandConfig?.company_name || 'Organization',
+        companyName: resolvedCompanyName,
         generatedAt: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
         logoBase64,
         metrics,
@@ -192,6 +202,10 @@ export function useBrandedReport() {
         topProspects,
         insights,
         risks,
+        leadStats: {
+          totalLeads,
+          leadCoverage: metrics.totalAccounts > 0 ? Math.round((totalLeads / metrics.totalAccounts) * 100) : 0,
+        },
       };
 
       await generateBrandedPDF(reportData, brandConfig ?? null);
