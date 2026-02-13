@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ArrowRight, Check, Building2, Target, Users, Route, Megaphone, Rocket, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Building2, Target, Users, Route, Megaphone, Rocket, Sparkles, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OnboardingStepCompany } from "@/components/admin/OnboardingStepCompany";
 import { OnboardingStepICP } from "@/components/admin/OnboardingStepICP";
@@ -15,6 +15,7 @@ import { OnboardingStepRouting } from "@/components/admin/OnboardingStepRouting"
 import { OnboardingStepCampaigns } from "@/components/admin/OnboardingStepCampaigns";
 import { OnboardingStepReview } from "@/components/admin/OnboardingStepReview";
 import { AICustomerOnboardingDialog } from "@/components/admin/AICustomerOnboardingDialog";
+import { QuickCreateOrgDialog } from "@/components/QuickCreateOrgDialog";
 
 const steps = [
   { label: "Company", icon: Building2 },
@@ -186,7 +187,9 @@ export default function CustomerOnboarding() {
 
 function CustomerOrgPicker() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const { data: orgs, isLoading } = useQuery({
     queryKey: ["all-orgs"],
     queryFn: async () => {
@@ -216,13 +219,27 @@ function CustomerOrgPicker() {
           <h1 className="text-2xl font-bold">Customer Onboarding</h1>
           <p className="text-muted-foreground">Manage your customers' demand engine setup</p>
         </div>
-        <Button onClick={() => setAiDialogOpen(true)}>
-          <Sparkles className="h-4 w-4 mr-2" />
-          AI Onboard Customer
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setQuickCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Organization
+          </Button>
+          <Button onClick={() => setAiDialogOpen(true)}>
+            <Sparkles className="h-4 w-4 mr-2" />
+            AI Onboard Customer
+          </Button>
+        </div>
       </div>
 
       <AICustomerOnboardingDialog open={aiDialogOpen} onOpenChange={setAiDialogOpen} />
+      <QuickCreateOrgDialog
+        open={quickCreateOpen}
+        onOpenChange={setQuickCreateOpen}
+        onSuccess={(orgId) => {
+          queryClient.invalidateQueries({ queryKey: ["all-orgs"] });
+          navigate(`/admin/customer-onboarding/${orgId}`);
+        }}
+      />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {orgs?.map((org) => {
