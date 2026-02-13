@@ -88,6 +88,20 @@ serve(async (req) => {
 
     if (icpError) throw icpError;
 
+    // Get onboarding config for company context
+    const { data: onboardingConfig } = await supabase
+      .from('org_onboarding_config')
+      .select('company_name, website_url, value_proposition, target_persona_description')
+      .eq('org_id', org_id)
+      .maybeSingle();
+
+    // Get organization name
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('name')
+      .eq('id', org_id)
+      .single();
+
     // Get dismissed recommendations to avoid repeating them
     const { data: dismissed } = await supabase
       .from('dismissed_recommendations')
@@ -97,43 +111,14 @@ serve(async (req) => {
     const dismissedIds = new Set(dismissed?.map(d => d.recommendation_id) || []);
 
     // Analyze data to generate recommendations with prioritization
-    const dataAnalysis = analyzeAccountData(accounts);
+    const dataAnalysis = analyzeAccountData(accounts || []);
     
-    const prompt = `You are an expert B2B sales strategist. Analyze this CRM data and generate 5-8 prioritized, actionable recommendations.
-
-CURRENT DATA:
-- Total Accounts: ${dataAnalysis.totalAccounts}
-- Top Industries: ${dataAnalysis.topIndustries.join(', ')}
-- Company Sizes: ${dataAnalysis.companySizes.join(', ')}
-- Top Countries: ${dataAnalysis.topCountries.join(', ')}
-- Revenue Ranges: ${dataAnalysis.revenueRanges.join(', ')}
-- Scored Accounts: ${accounts.filter(a => a.propensity_score).length}
-- High-Fit Accounts (75+): ${accounts.filter(a => a.propensity_score >= 75).length}
-
-EXISTING ICPs: ${icps.length > 0 ? icps.map(icp => icp.name).join(', ') : 'None'}
-
-Generate recommendations that:
-1. Are specific and actionable (with clear next steps)
-2. Include priority score (1-100) based on potential impact
-3. Cover different categories: revenue, firmographic, signal, quality, efficiency, growth
-4. Focus on untapped opportunities or data quality improvements
-5. Link to specific actions users can take
-
-Format each recommendation as JSON with:
-{
-  "id": "unique-id",
-  "category": "revenue|firmographic|signal|quality|efficiency|growth",
-  "title": "Brief compelling title (max 60 chars)",
-  "description": "One-sentence description",
-  "why": "Why this matters (1-2 sentences)",
-  "impact": "Expected impact (e.g., '+15% conversion', '$50K pipeline')",
-  "action": "Clear CTA button text (e.g., 'View High-Fit Accounts')",
-  "route": "/page-path",
-  "priority": 85,
-  "filter": { "key": "value" }
-}
-
-Return ONLY a JSON array of recommendations, no markdown or explanation.`;
+    // Build company context from onboarding data
+    const companyContext = buildCompanyContext(org?.name, onboardingConfig);
+    
+    const prompt = accounts && accounts.length > 0
+      ? buildAccountBasedPrompt(dataAnalysis, accounts, icps || [], companyContext)
+      : buildSeedPrompt(companyContext, icps || []);
 
     const providers = getAvailableProviders();
     if (providers.length === 0) {
@@ -174,7 +159,9 @@ Return ONLY a JSON array of recommendations, no markdown or explanation.`;
     } catch (parseError) {
       console.error('Failed to parse AI response:', parseError);
       // Return fallback recommendations
-      recommendations = generateFallbackRecommendations(dataAnalysis, accounts);
+      recommendations = accounts && accounts.length > 0 
+        ? generateFallbackRecommendations(dataAnalysis, accounts)
+        : generateSeedFallbackRecommendations(companyContext);
     }
 
     return new Response(JSON.stringify({ 
@@ -196,6 +183,91 @@ Return ONLY a JSON array of recommendations, no markdown or explanation.`;
     });
   }
 });
+
+function buildCompanyContext(orgName: string | undefined, config: any): string {
+  const parts: string[] = [];
+  if (orgName) parts.push(`Company: ${orgName}`);
+  if (config?.company_name) parts.push(`Brand: ${config.company_name}`);
+  if (config?.website_url) parts.push(`Website: ${config.website_url}`);
+  if (config?.value_proposition) parts.push(`Value Proposition: ${config.value_proposition}`);
+  if (config?.target_persona_description) parts.push(`Target Persona: ${config.target_persona_description}`);
+  return parts.length > 0 ? parts.join('\n') : 'No company context available';
+}
+
+function buildAccountBasedPrompt(dataAnalysis: any, accounts: any[], icps: any[], companyContext: string): string {
+  return `You are an expert B2B sales strategist. Analyze this CRM data and generate 5-8 prioritized, actionable recommendations.
+
+COMPANY CONTEXT:
+${companyContext}
+
+CURRENT DATA:
+- Total Accounts: ${dataAnalysis.totalAccounts}
+- Top Industries: ${dataAnalysis.topIndustries.join(', ')}
+- Company Sizes: ${dataAnalysis.companySizes.join(', ')}
+- Top Countries: ${dataAnalysis.topCountries.join(', ')}
+- Revenue Ranges: ${dataAnalysis.revenueRanges.join(', ')}
+- Scored Accounts: ${accounts.filter(a => a.propensity_score).length}
+- High-Fit Accounts (75+): ${accounts.filter(a => a.propensity_score >= 75).length}
+
+EXISTING ICPs: ${icps.length > 0 ? icps.map(icp => icp.name).join(', ') : 'None'}
+
+Generate recommendations that:
+1. Are specific and actionable (with clear next steps)
+2. Include priority score (1-100) based on potential impact
+3. Cover different categories: revenue, firmographic, signal, quality, efficiency, growth
+4. Focus on untapped opportunities or data quality improvements
+5. Link to specific actions users can take
+
+Format each recommendation as JSON with:
+{
+  "id": "unique-id",
+  "category": "revenue|firmographic|signal|quality|efficiency|growth",
+  "title": "Brief compelling title (max 60 chars)",
+  "description": "One-sentence description",
+  "why": "Why this matters (1-2 sentences)",
+  "impact": "Expected impact (e.g., '+15% conversion', '$50K pipeline')",
+  "action": "Clear CTA button text (e.g., 'View High-Fit Accounts')",
+  "route": "/page-path",
+  "priority": 85,
+  "filter": { "key": "value" }
+}
+
+Return ONLY a JSON array of recommendations, no markdown or explanation.`;
+}
+
+function buildSeedPrompt(companyContext: string, icps: any[]): string {
+  return `You are an expert B2B sales strategist. A company is just getting started with their demand engine and has NO account data yet. Based on their company context, generate 5-8 seed ICP recommendations to help them define their ideal customer profile and start building their pipeline.
+
+COMPANY CONTEXT:
+${companyContext}
+
+EXISTING ICPs: ${icps.length > 0 ? icps.map(icp => icp.name).join(', ') : 'None'}
+
+Generate recommendations that:
+1. Help define target industries, company sizes, and geographies based on their value proposition
+2. Suggest specific ICP criteria they should configure
+3. Recommend data sources to sync (Apollo, CRM imports)
+4. Identify ideal buyer personas based on their target persona description
+5. Include priority score (1-100) based on importance for getting started
+
+Focus on ACTIONABLE first steps. These are seed recommendations to bootstrap their ICP strategy.
+
+Format each recommendation as JSON with:
+{
+  "id": "unique-id",
+  "category": "revenue|firmographic|signal|quality|efficiency|growth",
+  "title": "Brief compelling title (max 60 chars)",
+  "description": "One-sentence description",
+  "why": "Why this matters (1-2 sentences)",
+  "impact": "Expected impact",
+  "action": "Clear CTA button text",
+  "route": "/page-path",
+  "priority": 85,
+  "filter": { "key": "value" }
+}
+
+Return ONLY a JSON array of recommendations, no markdown or explanation.`;
+}
 
 function analyzeAccountData(accounts: any[]) {
   const industries = accounts.map(a => a.industry_norm).filter(Boolean);
@@ -230,13 +302,8 @@ function getTopItems(items: string[], limit: number): string[] {
 }
 
 function categorizeSizes(sizes: number[]): string[] {
-  const ranges = ['1-10', '11-50', '51-200', '201-1000', '1000+'];
   const counts = {
-    '1-10': 0,
-    '11-50': 0,
-    '51-200': 0,
-    '201-1000': 0,
-    '1000+': 0
+    '1-10': 0, '11-50': 0, '51-200': 0, '201-1000': 0, '1000+': 0
   };
 
   sizes.forEach(size => {
@@ -260,53 +327,18 @@ function generateFallbackRecommendations(dataAnalysis: any, accounts: any[]) {
   const enrichmentGaps = accounts.filter(a => !a.industry_norm || !a.employee_count || !a.revenue_range).length;
   
   return [
-    {
-      id: 'score-remaining',
-      category: 'efficiency',
-      title: 'Score Remaining Accounts',
-      description: 'Prioritize high-potential accounts for faster conversions',
-      why: `${dataAnalysis.totalAccounts - scoredCount} accounts are unscored. Scoring helps identify your best opportunities.`,
-      impact: '+25% pipeline efficiency',
-      action: 'Score Accounts',
-      route: '/accounts',
-      priority: 90,
-      filter: { unscored: 'true' }
-    },
-    {
-      id: 'focus-high-fit',
-      category: 'revenue',
-      title: `Focus on ${highFitCount} High-Fit Accounts`,
-      description: 'Maximize ROI by prioritizing best-fit prospects',
-      why: 'High-fit accounts (75+ score) convert 3x faster with 50% higher deal sizes.',
-      impact: '+40% win rate',
-      action: 'View High-Fit Accounts',
-      route: '/accounts',
-      priority: 85,
-      filter: { min_score: '75' }
-    },
-    {
-      id: 'enrich-data',
-      category: 'quality',
-      title: 'Improve Data Quality',
-      description: 'Fill missing firmographic data for better scoring',
-      why: `${enrichmentGaps} accounts have incomplete data affecting scoring accuracy.`,
-      impact: '+15% scoring accuracy',
-      action: 'Enrich Accounts',
-      route: '/settings',
-      priority: 75,
-      filter: { tab: 'enrichment' }
-    },
-    {
-      id: 'expand-geography',
-      category: 'growth',
-      title: `Expand to ${dataAnalysis.topCountries[1] || 'New'} Market`,
-      description: 'Untapped geographic opportunity for revenue growth',
-      why: 'Market analysis shows strong fit indicators in adjacent territories.',
-      impact: '+$100K pipeline',
-      action: 'Explore Market',
-      route: '/accounts',
-      priority: 70,
-      filter: { country: dataAnalysis.topCountries[1] }
-    }
+    { id: 'score-remaining', category: 'efficiency', title: 'Score Remaining Accounts', description: 'Prioritize high-potential accounts for faster conversions', why: `${dataAnalysis.totalAccounts - scoredCount} accounts are unscored.`, impact: '+25% pipeline efficiency', action: 'Score Accounts', route: '/accounts', priority: 90, filter: { unscored: 'true' } },
+    { id: 'focus-high-fit', category: 'revenue', title: `Focus on ${highFitCount} High-Fit Accounts`, description: 'Maximize ROI by prioritizing best-fit prospects', why: 'High-fit accounts convert 3x faster with 50% higher deal sizes.', impact: '+40% win rate', action: 'View High-Fit Accounts', route: '/accounts', priority: 85, filter: { min_score: '75' } },
+    { id: 'enrich-data', category: 'quality', title: 'Improve Data Quality', description: 'Fill missing firmographic data for better scoring', why: `${enrichmentGaps} accounts have incomplete data.`, impact: '+15% scoring accuracy', action: 'Enrich Accounts', route: '/settings', priority: 75, filter: { tab: 'enrichment' } },
+    { id: 'expand-geography', category: 'growth', title: `Expand to ${dataAnalysis.topCountries[1] || 'New'} Market`, description: 'Untapped geographic opportunity for revenue growth', why: 'Market analysis shows strong fit indicators in adjacent territories.', impact: '+$100K pipeline', action: 'Explore Market', route: '/accounts', priority: 70, filter: { country: dataAnalysis.topCountries[1] } }
+  ];
+}
+
+function generateSeedFallbackRecommendations(companyContext: string) {
+  return [
+    { id: 'define-icp', category: 'firmographic', title: 'Define Your Ideal Customer Profile', description: 'Set up industry, size, and geography criteria', why: 'An ICP is the foundation of your demand engine. Without it, you cannot score or prioritize accounts.', impact: 'Foundation for all targeting', action: 'Build ICP', route: '/icp-manager', priority: 95, filter: {} },
+    { id: 'sync-data', category: 'quality', title: 'Connect Your Data Sources', description: 'Sync Apollo or import CRM data to populate accounts', why: 'You need account data to score and target. Apollo provides verified B2B contacts.', impact: 'Populate your pipeline', action: 'Go to Data Upload', route: '/data-upload', priority: 90, filter: {} },
+    { id: 'set-personas', category: 'signal', title: 'Define Target Buyer Personas', description: 'Specify job titles and seniority levels to target', why: 'Persona targeting ensures outreach reaches decision-makers.', impact: '+30% response rates', action: 'Configure Personas', route: '/icp-manager', priority: 85, filter: {} },
+    { id: 'set-geography', category: 'growth', title: 'Set Geographic Focus', description: 'Define your target markets and regions', why: 'Geographic focus prevents spreading resources too thin.', impact: 'Focused pipeline', action: 'Set Regions', route: '/icp-manager', priority: 80, filter: {} }
   ];
 }
