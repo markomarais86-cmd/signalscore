@@ -1,136 +1,155 @@
 
 
-# Branded PDF Report Exports
+# Consulting-to-SaaS Funnel
 
-## Overview
+## Problem
+Today there is no distinction between a "managed" customer (where LaunchPulse does the work) and a "self-service" customer (who logs in and runs the platform themselves). The plan tiers exist but there is no service-type differentiation, no Stripe checkout, and no UI gating based on whether a customer is managed or self-service.
 
-Create a comprehensive, client-branded PDF report generator that produces professional consulting deliverables. The report will pull data from the currently selected organization (via the org-switcher) and apply that organization's branding (logo, colors, company name) to every page. This replaces the existing hardcoded "LaunchPulse navy/green" styling in the current PDF generators.
-
-## What Exists Today
-
-- **Two PDF generators** (`src/utils/pdf-export.ts` and `src/utils/icp10-pdf-export.ts`) using jsPDF, both hardcoded with LaunchPulse brand colors
-- **Brand config system** (`useBrandedConfig` hook) that fetches `brand_primary_color`, `brand_secondary_color`, `logo_url`, and `company_name` per org
-- **Dashboard data hooks** that provide all the raw data: metrics, ICP profiles, TAM data, geography distribution, scores
-- **Export dropdown** (`ExportToPdf.tsx`) in the executive dashboard header with PDF/PPTX/CSV options (PPTX and CSV marked "Soon")
-
-## Report Structure (6-page PDF)
+## Two-Tier Model
 
 ```text
-Page 1 - Cover Page
-  Client logo (fetched from logo_url) + company name
-  "ICP & Market Intelligence Report"
-  Prepared by LaunchPulse | Date
-  Branded header bar using client's primary color
+Tier 1: MANAGED (Consulting Entry Point)
+  - LaunchPulse team does ICP builds, data uploads, scoring, reporting
+  - Customer sees a read-only dashboard with delivered leads, tasks, and branded reports
+  - Pricing: Custom (quoted via sales), billed via Stripe subscription
+  - Conversion path: After 90-day pilot, prompt to upgrade to self-service
 
-Page 2 - Executive Summary
-  Key metrics grid: Total Accounts, Scored Accounts, High-Fit %
-  ICP profile count + active profiles listed
-  Data completeness score
-  Quick-view score distribution (high/medium/low fit)
-
-Page 3 - ICP Profile Summary
-  Table of all active ICP profiles with:
-    Name, target industries, company sizes, geographies
-    Match count, TAM estimate, confidence score
-
-Page 4 - TAM / SAM / SOM Analysis
-  TAM: Total external database accounts (from external_data_sources)
-  SAM: Accounts matching active ICP criteria (high + medium fit)
-  SOM: High-fit accounts with qualified leads (campaign-ready)
-  Industry breakdown table (top 10)
-  Company size breakdown table
-
-Page 5 - Geographic Analysis
-  Country distribution table (top 15)
-  Concentration metrics (top 3 country %)
-  Regional summary
-
-Page 6 - Top Prospects
-  Top 20 accounts ranked by overall score
-  Columns: Name, Industry, Size, Country, Fit Score, Intent, Overall
+Tier 2: SELF-SERVICE (Platform Access)
+  - Customer logs in and has full access to the platform tools
+  - Can upload data, build ICPs, run scoring, configure enrichment
+  - Pricing: Professional / Growth / Enterprise tiers via Stripe checkout
+  - All existing features enabled based on plan tier
 ```
 
-## New Files
+## Implementation
 
-### 1. `src/utils/branded-pdf-export.ts`
+### 1. Database: Add `service_type` to Organizations
 
-The main PDF generation engine. Key design decisions:
+Add a column to the `organizations` table to distinguish managed vs self-service customers:
 
-- **Accepts a `BrandConfig` parameter** to dynamically set header color, footer text, and cover logo
-- **Accepts all data as a single typed interface** (`BrandedReportData`) so the caller gathers data, not the PDF util
-- **Reuses `jsPDF`** (already installed) -- no new dependencies
-- **Logo handling**: Fetches the `logo_url` as an image, converts to base64 via canvas, and embeds in the PDF cover page. Falls back to text-only if logo fails to load
-- **Color system**: Parses `brand_primary_color` (hex string) into RGB for jsPDF fill/draw calls. Falls back to LaunchPulse navy if no brand color
-- **TAM/SAM/SOM calculation**: TAM = total external DB accounts, SAM = high + medium fit accounts, SOM = campaign-ready accounts. These are derived from the dashboard metrics already available
+```sql
+ALTER TABLE organizations
+  ADD COLUMN service_type text NOT NULL DEFAULT 'self_service'
+  CHECK (service_type IN ('managed', 'self_service'));
+```
 
-### 2. `src/hooks/use-branded-report.ts`
+Also add Stripe fields to track subscriptions:
 
-A hook that orchestrates data gathering and PDF generation:
+```sql
+ALTER TABLE organizations
+  ADD COLUMN stripe_customer_id text,
+  ADD COLUMN stripe_subscription_id text,
+  ADD COLUMN subscription_status text DEFAULT 'inactive'
+    CHECK (subscription_status IN ('inactive', 'trialing', 'active', 'past_due', 'canceled'));
+```
 
-- Uses `useEffectiveOrg()` to get the current org ID
-- Uses `useBrandedConfig({ orgId })` to get brand colors/logo
-- Fetches dashboard data, geography data, ICP profiles, and top accounts (by score)
-- Exposes a `generateReport()` async function and `isGenerating` loading state
-- Handles the logo-to-base64 conversion
-- Calls the `generateBrandedPDF()` util with all assembled data
+No new tables needed -- this extends the existing `organizations` table.
 
-## Modified Files
+### 2. Stripe Integration
 
-### 3. `src/components/executive/ExportToPdf.tsx`
+Enable the Lovable Stripe integration to handle subscription billing. This will:
 
-- Wire the `'pdf'` menu item to call the new `use-branded-report` hook's `generateReport()` function
-- Show a loading spinner on the button while generating
-- Remove "(Soon)" from PDF option if present, keep it on PPTX/CSV
+- Create Stripe Products and Prices matching the existing plan tiers (Professional at $2,500/mo, Growth at $5,000/mo, Enterprise custom)
+- Create a checkout edge function that creates a Stripe Checkout Session for a given plan
+- Create a webhook edge function that listens for `checkout.session.completed`, `customer.subscription.updated`, and `customer.subscription.deleted` events to sync subscription status back to the `organizations` table
+- Create a customer portal edge function so customers can manage billing
 
-### 4. `src/utils/pdf-export.ts` (minor)
+### 3. New File: `src/hooks/use-service-type.ts`
 
-- Refactor to accept optional brand colors parameter instead of hardcoded LaunchPulse colors
-- This way the existing TAM report also gets branded when called from the new flow
+A hook that reads the current org's `service_type` from the organizations table:
 
-### 5. `src/utils/icp10-pdf-export.ts` (minor)
+- Returns `{ serviceType: 'managed' | 'self_service', isManaged: boolean, isSelfService: boolean, loading: boolean }`
+- Uses the `effectiveOrgId` from the org-switcher context
+- Cached via React Query
 
-- Same brand-color parameterization as above
+### 4. Modify: `src/components/CustomerSidebar.tsx`
 
-## Technical Details
+Gate navigation items based on `service_type`:
 
-### Brand Color Parsing
+- **Managed customers** see: Dashboard, Leads, Tasks, Opportunities, Settings (read-only data consumption)
+- **Self-service customers** additionally see: Data Upload, ICP Manager, Scoring, Enrichment, API Access (platform tools)
+
+Add new nav items for self-service users:
+
 ```text
-Input:  "#3B82F6" (from brand_primary_color)
-Output: [59, 130, 246] (RGB array for jsPDF)
-Fallback: [8, 51, 105] (LaunchPulse navy)
+Managed:     Dashboard | Leads | Sales (Tasks, Opps) | Settings
+Self-Service: Dashboard | Leads | Sales | Data Upload | ICP Manager | Accounts | Settings
 ```
 
-### Logo Embedding
+### 5. Modify: `src/components/CustomerLayout.tsx`
+
+Add a subtle upgrade banner for managed customers showing "Upgrade to self-service for full platform access" with a CTA that links to the checkout flow.
+
+### 6. New File: `src/pages/CustomerUpgrade.tsx`
+
+A page at `/upgrade` that:
+
+- Shows the plan comparison (Professional vs Growth vs Enterprise)
+- Reuses the existing `PLAN_TIERS` config from `plan-tiers.ts`
+- Calls the Stripe checkout edge function to create a session
+- Redirects to Stripe Checkout
+- On success return, updates the org's `service_type` to `self_service` and sets the `plan_id`
+
+### 7. Modify: `src/pages/admin/CustomerOnboarding.tsx`
+
+Add a `service_type` selector (Managed vs Self-Service) to the Company step of the onboarding wizard. This determines:
+
+- Whether LaunchPulse team does the setup work (managed)
+- Or the customer gets platform credentials to do it themselves (self-service)
+
+### 8. Modify: `src/components/platform-admin/OrganizationManagementDialog.tsx`
+
+Add the `service_type` field to the org management dialog so super admins can toggle an organization between managed and self-service at any time.
+
+### 9. New File: `src/components/ManagedUpgradeBanner.tsx`
+
+A reusable banner component shown to managed customers:
+
+- "Your account is managed by LaunchPulse. Want to run it yourself?"
+- "Upgrade to Self-Service" button
+- Dismissible (stores dismissal in localStorage)
+- Only shown on the customer dashboard
+
+### 10. Edge Functions for Stripe
+
+Three edge functions (created after enabling Stripe):
+
+- **`create-checkout`**: Creates a Stripe Checkout Session for a given plan tier, attaches the org_id as metadata
+- **`stripe-webhook`**: Handles Stripe events to update `organizations.subscription_status` and `service_type`
+- **`customer-portal`**: Creates a Stripe Customer Portal session for billing management
+
+## Conversion Flow
+
 ```text
-1. Fetch logo_url via Image() with crossOrigin="anonymous"
-2. Draw to offscreen canvas
-3. Convert to base64 PNG via canvas.toDataURL()
-4. Embed in jsPDF via doc.addImage()
-5. Fallback: render company_name as large text if logo fails
+1. Sales closes a managed deal
+2. Super admin creates org via Customer Onboarding wizard (service_type = 'managed')
+3. LaunchPulse team uploads data, builds ICPs, runs scoring using org-switcher
+4. Customer logs in, sees branded dashboard with leads/tasks
+5. After 90 days, upgrade banner appears more prominently
+6. Customer clicks "Upgrade" -> Plan selection -> Stripe Checkout
+7. On payment success:
+   - organizations.service_type -> 'self_service'
+   - organizations.subscription_status -> 'active'
+   - organizations.plan_id -> selected plan UUID
+8. Customer now sees full sidebar with all platform tools
 ```
 
-### Data Flow
-```text
-User clicks "Export Report" > "Board PDF Report"
-  -> useEffectiveOrg() provides orgId
-  -> useBrandedConfig({ orgId }) provides brand colors + logo
-  -> Parallel fetch: dashboard metrics, geography, top accounts by score
-  -> Assemble BrandedReportData object
-  -> generateBrandedPDF(data, brandConfig) creates the jsPDF doc
-  -> doc.save() triggers browser download
-```
+## Security
 
-### TAM/SAM/SOM Derivation (from existing dashboard metrics)
-```text
-TAM = tamData.totalAccounts (external database size)
-SAM = metrics.high_fit_accounts + metrics.medium_fit_accounts
-SOM = metrics.campaign_ready_accounts
-```
+- `service_type` changes only via super admin or Stripe webhook (RLS policy)
+- Stripe webhook validates signature before updating org records
+- Customer-facing routes for self-service tools (Data Upload, ICP Manager, etc.) check `service_type` and redirect managed users to the upgrade page
+- No client-side privilege checks -- all gating uses database-backed `service_type`
 
 ## Implementation Order
 
-1. Create `src/utils/branded-pdf-export.ts` with the 6-page branded PDF generator
-2. Create `src/hooks/use-branded-report.ts` to orchestrate data fetching and generation
-3. Update `ExportToPdf.tsx` to wire the PDF button to the new hook
-4. Optionally refactor the two existing PDF utils to accept brand colors (can be done later)
+1. Enable Stripe integration
+2. Run database migration (add columns to organizations)
+3. Create `use-service-type` hook
+4. Update `CustomerSidebar` with service-type gating
+5. Create `CustomerUpgrade` page with plan selection
+6. Create Stripe edge functions (checkout, webhook, portal)
+7. Add `ManagedUpgradeBanner` to customer dashboard
+8. Update admin onboarding wizard and org management dialog
+9. Test end-to-end: managed customer login, upgrade flow, self-service access
 
