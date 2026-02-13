@@ -1,157 +1,379 @@
 
 
-# Executive Intelligence View — Full Implementation Plan
+# LaunchPulse v1 → v2 Engineering Roadmap — Implementation Plan
 
-## Current State vs. Spec
+## Current State Audit
 
-The existing Executive Dashboard has basic coverage for about 40% of the spec. Here's what maps and what's entirely new:
+After reviewing the full codebase, here's what already exists vs. what needs to be built for each epic:
 
-| Spec Section | Status | Current Component |
-|---|---|---|
-| 1. Growth Command Center | Partial | `SimplifiedHeroMetrics` — needs different KPIs |
-| 2. Strategic Position View | NEW | No quadrant matrix or segment health bars |
-| 3. Revenue Opportunity Engine | Partial | `SimpleTAMCard` — needs scenario modelling |
-| 4. Account Monetisation View | NEW | No priority accounts table with readiness |
-| 5. Territory & Expansion | Partial | `SimpleGeographyCard` — needs Core/Expansion/White Space layers |
-| 6. Persona & Buying Committee | NEW | No persona coverage analysis |
-| 7. Data Quality & Revenue Leakage | Partial | `DataHealthWidget` — needs revenue framing |
-| 8. AI Strategy Engine | NEW | `UnifiedInsightsPanel` exists but no quarterly playbooks |
-| 9. Execution Roadmap | NEW | No 90-day plan |
-| 10. Board Report Generator | Partial | PDF export exists — needs all 7 mandatory sections |
-| 11. Consulting Overlay Mode | NEW | No advisor mode |
-| 12. Governance Rules | Apply | Language/UX rules to enforce across all views |
-| 13. Customer Journey | Workflow | Onboarding flow changes |
-| 14. Commercial Outcome | Positioning | No code changes |
+| Epic | Coverage | Key Existing Assets |
+|------|----------|-------------------|
+| 1. Customer Intelligence Spine | ~40% | `accounts`, `Leads`, `scores`, `icp_profiles` tables; `use-dashboard-data`, `use-market-intelligence` hooks |
+| 2. ICP Execution Engine | ~50% | ICP wizard (5 steps), `icp_feature_weights`, `score-account` function, scoring system |
+| 3. Customer Context Processor | ~60% | `parse-icp-document` edge function, PDF text extraction, onboarding flow |
+| 4. Strategy Modeling Engine | ~30% | `SimpleTAMCard` with basic TAM/SAM/SOM, `use-capital-data` hook |
+| 5. Persona & Coverage Intelligence | ~20% | Persona fields on Leads, basic persona distribution in `use-market-intelligence` |
+| 6. Revenue Leakage | ~25% | `DataHealthWidget` with basic gap detection, rebranded to Revenue Integrity Monitor |
+| 7. AI Growth Playbook | ~15% | `UnifiedInsightsPanel`, `generate-proactive-insights` edge function |
+| 8. Executive Intelligence UI | ~45% | `GrowthCommandKPIs` (just built), dashboard cards, geography, TAM views |
+| 9. Board & Consulting Export | ~40% | `branded-pdf-export.ts` with 8-page PDF, jsPDF pipeline |
+| 10. Advisor Mode | 0% | Nothing exists |
 
-## Phased Approach
+## Implementation Sequence
 
-Given the scope (~14 major features), this should be built in 4 phases to keep each deliverable testable.
+The epics have natural dependencies. The recommended build order:
 
----
-
-### Phase 1: Rebrand + Hero KPIs + Language Governance (Foundation)
-
-**Goal**: Transform the dashboard header and top-level metrics to match the spec's "Growth Command Center" language.
-
-**Changes**:
-- Rename "Executive Dashboard" to "Growth Command Center" in the page header
-- Replace `SimplifiedHeroMetrics` KPIs from (Total Accounts / Total Leads / Campaign Ready) to the spec's 5 tiles:
-  - Market Coverage % (accounts in system / TAM estimate)
-  - Revenue-Ready % (accounts with usable contacts / total)
-  - Priority Accounts (high-fit + high-readiness count)
-  - Pipeline Potential (modelled upside from TAM/SAM/SOM)
-  - Revenue at Risk (from data gaps, pulled from DataHealthWidget logic)
-- Apply governance rules: no "records", no "rows" — use Revenue/Risk/Opportunity/Impact language
-- Colour-code tiles vs benchmarks (green >70%, amber 40-70%, red <40%)
-- Every tile shows a "So What" subtitle
-
-**Files**: `ExecutiveDashboard.tsx`, `SimplifiedHeroMetrics.tsx` (rewrite)
+```text
+Phase A (Foundation)         Phase B (Intelligence)       Phase C (Strategy)          Phase D (Export & Advisory)
++-------------------------+  +-------------------------+  +-------------------------+  +-------------------------+
+| Epic 1: Customer Graph  |  | Epic 5: Persona Engine  |  | Epic 7: AI Playbook     |  | Epic 9: Export Engine    |
+| Epic 2: ICP Engine      |->| Epic 6: Rev Leakage     |->| Epic 4: Strategy Model  |->| Epic 10: Advisor Mode   |
+| Epic 3: Context Parser  |  | Epic 8: Executive UI    |  |                         |  |                         |
++-------------------------+  +-------------------------+  +-------------------------+  +-------------------------+
+```
 
 ---
 
-### Phase 2: Strategic Views (Sections 2, 4, 6, 7)
+## Phase A — Foundation (Epics 1, 2, 3)
 
-**Goal**: Add the analytical depth layers beneath the hero.
+### Epic 1: Customer Intelligence Spine
 
-**2a. ICP Performance Matrix (Section 2)**
-- New component: `ICPPerformanceMatrix.tsx`
-- 2x2 quadrant chart (High/Low Value vs High/Low Fit)
-- Plots segments with "Core Focus / Test / Prune / Ignore" labels
-- Segment Health Bars showing Coverage, Penetration, Conversion, Growth per segment
-- Each segment tagged: "Invest / Maintain / Exit"
+**1.1 — Unified Customer Graph**
 
-**2b. Priority Revenue Accounts (Section 4)**
-- New component: `PriorityAccountsTable.tsx`
-- Table: Account | Segment | Est Value | Readiness | Coverage | Next Action
-- Readiness = composite of Data + Intent + Persona + History scores
-- Every row has a recommended action (auto-generated from score logic)
-- Filter out "dead rows" (accounts with 0 readiness)
+What exists:
+- `accounts` table with `org_id`, `industry_norm`, `country`, `tech_stack`
+- `Leads` table linked via `account_external_id`
+- `scores` table linking accounts to `icp_profiles`
+- `icp_profiles` with industries, geographies, personas
 
-**2c. Decision-Maker Penetration (Section 6)**
-- New component: `PersonaCoveragePanel.tsx`
-- For each segment: Persona | Coverage % | Gap | Risk
-- Flag "Single-Threaded Deals" (accounts with only 1 contact)
-- Data source: `Leads` table grouped by title/role per account
+What to build:
+- New `account_segments` junction table (account_id, segment_id) since accounts currently have no explicit segment assignment
+- New `segments` table (id, org_id, name, criteria JSONB, status) — currently segmentation logic lives only in the `Segmentation.tsx` page with no persistence
+- Graph query helper: a database function `get_account_lineage(account_id)` returning the full chain (ICP, segment, leads, personas, region, industry) in one call
+- Backfill script to auto-assign segments based on existing ICP criteria
+- Validation query to check linkage completeness (target: 98%)
 
-**2d. Revenue Integrity Monitor (Section 7)**
-- Enhance existing `DataHealthWidget.tsx`
-- Reframe from "Data Health" to "Revenue Integrity Monitor"
-- Add leakage table: Leakage Source | Impact | Recovery Value
-- Sources: Missing contacts, Stale data, No intent, No enrichment
-- Auto-calculate: "You are losing ~$X/month due to data gaps"
+Files to create:
+- `supabase/migrations/xxx_create_segments_table.sql`
+- `supabase/migrations/xxx_create_account_segments.sql`
+- `supabase/migrations/xxx_account_lineage_function.sql`
 
-**Files**: 4 new components in `src/components/executive/`, update `ExecutiveDashboard.tsx` layout
+Files to modify:
+- `src/pages/Segmentation.tsx` — persist segments to DB instead of in-memory
+- `src/hooks/use-segments.tsx` — CRUD operations against new table
 
----
+**1.2 — Data Integrity Monitor**
 
-### Phase 3: Revenue Engine + Geography + AI Playbook (Sections 3, 5, 8, 9)
+What exists:
+- `DataHealthWidget.tsx` shows basic completeness metrics
+- `use-dashboard-data.ts` calculates some gap percentages
 
-**3a. Revenue Potential Model (Section 3)**
-- Enhance `SimpleTAMCard.tsx` to add Conservative / Base / Aggressive scenarios
-- Add win-rate band and pipeline velocity metrics
-- Auto-calculate 3 scenarios using configurable multipliers
-- Keep the existing settings popover for deal size / conversion
+What to build:
+- Extend `DataHealthWidget` (now "Revenue Integrity Monitor") with:
+  - % missing links (accounts without segments, leads without personas)
+  - % stale data (enriched_at older than 90 days)
+  - Orphan record count (leads with no matching account)
+- Auto-flag broken pipelines: add a `data_integrity_alerts` view or materialized query
+- Surface alerts in the `StatusBar` component
 
-**3b. Geographic Growth Map (Section 5)**
-- Enhance `SimpleGeographyCard.tsx` with 3 layers:
-  - Core (fully monetised regions)
-  - Expansion (high upside)
-  - White Space (untapped)
-- Each region shows: Pipeline, Coverage, Growth trend, Risk
-- Classification logic based on account density + conversion rates
-
-**3c. Growth Playbook (Section 8)**
-- New component: `GrowthPlaybook.tsx`
-- Auto-generates 3 quarterly plays: Vertical, Geo, Persona
-- Each play: Why | Impact | Steps | Link to Campaign
-- Uses AI (edge function) to generate plays from account/ICP data
-- New edge function: `generate-growth-plays`
-
-**3d. 90-Day Activation Plan (Section 9)**
-- New component: `ActivationRoadmap.tsx`
-- 30/60/90 day phased table: Phase | Actions | Owner | Expected Outcome
-- Auto-generated from Growth Playbook plays
-- Editable inline (saves to `org_onboarding_config` or new table)
-
-**Files**: Enhance 2 components, create 2 new components, 1 new edge function
+Files to modify:
+- `src/components/executive/DataHealthWidget.tsx` — add link/stale/orphan metrics
+- `src/components/executive/StatusBar.tsx` — surface integrity alerts
 
 ---
 
-### Phase 4: Export Engine + Advisor Mode (Sections 10, 11)
+### Epic 2: ICP Execution Engine
 
-**4a. Board Report Generator (Section 10)**
-- Enhance `branded-pdf-export.ts` to include ALL 7 mandatory sections:
-  1. Executive Summary
-  2. Market Position (ICP quadrant)
-  3. Revenue Model (TAM/SAM/SOM with scenarios)
-  4. Priority Accounts (top 20 with readiness)
-  5. Growth Plays (from AI Strategy Engine)
-  6. Risk & Leakage (Revenue Integrity data)
-  7. Activation Plan (90-day roadmap)
-- No optional sections — all always included
+**2.1 — ICP Rules Engine**
 
-**4b. Consulting Overlay Mode (Section 11)**
-- New component: `AdvisorModeOverlay.tsx`
-- Toggle visible only to admin/consultant roles
-- Features: Manual annotations on any card, Scenario overlays, Custom plays, Margin modelling
-- Stored per-org in a new `advisor_annotations` table
-- Pricing sensitivity calculator
+What exists:
+- `icp_feature_weights` table with dimension weights
+- `score-account` edge function using weights
+- ICP wizard with 5 configuration steps
+- Version tracking on `icp_profiles`
 
-**Files**: Enhance PDF export, 1 new component, 1 new DB table, role-based visibility
+What to build:
+- Rule builder UI component allowing drag-and-drop weight adjustment with live preview
+- Version comparison view (diff two ICP versions)
+- "Recalculate All" trigger that calls `bulk-score-accounts` when weights change
+- Rollback button to restore previous ICP version
+
+Files to create:
+- `src/components/icp/ICPRuleBuilder.tsx` — visual weight editor with sliders
+- `src/components/icp/ICPVersionHistory.tsx` — version list with diff and rollback
+
+Files to modify:
+- `src/pages/ICPManager.tsx` — add rule builder tab
+- `supabase/functions/bulk-score-accounts/index.ts` — ensure it accepts ICP version parameter
+
+**2.2 — Dynamic Account Tiering**
+
+What exists:
+- `score_band` field on `scores` table (A/B/C/D)
+- Scoring produces bands but they're not prominently surfaced
+
+What to build:
+- Rename "score band" to "tier" in the UI language
+- Tier change logging: add `tier_history` table or append to `audit_logs`
+- Tier badges on the Accounts table and account detail views
+- API endpoint (edge function) to query accounts by tier
+
+Files to create:
+- `supabase/migrations/xxx_tier_change_trigger.sql` — log tier changes to audit_logs
+
+Files to modify:
+- `src/pages/Accounts.tsx` — add tier badge column, tier filter
+- `src/components/executive/GrowthCommandKPIs.tsx` — "Priority Accounts" tile already shows high-fit count; link to tier view
 
 ---
 
-## Technical Notes
+### Epic 3: Customer Context Processor
 
-- **No new pages** — all sections render as cards/panels within the existing `ExecutiveDashboard.tsx`, keeping the single-scroll experience
-- **Navigation**: Sections can be jumped to via the existing Command Palette (Cmd+K)
-- **Data sources**: All metrics derive from existing tables (`accounts`, `scores`, `Leads`, `icp_profiles`, `external_data_sources`) — no new data ingestion needed except the `advisor_annotations` table in Phase 4
-- **Edge functions**: 1 new function (`generate-growth-plays`) in Phase 3
-- **Language governance**: Applied incrementally — Phase 1 sets the pattern, Phases 2-4 follow it
-- **Performance**: Each section uses independent React Query hooks with 5-min stale times, so adding sections won't cascade re-renders
-- **DataHealthWidget bug**: Currently uses `userProfile?.org_id` instead of `effectiveOrgId` — will be fixed in Phase 1
+**3.1 — Onboarding Intelligence Parser**
+
+What exists:
+- `parse-icp-document` edge function using Gemini with structured tool calling
+- Client-side PDF text extraction via `pdfjs-dist`
+- `org_onboarding_config` table storing parsed results
+
+What to build:
+- Website crawl integration: call `firecrawl-scrape` during onboarding to extract value prop, differentiators from the company website
+- Manual override UI: editable fields on the parsed output before it's saved
+- Structured JSON schema validation on parsed output
+- Store extraction confidence scores
+
+Files to modify:
+- `supabase/functions/parse-icp-document/index.ts` — add website crawl step
+- `src/pages/admin/CustomerOnboarding.tsx` — add editable review step after parsing
+
+**3.2 — AI ICP Generator (Fix)**
+
+What exists:
+- `generate-icp-recommendations` edge function (just updated to use onboarding data)
+- ICP creation wizard
+
+What to build:
+- Chain: onboarding config + website crawl + existing account data into a single AI prompt
+- Display rationale alongside each generated ICP field ("Why this industry? Because your website mentions...")
+- Editable output with accept/reject per field
+- Performance target: complete generation within 60s
+
+Files to modify:
+- `supabase/functions/generate-icp-recommendations/index.ts` — add rationale output, use firecrawl data
+- `src/pages/ICPManager.tsx` — show rationale in AI generation results
+
+---
+
+## Phase B — Intelligence Layer (Epics 5, 6, 8)
+
+### Epic 5: Persona & Coverage Intelligence
+
+**5.1 — Persona Mapping Engine**
+
+What exists:
+- `Leads.title`, `Leads.seniority`, `Leads.department` fields
+- `enrich-contacts-persona` edge function
+- Basic persona distribution in market intelligence
+
+What to build:
+- New `persona_definitions` table (org_id, name, title_patterns, seniority_levels, departments, is_custom)
+- Classification logic: match lead title/seniority against persona definitions, store `persona_id` on Leads
+- Confidence scoring based on match quality
+- Custom persona creation UI
+
+Files to create:
+- `supabase/migrations/xxx_persona_definitions.sql`
+- `src/components/executive/PersonaCoveragePanel.tsx` — per-segment persona coverage table
+- `src/hooks/use-persona-mapping.ts`
+
+**5.2 — Coverage Risk Analyzer**
+
+What to build:
+- Per-account risk score: accounts with only 1 lead flagged as "Single-Threaded"
+- Missing persona detection: compare account's leads against ICP persona requirements
+- Risk alerts surfaced in account detail and dashboard
+
+Files to create:
+- `src/components/executive/CoverageRiskAnalyzer.tsx`
+- Database function `compute_coverage_risk(org_id)` returning risk scores per account
+
+---
+
+### Epic 6: Revenue Leakage & Data Monetization
+
+**6.1 — Leakage Attribution Engine**
+
+What exists:
+- `DataHealthWidget` calculates missing data percentages
+- Revenue at Risk KPI tile in GrowthCommandKPIs
+
+What to build:
+- Leakage categories: Missing Contacts, Stale Data, No Intent, No Enrichment
+- Per-category dollar impact calculation using average deal size and conversion rates
+- Drill-down from leakage summary to affected accounts
+- Auto-generated leakage report
+
+Files to create:
+- `src/components/executive/RevenueLeakageEngine.tsx`
+- `src/hooks/use-revenue-leakage.ts`
+
+**6.2 — Recovery Modeling**
+
+What to build:
+- Predict uplift from enriching/fixing specific data gaps
+- "If you enrich these 200 accounts, estimated recovery = X" scenarios
+- Link to enrichment actions
+
+Files to create:
+- `src/components/executive/RecoveryModeling.tsx`
+
+---
+
+### Epic 8: Executive Intelligence UI
+
+**8.1 — Growth Command Center** — DONE (Phase 1 just completed)
+
+**8.2 — Strategy Views**
+
+What exists:
+- TAM/SAM/SOM card, Geography card, ICP coverage
+- Accounts and Leads tables
+
+What to build:
+- Market Position view (ICP Performance Matrix — 2x2 quadrant)
+- Revenue Model view (scenarios)
+- Coverage view (persona penetration)
+- Geographic Growth Map (Core/Expansion/White Space layers)
+- Account Prioritization view (readiness-scored table)
+
+Files to create:
+- `src/components/executive/ICPPerformanceMatrix.tsx`
+- `src/components/executive/PriorityAccountsTable.tsx`
+- All integrated into `ExecutiveDashboard.tsx` as scrollable sections
+
+---
+
+## Phase C — Strategy Layer (Epics 4, 7)
+
+### Epic 4: Strategy Modeling Engine
+
+**4.1 — Market Economics Model**
+
+What exists:
+- `SimpleTAMCard` with basic TAM/SAM/SOM
+- Settings popover for deal size and conversion rate
+
+What to build:
+- Three-scenario calculator: Conservative (0.5x), Base (1x), Aggressive (1.5x) multipliers
+- Win-rate bands by segment
+- Pipeline velocity calculation
+- Recalculate on ICP change (listen to ICP update events)
+
+Files to modify:
+- `src/components/executive/SimpleTAMCard.tsx` — add scenario tabs
+
+**4.2 — Effort-to-Return Optimizer**
+
+What to build:
+- Rank segments by estimated ROI (deal size x win rate / effort)
+- Marginal returns visualization
+- Expose assumptions as editable inputs
+
+Files to create:
+- `src/components/executive/EffortReturnOptimizer.tsx`
+
+---
+
+### Epic 7: AI Growth Playbook
+
+**7.1 — Quarterly Strategy Generator**
+
+What to build:
+- New edge function `generate-growth-plays` using account/ICP/segment data
+- Generate 3 plays per quarter: Vertical, Geo, Persona
+- Each play: Rationale, Impact estimate, Action steps
+- Editable by user
+
+Files to create:
+- `supabase/functions/generate-growth-plays/index.ts`
+- `src/components/executive/GrowthPlaybook.tsx`
+- `src/components/executive/ActivationRoadmap.tsx` (30/60/90 day plan)
+
+**7.2 — Campaign Linkage**
+
+What exists:
+- `push-campaign-to-crm` edge function
+- HubSpot sync infrastructure
+
+What to build:
+- Link plays to HubSpot campaigns via existing sync
+- Attribution tracking from play to campaign to pipeline
+
+Files to modify:
+- `supabase/functions/hubspot-sync/index.ts` — add campaign linkage
+
+---
+
+## Phase D — Export & Advisory (Epics 9, 10)
+
+### Epic 9: Board & Consulting Export
+
+**9.1 — Narrative Builder**
+
+What exists:
+- `branded-pdf-export.ts` with AI-generated executive narrative
+
+What to build:
+- Template system: configurable section ordering
+- Preview mode before export
+- Include all 7 mandatory sections (as defined in the spec)
+
+**9.2 — PDF/PPT Generator**
+
+What to build:
+- PowerPoint export (using a library like `pptxgenjs`)
+- Ensure branding consistency across formats
+- Target: less than 30s generation time
+
+Files to create:
+- `src/utils/pptx-export.ts`
+
+---
+
+### Epic 10: Advisor Mode
+
+**10.1 — Strategy Annotation Layer**
+
+What to build:
+- `advisor_annotations` table (org_id, section, annotation_text, created_by, version)
+- Overlay UI visible only to admin/consultant roles
+- Manual notes, overrides, and targets per dashboard section
+
+Files to create:
+- `supabase/migrations/xxx_advisor_annotations.sql`
+- `src/components/executive/AdvisorModeOverlay.tsx`
+
+**10.2 — Scenario Simulator**
+
+What to build:
+- Adjustable inputs: spend, coverage, focus area
+- Real-time recalculation of revenue projections
+- Side-by-side scenario comparison
+
+Files to create:
+- `src/components/executive/ScenarioSimulator.tsx`
+
+---
 
 ## Recommended Starting Point
 
-Phase 1 is the quickest win (2-3 components to modify, no new DB tables, no edge functions). It immediately transforms the look and language of the dashboard. Should I proceed with Phase 1?
+Phase A is the foundation everything else depends on. Within Phase A, the recommended order is:
+
+1. Epic 1.1 — Segments table + account-segment linkage (enables tiering, persona coverage, and strategy views)
+2. Epic 2.2 — Dynamic Account Tiering (surfaces existing score bands as tiers)
+3. Epic 3.2 — AI ICP Generator fix (already partially done, needs rationale output)
+4. Epic 1.2 — Data Integrity Monitor (extends the just-built Revenue Integrity Monitor)
+5. Epic 2.1 — ICP Rules Engine UI (visual weight editor)
+
+This gives you the data backbone before building the intelligence and strategy layers on top.
 
