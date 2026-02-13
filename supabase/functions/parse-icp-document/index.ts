@@ -138,39 +138,66 @@ serve(async (req) => {
       }
     }
 
-    // Insert ICP profile
-    const { data: icpProfile, error: icpError } = await supabase
+    // Upsert ICP profile - update existing ai-parsed ICP if one exists
+    const { data: existingIcp } = await supabase
       .from("icp_profiles")
-      .insert({
-        org_id: effectiveOrgId,
-        name: `${company_name} - Primary ICP`,
-        is_primary: true,
-        status: "active",
-        description: icpData.description || null,
-        industries: icpData.industries || null,
-        sub_industries: icpData.sub_industries || null,
-        excluded_industries: icpData.excluded_industries || null,
-        company_sizes: icpData.company_sizes || null,
-        revenue_ranges: icpData.revenue_ranges || null,
-        geographies: icpData.geographies || null,
-        regions: icpData.regions || null,
-        persona_job_titles: icpData.persona_job_titles || null,
-        persona_seniority_levels: icpData.persona_seniority_levels || null,
-        persona_departments: icpData.persona_departments || null,
-        persona_decision_roles: icpData.persona_decision_roles || null,
-        buying_triggers: icpData.buying_triggers || null,
-        buying_signals: icpData.buying_signals || null,
-        pain_points: icpData.pain_points || null,
-        company_stages: icpData.company_stages || null,
-        growth_stage: icpData.growth_stage || null,
-        tech_stack: icpData.tech_stack || null,
-        budget_indicators: icpData.budget_indicators || null,
-        competitive_landscape: icpData.competitive_landscape || null,
-        use_case: icpData.use_case || null,
-        template_source: "ai-parsed",
-      })
       .select("id")
-      .single();
+      .eq("org_id", effectiveOrgId)
+      .eq("template_source", "ai-parsed")
+      .maybeSingle();
+
+    const icpPayload = {
+      org_id: effectiveOrgId,
+      name: `${company_name} - Primary ICP`,
+      is_primary: true,
+      status: "active",
+      description: icpData.description || null,
+      industries: icpData.industries || null,
+      sub_industries: icpData.sub_industries || null,
+      excluded_industries: icpData.excluded_industries || null,
+      company_sizes: icpData.company_sizes || null,
+      revenue_ranges: icpData.revenue_ranges || null,
+      geographies: icpData.geographies || null,
+      regions: icpData.regions || null,
+      persona_job_titles: icpData.persona_job_titles || null,
+      persona_seniority_levels: icpData.persona_seniority_levels || null,
+      persona_departments: icpData.persona_departments || null,
+      persona_decision_roles: icpData.persona_decision_roles || null,
+      buying_triggers: icpData.buying_triggers || null,
+      buying_signals: icpData.buying_signals || null,
+      pain_points: icpData.pain_points || null,
+      company_stages: icpData.company_stages || null,
+      growth_stage: icpData.growth_stage || null,
+      tech_stack: icpData.tech_stack || null,
+      budget_indicators: icpData.budget_indicators || null,
+      competitive_landscape: icpData.competitive_landscape || null,
+      use_case: icpData.use_case || null,
+      template_source: "ai-parsed",
+    };
+
+    let icpProfile;
+    let icpError;
+
+    if (existingIcp) {
+      // Update existing ai-parsed ICP
+      const result = await supabase
+        .from("icp_profiles")
+        .update(icpPayload)
+        .eq("id", existingIcp.id)
+        .select("id")
+        .single();
+      icpProfile = result.data;
+      icpError = result.error;
+    } else {
+      // Insert new ICP
+      const result = await supabase
+        .from("icp_profiles")
+        .insert(icpPayload)
+        .select("id")
+        .single();
+      icpProfile = result.data;
+      icpError = result.error;
+    }
 
     if (icpError) throw icpError;
 

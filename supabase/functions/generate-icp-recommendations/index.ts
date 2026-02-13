@@ -71,22 +71,33 @@ serve(async (req) => {
 
     const { org_id } = await req.json();
     
-    // Get current accounts data for analysis
-    const { data: accounts, error: accountsError } = await supabase
-      .from('accounts')
-      .select('*')
-      .eq('org_id', org_id)
-      .limit(100);
-
-    if (accountsError) throw accountsError;
-
-    // Get existing ICP profiles for context
+    // Get existing ICP profiles for context (fetch first to filter accounts)
     const { data: icps, error: icpError } = await supabase
       .from('icp_profiles')
       .select('*')
       .eq('org_id', org_id);
 
     if (icpError) throw icpError;
+
+    // Build industry filter from active ICP profiles
+    const icpIndustries = (icps || [])
+      .filter(icp => icp.status === 'active' && icp.industries?.length)
+      .flatMap(icp => icp.industries as string[]);
+
+    // Get current accounts data for analysis - filter by ICP industries if available
+    let accountsQuery = supabase
+      .from('accounts')
+      .select('*')
+      .eq('org_id', org_id);
+
+    if (icpIndustries.length > 0) {
+      // Filter to accounts matching ICP target industries
+      accountsQuery = accountsQuery.in('industry_norm', icpIndustries);
+    }
+
+    const { data: accounts, error: accountsError } = await accountsQuery.limit(100);
+
+    if (accountsError) throw accountsError;
 
     // Get onboarding config for company context
     const { data: onboardingConfig } = await supabase
@@ -209,7 +220,9 @@ CURRENT DATA:
 - Scored Accounts: ${accounts.filter(a => a.propensity_score).length}
 - High-Fit Accounts (75+): ${accounts.filter(a => a.propensity_score >= 75).length}
 
-EXISTING ICPs: ${icps.length > 0 ? icps.map(icp => icp.name).join(', ') : 'None'}
+EXISTING ICPs: ${icps.length > 0 ? icps.map(icp => `${icp.name} (industries: ${(icp.industries || []).join(', ')})`).join('; ') : 'None'}
+
+IMPORTANT: All recommendations MUST be relevant to the company's value proposition and target industries listed above. Do NOT recommend generic industries unrelated to the company context.
 
 Generate recommendations that:
 1. Are specific and actionable (with clear next steps)
