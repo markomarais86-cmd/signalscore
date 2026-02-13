@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -21,11 +21,10 @@ interface DataHealthMetrics {
 }
 
 export function DataHealthWidget() {
-  const { userProfile } = useAuth();
   const { effectiveOrgId } = useEffectiveOrg();
   const navigate = useNavigate();
 
-  const orgId = effectiveOrgId || userProfile?.org_id;
+  const orgId = effectiveOrgId;
 
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["data-health-metrics", orgId],
