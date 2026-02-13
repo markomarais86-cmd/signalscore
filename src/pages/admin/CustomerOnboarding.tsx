@@ -208,6 +208,23 @@ function CustomerOrgPicker() {
     },
   });
 
+  // Query account counts per org to detect orgs with data but no config
+  const { data: accountCounts } = useQuery({
+    queryKey: ["org-account-counts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("accounts")
+        .select("org_id")
+        .limit(1000);
+      if (error) throw error;
+      const counts = new Map<string, number>();
+      data?.forEach((a) => {
+        counts.set(a.org_id, (counts.get(a.org_id) || 0) + 1);
+      });
+      return counts;
+    },
+  });
+
   const configMap = new Map(configs?.map((c) => [c.org_id, c]) || []);
 
   if (isLoading) return <div className="p-8 text-muted-foreground">Loading...</div>;
@@ -255,14 +272,14 @@ function CustomerOrgPicker() {
                   <CardTitle className="text-base">{org.name}</CardTitle>
                   <Badge
                     variant={
-                      cfg?.onboarding_status === "active"
+                      cfg?.onboarding_status === "active" || (!cfg && (accountCounts?.get(org.id) || 0) > 0)
                         ? "default"
                         : cfg?.onboarding_status === "paused"
                         ? "destructive"
                         : "secondary"
                     }
                   >
-                    {cfg?.onboarding_status || "Not started"}
+                    {cfg?.onboarding_status === "active" || (!cfg && (accountCounts?.get(org.id) || 0) > 0) ? "Active" : cfg?.onboarding_status || "Not started"}
                   </Badge>
                 </div>
               </CardHeader>
