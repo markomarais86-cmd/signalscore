@@ -1,65 +1,94 @@
 
 
-# Phase 1: Growth Command Center Polish
+# ICP Performance Matrix — Quadrant Chart Component
 
-## 1. Revenue Language Governance (Currency Consistency)
+## What It Does
 
-`GrowthCommandKPIs.tsx` uses **GBP (pound sign)** while every other component across the app (SimpleTAMCard, PipelineAnalyticsDashboard, LossReasonsChart, DealStageBoard, etc.) uses **USD ($)**. This creates a jarring inconsistency.
+A 2x2 scatter-plot quadrant chart plotting every scored account by **ICP Fit** (x-axis, 0-100) vs **Intent/Readiness** (y-axis, 0-100). Each dot = one account, colored by quadrant:
 
-**Fix:** Change `formatCurrency()` in `GrowthCommandKPIs.tsx` from pound sign to dollar sign, matching the rest of the platform. All 29 files with `formatCurrency` use `$` except this one.
-
-| File | Change |
-|------|--------|
-| `src/components/executive/GrowthCommandKPIs.tsx` | Replace `£` with `$` in `formatCurrency()` (lines 30-32) |
-
-## 2. Fix DataHealthWidget Org Bug
-
-The `DataHealthWidget` has a subtle impersonation bug on line 28:
-
+```text
+                        Intent (high)
+                            |
+         Nurture            |         Prioritise
+     (low fit, high intent) |    (high fit, high intent)
+                            |
+    ────────────────────────┼────────────────────────
+                            |
+         Deprioritise       |         Develop
+     (low fit, low intent)  |    (high fit, low intent)
+                            |
+                        Intent (low)
+       Fit (low) ─────────────────────── Fit (high)
 ```
-const orgId = effectiveOrgId || userProfile?.org_id;
+
+Accounts with deals show as larger dots; won deals get a distinct color.
+
+## Data Source
+
+Query `scores` table joined to `accounts` (for name, industry) and optionally `deals` (for deal status/amount). Uses `effectiveOrgId` so it works correctly with the org switcher.
+
+- **X-axis:** `scores.fit` (0-100)
+- **Y-axis:** `scores.intent` (0-100)  
+- **Dot size:** base size, larger if account has a deal
+- **Dot color:** quadrant-based (green = Prioritise, blue = Develop, amber = Nurture, grey = Deprioritise)
+- **Tooltip:** account name, fit score, intent score, deal status if any
+
+## New File
+
+**`src/components/executive/ICPPerformanceMatrix.tsx`**
+
+A standalone Card component using Recharts `ScatterChart` with:
+
+- `effectiveOrgId` via `useEffectiveOrg()` hook
+- React Query to fetch scores + account names + deal status in one query
+- Quadrant lines drawn as `ReferenceLine` at x=50 and y=50
+- Quadrant labels rendered as `ReferenceArea` or custom `Label` elements
+- Quadrant summary counts shown below the chart (e.g., "Prioritise: 42 accounts")
+- Loading skeleton while data fetches
+- Empty state if no scores exist
+
+## Technical Details
+
+### Query (inside React Query)
+```
+supabase.from('scores')
+  .select('fit, intent, overall, account_external_id, accounts!inner(name, industry_norm, revenue_range)')
+  .eq('org_id', effectiveOrgId)
+  .not('fit', 'is', null)
+  .not('intent', 'is', null)
 ```
 
-When an admin switches organizations via the org switcher, `effectiveOrgId` updates immediately, but the fallback to `userProfile?.org_id` means the query can fire with the admin's own org before `effectiveOrgId` resolves. Additionally, the `enabled` guard (`!!orgId`) can pass with the wrong org.
+Then a secondary query to check for deals:
+```
+supabase.from('deals')
+  .select('account_external_id, status, amount')
+  .eq('org_id', effectiveOrgId)
+```
 
-**Fix:** Remove the fallback -- use only `effectiveOrgId` and guard the query with `enabled: !!effectiveOrgId`. This matches the pattern used by the parent `ExecutiveDashboard` which passes `effectiveOrgId` exclusively to all its data hooks.
+### Recharts Components Used
+- `ScatterChart`, `Scatter`, `XAxis`, `YAxis`, `CartesianGrid`, `Tooltip`, `ReferenceLine`, `ResponsiveContainer`, `ZAxis`
+- All already available via `recharts ^2.15.4` (installed)
 
-| File | Change |
+### Quadrant Classification Logic
+```
+fit >= 50 && intent >= 50  =>  "Prioritise" (green)
+fit >= 50 && intent < 50   =>  "Develop" (blue)
+fit < 50  && intent >= 50  =>  "Nurture" (amber)
+fit < 50  && intent < 50   =>  "Deprioritise" (grey)
+```
+
+### Props Interface
+The component is self-contained (fetches its own data), but accepts an optional `icpId` filter to scope to a specific ICP profile.
+
+```typescript
+interface ICPPerformanceMatrixProps {
+  icpId?: string;  // optional filter to one ICP
+}
+```
+
+### File Structure
+| File | Action |
 |------|--------|
-| `src/components/executive/DataHealthWidget.tsx` | Use `effectiveOrgId` directly (no fallback), guard query with `enabled: !!effectiveOrgId` |
+| `src/components/executive/ICPPerformanceMatrix.tsx` | **Create** — standalone quadrant scatter chart |
 
-## 3. Dashboard Title and Subtitle
-
-The title already says "Growth Command Center" (line 408). The subtitle currently reads:
-
-> "Revenue intelligence across your market -- filter by source for focused insights"
-
-This is fine but can be tightened to reinforce the rebrand:
-
-> "Real-time revenue intelligence across your total addressable market"
-
-| File | Change |
-|------|--------|
-| `src/pages/ExecutiveDashboard.tsx` | Update subtitle text on line 409 |
-
-## 4. Confirm KPI Tiles Are Correct
-
-The 5 spec tiles are already implemented in `GrowthCommandKPIs`:
-- Market Coverage (Globe icon, % of TAM)
-- Revenue-Ready (UserCheck icon, % with contacts)
-- Priority Accounts (Star icon, high-fit count)
-- Pipeline Potential (TrendingUp icon, modelled revenue)
-- Revenue at Risk (AlertTriangle icon, data-gap cost)
-
-No structural changes needed -- just the currency fix from item 1 above.
-
-## Summary of Changes
-
-| File | What |
-|------|------|
-| `src/components/executive/GrowthCommandKPIs.tsx` | Fix `£` to `$` in formatCurrency |
-| `src/components/executive/DataHealthWidget.tsx` | Remove `userProfile?.org_id` fallback, use `effectiveOrgId` only |
-| `src/pages/ExecutiveDashboard.tsx` | Tighten subtitle copy |
-
-Three small, targeted edits. No new files or dependencies.
-
+No other files need changes for this standalone validation step. Integration into the dashboard will happen in a later step once the data mapping is confirmed.
