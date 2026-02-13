@@ -1,24 +1,39 @@
 
-# Fix: Remove `service_type` from `org_onboarding_config` Upsert
+
+# Fix Org Switcher: Wire All Pages to `useEffectiveOrg()`
 
 ## Problem
-The Company Profile step in Customer Onboarding includes a `service_type` field in its form. When saving, it upserts **all** form values into the `org_onboarding_config` table, but that table has no `service_type` column -- it lives on the `organizations` table instead. This causes the Supabase schema cache error.
+When you select "Night1" (or any org) in the org switcher, only 3 pages respond: Dashboard, Accounts, and Leads. The remaining pages (ICP Manager, Enrichment, Data Upload, Quick Enrich, AI Agents, API Access, Agent Tester, Settings) still use `userProfile.org_id` directly, so they always show LaunchPulse data.
 
 ## Solution
-Two changes are needed:
+Replace `userProfile.org_id` with `effectiveOrgId` from `useEffectiveOrg()` in every affected page. This is a mechanical find-and-replace -- no logic changes, just swapping the data source so the org switcher actually controls what data loads.
 
-### 1. `src/components/admin/OnboardingStepCompany.tsx`
-- Remove `service_type` from the local form state and the `onSave(values)` payload
-- Instead, save `service_type` directly to the `organizations` table in a separate Supabase update call when the user clicks Save
-- The component already receives `orgId` as a prop, so it can do: `supabase.from('organizations').update({ service_type }).eq('id', orgId)`
+## Pages to Update
 
-### 2. `src/pages/admin/CustomerOnboarding.tsx`
-- No changes needed -- the `saveConfig` mutation upserts whatever values it receives, and once `service_type` is removed from the payload, the error goes away
+| Page | File | Occurrences |
+|------|------|-------------|
+| ICP Manager | `src/pages/ICPManager.tsx` | 7 uses of `userProfile.org_id` |
+| Enrichment | `src/pages/Enrichment.tsx` | 1 use |
+| Data Upload | `src/pages/DataUpload.tsx` | 4 uses |
+| Quick Enrich | `src/pages/QuickEnrich.tsx` | 4 uses |
+| AI Agents | `src/pages/AIAgents.tsx` | 1 use |
+| API Access | `src/pages/APIAccess.tsx` | 1 use |
+| Agent Tester | `src/pages/AgentTester.tsx` | 1 use |
+| Settings | `src/pages/Settings.tsx` | 4 uses |
 
-## Technical Detail
+## What Changes Per File
 
-In `OnboardingStepCompany.tsx`:
-- Remove `service_type` from the `values` state object
-- Remove the Service Type `Select` from the form UI (or keep it but handle it separately)
-- In `handleSave`, split the save: send everything except `service_type` to `onSave()`, and update `organizations.service_type` directly via a separate Supabase call
-- Import `supabase` client for the direct update
+For each file above:
+1. Add `import { useEffectiveOrg } from "@/hooks/use-effective-org";`
+2. Add `const { effectiveOrgId } = useEffectiveOrg();` in the component
+3. Replace every `userProfile.org_id` and `userProfile?.org_id` with `effectiveOrgId`
+4. Update any guard conditions from `if (!userProfile?.org_id)` to `if (!effectiveOrgId)`
+5. Update `useEffect` dependency arrays accordingly
+
+## Technical Notes
+
+- The `useEffectiveOrg` hook already exists and is used correctly in Dashboard, Accounts, and Leads
+- For super admins, `effectiveOrgId` returns the selected org; for regular users, it returns their own `org_id` -- so behavior is unchanged for non-admins
+- Settings page is a special case: org name display and team member list should also reflect the selected org when impersonating
+- No database or edge function changes needed
+
