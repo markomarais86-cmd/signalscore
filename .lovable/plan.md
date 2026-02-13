@@ -1,69 +1,51 @@
 
 
-# Fix: Accept PDF and Other Document Uploads in AI Customer Onboarding
+# Add "Create New Organization" to the Org Switcher Dropdown
 
-## Problem
-The file upload only accepts `.txt` and `.csv` files. PDFs, DOCX, and PPTX are rejected with a generic "please copy-paste" message. Users expect to upload a PDF and have it parsed automatically.
+## What This Does
+Adds a quick-create option directly inside the org switcher dropdown in the header, so you can create a new client organization from anywhere in the app without navigating to Customer Onboarding.
 
-## Solution
-Add client-side PDF text extraction using the `pdfjs-dist` library (Mozilla's PDF.js). This will:
-1. Accept PDF files in the file input
-2. Extract all text content from every page of the PDF
-3. Auto-populate the textarea with the extracted text
-4. Keep the existing paste-based workflow as a fallback
+## Changes
 
-## Technical Changes
+### 1. Create a lightweight "Quick Create Org" dialog
+A simpler version of `CreateOrganizationDialog` that only requires an organization name (no admin email/invitation flow). This is for the consulting use case where you just need to set up an org to start working in it.
 
-### 1. Install `pdfjs-dist` dependency
-Add `pdfjs-dist` package for client-side PDF parsing.
+- New component: `src/components/QuickCreateOrgDialog.tsx`
+- Single input: organization name
+- On success: inserts into `organizations` table, refreshes the org list, and auto-selects the new org
 
-### 2. Update `AICustomerOnboardingDialog.tsx`
+### 2. Update `OrgSwitcherContext` to expose a `refreshOrgs` function
+Currently the org list is only fetched once on mount. We need a `refreshOrgs` callback so the dropdown updates after creating a new org without requiring a page reload.
 
-**Expand accepted file types** (line 127):
-- Change `accept=".txt,.csv"` to `accept=".txt,.csv,.pdf"`
-- Update label from "Upload Text File" to "Upload Document"
+### 3. Update `OrgSwitcher.tsx`
+- Replace Radix `Select` with a `Popover` + custom list (since `Select` doesn't support non-selectable items like buttons)
+- Add a separator and a "+ New Organization" button at the bottom of the dropdown
+- Clicking it opens the `QuickCreateOrgDialog`
+- On success, the new org appears in the list and is auto-selected
 
-**Add PDF extraction logic** in `handleFileUpload`:
-```typescript
-import * as pdfjsLib from 'pdfjs-dist';
+## Technical Details
 
-// Set the worker source
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+### `OrgSwitcherContext.tsx` changes
+- Extract `fetchOrgs` into a stable callback
+- Expose `refreshOrgs` in the context type and provider value
 
-const handleFileUpload = async (e) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
+### `OrgSwitcher.tsx` changes
+- Switch from `Select` to `Popover` + `Command` (cmdk) for the dropdown, matching the existing project dependency
+- Add `Plus` icon import from lucide-react
+- Add state for `quickCreateOpen` dialog
+- Render `QuickCreateOrgDialog` with an `onSuccess` that calls `refreshOrgs()` and `setSelectedOrgId(newOrgId)`
 
-  if (file.type === "application/pdf") {
-    // Read PDF as ArrayBuffer, extract text from all pages
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let fullText = "";
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      const pageText = content.items.map(item => item.str).join(" ");
-      fullText += pageText + "\n\n";
-    }
-    setDocumentText(prev => prev ? prev + "\n\n" + fullText : fullText);
-    toast.success(`Extracted text from ${pdf.numPages} pages of ${file.name}`);
-  } else if (file.type === "text/plain" || file.name.endsWith('.csv')) {
-    // Existing text file handling
-    const text = await file.text();
-    setDocumentText(prev => prev ? prev + "\n\n" + text : text);
-    toast.success(`Loaded ${file.name}`);
-  } else {
-    toast.info("Unsupported format. Please upload a PDF or text file, or paste content directly.");
-  }
-};
-```
+### `QuickCreateOrgDialog.tsx` (new file)
+- Simple dialog with one text input for org name
+- Inserts into `organizations` table via Supabase client
+- Returns the new org ID on success so the switcher can auto-select it
+- Shows toast confirmation
 
-**Add loading state for file parsing** -- show a spinner while extracting PDF text since large PDFs can take a moment.
+### Flow
+1. Admin clicks org switcher dropdown
+2. Sees list of orgs + "+ New Organization" at the bottom
+3. Clicks "+ New Organization" -- small dialog appears
+4. Types "Ninety One Life" and clicks Create
+5. Org is created, list refreshes, new org is auto-selected
+6. Admin is now in that org's context immediately
 
-### Summary
-| Change | Detail |
-|--------|--------|
-| New dependency | `pdfjs-dist` for client-side PDF text extraction |
-| File accept types | `.txt,.csv` changed to `.txt,.csv,.pdf` |
-| Upload handler | Added PDF parsing via `pdfjs-dist` with page-by-page text extraction |
-| UX | Loading indicator during PDF extraction, success toast with page count |
