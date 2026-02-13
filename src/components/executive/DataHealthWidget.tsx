@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Activity, AlertTriangle, CheckCircle, Database, Users, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 
 interface DataHealthMetrics {
   totalAccounts: number;
@@ -21,18 +22,21 @@ interface DataHealthMetrics {
 
 export function DataHealthWidget() {
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const navigate = useNavigate();
 
+  const orgId = effectiveOrgId || userProfile?.org_id;
+
   const { data: metrics, isLoading } = useQuery({
-    queryKey: ["data-health-metrics", userProfile?.org_id],
+    queryKey: ["data-health-metrics", orgId],
     queryFn: async (): Promise<DataHealthMetrics> => {
-      if (!userProfile?.org_id) throw new Error("No organization found");
+      if (!orgId) throw new Error("No organization found");
 
       // Get account stats in a single query
       const { data, error } = await supabase
         .from("accounts")
         .select("id, industry_norm, revenue_range, employee_count, enriched_at")
-        .eq("org_id", userProfile.org_id);
+        .eq("org_id", orgId);
 
       if (error) throw error;
 
@@ -60,7 +64,7 @@ export function DataHealthWidget() {
       const { count: contactsOnAccounts } = await supabase
         .from("Leads")
         .select("id", { count: 'exact', head: true })
-        .eq("org_id", userProfile.org_id)
+        .eq("org_id", orgId)
         .not("account_external_id", "is", null);
 
       const withContacts = Math.min(contactsOnAccounts || 0, total);
@@ -85,7 +89,7 @@ export function DataHealthWidget() {
         overallScore,
       };
     },
-    enabled: !!userProfile?.org_id,
+    enabled: !!orgId,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 
