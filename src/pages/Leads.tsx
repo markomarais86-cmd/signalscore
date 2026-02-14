@@ -808,7 +808,7 @@ export default function Leads() {
                         </TableCell>
                       </TableRow>
                     </SheetTrigger>
-                    <SheetContent className="w-[600px] sm:w-[700px]">
+                    <SheetContent className="w-[600px] sm:w-[700px] overflow-y-auto">
                       <SheetHeader>
                         <SheetTitle className="flex items-center gap-2">
                           {fullName}
@@ -828,7 +828,7 @@ export default function Leads() {
                         </SheetDescription>
                     </SheetHeader>
 
-                    <div className="space-y-6 mt-6">
+                    <div className="space-y-6 mt-6 pb-6">
                       {/* Lead Information */}
                       <div>
                         <h3 className="text-lg font-semibold mb-3">Lead Information</h3>

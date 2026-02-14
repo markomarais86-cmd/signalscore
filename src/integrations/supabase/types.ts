@@ -8450,6 +8450,7 @@ export type Database = {
               revenue_range: string
               state_province: string
               tech_stack: string[]
+              total_count: number
               total_raised_usd: number
               updated_at: string
             }[]

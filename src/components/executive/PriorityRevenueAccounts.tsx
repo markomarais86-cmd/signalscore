@@ -288,7 +288,7 @@ export function PriorityRevenueAccounts({ icpId, limit = 25 }: PriorityRevenueAc
               <SortableHeader field="readiness">Readiness</SortableHeader>
               <SortableHeader field="fit">Fit</SortableHeader>
               <SortableHeader field="intent">Intent</SortableHeader>
-              <SortableHeader field="contactCount">Contacts</SortableHeader>
+              <SortableHeader field="contactCount">Leads</SortableHeader>
               <TableHead>Deal Stage</TableHead>
               <TableHead>Next Action</TableHead>
               <TableHead className="w-8" />
@@ -301,7 +301,7 @@ export function PriorityRevenueAccounts({ icpId, limit = 25 }: PriorityRevenueAc
                 <TableRow
                   key={acc.accountExternalId}
                   className="cursor-pointer"
-                  onClick={() => navigate(`/accounts/${acc.accountExternalId}`)}
+                  onClick={() => navigate('/accounts')}
                 >
                   <TableCell>
                     <div className="flex flex-col gap-0.5">

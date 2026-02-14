@@ -16,6 +16,7 @@ interface FeatureFlags {
   advanced_segmentation: boolean;
   trend_analysis: boolean;
   data_enrichment: boolean;
+  sales: boolean;
 }
 
 interface FeatureFlagsContextType {
@@ -46,6 +47,8 @@ const defaultFlags: FeatureFlags = {
   predictive_scoring: false,
   advanced_segmentation: false,
   trend_analysis: false,
+  // Sales
+  sales: true,
 };
 
 export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
