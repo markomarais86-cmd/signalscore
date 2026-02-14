@@ -26,6 +26,7 @@ import { AccountsFilters } from "@/components/accounts/AccountsFilters";
 import { AccountsTable } from "@/components/accounts/AccountsTable";
 import { AccountsSummaryCard } from "@/components/accounts/AccountsSummaryCard";
 import { AccountsICPContext } from "@/components/accounts/AccountsICPContext";
+import { PriorityRevenueAccounts } from "@/components/executive/PriorityRevenueAccounts";
 
 interface Account {
   id: string;
@@ -506,6 +507,9 @@ export default function Accounts() {
         setCampaignReadyFilter={setCampaignReadyFilter}
         removeFilter={removeFilter}
       />
+
+      {/* Priority Revenue Accounts */}
+      <PriorityRevenueAccounts />
 
       {/* Scoring Alert */}
       {needsScoring && (
