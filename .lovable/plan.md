@@ -1,94 +1,108 @@
 
-
-# ICP Performance Matrix — Quadrant Chart Component
+# Priority Revenue Accounts Table (Section 4)
 
 ## What It Does
 
-A 2x2 scatter-plot quadrant chart plotting every scored account by **ICP Fit** (x-axis, 0-100) vs **Intent/Readiness** (y-axis, 0-100). Each dot = one account, colored by quadrant:
+A sortable table showing the top accounts ranked by **readiness score** (composite of fit, intent, reachability, and deal presence). Each row includes auto-generated "next best action" text based on the account's data gaps and pipeline state. Clicking a row navigates to the account detail page.
 
-```text
-                        Intent (high)
-                            |
-         Nurture            |         Prioritise
-     (low fit, high intent) |    (high fit, high intent)
-                            |
-    ────────────────────────┼────────────────────────
-                            |
-         Deprioritise       |         Develop
-     (low fit, low intent)  |    (high fit, low intent)
-                            |
-                        Intent (low)
-       Fit (low) ─────────────────────── Fit (high)
+## Data Sources
+
+Three parallel queries scoped by `effectiveOrgId`:
+
+| Table | Fields Used | Purpose |
+|-------|------------|---------|
+| `scores` (joined to `accounts`) | fit, intent, reachability, overall, account name, industry, revenue_range, enriched_at, domain | Core scoring + account metadata |
+| `deals` | account_external_id, status, stage, amount, expected_close_date | Pipeline context for action generation |
+| `Leads` | account_external_id (count) | Contact coverage check |
+
+## Readiness Score Calculation
+
+A composite 0-100 score computed client-side:
+
+```
+readiness = (
+  (fit ?? 0) * 0.30 +
+  (intent ?? 0) * 0.30 +
+  (reachability ?? 0) * 0.20 +
+  (hasContacts ? 10 : 0) +
+  (hasDeal ? 10 : 0)
+)
 ```
 
-Accounts with deals show as larger dots; won deals get a distinct color.
+This weights ICP fit and intent equally (60% combined), adds reachability (20%), and gives bonus points for having contacts and an active deal.
 
-## Data Source
+## Auto-Generated Next Actions
 
-Query `scores` table joined to `accounts` (for name, industry) and optionally `deals` (for deal status/amount). Uses `effectiveOrgId` so it works correctly with the org switcher.
+Rule-based logic that examines each account's data state and produces a single actionable recommendation:
 
-- **X-axis:** `scores.fit` (0-100)
-- **Y-axis:** `scores.intent` (0-100)  
-- **Dot size:** base size, larger if account has a deal
-- **Dot color:** quadrant-based (green = Prioritise, blue = Develop, amber = Nurture, grey = Deprioritise)
-- **Tooltip:** account name, fit score, intent score, deal status if any
+| Condition | Next Action |
+|-----------|-------------|
+| No contacts (lead count = 0) | "Find decision-maker contacts" |
+| Has contacts but no deal | "Create outbound sequence" |
+| Deal exists, stage = early | "Schedule discovery call" |
+| Deal exists, stalled (no update 30+ days) | "Re-engage -- deal stalling" |
+| Deal exists, late stage | "Send proposal / negotiate" |
+| High fit but low intent | "Nurture with content" |
+| Missing enrichment | "Enrich account data" |
+| Default | "Review account" |
 
-## New File
+## Table Columns
 
-**`src/components/executive/ICPPerformanceMatrix.tsx`**
+| Column | Content |
+|--------|---------|
+| Account | Name + industry badge |
+| Readiness | Score bar (0-100) with color coding |
+| Fit / Intent | Two small numbers side by side |
+| Contacts | Count from Leads table |
+| Deal Stage | Current deal stage or "--" |
+| Next Action | Auto-generated action with icon |
 
-A standalone Card component using Recharts `ScatterChart` with:
+## Features
 
-- `effectiveOrgId` via `useEffectiveOrg()` hook
-- React Query to fetch scores + account names + deal status in one query
-- Quadrant lines drawn as `ReferenceLine` at x=50 and y=50
-- Quadrant labels rendered as `ReferenceArea` or custom `Label` elements
-- Quadrant summary counts shown below the chart (e.g., "Prioritise: 42 accounts")
-- Loading skeleton while data fetches
-- Empty state if no scores exist
+- Sorted by readiness descending (top 25 by default)
+- "Show more" button to load next 25
+- Color-coded readiness bar: green (>70), amber (40-70), red (<40)
+- Row click navigates to `/accounts/{external_id}`
+- Loading skeleton while fetching
+- Empty state when no scored accounts exist
 
 ## Technical Details
 
-### Query (inside React Query)
+### New File
+`src/components/executive/PriorityRevenueAccounts.tsx`
+
+### Query Pattern
+Follows the same pattern as `ICPPerformanceMatrix`:
+- Uses `useEffectiveOrg()` for org scoping
+- React Query with `enabled: !!effectiveOrgId`
+- Parallel `Promise.all` for scores+deals+lead-counts
+- Lead count query: `supabase.from('Leads').select('account_external_id').eq('org_id', effectiveOrgId)` then count per account in JS
+
+### Component Structure
 ```
-supabase.from('scores')
-  .select('fit, intent, overall, account_external_id, accounts!inner(name, industry_norm, revenue_range)')
-  .eq('org_id', effectiveOrgId)
-  .not('fit', 'is', null)
-  .not('intent', 'is', null)
+Card
+  CardHeader (title: "Priority Revenue Accounts", icon: Crown)
+  CardContent
+    Table (shadcn Table components)
+      - Sortable headers
+      - Top 25 rows, expandable
+    "Show more" button
 ```
 
-Then a secondary query to check for deals:
-```
-supabase.from('deals')
-  .select('account_external_id, status, amount')
-  .eq('org_id', effectiveOrgId)
-```
+Uses existing shadcn `Table`, `TableHeader`, `TableBody`, `TableRow`, `TableCell`, `TableHead` components plus `Badge`, `Progress`, `Button`, and `Skeleton`.
 
-### Recharts Components Used
-- `ScatterChart`, `Scatter`, `XAxis`, `YAxis`, `CartesianGrid`, `Tooltip`, `ReferenceLine`, `ResponsiveContainer`, `ZAxis`
-- All already available via `recharts ^2.15.4` (installed)
-
-### Quadrant Classification Logic
-```
-fit >= 50 && intent >= 50  =>  "Prioritise" (green)
-fit >= 50 && intent < 50   =>  "Develop" (blue)
-fit < 50  && intent >= 50  =>  "Nurture" (amber)
-fit < 50  && intent < 50   =>  "Deprioritise" (grey)
-```
-
-### Props Interface
-The component is self-contained (fetches its own data), but accepts an optional `icpId` filter to scope to a specific ICP profile.
-
+### Props
+Self-contained (fetches own data), optional ICP filter:
 ```typescript
-interface ICPPerformanceMatrixProps {
-  icpId?: string;  // optional filter to one ICP
+interface PriorityRevenueAccountsProps {
+  icpId?: string;
+  limit?: number; // default 25
 }
 ```
 
-### File Structure
+### Files
 | File | Action |
 |------|--------|
-| `src/components/executive/ICPPerformanceMatrix.tsx` | **Create** — standalone quadrant scatter chart |
+| `src/components/executive/PriorityRevenueAccounts.tsx` | **Create** -- standalone priority accounts table |
 
-No other files need changes for this standalone validation step. Integration into the dashboard will happen in a later step once the data mapping is confirmed.
+No other files modified. Integration into dashboard happens separately.
