@@ -1,108 +1,107 @@
 
-# Priority Revenue Accounts Table (Section 4)
 
-## What It Does
+# Fix Growth Command KPI Tiles
 
-A sortable table showing the top accounts ranked by **readiness score** (composite of fit, intent, reachability, and deal presence). Each row includes auto-generated "next best action" text based on the account's data gaps and pipeline state. Clicking a row navigates to the account detail page.
+## Problem Summary
 
-## Data Sources
+Three issues with the current 5 KPI tiles:
 
-Three parallel queries scoped by `effectiveOrgId`:
+1. **Market Coverage** -- when on CRM view, `totalAccounts` and `tamEstimate` both resolve to the same number (line 579 falls back to `totalAccounts`), so it shows 100% or a confusing percentage. The "so what" text says "14,000 of 66,000" but the 66K TAM number may not be loaded.
 
-| Table | Fields Used | Purpose |
-|-------|------------|---------|
-| `scores` (joined to `accounts`) | fit, intent, reachability, overall, account name, industry, revenue_range, enriched_at, domain | Core scoring + account metadata |
-| `deals` | account_external_id, status, stage, amount, expected_close_date | Pipeline context for action generation |
-| `Leads` | account_external_id (count) | Contact coverage check |
+2. **Revenue-Ready** -- tracks accounts with contacts, but LaunchPulse doesn't use contacts as a core workflow. This tile shows 0% and is not meaningful for your use case.
 
-## Readiness Score Calculation
+3. **Pipeline Potential** -- hardcoded benchmark of 70 (always green), and the formula `campaignReadyAccounts * 75000 * 0.25` uses a static deal size. Feels artificial.
 
-A composite 0-100 score computed client-side:
+## What Was There Before
 
-```
-readiness = (
-  (fit ?? 0) * 0.30 +
-  (intent ?? 0) * 0.30 +
-  (reachability ?? 0) * 0.20 +
-  (hasContacts ? 10 : 0) +
-  (hasDeal ? 10 : 0)
-)
-```
+The previous version used `SimplifiedHeroMetrics.tsx` which showed 3 simpler tiles:
+- **Total Accounts** (raw count)
+- **Total Leads** (raw count)
+- **Campaign Ready** (raw count)
 
-This weights ICP fit and intent equally (60% combined), adds reachability (20%), and gives bonus points for having contacts and an active deal.
+These were replaced by the 5 Growth Command tiles (Market Coverage, Revenue-Ready, Priority Accounts, Pipeline Potential, Revenue at Risk).
 
-## Auto-Generated Next Actions
+## Proposed Changes
 
-Rule-based logic that examines each account's data state and produces a single actionable recommendation:
+Replace the **Revenue-Ready** tile with a more relevant metric, and fix the data issues on the others.
 
-| Condition | Next Action |
-|-----------|-------------|
-| No contacts (lead count = 0) | "Find decision-maker contacts" |
-| Has contacts but no deal | "Create outbound sequence" |
-| Deal exists, stage = early | "Schedule discovery call" |
-| Deal exists, stalled (no update 30+ days) | "Re-engage -- deal stalling" |
-| Deal exists, late stage | "Send proposal / negotiate" |
-| High fit but low intent | "Nurture with content" |
-| Missing enrichment | "Enrich account data" |
-| Default | "Review account" |
+### Tile 1: Market Coverage -- Fix data mapping
+- When no external TAM source exists, show the raw account count instead of a meaningless "100%"
+- Change to: show `totalAccounts` as the value, with "of X TAM" in the subtitle only when TAM data actually exists
+- When TAM is available, keep the percentage
 
-## Table Columns
+### Tile 2: Replace "Revenue-Ready" with "Data Completeness"
+- Shows the `data_completeness` percentage from dashboard metrics (already available)
+- "So what" text: explains how many fields are filled across accounts
+- Links to `/enrichment` on click
+- This is actionable and relevant -- it tells you how enriched your data is
 
-| Column | Content |
-|--------|---------|
-| Account | Name + industry badge |
-| Readiness | Score bar (0-100) with color coding |
-| Fit / Intent | Two small numbers side by side |
-| Contacts | Count from Leads table |
-| Deal Stage | Current deal stage or "--" |
-| Next Action | Auto-generated action with icon |
+### Tile 3: Priority Accounts -- No change needed
+Works correctly, shows high-fit account count.
 
-## Features
+### Tile 4: Pipeline Potential -- Use real deal data if available
+- Check if deals exist; if so, sum actual deal amounts instead of the static formula
+- Fall back to the modelled formula only when no deals are present
+- Remove the hardcoded `benchmarkPercent: 70`
 
-- Sorted by readiness descending (top 25 by default)
-- "Show more" button to load next 25
-- Color-coded readiness bar: green (>70), amber (40-70), red (<40)
-- Row click navigates to `/accounts/{external_id}`
-- Loading skeleton while fetching
-- Empty state when no scored accounts exist
+### Tile 5: Revenue at Risk -- No change needed
+Already uses data completeness gap to model risk.
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `src/components/executive/GrowthCommandKPIs.tsx` | Replace Revenue-Ready tile with Data Completeness; fix Market Coverage to handle missing TAM gracefully; improve Pipeline Potential benchmark logic |
+| `src/pages/ExecutiveDashboard.tsx` | Update props passed to `GrowthCommandKPIs` -- replace `accountsWithContacts` with `dataCompleteness`, pass deal totals if available |
 
 ## Technical Details
 
-### New File
-`src/components/executive/PriorityRevenueAccounts.tsx`
+### Updated Props Interface
 
-### Query Pattern
-Follows the same pattern as `ICPPerformanceMatrix`:
-- Uses `useEffectiveOrg()` for org scoping
-- React Query with `enabled: !!effectiveOrgId`
-- Parallel `Promise.all` for scores+deals+lead-counts
-- Lead count query: `supabase.from('Leads').select('account_external_id').eq('org_id', effectiveOrgId)` then count per account in JS
-
-### Component Structure
-```
-Card
-  CardHeader (title: "Priority Revenue Accounts", icon: Crown)
-  CardContent
-    Table (shadcn Table components)
-      - Sortable headers
-      - Top 25 rows, expandable
-    "Show more" button
-```
-
-Uses existing shadcn `Table`, `TableHeader`, `TableBody`, `TableRow`, `TableCell`, `TableHead` components plus `Badge`, `Progress`, `Button`, and `Skeleton`.
-
-### Props
-Self-contained (fetches own data), optional ICP filter:
 ```typescript
-interface PriorityRevenueAccountsProps {
-  icpId?: string;
-  limit?: number; // default 25
+interface GrowthCommandKPIsProps {
+  totalAccounts: number;
+  tamEstimate: number;
+  dataCompleteness: number;        // replaces accountsWithContacts
+  highFitAccounts: number;
+  campaignReadyAccounts: number;
+  pipelinePotential: number;
+  revenueAtRisk: number;
+  averageDealSize: number;
 }
 ```
 
-### Files
-| File | Action |
-|------|--------|
-| `src/components/executive/PriorityRevenueAccounts.tsx` | **Create** -- standalone priority accounts table |
+### Market Coverage Logic Fix
 
-No other files modified. Integration into dashboard happens separately.
+```typescript
+// When TAM exists and differs from totalAccounts, show percentage
+// When no TAM, show raw account count instead of fake 100%
+const hasTAM = tamEstimate > 0 && tamEstimate !== totalAccounts;
+```
+
+### Data Completeness Tile
+
+```typescript
+{
+  label: "Data Completeness",
+  value: `${dataCompleteness}%`,
+  soWhat: dataCompleteness >= 80
+    ? "Strong enrichment -- ready for scoring"
+    : "Enrich accounts to improve scoring accuracy",
+  icon: Database,
+  benchmarkPercent: dataCompleteness,
+  onClick: () => navigate("/enrichment"),
+}
+```
+
+### Dashboard Props Update (ExecutiveDashboard.tsx)
+
+```typescript
+<GrowthCommandKPIs
+  ...
+  dataCompleteness={dataCompleteness}  // already computed in dashboard
+  ...
+/>
+```
+
+Two files, focused edits. No new dependencies.
