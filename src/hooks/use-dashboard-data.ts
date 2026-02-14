@@ -5,19 +5,22 @@ import { logger } from '@/lib/logger';
 const dashboardLogger = logger.scope('Dashboard');
 
 async function computeDataCompleteness(orgId: string): Promise<number> {
-  const { data } = await supabase
-    .from('accounts')
-    .select('industry_norm, employee_count, revenue_range, country, domain')
-    .eq('org_id', orgId);
+  const fields = ['industry_norm', 'employee_count', 'revenue_range', 'country', 'domain'];
 
-  if (!data || data.length === 0) return 0;
+  // Get total count + per-field non-null counts in parallel (HEAD requests, no row data)
+  const [totalResult, ...fieldResults] = await Promise.all([
+    supabase.from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', orgId),
+    ...fields.map(f =>
+      supabase.from('accounts').select('*', { count: 'exact', head: true })
+        .eq('org_id', orgId).not(f, 'is', null)
+    ),
+  ]);
 
-  const fields = ['industry_norm', 'employee_count', 'revenue_range', 'country', 'domain'] as const;
-  let filled = 0, total = 0;
-  data.forEach(row => {
-    fields.forEach(f => { total++; if ((row as any)[f] != null && (row as any)[f] !== '') filled++; });
-  });
-  return total > 0 ? Math.round((filled / total) * 100) : 0;
+  const total = totalResult.count || 0;
+  if (total === 0) return 0;
+
+  const filledSum = fieldResults.reduce((sum, r) => sum + (r.count || 0), 0);
+  return Math.round((filledSum / (total * fields.length)) * 100);
 }
 
 interface DashboardMetrics {
