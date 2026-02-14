@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { EnrichmentModal } from "./EnrichmentModal";
+import { WorkflowConfirmDialog } from "./WorkflowConfirmDialog";
 import { DataCompletenessCard } from "@/components/insights/DataCompletenessCard";
 import { enrichmentLogger as log } from "@/lib/logger";
 import { TIMING, ENRICHMENT } from "@/lib/constants";
@@ -100,6 +101,9 @@ export function UnifiedInsightsPanel({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [enrichmentModalOpen, setEnrichmentModalOpen] = useState(false);
   const [selectedEnrichmentFields, setSelectedEnrichmentFields] = useState<string[]>([]);
+  const [workflowDialogOpen, setWorkflowDialogOpen] = useState(false);
+  const [selectedWorkflowType, setSelectedWorkflowType] = useState<string | null>(null);
+  const [workflowContext, setWorkflowContext] = useState<Record<string, unknown>>({});
   const [isInsightsLoading, setIsInsightsLoading] = useState(false);
   
   // Persist collapse state to localStorage
@@ -441,7 +445,31 @@ export function UnifiedInsightsPanel({
     }
   };
 
+  const inferWorkflowType = (actionText: string): string | null => {
+    const lower = actionText.toLowerCase();
+    if (/penetrate|expand|target|build.*list|whitespace/.test(lower)) return 'build_target_list';
+    if (/optimize|refine|improve.*icp|tune/.test(lower)) return 'optimize_icp';
+    if (/campaign|outreach|prepare|launch/.test(lower)) return 'prepare_campaign';
+    if (/audit|quality|clean|standardize|duplicate/.test(lower)) return 'audit_data_quality';
+    return null;
+  };
+
   const handleItemClick = (item: UnifiedItem) => {
+    // 1. Risk with navigate fix action
+    if (item.type === 'risk') {
+      const risk = item.source as RiskItem;
+      if (risk.fix?.action === 'navigate' && risk.fix.target) {
+        navigate(risk.fix.target);
+        return;
+      }
+      if (risk.fix?.action === 'enrich') {
+        setSelectedEnrichmentFields(risk.fix.fields || ['all']);
+        setEnrichmentModalOpen(true);
+        return;
+      }
+    }
+
+    // 2. Has a route — navigate
     if (item.route) {
       const url = new URL(item.route, window.location.origin);
       if (item.filter) {
@@ -450,10 +478,30 @@ export function UnifiedInsightsPanel({
         });
       }
       navigate(url.pathname + url.search);
-    } else if (item.type === 'risk' && item.action === 'enrich') {
-      setSelectedEnrichmentFields(['contacts']);
-      setEnrichmentModalOpen(true);
+      return;
     }
+
+    // 3. Infer workflow from action text
+    if (item.action) {
+      // Direct enrich keyword
+      if (/enrich/i.test(item.action)) {
+        handleEnrichAction('enrich_ai_free');
+        return;
+      }
+
+      const workflowType = inferWorkflowType(item.action);
+      if (workflowType && effectiveOrgId) {
+        setSelectedWorkflowType(workflowType);
+        setWorkflowContext({ insightId: item.id, title: item.title, filter: item.filter });
+        setWorkflowDialogOpen(true);
+        return;
+      }
+    }
+
+    // 4. Fallback
+    toast.info('Action not yet available', {
+      description: 'This insight type doesn\'t have an automated workflow yet.'
+    });
   };
 
   const handleEnrichAction = async (action: string, params?: Record<string, unknown>) => {
@@ -558,7 +606,7 @@ export function UnifiedInsightsPanel({
       <div
         key={item.id}
         className={cn(
-          "relative border-2 rounded-lg p-4 transition-all cursor-pointer group",
+          "relative border-2 rounded-lg p-4 transition-all duration-200 cursor-pointer group hover:translate-y-[-2px] hover:shadow-md backdrop-blur-sm",
           colorClass
         )}
         onClick={() => handleItemClick(item)}
@@ -616,12 +664,15 @@ export function UnifiedInsightsPanel({
           {item.action && (
             <Button 
               size="sm" 
-              className="w-full h-7 text-xs"
+              className="w-full h-7 text-xs transition-all duration-200 hover:scale-[1.02]"
               onClick={(e) => {
                 e.stopPropagation();
                 handleItemClick(item);
               }}
             >
+              {inferWorkflowType(item.action) && (
+                <Sparkles className="h-3 w-3 mr-1" />
+              )}
               {item.action}
             </Button>
           )}
@@ -901,6 +952,16 @@ export function UnifiedInsightsPanel({
               onOpenChange={setEnrichmentModalOpen}
               targetFields={selectedEnrichmentFields}
             />
+
+            {effectiveOrgId && (
+              <WorkflowConfirmDialog
+                open={workflowDialogOpen}
+                onOpenChange={setWorkflowDialogOpen}
+                workflowType={selectedWorkflowType}
+                orgId={effectiveOrgId}
+                context={workflowContext}
+              />
+            )}
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
