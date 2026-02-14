@@ -750,24 +750,33 @@ export async function callAI(
   const timeouts = await getAdaptiveTimeouts(supabase);
   
   // For enrichment/research, use AI-first waterfall: Perplexity → Claude → Grok → Gemini
+  // Filter out tool-incompatible providers when tools are required
+  const toolCompatibleProviders = options.tools
+    ? providers.filter(p => p !== 'perplexity')
+    : providers;
+  
+  if (options.tools && toolCompatibleProviders.length < providers.length) {
+    console.log(`[AI Config] Skipping Perplexity (does not support tool calling)`);
+  }
+
   let orderedProviders: AIProvider[];
   if (taskType === 'enrichment' || taskType === 'research') {
     // AI-First Waterfall: Prioritize real-time search and reasoning providers
     orderedProviders = [
-      ...providers.filter(p => p === 'perplexity'),  // Best for real-time web search
-      ...providers.filter(p => p === 'anthropic'),   // Claude for deep reasoning/extraction
-      ...providers.filter(p => p === 'xai'),         // Grok for social/X data
-      ...providers.filter(p => p === 'lovable'),     // Gemini as fast fallback
-      ...providers.filter(p => p === 'openai'),      // GPT as backup
-    ].filter(p => providers.includes(p));
+      ...toolCompatibleProviders.filter(p => p === 'perplexity'),  // Best for real-time web search
+      ...toolCompatibleProviders.filter(p => p === 'anthropic'),   // Claude for deep reasoning/extraction
+      ...toolCompatibleProviders.filter(p => p === 'xai'),         // Grok for social/X data
+      ...toolCompatibleProviders.filter(p => p === 'lovable'),     // Gemini as fast fallback
+      ...toolCompatibleProviders.filter(p => p === 'openai'),      // GPT as backup
+    ].filter(p => toolCompatibleProviders.includes(p));
     console.log(`[AI Config] Using AI-first waterfall for ${taskType}: ${orderedProviders.join(' → ')}`);
   } else if (options.preferredProvider) {
     orderedProviders = [
       options.preferredProvider,
-      ...providers.filter(p => p !== options.preferredProvider)
+      ...toolCompatibleProviders.filter(p => p !== options.preferredProvider)
     ];
   } else {
-    orderedProviders = providers;
+    orderedProviders = toolCompatibleProviders;
   }
   
   let lastError: Error | null = null;

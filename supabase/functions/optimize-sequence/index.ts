@@ -92,12 +92,29 @@ Provide actionable, data-driven recommendations.`;
     }
 
     const data = await response.json();
+    let recommendations;
+    
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) {
-      throw new Error('No tool call in AI response');
+    if (toolCall) {
+      recommendations = JSON.parse(toolCall.function.arguments);
+    } else {
+      // Fallback: try parsing the text content as JSON (for providers that don't support tool calling)
+      const content = data.choices?.[0]?.message?.content;
+      if (content) {
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            recommendations = JSON.parse(jsonMatch[0]);
+            console.log('[optimize-sequence] Parsed recommendations from text fallback');
+          } catch (e) {
+            console.error('[optimize-sequence] Failed to parse JSON from text:', e);
+          }
+        }
+      }
+      if (!recommendations) {
+        throw new Error('No tool call in AI response and could not parse text fallback');
+      }
     }
-
-    const recommendations = JSON.parse(toolCall.function.arguments);
 
     return new Response(
       JSON.stringify(recommendations),
