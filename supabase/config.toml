@@ -425,3 +425,6 @@ verify_jwt = false
 
 [functions.parse-icp-document]
 verify_jwt = false
+
+[functions.parse-document]
+verify_jwt = false
