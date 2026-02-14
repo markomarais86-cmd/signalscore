@@ -270,12 +270,21 @@ export default function DataUpload() {
         uploadLogger.info(`Starting upload for ${rawData.length} leads...`);
         
         // Create reverse mapping: dbField -> csvColumn
+        // Separate standard fields from custom:: prefixed fields
         const reverseMapping: Record<string, string> = {};
+        const customMappings: Record<string, string> = {}; // custom_key -> csvColumn
         Object.entries(mapping).forEach(([csvCol, dbField]) => {
-          if (dbField) reverseMapping[dbField] = csvCol;
+          if (!dbField || dbField === '__skip__') return;
+          if (dbField.startsWith('custom::')) {
+            customMappings[dbField.replace('custom::', '')] = csvCol;
+          } else {
+            reverseMapping[dbField] = csvCol;
+          }
         });
         
         const batchSize = 1000;
+        const customAttrsPerCompany = new Map<string, Record<string, any>>();
+        const hasCustomMappings = Object.keys(customMappings).length > 0;
         
         for (let i = 0; i < rawData.length; i += batchSize) {
           const batch = rawData.slice(i, Math.min(i + batchSize, rawData.length));
@@ -290,6 +299,17 @@ export default function DataUpload() {
             const leadName = firstName && lastName ? `${firstName} ${lastName}` : company || 'Unknown Lead';
             
             const externalId = (reverseMapping.external_id && row[reverseMapping.external_id]) || `lead_${Date.now()}_${i + idx}_${Math.random().toString(36).substr(2, 9)}`;
+
+            // Build custom_attributes from custom mappings
+            const customAttrs: Record<string, any> = {};
+            if (hasCustomMappings) {
+              Object.entries(customMappings).forEach(([key, csvCol]) => {
+                const val = row[csvCol];
+                if (val !== undefined && val !== null && val !== '') {
+                  customAttrs[key] = val;
+                }
+              });
+            }
             
             // Only keep the first occurrence of each external_id
             if (!leadsMap.has(externalId)) {
@@ -313,6 +333,12 @@ export default function DataUpload() {
                 last_name: lastName || null
               });
             }
+
+            // Track custom attrs per company for account propagation
+            if (company && Object.keys(customAttrs).length > 0) {
+              const existing = customAttrsPerCompany.get(company) || {};
+              customAttrsPerCompany.set(company, { ...existing, ...customAttrs });
+            }
           });
           
           const leadsData = Array.from(leadsMap.values());
@@ -332,6 +358,28 @@ export default function DataUpload() {
           }
 
           setUploadProgress(20 + Math.round((i / rawData.length) * 60));
+        }
+
+        // Propagate custom attributes to matched accounts
+        if (hasCustomMappings && customAttrsPerCompany.size > 0) {
+          uploadLogger.info(`Propagating custom attributes to ${customAttrsPerCompany.size} accounts...`);
+          for (const [companyName, attrs] of customAttrsPerCompany.entries()) {
+            const { data: accounts } = await supabase
+              .from('accounts')
+              .select('id, custom_attributes')
+              .eq('org_id', orgId)
+              .ilike('name', companyName)
+              .limit(1);
+            
+            if (accounts && accounts.length > 0) {
+              const existing = (accounts[0].custom_attributes as Record<string, any>) || {};
+              const merged = { ...existing, ...attrs };
+              await supabase
+                .from('accounts')
+                .update({ custom_attributes: merged })
+                .eq('id', accounts[0].id);
+            }
+          }
         }
 
         toast({
@@ -692,6 +740,7 @@ export default function DataUpload() {
         csvHeaders={csvHeaders}
         dataType={pendingFile?.type || 'leads'}
         sampleData={sampleData}
+        orgId={effectiveOrgId || undefined}
       />
     </div>
   );
