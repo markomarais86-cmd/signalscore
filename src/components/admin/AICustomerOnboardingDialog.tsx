@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import * as pdfjsLib from "pdfjs-dist";
 import {
   Dialog,
   DialogContent,
@@ -16,8 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, Sparkles, Upload } from "lucide-react";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 interface AICustomerOnboardingDialogProps {
   open: boolean;
@@ -34,36 +31,42 @@ export function AICustomerOnboardingDialog({
   const [documentText, setDocumentText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [isParsingFile, setIsParsingFile] = useState(false);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.type === "application/pdf") {
+    const fileName = file.name.toLowerCase();
+    const isPdfOrPptx = fileName.endsWith(".pdf") || fileName.endsWith(".pptx") || fileName.endsWith(".ppt");
+
+    if (isPdfOrPptx) {
       setIsParsingFile(true);
       try {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        let fullText = "";
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const content = await page.getTextContent();
-          const pageText = content.items.map((item: any) => item.str).join(" ");
-          fullText += pageText + "\n\n";
-        }
-        setDocumentText((prev) => (prev ? prev + "\n\n" + fullText : fullText));
-        toast.success(`Extracted text from ${pdf.numPages} pages of ${file.name}`);
-      } catch (err) {
-        console.error("PDF parsing error:", err);
-        toast.error("Failed to parse PDF. Try pasting the text content directly.");
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const { data, error } = await supabase.functions.invoke("parse-document", {
+          body: formData,
+        });
+
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+
+        const extractedText = data.text;
+        setDocumentText((prev) => (prev ? prev + "\n\n" + extractedText : extractedText));
+        toast.success(`Extracted text from ${data.pages} ${data.format === "pptx" ? "slides" : "pages"} of ${file.name}`);
+      } catch (err: any) {
+        console.error("Document parsing error:", err);
+        toast.error(err.message || "Failed to parse document. Try pasting the text content directly.");
       } finally {
         setIsParsingFile(false);
       }
-    } else if (file.type === "text/plain" || file.name.endsWith(".csv")) {
+    } else if (file.type === "text/plain" || fileName.endsWith(".csv") || fileName.endsWith(".txt")) {
       const text = await file.text();
       setDocumentText((prev) => (prev ? prev + "\n\n" + text : text));
       toast.success(`Loaded ${file.name}`);
     } else {
-      toast.info("Unsupported format. Please upload a PDF or text file, or paste content directly.");
+      toast.info("Unsupported format. Please upload a PDF, PPTX, or text file, or paste content directly.");
     }
   };
 
@@ -112,7 +115,7 @@ export function AICustomerOnboardingDialog({
             AI Customer Onboarding
           </DialogTitle>
           <DialogDescription>
-            Paste your ICP document content and AI will extract all fields, create the
+            Paste your ICP document content or upload a PDF/PPTX and AI will extract all fields, create the
             organization, and set up the ICP profile automatically.
           </DialogDescription>
         </DialogHeader>
@@ -142,12 +145,12 @@ export function AICustomerOnboardingDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="doc-upload">Upload Document (optional)</Label>
+            <Label htmlFor="doc-upload">Upload Document (PDF, PPTX, or text)</Label>
             <div className="flex items-center gap-2">
               <Input
                 id="doc-upload"
                 type="file"
-                accept=".txt,.csv,.pdf"
+                accept=".txt,.csv,.pdf,.pptx,.ppt"
                 onChange={handleFileUpload}
                 disabled={isProcessing || isParsingFile}
                 className="flex-1"
@@ -179,7 +182,7 @@ export function AICustomerOnboardingDialog({
             <p className="text-xs text-muted-foreground">
               {documentText.length > 0
                 ? `${documentText.length.toLocaleString()} characters`
-                : "Tip: Open your PDF, Select All (Ctrl+A), Copy (Ctrl+C), then paste here"}
+                : "Tip: Upload a PDF or PPTX file, or paste content directly"}
             </p>
           </div>
         </div>
