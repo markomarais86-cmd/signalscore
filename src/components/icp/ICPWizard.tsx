@@ -9,6 +9,7 @@ import { ICPWizardStep1 } from './ICPWizardStep1';
 import { ICPWizardStep2 } from './ICPWizardStep2';
 import { ICPWizardStep3 } from './ICPWizardStep3';
 import { ICPWizardStep4 } from './ICPWizardStep4';
+import { ICPWizardStep5Disqualifiers } from './ICPWizardStep5Disqualifiers';
 import { ICPWizardStep5 } from './ICPWizardStep5';
 import { ClosedWonInsights } from './ClosedWonInsights';
 import { supabase } from '@/integrations/supabase/client';
@@ -75,6 +76,7 @@ const STEP_TITLES = [
   'Company Targeting',
   'Persona Targeting',
   'Advanced Targeting',
+  'Disqualifiers',
   'Validation & Preview'
 ];
 
@@ -127,7 +129,11 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
         budget_indicators: editingICP.budget_indicators || [],
         
         tags: editingICP.tags || [],
-        status: editingICP.status || 'draft'
+        status: editingICP.status || 'draft',
+        weights: editingICP.weights || {},
+        disqualifiers: editingICP.disqualifiers || {},
+        scoring_config: editingICP.scoring_config || {},
+        version_notes: editingICP.version_notes || ''
       });
       setCurrentStep(1); // Skip template selection when editing
     } else if (isOpen) {
@@ -267,7 +273,11 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
         tags: formData.tags.length > 0 ? formData.tags : null,
         template_source: selectedTemplate?.name || null,
         status: formData.status,
-        version: editingICP ? (editingICP.version || 1) + 1 : 1
+        version: editingICP ? (editingICP.version || 1) + 1 : 1,
+        weights: (formData.weights || {}) as any,
+        disqualifiers: (formData.disqualifiers || {}) as any,
+        scoring_config: (formData.scoring_config || {}) as any,
+        version_notes: formData.version_notes || null
       };
 
       if (editingICP) {
@@ -356,6 +366,13 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
           />
         );
       case 5:
+        return (
+          <ICPWizardStep5Disqualifiers
+            formData={formData}
+            onUpdateFormData={updateFormData}
+          />
+        );
+      case 6:
         return (
           <ICPWizardStep5 
             formData={formData}

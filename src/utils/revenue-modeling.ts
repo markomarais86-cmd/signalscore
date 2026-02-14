@@ -45,9 +45,10 @@ export function deriveNextAction(fitScore: number, intentScore: number, leadCoun
 }
 
 export function deriveSegmentAction(highFitPct: number, accountCount: number, medianCount: number): string {
-  if (highFitPct >= 30 && accountCount >= medianCount) return 'Invest';
-  if (highFitPct >= 30 && accountCount < medianCount) return 'Harvest';
-  return 'Deprioritize';
+  if (highFitPct >= 40 && accountCount >= medianCount) return 'Focus';
+  if (highFitPct >= 40 && accountCount < medianCount) return 'Expand';
+  if (highFitPct >= 15) return 'Maintain';
+  return 'Exit';
 }
 
 export function deriveGeoTag(sharePct: number, avgScore: number): string {

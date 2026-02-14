@@ -520,7 +520,7 @@ export async function generateBrandedPDF(
       const hfPct = item.highFitPct || 0;
       const modelledRev = (item.highFitCount || 0) * acv * convRate;
       const action = deriveSegmentAction(hfPct, item.accounts, medianCount);
-      const actionColor: [number, number, number] = action === 'Invest' ? [34, 197, 94] : action === 'Harvest' ? [202, 138, 4] : [239, 68, 68];
+      const actionColor: [number, number, number] = action === 'Focus' ? [34, 197, 94] : action === 'Expand' ? [59, 130, 246] : action === 'Maintain' ? [202, 138, 4] : [239, 68, 68];
 
       tableRow([
         { text: item.name.substring(0, 26), x: M },

@@ -4780,6 +4780,7 @@ export type Database = {
           created_at: string | null
           decision_process: string | null
           description: string | null
+          disqualifiers: Json | null
           excluded_companies: string[] | null
           excluded_industries: string[] | null
           funding_status: string[] | null
@@ -4802,6 +4803,7 @@ export type Database = {
           priority: number | null
           regions: string[] | null
           revenue_ranges: string[] | null
+          scoring_config: Json | null
           seasonal_patterns: string[] | null
           status: string | null
           sub_industries: string[] | null
@@ -4812,7 +4814,9 @@ export type Database = {
           timezones: string[] | null
           use_case: string | null
           version: number | null
+          version_notes: string | null
           vertical_filters: Json | null
+          weights: Json | null
         }
         Insert: {
           budget_indicators?: string[] | null
@@ -4827,6 +4831,7 @@ export type Database = {
           created_at?: string | null
           decision_process?: string | null
           description?: string | null
+          disqualifiers?: Json | null
           excluded_companies?: string[] | null
           excluded_industries?: string[] | null
           funding_status?: string[] | null
@@ -4849,6 +4854,7 @@ export type Database = {
           priority?: number | null
           regions?: string[] | null
           revenue_ranges?: string[] | null
+          scoring_config?: Json | null
           seasonal_patterns?: string[] | null
           status?: string | null
           sub_industries?: string[] | null
@@ -4859,7 +4865,9 @@ export type Database = {
           timezones?: string[] | null
           use_case?: string | null
           version?: number | null
+          version_notes?: string | null
           vertical_filters?: Json | null
+          weights?: Json | null
         }
         Update: {
           budget_indicators?: string[] | null
@@ -4874,6 +4882,7 @@ export type Database = {
           created_at?: string | null
           decision_process?: string | null
           description?: string | null
+          disqualifiers?: Json | null
           excluded_companies?: string[] | null
           excluded_industries?: string[] | null
           funding_status?: string[] | null
@@ -4896,6 +4905,7 @@ export type Database = {
           priority?: number | null
           regions?: string[] | null
           revenue_ranges?: string[] | null
+          scoring_config?: Json | null
           seasonal_patterns?: string[] | null
           status?: string | null
           sub_industries?: string[] | null
@@ -4906,7 +4916,9 @@ export type Database = {
           timezones?: string[] | null
           use_case?: string | null
           version?: number | null
+          version_notes?: string | null
           vertical_filters?: Json | null
+          weights?: Json | null
         }
         Relationships: [
           {
@@ -5034,6 +5046,51 @@ export type Database = {
             columns: ["icp_id"]
             isOneToOne: false
             referencedRelation: "icp_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      icp_versions: {
+        Row: {
+          created_at: string
+          icp_id: string
+          id: string
+          org_id: string
+          performance_delta: Json | null
+          snapshot: Json
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          icp_id: string
+          id?: string
+          org_id: string
+          performance_delta?: Json | null
+          snapshot?: Json
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          icp_id?: string
+          id?: string
+          org_id?: string
+          performance_delta?: Json | null
+          snapshot?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "icp_versions_icp_id_fkey"
+            columns: ["icp_id"]
+            isOneToOne: false
+            referencedRelation: "icp_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "icp_versions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -7149,6 +7206,50 @@ export type Database = {
             columns: ["report_id"]
             isOneToOne: false
             referencedRelation: "custom_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      revenue_assumptions: {
+        Row: {
+          acv_source: string
+          acv_value: number
+          created_at: string
+          id: string
+          org_id: string
+          scenarios: Json
+          updated_at: string
+          win_rate_source: string
+          win_rate_value: number
+        }
+        Insert: {
+          acv_source?: string
+          acv_value?: number
+          created_at?: string
+          id?: string
+          org_id: string
+          scenarios?: Json
+          updated_at?: string
+          win_rate_source?: string
+          win_rate_value?: number
+        }
+        Update: {
+          acv_source?: string
+          acv_value?: number
+          created_at?: string
+          id?: string
+          org_id?: string
+          scenarios?: Json
+          updated_at?: string
+          win_rate_source?: string
+          win_rate_value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_assumptions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
