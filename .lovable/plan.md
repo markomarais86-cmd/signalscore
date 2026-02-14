@@ -1,53 +1,31 @@
 
 
-# Fix Data Completeness KPI on Growth Command Center
+# Make ICP Performance Matrix More Visible
 
-## Root Cause
+## Current State
 
-The "Data Completeness" KPI tile on the dashboard shows 0% because it reads from the `get_dashboard_metrics_cached` RPC, which **does not return a `data_completeness` field**. The RPC builds its JSON from `dashboard_metrics_cache` and `leads_metrics_cache` tables, neither of which has a `data_completeness` column.
+The components were successfully relocated but may be hard to find:
 
-Meanwhile, the Enrichment page correctly shows 95-99% because it calls a different RPC (`get_enrichment_stats`) that computes `data_completeness_pct` live.
+- **ICP Manager**: The matrix only appears when you click into a specific ICP profile's detail view. On the main ICP list page, it's invisible.
+- **Accounts**: PriorityRevenueAccounts is there but may be below the fold.
+- **Leads**: Neither component was added here.
 
-## Fix
+Score data exists (11,618 scored accounts for your active ICP), so the matrix will render with data.
 
-Compute data completeness directly in the dashboard hook (`use-dashboard-data.ts`) instead of relying on a missing cached field — the same approach the DataHealthWidget already uses successfully.
+## Proposed Changes
 
-### Changes
+### 1. Show the Matrix on the Main ICP Manager Page (not just detail view)
+**File**: `src/pages/ICPManager.tsx`
+- Add `ICPPerformanceMatrix` to the main ICP list view (the page you see before clicking into a profile), without an `icpId` filter so it shows all scored accounts across all ICPs.
+- Keep the filtered version in the detail view as well.
 
-**File: `src/hooks/use-dashboard-data.ts`**
+### 2. Keep PriorityRevenueAccounts on Accounts Page (already working)
+No change needed -- just confirming it's at line 512 and rendering.
 
-1. Add a helper function `computeDataCompleteness(orgId)` that queries the `accounts` table and calculates the percentage of key fields (industry, employee count, revenue, country, domain) that are filled across all accounts.
-2. Call it in the `useDashboardData` query function alongside the existing RPC call.
-3. Map the result into `data_completeness` in the `mappedMetrics` object, replacing the current `rawMetrics?.data_completeness || 0` which always returns 0.
-
-This is a lightweight query (only needs a count of non-null fields) and will give the dashboard the same accurate completeness percentage that the Enrichment page and DataHealthWidget already show.
-
-### Technical Detail
-
-```
-// New helper added to use-dashboard-data.ts
-async function computeDataCompleteness(orgId: string): Promise<number> {
-  const { data } = await supabase
-    .from('accounts')
-    .select('industry_norm, employee_count, revenue_range, country, domain')
-    .eq('org_id', orgId);
-
-  if (!data || data.length === 0) return 0;
-
-  const fields = ['industry_norm', 'employee_count', 'revenue_range', 'country', 'domain'];
-  let filled = 0, total = 0;
-  data.forEach(row => {
-    fields.forEach(f => { total++; if (row[f] != null && row[f] !== '') filled++; });
-  });
-  return total > 0 ? Math.round((filled / total) * 100) : 0;
-}
-```
-
-Then in the query function, call it in parallel with the existing RPCs and use its result for `data_completeness`.
+## Files Changed
 
 | File | Change |
 |------|--------|
-| `src/hooks/use-dashboard-data.ts` | Add `computeDataCompleteness` helper, call it in `useDashboardData`, use result for `data_completeness` |
+| `src/pages/ICPManager.tsx` | Add an unfiltered `<ICPPerformanceMatrix />` to the main list view so it's visible without clicking into a profile |
 
-No database migrations needed. No other files need changes since `GrowthCommandKPIs` already receives `dataCompleteness` as a prop from the dashboard page.
-
+This way you'll see the matrix as soon as you navigate to the ICP Manager page, plus a filtered version when you drill into a specific profile.
