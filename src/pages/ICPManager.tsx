@@ -27,6 +27,7 @@ import { ICPGridSkeleton } from "@/components/ICPGridSkeleton";
 import { useQueryClient } from "@tanstack/react-query";
 import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ICPPerformanceMatrix } from "@/components/executive/ICPPerformanceMatrix";
 
 export default function ICPManager() {
   const [icps, setIcps] = useState<ICPProfile[]>([]);
@@ -383,6 +384,7 @@ export default function ICPManager() {
           }}
           defaultTab={detailTab}
         />
+        <ICPPerformanceMatrix icpId={selectedIcp.id} />
         <ICPWizard
           isOpen={isWizardOpen}
           onClose={handleWizardClose}

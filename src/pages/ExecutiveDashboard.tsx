@@ -37,8 +37,6 @@ import { SimpleICPTable } from "@/components/executive/SimpleICPTable";
 import { SimpleTAMCard } from "@/components/executive/SimpleTAMCard";
 import { SimpleGeographyCard } from "@/components/executive/SimpleGeographyCard";
 import { DataHealthWidget } from "@/components/executive/DataHealthWidget";
-import { ICPPerformanceMatrix } from "@/components/executive/ICPPerformanceMatrix";
-import { PriorityRevenueAccounts } from "@/components/executive/PriorityRevenueAccounts";
 
 import { StatusBar, buildStatusItems } from "@/components/executive/StatusBar";
 import { ExportToPdf } from "@/components/executive/ExportToPdf";
@@ -603,9 +601,6 @@ export default function ExecutiveDashboard() {
               totalLeads={sourceFilter === 'database' ? databaseLeads : sourceFilter === 'crm' ? crmLeads : totalLeads}
             />
 
-            {/* ICP Performance Matrix - Fit vs Intent scatter */}
-            <ICPPerformanceMatrix />
-
             {/* Main Content Grid - 3 columns for visual balance */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Left Column - ICP Coverage Table */}
@@ -642,9 +637,6 @@ export default function ExecutiveDashboard() {
                 }
               />
             </div>
-
-            {/* Priority Revenue Accounts - sortable action table */}
-            <PriorityRevenueAccounts />
 
             {/* Data Health & AI Insights - 2 column layout */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
