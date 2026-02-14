@@ -4,6 +4,22 @@ import { logger } from '@/lib/logger';
 
 const dashboardLogger = logger.scope('Dashboard');
 
+async function computeDataCompleteness(orgId: string): Promise<number> {
+  const { data } = await supabase
+    .from('accounts')
+    .select('industry_norm, employee_count, revenue_range, country, domain')
+    .eq('org_id', orgId);
+
+  if (!data || data.length === 0) return 0;
+
+  const fields = ['industry_norm', 'employee_count', 'revenue_range', 'country', 'domain'] as const;
+  let filled = 0, total = 0;
+  data.forEach(row => {
+    fields.forEach(f => { total++; if ((row as any)[f] != null && (row as any)[f] !== '') filled++; });
+  });
+  return total > 0 ? Math.round((filled / total) * 100) : 0;
+}
+
 interface DashboardMetrics {
   total_accounts: number;
   scored_accounts: number;
@@ -66,7 +82,7 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
       if (!orgId) throw new Error('No org ID provided');
       
       // Parallel fetch: ICP profiles + TAM data first (fast queries)
-      const [icpResult, tamResult] = await Promise.all([
+      const [icpResult, tamResult, dataCompleteness] = await Promise.all([
         supabase
           .from('icp_profiles')
           .select('*')
@@ -90,7 +106,8 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
           .eq('is_active', true)
           .order('last_synced_at', { ascending: false })
           .limit(1)
-          .maybeSingle()
+          .maybeSingle(),
+        computeDataCompleteness(orgId)
       ]);
       
       if (icpResult.error) {
@@ -163,7 +180,7 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
         campaign_ready_accounts: rawMetrics?.campaign_ready_accounts || 0,
         campaign_ready_contacts: rawMetrics?.campaign_ready || 0,
         campaign_ready_leads: rawMetrics?.campaign_ready || 0,
-        data_completeness: rawMetrics?.data_completeness || 0,
+        data_completeness: dataCompleteness,
       };
       
       // Map TAM data - prefer metrics function data over separate TAM query
