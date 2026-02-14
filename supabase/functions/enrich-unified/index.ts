@@ -143,6 +143,30 @@ serve(async (req) => {
       fieldsToEnrich: userConfig.fieldsToEnrich,
     };
 
+    // Load custom attribute definitions for vertical enrichment
+    try {
+      const { data: customDefs, error: defsError } = await supabase
+        .from('custom_attribute_definitions')
+        .select('field_key, field_label, field_type, enrichment_prompt, options')
+        .eq('org_id', org_id);
+      
+      if (!defsError && customDefs && customDefs.length > 0) {
+        const defsWithPrompts = customDefs.filter((d: any) => d.enrichment_prompt);
+        if (defsWithPrompts.length > 0) {
+          config.customAttributeDefinitions = defsWithPrompts.map((d: any) => ({
+            field_key: d.field_key,
+            field_label: d.field_label,
+            field_type: d.field_type,
+            enrichment_prompt: d.enrichment_prompt,
+            options: d.options || [],
+          }));
+          console.log(`[enrich-unified] Loaded ${defsWithPrompts.length} custom attribute definitions for vertical enrichment`);
+        }
+      }
+    } catch (defsLoadErr) {
+      console.warn('[enrich-unified] Failed to load custom attribute definitions:', defsLoadErr);
+    }
+
     console.log(`[enrich-unified] Starting ${record_type} enrichment for ${records.length} records`);
 
     // Create or update job
@@ -285,6 +309,12 @@ serve(async (req) => {
               if (result.data.last_funding_round) updateData.last_funding_round = result.data.last_funding_round;
               if (result.data.sub_industry) updateData.sub_industry = result.data.sub_industry;
               if (result.data.business_model) updateData.business_model = result.data.business_model;
+              
+              // Store custom vertical attributes
+              if (result.data.custom_attributes && Object.keys(result.data.custom_attributes).length > 0) {
+                updateData.custom_attributes = result.data.custom_attributes;
+                console.log(`[enrich-unified] Storing ${Object.keys(result.data.custom_attributes).length} custom attributes for ${record.external_id}`);
+              }
 
               const { error: updateError, count } = await supabase
                 .from('accounts')

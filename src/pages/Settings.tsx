@@ -34,7 +34,8 @@ import {
   BarChart3,
   Bot,
   Target,
-  Route
+  Route,
+  Sparkles
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffectiveOrg } from "@/hooks/use-effective-org";
@@ -72,6 +73,7 @@ const DataUploadContent = lazy(() => import("@/components/settings/DataUploadCon
 const ServiceHealthStatus = lazy(() => import("@/components/settings/ServiceHealthStatus").then(m => ({ default: m.ServiceHealthStatus })));
 const RoutingRulesSettings = lazy(() => import("@/components/settings/RoutingRulesSettings").then(m => ({ default: m.RoutingRulesSettings })));
 const AdPlatformAPISettings = lazy(() => import("@/components/settings/AdPlatformAPISettings").then(m => ({ default: m.AdPlatformAPISettings })));
+const CustomAttributeManager = lazy(() => import("@/components/settings/CustomAttributeManager"));
 
 interface TeamMember {
   id: string;
@@ -265,6 +267,10 @@ export default function Settings() {
             <Target className="h-4 w-4" />
             <span className="hidden sm:inline">Configuration</span>
           </TabsTrigger>
+          <TabsTrigger value="custom-attributes" className="flex items-center gap-2 flex-shrink-0">
+            <Sparkles className="h-4 w-4" />
+            <span className="hidden sm:inline">Verticals</span>
+          </TabsTrigger>
           <TabsTrigger value="integrations" className="flex items-center gap-2 flex-shrink-0">
             <Database className="h-4 w-4" />
             <span className="hidden sm:inline">Integrations</span>
@@ -411,6 +417,13 @@ export default function Settings() {
             <DuplicateAccountMerger />
             <DataMapping />
             <AccountExclusions />
+          </Suspense>
+        </TabsContent>
+
+        {/* Custom Vertical Attributes */}
+        <TabsContent value="custom-attributes" className="space-y-6">
+          <Suspense fallback={<SettingsSkeleton />}>
+            <CustomAttributeManager />
           </Suspense>
         </TabsContent>
 

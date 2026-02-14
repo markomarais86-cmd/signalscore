@@ -1,17 +1,20 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Building, Users, DollarSign, MapPin, Lightbulb, Target as TargetIcon, Sparkles, X } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Building, Users, DollarSign, MapPin, Lightbulb, Target as TargetIcon, Sparkles, X, Settings } from 'lucide-react';
 import { ICPFormData } from '@/types/icp';
 import { INDUSTRIES, SUB_INDUSTRIES, COMPANY_SIZES, REVENUE_RANGES, COUNTRIES, REGIONS } from '@/constants/icp';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { formatNumber } from '@/utils/format-numbers';
+import { useNavigate } from 'react-router-dom';
 
 interface ICPWizardStep2Props {
   formData: ICPFormData;
@@ -20,6 +23,23 @@ interface ICPWizardStep2Props {
 
 export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Props) {
   const { userProfile } = useAuth();
+  const navigate = useNavigate();
+  
+  // Load custom attribute definitions for vertical targeting
+  const { data: customAttributes } = useQuery<any[]>({
+    queryKey: ['custom-attribute-definitions', userProfile?.org_id],
+    queryFn: async () => {
+      if (!userProfile?.org_id) return [];
+      const { data, error } = await supabase
+        .from('custom_attribute_definitions' as any)
+        .select('*')
+        .eq('org_id', userProfile.org_id)
+        .order('category', { ascending: true });
+      if (error) { console.error('Error loading custom attributes:', error); return []; }
+      return (data as any[]) || [];
+    },
+    enabled: !!userProfile?.org_id,
+  });
   
   // Real-time match count query
   const { data: matchCount } = useQuery<{ total: number; percentage: number; total_accounts: number } | null>({
@@ -367,6 +387,149 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
         </Card>
       </div>
 
+      {/* Vertical Attributes Card */}
+      {customAttributes && customAttributes.length > 0 ? (
+        <Card className="border-primary/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Vertical Attributes
+            </CardTitle>
+            <CardDescription>
+              Industry-specific targeting criteria — AI providers will search for this data
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(() => {
+              const grouped = customAttributes.reduce<Record<string, any[]>>((acc, attr) => {
+                const cat = attr.category || 'General';
+                if (!acc[cat]) acc[cat] = [];
+                acc[cat].push(attr);
+                return acc;
+              }, {});
+
+              return Object.entries(grouped).map(([category, attrs]) => (
+                <div key={category} className="space-y-3">
+                  <Label className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">{category}</Label>
+                  {attrs.map((attr: any) => {
+                    const verticalFilters = formData.vertical_filters || {};
+                    
+                    if (attr.field_type === 'number') {
+                      return (
+                        <div key={attr.field_key} className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-sm">{attr.field_label} (min)</Label>
+                            <Input
+                              type="number"
+                              value={verticalFilters[`${attr.field_key}_min`] || ''}
+                              onChange={(e) => onUpdateFormData({
+                                vertical_filters: {
+                                  ...verticalFilters,
+                                  [`${attr.field_key}_min`]: e.target.value ? Number(e.target.value) : undefined,
+                                }
+                              })}
+                              placeholder="Min"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm">{attr.field_label} (max)</Label>
+                            <Input
+                              type="number"
+                              value={verticalFilters[`${attr.field_key}_max`] || ''}
+                              onChange={(e) => onUpdateFormData({
+                                vertical_filters: {
+                                  ...verticalFilters,
+                                  [`${attr.field_key}_max`]: e.target.value ? Number(e.target.value) : undefined,
+                                }
+                              })}
+                              placeholder="Max"
+                            />
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (attr.field_type === 'select' || attr.field_type === 'multi_select') {
+                      const selectedValues: string[] = verticalFilters[attr.field_key] || [];
+                      return (
+                        <div key={attr.field_key}>
+                          <Label className="text-sm">{attr.field_label}</Label>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {selectedValues.map((val: string) => (
+                              <Badge key={val} variant="secondary" className="cursor-pointer" onClick={() => {
+                                onUpdateFormData({
+                                  vertical_filters: {
+                                    ...verticalFilters,
+                                    [attr.field_key]: selectedValues.filter((v: string) => v !== val),
+                                  }
+                                });
+                              }}>
+                                {val} ×
+                              </Badge>
+                            ))}
+                          </div>
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {(attr.options || []).filter((o: string) => !selectedValues.includes(o)).map((option: string) => (
+                              <Button
+                                key={option}
+                                variant="outline"
+                                size="sm"
+                                className="text-xs h-7"
+                                onClick={() => {
+                                  onUpdateFormData({
+                                    vertical_filters: {
+                                      ...verticalFilters,
+                                      [attr.field_key]: [...selectedValues, option],
+                                    }
+                                  });
+                                }}
+                              >
+                                + {option}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // text type
+                    return (
+                      <div key={attr.field_key}>
+                        <Label className="text-sm">{attr.field_label}</Label>
+                        <Input
+                          value={verticalFilters[attr.field_key] || ''}
+                          onChange={(e) => onUpdateFormData({
+                            vertical_filters: {
+                              ...verticalFilters,
+                              [attr.field_key]: e.target.value || undefined,
+                            }
+                          })}
+                          placeholder={`Enter ${attr.field_label.toLowerCase()}`}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              ));
+            })()}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="bg-muted/30 border-dashed">
+          <CardContent className="py-6 text-center">
+            <Sparkles className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+            <p className="text-sm font-medium text-muted-foreground">No vertical attributes defined</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Define custom fields like "bed count" or "facility type" to enable industry-specific targeting
+            </p>
+            <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate('/settings?tab=custom-attributes')}>
+              <Settings className="h-3.5 w-3.5 mr-1.5" />
+              Set Up in Settings
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="bg-muted/30">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -379,7 +542,7 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
             <li>• Start broad with industries, then narrow down with sub-industries</li>
             <li>• Consider both company size and revenue - they don't always correlate</li>
             <li>• Use regions for quick geographic selection, then add specific countries</li>
-            <li>• Mix different criteria to find the sweet spot for your solution</li>
+            <li>• Define vertical attributes in Settings to target industry-specific criteria like bed count or facility type</li>
           </ul>
         </CardContent>
       </Card>

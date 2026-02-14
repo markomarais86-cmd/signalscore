@@ -13,6 +13,7 @@ interface DiscoveryCriteria {
   revenue_ranges: string[];
   keywords: string[];
   tech_stack?: string[];
+  vertical_filters?: Record<string, any>;
   limit?: number;
 }
 
@@ -98,6 +99,20 @@ function buildPerplexitySearchPrompt(criteria: DiscoveryCriteria, limit: number)
   }
   if (criteria.tech_stack?.length) {
     prompt += `Using technologies: ${criteria.tech_stack.join(', ')}\n`;
+  }
+  
+  // Include vertical-specific criteria
+  if (criteria.vertical_filters && Object.keys(criteria.vertical_filters).length > 0) {
+    prompt += `\nAdditional vertical-specific requirements:\n`;
+    for (const [key, value] of Object.entries(criteria.vertical_filters)) {
+      if (value === undefined || value === null) continue;
+      const label = key.replace(/_/g, ' ').replace(/_min$/, ' minimum').replace(/_max$/, ' maximum');
+      if (Array.isArray(value)) {
+        prompt += `- ${label}: ${value.join(', ')}\n`;
+      } else {
+        prompt += `- ${label}: ${value}\n`;
+      }
+    }
   }
   
   prompt += `\nFor each company, provide the company name, website domain, industry, employee count, revenue range, location, and a brief description. Include a mix of well-known and emerging companies in the space.`;

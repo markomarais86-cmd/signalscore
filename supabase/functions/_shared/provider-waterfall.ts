@@ -139,6 +139,9 @@ export interface EnrichedData {
   twitter_url?: string;
   naics?: string;
   sic_code?: string;
+  
+  // Custom vertical attributes (dynamic)
+  custom_attributes?: Record<string, any>;
 }
 
 export interface EnrichmentSource {
@@ -167,6 +170,15 @@ export interface WaterfallConfig {
   preferredProvider?: AIProvider;    // Try this provider first
   forceAllStages?: boolean;          // Run PDL/Apollo even if some data exists (default: false)
   fieldsToEnrich?: string[];         // Specific fields to target (empty = all)
+  
+  // Custom attribute enrichment
+  customAttributeDefinitions?: Array<{
+    field_key: string;
+    field_label: string;
+    field_type: string;
+    enrichment_prompt: string;
+    options?: string[];
+  }>;
   
   // Debug mode - returns detailed per-provider breakdown
   debug?: boolean;
@@ -2328,6 +2340,135 @@ export async function runEnrichmentWaterfall(
   const postAICoverage = getFieldCoverageStatus(data, verifiedFields, ACCOUNT_ENRICHABLE_FIELDS);
   if (postAICoverage.coverage > priorCoverage.coverage) {
     console.log(`[provider-waterfall] Post-AI coverage: ${postAICoverage.coverage.toFixed(0)}% (+${(postAICoverage.coverage - priorCoverage.coverage).toFixed(0)}%)`);
+  }
+  
+  // Step 4.5: Custom Attribute Enrichment (Vertical-specific data)
+  if (config.customAttributeDefinitions && config.customAttributeDefinitions.length > 0) {
+    const defsWithPrompts = config.customAttributeDefinitions.filter(d => d.enrichment_prompt);
+    if (defsWithPrompts.length > 0) {
+      console.log(`[provider-waterfall] Step 4.5 (Custom Attributes): Enriching ${defsWithPrompts.length} vertical fields`);
+      try {
+        const customAttrs: Record<string, any> = data.custom_attributes || {};
+        const companyName = data.company_name || input.company_name || input.company || '';
+        const domain = data.domain || input.domain || '';
+        
+        // Build a single prompt with all custom attribute questions
+        const questionsBlock = defsWithPrompts.map((def, i) => 
+          `${i + 1}. ${def.enrichment_prompt} (field: ${def.field_key}, type: ${def.field_type}${def.options && def.options.length > 0 ? `, valid options: ${def.options.join(', ')}` : ''})`
+        ).join('\n');
+        
+        const customPrompt = `For the company "${companyName}" (domain: ${domain}), answer these specific questions. Return ONLY a JSON object with field keys as keys and the answers as values. For number types return numbers, for select/multi_select return the matching option(s) exactly as listed.\n\n${questionsBlock}`;
+        
+        // Use Perplexity for real-time web search if available
+        const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
+        if (perplexityKey && companyName) {
+          try {
+            const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${perplexityKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'sonar-pro',
+                messages: [
+                  { role: 'system', content: 'You are a data extraction expert. Return ONLY valid JSON with the requested field keys and values. No markdown, no explanation.' },
+                  { role: 'user', content: customPrompt }
+                ],
+              }),
+            });
+            
+            if (perplexityResponse.ok) {
+              const perplexityData = await perplexityResponse.json();
+              const rawContent = perplexityData.choices?.[0]?.message?.content || '';
+              
+              // Extract JSON from response
+              const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                try {
+                  const parsed = JSON.parse(jsonMatch[0]);
+                  for (const def of defsWithPrompts) {
+                    if (parsed[def.field_key] !== undefined && parsed[def.field_key] !== null) {
+                      customAttrs[def.field_key] = parsed[def.field_key];
+                    }
+                  }
+                  console.log(`[provider-waterfall] Step 4.5: Perplexity extracted ${Object.keys(parsed).length} custom attributes`);
+                } catch (parseErr) {
+                  console.warn('[provider-waterfall] Step 4.5: Failed to parse Perplexity custom attributes JSON');
+                }
+              }
+              
+              sources.push({
+                provider: 'perplexity_custom',
+                fieldsEnriched: Object.keys(customAttrs),
+                confidence: 0.75,
+                latencyMs: Date.now() - startTime,
+                cost: PROVIDER_COSTS.perplexity,
+              });
+              totalCost += PROVIDER_COSTS.perplexity;
+            }
+          } catch (perplexityErr) {
+            console.warn('[provider-waterfall] Step 4.5: Perplexity custom attribute enrichment failed:', perplexityErr);
+          }
+        }
+        
+        // Use Lovable AI (Gemini) as validation/fallback for any missing fields
+        const lovableKey = Deno.env.get('LOVABLE_API_KEY');
+        const missingCustomFields = defsWithPrompts.filter(d => customAttrs[d.field_key] === undefined);
+        
+        if (lovableKey && missingCustomFields.length > 0 && companyName) {
+          try {
+            const fallbackQuestions = missingCustomFields.map((def, i) => 
+              `${i + 1}. ${def.enrichment_prompt} (field: ${def.field_key}, type: ${def.field_type}${def.options && def.options.length > 0 ? `, options: ${def.options.join(', ')}` : ''})`
+            ).join('\n');
+            
+            const geminiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${lovableKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'google/gemini-2.5-flash',
+                messages: [
+                  { role: 'system', content: 'You are a data extraction expert. Return ONLY valid JSON. No markdown.' },
+                  { role: 'user', content: `For "${companyName}" (${domain}), answer:\n${fallbackQuestions}` }
+                ],
+              }),
+            });
+            
+            if (geminiResponse.ok) {
+              const geminiData = await geminiResponse.json();
+              const geminiContent = geminiData.choices?.[0]?.message?.content || '';
+              const geminiJson = geminiContent.match(/\{[\s\S]*\}/);
+              if (geminiJson) {
+                try {
+                  const parsed = JSON.parse(geminiJson[0]);
+                  for (const def of missingCustomFields) {
+                    if (parsed[def.field_key] !== undefined && parsed[def.field_key] !== null) {
+                      customAttrs[def.field_key] = parsed[def.field_key];
+                    }
+                  }
+                  console.log(`[provider-waterfall] Step 4.5: Gemini filled ${Object.keys(parsed).length} missing custom attributes`);
+                } catch (parseErr) {
+                  console.warn('[provider-waterfall] Step 4.5: Failed to parse Gemini custom attributes');
+                }
+              }
+              totalCost += PROVIDER_COSTS.ai_gemini;
+            }
+          } catch (geminiErr) {
+            console.warn('[provider-waterfall] Step 4.5: Gemini custom attribute fallback failed:', geminiErr);
+          }
+        }
+        
+        if (Object.keys(customAttrs).length > 0) {
+          data.custom_attributes = customAttrs;
+          console.log(`[provider-waterfall] Step 4.5 complete: ${Object.keys(customAttrs).length} custom attributes populated`);
+        }
+      } catch (customErr) {
+        console.warn('[provider-waterfall] Step 4.5: Custom attribute enrichment failed:', customErr);
+      }
+    }
   }
   
   // Steps 5-6: Paid providers
