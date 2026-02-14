@@ -1,106 +1,78 @@
 
 
-# Fix: Smart Insights & Actions -- Broken Quick Actions and UI Polish
+# Fix: Smart Insights Quick Actions Still Not Working
 
-## Problems Identified
+## Root Cause
 
-### Problem 1: Quick Action Buttons Do Nothing
-When clicking insight action buttons (e.g., "Penetrate under-developed industries"), the `handleItemClick` function (line 444) only handles two cases:
-- If the item has a `route` property, it navigates there
-- If the item is a risk with `action === 'enrich'`, it opens the enrichment modal
+The previous fix added `inferWorkflowType` and `handleItemClick` logic, but missed the core data mapping issue. There are **two bugs**:
 
-**Most insights have neither.** They have an `action` string like "Penetrate under-developed industries" but no `route` or `filter` to navigate to. Clicking them does nothing -- no navigation, no workflow trigger, no feedback.
+### Bug 1: Insights have no `action` field
 
-### Problem 2: Not Truly Agentic
-The whiteboard diagram shows what agentic AI looks like: an **orchestrator with memory, tools, planning, and feedback**. Currently:
-- The `ai-orchestrator` edge function exists and has proper multi-step workflows (build_target_list, audit_data_quality, prepare_campaign, optimize_icp)
-- The `ProactiveAgentSuggestions` component can approve/execute workflows
-- **But the Smart Insights panel never connects to the orchestrator.** Clicking an action should trigger the relevant workflow, but instead it tries to navigate to a URL that doesn't exist.
+The `ICPInsight` type (from `use-icp-insights.tsx`) has a `nextAction` field (values like `'build_campaign'`, `'enrich_data'`, `'score_accounts'`, `'view_accounts'`). But the `Insight` interface in `UnifiedInsightsPanel` expects an `action` field. When the insights array is passed from `ExecutiveDashboard` to `UnifiedInsightsPanel`, the `nextAction` field is **never mapped to `action`**. Result: `item.action` is always `undefined`, so the action buttons never render at all.
 
-### Problem 3: Visual Quality
-The insight cards are functional but lack visual polish for a premium product.
+### Bug 2: Risk action is the wrong value
+
+For risks, on line 367: `action: risk.fix?.action` maps to `'enrich'` or `'navigate'` (the fix action type), not a user-visible action label. This means the button text says "enrich" or "navigate" instead of something useful like "Enrich Data" or "Score Accounts".
 
 ## Solution
 
-### 1. Wire Quick Actions to the AI Orchestrator
+### 1. Map `nextAction` to `action` with human-readable labels
 
-Map each insight/risk action to an actual orchestrator workflow or concrete navigation:
+In the `unifiedItems` array construction (line 372-393), map `insight.nextAction` (or the `ICPInsight` equivalent) to a human-readable `action` string and a corresponding `route`:
 
-| Action Type | Maps To |
-|-------------|---------|
-| "Enrich Data" / "Re-enrich" | Trigger `enrich_ai_free` inline (already works) |
-| "Penetrate industries" / "Expand coverage" | Start `build_target_list` workflow via ai-orchestrator |
-| "Score Accounts" | Navigate to `/accounts?action=score` |
-| "Standardize Industries" | Navigate to `/settings?tab=data-quality` |
-| "Optimize ICP" | Start `optimize_icp` workflow |
-| "Prepare Campaign" | Start `prepare_campaign` workflow |
-| Generic insight actions | Use `ai-orchestrator` with inferred workflow type, showing a confirmation dialog first |
+| `nextAction` value | `action` label | `route` |
+|---|---|---|
+| `build_campaign` | "Prepare Campaign" | (workflow) |
+| `enrich_data` | "Enrich Data" | (inline enrich) |
+| `score_accounts` | "Score Accounts" | `/accounts` |
+| `view_accounts` | "View Accounts" | `/accounts` |
+| `contact_leads` | "Find Contacts" | (workflow) |
+| `export_csv` | "Export Data" | `/accounts` |
+| `review_accounts` | "Review Accounts" | `/accounts` |
 
-When a workflow is triggered, show real-time progress using the existing `AgentRunProgress` component or a toast with progress updates.
+### 2. Fix risk action label
 
-### 2. Add Confirmation Dialog for Agentic Actions
+Map `risk.fix?.label` to the card's action text instead of `risk.fix?.action`. The `fix.label` already has good text like "Score Accounts", "Enrich Data", "Standardize Industries".
 
-Before triggering an orchestrator workflow from an insight click, show a dialog:
-- Workflow name and description
-- What steps will execute
-- "Run Now" button to confirm
+### 3. Add `Sparkles` import check
 
-This makes it feel intentional and agentic (human-in-the-loop), matching the whiteboard's concept.
-
-### 3. Visual Polish for Insight Cards
-
-- Better card hierarchy with subtle gradients
-- Icon colors that match severity consistently
-- Animated action buttons on hover
-- Progress indicators when a workflow is running from a card
-- Better empty states
-
-### 4. Fix Risk Fix Actions
-
-The `RiskItem.fix` already has structured data (`action: 'enrich' | 'navigate'`, `target`, `fields`), but `handleItemClick` doesn't properly use the `fix` property. Update it to:
-- For `fix.action === 'navigate'`: navigate to `fix.target`
-- For `fix.action === 'enrich'`: open enrichment modal with `fix.fields`
+The `Sparkles` icon was added to action buttons but needs to be in the import list (verify it's there from the previous edit).
 
 ## Files Changed
 
 | File | Change |
 |------|--------|
-| `src/components/executive/UnifiedInsightsPanel.tsx` | Rewrite `handleItemClick` to map actions to orchestrator workflows or navigation; add workflow confirmation dialog; add workflow progress state; improve card styling |
-| `src/utils/risk-detector.ts` | Ensure all `fix` objects have proper `action` and `target` fields |
-| `src/components/executive/WorkflowConfirmDialog.tsx` | **New** -- confirmation dialog before executing agentic workflows |
+| `src/components/executive/UnifiedInsightsPanel.tsx` | Fix the `unifiedItems` mapping: use `risk.fix?.label` for risk actions; map `insight.nextAction` (via type coercion since ICPInsight is passed as Insight) to readable action strings with corresponding routes |
 
-## Technical Details
+## Technical Detail
 
-### Updated `handleItemClick` Logic
+The insight mapping block (lines 372-393) changes from:
 
-```text
-handleItemClick(item):
-  1. If item is a risk with fix.action === 'navigate' -> navigate(fix.target)
-  2. If item is a risk with fix.action === 'enrich' -> open enrichment modal with fix.fields
-  3. If item has a route -> navigate(route + filter params)
-  4. If item.action contains keywords mapping to known workflows:
-     - "enrich" -> trigger inline enrichment (already works)
-     - "penetrate" / "expand" / "target" -> open WorkflowConfirmDialog for build_target_list
-     - "optimize" / "refine" / "improve ICP" -> open WorkflowConfirmDialog for optimize_icp
-     - "campaign" / "outreach" -> open WorkflowConfirmDialog for prepare_campaign
-     - "audit" / "quality" -> open WorkflowConfirmDialog for audit_data_quality
-  5. Fallback: show toast "Action not yet available"
+```
+action: insight.action,
+route: insight.route,
 ```
 
-### WorkflowConfirmDialog
+to:
 
-A small dialog component that:
-- Shows the workflow name and description
-- Lists the steps that will execute
-- Has "Cancel" and "Run Workflow" buttons
-- On confirm: calls `supabase.functions.invoke('ai-orchestrator', { body: { action: 'start_workflow', workflow_type, ... } })`
-- Shows a toast with progress and links to the AI Agents page to monitor
+```
+action: mapNextActionToLabel(insight),
+route: mapNextActionToRoute(insight),
+```
 
-### Card Visual Improvements
+Where `mapNextActionToLabel` converts `nextAction` values to human-readable button text, and `mapNextActionToRoute` provides navigation targets for non-workflow actions.
 
-- Add `backdrop-blur-sm` for glass effect on cards
-- Use consistent icon background colors per severity/category
-- Add `transition-all duration-200` with `hover:translate-y-[-2px]` for lift effect
-- Show a small spinner on the action button when a workflow is running for that item
-- Add "AI-powered" badge on actions that trigger orchestrator workflows
+The risk mapping block (line 367) changes from:
+
+```
+action: risk.fix?.action,
+```
+
+to:
+
+```
+action: risk.fix?.label,
+```
+
+This ensures every insight and risk card renders an action button with meaningful text that connects to the right handler.
 
