@@ -80,11 +80,11 @@ export function getSourceBadgeVariant(source: 'crm' | 'database' | 'both'): 'def
 export function getSourceLabel(source: 'crm' | 'database' | 'both'): string {
   switch (source) {
     case 'crm':
-      return 'CRM';
+      return 'LaunchPulse CRM';
     case 'database':
       return 'Database';
     case 'both':
-      return 'CRM + Database';
+      return 'LaunchPulse CRM + Database';
   }
 }
 
