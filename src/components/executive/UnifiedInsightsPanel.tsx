@@ -364,7 +364,7 @@ export function UnifiedInsightsPanel({
       description: risk.description,
       impact: risk.impact,
       count: risk.count,
-      action: risk.fix?.action,
+      action: risk.fix?.label || (risk.fix?.action === 'enrich' ? 'Enrich Data' : risk.fix?.action === 'navigate' ? 'View Details' : undefined),
       route: undefined,
       filter: risk.filter,
       source: risk
@@ -384,8 +384,8 @@ export function UnifiedInsightsPanel({
         title: insight.title,
         description: insight.why || insight.description,
         impact: insight.impact,
-        action: insight.action,
-        route: insight.route,
+        action: insight.action || mapNextActionToLabel((insight as any).nextAction),
+        route: insight.route || mapNextActionToRoute((insight as any).nextAction),
         filter: insight.filter,
         relatedRisk: insight.relatedRisk,
         source: insight
@@ -443,6 +443,31 @@ export function UnifiedInsightsPanel({
     } finally {
       setIsRefreshing(false);
     }
+  };
+
+  const mapNextActionToLabel = (nextAction?: string): string | undefined => {
+    if (!nextAction) return undefined;
+    const map: Record<string, string> = {
+      build_campaign: 'Prepare Campaign',
+      enrich_data: 'Enrich Data',
+      score_accounts: 'Score Accounts',
+      view_accounts: 'View Accounts',
+      contact_leads: 'Find Contacts',
+      export_csv: 'Export Data',
+      review_accounts: 'Review Accounts',
+    };
+    return map[nextAction] || nextAction.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  const mapNextActionToRoute = (nextAction?: string): string | undefined => {
+    if (!nextAction) return undefined;
+    const map: Record<string, string> = {
+      score_accounts: '/accounts',
+      view_accounts: '/accounts',
+      review_accounts: '/accounts',
+      export_csv: '/accounts',
+    };
+    return map[nextAction];
   };
 
   const inferWorkflowType = (actionText: string): string | null => {
