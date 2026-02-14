@@ -1,83 +1,53 @@
 
 
-# Board PDF Report Overhaul
+# Fix Data Completeness KPI on Growth Command Center
 
-## Problems Found
+## Root Cause
 
-1. **Executive Summary too thin**: One short paragraph. Data Completeness shows 0% despite the dashboard showing 94%. The narrative generator doesn't pull enough context.
-2. **ICP Deep Dive is empty**: Page 3 only lists raw profile metadata (company sizes, confidence). It doesn't include fit distribution breakdown, match statistics, or any data from the ICP Performance Matrix.
-3. **TAM/Industry/Size data is wrong**: The industry breakdown shows suspiciously round percentages (50%, 10%, 10%...) and company size shows "10000+ = 100%". This data comes from `external_data_sources.industry_breakdown` / `company_size_breakdown` which is external provider data, not your actual scored accounts. The report should use real account data.
-4. **Geography numbers inflated**: Page 5 shows 62,765 US accounts but total accounts are only 14,360. The geo RPC returns all-source data including external provider estimates. The report should use actual account geography.
-5. **Top 20 Prospects is generic**: All 20 have identical scores (100/50/95). Better to show Top 10 with more context (revenue, lead count, enrichment status).
-6. **Pages 7-8 waste space**: AI Insights spill across two pages awkwardly. Page 8 has one leftover insight plus raw action button text ("view_accounts") leaking into the PDF.
-7. **Page 9 repeats Page 2**: The "Data Quality Summary" section duplicates the executive summary metrics.
+The "Data Completeness" KPI tile on the dashboard shows 0% because it reads from the `get_dashboard_metrics_cached` RPC, which **does not return a `data_completeness` field**. The RPC builds its JSON from `dashboard_metrics_cache` and `leads_metrics_cache` tables, neither of which has a `data_completeness` column.
 
-## Plan
+Meanwhile, the Enrichment page correctly shows 95-99% because it calls a different RPC (`get_enrichment_stats`) that computes `data_completeness_pct` live.
 
-### 1. Fix Data Completeness in Executive Summary
-**File**: `src/hooks/use-branded-report.ts`
-- The `dataCompleteness` field uses `raw?.data_completeness` from the cached dashboard metrics RPC. Investigate why this returns 0 when the DataHealthWidget shows 94%.
-- If the RPC doesn't return it, compute it directly from account field coverage (same logic as DataHealthWidget).
+## Fix
 
-### 2. Enrich the Executive Summary Narrative
-**File**: `src/utils/branded-pdf-export.ts` (generateNarrative function)
-- Add TAM/SAM context: "Your TAM spans X accounts, with Y in your serviceable market."
-- Add ICP profile summary: "Your active ICP profile 'Enterprise Technology' matches Z accounts at N% confidence."
-- Add geographic headline: "Operations span N countries, with X% concentration in top 3 markets."
-- Add lead-to-account context beyond the simple ratio.
+Compute data completeness directly in the dashboard hook (`use-dashboard-data.ts`) instead of relying on a missing cached field — the same approach the DataHealthWidget already uses successfully.
 
-### 3. Fix Industry and Size Breakdown to Use Real Account Data
-**File**: `src/hooks/use-branded-report.ts`
-- Replace `external_data_sources.industry_breakdown` with an aggregation query against the `accounts` table grouped by `industry_norm`.
-- Replace `external_data_sources.company_size_breakdown` with an aggregation of `accounts.employee_count` bucketed into size ranges.
-- This ensures percentages reflect actual scored accounts, not external provider estimates.
+### Changes
 
-### 4. Fix Geography to Use Scored Accounts Only
-**File**: `src/hooks/use-branded-report.ts`
-- Pass `p_source_filter: 'database'` instead of `'all'` to `get_geography_distribution` RPC so it only counts real accounts, not external provider estimates.
+**File: `src/hooks/use-dashboard-data.ts`**
 
-### 5. Enhance ICP Deep Dive Page
-**File**: `src/utils/branded-pdf-export.ts` (Page 3 section)
-**File**: `src/hooks/use-branded-report.ts` (add fit distribution data)
-- Query fit distribution per ICP (count of high/medium/low fit accounts matching this profile).
-- Add to the ICP profile card: target industries list, fit distribution bar (like the exec summary), and top matching accounts (top 5 names).
-- Add ICP-level TAM context showing what percentage of total TAM this profile covers.
+1. Add a helper function `computeDataCompleteness(orgId)` that queries the `accounts` table and calculates the percentage of key fields (industry, employee count, revenue, country, domain) that are filled across all accounts.
+2. Call it in the `useDashboardData` query function alongside the existing RPC call.
+3. Map the result into `data_completeness` in the `mappedMetrics` object, replacing the current `rawMetrics?.data_completeness || 0` which always returns 0.
 
-### 6. Reduce Top Prospects from 20 to 10, Add Detail
-**File**: `src/utils/branded-pdf-export.ts` (Page 6 section)
-**File**: `src/hooks/use-branded-report.ts`
-- Change title to "Top 10 Priority Accounts"
-- Add revenue range column and lead count per account
-- Fetch `accounts.annual_revenue` and lead count in the join query
-- Remove duplicate-score accounts (all showing 100/50/95 suggests scoring isn't differentiating)
+This is a lightweight query (only needs a count of non-null fields) and will give the dashboard the same accurate completeness percentage that the Enrichment page and DataHealthWidget already show.
 
-### 7. Consolidate AI Insights onto One Page, Remove Waste
-**File**: `src/utils/branded-pdf-export.ts` (Pages 7-8)
-- Cap insights to top 6 (2 high, 2 medium, 2 low) so they fit on one page
-- Strip the `nextAction` field from rendering (it contains internal action IDs like "view_accounts" that leak into the PDF)
-- Merge the Risks section (old page 9) onto the same or next page, removing the duplicate Data Quality Summary block
+### Technical Detail
 
-### 8. Remove Redundant Final Page
-**File**: `src/utils/branded-pdf-export.ts` (Page 8/9 — Risks section)
-- Remove the "Data Quality Summary" block at the bottom of the risks page since it duplicates page 2
-- Keep only the Risks and Action Items content
-- This brings total pages from 9 down to approximately 7
+```
+// New helper added to use-dashboard-data.ts
+async function computeDataCompleteness(orgId: string): Promise<number> {
+  const { data } = await supabase
+    .from('accounts')
+    .select('industry_norm, employee_count, revenue_range, country, domain')
+    .eq('org_id', orgId);
 
-## Files Changed
+  if (!data || data.length === 0) return 0;
 
-| File | Changes |
-|------|---------|
-| `src/hooks/use-branded-report.ts` | Fix data completeness calc, query real account data for industry/size, fix geo source filter, add per-ICP fit distribution, add revenue/lead data to top prospects |
-| `src/utils/branded-pdf-export.ts` | Richer narrative, enhanced ICP page, Top 10 with more columns, cap insights to 6 with no action leaking, remove duplicate data quality summary |
+  const fields = ['industry_norm', 'employee_count', 'revenue_range', 'country', 'domain'];
+  let filled = 0, total = 0;
+  data.forEach(row => {
+    fields.forEach(f => { total++; if (row[f] != null && row[f] !== '') filled++; });
+  });
+  return total > 0 ? Math.round((filled / total) * 100) : 0;
+}
+```
 
-## Expected Result
+Then in the query function, call it in parallel with the existing RPCs and use its result for `data_completeness`.
 
-A tighter 7-page report where:
-- Executive Summary is a rich paragraph with real metrics
-- ICP Deep Dive shows fit distribution and matching context
-- TAM/Industry/Size uses actual account data with accurate percentages
-- Geography reflects real accounts only
-- Top 10 Accounts with revenue and lead context
-- AI Insights on one clean page
-- Risks without redundant summary
+| File | Change |
+|------|--------|
+| `src/hooks/use-dashboard-data.ts` | Add `computeDataCompleteness` helper, call it in `useDashboardData`, use result for `data_completeness` |
+
+No database migrations needed. No other files need changes since `GrowthCommandKPIs` already receives `dataCompleteness` as a prop from the dashboard page.
 
