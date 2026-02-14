@@ -1,12 +1,12 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Globe, UserCheck, Star, TrendingUp, AlertTriangle } from "lucide-react";
+import { Globe, Database, Star, TrendingUp, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 interface GrowthCommandKPIsProps {
   totalAccounts: number;
   tamEstimate: number;
-  accountsWithContacts: number;
+  dataCompleteness: number;
   highFitAccounts: number;
   campaignReadyAccounts: number;
   pipelinePotential: number;
@@ -35,7 +35,7 @@ function formatCurrency(value: number) {
 export function GrowthCommandKPIs({
   totalAccounts,
   tamEstimate,
-  accountsWithContacts,
+  dataCompleteness,
   highFitAccounts,
   campaignReadyAccounts,
   pipelinePotential,
@@ -44,28 +44,30 @@ export function GrowthCommandKPIs({
 }: GrowthCommandKPIsProps) {
   const navigate = useNavigate();
 
-  const marketCoverage = tamEstimate > 0 ? Math.round((totalAccounts / tamEstimate) * 100) : 0;
-  const revenueReady = totalAccounts > 0 ? Math.round((accountsWithContacts / totalAccounts) * 100) : 0;
+  const hasTAM = tamEstimate > 0 && tamEstimate !== totalAccounts;
+  const marketCoverage = hasTAM ? Math.round((totalAccounts / tamEstimate) * 100) : 0;
   const priorityCount = highFitAccounts;
 
   const tiles = [
     {
       label: "Market Coverage",
-      value: `${marketCoverage}%`,
-      soWhat: tamEstimate > 0
+      value: hasTAM ? `${marketCoverage}%` : totalAccounts.toLocaleString(),
+      soWhat: hasTAM
         ? `${totalAccounts.toLocaleString()} of ${tamEstimate.toLocaleString()} reachable accounts in system`
-        : "Define your TAM to track coverage",
+        : `${totalAccounts.toLocaleString()} accounts loaded — connect TAM source for coverage %`,
       icon: Globe,
-      benchmarkPercent: marketCoverage,
+      benchmarkPercent: hasTAM ? marketCoverage : (totalAccounts > 0 ? 60 : 0),
       onClick: () => navigate("/accounts"),
     },
     {
-      label: "Revenue-Ready",
-      value: `${revenueReady}%`,
-      soWhat: `${accountsWithContacts.toLocaleString()} accounts with actionable contacts`,
-      icon: UserCheck,
-      benchmarkPercent: revenueReady,
-      onClick: () => navigate("/leads"),
+      label: "Data Completeness",
+      value: `${dataCompleteness}%`,
+      soWhat: dataCompleteness >= 80
+        ? "Strong enrichment — ready for accurate scoring"
+        : "Enrich accounts to improve scoring accuracy",
+      icon: Database,
+      benchmarkPercent: dataCompleteness,
+      onClick: () => navigate("/enrichment"),
     },
     {
       label: "Priority Accounts",
@@ -80,7 +82,7 @@ export function GrowthCommandKPIs({
       value: formatCurrency(pipelinePotential),
       soWhat: `Modelled upside across ${campaignReadyAccounts.toLocaleString()} campaign-ready accounts`,
       icon: TrendingUp,
-      benchmarkPercent: 70, // Pipeline is always contextual
+      benchmarkPercent: pipelinePotential > 0 ? 60 : 30,
       onClick: () => navigate("/accounts"),
     },
     {
@@ -88,7 +90,7 @@ export function GrowthCommandKPIs({
       value: formatCurrency(revenueAtRisk),
       soWhat: "Opportunity lost to data gaps — enrich to recover",
       icon: AlertTriangle,
-      benchmarkPercent: revenueAtRisk > 0 ? 30 : 80, // High risk = red
+      benchmarkPercent: revenueAtRisk > 0 ? 30 : 80,
       onClick: () => navigate("/enrichment"),
     },
   ];
