@@ -53,6 +53,9 @@ export interface ICPProfile {
   status?: 'draft' | 'active' | 'archived';
   last_validated_at?: string;
   created_at: string;
+  
+  // Vertical targeting
+  vertical_filters?: Record<string, any>;
 }
 
 export interface ICPTemplate {
@@ -132,4 +135,7 @@ export interface ICPFormData {
   tags: string[];
   template_source?: string;
   status: 'draft' | 'active' | 'archived';
+  
+  // Vertical targeting
+  vertical_filters?: Record<string, any>;
 }

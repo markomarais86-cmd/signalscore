@@ -213,6 +213,7 @@ export type Database = {
           city: string | null
           company_main_phone: string | null
           country: string | null
+          custom_attributes: Json | null
           data_source: string | null
           deep_research_completed_at: string | null
           deep_research_requested: boolean | null
@@ -266,6 +267,7 @@ export type Database = {
           city?: string | null
           company_main_phone?: string | null
           country?: string | null
+          custom_attributes?: Json | null
           data_source?: string | null
           deep_research_completed_at?: string | null
           deep_research_requested?: boolean | null
@@ -319,6 +321,7 @@ export type Database = {
           city?: string | null
           company_main_phone?: string | null
           country?: string | null
+          custom_attributes?: Json | null
           data_source?: string | null
           deep_research_completed_at?: string | null
           deep_research_requested?: boolean | null
@@ -2579,6 +2582,53 @@ export type Database = {
           },
         ]
       }
+      custom_attribute_definitions: {
+        Row: {
+          category: string | null
+          created_at: string
+          enrichment_prompt: string | null
+          field_key: string
+          field_label: string
+          field_type: string
+          id: string
+          options: string[] | null
+          org_id: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          enrichment_prompt?: string | null
+          field_key: string
+          field_label: string
+          field_type: string
+          id?: string
+          options?: string[] | null
+          org_id: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          enrichment_prompt?: string | null
+          field_key?: string
+          field_label?: string
+          field_type?: string
+          id?: string
+          options?: string[] | null
+          org_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "custom_attribute_definitions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       custom_reports: {
         Row: {
           config: Json
@@ -4762,6 +4812,7 @@ export type Database = {
           timezones: string[] | null
           use_case: string | null
           version: number | null
+          vertical_filters: Json | null
         }
         Insert: {
           budget_indicators?: string[] | null
@@ -4808,6 +4859,7 @@ export type Database = {
           timezones?: string[] | null
           use_case?: string | null
           version?: number | null
+          vertical_filters?: Json | null
         }
         Update: {
           budget_indicators?: string[] | null
@@ -4854,6 +4906,7 @@ export type Database = {
           timezones?: string[] | null
           use_case?: string | null
           version?: number | null
+          vertical_filters?: Json | null
         }
         Relationships: [
           {
