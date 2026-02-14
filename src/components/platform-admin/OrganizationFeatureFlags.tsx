@@ -33,6 +33,7 @@ const FEATURE_FLAG_LABELS: Record<string, { label: string; description: string; 
   advanced_segmentation: { label: "Advanced Segmentation", description: "Complex segmentation rules", phase: "Labs" },
   trend_analysis: { label: "Trend Analysis", description: "Analyze trends over time", phase: "Labs" },
   data_enrichment: { label: "Data Enrichment", description: "Account and contact enrichment", phase: "MVP" },
+  sales: { label: "Sales", description: "Opportunities and Tasks tracking", phase: "Growth" },
 };
 
 export function OrganizationFeatureFlags({ organizations }: { organizations: Organization[] }) {

@@ -25,20 +25,20 @@ import { cn } from "@/lib/utils";
 // Core navigation - always visible
 const coreNavigation = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Accounts", url: "/accounts", icon: Database },
-  { title: "Leads", url: "/leads", icon: Users },
+  { title: "ICP Manager", url: "/icp-manager", icon: Target },
 ];
 
-// Sales section - collapsible
+// Data section - collapsible
+const dataNavigation = [
+  { title: "Accounts", url: "/accounts", icon: Database },
+  { title: "Leads", url: "/leads", icon: Users },
+  { title: "Enrichment", url: "/enrichment", icon: Sparkles },
+];
+
+// Sales section - collapsible, feature-flagged
 const salesNavigation = [
   { title: "Opportunities", url: "/opportunities", icon: Kanban },
   { title: "Tasks", url: "/tasks", icon: ClipboardList },
-];
-
-// Build section - collapsible
-const buildNavigation = [
-  { title: "ICP Manager", url: "/icp-manager", icon: Target },
-  { title: "Enrichment", url: "/enrichment", icon: Sparkles },
 ];
 
 // Configure section - collapsible
@@ -55,30 +55,24 @@ export function AppSidebar() {
   const { flags } = useFeatureFlags();
   const currentPath = location.pathname;
 
-  // Check if any child route in a section is active
-  const isSectionActive = (items: typeof coreNavigation) => 
-    items.some(item => isActive(item.url));
+  const isActive = (path: string) => {
+    if (path === "/") return currentPath === "/";
+    return currentPath.startsWith(path);
+  };
 
   // Auto-expand sections based on current route
+  const [dataOpen, setDataOpen] = useState(() =>
+    dataNavigation.some(item => currentPath.startsWith(item.url))
+  );
   const [salesOpen, setSalesOpen] = useState(() =>
     salesNavigation.some(item => currentPath.startsWith(item.url))
   );
-  const [buildOpen, setBuildOpen] = useState(() => 
-    buildNavigation.some(item => currentPath.startsWith(item.url))
-  );
-  const [configureOpen, setConfigureOpen] = useState(() => 
+  const [configureOpen, setConfigureOpen] = useState(() =>
     configureNavigation.some(item => currentPath.startsWith(item.url))
   );
-  const [analyticsOpen, setAnalyticsOpen] = useState(() => 
+  const [analyticsOpen, setAnalyticsOpen] = useState(() =>
     ['/pipeline-efficiency', '/capital-efficiency', '/reports', '/segmentation', '/trends'].some(url => currentPath.startsWith(url))
   );
-
-  const isActive = (path: string) => {
-    if (path === "/") {
-      return currentPath === "/";
-    }
-    return currentPath.startsWith(path);
-  };
 
   const getNavCls = (path: string) =>
     isActive(path) 
@@ -128,20 +122,20 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Sales Section - Collapsible */}
+        {/* Data Section - Collapsible */}
         <SidebarGroup>
-          <Collapsible open={salesOpen} onOpenChange={setSalesOpen}>
+          <Collapsible open={dataOpen} onOpenChange={setDataOpen}>
             <CollapsibleTrigger className="flex w-full items-center justify-between px-2 py-1.5 text-xs text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
               <span className="flex items-center gap-2">
-                <ShoppingCart className="h-3.5 w-3.5" />
-                Sales
+                <Database className="h-3.5 w-3.5" />
+                Data
               </span>
-              <ChevronDown className={cn("h-4 w-4 transition-transform", salesOpen && "rotate-180")} />
+              <ChevronDown className={cn("h-4 w-4 transition-transform", dataOpen && "rotate-180")} />
             </CollapsibleTrigger>
             <CollapsibleContent>
               <SidebarGroupContent>
                 <SidebarMenu className="space-y-1 mt-1">
-                  {salesNavigation.map((item) => (
+                  {dataNavigation.map((item) => (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild>
                         <NavLink
@@ -160,34 +154,39 @@ export function AppSidebar() {
           </Collapsible>
         </SidebarGroup>
 
-        {/* Build Section - Collapsible */}
-        <SidebarGroup>
-          <Collapsible open={buildOpen} onOpenChange={setBuildOpen}>
-            <CollapsibleTrigger className="flex w-full items-center justify-between px-2 py-1.5 text-xs text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
-              <span>Build</span>
-              <ChevronDown className={cn("h-4 w-4 transition-transform", buildOpen && "rotate-180")} />
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <SidebarGroupContent>
-                <SidebarMenu className="space-y-1 mt-1">
-                  {buildNavigation.map((item) => (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton asChild>
-                        <NavLink
-                          to={item.url}
-                          className={getNavCls(item.url)}
-                        >
-                          <item.icon className="h-4 w-4" />
-                          <span>{item.title}</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </SidebarGroup>
+        {/* Sales Section - Collapsible, Feature-flagged */}
+        {flags.sales && (
+          <SidebarGroup>
+            <Collapsible open={salesOpen} onOpenChange={setSalesOpen}>
+              <CollapsibleTrigger className="flex w-full items-center justify-between px-2 py-1.5 text-xs text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors">
+                <span className="flex items-center gap-2">
+                  <ShoppingCart className="h-3.5 w-3.5" />
+                  Sales
+                </span>
+                <ChevronDown className={cn("h-4 w-4 transition-transform", salesOpen && "rotate-180")} />
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu className="space-y-1 mt-1">
+                    {salesNavigation.map((item) => (
+                      <SidebarMenuItem key={item.title}>
+                        <SidebarMenuButton asChild>
+                          <NavLink
+                            to={item.url}
+                            className={getNavCls(item.url)}
+                          >
+                            <item.icon className="h-4 w-4" />
+                            <span>{item.title}</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </Collapsible>
+          </SidebarGroup>
+        )}
 
         {/* Configure Section - Collapsible */}
         <SidebarGroup>
@@ -250,7 +249,7 @@ export function AppSidebar() {
           </SidebarGroup>
         )}
 
-        {/* Admin - Super admin only, separate at bottom */}
+        {/* Admin - Super admin only */}
         {isSuperAdmin && (
           <SidebarGroup>
             <SidebarGroupContent>
