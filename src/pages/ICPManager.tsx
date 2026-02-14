@@ -432,6 +432,9 @@ export default function ICPManager() {
           />
         )}
 
+        {/* ICP Performance Matrix - All accounts */}
+        <ICPPerformanceMatrix />
+
         {/* LaunchPulse Discovery Card - Always Visible */}
         <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5">
           <CardHeader>
