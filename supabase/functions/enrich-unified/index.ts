@@ -283,6 +283,8 @@ serve(async (req) => {
               if (result.data.tech_stack) updateData.tech_stack = result.data.tech_stack;
               if (result.data.total_raised_usd) updateData.total_raised_usd = result.data.total_raised_usd;
               if (result.data.last_funding_round) updateData.last_funding_round = result.data.last_funding_round;
+              if (result.data.sub_industry) updateData.sub_industry = result.data.sub_industry;
+              if (result.data.business_model) updateData.business_model = result.data.business_model;
 
               const { error: updateError, count } = await supabase
                 .from('accounts')

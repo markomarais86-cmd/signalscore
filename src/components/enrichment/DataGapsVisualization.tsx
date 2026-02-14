@@ -160,12 +160,23 @@ export function DataGapsVisualization() {
 
     try {
       setStarting(true);
+      
+      // Fetch fresh accounts with gaps for the resumed job
+      const gapFields = dataGaps.filter(g => g.missing > 0).map(g => `${g.field}.is.null`);
+      const { data: accounts } = await supabase
+        .from("accounts")
+        .select("external_id, name, domain, industry_norm, industry_raw, sub_industry, employee_count, revenue_range, country, state_province, city")
+        .eq("org_id", userProfile.org_id)
+        .or(gapFields.length > 0 ? gapFields.join(",") : "employee_count.is.null")
+        .not("domain", "is", null)
+        .limit(100);
+
       const { error } = await supabase.functions.invoke("enrich-unified", {
         body: {
           job_id: activeJob.id,
           org_id: userProfile.org_id,
           record_type: 'account',
-          records: [],
+          records: accounts || [],
           config: { skipPaidProviders: true }
         },
       });
@@ -192,11 +203,35 @@ export function DataGapsVisualization() {
     try {
       setStarting(true);
       
+      // Build OR filter for fields with gaps
+      const gapFields = dataGaps.filter(g => g.missing > 0).map(g => `${g.field}.is.null`);
+      if (gapFields.length === 0) {
+        toast.info("No data gaps found!");
+        return;
+      }
+
+      // Fetch actual accounts with missing data
+      const limit = batchSize === "all" ? totalAccounts : parseInt(batchSize);
+      const { data: accounts, error: fetchError } = await supabase
+        .from("accounts")
+        .select("external_id, name, domain, industry_norm, industry_raw, sub_industry, employee_count, revenue_range, country, state_province, city")
+        .eq("org_id", userProfile.org_id)
+        .or(gapFields.join(","))
+        .not("domain", "is", null)
+        .limit(Math.min(limit, 100)); // Edge function max is 100 per request
+
+      if (fetchError) throw fetchError;
+
+      if (!accounts || accounts.length === 0) {
+        toast.info("No accounts with data gaps and a domain found.");
+        return;
+      }
+
       const { error } = await supabase.functions.invoke("enrich-unified", {
         body: {
           org_id: userProfile.org_id,
           record_type: 'account',
-          records: [],
+          records: accounts,
           config: { skipPaidProviders: true }
         },
       });
@@ -204,7 +239,7 @@ export function DataGapsVisualization() {
       if (error) throw error;
 
       toast.success("Enrichment started!", {
-        description: `Processing ${accountsToEnrich.toLocaleString()} accounts`,
+        description: `Processing ${accounts.length.toLocaleString()} accounts`,
       });
 
       await checkActiveJob();
