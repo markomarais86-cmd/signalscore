@@ -54,6 +54,9 @@ const INDUSTRY_TEMPLATES: TemplateDefinition[] = [
       { field_key: 'monthly_active_users', field_label: 'Monthly Active Users', field_type: 'number', options: [], category: 'SaaS', enrichment_prompt: 'Approximately how many monthly active users does this SaaS product have?' },
       { field_key: 'platform_type', field_label: 'Platform Type', field_type: 'select', options: ['Cloud-native', 'Hybrid', 'On-premise', 'Mobile-first', 'API-first'], category: 'SaaS', enrichment_prompt: 'What type of platform is this? Is it Cloud-native, Hybrid, On-premise, Mobile-first, or API-first?' },
       { field_key: 'integration_count', field_label: 'Number of Integrations', field_type: 'number', options: [], category: 'SaaS', enrichment_prompt: 'How many third-party integrations does this SaaS product offer?' },
+      { field_key: 'arr', field_label: 'Annual Recurring Revenue (ARR)', field_type: 'number', options: [], category: 'SaaS', enrichment_prompt: 'What is this company\'s estimated Annual Recurring Revenue (ARR) in USD?' },
+      { field_key: 'mrr', field_label: 'Monthly Recurring Revenue (MRR)', field_type: 'number', options: [], category: 'SaaS', enrichment_prompt: 'What is this company\'s estimated Monthly Recurring Revenue (MRR) in USD?' },
+      { field_key: 'churn_rate', field_label: 'Churn Rate (%)', field_type: 'number', options: [], category: 'SaaS', enrichment_prompt: 'What is this SaaS company\'s estimated annual customer churn rate as a percentage?' },
     ],
   },
   {
@@ -64,6 +67,7 @@ const INDUSTRY_TEMPLATES: TemplateDefinition[] = [
       { field_key: 'plant_count', field_label: 'Number of Plants', field_type: 'number', options: [], category: 'Manufacturing', enrichment_prompt: 'How many manufacturing plants or facilities does this company operate?' },
       { field_key: 'iso_certifications', field_label: 'ISO Certifications', field_type: 'multi_select', options: ['ISO 9001', 'ISO 14001', 'ISO 45001', 'ISO 13485', 'AS9100', 'IATF 16949'], category: 'Manufacturing', enrichment_prompt: 'What ISO or industry certifications does this manufacturer hold?' },
       { field_key: 'production_type', field_label: 'Production Type', field_type: 'select', options: ['Discrete', 'Process', 'Mixed-mode', 'Job shop', 'Continuous flow', 'Batch'], category: 'Manufacturing', enrichment_prompt: 'What type of manufacturing production does this company use? Is it Discrete, Process, Mixed-mode, Job shop, Continuous flow, or Batch?' },
+      { field_key: 'annual_output', field_label: 'Annual Output', field_type: 'number', options: [], category: 'Manufacturing', enrichment_prompt: 'What is this manufacturer\'s estimated annual production output or volume?' },
     ],
   },
   {
@@ -74,6 +78,7 @@ const INDUSTRY_TEMPLATES: TemplateDefinition[] = [
       { field_key: 'store_count', field_label: 'Number of Stores', field_type: 'number', options: [], category: 'Retail', enrichment_prompt: 'How many physical retail store locations does this company operate?' },
       { field_key: 'ecommerce_platform', field_label: 'E-commerce Platform', field_type: 'select', options: ['Shopify', 'Magento', 'WooCommerce', 'BigCommerce', 'Salesforce Commerce Cloud', 'Custom'], category: 'Retail', enrichment_prompt: 'What e-commerce platform does this retailer use for their online store?' },
       { field_key: 'distribution_channels', field_label: 'Distribution Channels', field_type: 'multi_select', options: ['Direct-to-consumer', 'Wholesale', 'Marketplace (Amazon)', 'Brick-and-mortar', 'Franchise'], category: 'Retail', enrichment_prompt: 'What distribution channels does this retailer use?' },
+      { field_key: 'average_basket_size', field_label: 'Average Basket Size ($)', field_type: 'number', options: [], category: 'Retail', enrichment_prompt: 'What is this retailer\'s average order or basket size in USD?' },
     ],
   },
 ];
