@@ -1,107 +1,61 @@
 
 
-# Fix Growth Command KPI Tiles
+# Phase 2: Integrate ICP Performance Matrix and Priority Revenue Accounts into the Dashboard
 
-## Problem Summary
+## Overview
 
-Three issues with the current 5 KPI tiles:
+Both components are already built and self-contained (they fetch their own data). This phase wires them into the Executive Dashboard layout in logical positions.
 
-1. **Market Coverage** -- when on CRM view, `totalAccounts` and `tamEstimate` both resolve to the same number (line 579 falls back to `totalAccounts`), so it shows 100% or a confusing percentage. The "so what" text says "14,000 of 66,000" but the 66K TAM number may not be loaded.
+## Layout Changes
 
-2. **Revenue-Ready** -- tracks accounts with contacts, but LaunchPulse doesn't use contacts as a core workflow. This tile shows 0% and is not meaningful for your use case.
+The current dashboard layout (after the KPI tiles) is:
 
-3. **Pipeline Potential** -- hardcoded benchmark of 70 (always green), and the formula `campaignReadyAccounts * 75000 * 0.25` uses a static deal size. Feels artificial.
+1. Growth Command KPIs (5 tiles)
+2. ICP Coverage Panel (fit distribution bar)
+3. 3-column grid: ICP Table | TAM Card | Geography Card
+4. 2-column grid: Data Health (1 col) | AI Insights (2 col)
 
-## What Was There Before
+After Phase 2:
 
-The previous version used `SimplifiedHeroMetrics.tsx` which showed 3 simpler tiles:
-- **Total Accounts** (raw count)
-- **Total Leads** (raw count)
-- **Campaign Ready** (raw count)
+1. Growth Command KPIs (5 tiles)
+2. ICP Coverage Panel (fit distribution bar)
+3. **ICP Performance Matrix** (full width -- the quadrant scatter chart)
+4. 3-column grid: ICP Table | TAM Card | Geography Card
+5. **Priority Revenue Accounts** (full width -- the sortable table)
+6. 2-column grid: Data Health (1 col) | AI Insights (2 col)
 
-These were replaced by the 5 Growth Command tiles (Market Coverage, Revenue-Ready, Priority Accounts, Pipeline Potential, Revenue at Risk).
+The Matrix goes above the detail cards because it provides a visual overview of where accounts sit. The Priority table goes below the detail cards as the actionable "what to do next" section.
 
-## Proposed Changes
-
-Replace the **Revenue-Ready** tile with a more relevant metric, and fix the data issues on the others.
-
-### Tile 1: Market Coverage -- Fix data mapping
-- When no external TAM source exists, show the raw account count instead of a meaningless "100%"
-- Change to: show `totalAccounts` as the value, with "of X TAM" in the subtitle only when TAM data actually exists
-- When TAM is available, keep the percentage
-
-### Tile 2: Replace "Revenue-Ready" with "Data Completeness"
-- Shows the `data_completeness` percentage from dashboard metrics (already available)
-- "So what" text: explains how many fields are filled across accounts
-- Links to `/enrichment` on click
-- This is actionable and relevant -- it tells you how enriched your data is
-
-### Tile 3: Priority Accounts -- No change needed
-Works correctly, shows high-fit account count.
-
-### Tile 4: Pipeline Potential -- Use real deal data if available
-- Check if deals exist; if so, sum actual deal amounts instead of the static formula
-- Fall back to the modelled formula only when no deals are present
-- Remove the hardcoded `benchmarkPercent: 70`
-
-### Tile 5: Revenue at Risk -- No change needed
-Already uses data completeness gap to model risk.
-
-## Files Changed
+## File Changes
 
 | File | Change |
 |------|--------|
-| `src/components/executive/GrowthCommandKPIs.tsx` | Replace Revenue-Ready tile with Data Completeness; fix Market Coverage to handle missing TAM gracefully; improve Pipeline Potential benchmark logic |
-| `src/pages/ExecutiveDashboard.tsx` | Update props passed to `GrowthCommandKPIs` -- replace `accountsWithContacts` with `dataCompleteness`, pass deal totals if available |
+| `src/pages/ExecutiveDashboard.tsx` | Import and render `ICPPerformanceMatrix` and `PriorityRevenueAccounts` in the dashboard layout |
 
 ## Technical Details
 
-### Updated Props Interface
+### Imports to Add
 
 ```typescript
-interface GrowthCommandKPIsProps {
-  totalAccounts: number;
-  tamEstimate: number;
-  dataCompleteness: number;        // replaces accountsWithContacts
-  highFitAccounts: number;
-  campaignReadyAccounts: number;
-  pipelinePotential: number;
-  revenueAtRisk: number;
-  averageDealSize: number;
-}
+import { ICPPerformanceMatrix } from "@/components/executive/ICPPerformanceMatrix";
+import { PriorityRevenueAccounts } from "@/components/executive/PriorityRevenueAccounts";
 ```
 
-### Market Coverage Logic Fix
+### Placement
 
-```typescript
-// When TAM exists and differs from totalAccounts, show percentage
-// When no TAM, show raw account count instead of fake 100%
-const hasTAM = tamEstimate > 0 && tamEstimate !== totalAccounts;
+After the `ICPCoveragePanel` block (~line 602), insert:
+```tsx
+<ICPPerformanceMatrix />
 ```
 
-### Data Completeness Tile
-
-```typescript
-{
-  label: "Data Completeness",
-  value: `${dataCompleteness}%`,
-  soWhat: dataCompleteness >= 80
-    ? "Strong enrichment -- ready for scoring"
-    : "Enrich accounts to improve scoring accuracy",
-  icon: Database,
-  benchmarkPercent: dataCompleteness,
-  onClick: () => navigate("/enrichment"),
-}
+After the 3-column grid closing `</div>` (~line 639), insert:
+```tsx
+<PriorityRevenueAccounts />
 ```
 
-### Dashboard Props Update (ExecutiveDashboard.tsx)
+Both components are self-contained -- no props needed. They use `useEffectiveOrg()` internally to scope data to the correct organization.
 
-```typescript
-<GrowthCommandKPIs
-  ...
-  dataCompleteness={dataCompleteness}  // already computed in dashboard
-  ...
-/>
-```
+### No Other Changes
 
-Two files, focused edits. No new dependencies.
+No props to thread, no new hooks, no new dependencies. Two import lines and two JSX lines.
+
