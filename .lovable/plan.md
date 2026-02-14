@@ -1,52 +1,60 @@
 
 
-# Fix Data Completeness KPI — Use Server-Side Aggregation
+# Fix Sidebar Navigation, Feature Flags, 404s, and Lead Detail Scroll
 
-## Root Cause
+## Issues Found
 
-The `computeDataCompleteness` function in `use-dashboard-data.ts` fetches all account rows to the client and counts non-null fields in JavaScript. However, Supabase PostgREST returns a **maximum of 1000 rows by default**. With 14,361 accounts in the database, the function only processes ~7% of accounts, producing an inaccurate (or 0%) result.
+1. **Sidebar order is wrong** -- Currently: Dashboard > Accounts > Leads (Core), then Sales, Build, Configure. User wants: Dashboard > ICP Manager > Enrichment (top level), then Accounts + Leads + Enrichment under a "Data" group, Sales below, then Configure.
+2. **No "Sales" feature flag** -- The Sales section (Opportunities, Tasks) cannot be toggled on/off from the admin feature flags panel. Need to add a `sales` feature flag.
+3. **Clicking accounts in Priority Revenue table gives 404** -- `PriorityRevenueAccounts` navigates to `/accounts/{id}` but no route exists for that path. Fix: open the AccountDetailDrawer instead of navigating.
+4. **"Contacts" column label** -- `PriorityRevenueAccounts` shows "Contacts" as a column header; should say "Leads" for consistency.
+5. **"All Accounts" count shows 0** -- The `AccountsTable` header says "All Accounts (0)" even though data loads. This is likely a timing issue where `totalCount` from the RPC `total_count` field is not being returned properly. Will investigate and fix.
+6. **Lead detail sheet cannot scroll** -- The `SheetContent` in `Leads.tsx` has no scroll container. The content overflows but the sheet locks scroll. Fix: wrap the detail content in a `ScrollArea`.
 
-Your actual data completeness is approximately **92%** based on direct database counts:
-- industry_norm: 12,407 / 14,361 = 86%
-- employee_count: 11,446 / 14,361 = 80%
-- revenue_range: 13,165 / 14,361 = 92%
-- country: 14,324 / 14,361 = 99.7%
-- domain: 14,361 / 14,361 = 100%
-- Average: ~91.5%
+## Changes
 
-## Fix
+### 1. Restructure Sidebar (`src/components/AppSidebar.tsx`)
 
-Replace the client-side row-by-row computation with a single efficient SQL aggregation using Supabase's `.rpc()` or a direct count query that calculates completeness server-side.
+New structure:
+- **Core** (always visible): Dashboard, ICP Manager
+- **Data** (collapsible): Accounts, Leads, Enrichment
+- **Sales** (collapsible, feature-flagged): Opportunities, Tasks
+- **Configure** (collapsible): AI Agents, Settings, Help
+- Analytics (feature-flagged, unchanged)
+- Admin (super admin only, unchanged)
 
-### File: `src/hooks/use-dashboard-data.ts`
+### 2. Add "Sales" Feature Flag
 
-Replace the `computeDataCompleteness` function with one that runs 6 small `count` queries (total + one per field) instead of fetching all rows:
+**`src/hooks/use-feature-flags.tsx`**: Add `sales: boolean` to the `FeatureFlags` interface and defaults (default: `true`).
 
-```typescript
-async function computeDataCompleteness(orgId: string): Promise<number> {
-  const fields = ['industry_norm', 'employee_count', 'revenue_range', 'country', 'domain'];
+**`src/components/platform-admin/OrganizationFeatureFlags.tsx`**: Add `sales` entry to `FEATURE_FLAG_LABELS` so it appears in the admin toggle panel.
 
-  // Get total count + per-field non-null counts in parallel
-  const [totalResult, ...fieldResults] = await Promise.all([
-    supabase.from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', orgId),
-    ...fields.map(f =>
-      supabase.from('accounts').select('*', { count: 'exact', head: true })
-        .eq('org_id', orgId).not(f, 'is', null)
-    ),
-  ]);
+**`src/components/AppSidebar.tsx`**: Gate the Sales section behind `flags.sales`.
 
-  const total = totalResult.count || 0;
-  if (total === 0) return 0;
+### 3. Fix Account Click 404 (`src/components/executive/PriorityRevenueAccounts.tsx`)
 
-  const filledSum = fieldResults.reduce((sum, r) => sum + (r.count || 0), 0);
-  return Math.round((filledSum / (total * fields.length)) * 100);
-}
-```
+Replace `navigate(\`/accounts/\${id}\`)` with opening the `AccountDetailDrawer` via a callback prop or by navigating to `/accounts?selected={id}`. Simplest fix: navigate to `/accounts` page instead of a non-existent detail route.
 
-This approach:
-- Runs 6 lightweight HEAD requests (no row data transferred)
-- No row limit issues since it uses `count: 'exact'`
-- Returns the accurate ~92% completeness
-- Is faster than fetching 14k+ rows
+### 4. Rename "Contacts" to "Leads" (`src/components/executive/PriorityRevenueAccounts.tsx`)
 
-No other files need changes since the rest of the pipeline (dashboard page passing `dataCompleteness` to `GrowthCommandKPIs`) is already wired correctly.
+Change the column header from "Contacts" to "Leads" on line 291.
+
+### 5. Fix Lead Detail Scroll (`src/pages/Leads.tsx`)
+
+Wrap the lead detail content (the `div.space-y-6.mt-6` inside `SheetContent`) in a `ScrollArea` with `className="h-[calc(100vh-120px)]"` so users can scroll through all lead details.
+
+### 6. Investigate "All Accounts (0)" count
+
+The `totalCount` comes from `total_count` in the RPC response. The RPC returns data (25 rows per the console logs) but totalCount may not be mapping correctly. Will check the `get_filtered_accounts` RPC response and fix the mapping in `use-infinite-accounts.tsx` if needed.
+
+## Files Modified
+
+| File | Change |
+|------|--------|
+| `src/components/AppSidebar.tsx` | Restructure nav order; gate Sales behind feature flag |
+| `src/hooks/use-feature-flags.tsx` | Add `sales` flag to interface and defaults |
+| `src/components/platform-admin/OrganizationFeatureFlags.tsx` | Add `sales` to flag labels |
+| `src/components/executive/PriorityRevenueAccounts.tsx` | Fix 404 navigation; rename "Contacts" to "Leads" |
+| `src/pages/Leads.tsx` | Add ScrollArea to lead detail sheet |
+| `src/hooks/use-infinite-accounts.tsx` | Fix totalCount mapping if needed |
+
