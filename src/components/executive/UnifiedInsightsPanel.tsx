@@ -351,6 +351,31 @@ export function UnifiedInsightsPanel({
     return () => clearInterval(interval);
   }, [enrichmentProgress?.jobId, onRefresh]);
 
+  const mapNextActionToLabel = (nextAction?: string): string | undefined => {
+    if (!nextAction) return undefined;
+    const map: Record<string, string> = {
+      build_campaign: 'Prepare Campaign',
+      enrich_data: 'Enrich Data',
+      score_accounts: 'Score Accounts',
+      view_accounts: 'View Accounts',
+      contact_leads: 'Find Contacts',
+      export_csv: 'Export Data',
+      review_accounts: 'Review Accounts',
+    };
+    return map[nextAction] || nextAction.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  const mapNextActionToRoute = (nextAction?: string): string | undefined => {
+    if (!nextAction) return undefined;
+    const map: Record<string, string> = {
+      score_accounts: '/accounts',
+      view_accounts: '/accounts',
+      review_accounts: '/accounts',
+      export_csv: '/accounts',
+    };
+    return map[nextAction];
+  };
+
   // Merge and prioritize all items
   const unifiedItems: UnifiedItem[] = [
     ...risks.map(risk => ({
@@ -445,30 +470,6 @@ export function UnifiedInsightsPanel({
     }
   };
 
-  const mapNextActionToLabel = (nextAction?: string): string | undefined => {
-    if (!nextAction) return undefined;
-    const map: Record<string, string> = {
-      build_campaign: 'Prepare Campaign',
-      enrich_data: 'Enrich Data',
-      score_accounts: 'Score Accounts',
-      view_accounts: 'View Accounts',
-      contact_leads: 'Find Contacts',
-      export_csv: 'Export Data',
-      review_accounts: 'Review Accounts',
-    };
-    return map[nextAction] || nextAction.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  };
-
-  const mapNextActionToRoute = (nextAction?: string): string | undefined => {
-    if (!nextAction) return undefined;
-    const map: Record<string, string> = {
-      score_accounts: '/accounts',
-      view_accounts: '/accounts',
-      review_accounts: '/accounts',
-      export_csv: '/accounts',
-    };
-    return map[nextAction];
-  };
 
   const inferWorkflowType = (actionText: string): string | null => {
     const lower = actionText.toLowerCase();
