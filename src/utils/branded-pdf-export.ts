@@ -53,12 +53,14 @@ export interface BrandedReportData {
     fitScore: number;
     intentScore: number;
     overallScore: number;
+    revenueRange?: string;
+    leadCount?: number;
   }>;
 
-  // Page 7 – AI Insights (NEW)
+  // Page 7 – AI Insights
   insights: ICPInsight[];
 
-  // Page 8 – Risks & Next Steps (NEW)
+  // Page 8 – Risks & Next Steps
   risks: RiskItem[];
 
   // Lead stats
@@ -71,11 +73,10 @@ export interface BrandedReportData {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const DEFAULT_PRIMARY: [number, number, number] = [60, 241, 174];   // #3CF1AE teal
-const DEFAULT_SECONDARY: [number, number, number] = [15, 15, 15];  // near-black
-const DEFAULT_DARK: [number, number, number] = [0, 0, 0];          // true black for backgrounds
+const DEFAULT_PRIMARY: [number, number, number] = [60, 241, 174];
+const DEFAULT_SECONDARY: [number, number, number] = [15, 15, 15];
+const DEFAULT_DARK: [number, number, number] = [0, 0, 0];
 
-// ISO-2 country code normalization
 const COUNTRY_CODE_MAP: Record<string, string> = {
   'us': 'United States', 'gb': 'United Kingdom', 'uk': 'United Kingdom',
   'de': 'Germany', 'fr': 'France', 'es': 'Spain', 'it': 'Italy',
@@ -135,19 +136,17 @@ function lightenRgb(rgb: [number, number, number], factor = 0.85): [number, numb
   return rgb.map(c => Math.round(c + (255 - c) * factor)) as [number, number, number];
 }
 
-/** Normalize confidence: if value > 1 treat it as already a percentage */
 function normalizeConfidence(val: number): number {
   if (val > 1) return Math.min(Math.round(val), 100);
   return Math.round(val * 100);
 }
 
-/** Safe number display */
 function safeNum(val: any): number {
   const n = Number(val);
   return isNaN(n) ? 0 : n;
 }
 
-/** Generate executive narrative from metrics */
+/** Generate enriched executive narrative */
 function generateNarrative(data: BrandedReportData): string {
   const m = data.metrics;
   const highPct = m.scoredAccounts > 0 ? Math.round((m.highFitAccounts / m.scoredAccounts) * 100) : 0;
@@ -158,6 +157,11 @@ function generateNarrative(data: BrandedReportData): string {
     narrative += `, of which ${m.scoredAccounts.toLocaleString()} (${scoredPct}%) have been scored`;
   }
   narrative += '. ';
+
+  // TAM/SAM context
+  if (data.tam > 0) {
+    narrative += `Your Total Addressable Market spans ${data.tam.toLocaleString()} accounts, with ${data.sam.toLocaleString()} in your Serviceable Available Market (high and medium-fit). `;
+  }
 
   if (highPct >= 50) {
     narrative += `${highPct}% are high-fit, indicating strong market alignment. `;
@@ -171,8 +175,23 @@ function generateNarrative(data: BrandedReportData): string {
     narrative += `${m.campaignReadyAccounts.toLocaleString()} accounts are campaign-ready for immediate outreach. `;
   }
 
+  // ICP profile context
+  if (data.icpProfiles.length > 0) {
+    const topIcp = data.icpProfiles[0];
+    const conf = normalizeConfidence(topIcp.confidence);
+    narrative += `Your active ICP profile "${topIcp.name}" matches ${safeNum(topIcp.matchCount).toLocaleString()} accounts at ${conf}% confidence. `;
+  }
+
+  // Geographic headline
+  if (data.geographyDistribution.length > 0) {
+    const uniqueCountries = new Set(data.geographyDistribution.map(g => g.country)).size;
+    const top3 = data.geographyDistribution.slice(0, 3);
+    const top3Pct = top3.reduce((s, g) => s + g.percentage, 0);
+    narrative += `Operations span ${uniqueCountries} countries, with ${top3Pct.toFixed(0)}% concentration in the top 3 markets. `;
+  }
+
   if (data.leadStats && data.leadStats.totalLeads > 0) {
-    narrative += `Your database includes ${data.leadStats.totalLeads.toLocaleString()} leads across these accounts. `;
+    narrative += `Your database includes ${data.leadStats.totalLeads.toLocaleString()} leads (${data.leadStats.leadsPerAccount}x per account). `;
   }
 
   if (m.dataCompleteness < 60) {
@@ -209,7 +228,6 @@ export async function generateBrandedPDF(
   const addHeader = (title: string) => {
     doc.setFillColor(...dark);
     doc.rect(0, 0, W, 12, 'F');
-    // Teal accent line at bottom of header
     doc.setFillColor(...primary);
     doc.rect(0, 12, W, 1, 'F');
     doc.setFontSize(8);
@@ -235,7 +253,6 @@ export async function generateBrandedPDF(
     doc.setFont('helvetica', 'bold');
     doc.text(text, M, y);
     y += 2;
-    // Accent underline in teal
     doc.setFillColor(...primary);
     doc.rect(M, y, 40, 1.5, 'F');
     y += 8;
@@ -297,7 +314,6 @@ export async function generateBrandedPDF(
   doc.setFillColor(...dark);
   doc.rect(0, 0, W, H, 'F');
 
-  // Subtle pattern overlay
   doc.setFillColor(...primary);
   doc.setGState(new (doc as any).GState({ opacity: 0.08 }));
   for (let i = 0; i < 8; i++) {
@@ -305,7 +321,6 @@ export async function generateBrandedPDF(
   }
   doc.setGState(new (doc as any).GState({ opacity: 1 }));
 
-  // Logo or fallback brand mark
   if (data.logoBase64) {
     try {
       doc.addImage(data.logoBase64, 'PNG', W / 2 - 25, 50, 50, 25);
@@ -316,7 +331,6 @@ export async function generateBrandedPDF(
       doc.text(companyName, W / 2, 70, { align: 'center' });
     }
   } else {
-    // Draw LaunchPulse-style mark: teal text on black
     doc.setFontSize(36);
     doc.setTextColor(...primary);
     doc.setFont('helvetica', 'bold');
@@ -324,23 +338,18 @@ export async function generateBrandedPDF(
   }
 
   doc.setFont('helvetica', 'normal');
-
-  // Accent line (teal)
   doc.setFillColor(...primary);
   doc.rect(W / 2 - 40, 90, 80, 3, 'F');
 
-  // Title
   doc.setFontSize(22);
   doc.setTextColor(255, 255, 255);
   doc.text('ICP & Market Intelligence', W / 2, 115, { align: 'center' });
   doc.text('Board Report', W / 2, 127, { align: 'center' });
 
-  // Date
   doc.setFontSize(13);
   doc.setTextColor(160, 170, 180);
   doc.text(data.generatedAt, W / 2, 150, { align: 'center' });
 
-  // Bottom attribution
   doc.setFontSize(9);
   doc.setTextColor(100, 110, 120);
   const coverFooter = isLaunchPulse ? 'Powered by LaunchPulse' : `Prepared by ${companyName} using LaunchPulse`;
@@ -352,7 +361,6 @@ export async function generateBrandedPDF(
   addHeader('Executive Summary');
   sectionTitle('Executive Summary');
 
-  // Narrative paragraph
   const narrative = generateNarrative(data);
   doc.setFontSize(10);
   doc.setTextColor(60, 60, 60);
@@ -360,7 +368,6 @@ export async function generateBrandedPDF(
   doc.text(narrativeLines, M, y);
   y += narrativeLines.length * 5 + 6;
 
-  // Metrics grid (2 columns)
   const met = data.metrics;
   const highFitPct = met.scoredAccounts > 0 ? Math.round((met.highFitAccounts / met.scoredAccounts) * 100) : 0;
 
@@ -401,25 +408,7 @@ export async function generateBrandedPDF(
 
   y += 6;
 
-  // ICP profiles overview
-  doc.setFontSize(12);
-  doc.setTextColor(...dark);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`Active ICP Profiles: ${data.icpProfileCount}`, M, y);
-  doc.setFont('helvetica', 'normal');
-  y += 7;
-
-  if (data.icpProfileNames.length > 0) {
-    doc.setFontSize(9);
-    doc.setTextColor(80, 80, 80);
-    data.icpProfileNames.forEach(name => {
-      doc.text(`• ${name}`, M + 4, y);
-      y += 5;
-    });
-  }
-
   // Score distribution bar
-  y += 8;
   doc.setFontSize(10);
   doc.setTextColor(...dark);
   doc.setFont('helvetica', 'bold');
@@ -456,7 +445,7 @@ export async function generateBrandedPDF(
 
   if (data.icpProfiles.length > 0) {
     data.icpProfiles.forEach((p, idx) => {
-      if (idx > 0) checkPageBreak(45);
+      if (idx > 0) checkPageBreak(60);
 
       // Profile card header
       doc.setFillColor(...lightenRgb(primary, 0.88));
@@ -476,23 +465,49 @@ export async function generateBrandedPDF(
       doc.setFont('helvetica', 'normal');
       y += 12;
 
-      // Details
+      // Details grid
       doc.setFontSize(8);
       doc.setTextColor(80, 80, 80);
       if (p.targetIndustries.length > 0) {
-        doc.text(`Industries: ${p.targetIndustries.slice(0, 5).join(', ')}`, M + 4, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Target Industries:', M + 4, y);
+        doc.setFont('helvetica', 'normal');
+        y += 4;
+        doc.text(p.targetIndustries.slice(0, 8).join(', '), M + 8, y);
         y += 5;
       }
       if (p.companySizes.length > 0) {
-        doc.text(`Company Sizes: ${p.companySizes.join(', ')}`, M + 4, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Company Sizes:', M + 4, y);
+        doc.setFont('helvetica', 'normal');
+        doc.text(p.companySizes.join(', '), M + 40, y);
         y += 5;
       }
       if (p.geographies.length > 0) {
-        doc.text(`Geographies: ${p.geographies.slice(0, 5).join(', ')}`, M + 4, y);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Geographies:', M + 4, y);
+        doc.setFont('helvetica', 'normal');
+        doc.text(p.geographies.slice(0, 8).join(', '), M + 38, y);
         y += 5;
       }
-      doc.text(`Matching Accounts: ${safeNum(p.matchCount).toLocaleString()}  |  TAM Estimate: ${safeNum(p.tamEstimate).toLocaleString()}`, M + 4, y);
-      y += 8;
+
+      // Key metrics row
+      y += 2;
+      const metricsRow = [
+        `Matching Accounts: ${safeNum(p.matchCount).toLocaleString()}`,
+        `TAM Estimate: ${safeNum(p.tamEstimate).toLocaleString()}`,
+      ];
+      if (data.tam > 0 && p.tamEstimate > 0) {
+        metricsRow.push(`TAM Coverage: ${((p.tamEstimate / data.tam) * 100).toFixed(1)}%`);
+      }
+      doc.setFillColor(...lightenRgb(primary, 0.95));
+      doc.roundedRect(M + 2, y - 3, CW - 4, 8, 2, 2, 'F');
+      doc.setFontSize(8);
+      doc.setTextColor(...dark);
+      doc.setFont('helvetica', 'bold');
+      doc.text(metricsRow.join('   |   '), M + 6, y + 2);
+      doc.setFont('helvetica', 'normal');
+      y += 14;
     });
   } else {
     doc.setFontSize(10);
@@ -541,7 +556,7 @@ export async function generateBrandedPDF(
     doc.setFontSize(12);
     doc.setTextColor(...dark);
     doc.setFont('helvetica', 'bold');
-    doc.text('Industry Breakdown (Top 10)', M, y);
+    doc.text('Industry Breakdown (Scored Accounts)', M, y);
     doc.setFont('helvetica', 'normal');
     y += 8;
 
@@ -568,7 +583,7 @@ export async function generateBrandedPDF(
     doc.setFontSize(12);
     doc.setTextColor(...dark);
     doc.setFont('helvetica', 'bold');
-    doc.text('Company Size Breakdown', M, y);
+    doc.text('Company Size Breakdown (Scored Accounts)', M, y);
     doc.setFont('helvetica', 'normal');
     y += 8;
 
@@ -605,7 +620,6 @@ export async function generateBrandedPDF(
     doc.text(`Top 3 markets represent ${top3Pct.toFixed(1)}% of all accounts`, M, y);
     y += 10;
 
-    // Visual bars for top 10
     normalizedGeo.slice(0, 10).forEach((item, i) => {
       checkPageBreak(12);
       const pct = safeNum(item.percentage);
@@ -625,7 +639,6 @@ export async function generateBrandedPDF(
       y += 10;
     });
 
-    // Rest as table if more than 10
     if (normalizedGeo.length > 10) {
       y += 4;
       const geoCols = [
@@ -649,29 +662,28 @@ export async function generateBrandedPDF(
     doc.text('No geographic data available.', M, y);
   }
 
-  // ─── Page 6: Top Prospects ────────────────────────────────────────────────
+  // ─── Page 6: Top 10 Priority Accounts ─────────────────────────────────────
 
   doc.addPage();
-  addHeader('Top Prospects');
-  sectionTitle('Top 20 Prospects by Overall Score');
+  addHeader('Top Priority Accounts');
+  sectionTitle('Top 10 Priority Accounts');
 
   if (data.topProspects.length > 0) {
     const prospCols = [
       { label: 'Company', x: M },
-      { label: 'Industry', x: M + 42 },
-      { label: 'Size', x: M + 82 },
-      { label: 'Country', x: M + 102 },
-      { label: 'Fit', x: M + 132 },
+      { label: 'Industry', x: M + 38 },
+      { label: 'Size', x: M + 72 },
+      { label: 'Revenue', x: M + 92 },
+      { label: 'Leads', x: M + 118 },
+      { label: 'Fit', x: M + 134 },
       { label: 'Intent', x: M + 148 },
-      { label: 'Overall', x: M + 165 },
+      { label: 'Score', x: M + 165 },
     ];
     tableHeader(prospCols);
 
-    data.topProspects.slice(0, 20).forEach((p, i) => {
+    data.topProspects.slice(0, 10).forEach((p, i) => {
       checkPageBreak(8);
 
-      // Score badge coloring
-      const scoreText = String(safeNum(p.overallScore));
       const scoreColor: [number, number, number] = safeNum(p.overallScore) >= 70
         ? [34, 197, 94] : safeNum(p.overallScore) >= 40
         ? [250, 204, 21] : [239, 68, 68];
@@ -680,19 +692,19 @@ export async function generateBrandedPDF(
         doc.setFillColor(...lightBg);
         doc.rect(M, y - 4, CW, 7, 'F');
       }
-      doc.setFontSize(8);
+      doc.setFontSize(7);
       doc.setTextColor(50, 50, 50);
-      doc.text((p.name || 'N/A').substring(0, 20), M, y);
-      doc.text((p.industry || 'N/A').substring(0, 18), M + 42, y);
-      doc.text((p.size || 'N/A').substring(0, 10), M + 82, y);
-      doc.text((p.country || 'N/A').substring(0, 14), M + 102, y);
-      doc.text(String(safeNum(p.fitScore)), M + 132, y);
+      doc.text((p.name || 'N/A').substring(0, 18), M, y);
+      doc.text((p.industry || 'N/A').substring(0, 16), M + 38, y);
+      doc.text((p.size || 'N/A').substring(0, 10), M + 72, y);
+      doc.text((p.revenueRange || 'N/A').substring(0, 12), M + 92, y);
+      doc.text(String(p.leadCount ?? 0), M + 118, y);
+      doc.text(String(safeNum(p.fitScore)), M + 134, y);
       doc.text(String(safeNum(p.intentScore)), M + 148, y);
 
-      // Colored overall score
       doc.setTextColor(...scoreColor);
       doc.setFont('helvetica', 'bold');
-      doc.text(scoreText, M + 165, y);
+      doc.text(String(safeNum(p.overallScore)), M + 165, y);
       doc.setFont('helvetica', 'normal');
       y += 7;
     });
@@ -702,14 +714,14 @@ export async function generateBrandedPDF(
     doc.text('No scored prospects available.', M, y);
   }
 
-  // ─── Page 7: AI Insights & Recommendations ───────────────────────────────
+  // ─── Page 7: AI Insights & Risks (consolidated) ──────────────────────────
 
   doc.addPage();
   addHeader('AI Insights & Recommendations');
   sectionTitle('AI-Powered Insights');
 
   if (data.insights.length > 0) {
-    // Group by priority
+    // Cap to top 6 insights (2 high, 2 medium, 2 low) to fit one page
     const byPriority: Record<string, ICPInsight[]> = { high: [], medium: [], low: [] };
     data.insights.forEach(ins => {
       const key = ins.priority || 'medium';
@@ -717,13 +729,18 @@ export async function generateBrandedPDF(
       byPriority[key].push(ins);
     });
 
+    const capped: ICPInsight[] = [
+      ...byPriority.high.slice(0, 2),
+      ...byPriority.medium.slice(0, 2),
+      ...byPriority.low.slice(0, 2),
+    ];
+
     (['high', 'medium', 'low'] as const).forEach(prio => {
-      const items = byPriority[prio];
-      if (!items || items.length === 0) return;
+      const items = capped.filter(i => (i.priority || 'medium') === prio);
+      if (items.length === 0) return;
 
       checkPageBreak(20);
 
-      // Priority header
       const prioLabel = prio.charAt(0).toUpperCase() + prio.slice(1) + ' Priority';
       doc.setFillColor(...priorityColor(prio));
       doc.roundedRect(M, y - 3, 4, 8, 1, 1, 'F');
@@ -735,11 +752,7 @@ export async function generateBrandedPDF(
       y += 10;
 
       items.forEach(insight => {
-        checkPageBreak(25);
-
-        // Insight card
-        doc.setFillColor(...lightenRgb(priorityColor(prio), 0.9));
-        const cardStartY = y - 3;
+        checkPageBreak(22);
 
         doc.setFontSize(9);
         doc.setTextColor(40, 40, 40);
@@ -762,16 +775,7 @@ export async function generateBrandedPDF(
           y += 5;
         }
 
-        if (insight.nextAction) {
-          doc.setTextColor(...secondary);
-          doc.text(`→ ${insight.nextAction}`, M + 4, y + 1);
-          y += 5;
-        }
-
-        const cardH = y - cardStartY + 2;
-        doc.setFillColor(...lightenRgb(priorityColor(prio), 0.92));
-        // Draw behind (we re-render text over it — simpler to just draw the bg first in a real scenario)
-        // For jsPDF we skip bg rect to avoid overwriting text; the priority dot is sufficient
+        // Strip nextAction — don't render internal action IDs
         y += 4;
       });
       y += 2;
@@ -782,26 +786,21 @@ export async function generateBrandedPDF(
     doc.text('No AI insights available. Generate insights from the dashboard first.', M, y);
   }
 
-  // Helper for primary color reference (avoids closure issue)
-  function primaryColor(): [number, number, number] { return primary; }
+  // ─── Risks section (same page or next) ────────────────────────────────────
 
-  // ─── Page 8: Strategic Next Steps ─────────────────────────────────────────
-
-  doc.addPage();
-  addHeader('Strategic Next Steps');
+  y += 6;
+  checkPageBreak(30);
   sectionTitle('Risks & Action Items');
 
   if (data.risks.length > 0) {
-    data.risks.forEach((risk, i) => {
+    data.risks.forEach((risk) => {
       checkPageBreak(22);
 
-      // Severity badge
       const sColor = severityColor(risk.severity);
       doc.setFillColor(...sColor);
       doc.roundedRect(M, y - 3, CW, 1.5, 0.5, 0.5, 'F');
       y += 2;
 
-      // Severity label
       doc.setFillColor(...sColor);
       doc.roundedRect(M, y - 3, 22, 7, 2, 2, 'F');
       doc.setFontSize(7);
@@ -809,21 +808,18 @@ export async function generateBrandedPDF(
       doc.setFont('helvetica', 'bold');
       doc.text(risk.severity.toUpperCase(), M + 2, y + 1);
 
-      // Title
       doc.setFontSize(10);
       doc.setTextColor(40, 40, 40);
       doc.text(risk.title, M + 26, y + 1);
       doc.setFont('helvetica', 'normal');
       y += 7;
 
-      // Description
       doc.setFontSize(8);
       doc.setTextColor(80, 80, 80);
       const riskLines = doc.splitTextToSize(risk.description, CW - 8);
       doc.text(riskLines, M + 4, y);
       y += riskLines.length * 4;
 
-      // Impact
       if (risk.impact) {
         doc.setTextColor(100, 100, 100);
         doc.setFont('helvetica', 'italic');
@@ -832,7 +828,6 @@ export async function generateBrandedPDF(
         y += 5;
       }
 
-      // Fix action
       if (risk.fix) {
         doc.setTextColor(...secondary);
         doc.text(`Recommended: ${risk.fix.label}`, M + 4, y + 1);
@@ -847,32 +842,7 @@ export async function generateBrandedPDF(
     doc.text('No risks detected — your data is in good shape!', M, y);
   }
 
-  // Data quality summary
-  y += 8;
-  checkPageBreak(30);
-  doc.setFontSize(12);
-  doc.setTextColor(...dark);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Data Quality Summary', M, y);
-  doc.setFont('helvetica', 'normal');
-  y += 8;
-
-  // Completeness bar
-  const compPct = met.dataCompleteness;
-  const compBarW = CW - 40;
-  doc.setFillColor(230, 230, 230);
-  doc.roundedRect(M, y, compBarW, 8, 2, 2, 'F');
-  const compColor: [number, number, number] = compPct >= 80 ? [34, 197, 94] : compPct >= 60 ? [250, 204, 21] : [239, 68, 68];
-  doc.setFillColor(...compColor);
-  doc.roundedRect(M, y, compBarW * (compPct / 100), 8, 2, 2, 'F');
-  doc.setFontSize(9);
-  doc.setTextColor(50, 50, 50);
-  doc.text(`${compPct}%`, M + compBarW + 4, y + 6);
-  y += 14;
-
-  doc.setFontSize(8);
-  doc.setTextColor(100, 100, 100);
-  doc.text(`Total Accounts: ${met.totalAccounts.toLocaleString()}  |  Scored: ${met.scoredAccounts.toLocaleString()}  |  Campaign-Ready: ${met.campaignReadyAccounts.toLocaleString()}`, M, y);
+  // No redundant "Data Quality Summary" — already covered in Executive Summary
 
   // ─── Footers on all pages ─────────────────────────────────────────────────
 
@@ -882,7 +852,6 @@ export async function generateBrandedPDF(
     addFooter(i, totalPages);
   }
 
-  // Save
   const fileName = `${companyName.replace(/\s+/g, '_')}_Board_Report_${new Date().toISOString().split('T')[0]}.pdf`;
   doc.save(fileName);
 }

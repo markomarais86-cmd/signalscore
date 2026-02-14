@@ -40,15 +40,76 @@ function categorizeEmployeeCount(count: number | null): string {
   return '5000+';
 }
 
-/** Safe number extraction from JSONB values that may be objects or strings */
-function safeNumber(val: any): number {
-  if (val == null) return 0;
-  if (typeof val === 'number') return val;
-  if (typeof val === 'object') {
-    if (val.accounts != null) return Number(val.accounts) || 0;
-    if (val.count != null) return Number(val.count) || 0;
-  }
-  return Number(val) || 0;
+/** Aggregate industry breakdown from real accounts */
+async function fetchIndustryBreakdown(orgId: string) {
+  const { data } = await supabase
+    .from('accounts')
+    .select('industry_norm')
+    .eq('org_id', orgId)
+    .not('industry_norm', 'is', null);
+
+  if (!data || data.length === 0) return [];
+
+  const counts = new Map<string, number>();
+  data.forEach((a: any) => {
+    const ind = a.industry_norm || 'Unknown';
+    counts.set(ind, (counts.get(ind) || 0) + 1);
+  });
+
+  const total = data.length;
+  return Array.from(counts.entries())
+    .map(([name, accounts]) => ({ name, accounts, percentage: (accounts / total) * 100 }))
+    .sort((a, b) => b.accounts - a.accounts)
+    .slice(0, 10);
+}
+
+/** Aggregate company size breakdown from real accounts */
+async function fetchSizeBreakdown(orgId: string) {
+  const { data } = await supabase
+    .from('accounts')
+    .select('employee_count')
+    .eq('org_id', orgId);
+
+  if (!data || data.length === 0) return [];
+
+  const buckets: Record<string, number> = {
+    '1-10': 0, '11-50': 0, '51-200': 0, '201-1000': 0, '1001-5000': 0, '5000+': 0, 'Unknown': 0,
+  };
+
+  data.forEach((a: any) => {
+    const bucket = categorizeEmployeeCount(a.employee_count);
+    buckets[bucket] = (buckets[bucket] || 0) + 1;
+  });
+
+  const total = data.length;
+  return Object.entries(buckets)
+    .filter(([, count]) => count > 0)
+    .map(([name, accounts]) => ({ name, accounts, percentage: (accounts / total) * 100 }))
+    .sort((a, b) => b.accounts - a.accounts);
+}
+
+/** Compute data completeness from actual account field coverage */
+async function computeDataCompleteness(orgId: string): Promise<number> {
+  const { data } = await supabase
+    .from('accounts')
+    .select('name, industry_norm, employee_count, country, domain, revenue_range')
+    .eq('org_id', orgId)
+    .limit(500);
+
+  if (!data || data.length === 0) return 0;
+
+  const fields = ['name', 'industry_norm', 'employee_count', 'country', 'domain', 'revenue_range'] as const;
+  let filled = 0;
+  let total = 0;
+
+  data.forEach((row: any) => {
+    fields.forEach(f => {
+      total++;
+      if (row[f] != null && row[f] !== '') filled++;
+    });
+  });
+
+  return total > 0 ? Math.round((filled / total) * 100) : 0;
 }
 
 export function useBrandedReport() {
@@ -66,28 +127,26 @@ export function useBrandedReport() {
 
     setIsGenerating(true);
     try {
-      // Parallel data fetches — including insights and risks
-      const [metricsRes, icpRes, tamRes, geoRes, topAccountsRes, insightsRes, orgRes, leadsRes] = await Promise.all([
+      // Parallel data fetches
+      const [metricsRes, icpRes, geoRes, topAccountsRes, insightsRes, orgRes, leadsRes, industryBreakdown, sizeBreakdown, dataCompleteness] = await Promise.all([
         supabase.rpc('get_dashboard_metrics_cached' as any, { p_org_id: effectiveOrgId }),
         supabase.from('icp_profiles').select('*').eq('org_id', effectiveOrgId).eq('status', 'active'),
-        supabase.from('external_data_sources')
-          .select('total_accounts, industry_breakdown, company_size_breakdown')
-          .eq('org_id', effectiveOrgId).eq('is_active', true)
-          .order('last_synced_at', { ascending: false }).limit(1).maybeSingle(),
-        supabase.rpc('get_geography_distribution', { p_org_id: effectiveOrgId, p_source_filter: 'all' }),
+        // Use 'database' source filter for real accounts only
+        supabase.rpc('get_geography_distribution', { p_org_id: effectiveOrgId, p_source_filter: 'database' }),
         supabase.from('scores')
           .select('account_external_id, overall, fit, intent, org_id')
           .eq('org_id', effectiveOrgId)
           .order('overall', { ascending: false })
-          .limit(20),
-        // Fetch AI insights from edge function
+          .limit(10),
         supabase.functions.invoke('generate-icp-insights', {
           body: { org_id: effectiveOrgId },
         }).catch(() => ({ data: null, error: null })),
-        // Fallback org name
         supabase.from('organizations').select('name').eq('id', effectiveOrgId).maybeSingle(),
-        // Lead stats
         supabase.from('Leads').select('id', { count: 'exact', head: true }).eq('org_id', effectiveOrgId),
+        // Real account data aggregations
+        fetchIndustryBreakdown(effectiveOrgId),
+        fetchSizeBreakdown(effectiveOrgId),
+        computeDataCompleteness(effectiveOrgId),
       ]);
 
       const raw = Array.isArray(metricsRes.data) ? (metricsRes.data as any)?.[0] : metricsRes.data as any;
@@ -98,10 +157,10 @@ export function useBrandedReport() {
         mediumFitAccounts: raw?.medium_fit_accounts || 0,
         lowFitAccounts: raw?.low_fit_accounts || 0,
         campaignReadyAccounts: raw?.campaign_ready_accounts || 0,
-        dataCompleteness: Math.round(raw?.data_completeness || 0),
+        dataCompleteness: dataCompleteness || Math.round(raw?.data_completeness || 0),
       };
 
-      // ICP profiles — fix confidence normalization
+      // ICP profiles
       const icpProfiles = (icpRes.data || []).map((p: any) => ({
         name: p.name || 'Unnamed',
         targetIndustries: p.target_industries || [],
@@ -109,36 +168,15 @@ export function useBrandedReport() {
         geographies: p.target_geographies || [],
         matchCount: p.match_count || 0,
         tamEstimate: p.tam_estimate || 0,
-        confidence: p.confidence_score || 0, // normalizeConfidence handles this in the PDF
+        confidence: p.confidence_score || 0,
       }));
 
       // TAM / SAM / SOM
-      const tamTotal = Number(raw?.apollo_accounts_available) || Number(tamRes.data?.total_accounts) || 0;
+      const tamTotal = Number(raw?.apollo_accounts_available) || metrics.totalAccounts;
       const sam = metrics.highFitAccounts + metrics.mediumFitAccounts;
       const som = metrics.campaignReadyAccounts;
 
-      // Industry breakdown — safe number parsing for JSONB
-      const industryRaw = tamRes.data?.industry_breakdown as Record<string, any> | null;
-      const industryBreakdown = industryRaw
-        ? Object.entries(industryRaw)
-            .map(([name, val]) => ({ name, accounts: safeNumber(val), percentage: 0 }))
-            .sort((a, b) => b.accounts - a.accounts)
-            .slice(0, 10)
-        : [];
-      const indTotal = industryBreakdown.reduce((s, i) => s + i.accounts, 0);
-      industryBreakdown.forEach(i => { i.percentage = indTotal > 0 ? (i.accounts / indTotal) * 100 : 0; });
-
-      // Size breakdown — safe number parsing for JSONB
-      const sizeRaw = tamRes.data?.company_size_breakdown as Record<string, any> | null;
-      const sizeBreakdown = sizeRaw
-        ? Object.entries(sizeRaw)
-            .map(([name, val]) => ({ name, accounts: safeNumber(val), percentage: 0 }))
-            .sort((a, b) => b.accounts - a.accounts)
-        : [];
-      const sizeTotal = sizeBreakdown.reduce((s, i) => s + i.accounts, 0);
-      sizeBreakdown.forEach(i => { i.percentage = sizeTotal > 0 ? (i.accounts / sizeTotal) * 100 : 0; });
-
-      // Geography — using 'all' source filter
+      // Geography — using 'database' source filter
       const geoData = (geoRes.data || []) as any[];
       const geoTotal = geoData.reduce((s: number, g: any) => s + (g.count || 0), 0);
       const geographyDistribution = geoData.map((g: any) => ({
@@ -147,18 +185,31 @@ export function useBrandedReport() {
         percentage: geoTotal > 0 ? ((g.count || 0) / geoTotal) * 100 : 0,
       }));
 
-      // Top prospects
+      // Top 10 prospects with revenue and lead count
       const topScores = topAccountsRes.data || [];
       let topProspects: BrandedReportData['topProspects'] = [];
       if (topScores.length > 0) {
         const extIds = topScores.map((s: any) => s.account_external_id);
-        const { data: accountDetails } = await supabase
-          .from('accounts')
-          .select('external_id, name, industry_norm, employee_count, country')
-          .eq('org_id', effectiveOrgId)
-          .in('external_id', extIds);
+        const [{ data: accountDetails }, { data: leadCounts }] = await Promise.all([
+          supabase
+            .from('accounts')
+            .select('external_id, name, industry_norm, employee_count, country, revenue_range')
+            .eq('org_id', effectiveOrgId)
+            .in('external_id', extIds),
+          supabase
+            .from('Leads')
+            .select('account_external_id')
+            .eq('org_id', effectiveOrgId)
+            .in('account_external_id', extIds),
+        ]);
 
         const accountMap = new Map((accountDetails || []).map((a: any) => [a.external_id, a]));
+        // Count leads per account
+        const leadCountMap = new Map<string, number>();
+        (leadCounts || []).forEach((l: any) => {
+          leadCountMap.set(l.account_external_id, (leadCountMap.get(l.account_external_id) || 0) + 1);
+        });
+
         topProspects = topScores.map((s: any) => {
           const acct = accountMap.get(s.account_external_id) as any;
           return {
@@ -169,6 +220,8 @@ export function useBrandedReport() {
             fitScore: s.fit || 0,
             intentScore: s.intent || 0,
             overallScore: s.overall || 0,
+            revenueRange: acct?.revenue_range || 'N/A',
+            leadCount: leadCountMap.get(s.account_external_id) || 0,
           };
         });
       }
@@ -176,7 +229,7 @@ export function useBrandedReport() {
       // AI Insights
       const insights: ICPInsight[] = (insightsRes as any)?.data?.insights || [];
 
-      // Risks — detect from metrics
+      // Risks
       const risks = await detectRisks(effectiveOrgId, raw).catch(() => []);
 
       // Logo
