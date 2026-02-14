@@ -3,8 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle2, AlertTriangle, ArrowRight, Sparkles } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { CheckCircle2, AlertTriangle, ArrowRight, Sparkles, Database } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { SYSTEM_FIELDS, autoDetectMapping } from "./fieldMappingConstants";
 
 export interface FieldMapping {
   [csvColumn: string]: string;
@@ -17,6 +21,14 @@ interface FieldMappingData {
   required: boolean;
 }
 
+interface CustomAttributeDefinition {
+  id: string;
+  field_key: string;
+  field_label: string;
+  field_type: string;
+  category: string | null;
+}
+
 interface FieldMappingDialogProps {
   isOpen: boolean;
   onClose: () => void;
@@ -24,123 +36,28 @@ interface FieldMappingDialogProps {
   csvHeaders: string[];
   dataType: 'accounts' | 'contacts' | 'leads' | 'combined';
   sampleData?: any[];
+  orgId?: string;
 }
 
-const SYSTEM_FIELDS = {
-  accounts: [
-    { value: 'external_id', label: 'Account ID', required: false },
-    { value: 'name', label: 'Company Name', required: true },
-    { value: 'domain', label: 'Website/Domain', required: false },
-    { value: 'industry_raw', label: 'Industry', required: false },
-    { value: 'employee_count', label: 'Employee Count', required: false },
-    { value: 'revenue_range', label: 'Revenue Range', required: false },
-    { value: 'country', label: 'Country', required: false },
-    { value: 'phone', label: 'Phone', required: false },
-    { value: 'mobile', label: 'Mobile', required: false },
-    { value: 'state_province', label: 'State/Province', required: false },
-  ],
-  contacts: [
-    { value: 'external_id', label: 'Contact ID', required: false },
-    { value: 'account_external_id', label: 'Account ID', required: false },
-    { value: 'first_name', label: 'First Name', required: false },
-    { value: 'last_name', label: 'Last Name', required: false },
-    { value: 'email', label: 'Email', required: false },
-    { value: 'title_raw', label: 'Job Title', required: false },
-    { value: 'country', label: 'Country', required: false },
-    { value: 'phone', label: 'Phone', required: false },
-    { value: 'mobile', label: 'Mobile', required: false },
-    { value: 'state_province', label: 'State/Province', required: false },
-  ],
-  leads: [
-    { value: 'external_id', label: 'Lead ID', required: false },
-    { value: 'first_name', label: 'First Name', required: false },
-    { value: 'last_name', label: 'Last Name', required: false },
-    { value: 'email', label: 'Email', required: false },
-    { value: 'phone', label: 'Phone', required: false },
-    { value: 'mobile', label: 'Mobile', required: false },
-    { value: 'title', label: 'Title', required: false },
-    { value: 'company', label: 'Company', required: false },
-    { value: 'website', label: 'Website', required: false },
-    { value: 'industry', label: 'Industry', required: false },
-    { value: 'revenue_range', label: 'Annual Revenue', required: false },
-    { value: 'employee_count', label: 'Number of Employees', required: false },
-    { value: 'country', label: 'Country', required: false },
-    { value: 'state_province', label: 'State/Province', required: false },
-    { value: 'status', label: 'Status', required: false },
-  ],
-  combined: [
-    { value: 'external_id', label: 'ID', required: false },
-    { value: 'first_name', label: 'First Name', required: false },
-    { value: 'last_name', label: 'Last Name', required: false },
-    { value: 'email', label: 'Email', required: false },
-    { value: 'phone', label: 'Phone', required: false },
-    { value: 'mobile', label: 'Mobile', required: false },
-    { value: 'title', label: 'Title', required: false },
-    { value: 'company', label: 'Company', required: false },
-    { value: 'website', label: 'Website', required: false },
-    { value: 'industry', label: 'Industry', required: false },
-    { value: 'revenue_range', label: 'Annual Revenue', required: false },
-    { value: 'employee_count', label: 'Number of Employees', required: false },
-    { value: 'country', label: 'Country', required: false },
-    { value: 'state_province', label: 'State/Province', required: false },
-  ],
-};
-
-// Smart mapping algorithm
-const autoDetectMapping = (csvColumn: string, systemFields: typeof SYSTEM_FIELDS.accounts): { field: string; confidence: number } | null => {
-  const normalized = csvColumn.toLowerCase().trim();
-  
-  const patterns: Record<string, string[]> = {
-    external_id: ['lead id', 'id', 'external_id', 'account_id', 'company_id', 'contact_id', 'lead_id', 'crm_id', 'salesforce_id'],
-    account_external_id: ['account_id', 'company_id', 'account', 'company'],
-    name: ['name', 'company_name', 'company', 'account_name', 'organization'],
-    first_name: ['first name', 'first_name', 'firstname', 'fname', 'given_name'],
-    last_name: ['last name', 'last_name', 'lastname', 'lname', 'surname', 'family_name'],
-    email: ['email', 'email_address', 'mail', 'e-mail'],
-    domain: ['domain', 'website', 'url', 'web', 'site'],
-    website: ['website', 'domain', 'url', 'web', 'site'],
-    industry_raw: ['industry', 'sector', 'vertical', 'business_type'],
-    industry: ['industry', 'sector', 'vertical', 'business_type'],
-    employee_count: ['no. of employees', 'number of employees', 'employee range', 'employee_count', 'employees', 'headcount', 'size', 'company_size'],
-    revenue_range: ['annual revenue', 'revenue band', 'revenue', 'revenue_range', 'annual_revenue', 'arr', 'sales'],
-    country: ['country', 'nation', 'location'],
-    state_province: ['state/province', 'state', 'province', 'region'],
-    title_raw: ['title', 'job_title', 'position', 'role', 'job_position'],
-    title: ['title', 'job_title', 'position', 'role', 'job_position'],
-    phone: ['phone', 'telephone', 'tel', 'phone number', 'work phone'],
-    mobile: ['mobile', 'cell', 'cell phone', 'mobile number', 'cellular'],
-    company: ['company', 'company_name', 'company name', 'organization', 'account_name'],
-    status: ['status', 'lead_status', 'stage', 'lead status'],
-  };
-
-  let bestMatch: { field: string; confidence: number } | null = null;
-
-  for (const field of systemFields) {
-    const fieldPatterns = patterns[field.value] || [];
-    
-    // Exact match
-    if (fieldPatterns.includes(normalized)) {
-      return { field: field.value, confidence: 100 };
-    }
-
-    // Partial match
-    for (const pattern of fieldPatterns) {
-      if (normalized.includes(pattern) || pattern.includes(normalized)) {
-        const confidence = Math.round((pattern.length / Math.max(normalized.length, pattern.length)) * 90);
-        if (!bestMatch || confidence > bestMatch.confidence) {
-          bestMatch = { field: field.value, confidence };
-        }
-      }
-    }
-  }
-
-  return bestMatch;
-};
-
-export function FieldMappingDialog({ isOpen, onClose, onConfirm, csvHeaders, dataType, sampleData }: FieldMappingDialogProps) {
+export function FieldMappingDialog({ isOpen, onClose, onConfirm, csvHeaders, dataType, sampleData, orgId }: FieldMappingDialogProps) {
   const [mappings, setMappings] = useState<FieldMapping>({});
   const [autoDetected, setAutoDetected] = useState<FieldMappingData[]>([]);
   const systemFields = SYSTEM_FIELDS[dataType];
+
+  // Fetch custom attribute definitions for the org
+  const { data: customDefs = [] } = useQuery<CustomAttributeDefinition[]>({
+    queryKey: ['custom-attribute-definitions', orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase
+        .from('custom_attribute_definitions')
+        .select('id, field_key, field_label, field_type, category')
+        .eq('org_id', orgId);
+      if (error) throw error;
+      return (data || []) as CustomAttributeDefinition[];
+    },
+    enabled: !!orgId && isOpen,
+  });
 
   useEffect(() => {
     if (isOpen && csvHeaders.length > 0) {
@@ -182,13 +99,39 @@ export function FieldMappingDialog({ isOpen, onClose, onConfirm, csvHeaders, dat
     return systemFields.filter(f => f.required && !mapped.has(f.value));
   };
 
+  const getUnmappedColumns = () => {
+    return csvHeaders.filter(col => !mappings[col] || mappings[col] === '__skip__');
+  };
+
+  const handleBulkMapCustom = () => {
+    const unmapped = getUnmappedColumns();
+    const newMappings = { ...mappings };
+    unmapped.forEach(col => {
+      const key = col.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      // Check if there's a matching custom definition
+      const matchingDef = customDefs.find(d => 
+        d.field_key === key || d.field_label.toLowerCase() === col.toLowerCase()
+      );
+      newMappings[col] = matchingDef ? `custom::${matchingDef.field_key}` : `custom::${key}`;
+    });
+    setMappings(newMappings);
+  };
+
   const canConfirm = getUnmappedRequired().length === 0;
 
-  const getConfidenceBadge = (confidence: number) => {
-    if (confidence >= 90) return <Badge className="bg-[hsl(var(--signal-high))]">High Match</Badge>;
-    if (confidence >= 70) return <Badge className="bg-[hsl(var(--signal-medium))]">Good Match</Badge>;
+  const getConfidenceBadge = (csvCol: string) => {
+    const currentMapping = mappings[csvCol];
+    if (currentMapping?.startsWith('custom::')) {
+      return <Badge className="bg-[hsl(var(--accent))] text-accent-foreground">Custom</Badge>;
+    }
+    const autoDetection = autoDetected.find(d => d.csvColumn === csvCol);
+    if (!autoDetection) return null;
+    if (autoDetection.confidence >= 90) return <Badge className="bg-[hsl(var(--signal-high))]">High Match</Badge>;
+    if (autoDetection.confidence >= 70) return <Badge className="bg-[hsl(var(--signal-medium))]">Good Match</Badge>;
     return <Badge variant="secondary">Low Match</Badge>;
   };
+
+  const unmappedCount = getUnmappedColumns().length;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -212,21 +155,31 @@ export function FieldMappingDialog({ isOpen, onClose, onConfirm, csvHeaders, dat
           </Alert>
         )}
 
+        {unmappedCount > 0 && (
+          <Alert>
+            <Database className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>{unmappedCount} column{unmappedCount !== 1 ? 's are' : ' is'} unmapped. Map as custom attributes?</span>
+              <Button size="sm" variant="secondary" onClick={handleBulkMapCustom} className="ml-2 shrink-0">
+                <Database className="h-3 w-3 mr-1" />
+                Map all as custom
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <div className="space-y-4">
           <div className="space-y-3">
             {csvHeaders.map(csvCol => {
               const currentMapping = mappings[csvCol];
-              const autoDetection = autoDetected.find(d => d.csvColumn === csvCol);
 
               return (
                 <div key={csvCol} className="flex items-center gap-4 p-3 border rounded-lg">
                   <div className="flex-1">
                     <div className="font-medium text-sm">{csvCol}</div>
-                    {autoDetection && (
-                      <div className="flex items-center gap-2 mt-1">
-                        {getConfidenceBadge(autoDetection.confidence)}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 mt-1">
+                      {getConfidenceBadge(csvCol)}
+                    </div>
                   </div>
 
                   <ArrowRight className="h-4 w-4 text-muted-foreground" />
@@ -246,6 +199,31 @@ export function FieldMappingDialog({ isOpen, onClose, onConfirm, csvHeaders, dat
                             {field.label} {field.required && '*'}
                           </SelectItem>
                         ))}
+
+                        {/* Custom attribute options */}
+                        {(customDefs.length > 0 || true) && (
+                          <>
+                            <Separator className="my-1" />
+                            <div className="px-2 py-1 text-xs font-medium text-muted-foreground">Custom Attributes</div>
+                            {customDefs.map(def => (
+                              <SelectItem key={`custom::${def.field_key}`} value={`custom::${def.field_key}`}>
+                                Custom: {def.field_label}
+                              </SelectItem>
+                            ))}
+                            {(() => {
+                              const key = csvCol.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+                              const alreadyDefined = customDefs.some(d => d.field_key === key);
+                              if (!alreadyDefined) {
+                                return (
+                                  <SelectItem value={`custom::${key}`}>
+                                    Custom: {csvCol} (new)
+                                  </SelectItem>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>

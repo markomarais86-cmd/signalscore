@@ -279,13 +279,24 @@ Deno.serve(async (req) => {
     const errors: string[] = []
     const BATCH_SIZE = 1000
 
-    // Create reverse mapping
+    // Create reverse mapping - separate standard fields from custom:: prefixed fields
     const reverseMapping: Record<string, string> = {}
+    const customMappings: Record<string, string> = {} // custom_key -> csvColumn
     Object.entries(mapping).forEach(([csvCol, dbField]) => {
-      if (dbField) reverseMapping[dbField] = csvCol
+      if (!dbField || dbField === '__skip__') return
+      if ((dbField as string).startsWith('custom::')) {
+        customMappings[(dbField as string).replace('custom::', '')] = csvCol
+      } else {
+        reverseMapping[dbField] = csvCol
+      }
     })
 
+    const hasCustomMappings = Object.keys(customMappings).length > 0
+    console.log(`📋 Standard fields: ${Object.keys(reverseMapping).length}, Custom fields: ${Object.keys(customMappings).length}`)
+
     // Process leads in batches
+    const customAttrsPerAccount = new Map<string, Record<string, any>>()
+
     for (let i = 0; i < data.length; i += BATCH_SIZE) {
       const batch = data.slice(i, Math.min(i + BATCH_SIZE, data.length))
       console.log(`Processing batch: rows ${i + 1} to ${i + batch.length}`)
@@ -301,9 +312,26 @@ Deno.serve(async (req) => {
         
         const rawRevenue = reverseMapping.revenue_range && row[reverseMapping.revenue_range];
         const rawEmployees = reverseMapping.employee_count && row[reverseMapping.employee_count];
+
+        // Build custom_attributes from custom mappings
+        const customAttrs: Record<string, any> = {}
+        if (hasCustomMappings) {
+          Object.entries(customMappings).forEach(([key, csvCol]) => {
+            const val = row[csvCol]
+            if (val !== undefined && val !== null && val !== '') {
+              customAttrs[key] = val
+            }
+          })
+        }
+
+        // Track custom attrs per company for account propagation
+        if (company && Object.keys(customAttrs).length > 0) {
+          const existing = customAttrsPerAccount.get(company) || {}
+          customAttrsPerAccount.set(company, { ...existing, ...customAttrs })
+        }
         
         if (!leadsMap.has(externalId)) {
-          leadsMap.set(externalId, {
+          const lead: any = {
             org_id: orgId,
             external_id: externalId,
             name: leadName,
@@ -321,7 +349,10 @@ Deno.serve(async (req) => {
             title: (reverseMapping.title && row[reverseMapping.title]) || null,
             first_name: firstName || null,
             last_name: lastName || null
-          })
+          }
+          // Don't add custom_attributes to lead record - Leads table doesn't have this column
+          // Custom attrs are propagated to accounts after matching via customAttrsPerAccount
+          leadsMap.set(externalId, lead)
         }
       })
       
@@ -375,6 +406,32 @@ Deno.serve(async (req) => {
         matchResult = matchData;
         console.log(`✅ Bulk matching completed in ${Date.now() - matchStart}ms:`, matchResult)
       }
+    }
+
+    // ── Propagate custom attributes to matched accounts ──
+    if (hasCustomMappings && customAttrsPerAccount.size > 0 && insertedLeads > 0) {
+      console.log(`📦 Propagating custom attributes to ${customAttrsPerAccount.size} accounts...`)
+      let propagated = 0
+      for (const [companyName, attrs] of customAttrsPerAccount.entries()) {
+        // Find account by name match
+        const { data: accounts } = await supabaseClient
+          .from('accounts')
+          .select('id, custom_attributes')
+          .eq('org_id', orgId)
+          .ilike('name', companyName)
+          .limit(1)
+        
+        if (accounts && accounts.length > 0) {
+          const existing = (accounts[0].custom_attributes as Record<string, any>) || {}
+          const merged = { ...existing, ...attrs }
+          await supabaseClient
+            .from('accounts')
+            .update({ custom_attributes: merged })
+            .eq('id', accounts[0].id)
+          propagated++
+        }
+      }
+      console.log(`✅ Propagated custom attributes to ${propagated} accounts`)
     }
 
     if (matchResult?.accounts_created > 0) {
@@ -482,10 +539,10 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ Upload error:', error)
     return new Response(
-      JSON.stringify({ error: error.message, success: false }),
+      JSON.stringify({ error: (error as any).message, success: false }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
