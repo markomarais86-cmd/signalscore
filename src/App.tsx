@@ -56,6 +56,7 @@ import Help from "./pages/Help";
 import APIAccess from "./pages/APIAccess";
 import Tasks from "./pages/Tasks";
 import CustomerOnboarding from "./pages/admin/CustomerOnboarding";
+import ListBuilder from "./pages/ListBuilder";
 
 import PipelineAnalyticsPage from "./pages/PipelineAnalyticsPage";
 import Opportunities from "./pages/Opportunities";
@@ -358,6 +359,16 @@ function AppContent() {
                   </ProtectedRoute>
                 }
               />
+                <Route
+                  path="/list-builder"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <ListBuilder />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
                 {/* Test routes - only available in development */}
                 {import.meta.env.DEV && (
                   <>
