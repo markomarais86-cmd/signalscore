@@ -1,72 +1,40 @@
 
+# Enrich Industry Templates with Missing Fields
 
-# Auto-Detect Unmapped CSV Columns as Custom Attributes
+## What Changes
 
-## Overview
+Add new fields to three existing industry templates in `src/components/settings/CustomAttributeManager.tsx`:
 
-When a user uploads a CSV, many columns won't match standard system fields (e.g., `bed_count`, `ehr_system`, `churn_rate`). Currently these are silently skipped. This update will detect unmapped columns and offer to store them in `accounts.custom_attributes` JSONB, optionally matching them to existing `custom_attribute_definitions`.
+### SaaS / Technology (add 3 fields)
+- **ARR** (`arr`) -- number field, enrichment prompt asks for Annual Recurring Revenue
+- **MRR** (`mrr`) -- number field, enrichment prompt asks for Monthly Recurring Revenue
+- **Churn Rate** (`churn_rate`) -- number field, enrichment prompt asks for annual customer churn rate as a percentage
 
-## Changes
+### Manufacturing (add 1 field)
+- **Annual Output** (`annual_output`) -- number field, enrichment prompt asks for annual production output or units manufactured
 
-### 1. FieldMappingDialog.tsx -- Add "Custom Attribute" mapping option
+### Retail and E-commerce (add 1 field)
+- **Average Basket Size** (`average_basket_size`) -- number field, enrichment prompt asks for average order/basket value in USD
 
-**What changes:**
-- After the standard system fields in each `<Select>`, add a separator and a "Map as Custom Attribute" option (value prefix `custom::<column_name>`)
-- Fetch `custom_attribute_definitions` for the org via React Query
-- If definitions exist, show them as named options (e.g., "Custom: Bed Count", "Custom: EHR System")
-- Also offer a generic "Custom: [use column name]" catch-all option
-- Add a new section at the bottom of the dialog showing unmapped columns count with a "Map all unmapped as custom attributes" bulk action button
+## Technical Detail
 
-**New props:**
-- `orgId?: string` -- needed to fetch custom attribute definitions
+All changes are in a single file: `src/components/settings/CustomAttributeManager.tsx`, lines 52-77.
 
-**UI detail:**
-- Unmapped columns get a subtle info banner: "3 columns are unmapped. Map as custom attributes?"
-- Clicking "Map all as custom" auto-assigns each unmapped column to `custom::<column_key>`
+**SaaS fields array** (line 52-57): Append 3 new objects after `integration_count`:
+```typescript
+{ field_key: 'arr', field_label: 'Annual Recurring Revenue (ARR)', field_type: 'number', options: [], category: 'SaaS', enrichment_prompt: 'What is this company\'s estimated Annual Recurring Revenue (ARR) in USD?' },
+{ field_key: 'mrr', field_label: 'Monthly Recurring Revenue (MRR)', field_type: 'number', options: [], category: 'SaaS', enrichment_prompt: 'What is this company\'s estimated Monthly Recurring Revenue (MRR) in USD?' },
+{ field_key: 'churn_rate', field_label: 'Churn Rate (%)', field_type: 'number', options: [], category: 'SaaS', enrichment_prompt: 'What is this SaaS company\'s estimated annual customer churn rate as a percentage?' },
+```
 
-### 2. DataUpload.tsx -- Pass custom mappings to upload logic
+**Manufacturing fields array** (line 63-67): Append 1 new object after `production_type`:
+```typescript
+{ field_key: 'annual_output', field_label: 'Annual Output', field_type: 'number', options: [], category: 'Manufacturing', enrichment_prompt: 'What is this manufacturer\'s estimated annual production output or volume?' },
+```
 
-**What changes in the small-upload path (lines 268-335):**
-- After building `reverseMapping`, separate entries into two groups: standard fields (existing behavior) and custom attributes (keys starting with `custom::`)
-- For each row, collect custom-mapped values into a `custom_attributes` JSON object
-- Include `custom_attributes` in the lead record inserted into the `Leads` table (if column exists) or hold for account enrichment
+**Retail fields array** (line 73-77): Append 1 new object after `distribution_channels`:
+```typescript
+{ field_key: 'average_basket_size', field_label: 'Average Basket Size ($)', field_type: 'number', options: [], category: 'Retail', enrichment_prompt: 'What is this retailer\'s average order or basket size in USD?' },
+```
 
-**What changes in the large-upload path (lines 207-265):**
-- Pass the full mapping (including `custom::` prefixed keys) to the `bulk-upload` edge function
-
-### 3. bulk-upload Edge Function -- Store custom attributes on accounts
-
-**What changes in `supabase/functions/bulk-upload/index.ts`:**
-- In the reverse mapping step (line 282-286), detect `custom::` prefixed mappings and separate them
-- When building lead records, collect custom-mapped CSV values into a `custom_attributes` JSONB field on the lead
-- After matching leads to accounts (post-matching step), propagate `custom_attributes` from leads to their matched accounts by merging into `accounts.custom_attributes` via a JSONB merge update:
-  ```sql
-  UPDATE accounts SET custom_attributes = COALESCE(custom_attributes, '{}'::jsonb) || new_attrs
-  WHERE id = matched_account_id
-  ```
-
-### 4. FieldMappingDialog.tsx -- Visual distinction for custom mappings
-
-- Custom attribute mappings shown with a distinct badge (e.g., purple "Custom" badge vs green "High Match")
-- The bulk action button uses a `Package` or `Database` icon from lucide
-
-## File Summary
-
-| File | Change |
-|------|--------|
-| `src/components/data-upload/FieldMappingDialog.tsx` | Add custom attribute options to Select, bulk-map button, fetch definitions |
-| `src/pages/DataUpload.tsx` | Handle `custom::` prefix in mapping for both small and large upload paths |
-| `supabase/functions/bulk-upload/index.ts` | Parse `custom::` mappings, store on leads, propagate to accounts after matching |
-
-## Technical Details
-
-**Custom mapping key format:** `custom::field_key` (e.g., `custom::bed_count`, `custom::churn_rate`)
-
-**Propagation flow:**
-1. User maps CSV column "Bed Count" to `custom::bed_count`
-2. Upload stores `{ "bed_count": "250" }` in lead's custom_attributes
-3. After lead-to-account matching, the edge function merges those values into `accounts.custom_attributes`
-4. If `bed_count` already exists in `custom_attribute_definitions`, the value is typed accordingly (number parsed, etc.)
-
-**No schema migration needed** -- `accounts.custom_attributes` JSONB column already exists.
-
+No database migrations or other file changes needed -- these are just template definitions that get inserted into `custom_attribute_definitions` when a user clicks "Apply".
