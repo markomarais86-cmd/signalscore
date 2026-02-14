@@ -576,8 +576,8 @@ export default function ExecutiveDashboard() {
             {/* Growth Command Center KPIs */}
             <GrowthCommandKPIs
               totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-              tamEstimate={tamData?.totalAccounts || totalAccounts}
-              accountsWithContacts={dashboardData?.metrics?.linked_leads || 0}
+              tamEstimate={tamData?.totalAccounts || 0}
+              dataCompleteness={dataCompleteness}
               highFitAccounts={highFitAccounts}
               campaignReadyAccounts={campaignReadyAccounts}
               pipelinePotential={campaignReadyAccounts * 75000 * 0.25}
