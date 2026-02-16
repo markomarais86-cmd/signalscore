@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,11 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Trash2, Edit, Sparkles, Building2, Cpu, Factory, ShoppingBag, X, CheckCircle2, Zap, Landmark, GraduationCap, Briefcase } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Plus, Trash2, Edit, Sparkles, Building2, Cpu, Factory, ShoppingBag, X, CheckCircle2, Zap, Landmark, GraduationCap, Briefcase, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useEffectiveOrg } from '@/hooks/use-effective-org';
 import { supabase } from '@/integrations/supabase/client';
+import { useUnifiedEnrichment } from '@/hooks/use-unified-enrichment';
 
 interface CustomAttributeDefinition {
   id: string;
@@ -135,6 +137,7 @@ export function CustomAttributeManager() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDef, setEditingDef] = useState<CustomAttributeDefinition | null>(null);
   const [icpIndustries, setIcpIndustries] = useState<string[]>([]);
+  const [enrichingCategory, setEnrichingCategory] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     field_key: '',
     field_label: '',
@@ -146,6 +149,70 @@ export function CustomAttributeManager() {
 
   const { toast } = useToast();
   const { effectiveOrgId } = useEffectiveOrg();
+
+  const { isEnriching, progress, enrichAccounts, reset: resetEnrichment } = useUnifiedEnrichment({
+    onComplete: (result) => {
+      setEnrichingCategory(null);
+      loadDefinitions();
+    },
+    onError: () => {
+      setEnrichingCategory(null);
+    },
+  });
+
+  const handleFillMissing = useCallback(async (category: string, defs: CustomAttributeDefinition[]) => {
+    if (!effectiveOrgId || isEnriching) return;
+
+    const fieldKeys = defs.map(d => d.field_key);
+    setEnrichingCategory(category);
+
+    try {
+      // Fetch accounts missing custom attributes for this category
+      // We fetch accounts where custom_attributes is null OR domain exists
+      const { data: accounts, error } = await supabase
+        .from('accounts')
+        .select('external_id, name, domain, industry_norm, employee_count, revenue_range, country, state_province, city, custom_attributes')
+        .eq('org_id', effectiveOrgId)
+        .not('domain', 'is', null)
+        .limit(500);
+
+      if (error) throw error;
+
+      // Client-side filter: keep accounts missing any of the category's field keys
+      const missingAccounts = (accounts || []).filter(acc => {
+        const ca = acc.custom_attributes as Record<string, any> | null;
+        if (!ca) return true;
+        return fieldKeys.some(key => ca[key] === undefined || ca[key] === null || ca[key] === '');
+      }).slice(0, 250);
+
+      if (missingAccounts.length === 0) {
+        toast({ title: 'All filled', description: `All accounts already have ${category} attributes populated.` });
+        setEnrichingCategory(null);
+        return;
+      }
+
+      // Map to the format enrichAccounts expects
+      const records = missingAccounts.map(acc => ({
+        external_id: acc.external_id,
+        name: acc.name || undefined,
+        domain: acc.domain || undefined,
+        industry_norm: acc.industry_norm || undefined,
+        employee_count: acc.employee_count || undefined,
+        revenue_range: acc.revenue_range || undefined,
+        country: acc.country || undefined,
+        state_province: acc.state_province || undefined,
+        city: acc.city || undefined,
+      }));
+
+      await enrichAccounts(effectiveOrgId, records, {
+        fieldsToEnrich: fieldKeys,
+        aggregateProviders: true,
+      });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message || 'Failed to start enrichment', variant: 'destructive' });
+      setEnrichingCategory(null);
+    }
+  }, [effectiveOrgId, isEnriching, enrichAccounts, toast]);
 
   useEffect(() => {
     if (effectiveOrgId) {
@@ -530,8 +597,41 @@ export function CustomAttributeManager() {
         Object.entries(grouped).map(([category, defs]) => (
           <Card key={category}>
             <CardHeader>
-              <CardTitle className="text-base">{category}</CardTitle>
-              <CardDescription>{defs.length} attribute{defs.length !== 1 ? 's' : ''}</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">{category}</CardTitle>
+                  <CardDescription>{defs.length} attribute{defs.length !== 1 ? 's' : ''}</CardDescription>
+                </div>
+                {defs.some(d => d.enrichment_prompt) && (
+                  enrichingCategory === category ? (
+                    <div className="flex items-center gap-3 min-w-[200px]">
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <div className="flex-1">
+                        <div className="text-xs text-muted-foreground mb-1">
+                          {progress
+                            ? `${progress.enriched}/${progress.total} enriched`
+                            : 'Starting...'}
+                        </div>
+                        <Progress
+                          value={progress ? (progress.processed / progress.total) * 100 : 0}
+                          className="h-2"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-2"
+                      disabled={isEnriching}
+                      onClick={() => handleFillMissing(category, defs)}
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Fill Missing
+                    </Button>
+                  )
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
