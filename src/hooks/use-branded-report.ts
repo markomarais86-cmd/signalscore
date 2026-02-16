@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useEffectiveOrg } from '@/hooks/use-effective-org';
-import { useBrandedConfig } from '@/hooks/useBrandedConfig';
+import { useBrandedConfig, BrandConfig } from '@/hooks/useBrandedConfig';
 import { supabase } from '@/integrations/supabase/client';
 import { generateBrandedPDF, BrandedReportData } from '@/utils/branded-pdf-export';
 import { detectRisks } from '@/utils/risk-detector';
@@ -31,7 +31,7 @@ async function logoToBase64(url: string): Promise<string | null> {
 
 export function useBrandedReport() {
   const { effectiveOrgId } = useEffectiveOrg();
-  const { data: brandConfig } = useBrandedConfig({
+  const { data: hookBrandConfig } = useBrandedConfig({
     orgId: effectiveOrgId || '',
   });
   const [isGenerating, setIsGenerating] = useState(false);
@@ -44,7 +44,7 @@ export function useBrandedReport() {
 
     setIsGenerating(true);
     try {
-      // Call edge function for server-side data + AI narratives
+      // Call edge function for server-side data + AI narratives + brand config
       const { data: response, error: fnError } = await supabase.functions.invoke(
         'generate-board-report',
         { body: { org_id: effectiveOrgId } }
@@ -61,8 +61,22 @@ export function useBrandedReport() {
       const serverData = response.data;
       const aiNarratives = response.aiNarratives;
 
+      // Prefer edge function's brand config, fallback to client hook
+      const serverBrand = response.brandConfig;
+      const effectiveBrand: BrandConfig | null = serverBrand ? {
+        org_id: effectiveOrgId,
+        company_name: serverBrand.company_name || hookBrandConfig?.company_name || null,
+        logo_url: serverBrand.logo_url || hookBrandConfig?.logo_url || null,
+        brand_primary_color: serverBrand.brand_primary_color || hookBrandConfig?.brand_primary_color || null,
+        brand_secondary_color: serverBrand.brand_secondary_color || hookBrandConfig?.brand_secondary_color || null,
+        value_proposition: serverBrand.value_proposition || hookBrandConfig?.value_proposition || null,
+        target_persona_description: hookBrandConfig?.target_persona_description || null,
+        calendly_base_url: hookBrandConfig?.calendly_base_url || null,
+      } : hookBrandConfig;
+
       // Client-side: logo conversion (needs DOM canvas)
-      const logoBase64 = brandConfig?.logo_url ? await logoToBase64(brandConfig.logo_url) : null;
+      const logoUrl = effectiveBrand?.logo_url;
+      const logoBase64 = logoUrl ? await logoToBase64(logoUrl) : null;
 
       // Client-side: detect risks (uses client supabase for RLS-scoped queries)
       const risks = await detectRisks(effectiveOrgId, {
@@ -75,8 +89,25 @@ export function useBrandedReport() {
         data_completeness: serverData.metrics.dataCompleteness,
       }).catch(() => []);
 
-      const rawName = brandConfig?.company_name || serverData.companyName || 'Organization';
+      const rawName = effectiveBrand?.company_name || serverData.companyName || 'Organization';
       const resolvedCompanyName = rawName.toLowerCase() === 'launchpulse' ? 'LaunchPulse' : rawName;
+
+      // Build ICP profile detail from the first active ICP profile
+      const primaryIcp = serverData.icpProfiles?.[0];
+      const icpProfileDetail = primaryIcp ? {
+        name: primaryIcp.name || 'Unnamed Profile',
+        description: primaryIcp.description || '',
+        industries: primaryIcp.targetIndustries || [],
+        companySizes: primaryIcp.companySizes || [],
+        geographies: primaryIcp.geographies || [],
+        personaJobTitles: primaryIcp.personaJobTitles || [],
+        personaSeniorityLevels: primaryIcp.personaSeniorityLevels || [],
+        personaDepartments: primaryIcp.personaDepartments || [],
+        techStack: primaryIcp.techStack || [],
+        buyingSignals: primaryIcp.buyingSignals || [],
+        painPoints: primaryIcp.painPoints || [],
+        confidenceScore: primaryIcp.confidence || 0,
+      } : undefined;
 
       const reportData: BrandedReportData = {
         companyName: resolvedCompanyName,
@@ -93,14 +124,15 @@ export function useBrandedReport() {
         sizeBreakdown: serverData.sizeBreakdown,
         geographyDistribution: serverData.geographyDistribution,
         topProspects: serverData.topProspects,
-        insights: [], // AI narratives replace static insights
+        insights: [],
         risks,
         leadStats: serverData.leadStats,
         revenueModeling: serverData.revenueModeling,
         aiNarratives: aiNarratives || undefined,
+        icpProfileDetail,
       };
 
-      await generateBrandedPDF(reportData, brandConfig ?? null);
+      await generateBrandedPDF(reportData, effectiveBrand ?? null);
       toast.success('Report downloaded successfully');
     } catch (err: any) {
       console.error('Report generation failed:', err);
@@ -115,7 +147,7 @@ export function useBrandedReport() {
     } finally {
       setIsGenerating(false);
     }
-  }, [effectiveOrgId, brandConfig]);
+  }, [effectiveOrgId, hookBrandConfig]);
 
   return { generateReport, isGenerating };
 }
