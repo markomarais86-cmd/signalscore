@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Trash2, Edit, Sparkles, Building2, Cpu, Factory, ShoppingBag, X, CheckCircle2, Zap } from 'lucide-react';
+import { Plus, Trash2, Edit, Sparkles, Building2, Cpu, Factory, ShoppingBag, X, CheckCircle2, Zap, Landmark, GraduationCap, Briefcase } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useEffectiveOrg } from '@/hooks/use-effective-org';
@@ -81,6 +81,42 @@ const INDUSTRY_TEMPLATES: TemplateDefinition[] = [
       { field_key: 'average_basket_size', field_label: 'Average Basket Size ($)', field_type: 'number', options: [], category: 'Retail', enrichment_prompt: 'What is this retailer\'s average order or basket size in USD?' },
     ],
   },
+  {
+    name: 'Financial Services',
+    icon: <Landmark className="h-4 w-4" />,
+    category: 'Financial Services',
+    fields: [
+      { field_key: 'license_type', field_label: 'License Type', field_type: 'select', options: ['Bank Charter', 'Broker-Dealer', 'RIA', 'Insurance', 'Money Transmitter', 'Credit Union', 'Fintech Charter'], category: 'Financial Services', enrichment_prompt: 'What type of financial license or charter does this institution hold? (e.g., Bank Charter, Broker-Dealer, RIA, Insurance, Money Transmitter, Credit Union, Fintech Charter)' },
+      { field_key: 'aum', field_label: 'Assets Under Management ($)', field_type: 'number', options: [], category: 'Financial Services', enrichment_prompt: 'What is this financial institution\'s total Assets Under Management (AUM) in USD?' },
+      { field_key: 'core_banking_system', field_label: 'Core Banking System', field_type: 'select', options: ['FIS', 'Fiserv', 'Jack Henry', 'Temenos', 'Finastra', 'Mambu', 'Thought Machine', 'Custom'], category: 'Financial Services', enrichment_prompt: 'What core banking or processing platform does this financial institution use?' },
+      { field_key: 'regulatory_bodies', field_label: 'Regulatory Bodies', field_type: 'multi_select', options: ['SEC', 'FINRA', 'OCC', 'FDIC', 'Federal Reserve', 'CFPB', 'State Regulators', 'FCA', 'ECB'], category: 'Financial Services', enrichment_prompt: 'Which regulatory bodies oversee this financial institution?' },
+      { field_key: 'branch_count', field_label: 'Number of Branches', field_type: 'number', options: [], category: 'Financial Services', enrichment_prompt: 'How many physical branch locations does this financial institution operate?' },
+    ],
+  },
+  {
+    name: 'Education',
+    icon: <GraduationCap className="h-4 w-4" />,
+    category: 'Education',
+    fields: [
+      { field_key: 'institution_type', field_label: 'Institution Type', field_type: 'select', options: ['Public University', 'Private University', 'Community College', 'K-12 District', 'Charter School', 'Online/EdTech', 'Corporate Training'], category: 'Education', enrichment_prompt: 'What type of educational institution is this? (e.g., Public University, Private University, Community College, K-12 District, Charter School, Online/EdTech, Corporate Training)' },
+      { field_key: 'enrollment', field_label: 'Student Enrollment', field_type: 'number', options: [], category: 'Education', enrichment_prompt: 'What is the total student enrollment at this educational institution?' },
+      { field_key: 'lms_platform', field_label: 'LMS Platform', field_type: 'select', options: ['Canvas', 'Blackboard', 'Moodle', 'Brightspace (D2L)', 'Google Classroom', 'Schoology', 'Custom'], category: 'Education', enrichment_prompt: 'What Learning Management System (LMS) does this institution use?' },
+      { field_key: 'accreditation', field_label: 'Accreditation', field_type: 'multi_select', options: ['Regional', 'National', 'AACSB', 'ABET', 'LCME', 'HLC', 'SACSCOC', 'MSCHE'], category: 'Education', enrichment_prompt: 'What accreditations does this educational institution hold?' },
+      { field_key: 'endowment', field_label: 'Endowment ($)', field_type: 'number', options: [], category: 'Education', enrichment_prompt: 'What is this institution\'s endowment value in USD?' },
+    ],
+  },
+  {
+    name: 'Professional Services',
+    icon: <Briefcase className="h-4 w-4" />,
+    category: 'Professional Services',
+    fields: [
+      { field_key: 'service_type', field_label: 'Service Type', field_type: 'select', options: ['Management Consulting', 'IT Consulting', 'Accounting/Audit', 'Legal', 'Staffing/Recruiting', 'Marketing Agency', 'Engineering Services'], category: 'Professional Services', enrichment_prompt: 'What type of professional services does this firm primarily offer?' },
+      { field_key: 'partner_count', field_label: 'Number of Partners', field_type: 'number', options: [], category: 'Professional Services', enrichment_prompt: 'How many partners or principals does this professional services firm have?' },
+      { field_key: 'practice_areas', field_label: 'Practice Areas', field_type: 'multi_select', options: ['Strategy', 'Digital Transformation', 'Risk & Compliance', 'Tax', 'M&A Advisory', 'Operations', 'Human Capital', 'Technology', 'Data & Analytics'], category: 'Professional Services', enrichment_prompt: 'What are the primary practice areas or service lines at this firm?' },
+      { field_key: 'billable_rate_avg', field_label: 'Avg Billable Rate ($/hr)', field_type: 'number', options: [], category: 'Professional Services', enrichment_prompt: 'What is the average billable hourly rate at this professional services firm in USD?' },
+      { field_key: 'office_locations', field_label: 'Number of Offices', field_type: 'number', options: [], category: 'Professional Services', enrichment_prompt: 'How many office locations does this professional services firm operate?' },
+    ],
+  },
 ];
 
 const CATEGORY_INDUSTRY_MAP: Record<string, string[]> = {
@@ -88,6 +124,9 @@ const CATEGORY_INDUSTRY_MAP: Record<string, string[]> = {
   'SaaS': ['Technology', 'Software', 'SaaS', 'IT Services', 'Information Technology'],
   'Manufacturing': ['Manufacturing', 'Industrial'],
   'Retail': ['Retail', 'E-commerce', 'Ecommerce', 'Consumer Goods'],
+  'Financial Services': ['Financial Services', 'Banking', 'Insurance', 'FinTech', 'Financial Technology', 'Investment'],
+  'Education': ['Education', 'Higher Education', 'EdTech', 'K-12', 'University'],
+  'Professional Services': ['Professional Services', 'Consulting', 'Legal', 'Accounting', 'Staffing', 'Recruiting'],
 };
 
 export function CustomAttributeManager() {

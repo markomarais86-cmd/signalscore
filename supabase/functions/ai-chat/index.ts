@@ -404,7 +404,7 @@ function getProviderConfig(provider: AIProvider): ProviderConfig | null {
       if (!lovableKey) return null;
       return {
         endpoint: 'https://ai.gateway.lovable.dev/v1/chat/completions',
-        model: 'google/gemini-2.5-flash',
+        model: 'google/gemini-3-flash-preview',
         apiKey: lovableKey,
         supportsTemperature: true,
         maxTokensParam: 'max_tokens',
@@ -416,8 +416,9 @@ function getProviderConfig(provider: AIProvider): ProviderConfig | null {
 
 function getAvailableProviders(): AIProvider[] {
   const providers: AIProvider[] = [];
-  if (Deno.env.get("OPENAI_API_KEY")) providers.push('openai');
+  // Lovable (Gemini) first for better reasoning at lower cost
   if (Deno.env.get("LOVABLE_API_KEY")) providers.push('lovable');
+  if (Deno.env.get("OPENAI_API_KEY")) providers.push('openai');
   return providers;
 }
 
