@@ -39,15 +39,16 @@ export function deriveStageReadiness(intentScore: number): string {
 
 export function deriveNextAction(fitScore: number, intentScore: number, leadCount: number): string {
   if (intentScore >= 60) return 'Engage Now';
+  if (fitScore >= 70 && intentScore >= 40) return 'Accelerate';
   if (fitScore >= 60 && intentScore < 40) return 'Warm with Content';
   if (leadCount < 2) return 'Source Contacts';
   return 'Monitor';
 }
 
 export function deriveSegmentAction(highFitPct: number, accountCount: number, medianCount: number): string {
-  if (highFitPct >= 40 && accountCount >= medianCount) return 'Focus';
-  if (highFitPct >= 40 && accountCount < medianCount) return 'Expand';
-  if (highFitPct >= 15) return 'Maintain';
+  if (highFitPct >= 10 && accountCount >= medianCount) return 'Focus';
+  if (highFitPct >= 10 && accountCount < medianCount) return 'Expand';
+  if (highFitPct >= 5) return 'Maintain';
   return 'Exit';
 }
 
