@@ -1,73 +1,123 @@
 
 
-# Add "Fill Missing Attributes" Bulk Enrichment Button
+# Wire Vertical Attributes into Scoring Engine
 
-## What It Does
+## What Changes
 
-Adds a "Fill Missing" button to each category group of custom attributes in Settings. When clicked, it fetches accounts that are missing data for those vertical fields and runs them through the existing `enrich-unified` edge function, which already supports custom attribute enrichment via the provider waterfall.
+When an ICP has `vertical_filters` set (e.g., `{"ehr_system": "Epic", "bed_count_min": 100}`), accounts with matching `custom_attributes` will receive a score boost. This rewards accounts that match vertical-specific criteria without breaking existing scores for orgs that don't use custom attributes.
 
-## How It Works
+## Scoring Design
 
-The enrichment pipeline (`enrich-unified` -> `provider-waterfall`) already:
-- Loads `custom_attribute_definitions` with `enrichment_prompt` for the org
-- Sends those prompts to AI providers (Perplexity, Firecrawl, Gemini)
-- Saves results back to `accounts.custom_attributes` JSONB column
+The current engine scores 4 dimensions out of 100 points:
 
-So the only missing piece is a UI button that:
-1. Queries accounts where `custom_attributes` is missing keys for the selected category
-2. Calls `enrich-unified` with those accounts
-3. Shows progress and completion
+| Dimension | Points |
+|-----------|--------|
+| Industry  | 30     |
+| Size      | 25     |
+| Geography | 25     |
+| Revenue   | 20     |
 
-## Changes
+We'll add a **vertical bonus** (up to 15 points) on top, similar to the existing compound match boost. This keeps the base scoring unchanged while rewarding vertical alignment.
 
-### File: `src/components/settings/CustomAttributeManager.tsx`
+**Vertical scoring logic:**
+- For each key in `icp_rec.vertical_filters`, check if `account_rec.custom_attributes` has a matching value
+- Text/select values: case-insensitive match
+- Number `_min`/`_max` suffixes: numeric comparison (same pattern as the List Builder RPC)
+- Array values (multi-select on the ICP side): check if account value is in the array
+- Each matched vertical criterion earns points: `15 / total_vertical_criteria` (evenly distributed)
+- The vertical score is added to `total_score`, capped at 100
 
-**Add state and enrichment hook:**
-- Import `useUnifiedEnrichment` hook (already exists)
-- Add `enrichingCategory` state to track which category is being enriched
-- Add progress display
+The breakdown will include a new `vertical_score` field so it's visible in the UI.
 
-**Add "Fill Missing" button to each category card header (line ~530-534):**
-- Next to the category title, add a button with a Sparkles icon: "Fill Missing"
-- On click:
-  1. Get all `field_key`s for that category's definitions
-  2. Query accounts where `custom_attributes` is NULL or missing any of those keys (up to 250 accounts)
-  3. Call `enrichAccounts()` from `useUnifiedEnrichment` with those accounts
-  4. Show progress inline in the card
+## Technical Changes
 
-**SQL query for missing accounts:**
+### 1. New migration SQL -- update both scoring functions
+
+**File: new migration**
+
+Update `calculate_account_score` and `calculate_account_score_readonly` to:
+
+1. Add a `vertical_score integer := 0` variable
+2. After revenue scoring, add a vertical scoring block:
+
 ```sql
-SELECT external_id, name, domain, industry_norm, employee_count, 
-       revenue_range, country, state_province, city
-FROM accounts
-WHERE org_id = :orgId
-  AND domain IS NOT NULL
-  AND (
-    custom_attributes IS NULL
-    OR NOT (custom_attributes ?& ARRAY['field_key_1', 'field_key_2', ...])
-  )
-LIMIT 250
+-- Vertical / custom attribute scoring (up to 15 points)
+IF icp_rec.vertical_filters IS NOT NULL 
+   AND icp_rec.vertical_filters != '{}'::jsonb
+   AND account_rec.custom_attributes IS NOT NULL THEN
+  DECLARE
+    v_total_criteria integer := 0;
+    v_matched_criteria integer := 0;
+    v_key text;
+    v_val jsonb;
+  BEGIN
+    FOR v_key, v_val IN SELECT * FROM jsonb_each(icp_rec.vertical_filters)
+    LOOP
+      -- Skip null/empty values
+      IF v_val IS NULL OR v_val = 'null'::jsonb THEN CONTINUE; END IF;
+      v_total_criteria := v_total_criteria + 1;
+
+      IF v_key LIKE '%_min' THEN
+        -- Numeric minimum
+        IF (account_rec.custom_attributes ->> REPLACE(v_key, '_min', '')) IS NOT NULL
+           AND (account_rec.custom_attributes ->> REPLACE(v_key, '_min', ''))::numeric 
+               >= v_val::text::numeric THEN
+          v_matched_criteria := v_matched_criteria + 1;
+        END IF;
+      ELSIF v_key LIKE '%_max' THEN
+        -- Numeric maximum
+        IF (account_rec.custom_attributes ->> REPLACE(v_key, '_max', '')) IS NOT NULL
+           AND (account_rec.custom_attributes ->> REPLACE(v_key, '_max', ''))::numeric 
+               <= v_val::text::numeric THEN
+          v_matched_criteria := v_matched_criteria + 1;
+        END IF;
+      ELSIF jsonb_typeof(v_val) = 'array' THEN
+        -- Multi-select: account value must be in the ICP array
+        IF account_rec.custom_attributes ? v_key
+           AND v_val @> to_jsonb(account_rec.custom_attributes ->> v_key) THEN
+          v_matched_criteria := v_matched_criteria + 1;
+        END IF;
+      ELSE
+        -- Text/select: case-insensitive match
+        IF LOWER(COALESCE(account_rec.custom_attributes ->> v_key, '')) 
+           = LOWER(v_val::text) THEN
+          v_matched_criteria := v_matched_criteria + 1;
+        END IF;
+      END IF;
+    END LOOP;
+
+    IF v_total_criteria > 0 THEN
+      vertical_score := ROUND(15.0 * v_matched_criteria / v_total_criteria)::integer;
+      IF v_matched_criteria > 0 THEN
+        matches := matches + 1;
+      END IF;
+    END IF;
+  END;
+END IF;
 ```
 
-Since we can't run raw SQL from the client, we'll use a simpler approach: fetch accounts and filter client-side, or use the existing `enrich-unified` function which already handles checking what's missing per-account in the waterfall.
+3. Add `vertical_score` to the total: `total_score := industry_score + size_score + geo_score + revenue_score + vertical_score;`
+4. Cap at 100: the existing `LEAST(100, ...)` on the compound boost already handles this
+5. Add `vertical_score` to the breakdown object in the return value
 
-**Simpler approach**: Fetch accounts with `custom_attributes` IS NULL or cast to text and check, then send to `enrich-unified`. The waterfall already skips fields that have values.
+### 2. Update scoring version string
 
-**Add progress UI:**
-- When enriching, replace the "Fill Missing" button with a progress indicator showing processed/total
-- On completion, reload definitions and show a toast
+Change scoring version from `'sql_bulk_v1.1'` to `'sql_bulk_v2.0_vertical'` in `bulk_score_all_accounts` so rescored accounts are distinguishable.
 
-### No new files, no new edge functions, no new dependencies
+### 3. Update score breakdown display (optional, if UI shows breakdown)
 
-The existing `enrich-unified` edge function already handles everything -- it loads the org's custom attribute definitions, builds prompts, calls AI providers, and saves results. We just need the trigger button.
+**File: check if breakdown is rendered anywhere in UI**
 
-## Technical Details
+Add `vertical_score` to any breakdown display so users can see the vertical contribution. This is a small UI addition if the breakdown is shown.
+
+## Summary
 
 | What | Where |
 |------|-------|
-| Add enrichment state + hook | `CustomAttributeManager.tsx` top of component |
-| "Fill Missing" button | Each category `Card` header (line ~530-534) |
-| Account fetching | Supabase query filtering `custom_attributes IS NULL` + `domain IS NOT NULL` |
-| Progress display | Inline in category card, replacing button during enrichment |
-| Completion handler | Reload definitions, show toast with count |
+| Add vertical scoring block | `calculate_account_score` (RPC) |
+| Add vertical scoring block | `calculate_account_score_readonly` (RPC) |
+| Add `vertical_score` to breakdown | Both functions' return JSON |
+| Bump scoring version | `bulk_score_all_accounts` |
+| New migration file | `supabase/migrations/` |
 
+No frontend changes required -- the scoring happens server-side. When users click "Score All" or score individual accounts, the vertical boost is automatically applied if the ICP has `vertical_filters` set.
