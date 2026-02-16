@@ -132,43 +132,71 @@ serve(async (req) => {
 
 /**
  * Compute engagement velocity - accounts with increasing activity patterns
+ * Falls back to score_history when activities table is empty
  */
 async function computeEngagementVelocity(supabase: any, orgId: string): Promise<IntentSignal[]> {
   const signals: IntentSignal[] = [];
   
-  // Get activity counts per account for last 7 days vs previous 7 days
   const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-  // Recent activities (last 7 days)
-  const { data: recentActivities } = await supabase
+  // Check if activities table has data
+  const { count: activityCount } = await supabase
     .from('activities')
-    .select('account_external_id')
-    .eq('org_id', orgId)
-    .gte('activity_date', sevenDaysAgo.toISOString())
-    .not('account_external_id', 'is', null);
+    .select('*', { count: 'exact', head: true })
+    .eq('org_id', orgId);
 
-  // Previous period activities (7-14 days ago)
-  const { data: previousActivities } = await supabase
-    .from('activities')
-    .select('account_external_id')
-    .eq('org_id', orgId)
-    .gte('activity_date', fourteenDaysAgo.toISOString())
-    .lt('activity_date', sevenDaysAgo.toISOString())
-    .not('account_external_id', 'is', null);
+  let recentCounts: Record<string, number> = {};
+  let previousCounts: Record<string, number> = {};
 
-  // Count activities per account
-  const recentCounts: Record<string, number> = {};
-  const previousCounts: Record<string, number> = {};
+  if (activityCount && activityCount > 0) {
+    // Use activities data
+    const { data: recentActivities } = await supabase
+      .from('activities')
+      .select('account_external_id')
+      .eq('org_id', orgId)
+      .gte('activity_date', sevenDaysAgo.toISOString())
+      .not('account_external_id', 'is', null);
 
-  (recentActivities || []).forEach((a: any) => {
-    recentCounts[a.account_external_id] = (recentCounts[a.account_external_id] || 0) + 1;
-  });
+    const { data: previousActivities } = await supabase
+      .from('activities')
+      .select('account_external_id')
+      .eq('org_id', orgId)
+      .gte('activity_date', fourteenDaysAgo.toISOString())
+      .lt('activity_date', sevenDaysAgo.toISOString())
+      .not('account_external_id', 'is', null);
 
-  (previousActivities || []).forEach((a: any) => {
-    previousCounts[a.account_external_id] = (previousCounts[a.account_external_id] || 0) + 1;
-  });
+    (recentActivities || []).forEach((a: any) => {
+      recentCounts[a.account_external_id] = (recentCounts[a.account_external_id] || 0) + 1;
+    });
+    (previousActivities || []).forEach((a: any) => {
+      previousCounts[a.account_external_id] = (previousCounts[a.account_external_id] || 0) + 1;
+    });
+  } else {
+    // FALLBACK: Use score_history changes as proxy for engagement
+    console.log('[IntentSignals] No activities found, using score_history as engagement proxy');
+    
+    const { data: recentChanges } = await supabase
+      .from('score_history')
+      .select('account_external_id')
+      .eq('org_id', orgId)
+      .gte('changed_at', sevenDaysAgo.toISOString());
+
+    const { data: previousChanges } = await supabase
+      .from('score_history')
+      .select('account_external_id')
+      .eq('org_id', orgId)
+      .gte('changed_at', fourteenDaysAgo.toISOString())
+      .lt('changed_at', sevenDaysAgo.toISOString());
+
+    (recentChanges || []).forEach((a: any) => {
+      recentCounts[a.account_external_id] = (recentCounts[a.account_external_id] || 0) + 1;
+    });
+    (previousChanges || []).forEach((a: any) => {
+      previousCounts[a.account_external_id] = (previousCounts[a.account_external_id] || 0) + 1;
+    });
+  }
 
   // Find accounts with significant increase (>50% more activity)
   const acceleratingAccounts: { id: string; recent: number; previous: number; increase: number }[] = [];
@@ -187,7 +215,6 @@ async function computeEngagementVelocity(supabase: any, orgId: string): Promise<
     }
   }
 
-  // Get account names for top accelerating accounts
   if (acceleratingAccounts.length > 0) {
     const { data: accounts } = await supabase
       .from('accounts')
@@ -206,11 +233,12 @@ async function computeEngagementVelocity(supabase: any, orgId: string): Promise<
         account_external_id: acc.id,
         account_name: accountMap.get(acc.id) || null,
         title: `${acc.increase}% more engagement this week`,
-        description: `${acc.recent} activities this week vs ${acc.previous} last week. Momentum is building.`,
+        description: `${acc.recent} score changes this week vs ${acc.previous} last week. Momentum is building.`,
         metadata: {
           recent_count: acc.recent,
           previous_count: acc.previous,
           increase_percent: acc.increase,
+          source: activityCount && activityCount > 0 ? 'activities' : 'score_history',
         },
       });
     }
@@ -225,7 +253,6 @@ async function computeEngagementVelocity(supabase: any, orgId: string): Promise<
 async function computeMultiThreadingOpportunities(supabase: any, orgId: string): Promise<IntentSignal[]> {
   const signals: IntentSignal[] = [];
 
-  // Get high-fit scored accounts
   const { data: highFitAccounts } = await supabase
     .from('scores')
     .select('account_external_id, fit_label')
@@ -236,14 +263,12 @@ async function computeMultiThreadingOpportunities(supabase: any, orgId: string):
 
   const highFitIds = highFitAccounts.map((s: any) => s.account_external_id);
 
-  // Get leads per account
   const { data: leads } = await supabase
     .from('Leads')
     .select('account_external_id, id')
     .eq('org_id', orgId)
     .in('account_external_id', highFitIds);
 
-  // Count leads per account
   const leadCounts: Record<string, number> = {};
   (leads || []).forEach((l: any) => {
     if (l.account_external_id) {
@@ -251,13 +276,11 @@ async function computeMultiThreadingOpportunities(supabase: any, orgId: string):
     }
   });
 
-  // Find accounts with only 1 lead (single-threaded)
   const singleThreaded = Object.entries(leadCounts)
     .filter(([_, count]) => count === 1)
     .map(([id]) => id);
 
   if (singleThreaded.length > 0) {
-    // Get account names
     const { data: accounts } = await supabase
       .from('accounts')
       .select('external_id, name, employee_count')
@@ -292,7 +315,6 @@ async function computeMultiThreadingOpportunities(supabase: any, orgId: string):
 async function computeScoreChangeAlerts(supabase: any, orgId: string): Promise<IntentSignal[]> {
   const signals: IntentSignal[] = [];
 
-  // Get recent score history (last 30 days)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
   const { data: scoreHistory } = await supabase
@@ -304,7 +326,6 @@ async function computeScoreChangeAlerts(supabase: any, orgId: string): Promise<I
 
   if (!scoreHistory || scoreHistory.length === 0) return signals;
 
-  // Group by account and find significant changes
   const accountChanges: Record<string, { drop: number; gain: number; latest: any }> = {};
 
   for (const entry of scoreHistory) {
@@ -322,7 +343,6 @@ async function computeScoreChangeAlerts(supabase: any, orgId: string): Promise<I
     }
   }
 
-  // Find accounts with significant drops (>20 points) or gains (>15 points)
   const significantChanges = Object.entries(accountChanges)
     .filter(([_, data]) => data.drop >= 20 || data.gain >= 15)
     .slice(0, 20);
@@ -365,11 +385,11 @@ async function computeScoreChangeAlerts(supabase: any, orgId: string): Promise<I
 
 /**
  * Compute coverage gaps - high-fit accounts with no recent activity
+ * Falls back to score_history when activities table is empty
  */
 async function computeCoverageGaps(supabase: any, orgId: string): Promise<IntentSignal[]> {
   const signals: IntentSignal[] = [];
 
-  // Get high-fit accounts
   const { data: highFitScores } = await supabase
     .from('scores')
     .select('account_external_id')
@@ -379,24 +399,42 @@ async function computeCoverageGaps(supabase: any, orgId: string): Promise<Intent
   if (!highFitScores || highFitScores.length === 0) return signals;
 
   const highFitIds = highFitScores.map((s: any) => s.account_external_id);
-
-  // Get accounts with recent activity (last 30 days)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const { data: recentlyActiveAccounts } = await supabase
+  // Check if activities has data, otherwise use score_history
+  const { count: activityCount } = await supabase
     .from('activities')
-    .select('account_external_id')
-    .eq('org_id', orgId)
-    .gte('activity_date', thirtyDaysAgo)
-    .in('account_external_id', highFitIds);
+    .select('*', { count: 'exact', head: true })
+    .eq('org_id', orgId);
 
-  const activeIds = new Set((recentlyActiveAccounts || []).map((a: any) => a.account_external_id));
+  let activeIds: Set<string>;
 
-  // Find high-fit accounts with no recent activity
+  if (activityCount && activityCount > 0) {
+    const { data: recentlyActiveAccounts } = await supabase
+      .from('activities')
+      .select('account_external_id')
+      .eq('org_id', orgId)
+      .gte('activity_date', thirtyDaysAgo)
+      .in('account_external_id', highFitIds);
+
+    activeIds = new Set((recentlyActiveAccounts || []).map((a: any) => a.account_external_id));
+  } else {
+    // FALLBACK: Use score_history as proxy for recent engagement
+    console.log('[IntentSignals] No activities, using score_history for coverage gaps');
+    
+    const { data: recentlyChangedAccounts } = await supabase
+      .from('score_history')
+      .select('account_external_id')
+      .eq('org_id', orgId)
+      .gte('changed_at', thirtyDaysAgo)
+      .in('account_external_id', highFitIds);
+
+    activeIds = new Set((recentlyChangedAccounts || []).map((a: any) => a.account_external_id));
+  }
+
   const dormantHighFit = highFitIds.filter((id: string) => !activeIds.has(id));
 
   if (dormantHighFit.length > 0) {
-    // Get account details
     const { data: accounts } = await supabase
       .from('accounts')
       .select('external_id, name, employee_count, propensity_score')
