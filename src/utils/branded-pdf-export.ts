@@ -211,8 +211,9 @@ export async function generateBrandedPDF(
   const CW = W - 2 * M;
   const { primary, secondary, dark } = getBrandColors(brand);
   const lightBg = lightenRgb(primary, 0.92);
-  const companyName = brand?.company_name || data.companyName || 'Organization';
-  const isLaunchPulse = companyName.toLowerCase().replace(/\s/g, '') === 'launchpulse';
+  const rawName = brand?.company_name || data.companyName || 'Organization';
+  const companyName = rawName.toLowerCase().replace(/\s/g, '') === 'launchpulse' ? 'LaunchPulse' : rawName;
+  const isLaunchPulse = companyName === 'LaunchPulse';
 
   const acv = data.revenueModeling?.acv || DEFAULT_ACV;
   const convRate = data.revenueModeling?.conversionRate || DEFAULT_CONVERSION_RATE;

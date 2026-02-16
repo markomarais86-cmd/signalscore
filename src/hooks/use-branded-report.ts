@@ -89,6 +89,10 @@ export function useBrandedReport() {
         data_completeness: serverData.metrics.dataCompleteness,
       }).catch(() => []);
 
+      // Fix casing on brand object before passing to PDF generator
+      if (effectiveBrand && effectiveBrand.company_name?.toLowerCase() === 'launchpulse') {
+        effectiveBrand.company_name = 'LaunchPulse';
+      }
       const rawName = effectiveBrand?.company_name || serverData.companyName || 'Organization';
       const resolvedCompanyName = rawName.toLowerCase() === 'launchpulse' ? 'LaunchPulse' : rawName;
 
