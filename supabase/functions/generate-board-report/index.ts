@@ -44,7 +44,7 @@ function revenueRangeToMidpoint(range: string | null): number | null {
 // ─── Data Fetching ──────────────────────────────────────────────────────────
 
 async function fetchAllReportData(supabase: any, orgId: string) {
-  // Parallel data fetches
+  // Parallel data fetches — added brand config + full ICP fields
   const [
     metricsRes,
     icpRes,
@@ -58,6 +58,7 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     accountsForLowData,
     scoresRes,
     signalsRes,
+    brandConfigRes,
   ] = await Promise.all([
     supabase.rpc("get_dashboard_metrics_cached", { p_org_id: orgId }),
     supabase.from("icp_profiles").select("*").eq("org_id", orgId).eq("status", "active"),
@@ -78,6 +79,8 @@ async function fetchAllReportData(supabase: any, orgId: string) {
       .eq("org_id", orgId),
     supabase.from("account_signals").select("signal_priority, signal_type")
       .eq("org_id", orgId).is("dismissed_at", null).is("actioned_at", null),
+    supabase.from("org_onboarding_config").select("company_name, logo_url, brand_primary_color, brand_secondary_color, value_proposition")
+      .eq("org_id", orgId).maybeSingle(),
   ]);
 
   // Parse metrics
@@ -164,9 +167,10 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     return f < 2;
   }).length;
 
-  // ICP profiles
+  // ICP profiles — now with ALL fields for the ICP detail page
   const icpProfiles = (icpRes.data || []).map((p: any) => ({
     name: p.name || "Unnamed",
+    description: p.description || "",
     targetIndustries: p.target_industries || [],
     companySizes: p.company_sizes || [],
     geographies: p.target_geographies || [],
@@ -176,6 +180,9 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     painPoints: p.pain_points || [],
     buyingSignals: p.buying_signals || [],
     personaJobTitles: p.persona_job_titles || [],
+    personaSeniorityLevels: p.persona_seniority_levels || [],
+    personaDepartments: p.persona_departments || [],
+    techStack: p.tech_stack || [],
   }));
 
   // Revenue modeling
@@ -231,8 +238,18 @@ async function fetchAllReportData(supabase: any, orgId: string) {
   const totalLeads = leadsRes.count || 0;
   const companyName = orgRes.data?.name || "Organization";
 
+  // Brand config from org_onboarding_config
+  const brandConfig = brandConfigRes.data ? {
+    company_name: brandConfigRes.data.company_name || null,
+    logo_url: brandConfigRes.data.logo_url || null,
+    brand_primary_color: brandConfigRes.data.brand_primary_color || null,
+    brand_secondary_color: brandConfigRes.data.brand_secondary_color || null,
+    value_proposition: brandConfigRes.data.value_proposition || null,
+  } : null;
+
   return {
     companyName,
+    brandConfig,
     metrics,
     icpProfiles,
     tam: tamRevenue,
@@ -279,9 +296,25 @@ async function generateAINarratives(data: any, companyName: string): Promise<any
   const topProspectsSummary = data.topProspects.slice(0, 5)
     .map((p: any) => `${p.name} (score ${p.overallScore}, fit ${p.fitScore}, intent ${p.intentScore}, ${p.leadCount} leads)`)
     .join("; ");
+
+  // Full ICP detail for AI context
   const icpSummary = data.icpProfiles
-    .map((p: any) => `"${p.name}" targeting ${p.targetIndustries.slice(0, 3).join(", ")} | personas: ${p.personaJobTitles.slice(0, 3).join(", ")} | pain points: ${p.painPoints.slice(0, 3).join(", ")}`)
-    .join("; ");
+    .map((p: any) => {
+      const parts = [`ICP PROFILE: "${p.name}"`];
+      if (p.description) parts.push(`Description: ${p.description}`);
+      if (p.targetIndustries?.length) parts.push(`Target Industries: ${p.targetIndustries.join(", ")}`);
+      if (p.companySizes?.length) parts.push(`Company Sizes: ${p.companySizes.join(", ")}`);
+      if (p.geographies?.length) parts.push(`Geographies: ${p.geographies.join(", ")}`);
+      if (p.personaJobTitles?.length) parts.push(`Persona Job Titles: ${p.personaJobTitles.join(", ")}`);
+      if (p.personaSeniorityLevels?.length) parts.push(`Seniority Levels: ${p.personaSeniorityLevels.join(", ")}`);
+      if (p.personaDepartments?.length) parts.push(`Departments: ${p.personaDepartments.join(", ")}`);
+      if (p.techStack?.length) parts.push(`Tech Stack: ${p.techStack.join(", ")}`);
+      if (p.buyingSignals?.length) parts.push(`Buying Signals: ${p.buyingSignals.join(", ")}`);
+      if (p.painPoints?.length) parts.push(`Pain Points: ${p.painPoints.join(", ")}`);
+      parts.push(`Confidence: ${p.confidence}%`);
+      return parts.join("\n");
+    })
+    .join("\n\n");
 
   const dataContext = `
 You are a board-level strategic analyst for ${companyName}.
@@ -299,7 +332,8 @@ DATABASE SNAPSHOT:
 TOP INDUSTRIES: ${topIndustries || "No industry data"}
 TOP GEOGRAPHIES: ${topGeos || "No geo data"}
 TOP PROSPECTS: ${topProspectsSummary || "No scored prospects"}
-ICP PROFILES: ${icpSummary || "No ICP profiles configured"}
+
+${icpSummary || "No ICP profiles configured"}
 `.trim();
 
   const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -314,7 +348,7 @@ ICP PROFILES: ${icpSummary || "No ICP profiles configured"}
         {
           role: "system",
           content:
-            "You are a senior strategic analyst preparing a board-level intelligence brief. Your analysis must be data-driven, actionable, and focused on revenue impact. Use precise numbers from the data provided. Be concise but insightful. Identify patterns, risks, and opportunities that executives need to act on.",
+            "You are a senior strategic analyst preparing a board-level intelligence brief. Your analysis must be data-driven, actionable, and focused on revenue impact. Use precise numbers from the data provided. Be concise but insightful. Identify patterns, risks, and opportunities that executives need to act on. Pay special attention to ICP profile alignment — analyze whether the defined personas, tech stack, and buying signals align with actual account data.",
         },
         { role: "user", content: dataContext },
       ],
@@ -323,7 +357,7 @@ ICP PROFILES: ${icpSummary || "No ICP profiles configured"}
           type: "function",
           function: {
             name: "generate_board_report",
-            description: "Generate structured board report content with executive narrative, findings, recommendations, and risk assessment.",
+            description: "Generate structured board report content with executive narrative, findings, recommendations, risk assessment, and ICP analysis.",
             parameters: {
               type: "object",
               properties: {
@@ -385,6 +419,10 @@ ICP PROFILES: ${icpSummary || "No ICP profiles configured"}
                   type: "string",
                   description: "1 paragraph interpreting the TAM/SAM/SOM funnel and conversion efficiency.",
                 },
+                icp_analysis: {
+                  type: "string",
+                  description: "2-3 paragraph deep analysis of the ICP profile: strengths and gaps in persona targeting, tech stack alignment with market, buying signal effectiveness, pain point relevance. Include specific recommendations for ICP refinement.",
+                },
               },
               required: [
                 "executive_summary",
@@ -394,6 +432,7 @@ ICP PROFILES: ${icpSummary || "No ICP profiles configured"}
                 "industry_insights",
                 "geo_insights",
                 "tam_narrative",
+                "icp_analysis",
               ],
               additionalProperties: false,
             },
@@ -431,6 +470,7 @@ ICP PROFILES: ${icpSummary || "No ICP profiles configured"}
       industryInsights: parsed.industry_insights || "",
       geoInsights: parsed.geo_insights || "",
       tamNarrative: parsed.tam_narrative || "",
+      icpAnalysis: parsed.icp_analysis || "",
     };
   } catch (e) {
     console.error("Failed to parse AI response:", e);
@@ -477,7 +517,11 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ data: reportData, aiNarratives: aiNarratives || null }),
+      JSON.stringify({
+        data: reportData,
+        aiNarratives: aiNarratives || null,
+        brandConfig: reportData.brandConfig || null,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (e) {

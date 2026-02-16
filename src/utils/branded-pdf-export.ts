@@ -14,6 +14,22 @@ export interface AIReportNarratives {
   industryInsights: string;
   geoInsights: string;
   tamNarrative: string;
+  icpAnalysis?: string;
+}
+
+export interface ICPProfileDetail {
+  name: string;
+  description: string;
+  industries: string[];
+  companySizes: string[];
+  geographies: string[];
+  personaJobTitles: string[];
+  personaSeniorityLevels: string[];
+  personaDepartments: string[];
+  techStack: string[];
+  buyingSignals: string[];
+  painPoints: string[];
+  confidenceScore: number;
 }
 
 export interface BrandedReportData {
@@ -97,6 +113,12 @@ export interface BrandedReportData {
   };
 
   aiNarratives?: AIReportNarratives;
+  icpProfileDetail?: ICPProfileDetail;
+  chartImages?: {
+    icpDonut?: string;
+    scoreBar?: string;
+    tamFunnel?: string;
+  };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -296,6 +318,68 @@ export async function generateBrandedPDF(
     }
   };
 
+  /** Draw pill/tag items in a wrapping grid */
+  const drawPills = (items: string[], startY: number, pillColor: [number, number, number], textColor: [number, number, number] = [255, 255, 255]) => {
+    let px = M;
+    let py = startY;
+    const pillH = 6;
+    const pillPad = 3;
+    const gap = 2;
+    doc.setFontSize(6.5);
+
+    items.forEach(item => {
+      const tw = doc.getTextWidth(item) + pillPad * 2;
+      if (px + tw > W - M) {
+        px = M;
+        py += pillH + gap;
+      }
+      doc.setFillColor(...pillColor);
+      doc.roundedRect(px, py, tw, pillH, 2, 2, 'F');
+      doc.setTextColor(...textColor);
+      doc.text(item, px + pillPad, py + 4.2);
+      px += tw + gap;
+    });
+    return py + pillH + gap;
+  };
+
+  /** Draw a confidence arc gauge */
+  const drawConfidenceGauge = (score: number, cx: number, cy: number, radius: number) => {
+    const gaugeColor: [number, number, number] = score >= 70 ? [34, 197, 94] : score >= 50 ? [250, 204, 21] : [239, 68, 68];
+    // Background arc
+    doc.setDrawColor(230, 230, 230);
+    doc.setLineWidth(2.5);
+    const startAngle = Math.PI;
+    const endAngle = 2 * Math.PI;
+    // Draw background arc segments
+    for (let a = startAngle; a < endAngle; a += 0.05) {
+      const x1 = cx + radius * Math.cos(a);
+      const y1 = cy + radius * Math.sin(a);
+      const x2 = cx + radius * Math.cos(a + 0.05);
+      const y2 = cy + radius * Math.sin(a + 0.05);
+      doc.line(x1, y1, x2, y2);
+    }
+    // Filled arc
+    doc.setDrawColor(...gaugeColor);
+    const fillEnd = startAngle + (endAngle - startAngle) * (score / 100);
+    for (let a = startAngle; a < fillEnd; a += 0.05) {
+      const x1 = cx + radius * Math.cos(a);
+      const y1 = cy + radius * Math.sin(a);
+      const x2 = cx + radius * Math.cos(Math.min(a + 0.05, fillEnd));
+      const y2 = cy + radius * Math.sin(Math.min(a + 0.05, fillEnd));
+      doc.line(x1, y1, x2, y2);
+    }
+    doc.setLineWidth(0.2);
+    // Score text
+    doc.setFontSize(14);
+    doc.setTextColor(...gaugeColor);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${score}%`, cx, cy + 2, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(100, 100, 100);
+    doc.text('confidence', cx, cy + 6, { align: 'center' });
+  };
+
   // ─── Page 1: Cover ───────────────────────────────────────────────────────
 
   doc.setFillColor(...dark);
@@ -349,7 +433,220 @@ export async function generateBrandedPDF(
   const coverFooter = isLaunchPulse ? 'Powered by LaunchPulse' : `Prepared by ${companyName} using LaunchPulse`;
   doc.text(coverFooter, W / 2, H - 25, { align: 'center' });
 
-  // ─── Page 2: Strategic Position ────────────────────────────────────────────
+  // ─── Page 2: ICP Profile ──────────────────────────────────────────────────
+
+  if (data.icpProfileDetail) {
+    const icp = data.icpProfileDetail;
+    doc.addPage();
+    addHeader('Ideal Customer Profile');
+    sectionTitle('Ideal Customer Profile');
+
+    // Profile name + confidence gauge side by side
+    doc.setFontSize(14);
+    doc.setTextColor(...dark);
+    doc.setFont('helvetica', 'bold');
+    doc.text(icp.name, M, y);
+    doc.setFont('helvetica', 'normal');
+
+    // Confidence gauge on the right
+    drawConfidenceGauge(icp.confidenceScore, W - M - 20, y - 2, 12);
+    y += 6;
+
+    // Description
+    if (icp.description) {
+      doc.setFontSize(9);
+      doc.setTextColor(70, 70, 70);
+      const descLines = doc.splitTextToSize(icp.description, CW - 50);
+      doc.text(descLines, M, y);
+      y += descLines.length * 4 + 6;
+    }
+
+    // Target Industries
+    if (icp.industries.length > 0) {
+      doc.setFontSize(10);
+      doc.setTextColor(...dark);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Target Industries', M, y);
+      doc.setFont('helvetica', 'normal');
+      y += 5;
+      y = drawPills(icp.industries, y, primary);
+      y += 4;
+    }
+
+    // Company Sizes & Geographies side by side
+    const halfW = (CW - 6) / 2;
+    if (icp.companySizes.length > 0 || icp.geographies.length > 0) {
+      const savedY = y;
+
+      if (icp.companySizes.length > 0) {
+        doc.setFontSize(10);
+        doc.setTextColor(...dark);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Company Sizes', M, y);
+        doc.setFont('helvetica', 'normal');
+        y += 5;
+        doc.setFontSize(8);
+        doc.setTextColor(60, 60, 60);
+        icp.companySizes.forEach(size => {
+          doc.text(`• ${size}`, M + 2, y);
+          y += 4;
+        });
+      }
+
+      const leftEndY = y;
+      y = savedY;
+
+      if (icp.geographies.length > 0) {
+        doc.setFontSize(10);
+        doc.setTextColor(...dark);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Target Geographies', M + halfW + 6, y);
+        doc.setFont('helvetica', 'normal');
+        y += 5;
+        doc.setFontSize(8);
+        doc.setTextColor(60, 60, 60);
+        icp.geographies.forEach(geo => {
+          doc.text(`• ${geo}`, M + halfW + 8, y);
+          y += 4;
+        });
+      }
+
+      y = Math.max(leftEndY, y) + 4;
+    }
+
+    // Persona Breakdown
+    checkPageBreak(40);
+    if (icp.personaJobTitles.length > 0 || icp.personaSeniorityLevels.length > 0 || icp.personaDepartments.length > 0) {
+      doc.setFontSize(12);
+      doc.setTextColor(...dark);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Persona Targeting', M, y);
+      doc.setFont('helvetica', 'normal');
+      y += 6;
+
+      // Seniority Levels
+      if (icp.personaSeniorityLevels.length > 0) {
+        doc.setFontSize(9);
+        doc.setTextColor(80, 80, 80);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Seniority:', M, y);
+        doc.setFont('helvetica', 'normal');
+        doc.text(icp.personaSeniorityLevels.join(', '), M + 22, y);
+        y += 5;
+      }
+
+      // Departments
+      if (icp.personaDepartments.length > 0) {
+        doc.setFontSize(9);
+        doc.setTextColor(80, 80, 80);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Departments:', M, y);
+        doc.setFont('helvetica', 'normal');
+        const deptText = doc.splitTextToSize(icp.personaDepartments.join(', '), CW - 30);
+        doc.text(deptText, M + 28, y);
+        y += deptText.length * 4 + 3;
+      }
+
+      // Job Titles as pills
+      if (icp.personaJobTitles.length > 0) {
+        doc.setFontSize(9);
+        doc.setTextColor(80, 80, 80);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Key Titles:', M, y);
+        doc.setFont('helvetica', 'normal');
+        y += 4;
+        y = drawPills(icp.personaJobTitles.slice(0, 20), y, secondary, primary);
+        y += 2;
+      }
+    }
+
+    // Tech Stack
+    checkPageBreak(30);
+    if (icp.techStack.length > 0) {
+      doc.setFontSize(12);
+      doc.setTextColor(...dark);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Technology Stack', M, y);
+      doc.setFont('helvetica', 'normal');
+      y += 5;
+      y = drawPills(icp.techStack, y, [59, 130, 246], [255, 255, 255]);
+      y += 4;
+    }
+
+    // Buying Signals & Pain Points side by side
+    checkPageBreak(40);
+    if (icp.buyingSignals.length > 0 || icp.painPoints.length > 0) {
+      const savedY2 = y;
+
+      if (icp.buyingSignals.length > 0) {
+        doc.setFontSize(10);
+        doc.setTextColor(...dark);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Buying Signals', M, y);
+        doc.setFont('helvetica', 'normal');
+        y += 5;
+        doc.setFontSize(8);
+        icp.buyingSignals.forEach(signal => {
+          doc.setTextColor(34, 197, 94);
+          doc.text('▲', M + 2, y);
+          doc.setTextColor(60, 60, 60);
+          doc.text(signal, M + 6, y);
+          y += 4.5;
+        });
+      }
+
+      const leftEnd2 = y;
+      y = savedY2;
+
+      if (icp.painPoints.length > 0) {
+        doc.setFontSize(10);
+        doc.setTextColor(...dark);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Pain Points', M + halfW + 6, y);
+        doc.setFont('helvetica', 'normal');
+        y += 5;
+        doc.setFontSize(8);
+        icp.painPoints.forEach(pain => {
+          doc.setTextColor(239, 68, 68);
+          doc.text('●', M + halfW + 8, y);
+          doc.setTextColor(60, 60, 60);
+          const painLines = doc.splitTextToSize(pain, halfW - 10);
+          doc.text(painLines[0], M + halfW + 12, y);
+          y += 4.5;
+        });
+      }
+
+      y = Math.max(leftEnd2, y) + 4;
+    }
+
+    // AI ICP Analysis narrative
+    if (data.aiNarratives?.icpAnalysis) {
+      checkPageBreak(30);
+      doc.setFontSize(12);
+      doc.setTextColor(...dark);
+      doc.setFont('helvetica', 'bold');
+      doc.text('AI ICP Analysis', M, y);
+      doc.setFont('helvetica', 'normal');
+      y += 2;
+      doc.setFillColor(...primary);
+      doc.rect(M, y, 30, 1, 'F');
+      y += 5;
+
+      doc.setFontSize(9);
+      doc.setTextColor(60, 60, 60);
+      const analysisLines = doc.splitTextToSize(data.aiNarratives.icpAnalysis, CW);
+      // Check if we need a new page for long analysis
+      if (y + analysisLines.length * 4 > H - 20) {
+        doc.addPage();
+        addHeader('ICP Analysis (cont.)');
+        y = 22;
+      }
+      doc.text(analysisLines, M, y);
+      y += analysisLines.length * 4 + 4;
+    }
+  }
+
+  // ─── Page: Strategic Position ────────────────────────────────────────────
 
   doc.addPage();
   addHeader('Strategic Position');
@@ -363,7 +660,6 @@ export async function generateBrandedPDF(
   const highFitPct = met.scoredAccounts > 0 ? Math.round((met.highFitAccounts / met.scoredAccounts) * 100) : 0;
   const marketCoverage = met.totalAccounts > 0 ? Math.round((met.scoredAccounts / met.totalAccounts) * 100) : 0;
 
-  // Use AI executive summary if available, otherwise fall back to data-driven narrative
   let narrative = '';
   if (data.aiNarratives?.executiveSummary) {
     narrative = data.aiNarratives.executiveSummary;
@@ -429,7 +725,7 @@ export async function generateBrandedPDF(
     doc.text(`High: ${met.highFitAccounts.toLocaleString()} (${highRev})  |  Medium: ${met.mediumFitAccounts.toLocaleString()} (${medRev})  |  Low: ${met.lowFitAccounts.toLocaleString()} (${lowRev})`, M, y);
   }
 
-  // ─── Page 3: Revenue Model ────────────────────────────────────────────────
+  // ─── Page: Revenue Model ────────────────────────────────────────────────
 
   doc.addPage();
   addHeader('Revenue Model');
@@ -516,13 +812,12 @@ export async function generateBrandedPDF(
     });
   }
 
-  // ─── Page 4: Segment Prioritization ───────────────────────────────────────
+  // ─── Page: Segment Prioritization ───────────────────────────────────────
 
   doc.addPage();
   addHeader('Segment Prioritization');
   sectionTitle('Segment Prioritization');
 
-  // Use AI industry insights if available
   if (data.aiNarratives?.industryInsights) {
     doc.setFontSize(9);
     doc.setTextColor(80, 80, 80);
@@ -569,7 +864,7 @@ export async function generateBrandedPDF(
     });
   }
 
-  // ─── Page 5: Geographic Strategy ──────────────────────────────────────────
+  // ─── Page: Geographic Strategy ──────────────────────────────────────────
 
   doc.addPage();
   addHeader('Geographic Strategy');
@@ -578,7 +873,6 @@ export async function generateBrandedPDF(
   const normalizedGeo = normalizeAndMergeGeo(data.geographyDistribution);
 
   if (normalizedGeo.length > 0) {
-    // AI geo insights or fallback to top markets interpretation
     if (data.aiNarratives?.geoInsights) {
       doc.setFontSize(9);
       doc.setTextColor(80, 80, 80);
@@ -598,7 +892,6 @@ export async function generateBrandedPDF(
     }
     y += 4;
 
-    // Bar chart with tags
     const geoCols = [
       { label: 'Country', x: M },
       { label: 'Accounts', x: M + 55 },
@@ -630,7 +923,7 @@ export async function generateBrandedPDF(
     doc.text('No geographic data available.', M, y);
   }
 
-  // ─── Page 6: Top 10 Revenue Opportunities ─────────────────────────────────
+  // ─── Page: Top 10 Revenue Opportunities ─────────────────────────────────
 
   doc.addPage();
   addHeader('Top Revenue Opportunities');
@@ -674,13 +967,12 @@ export async function generateBrandedPDF(
     doc.text('No scored prospects available.', M, y);
   }
 
-  // ─── Page 7: Revenue Leakage & Risk ──────────────────────────────────────
+  // ─── Page: Revenue Leakage & Risk ──────────────────────────────────────
 
   doc.addPage();
   addHeader('Revenue Leakage & Risk');
   sectionTitle('Revenue Leakage & Risk');
 
-  // Big leakage number
   const leakageVal = rm?.revenueAtRisk || 0;
   doc.setFillColor(254, 242, 242);
   doc.roundedRect(M, y, CW, 22, 3, 3, 'F');
@@ -726,7 +1018,6 @@ export async function generateBrandedPDF(
       doc.setTextColor(40, 40, 40);
       doc.text(risk.title, M + 26, y + 1);
 
-      // Dollar impact
       const riskDollar = risk.count * acv * convRate;
       doc.setFontSize(8);
       doc.setTextColor(220, 38, 38);
@@ -742,7 +1033,7 @@ export async function generateBrandedPDF(
     });
   }
 
-  // AI-powered key findings and risk assessment (replaces static insights)
+  // AI key findings
   y += 4;
   checkPageBreak(30);
 
@@ -773,7 +1064,6 @@ export async function generateBrandedPDF(
       y += 22;
     });
   } else if (data.insights.length > 0) {
-    // Fallback to static insights
     doc.setFontSize(12);
     doc.setTextColor(...dark);
     doc.setFont('helvetica', 'bold');
@@ -799,7 +1089,7 @@ export async function generateBrandedPDF(
     });
   }
 
-  // AI Risk Assessment (supplements data-driven risks above)
+  // AI Risk Assessment
   if (data.aiNarratives?.riskAssessment && data.aiNarratives.riskAssessment.length > 0) {
     checkPageBreak(30);
     y += 4;
@@ -838,7 +1128,7 @@ export async function generateBrandedPDF(
     });
   }
 
-  // ─── Page: Strategic Recommendations (AI-powered) ──────────────────────────
+  // ─── Page: Strategic Recommendations ──────────────────────────────────
 
   if (data.aiNarratives?.strategicRecommendations && data.aiNarratives.strategicRecommendations.length > 0) {
     doc.addPage();
@@ -852,7 +1142,6 @@ export async function generateBrandedPDF(
         rec.priority === 'critical' ? [220, 38, 38] :
         rec.priority === 'high' ? [234, 88, 12] : [202, 138, 4];
 
-      // Priority badge
       doc.setFillColor(...priorityColor);
       doc.roundedRect(M, y - 2, 22, 7, 2, 2, 'F');
       doc.setFontSize(7);
@@ -860,7 +1149,6 @@ export async function generateBrandedPDF(
       doc.setFont('helvetica', 'bold');
       doc.text(rec.priority.toUpperCase(), M + 2, y + 2);
 
-      // Action
       doc.setFontSize(10);
       doc.setTextColor(40, 40, 40);
       const actionLines = doc.splitTextToSize(rec.action, CW - 30);
@@ -868,7 +1156,6 @@ export async function generateBrandedPDF(
       doc.setFont('helvetica', 'normal');
       y += 9;
 
-      // Rationale
       doc.setFontSize(8);
       doc.setTextColor(80, 80, 80);
       const rationaleLines = doc.splitTextToSize(rec.rationale, CW - 8);
@@ -877,7 +1164,7 @@ export async function generateBrandedPDF(
     });
   }
 
-  // ─── Page 8: 90-Day Execution Plan ────────────────────────────────────────
+  // ─── Page: 90-Day Execution Plan ────────────────────────────────────────
 
   doc.addPage();
   addHeader('90-Day Execution Plan');
@@ -893,7 +1180,6 @@ export async function generateBrandedPDF(
   const campaignReady = met.campaignReadyAccounts;
   const highFitNoLeads = data.risks.find(r => r.id === 'high-fit-no-leads')?.count || 0;
 
-  // Find underserved segments
   const underservedSegments = data.industryBreakdown
     .filter(i => (i.highFitPct || 0) >= 30 && i.accounts < 200)
     .slice(0, 3)
@@ -932,7 +1218,6 @@ export async function generateBrandedPDF(
   phases.forEach((phase) => {
     checkPageBreak(50);
 
-    // Phase header
     doc.setFillColor(...phase.color);
     doc.roundedRect(M, y - 2, CW, 10, 2, 2, 'F');
     doc.setFontSize(10);
@@ -942,7 +1227,6 @@ export async function generateBrandedPDF(
     doc.setFont('helvetica', 'normal');
     y += 14;
 
-    // Action items table
     const phaseCols = [
       { label: 'Action', x: M },
       { label: 'Target', x: M + 115 },
