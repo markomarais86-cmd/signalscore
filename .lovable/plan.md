@@ -1,44 +1,26 @@
 
 
-# Populate tech_stack and buying_signals on Active ICP Profile
+# Replace Confidence Score Badge with Visual Gauge
 
-## What needs to happen
+## What changes
 
-This is a **data-only update** — no code changes required. The ICP Profile Summary Card already renders these sections; they just appear empty because the database fields are null/empty.
+Replace the plain text `Badge` showing "50% confidence" in the ICP Profile Summary Card header with the existing `ConfidenceMeter` circular gauge component already built at `src/components/discovery/ConfidenceMeter.tsx`.
 
-**Target record:** `Enterprise Technology & Data Infrastructure` (id: `d5c7eca2-66f9-4dd3-995d-e26fb8c3fe1d`, status: active)
+## Single file change
 
-## Data to insert
+**File:** `src/components/executive/ICPProfileSummaryCard.tsx`
 
-**tech_stack** (relevant to the "Enterprise Technology & Data Infrastructure" profile):
-- Salesforce
-- HubSpot
-- Snowflake
-- AWS
-- Azure
-- Google Cloud
-- Kubernetes
-- Terraform
-- Databricks
-- Tableau
+1. Import `ConfidenceMeter` from `@/components/discovery/ConfidenceMeter`
+2. Replace lines 105-108 (the `Badge` rendering `{confidenceScore}% confidence`) with:
+   ```tsx
+   <ConfidenceMeter confidence={confidenceScore} size="sm" reason="Based on ICP profile completeness and match data" />
+   ```
 
-**buying_signals** (common enterprise buying indicators):
-- Recent funding round
-- Leadership change
-- Hiring surge in engineering
-- Technology migration underway
-- Contract renewal upcoming
-- Expansion into new markets
-- RFP issued
-- Compliance deadline approaching
+This reuses the existing circular SVG gauge which already supports:
+- Color coding (green >= 90, blue >= 70, yellow >= 50, orange < 50)
+- Size variants (`sm` fits the card header)
+- Tooltip with explanatory text on hover
+- Smooth animation on the progress arc
 
-## How it will be done
-
-A single SQL UPDATE using the Supabase insert tool to set both array columns on the active profile. No files are created or modified.
-
-## Result
-
-After the update, the ICP Profile Summary Card on the executive dashboard will show:
-- **Tech Stack** section (Column 2, with Cpu icon) -- displays up to 5 tags + overflow
-- **Buying Signals** section (Column 2, with TrendingUp icon) -- displays up to 4 tags + overflow
+No new components or dependencies needed.
 
