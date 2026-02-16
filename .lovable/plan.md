@@ -1,84 +1,73 @@
 
 
-# Make Custom Attributes Searchable in List Builder
+# Add "Fill Missing Attributes" Bulk Enrichment Button
 
-## What This Does
+## What It Does
 
-Adds a new "Vertical" tab to the List Builder sidebar so you can filter accounts by custom attributes like EHR System, Facility Type, Bed Count, etc. When you select filters, the database query searches the `custom_attributes` JSONB column on accounts.
+Adds a "Fill Missing" button to each category group of custom attributes in Settings. When clicked, it fetches accounts that are missing data for those vertical fields and runs them through the existing `enrich-unified` edge function, which already supports custom attribute enrichment via the provider waterfall.
 
-## Changes Overview
+## How It Works
 
-### 1. Database: Update the `search_list_builder` RPC
+The enrichment pipeline (`enrich-unified` -> `provider-waterfall`) already:
+- Loads `custom_attribute_definitions` with `enrichment_prompt` for the org
+- Sends those prompts to AI providers (Perplexity, Firecrawl, Gemini)
+- Saves results back to `accounts.custom_attributes` JSONB column
 
-Add a new parameter `p_custom_attributes JSONB DEFAULT NULL` that accepts a JSON object of key-value pairs to match against `accounts.custom_attributes`.
+So the only missing piece is a UI button that:
+1. Queries accounts where `custom_attributes` is missing keys for the selected category
+2. Calls `enrich-unified` with those accounts
+3. Shows progress and completion
 
-Example input: `{"ehr_system": "Epic", "bed_count_min": 100}`
+## Changes
 
-The filter logic will:
-- For text/select values: exact match via `accounts.custom_attributes ->> 'key' ILIKE value`
-- For number min/max: cast and compare via `(accounts.custom_attributes ->> 'key')::numeric >= value`
+### File: `src/components/settings/CustomAttributeManager.tsx`
 
-New migration file with `CREATE OR REPLACE FUNCTION` for the updated RPC.
+**Add state and enrichment hook:**
+- Import `useUnifiedEnrichment` hook (already exists)
+- Add `enrichingCategory` state to track which category is being enriched
+- Add progress display
 
-### 2. Hook: Add `customAttributes` to filters
+**Add "Fill Missing" button to each category card header (line ~530-534):**
+- Next to the category title, add a button with a Sparkles icon: "Fill Missing"
+- On click:
+  1. Get all `field_key`s for that category's definitions
+  2. Query accounts where `custom_attributes` is NULL or missing any of those keys (up to 250 accounts)
+  3. Call `enrichAccounts()` from `useUnifiedEnrichment` with those accounts
+  4. Show progress inline in the card
 
-**File: `src/hooks/use-list-builder.ts`**
+**SQL query for missing accounts:**
+```sql
+SELECT external_id, name, domain, industry_norm, employee_count, 
+       revenue_range, country, state_province, city
+FROM accounts
+WHERE org_id = :orgId
+  AND domain IS NOT NULL
+  AND (
+    custom_attributes IS NULL
+    OR NOT (custom_attributes ?& ARRAY['field_key_1', 'field_key_2', ...])
+  )
+LIMIT 250
+```
 
-- Add `customAttributes: Record<string, string>` to `ListBuilderFilters` interface
-- Add `customAttributes: {}` to `EMPTY_FILTERS`
-- Pass `p_custom_attributes: Object.keys(filters.customAttributes).length > 0 ? filters.customAttributes : null` in the RPC call
+Since we can't run raw SQL from the client, we'll use a simpler approach: fetch accounts and filter client-side, or use the existing `enrich-unified` function which already handles checking what's missing per-account in the waterfall.
 
-### 3. UI: Add "Vertical" tab to SearchFilters
+**Simpler approach**: Fetch accounts with `custom_attributes` IS NULL or cast to text and check, then send to `enrich-unified`. The waterfall already skips fields that have values.
 
-**File: `src/components/list-builder/SearchFilters.tsx`**
+**Add progress UI:**
+- When enriching, replace the "Fill Missing" button with a progress indicator showing processed/total
+- On completion, reload definitions and show a toast
 
-- Fetch `custom_attribute_definitions` for the org on mount
-- Add a third tab "Vertical" (with a tag/layers icon) alongside Company and People
-- For each definition, render the appropriate input:
-  - `select` type: Input field for the value to match
-  - `number` type: Min/max number inputs
-  - `multi_select` type: Input field for comma-separated values
-  - `text` type: Text input for partial match
-- Store values in `filters.customAttributes` as `{ field_key: value }` (and `field_key_min`/`field_key_max` for numbers)
-- Update the `activeCount` calculation to include custom attribute filters
+### No new files, no new edge functions, no new dependencies
 
-### 4. Update the tab layout
-
-Change from 2-column grid to 3-column grid for the tabs: Company | People | Vertical
+The existing `enrich-unified` edge function already handles everything -- it loads the org's custom attribute definitions, builds prompts, calls AI providers, and saves results. We just need the trigger button.
 
 ## Technical Details
 
-### New Migration SQL
+| What | Where |
+|------|-------|
+| Add enrichment state + hook | `CustomAttributeManager.tsx` top of component |
+| "Fill Missing" button | Each category `Card` header (line ~530-534) |
+| Account fetching | Supabase query filtering `custom_attributes IS NULL` + `domain IS NOT NULL` |
+| Progress display | Inline in category card, replacing button during enrichment |
+| Completion handler | Reload definitions, show toast with count |
 
-```sql
-CREATE OR REPLACE FUNCTION public.search_list_builder(
-  -- existing params...
-  p_custom_attributes JSONB DEFAULT NULL,
-  p_page_offset INT DEFAULT 0,
-  p_page_limit INT DEFAULT 50
-)
--- In the filtered_accounts CTE, add:
-AND (p_custom_attributes IS NULL OR (
-  SELECT bool_and(
-    CASE 
-      WHEN key LIKE '%_min' THEN
-        (a.custom_attributes ->> REPLACE(key, '_min', ''))::numeric >= (value)::numeric
-      WHEN key LIKE '%_max' THEN
-        (a.custom_attributes ->> REPLACE(key, '_max', ''))::numeric <= (value)::numeric
-      ELSE
-        a.custom_attributes ->> key ILIKE '%' || value::text || '%'
-    END
-  )
-  FROM jsonb_each_text(p_custom_attributes)
-))
-```
-
-### Files Modified
-
-| File | Change |
-|------|--------|
-| New migration SQL | Add `p_custom_attributes` param to RPC |
-| `src/hooks/use-list-builder.ts` | Add `customAttributes` to filter type and RPC call |
-| `src/components/list-builder/SearchFilters.tsx` | Add Vertical tab with dynamic attribute inputs |
-
-### No new dependencies needed
