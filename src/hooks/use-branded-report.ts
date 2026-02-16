@@ -125,6 +125,7 @@ export function useBrandedReport() {
         sam: serverData.sam,
         som: serverData.som,
         industryBreakdown: serverData.industryBreakdown,
+        revenueRangeBreakdown: serverData.revenueRangeBreakdown,
         sizeBreakdown: serverData.sizeBreakdown,
         geographyDistribution: serverData.geographyDistribution,
         topProspects: serverData.topProspects,

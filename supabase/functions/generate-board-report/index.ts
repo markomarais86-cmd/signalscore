@@ -132,6 +132,22 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     }))
     .sort((a, b) => b.highFitCount - a.highFitCount).slice(0, 12);
 
+  // Revenue range breakdown
+  const revRangeBuckets = new Map<string, number>();
+  (accountsWithIndustry.data || []).forEach((a: any) => {
+    const range = a.revenue_range || "Unknown";
+    revRangeBuckets.set(range, (revRangeBuckets.get(range) || 0) + 1);
+  });
+  const totalRevRangeAccounts = Array.from(revRangeBuckets.values()).reduce((s, v) => s + v, 0);
+  const revenueRangeBreakdown = Array.from(revRangeBuckets.entries())
+    .filter(([name]) => name !== "Unknown")
+    .map(([name, accounts]) => ({
+      name,
+      accounts,
+      percentage: totalRevRangeAccounts > 0 ? (accounts / totalRevRangeAccounts) * 100 : 0,
+    }))
+    .sort((a, b) => b.accounts - a.accounts);
+
   // Size breakdown
   const sizeBuckets: Record<string, number> = { "1-10": 0, "11-50": 0, "51-200": 0, "201-1000": 0, "1001-5000": 0, "5000+": 0, Unknown: 0 };
   const sizeAccounts = accountsForSize.data || [];
@@ -256,6 +272,7 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     sam: samRevenue,
     som: somRevenue,
     industryBreakdown,
+    revenueRangeBreakdown,
     sizeBreakdown,
     geographyDistribution,
     topProspects,
@@ -328,6 +345,8 @@ DATABASE SNAPSHOT:
 - Data Completeness: ${met.dataCompleteness}%
 - Total Leads: ${data.leadStats.totalLeads.toLocaleString()} (${data.leadStats.leadsPerAccount}x per account)
 - Active Signals: ${data.signalSummary.critical} critical, ${data.signalSummary.high} high priority, ${data.signalSummary.total} total
+
+REVENUE RANGE DISTRIBUTION: ${data.revenueRangeBreakdown?.slice(0, 8).map((r: any) => `${r.name}: ${r.accounts} accts (${r.percentage.toFixed(1)}%)`).join("; ") || "No revenue range data"}
 
 TOP INDUSTRIES: ${topIndustries || "No industry data"}
 TOP GEOGRAPHIES: ${topGeos || "No geo data"}

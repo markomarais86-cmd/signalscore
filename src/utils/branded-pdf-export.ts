@@ -73,6 +73,7 @@ export interface BrandedReportData {
     avgScore?: number;
   }>;
   sizeBreakdown: Array<{ name: string; accounts: number; percentage: number }>;
+  revenueRangeBreakdown?: Array<{ name: string; accounts: number; percentage: number }>;
 
   geographyDistribution: Array<{
     country: string;
@@ -270,7 +271,7 @@ export async function generateBrandedPDF(
   const tableRow = (cols: { text: string; x: number; align?: string; color?: [number, number, number]; bold?: boolean }[], idx: number) => {
     if (idx % 2 === 0) {
       doc.setFillColor(...lightBg);
-      doc.rect(M, y - 4, CW, 7, 'F');
+      doc.rect(M, y - 4, CW, 8, 'F');
     }
     doc.setFontSize(7);
     cols.forEach(c => {
@@ -279,7 +280,7 @@ export async function generateBrandedPDF(
       doc.text(c.text, c.x, y, c.align === 'right' ? { align: 'right' } : undefined);
       if (c.bold) doc.setFont('helvetica', 'normal');
     });
-    y += 7;
+    y += 8;
   };
 
   const checkPageBreak = (needed: number) => {
@@ -784,8 +785,39 @@ export async function generateBrandedPDF(
   doc.text(`Average Contract Value (ACV): ${formatCurrency(acv)}  |  Conversion Rate: ${Math.round(convRate * 100)}%  |  Pipeline = Accounts × ACV × Conv%`, M + 4, y + 13);
   y += 24;
 
+  // Revenue range breakdown (more meaningful for B2B)
+  if (data.revenueRangeBreakdown && data.revenueRangeBreakdown.length > 0) {
+    doc.setFontSize(12);
+    doc.setTextColor(...dark);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Market by Revenue Range', M, y);
+    doc.setFont('helvetica', 'normal');
+    y += 8;
+
+    const revCols = [
+      { label: 'Revenue Range', x: M },
+      { label: 'Accounts', x: M + 80 },
+      { label: '% Share', x: M + 120 },
+      { label: 'Est. Pipeline', x: W - M, align: 'right' },
+    ];
+    tableHeader(revCols);
+
+    data.revenueRangeBreakdown.slice(0, 10).forEach((item, i) => {
+      checkPageBreak(9);
+      const estPipeline = formatCurrency(item.accounts * acv * convRate);
+      tableRow([
+        { text: item.name, x: M },
+        { text: safeNum(item.accounts).toLocaleString(), x: M + 80 },
+        { text: `${safeNum(item.percentage).toFixed(1)}%`, x: M + 120 },
+        { text: estPipeline, x: W - M, align: 'right' },
+      ], i);
+    });
+    y += 6;
+  }
+
   // Size breakdown
   if (data.sizeBreakdown.length > 0) {
+    checkPageBreak(40);
     doc.setFontSize(12);
     doc.setTextColor(...dark);
     doc.setFont('helvetica', 'bold');
@@ -801,8 +833,8 @@ export async function generateBrandedPDF(
     ];
     tableHeader(sizeCols);
 
-    data.sizeBreakdown.forEach((item, i) => {
-      checkPageBreak(8);
+    data.sizeBreakdown.filter(s => s.name !== 'Unknown').forEach((item, i) => {
+      checkPageBreak(9);
       const estPipeline = formatCurrency(item.accounts * acv * convRate);
       tableRow([
         { text: item.name, x: M },
@@ -855,7 +887,7 @@ export async function generateBrandedPDF(
       const actionColor: [number, number, number] = action === 'Focus' ? [34, 197, 94] : action === 'Expand' ? [59, 130, 246] : action === 'Maintain' ? [202, 138, 4] : [239, 68, 68];
 
       tableRow([
-        { text: item.name.substring(0, 26), x: M },
+        { text: item.name.substring(0, 30), x: M },
         { text: safeNum(item.accounts).toLocaleString(), x: M + 58 },
         { text: `${hfPct.toFixed(0)}%`, x: M + 78 },
         { text: String(item.avgScore || 0), x: M + 100 },
@@ -949,12 +981,12 @@ export async function generateBrandedPDF(
       const readiness = deriveStageReadiness(safeNum(p.intentScore));
       const nextAction = deriveNextAction(safeNum(p.fitScore), safeNum(p.intentScore), p.leadCount || 0);
       const readinessColor: [number, number, number] = readiness === 'Ready' ? [34, 197, 94] : readiness === 'Warming' ? [250, 204, 21] : [100, 100, 100];
-      const actionColor: [number, number, number] = nextAction === 'Engage Now' ? [34, 197, 94] : nextAction === 'Source Contacts' ? [239, 68, 68] : [202, 138, 4];
+      const actionColor: [number, number, number] = nextAction === 'Engage Now' ? [34, 197, 94] : nextAction === 'Accelerate' ? [59, 130, 246] : nextAction === 'Source Contacts' ? [239, 68, 68] : [202, 138, 4];
 
       tableRow([
-        { text: (p.name || 'N/A').substring(0, 16), x: M },
-        { text: (p.industry || 'N/A').substring(0, 14), x: M + 32 },
-        { text: (p.revenueRange || 'N/A').substring(0, 12), x: M + 62 },
+        { text: (p.name || 'N/A').substring(0, 22), x: M },
+        { text: (p.industry || 'N/A').substring(0, 18), x: M + 32 },
+        { text: (p.revenueRange || 'N/A').substring(0, 14), x: M + 62 },
         { text: String(safeNum(p.fitScore)), x: M + 88 },
         { text: String(safeNum(p.intentScore)), x: M + 100 },
         { text: String(p.leadCount ?? 0), x: M + 115 },
