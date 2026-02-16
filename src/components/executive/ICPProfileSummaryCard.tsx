@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Target, Building2, Users, MapPin, Cpu, ArrowRight, Plus, AlertCircle, TrendingUp, Briefcase } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Target, Building2, Users, MapPin, Cpu, ArrowRight, Plus, AlertCircle, TrendingUp, Briefcase, ChevronDown } from "lucide-react";
 import { ConfidenceMeter } from "@/components/discovery/ConfidenceMeter";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -12,6 +14,7 @@ interface ICPProfileSummaryCardProps {
 }
 
 export function ICPProfileSummaryCard({ icpProfiles, className }: ICPProfileSummaryCardProps) {
+  const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
 
   const profile = icpProfiles.find((p: any) => p.is_primary) 
@@ -88,96 +91,103 @@ export function ICPProfileSummaryCard({ icpProfiles, className }: ICPProfileSumm
   );
 
   return (
-    <Card className={cn(className)}>
-      <CardHeader className="pb-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-lg bg-primary/10 p-2">
-              <Target className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <CardTitle className="text-lg">{profile.name}</CardTitle>
-              {profile.description && (
-                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{profile.description}</p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {confidenceScore != null && (
-              <ConfidenceMeter confidence={confidenceScore} size="sm" reason="Based on ICP profile completeness and match data" />
-            )}
-            <Badge className={cn("text-xs capitalize", statusColor)}>
-              {profile.status || 'active'}
-            </Badge>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/icp-manager')} className="text-xs">
-              Manage <ArrowRight className="ml-1 h-3 w-3" />
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Column 1: Industries + Company Profile */}
-          <div className="space-y-4">
-            {industries.length > 0 && (
-              <Section icon={Building2} label="Industries">
-                {renderTags(industries, 6)}
-              </Section>
-            )}
-            {(companySizes.length > 0 || revenueRanges.length > 0) && (
-              <Section icon={Briefcase} label="Company Profile">
-                <div className="space-y-1.5">
-                  {companySizes.length > 0 && (
-                    <p className="text-sm">
-                      <span className="text-muted-foreground">Size: </span>
-                      {companySizes.join(', ')}
-                    </p>
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <Card className={cn(className)}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="pb-4 cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="rounded-lg bg-primary/10 p-2">
+                  <Target className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">{profile.name}</CardTitle>
+                  {profile.description && (
+                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{profile.description}</p>
                   )}
-                  {revenueRanges.length > 0 && renderTags(revenueRanges, 4)}
-                  {companyStages.length > 0 && renderTags(companyStages, 3)}
                 </div>
-              </Section>
-            )}
-          </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {confidenceScore != null && (
+                  <ConfidenceMeter confidence={confidenceScore} size="sm" reason="Based on ICP profile completeness and match data" />
+                )}
+                <Badge className={cn("text-xs capitalize", statusColor)}>
+                  {profile.status || 'active'}
+                </Badge>
+                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); navigate('/icp-manager'); }} className="text-xs">
+                  Manage <ArrowRight className="ml-1 h-3 w-3" />
+                </Button>
+                <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+              </div>
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Column 1: Industries + Company Profile */}
+              <div className="space-y-4">
+                {industries.length > 0 && (
+                  <Section icon={Building2} label="Industries">
+                    {renderTags(industries, 6)}
+                  </Section>
+                )}
+                {(companySizes.length > 0 || revenueRanges.length > 0) && (
+                  <Section icon={Briefcase} label="Company Profile">
+                    <div className="space-y-1.5">
+                      {companySizes.length > 0 && (
+                        <p className="text-sm">
+                          <span className="text-muted-foreground">Size: </span>
+                          {companySizes.join(', ')}
+                        </p>
+                      )}
+                      {revenueRanges.length > 0 && renderTags(revenueRanges, 4)}
+                      {companyStages.length > 0 && renderTags(companyStages, 3)}
+                    </div>
+                  </Section>
+                )}
+              </div>
 
-          {/* Column 2: Geographies + Tech Stack */}
-          <div className="space-y-4">
-            {geographies.length > 0 && (
-              <Section icon={MapPin} label="Geographies">
-                {renderTags(geographies, 6)}
-              </Section>
-            )}
-            {techStack.length > 0 && (
-              <Section icon={Cpu} label="Tech Stack">
-                {renderTags(techStack, 5)}
-              </Section>
-            )}
-            {buyingSignals.length > 0 && (
-              <Section icon={TrendingUp} label="Buying Signals">
-                {renderTags(buyingSignals, 4)}
-              </Section>
-            )}
-          </div>
+              {/* Column 2: Geographies + Tech Stack */}
+              <div className="space-y-4">
+                {geographies.length > 0 && (
+                  <Section icon={MapPin} label="Geographies">
+                    {renderTags(geographies, 6)}
+                  </Section>
+                )}
+                {techStack.length > 0 && (
+                  <Section icon={Cpu} label="Tech Stack">
+                    {renderTags(techStack, 5)}
+                  </Section>
+                )}
+                {buyingSignals.length > 0 && (
+                  <Section icon={TrendingUp} label="Buying Signals">
+                    {renderTags(buyingSignals, 4)}
+                  </Section>
+                )}
+              </div>
 
-          {/* Column 3: Personas + Pain Points */}
-          <div className="space-y-4">
-            {(jobTitles.length > 0 || seniorityLevels.length > 0 || departments.length > 0) && (
-              <Section icon={Users} label="Personas">
-                <div className="space-y-1.5">
-                  {seniorityLevels.length > 0 && renderTags(seniorityLevels, 4)}
-                  {departments.length > 0 && renderTags(departments, 4)}
-                  {jobTitles.length > 0 && renderTags(jobTitles, 5)}
-                </div>
-              </Section>
-            )}
-            {painPoints.length > 0 && (
-              <Section icon={AlertCircle} label="Pain Points">
-                {renderTags(painPoints, 4)}
-              </Section>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+              {/* Column 3: Personas + Pain Points */}
+              <div className="space-y-4">
+                {(jobTitles.length > 0 || seniorityLevels.length > 0 || departments.length > 0) && (
+                  <Section icon={Users} label="Personas">
+                    <div className="space-y-1.5">
+                      {seniorityLevels.length > 0 && renderTags(seniorityLevels, 4)}
+                      {departments.length > 0 && renderTags(departments, 4)}
+                      {jobTitles.length > 0 && renderTags(jobTitles, 5)}
+                    </div>
+                  </Section>
+                )}
+                {painPoints.length > 0 && (
+                  <Section icon={AlertCircle} label="Pain Points">
+                    {renderTags(painPoints, 4)}
+                  </Section>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
   );
 }
