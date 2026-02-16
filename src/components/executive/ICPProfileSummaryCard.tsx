@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Target, Building2, Users, MapPin, Cpu, ArrowRight, Plus, AlertCircle, TrendingUp, Briefcase } from "lucide-react";
+import { ConfidenceMeter } from "@/components/discovery/ConfidenceMeter";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
@@ -103,9 +104,7 @@ export function ICPProfileSummaryCard({ icpProfiles, className }: ICPProfileSumm
           </div>
           <div className="flex items-center gap-2">
             {confidenceScore != null && (
-              <Badge variant="outline" className="text-xs font-normal">
-                {confidenceScore}% confidence
-              </Badge>
+              <ConfidenceMeter confidence={confidenceScore} size="sm" reason="Based on ICP profile completeness and match data" />
             )}
             <Badge className={cn("text-xs capitalize", statusColor)}>
               {profile.status || 'active'}
