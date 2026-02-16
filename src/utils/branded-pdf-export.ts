@@ -183,7 +183,11 @@ function hexToRgb(hex: string | null | undefined): [number, number, number] | nu
   return [parseInt(m[0], 16), parseInt(m[1], 16), parseInt(m[2], 16)];
 }
 
-function getBrandColors(brand: BrandConfig | null) {
+function getBrandColors(brand: BrandConfig | null, isLaunchPulse: boolean) {
+  // Force LaunchPulse teal palette regardless of DB overrides
+  if (isLaunchPulse) {
+    return { primary: DEFAULT_PRIMARY, secondary: DEFAULT_SECONDARY, dark: DEFAULT_DARK };
+  }
   const primary = hexToRgb(brand?.brand_primary_color) ?? DEFAULT_PRIMARY;
   const secondary = hexToRgb(brand?.brand_secondary_color) ?? DEFAULT_SECONDARY;
   const dark = DEFAULT_DARK;
@@ -210,11 +214,11 @@ export async function generateBrandedPDF(
   const H = doc.internal.pageSize.getHeight();
   const M = 15;
   const CW = W - 2 * M;
-  const { primary, secondary, dark } = getBrandColors(brand);
-  const lightBg = lightenRgb(primary, 0.92);
   const rawName = brand?.company_name || data.companyName || 'Organization';
   const companyName = rawName.toLowerCase().replace(/\s/g, '') === 'launchpulse' ? 'LaunchPulse' : rawName;
   const isLaunchPulse = companyName === 'LaunchPulse';
+  const { primary, secondary, dark } = getBrandColors(brand, isLaunchPulse);
+  const lightBg = lightenRgb(primary, 0.92);
 
   const acv = data.revenueModeling?.acv || DEFAULT_ACV;
   const convRate = data.revenueModeling?.conversionRate || DEFAULT_CONVERSION_RATE;
@@ -1020,7 +1024,7 @@ export async function generateBrandedPDF(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(100, 70, 70);
-  doc.text(`${(rm?.unscoredAccounts || 0).toLocaleString()} unscored + ${(rm?.lowDataAccounts || 0).toLocaleString()} low-data accounts × ${formatCurrency(acv)} ACV × ${Math.round(convRate * 100)}% conv`, M + 10, y + 17, { maxWidth: CW - 20 });
+  doc.text(`${(rm?.unscoredAccounts || 0).toLocaleString()} unscored + ${(rm?.lowDataAccounts || 0).toLocaleString()} low-data accounts × ${formatCurrency(acv)} ACV × ${Math.round(convRate * 100)}% conv`, M + 10, y + 22, { maxWidth: CW - 20 });
   y += 30;
 
   // Risks with dollar impact
@@ -1149,7 +1153,7 @@ export async function generateBrandedPDF(
 
       doc.setFontSize(9);
       doc.setTextColor(40, 40, 40);
-      doc.text(risk.risk.substring(0, 60), M + 26, y + 1);
+      doc.text(risk.risk.substring(0, 90), M + 26, y + 1);
       doc.setFont('helvetica', 'normal');
       y += 7;
 

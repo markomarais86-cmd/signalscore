@@ -67,12 +67,12 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     supabase.from("organizations").select("name").eq("id", orgId).maybeSingle(),
     supabase.from("Leads").select("id", { count: "exact", head: true }).eq("org_id", orgId),
     supabase.from("accounts").select("external_id, industry_norm, revenue_range")
-      .eq("org_id", orgId).not("industry_norm", "is", null),
-    supabase.from("accounts").select("employee_count").eq("org_id", orgId),
+      .eq("org_id", orgId).not("industry_norm", "is", null).limit(50000),
+    supabase.from("accounts").select("employee_count").eq("org_id", orgId).limit(50000),
     supabase.from("accounts").select("name, industry_norm, employee_count, country, domain, revenue_range")
       .eq("org_id", orgId).limit(500),
     supabase.from("accounts").select("external_id, country")
-      .eq("org_id", orgId).not("country", "is", null),
+      .eq("org_id", orgId).not("country", "is", null).limit(50000),
     supabase.from("accounts").select("industry_norm, employee_count, country, revenue_range")
       .eq("org_id", orgId).limit(5000),
     supabase.from("scores").select("account_external_id, overall, fit")
@@ -252,7 +252,8 @@ async function fetchAllReportData(supabase: any, orgId: string) {
   };
 
   const totalLeads = leadsRes.count || 0;
-  const companyName = orgRes.data?.name || "Organization";
+  const rawCompanyName = orgRes.data?.name || "Organization";
+  const companyName = rawCompanyName.toLowerCase().replace(/\s/g, '') === 'launchpulse' ? 'LaunchPulse' : rawCompanyName;
 
   // Brand config from org_onboarding_config
   const brandConfig = brandConfigRes.data ? {
