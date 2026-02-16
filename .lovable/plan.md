@@ -1,64 +1,52 @@
 
 
-# Surface Full ICP Profile on the Dashboard
+# Fix ICP Profile Summary Card -- Field Mappings and Layout
 
-## Problem
-The dashboard fetches `icpProfiles` data (line 117 of `ExecutiveDashboard.tsx`) but never renders it. Users can only see ICP scoring results (high/med/low fit counts) but not the actual ICP definition -- the target industries, company sizes, geographies, personas, and other criteria configured in the ICP Manager.
+## Problems
 
-## Solution
-Add an **ICP Profile Summary Card** to the dashboard that displays the active/primary ICP profile's targeting criteria, giving users immediate visibility into what their scoring is based on.
+1. **Wrong field names** -- The component reads `countries`, `job_titles`, `seniority_levels`, `departments` but the database columns are `geographies`, `persona_job_titles`, `persona_seniority_levels`, `persona_departments`. This causes Geographies, Personas, and Tech Stack sections to render empty despite having rich data.
 
-## What Gets Added
+2. **Poor layout** -- The current `grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4` layout creates awkward uneven columns. With 14 industries, 50+ job titles, 10 geographies, 8 pain points, etc., the card needs a better visual structure that organizes this dense information cleanly.
 
-### 1. New Component: `ICPProfileSummaryCard`
-A new card component at `src/components/executive/ICPProfileSummaryCard.tsx` that renders:
-- **ICP name and status** (active/draft/archived badge)
-- **Target Industries** -- displayed as tags/badges
-- **Company Sizes** -- shown as range labels
-- **Revenue Ranges** -- displayed inline
-- **Geographies** -- listed as region tags
-- **Persona Targeting** -- job titles, seniority levels, departments
-- **Tech Stack** -- if defined
-- **Confidence Score** -- visual indicator
-- **"View Full Profile" link** -- navigates to `/icp-manager`
-- Graceful handling when no ICP profiles exist (prompt to create one)
+3. **Missing data dimensions** -- The ICP has rich data (pain points, buying signals, confidence score, company stages) that is not displayed at all.
 
-### 2. Dashboard Integration
-Add the `ICPProfileSummaryCard` to the dashboard layout in `ExecutiveDashboard.tsx`:
-- Place it in the 3-column grid alongside the existing SimpleICPTable, SimpleTAMCard, and SimpleGeographyCard
-- Uses the already-fetched `icpProfiles` data (no new queries needed)
-- Shows the primary/first active ICP profile
+## Changes
 
-### 3. Layout Adjustment
-Restructure the grid to accommodate the new card:
-- Row 1 (existing): GrowthCommandKPIs + ICPCoveragePanel
-- Row 2: **ICPProfileSummaryCard** (full width or 2-col) showing the ICP definition
-- Row 3 (existing): SimpleICPTable, SimpleTAMCard, SimpleGeographyCard
-- Row 4 (existing): DataHealthWidget + UnifiedInsightsPanel
+### File: `src/components/executive/ICPProfileSummaryCard.tsx` (full rewrite)
 
-## Technical Details
-
-### New file: `src/components/executive/ICPProfileSummaryCard.tsx`
-
-```typescript
-interface ICPProfileSummaryCardProps {
-  icpProfiles: any[];  // Uses the already-fetched icpProfiles from dashboardData
-  className?: string;
-}
+**1. Fix field mappings:**
+```
+countries       -> profile.geographies
+jobTitles       -> profile.persona_job_titles
+seniorityLevels -> profile.persona_seniority_levels
+departments     -> profile.persona_departments
 ```
 
-The component will:
-- Pick the primary ICP (where `is_primary === true`) or fall back to the first active profile
-- Display all major targeting dimensions using Badge components for tags
-- Show a compact, scannable layout with labeled sections
-- Include a "Manage ICPs" button linking to `/icp-manager`
-- Show an empty state with a "Create ICP" CTA if no profiles exist
+**2. Add missing fields:**
+- `pain_points` -- shown with AlertCircle icon
+- `buying_signals` -- shown with TrendingUp icon
+- `confidence_score` -- shown as a badge in the header (e.g., "50% confidence")
+- `company_stages` -- if present
 
-### Modified file: `src/pages/ExecutiveDashboard.tsx`
-- Import `ICPProfileSummaryCard`
-- Add it to the JSX between `ICPCoveragePanel` and the 3-column grid
-- Pass `icpProfiles={icpProfiles}` (already available, just unused)
+**3. Redesign layout to a 3-column grid:**
+- Column 1: Industries + Company Profile (sizes + revenue)
+- Column 2: Geographies + Tech Stack
+- Column 3: Personas (seniority, departments, job titles) + Pain Points
 
-### No database or migration changes required
-The `icpProfiles` data is already being fetched via `useDashboardData` -- it just needs to be rendered.
+This groups related data logically and prevents the uneven column widths caused by the current 4-column layout.
+
+**4. Increase tag limits:**
+- Industries: show up to 6 (there are 14)
+- Geographies: show up to 6 (there are 10)
+- Job titles: show up to 5 (there are 50+)
+- Pain points: show up to 4
+
+**5. Spacing compliance:**
+- CardHeader: `pb-4` per SPACING_GUIDE
+- CardContent: `space-y-4` for section spacing
+- Grid: `gap-4` for compact content grid
+
+## No other files change
+
+The dashboard already renders `<ICPProfileSummaryCard icpProfiles={icpProfiles} />` at line 606 of ExecutiveDashboard.tsx. Only the component itself needs fixing.
 
