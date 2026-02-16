@@ -1,123 +1,118 @@
 
 
-# Wire Vertical Attributes into Scoring Engine
+# Fix the Intent Engine to Actually Work
 
-## What Changes
+## The Problem
 
-When an ICP has `vertical_filters` set (e.g., `{"ehr_system": "Epic", "bed_count_min": 100}`), accounts with matching `custom_attributes` will receive a score boost. This rewards accounts that match vertical-specific criteria without breaking existing scores for orgs that don't use custom attributes.
+The intent scoring function (`calculate_intent_score`) averages 25.7/100 because it relies on 3 data sources that are almost entirely empty:
 
-## Scoring Design
+| Data Source | Populated | Total | Coverage |
+|------------|-----------|-------|----------|
+| `last_funding_date` | 2 | 39,928 | 0.005% |
+| `tech_stack` | 319 | 39,928 | 0.8% |
+| `total_raised_usd` | 67 | 39,928 | 0.17% |
+| `enriched_at` | 11,049 | 39,928 | 27.7% |
 
-The current engine scores 4 dimensions out of 100 points:
+Meanwhile, data sources that DO exist are completely ignored:
 
-| Dimension | Points |
-|-----------|--------|
-| Industry  | 30     |
-| Size      | 25     |
-| Geography | 25     |
-| Revenue   | 20     |
+| Available Data | Records | Used by Intent? |
+|---------------|---------|-----------------|
+| `score_history` | 85,546 | No |
+| `account_signals` | table exists | No |
+| `custom_attributes` | column exists | No |
+| `Leads` (contacts) | exists | No |
+| `enriched_at` freshness | 11,049 | Yes (only source giving points) |
 
-We'll add a **vertical bonus** (up to 15 points) on top, similar to the existing compound match boost. This keeps the base scoring unchanged while rewarding vertical alignment.
+The fix has two parts:
+1. **Rewrite `calculate_intent_score`** to use everything we have
+2. **Add a bulk intent enrichment action** that runs `enrich-funding-data` and `enrich-tech-stack` for accounts missing those fields, using the existing edge functions
 
-**Vertical scoring logic:**
-- For each key in `icp_rec.vertical_filters`, check if `account_rec.custom_attributes` has a matching value
-- Text/select values: case-insensitive match
-- Number `_min`/`_max` suffixes: numeric comparison (same pattern as the List Builder RPC)
-- Array values (multi-select on the ICP side): check if account value is in the array
-- Each matched vertical criterion earns points: `15 / total_vertical_criteria` (evenly distributed)
-- The vertical score is added to `total_score`, capped at 100
+## Part 1: Rewrite `calculate_intent_score` (SQL Migration)
 
-The breakdown will include a new `vertical_score` field so it's visible in the UI.
+The new scoring model uses 5 dimensions, each contributing to a 100-point scale. It works with whatever data is available -- if funding data is empty, the other dimensions compensate.
 
-## Technical Changes
+**New Scoring Dimensions:**
 
-### 1. New migration SQL -- update both scoring functions
+| Dimension | Max Points | Source | Why |
+|-----------|-----------|--------|-----|
+| Engagement Recency | 25 | `score_history.changed_at`, `enriched_at` | Recent scoring/enrichment = someone is paying attention |
+| Score Momentum | 25 | `score_history` (old vs new) | Rising scores = improving fit, high intent signal |
+| Contact Density | 20 | `Leads` count per account | More contacts = deeper engagement / bigger deal |
+| Funding Signals | 15 | `last_funding_date`, `total_raised_usd` | Same as before but lower weight |
+| Tech Stack Depth | 15 | `tech_stack` array length | Same as before but lower weight |
 
-**File: new migration**
+**Key logic:**
 
-Update `calculate_account_score` and `calculate_account_score_readonly` to:
+```text
+Engagement Recency (25 pts):
+  - Score was updated in last 7 days  -> 25
+  - Score was updated in last 30 days -> 18
+  - enriched_at in last 30 days       -> 12
+  - enriched_at in last 90 days       -> 6
 
-1. Add a `vertical_score integer := 0` variable
-2. After revenue scoring, add a vertical scoring block:
+Score Momentum (25 pts):
+  - Net score change from score_history (last 30 days)
+  - Gain >= 15 points -> 25
+  - Gain >= 5 points  -> 18
+  - Stable (+-5)      -> 10
+  - Drop >= 5         -> 5
+  - No history        -> 8 (neutral)
 
-```sql
--- Vertical / custom attribute scoring (up to 15 points)
-IF icp_rec.vertical_filters IS NOT NULL 
-   AND icp_rec.vertical_filters != '{}'::jsonb
-   AND account_rec.custom_attributes IS NOT NULL THEN
-  DECLARE
-    v_total_criteria integer := 0;
-    v_matched_criteria integer := 0;
-    v_key text;
-    v_val jsonb;
-  BEGIN
-    FOR v_key, v_val IN SELECT * FROM jsonb_each(icp_rec.vertical_filters)
-    LOOP
-      -- Skip null/empty values
-      IF v_val IS NULL OR v_val = 'null'::jsonb THEN CONTINUE; END IF;
-      v_total_criteria := v_total_criteria + 1;
+Contact Density (20 pts):
+  - 5+ leads -> 20
+  - 3-4 leads -> 15
+  - 2 leads   -> 10
+  - 1 lead    -> 5
+  - 0 leads   -> 0
 
-      IF v_key LIKE '%_min' THEN
-        -- Numeric minimum
-        IF (account_rec.custom_attributes ->> REPLACE(v_key, '_min', '')) IS NOT NULL
-           AND (account_rec.custom_attributes ->> REPLACE(v_key, '_min', ''))::numeric 
-               >= v_val::text::numeric THEN
-          v_matched_criteria := v_matched_criteria + 1;
-        END IF;
-      ELSIF v_key LIKE '%_max' THEN
-        -- Numeric maximum
-        IF (account_rec.custom_attributes ->> REPLACE(v_key, '_max', '')) IS NOT NULL
-           AND (account_rec.custom_attributes ->> REPLACE(v_key, '_max', ''))::numeric 
-               <= v_val::text::numeric THEN
-          v_matched_criteria := v_matched_criteria + 1;
-        END IF;
-      ELSIF jsonb_typeof(v_val) = 'array' THEN
-        -- Multi-select: account value must be in the ICP array
-        IF account_rec.custom_attributes ? v_key
-           AND v_val @> to_jsonb(account_rec.custom_attributes ->> v_key) THEN
-          v_matched_criteria := v_matched_criteria + 1;
-        END IF;
-      ELSE
-        -- Text/select: case-insensitive match
-        IF LOWER(COALESCE(account_rec.custom_attributes ->> v_key, '')) 
-           = LOWER(v_val::text) THEN
-          v_matched_criteria := v_matched_criteria + 1;
-        END IF;
-      END IF;
-    END LOOP;
-
-    IF v_total_criteria > 0 THEN
-      vertical_score := ROUND(15.0 * v_matched_criteria / v_total_criteria)::integer;
-      IF v_matched_criteria > 0 THEN
-        matches := matches + 1;
-      END IF;
-    END IF;
-  END;
-END IF;
+Funding (15 pts):  [same logic, rescaled from 30 to 15]
+Tech Stack (15 pts): [same logic, rescaled from 30 to 15]
 ```
 
-3. Add `vertical_score` to the total: `total_score := industry_score + size_score + geo_score + revenue_score + vertical_score;`
-4. Cap at 100: the existing `LEAST(100, ...)` on the compound boost already handles this
-5. Add `vertical_score` to the breakdown object in the return value
+This means even with zero funding/tech data, an account with recent score changes and multiple leads can score 70/100 intent.
 
-### 2. Update scoring version string
+## Part 2: Bulk Intent Data Enrichment
 
-Change scoring version from `'sql_bulk_v1.1'` to `'sql_bulk_v2.0_vertical'` in `bulk_score_all_accounts` so rescored accounts are distinguishable.
+Add a "Boost Intent Data" button to the dashboard or scoring UI that batch-enriches accounts missing `last_funding_date` and `tech_stack` using the existing `enrich-funding-data` and `enrich-tech-stack` edge functions.
 
-### 3. Update score breakdown display (optional, if UI shows breakdown)
+**New file: `src/hooks/use-intent-enrichment.ts`**
 
-**File: check if breakdown is rendered anywhere in UI**
+A hook that:
+1. Queries accounts where `last_funding_date IS NULL AND domain IS NOT NULL` (up to 100)
+2. Calls `enrich-funding-data` for each (with concurrency limit of 3)
+3. Then queries accounts where `(tech_stack IS NULL OR tech_stack = '{}')` AND `domain IS NOT NULL` (up to 100)
+4. Calls `enrich-tech-stack` for each
+5. Tracks progress and shows completion toast
 
-Add `vertical_score` to any breakdown display so users can see the vertical contribution. This is a small UI addition if the breakdown is shown.
+**UI: Add button to existing scoring section**
 
-## Summary
+In the component that handles "Score All Accounts", add a secondary button: "Enrich Intent Data" that triggers this hook. Shows progress like "Enriching funding: 15/100... Enriching tech stack: 8/100..."
 
-| What | Where |
-|------|-------|
-| Add vertical scoring block | `calculate_account_score` (RPC) |
-| Add vertical scoring block | `calculate_account_score_readonly` (RPC) |
-| Add `vertical_score` to breakdown | Both functions' return JSON |
-| Bump scoring version | `bulk_score_all_accounts` |
-| New migration file | `supabase/migrations/` |
+## Part 3: Update `compute-intent-signals` Edge Function
 
-No frontend changes required -- the scoring happens server-side. When users click "Score All" or score individual accounts, the vertical boost is automatically applied if the ICP has `vertical_filters` set.
+The edge function already works well structurally, but it queries `activities` (which has 0 rows). Update it to also generate signals from `score_history` data (85k rows) when activities are empty. Specifically:
+
+- In `computeEngagementVelocity`: Fall back to `score_history` changes as a proxy for engagement when `activities` is empty
+- In `computeCoverageGaps`: Use `score_history` last `changed_at` instead of `activities.activity_date` when no activities exist
+
+## Technical Details
+
+### Migration SQL
+
+Creates `OR REPLACE FUNCTION calculate_intent_score` with the new 5-dimension model. The function signature stays identical (`p_account_external_id TEXT, p_org_id UUID`) so no callers need changes.
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| New migration `.sql` | Rewrite `calculate_intent_score` with 5 dimensions |
+| New `src/hooks/use-intent-enrichment.ts` | Hook for bulk funding + tech stack enrichment |
+| `supabase/functions/compute-intent-signals/index.ts` | Fall back to `score_history` when `activities` is empty |
+| Scoring UI component (where "Score All" button lives) | Add "Enrich Intent Data" button |
+
+### No Breaking Changes
+
+- The function signature is unchanged -- all existing callers (`calculate_account_score`, `bulk_score_all_accounts`) work as before
+- Accounts with funding/tech data still get those points (just weighted less)
+- The new dimensions only add points, never reduce them vs. what the old function would give for the same data
+
