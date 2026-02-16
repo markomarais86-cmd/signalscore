@@ -8803,43 +8803,82 @@ export type Database = {
           source_type: string
         }[]
       }
-      search_list_builder: {
-        Args: {
-          p_business_models?: string[]
-          p_cities?: string[]
-          p_countries?: string[]
-          p_employee_max?: number
-          p_employee_min?: number
-          p_has_email?: boolean
-          p_has_phone?: boolean
-          p_industries?: string[]
-          p_levels?: string[]
-          p_org_id: string
-          p_page_limit?: number
-          p_page_offset?: number
-          p_personas?: string[]
-          p_revenue_buckets?: string[]
-          p_states?: string[]
-          p_title_keywords?: string
-        }
-        Returns: {
-          account_id: string
-          account_name: string
-          business_model: string
-          city: string
-          country: string
-          domain: string
-          employee_count: number
-          external_id: string
-          icp_qualified: boolean
-          industry: string
-          lead_count: number
-          revenue_bucket: string
-          revenue_range: string
-          state_province: string
-          total_accounts: number
-        }[]
-      }
+      search_list_builder:
+        | {
+            Args: {
+              p_business_models?: string[]
+              p_cities?: string[]
+              p_countries?: string[]
+              p_custom_attributes?: Json
+              p_employee_max?: number
+              p_employee_min?: number
+              p_has_email?: boolean
+              p_has_phone?: boolean
+              p_industries?: string[]
+              p_levels?: string[]
+              p_org_id: string
+              p_page_limit?: number
+              p_page_offset?: number
+              p_personas?: string[]
+              p_revenue_buckets?: string[]
+              p_states?: string[]
+              p_title_keywords?: string
+            }
+            Returns: {
+              account_id: string
+              account_name: string
+              business_model: string
+              city: string
+              country: string
+              domain: string
+              employee_count: number
+              external_id: string
+              icp_qualified: boolean
+              industry: string
+              lead_count: number
+              revenue_bucket: string
+              revenue_range: string
+              state_province: string
+              total_accounts: number
+            }[]
+          }
+        | {
+            Args: {
+              p_business_models?: string[]
+              p_cities?: string[]
+              p_countries?: string[]
+              p_employee_max?: number
+              p_employee_min?: number
+              p_has_email?: boolean
+              p_has_phone?: boolean
+              p_industries?: string[]
+              p_levels?: string[]
+              p_org_id: string
+              p_page_limit?: number
+              p_page_offset?: number
+              p_personas?: string[]
+              p_revenue_buckets?: string[]
+              p_states?: string[]
+              p_title_keywords?: string
+            }
+            Returns: {
+              account_id: string
+              account_name: string
+              business_model: string
+              city: string
+              country: string
+              domain: string
+              employee_count: number
+              external_id: string
+              icp_qualified: boolean
+              industry: string
+              lead_count: number
+              revenue_bucket: string
+              revenue_range: string
+              state_province: string
+              total_accounts: number
+            }[]
+          }
       seed_default_ai_agents: {
         Args: { target_org_id: string }
         Returns: undefined
