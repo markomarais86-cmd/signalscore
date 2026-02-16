@@ -1,46 +1,108 @@
 
 
-# Fix Report: Company Name Casing + Missing ICP Page
+# Fix Report Pages 4-10: Data Logic Bugs and Layout Improvements
 
-## Root Causes
+## Problems and Fixes
 
-### 1. "Launchpulse" appears everywhere instead of "LaunchPulse"
-The casing correction in `use-branded-report.ts` (line 93) fixes `reportData.companyName`, but the PDF generator at line 214 of `branded-pdf-export.ts` prefers `brand?.company_name` over `data.companyName`. Since the `brand` object has the raw DB value "Launchpulse", the fix is never applied.
+### 1. Size Breakdown Shows Only "1-10" (Page 4)
 
-**Fix**: Apply the same casing correction inside `generateBrandedPDF` at line 214, so it corrects "Launchpulse" regardless of source.
+The `categorizeEmployeeCount` function in the edge function uses numeric thresholds, but the `company_sizes` field in ICP profiles stores string ranges like "500", "1000", "2000". The accounts table stores `employee_count` as a number. The issue is that accounts with employee counts of 500-10000 (matching the ICP) are being correctly bucketed into "201-1000", "1001-5000", "5000+", but the query only fetches `employee_count` and many may be null or very small.
 
-### 2. ICP Profile page missing from the report
-The page is gated on `if (data.icpProfileDetail)` (line 438). The hook builds this from `serverData.icpProfiles?.[0]`, but the edge function uses the **service role key** which bypasses RLS -- this should return data. Adding a `console.log` or defensive logging would help, but the most likely issue is that the `icp_profiles` query at line 64 filters by `status = 'active'` and the ICP profile exists (confirmed in DB). The mapping chain from edge function -> hook -> PDF looks correct syntactically.
+**Fix in `supabase/functions/generate-board-report/index.ts`:**
+- Filter out "Unknown" bucket from size breakdown (or show it separately)
+- Ensure the size query isn't limited to 500 rows (currently unlimited, good)
 
-The probable cause: the `description` field on the ICP profile edge function mapping at line 173 uses `p.description`, and the DB column exists. But if the edge function **hasn't been redeployed** since the last code change, the old version (without `description`, `techStack`, etc. fields) is still running. The icpProfiles array items would only have `name`, `targetIndustries`, `companySizes`, `geographies`, `matchCount`, `tamEstimate`, `confidence` -- missing all the new fields. The hook tries `primaryIcp.personaJobTitles` which would be `undefined`, defaulting to `[]`. The `icpProfileDetail` object would still be created (truthy), so the page should render but with empty sections.
+Actually, looking more closely: `accountsForSize` fetches ALL accounts' `employee_count`. If 1,000 accounts have `employee_count` between 1-10 and others have null, the "1-10" bucket would dominate. The real issue is the data itself — but we should also show the revenue range breakdown which is more meaningful for a B2B report.
 
-**However**: if the old deployed edge function didn't include `description` in the ICP map, the `primaryIcp` object itself is still truthy, so the page should still appear. Unless the old edge function code returned a completely different structure...
+**Fix:** Add a revenue range breakdown alongside or instead of the employee size breakdown since revenue data exists (top prospects show $100M-$1B ranges).
 
-**Fix**: Redeploy the edge function to ensure the latest code with full ICP fields is live. Also add a safety check.
+### 2. All Segments Show "Exit" (Page 5)
 
-## Changes
+**File: `src/utils/revenue-modeling.ts`**
 
-### File 1: `src/utils/branded-pdf-export.ts`
-- **Line 214**: Apply LaunchPulse casing correction:
-  ```typescript
-  const rawName = brand?.company_name || data.companyName || 'Organization';
-  const companyName = rawName.toLowerCase().replace(/\s/g, '') === 'launchpulse' ? 'LaunchPulse' : rawName;
-  ```
+The `deriveSegmentAction` thresholds are unrealistically high:
+- `highFitPct >= 40` for Focus/Expand — normal B2B is 5-15%
+- This means everything gets "Maintain" or "Exit"
 
-### File 2: `src/hooks/use-branded-report.ts`
-- Also apply the casing fix to `effectiveBrand.company_name` before passing it to the PDF generator, ensuring consistency:
-  ```typescript
-  if (effectiveBrand && effectiveBrand.company_name?.toLowerCase() === 'launchpulse') {
-    effectiveBrand.company_name = 'LaunchPulse';
-  }
-  ```
+**Fix:** Lower thresholds to realistic levels:
+- Focus: `highFitPct >= 10 && accounts >= median`
+- Expand: `highFitPct >= 10 && accounts < median`  
+- Maintain: `highFitPct >= 5`
+- Exit: below 5%
 
-### File 3: `supabase/functions/generate-board-report/index.ts`
-- Redeploy (no code change needed -- the latest code already has full ICP fields, it just needs to be deployed)
+### 3. All Prospects Show "Monitor" (Page 7)
+
+**File: `src/utils/revenue-modeling.ts`**
+
+The `deriveNextAction` function doesn't handle high-fit + moderate-intent (the most common case):
+- Intent >= 60 -> "Engage Now"
+- Fit >= 60 AND intent < 40 -> "Warm with Content"
+- Leads < 2 -> "Source Contacts"
+- Everything else -> "Monitor"
+
+When fit=100, intent=50, leads=9, it falls to "Monitor" because intent is between 40-60.
+
+**Fix:** Add a case for high-fit + moderate-intent:
+- Fit >= 70 AND intent >= 40 AND intent < 60 -> "Accelerate" (they're warming, push them)
+- Fit >= 60 AND intent >= 40 -> "Warm with Content" (broaden the second condition)
+
+### 4. Header Casing "Launchpulse" (Page 4+)
+
+The casing fix was applied to `companyName` on line 215 of the PDF generator. The headers should already show "LaunchPulse." If they don't in the PDF, it means the old code was running when this PDF was generated. The fix from the last edit should resolve this.
+
+### 5. Layout Improvements
+
+**File: `src/utils/branded-pdf-export.ts`**
+
+- Revenue Model page: Add revenue range breakdown table (using `revenueRange` data from accounts)
+- Increase table row height from 7mm to 8mm for readability
+- Add more spacing between sections
+- Make KPI cards slightly larger
+- Ensure text doesn't get truncated (company names cut at 16 chars)
+
+### 6. Enhance AI Prompt for Better Report Quality
+
+**File: `supabase/functions/generate-board-report/index.ts`**
+
+The AI is already producing good content. We can improve by:
+- Adding revenue range distribution data to the AI context
+- Including signal summary details in the prompt
+- Asking AI to specifically comment on size/revenue distribution patterns
+
+## Files to Change
+
+| File | Changes |
+|------|---------|
+| `src/utils/revenue-modeling.ts` | Fix `deriveSegmentAction` thresholds (40% -> 10%), fix `deriveNextAction` to handle moderate-intent |
+| `src/utils/branded-pdf-export.ts` | Increase row heights, add revenue range breakdown, widen truncation limits, improve spacing |
+| `supabase/functions/generate-board-report/index.ts` | Add revenue range distribution data to AI context, redeploy |
+
+## Technical Detail
+
+### Updated `deriveSegmentAction`:
+```text
+highFitPct >= 10 AND accounts >= median  -> Focus
+highFitPct >= 10 AND accounts < median   -> Expand  
+highFitPct >= 5                          -> Maintain
+below 5%                                -> Exit
+```
+
+### Updated `deriveNextAction`:
+```text
+intentScore >= 60                              -> Engage Now
+fitScore >= 70 AND intentScore >= 40           -> Accelerate
+fitScore >= 60 AND intentScore < 40            -> Warm with Content
+leadCount < 2                                  -> Source Contacts
+else                                           -> Monitor
+```
+
+### Revenue Range Breakdown (new table on Page 4):
+Uses the existing `revenue_range` field from accounts to show distribution by revenue band ($1M-$5M, $5M-$10M, etc.) — more meaningful than employee count for a revenue-focused report.
 
 ## Expected Result
-- All page headers will show "LaunchPulse" (correctly cased)
-- ICP Profile page will appear as Page 2 with industries, personas, tech stack, buying signals, pain points, and confidence gauge
-- Brand colors (#6366f1 indigo) will apply throughout
-- Report grows from 9 to 10 pages with the ICP detail page
+- Page 5: Industries show "Focus", "Expand", "Maintain" based on realistic thresholds
+- Page 7: Top prospects show "Accelerate" or "Engage Now" instead of all "Monitor"  
+- Page 4: Revenue range breakdown replaces/supplements the broken size table
+- All pages: Better spacing, wider text columns, more readable layout
+- Headers: "LaunchPulse" correctly cased (already fixed, just needs fresh generation)
 
