@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Zap, TrendingUp, TrendingDown, Minus, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Zap, TrendingUp, TrendingDown, Minus, RefreshCw, CheckCircle2, Database } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { formatNumber } from "@/utils/format-numbers";
 import { scoringLogger as log } from "@/lib/logger";
+import { useIntentEnrichment } from "@/hooks/use-intent-enrichment";
 
 interface BulkScoringProps {
   onComplete?: () => void;
@@ -28,6 +29,7 @@ interface ScoringJob {
 
 export function BulkScoring({ onComplete }: BulkScoringProps) {
   const { userProfile } = useAuth();
+  const { isEnriching, progress: enrichProgress, runEnrichment } = useIntentEnrichment(userProfile?.org_id);
   const [isScoring, setIsScoring] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentJob, setCurrentJob] = useState<ScoringJob | null>(null);
@@ -506,24 +508,48 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           </div>
         )}
 
-        <Button
-          onClick={runBulkScoring}
-          disabled={isScoring}
-          className="w-full"
-          size="lg"
-        >
-          {isScoring ? (
-            <>
-              <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Scoring in Progress...
-            </>
-          ) : (
-            <>
-              <Zap className="mr-2 h-4 w-4" />
-              Run Bulk Scoring
-            </>
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={runBulkScoring}
+            disabled={isScoring || isEnriching}
+            className="flex-1"
+            size="lg"
+          >
+            {isScoring ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Scoring in Progress...
+              </>
+            ) : (
+              <>
+                <Zap className="mr-2 h-4 w-4" />
+                Run Bulk Scoring
+              </>
+            )}
+          </Button>
+          <Button
+            onClick={runEnrichment}
+            disabled={isScoring || isEnriching}
+            variant="secondary"
+            size="lg"
+          >
+            {isEnriching ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                {enrichProgress.phase === 'funding' 
+                  ? `Funding: ${enrichProgress.current}/${enrichProgress.total}`
+                  : enrichProgress.phase === 'tech_stack'
+                  ? `Tech: ${enrichProgress.current}/${enrichProgress.total}`
+                  : 'Enriching...'}
+              </>
+            ) : (
+              <>
+                <Database className="mr-2 h-4 w-4" />
+                Enrich Intent Data
+              </>
+            )}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
