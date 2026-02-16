@@ -37,6 +37,7 @@ import { SimpleICPTable } from "@/components/executive/SimpleICPTable";
 import { SimpleTAMCard } from "@/components/executive/SimpleTAMCard";
 import { SimpleGeographyCard } from "@/components/executive/SimpleGeographyCard";
 import { DataHealthWidget } from "@/components/executive/DataHealthWidget";
+import { ICPProfileSummaryCard } from "@/components/executive/ICPProfileSummaryCard";
 
 import { StatusBar, buildStatusItems } from "@/components/executive/StatusBar";
 import { ExportToPdf } from "@/components/executive/ExportToPdf";
@@ -600,6 +601,9 @@ export default function ExecutiveDashboard() {
               lowFitLeads={sourceFilter === 'database' ? lowFitDatabaseLeads : sourceFilter === 'crm' ? lowFitCrmLeads : lowFitLeads}
               totalLeads={sourceFilter === 'database' ? databaseLeads : sourceFilter === 'crm' ? crmLeads : totalLeads}
             />
+
+            {/* ICP Profile Summary */}
+            <ICPProfileSummaryCard icpProfiles={icpProfiles} />
 
             {/* Main Content Grid - 3 columns for visual balance */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
