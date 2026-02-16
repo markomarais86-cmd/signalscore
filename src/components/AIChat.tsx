@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
 import { MessageCircle, X, Send, Trash2, CheckCircle, XCircle, Loader2, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -266,7 +267,13 @@ function MessageBubble({ message, onSendMessage }: { message: ChatMessage; onSen
             : 'bg-muted text-foreground'
         )}
       >
-        <div className="whitespace-pre-wrap break-words">{displayContent}</div>
+        {isUser ? (
+          <div className="whitespace-pre-wrap break-words">{displayContent}</div>
+        ) : (
+          <div className="prose prose-sm dark:prose-invert max-w-none break-words [&>p]:my-1 [&>ul]:my-1 [&>ol]:my-1 [&>h1]:text-sm [&>h2]:text-sm [&>h3]:text-xs [&>h1]:my-1.5 [&>h2]:my-1.5 [&>h3]:my-1 [&>table]:text-xs [&_code]:text-xs [&_code]:bg-muted-foreground/10 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded">
+            <ReactMarkdown>{displayContent}</ReactMarkdown>
+          </div>
+        )}
         
         {/* Render rich cards */}
         {renderResultCards()}

@@ -114,11 +114,51 @@ serve(async (req) => {
           if (data.overall >= 70) band = 'A';
           else if (data.overall >= 40) band = 'B';
           
+          // Compute real intent score from signals
+          let intentScore = 50; // default fallback
+          try {
+            const { data: signals } = await supabase
+              .from('account_signals')
+              .select('signal_priority, signal_type')
+              .eq('org_id', org_id)
+              .eq('account_external_id', account_external_id)
+              .in('signal_type', ['engagement_velocity', 'multi_thread', 'score_change', 'coverage_gap']);
+
+            if (signals && signals.length > 0) {
+              const priorityWeights: Record<string, number> = { critical: 25, high: 20, medium: 12, low: 5 };
+              const signalScore = signals.reduce((sum, s) => sum + (priorityWeights[s.signal_priority] || 5), 0);
+              intentScore = Math.min(100, Math.max(0, signalScore));
+            }
+          } catch (intentErr) {
+            console.warn('Intent signal lookup failed, using default:', intentErr);
+          }
+
+          // Compute reachability from lead data
+          let reachabilityScore = 50;
+          try {
+            const { data: leads } = await supabase
+              .from('Leads')
+              .select('email_verified, mobile')
+              .eq('org_id', org_id)
+              .eq('account_external_id', account_external_id)
+              .limit(20);
+
+            if (leads && leads.length > 0) {
+              const verifiedCount = leads.filter((l: any) => l.email_verified).length;
+              const hasPhone = leads.filter((l: any) => l.mobile).length;
+              reachabilityScore = Math.min(100, Math.round(
+                (verifiedCount / leads.length) * 60 + (hasPhone / leads.length) * 40
+              ));
+            }
+          } catch (reachErr) {
+            console.warn('Reachability lookup failed, using default:', reachErr);
+          }
+
           scoreData = {
             overall: data.overall,
-            fit: data.overall, // Use overall score for fit in v2
-            intent: 50, // Placeholder for future intent signals
-            reachability: 50, // Placeholder for future reachability calculation
+            fit: data.overall,
+            intent: intentScore,
+            reachability: reachabilityScore,
             breakdown: data.breakdown,
             band: band,
             confidence: data.confidence,
