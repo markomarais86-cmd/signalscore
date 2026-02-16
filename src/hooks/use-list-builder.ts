@@ -18,6 +18,7 @@ export interface ListBuilderFilters {
   levels: string[];
   hasEmail: boolean | null;
   hasPhone: boolean | null;
+  customAttributes: Record<string, string>;
 }
 
 export interface ListBuilderResult {
@@ -52,6 +53,7 @@ export const EMPTY_FILTERS: ListBuilderFilters = {
   levels: [],
   hasEmail: null,
   hasPhone: null,
+  customAttributes: {},
 };
 
 export const REVENUE_BUCKETS = [
@@ -119,6 +121,7 @@ export function useListBuilder() {
         p_levels: filters.levels.length > 0 ? filters.levels : null,
         p_has_email: filters.hasEmail,
         p_has_phone: filters.hasPhone,
+        p_custom_attributes: Object.keys(filters.customAttributes).length > 0 ? filters.customAttributes : null,
         p_page_offset: page * pageSize,
         p_page_limit: pageSize,
       });

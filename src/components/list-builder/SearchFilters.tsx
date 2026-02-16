@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -5,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, RotateCcw, Building2, Users } from "lucide-react";
+import { Search, RotateCcw, Building2, Users, Layers } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import {
   ListBuilderFilters,
   REVENUE_BUCKETS,
@@ -20,6 +23,14 @@ interface SearchFiltersProps {
   onSearch: () => void;
   onReset: () => void;
   isLoading: boolean;
+}
+
+interface CustomAttrDef {
+  id: string;
+  field_key: string;
+  display_name: string;
+  field_type: string;
+  allowed_values: string[] | null;
 }
 
 function MultiSelect({
@@ -70,10 +81,40 @@ export function SearchFilters({
   onReset,
   isLoading,
 }: SearchFiltersProps) {
+  const { effectiveOrgId } = useEffectiveOrg();
+  const [customAttrDefs, setCustomAttrDefs] = useState<CustomAttrDef[]>([]);
+
+  useEffect(() => {
+    if (!effectiveOrgId) return;
+    (supabase
+      .from("custom_attribute_definitions" as any)
+      .select("id, field_key, display_name, field_type, allowed_values")
+      .eq("org_id", effectiveOrgId)
+      .eq("is_active", true)
+      .order("display_order", { ascending: true }) as any)
+      .then(({ data }: { data: any[] | null }) => {
+        if (data) setCustomAttrDefs(data as CustomAttrDef[]);
+      });
+  }, [effectiveOrgId]);
+
   const update = <K extends keyof ListBuilderFilters>(
     key: K,
     value: ListBuilderFilters[K]
   ) => setFilters((prev) => ({ ...prev, [key]: value }));
+
+  const updateCustomAttr = (key: string, value: string) => {
+    setFilters((prev) => {
+      const next = { ...prev.customAttributes };
+      if (value) {
+        next[key] = value;
+      } else {
+        delete next[key];
+      }
+      return { ...prev, customAttributes: next };
+    });
+  };
+
+  const customAttrCount = Object.keys(filters.customAttributes).length;
 
   const activeCount =
     filters.industries.length +
@@ -85,7 +126,8 @@ export function SearchFilters({
     filters.personas.length +
     filters.levels.length +
     (filters.hasEmail !== null ? 1 : 0) +
-    (filters.hasPhone !== null ? 1 : 0);
+    (filters.hasPhone !== null ? 1 : 0) +
+    customAttrCount;
 
   return (
     <div className="flex flex-col h-full">
@@ -107,7 +149,7 @@ export function SearchFilters({
 
       <ScrollArea className="flex-1">
         <Tabs defaultValue="company" className="p-4">
-          <TabsList className="w-full grid grid-cols-2 mb-4">
+          <TabsList className="w-full grid grid-cols-3 mb-4">
             <TabsTrigger value="company" className="text-xs gap-1">
               <Building2 className="h-3 w-3" />
               Company
@@ -115,6 +157,15 @@ export function SearchFilters({
             <TabsTrigger value="people" className="text-xs gap-1">
               <Users className="h-3 w-3" />
               People
+            </TabsTrigger>
+            <TabsTrigger value="vertical" className="text-xs gap-1">
+              <Layers className="h-3 w-3" />
+              Vertical
+              {customAttrCount > 0 && (
+                <Badge variant="secondary" className="text-[10px] h-4 px-1 ml-0.5">
+                  {customAttrCount}
+                </Badge>
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -277,6 +328,75 @@ export function SearchFilters({
                 </label>
               </div>
             </div>
+          </TabsContent>
+
+          <TabsContent value="vertical" className="space-y-5 mt-0">
+            {customAttrDefs.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground text-sm">
+                <Layers className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p>No custom attributes defined yet.</p>
+                <p className="text-xs mt-1">
+                  Add custom attributes in Settings to filter by vertical-specific fields.
+                </p>
+              </div>
+            ) : (
+              customAttrDefs.map((def) => (
+                <div key={def.id} className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    {def.display_name}
+                  </Label>
+                  {def.field_type === "number" ? (
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        placeholder="Min"
+                        value={filters.customAttributes[`${def.field_key}_min`] || ""}
+                        onChange={(e) =>
+                          updateCustomAttr(`${def.field_key}_min`, e.target.value)
+                        }
+                        className="h-8 text-sm"
+                      />
+                      <Input
+                        type="number"
+                        placeholder="Max"
+                        value={filters.customAttributes[`${def.field_key}_max`] || ""}
+                        onChange={(e) =>
+                          updateCustomAttr(`${def.field_key}_max`, e.target.value)
+                        }
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  ) : def.field_type === "select" && def.allowed_values?.length ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {def.allowed_values.map((val) => {
+                        const isSelected = filters.customAttributes[def.field_key] === val;
+                        return (
+                          <Badge
+                            key={val}
+                            variant={isSelected ? "default" : "outline"}
+                            className="cursor-pointer text-xs transition-colors hover:bg-primary/20"
+                            onClick={() =>
+                              updateCustomAttr(def.field_key, isSelected ? "" : val)
+                            }
+                          >
+                            {val}
+                          </Badge>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <Input
+                      placeholder={`Filter by ${def.display_name.toLowerCase()}...`}
+                      value={filters.customAttributes[def.field_key] || ""}
+                      onChange={(e) =>
+                        updateCustomAttr(def.field_key, e.target.value)
+                      }
+                      className="h-8 text-sm"
+                    />
+                  )}
+                </div>
+              ))
+            )}
           </TabsContent>
         </Tabs>
       </ScrollArea>
