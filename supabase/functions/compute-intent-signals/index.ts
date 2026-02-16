@@ -181,14 +181,14 @@ async function computeEngagementVelocity(supabase: any, orgId: string): Promise<
       .from('score_history')
       .select('account_external_id')
       .eq('org_id', orgId)
-      .gte('changed_at', sevenDaysAgo.toISOString());
+      .gte('computed_at', sevenDaysAgo.toISOString());
 
     const { data: previousChanges } = await supabase
       .from('score_history')
       .select('account_external_id')
       .eq('org_id', orgId)
-      .gte('changed_at', fourteenDaysAgo.toISOString())
-      .lt('changed_at', sevenDaysAgo.toISOString());
+      .gte('computed_at', fourteenDaysAgo.toISOString())
+      .lt('computed_at', sevenDaysAgo.toISOString());
 
     (recentChanges || []).forEach((a: any) => {
       recentCounts[a.account_external_id] = (recentCounts[a.account_external_id] || 0) + 1;
@@ -319,10 +319,10 @@ async function computeScoreChangeAlerts(supabase: any, orgId: string): Promise<I
 
   const { data: scoreHistory } = await supabase
     .from('score_history')
-    .select('account_external_id, old_score, new_score, changed_at')
+    .select('account_external_id, old_score, new_score, computed_at')
     .eq('org_id', orgId)
-    .gte('changed_at', thirtyDaysAgo)
-    .order('changed_at', { ascending: false });
+    .gte('computed_at', thirtyDaysAgo)
+    .order('computed_at', { ascending: false });
 
   if (!scoreHistory || scoreHistory.length === 0) return signals;
 
@@ -426,7 +426,7 @@ async function computeCoverageGaps(supabase: any, orgId: string): Promise<Intent
       .from('score_history')
       .select('account_external_id')
       .eq('org_id', orgId)
-      .gte('changed_at', thirtyDaysAgo)
+      .gte('computed_at', thirtyDaysAgo)
       .in('account_external_id', highFitIds);
 
     activeIds = new Set((recentlyChangedAccounts || []).map((a: any) => a.account_external_id));
