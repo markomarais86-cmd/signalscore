@@ -428,3 +428,6 @@ verify_jwt = false
 
 [functions.parse-document]
 verify_jwt = false
+
+[functions.generate-board-report]
+verify_jwt = true
