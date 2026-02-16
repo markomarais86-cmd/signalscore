@@ -6,6 +6,16 @@ import { formatCurrency, deriveStageReadiness, deriveNextAction, deriveSegmentAc
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+export interface AIReportNarratives {
+  executiveSummary: string;
+  keyFindings: Array<{ title: string; detail: string; impact: string }>;
+  strategicRecommendations: Array<{ action: string; rationale: string; priority: string }>;
+  riskAssessment: Array<{ risk: string; severity: string; mitigation: string }>;
+  industryInsights: string;
+  geoInsights: string;
+  tamNarrative: string;
+}
+
 export interface BrandedReportData {
   companyName: string;
   generatedAt: string;
@@ -85,6 +95,8 @@ export interface BrandedReportData {
     unscoredAccounts: number;
     lowDataAccounts: number;
   };
+
+  aiNarratives?: AIReportNarratives;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -351,17 +363,23 @@ export async function generateBrandedPDF(
   const highFitPct = met.scoredAccounts > 0 ? Math.round((met.highFitAccounts / met.scoredAccounts) * 100) : 0;
   const marketCoverage = met.totalAccounts > 0 ? Math.round((met.scoredAccounts / met.totalAccounts) * 100) : 0;
 
-  let narrative = `Your addressable pipeline contains ${formatCurrency(samVal)} in modelled revenue across ${(met.highFitAccounts + met.mediumFitAccounts).toLocaleString()} qualified accounts. `;
-  if (met.campaignReadyAccounts > 0) {
-    narrative += `Of these, ${met.campaignReadyAccounts.toLocaleString()} are campaign-ready, representing ${formatCurrency(somVal)} in near-term pipeline at ${Math.round(convRate * 100)}% conversion and ${formatCurrency(acv)} ACV. `;
-  }
-  if (rm && rm.revenueAtRisk > 0) {
-    narrative += `An estimated ${formatCurrency(rm.revenueAtRisk)} in pipeline value is at risk due to ${rm.unscoredAccounts.toLocaleString()} unscored and ${rm.lowDataAccounts.toLocaleString()} low-data accounts. `;
-  }
-  if (met.dataCompleteness >= 80) {
-    narrative += `Data quality is strong at ${met.dataCompleteness}% completeness.`;
+  // Use AI executive summary if available, otherwise fall back to data-driven narrative
+  let narrative = '';
+  if (data.aiNarratives?.executiveSummary) {
+    narrative = data.aiNarratives.executiveSummary;
   } else {
-    narrative += `Data completeness at ${met.dataCompleteness}% requires enrichment to unlock full pipeline value.`;
+    narrative = `Your addressable pipeline contains ${formatCurrency(samVal)} in modelled revenue across ${(met.highFitAccounts + met.mediumFitAccounts).toLocaleString()} qualified accounts. `;
+    if (met.campaignReadyAccounts > 0) {
+      narrative += `Of these, ${met.campaignReadyAccounts.toLocaleString()} are campaign-ready, representing ${formatCurrency(somVal)} in near-term pipeline at ${Math.round(convRate * 100)}% conversion and ${formatCurrency(acv)} ACV. `;
+    }
+    if (rm && rm.revenueAtRisk > 0) {
+      narrative += `An estimated ${formatCurrency(rm.revenueAtRisk)} in pipeline value is at risk due to ${rm.unscoredAccounts.toLocaleString()} unscored and ${rm.lowDataAccounts.toLocaleString()} low-data accounts. `;
+    }
+    if (met.dataCompleteness >= 80) {
+      narrative += `Data quality is strong at ${met.dataCompleteness}% completeness.`;
+    } else {
+      narrative += `Data completeness at ${met.dataCompleteness}% requires enrichment to unlock full pipeline value.`;
+    }
   }
 
   doc.setFontSize(10);
@@ -447,7 +465,16 @@ export async function generateBrandedPDF(
     y += funnelH + 5;
   });
 
-  // Assumptions box
+  // AI TAM narrative
+  if (data.aiNarratives?.tamNarrative) {
+    y += 2;
+    doc.setFontSize(9);
+    doc.setTextColor(60, 60, 60);
+    const tamLines = doc.splitTextToSize(data.aiNarratives.tamNarrative, CW);
+    doc.text(tamLines, M, y);
+    y += tamLines.length * 4 + 4;
+  }
+
   y += 4;
   doc.setFillColor(245, 245, 245);
   doc.roundedRect(M, y, CW, 18, 2, 2, 'F');
@@ -495,10 +522,19 @@ export async function generateBrandedPDF(
   addHeader('Segment Prioritization');
   sectionTitle('Segment Prioritization');
 
-  doc.setFontSize(9);
-  doc.setTextColor(80, 80, 80);
-  doc.text('Industries ranked by modelled revenue potential. Action recommendations based on high-fit concentration and volume.', M, y);
-  y += 8;
+  // Use AI industry insights if available
+  if (data.aiNarratives?.industryInsights) {
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    const insightLines = doc.splitTextToSize(data.aiNarratives.industryInsights, CW);
+    doc.text(insightLines, M, y);
+    y += insightLines.length * 4 + 4;
+  } else {
+    doc.setFontSize(9);
+    doc.setTextColor(80, 80, 80);
+    doc.text('Industries ranked by modelled revenue potential. Action recommendations based on high-fit concentration and volume.', M, y);
+    y += 8;
+  }
 
   if (data.industryBreakdown.length > 0) {
     const medianCount = data.industryBreakdown.length > 0
@@ -542,16 +578,24 @@ export async function generateBrandedPDF(
   const normalizedGeo = normalizeAndMergeGeo(data.geographyDistribution);
 
   if (normalizedGeo.length > 0) {
-    // Top markets interpretation
-    const top3 = normalizedGeo.slice(0, 3);
-    doc.setFontSize(9);
-    doc.setTextColor(80, 80, 80);
-    top3.forEach((g, i) => {
-      const tag = deriveGeoTag(g.percentage, g.avgScore);
-      const tagLabel = tag === 'Core' ? '● Core Market' : tag === 'Growth' ? '▲ Growth Opportunity' : tag === 'Review' ? '◆ Under Review' : '○ Monitor';
-      doc.text(`${i + 1}. ${g.country}: ${tagLabel} — ${g.accounts.toLocaleString()} accounts, avg score ${g.avgScore}`, M, y);
-      y += 5;
-    });
+    // AI geo insights or fallback to top markets interpretation
+    if (data.aiNarratives?.geoInsights) {
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      const geoLines = doc.splitTextToSize(data.aiNarratives.geoInsights, CW);
+      doc.text(geoLines, M, y);
+      y += geoLines.length * 4 + 4;
+    } else {
+      const top3 = normalizedGeo.slice(0, 3);
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      top3.forEach((g, i) => {
+        const tag = deriveGeoTag(g.percentage, g.avgScore);
+        const tagLabel = tag === 'Core' ? '● Core Market' : tag === 'Growth' ? '▲ Growth Opportunity' : tag === 'Review' ? '◆ Under Review' : '○ Monitor';
+        doc.text(`${i + 1}. ${g.country}: ${tagLabel} — ${g.accounts.toLocaleString()} accounts, avg score ${g.avgScore}`, M, y);
+        y += 5;
+      });
+    }
     y += 4;
 
     // Bar chart with tags
@@ -698,10 +742,38 @@ export async function generateBrandedPDF(
     });
   }
 
-  // Top 3 AI insights as conclusions
+  // AI-powered key findings and risk assessment (replaces static insights)
   y += 4;
   checkPageBreak(30);
-  if (data.insights.length > 0) {
+
+  if (data.aiNarratives?.keyFindings && data.aiNarratives.keyFindings.length > 0) {
+    doc.setFontSize(12);
+    doc.setTextColor(...dark);
+    doc.setFont('helvetica', 'bold');
+    doc.text('AI Key Findings', M, y);
+    doc.setFont('helvetica', 'normal');
+    y += 8;
+
+    data.aiNarratives.keyFindings.slice(0, 5).forEach((finding) => {
+      checkPageBreak(20);
+      doc.setFillColor(...lightenRgb(primary, 0.92));
+      doc.roundedRect(M, y - 3, CW, 18, 2, 2, 'F');
+      doc.setFontSize(9);
+      doc.setTextColor(40, 40, 40);
+      doc.setFont('helvetica', 'bold');
+      doc.text(finding.title, M + 4, y + 2);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(70, 70, 70);
+      const detailLines = doc.splitTextToSize(finding.detail, CW - 12);
+      doc.text(detailLines.slice(0, 2), M + 4, y + 7);
+      doc.setFontSize(7);
+      doc.setTextColor(...primary);
+      doc.text(`Impact: ${finding.impact}`, M + 4, y + 14);
+      y += 22;
+    });
+  } else if (data.insights.length > 0) {
+    // Fallback to static insights
     doc.setFontSize(12);
     doc.setTextColor(...dark);
     doc.setFont('helvetica', 'bold');
@@ -724,6 +796,84 @@ export async function generateBrandedPDF(
       const descLines = doc.splitTextToSize(insight.description, CW - 12);
       doc.text(descLines.slice(0, 2), M + 4, y + 7);
       y += 18;
+    });
+  }
+
+  // AI Risk Assessment (supplements data-driven risks above)
+  if (data.aiNarratives?.riskAssessment && data.aiNarratives.riskAssessment.length > 0) {
+    checkPageBreak(30);
+    y += 4;
+    doc.setFontSize(12);
+    doc.setTextColor(...dark);
+    doc.setFont('helvetica', 'bold');
+    doc.text('AI Risk Assessment', M, y);
+    doc.setFont('helvetica', 'normal');
+    y += 8;
+
+    data.aiNarratives.riskAssessment.forEach((risk) => {
+      checkPageBreak(18);
+      const sColor = severityColor(risk.severity);
+      doc.setFillColor(...sColor);
+      doc.roundedRect(M, y - 3, CW, 1.5, 0.5, 0.5, 'F');
+      y += 2;
+
+      doc.setFillColor(...sColor);
+      doc.roundedRect(M, y - 3, 22, 7, 2, 2, 'F');
+      doc.setFontSize(7);
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.text(risk.severity.toUpperCase(), M + 2, y + 1);
+
+      doc.setFontSize(9);
+      doc.setTextColor(40, 40, 40);
+      doc.text(risk.risk.substring(0, 60), M + 26, y + 1);
+      doc.setFont('helvetica', 'normal');
+      y += 7;
+
+      doc.setFontSize(8);
+      doc.setTextColor(80, 80, 80);
+      const mitLines = doc.splitTextToSize(`Mitigation: ${risk.mitigation}`, CW - 8);
+      doc.text(mitLines, M + 4, y);
+      y += mitLines.length * 4 + 4;
+    });
+  }
+
+  // ─── Page: Strategic Recommendations (AI-powered) ──────────────────────────
+
+  if (data.aiNarratives?.strategicRecommendations && data.aiNarratives.strategicRecommendations.length > 0) {
+    doc.addPage();
+    addHeader('Strategic Recommendations');
+    sectionTitle('AI Strategic Recommendations');
+
+    data.aiNarratives.strategicRecommendations.forEach((rec, i) => {
+      checkPageBreak(24);
+
+      const priorityColor: [number, number, number] =
+        rec.priority === 'critical' ? [220, 38, 38] :
+        rec.priority === 'high' ? [234, 88, 12] : [202, 138, 4];
+
+      // Priority badge
+      doc.setFillColor(...priorityColor);
+      doc.roundedRect(M, y - 2, 22, 7, 2, 2, 'F');
+      doc.setFontSize(7);
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.text(rec.priority.toUpperCase(), M + 2, y + 2);
+
+      // Action
+      doc.setFontSize(10);
+      doc.setTextColor(40, 40, 40);
+      const actionLines = doc.splitTextToSize(rec.action, CW - 30);
+      doc.text(actionLines[0], M + 26, y + 2);
+      doc.setFont('helvetica', 'normal');
+      y += 9;
+
+      // Rationale
+      doc.setFontSize(8);
+      doc.setTextColor(80, 80, 80);
+      const rationaleLines = doc.splitTextToSize(rec.rationale, CW - 8);
+      doc.text(rationaleLines, M + 4, y);
+      y += rationaleLines.length * 4 + 8;
     });
   }
 
