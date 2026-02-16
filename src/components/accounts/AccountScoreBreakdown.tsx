@@ -41,6 +41,7 @@ const FIELD_LABELS: Record<string, string> = {
   tech_stack: 'Tech Stack',
   persona: 'Personas',
   funding: 'Funding',
+  vertical: 'Vertical Attributes',
 };
 
 export function AccountScoreBreakdown({ reasons, overallScore, fitScore }: AccountScoreBreakdownProps) {
