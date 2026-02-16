@@ -1,40 +1,64 @@
 
-# Enrich Industry Templates with Missing Fields
 
-## What Changes
+# Surface Full ICP Profile on the Dashboard
 
-Add new fields to three existing industry templates in `src/components/settings/CustomAttributeManager.tsx`:
+## Problem
+The dashboard fetches `icpProfiles` data (line 117 of `ExecutiveDashboard.tsx`) but never renders it. Users can only see ICP scoring results (high/med/low fit counts) but not the actual ICP definition -- the target industries, company sizes, geographies, personas, and other criteria configured in the ICP Manager.
 
-### SaaS / Technology (add 3 fields)
-- **ARR** (`arr`) -- number field, enrichment prompt asks for Annual Recurring Revenue
-- **MRR** (`mrr`) -- number field, enrichment prompt asks for Monthly Recurring Revenue
-- **Churn Rate** (`churn_rate`) -- number field, enrichment prompt asks for annual customer churn rate as a percentage
+## Solution
+Add an **ICP Profile Summary Card** to the dashboard that displays the active/primary ICP profile's targeting criteria, giving users immediate visibility into what their scoring is based on.
 
-### Manufacturing (add 1 field)
-- **Annual Output** (`annual_output`) -- number field, enrichment prompt asks for annual production output or units manufactured
+## What Gets Added
 
-### Retail and E-commerce (add 1 field)
-- **Average Basket Size** (`average_basket_size`) -- number field, enrichment prompt asks for average order/basket value in USD
+### 1. New Component: `ICPProfileSummaryCard`
+A new card component at `src/components/executive/ICPProfileSummaryCard.tsx` that renders:
+- **ICP name and status** (active/draft/archived badge)
+- **Target Industries** -- displayed as tags/badges
+- **Company Sizes** -- shown as range labels
+- **Revenue Ranges** -- displayed inline
+- **Geographies** -- listed as region tags
+- **Persona Targeting** -- job titles, seniority levels, departments
+- **Tech Stack** -- if defined
+- **Confidence Score** -- visual indicator
+- **"View Full Profile" link** -- navigates to `/icp-manager`
+- Graceful handling when no ICP profiles exist (prompt to create one)
 
-## Technical Detail
+### 2. Dashboard Integration
+Add the `ICPProfileSummaryCard` to the dashboard layout in `ExecutiveDashboard.tsx`:
+- Place it in the 3-column grid alongside the existing SimpleICPTable, SimpleTAMCard, and SimpleGeographyCard
+- Uses the already-fetched `icpProfiles` data (no new queries needed)
+- Shows the primary/first active ICP profile
 
-All changes are in a single file: `src/components/settings/CustomAttributeManager.tsx`, lines 52-77.
+### 3. Layout Adjustment
+Restructure the grid to accommodate the new card:
+- Row 1 (existing): GrowthCommandKPIs + ICPCoveragePanel
+- Row 2: **ICPProfileSummaryCard** (full width or 2-col) showing the ICP definition
+- Row 3 (existing): SimpleICPTable, SimpleTAMCard, SimpleGeographyCard
+- Row 4 (existing): DataHealthWidget + UnifiedInsightsPanel
 
-**SaaS fields array** (line 52-57): Append 3 new objects after `integration_count`:
+## Technical Details
+
+### New file: `src/components/executive/ICPProfileSummaryCard.tsx`
+
 ```typescript
-{ field_key: 'arr', field_label: 'Annual Recurring Revenue (ARR)', field_type: 'number', options: [], category: 'SaaS', enrichment_prompt: 'What is this company\'s estimated Annual Recurring Revenue (ARR) in USD?' },
-{ field_key: 'mrr', field_label: 'Monthly Recurring Revenue (MRR)', field_type: 'number', options: [], category: 'SaaS', enrichment_prompt: 'What is this company\'s estimated Monthly Recurring Revenue (MRR) in USD?' },
-{ field_key: 'churn_rate', field_label: 'Churn Rate (%)', field_type: 'number', options: [], category: 'SaaS', enrichment_prompt: 'What is this SaaS company\'s estimated annual customer churn rate as a percentage?' },
+interface ICPProfileSummaryCardProps {
+  icpProfiles: any[];  // Uses the already-fetched icpProfiles from dashboardData
+  className?: string;
+}
 ```
 
-**Manufacturing fields array** (line 63-67): Append 1 new object after `production_type`:
-```typescript
-{ field_key: 'annual_output', field_label: 'Annual Output', field_type: 'number', options: [], category: 'Manufacturing', enrichment_prompt: 'What is this manufacturer\'s estimated annual production output or volume?' },
-```
+The component will:
+- Pick the primary ICP (where `is_primary === true`) or fall back to the first active profile
+- Display all major targeting dimensions using Badge components for tags
+- Show a compact, scannable layout with labeled sections
+- Include a "Manage ICPs" button linking to `/icp-manager`
+- Show an empty state with a "Create ICP" CTA if no profiles exist
 
-**Retail fields array** (line 73-77): Append 1 new object after `distribution_channels`:
-```typescript
-{ field_key: 'average_basket_size', field_label: 'Average Basket Size ($)', field_type: 'number', options: [], category: 'Retail', enrichment_prompt: 'What is this retailer\'s average order or basket size in USD?' },
-```
+### Modified file: `src/pages/ExecutiveDashboard.tsx`
+- Import `ICPProfileSummaryCard`
+- Add it to the JSX between `ICPCoveragePanel` and the 3-column grid
+- Pass `icpProfiles={icpProfiles}` (already available, just unused)
 
-No database migrations or other file changes needed -- these are just template definitions that get inserted into `custom_attribute_definitions` when a user clicks "Apply".
+### No database or migration changes required
+The `icpProfiles` data is already being fetched via `useDashboardData` -- it just needs to be rendered.
+
