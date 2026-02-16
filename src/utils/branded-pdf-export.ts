@@ -439,7 +439,76 @@ export async function generateBrandedPDF(
   const coverFooter = isLaunchPulse ? 'Powered by LaunchPulse' : `Prepared by ${companyName} using LaunchPulse`;
   doc.text(coverFooter, W / 2, H - 25, { align: 'center' });
 
-  // ─── Page 2: ICP Profile ──────────────────────────────────────────────────
+  // ─── Page 2: Table of Contents ────────────────────────────────────────────
+
+  doc.addPage();
+  addHeader('Table of Contents');
+  sectionTitle('Table of Contents');
+
+  // Build TOC entries dynamically based on which sections are present
+  const tocEntries: Array<{ title: string; page: number }> = [];
+  let tocPage = 3; // starts after Cover + TOC
+
+  if (data.icpProfileDetail) {
+    tocEntries.push({ title: 'Ideal Customer Profile', page: tocPage });
+    tocPage++;
+  }
+  tocEntries.push({ title: 'Strategic Position', page: tocPage }); tocPage++;
+  tocEntries.push({ title: 'Revenue Model', page: tocPage }); tocPage++;
+  tocEntries.push({ title: 'Segment Prioritization', page: tocPage }); tocPage++;
+  tocEntries.push({ title: 'Geographic Strategy', page: tocPage }); tocPage++;
+  tocEntries.push({ title: 'Top 10 Revenue Opportunities', page: tocPage }); tocPage++;
+  tocEntries.push({ title: 'Revenue Leakage & Risk Assessment', page: tocPage }); tocPage++;
+  if (data.aiNarratives?.strategicRecommendations && data.aiNarratives.strategicRecommendations.length > 0) {
+    tocEntries.push({ title: 'Strategic Recommendations', page: tocPage });
+    tocPage++;
+  }
+  tocEntries.push({ title: '90-Day Execution Plan', page: tocPage });
+
+  // Render TOC rows with dotted leaders
+  const tocStartY = y;
+  const tocRowH = 10;
+  const tocLeftX = M + 4;
+  const tocRightX = W - M - 4;
+
+  tocEntries.forEach((entry, idx) => {
+    const rowY = tocStartY + idx * tocRowH;
+
+    // Alternating row background
+    if (idx % 2 === 0) {
+      doc.setFillColor(...lightBg);
+      doc.rect(M, rowY - 4, CW, tocRowH, 'F');
+    }
+
+    // Section title
+    doc.setFontSize(10);
+    doc.setTextColor(...dark);
+    doc.setFont('helvetica', 'normal');
+    doc.text(entry.title, tocLeftX, rowY + 2);
+
+    // Page number (brand color)
+    doc.setTextColor(...primary);
+    doc.setFont('helvetica', 'bold');
+    doc.text(String(entry.page), tocRightX, rowY + 2, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+
+    // Dotted leader line
+    const titleWidth = doc.getTextWidth(entry.title);
+    const pageNumWidth = doc.getTextWidth(String(entry.page));
+    const dotsStartX = tocLeftX + titleWidth + 4;
+    const dotsEndX = tocRightX - pageNumWidth - 4;
+    doc.setFontSize(8);
+    doc.setTextColor(180, 180, 180);
+    let dotX = dotsStartX;
+    while (dotX < dotsEndX) {
+      doc.text('.', dotX, rowY + 2);
+      dotX += 2.2;
+    }
+  });
+
+  y = tocStartY + tocEntries.length * tocRowH + 8;
+
+  // ─── Page: ICP Profile ──────────────────────────────────────────────────
 
   if (data.icpProfileDetail) {
     const icp = data.icpProfileDetail;
