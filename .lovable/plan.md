@@ -1,73 +1,84 @@
 
 
-# Fix: Smart Insights Actions Not Working
+# Make Custom Attributes Searchable in List Builder
 
-## Problem
+## What This Does
 
-When clicking action buttons on Smart Insights (e.g., "Find Contacts", "Score Accounts", "View Accounts"), the app shows "Action not yet available" because the click handler has gaps in its routing logic.
+Adds a new "Vertical" tab to the List Builder sidebar so you can filter accounts by custom attributes like EHR System, Facility Type, Bed Count, etc. When you select filters, the database query searches the `custom_attributes` JSONB column on accounts.
 
-The `handleItemClick` function checks 4 things in order:
-1. Is it a risk with navigate/enrich action? (only handles risks)
-2. Does the item have a `route`? (most insights don't -- only 4 action types are mapped to routes)
-3. Does the action text match workflow keywords? (only matches penetrate/expand/optimize/campaign/audit)
-4. Fallback: shows the error toast you're seeing
+## Changes Overview
 
-Most insight actions (like "Find Contacts", "Enrich Data", "Score Accounts") fall through all checks and hit the fallback.
+### 1. Database: Update the `search_list_builder` RPC
 
-## Solution
+Add a new parameter `p_custom_attributes JSONB DEFAULT NULL` that accepts a JSON object of key-value pairs to match against `accounts.custom_attributes`.
 
-### 1. Expand route mapping (UnifiedInsightsPanel.tsx)
+Example input: `{"ehr_system": "Epic", "bed_count_min": 100}`
 
-Add missing routes to `mapNextActionToRoute` so more action types navigate properly:
+The filter logic will:
+- For text/select values: exact match via `accounts.custom_attributes ->> 'key' ILIKE value`
+- For number min/max: cast and compare via `(accounts.custom_attributes ->> 'key')::numeric >= value`
 
-| Action | Route |
-|--------|-------|
-| `enrich_contacts` | `/accounts` |
-| `enrich_data` | `/accounts` |
-| `build_campaign` | `/accounts` |
-| `contact_leads` | `/accounts` |
-| `search_accounts` | `/accounts` |
+New migration file with `CREATE OR REPLACE FUNCTION` for the updated RPC.
 
-### 2. Expand workflow type detection (UnifiedInsightsPanel.tsx)
+### 2. Hook: Add `customAttributes` to filters
 
-Add more keyword patterns to `inferWorkflowType`:
+**File: `src/hooks/use-list-builder.ts`**
 
-- "find contacts" / "contact" / "leads" -> `build_target_list`
-- "enrich" / "fill" / "complete" -> `enrich_data` (new workflow type)
-- "score" / "calculate" / "rescore" -> `score_accounts` (new workflow type)
+- Add `customAttributes: Record<string, string>` to `ListBuilderFilters` interface
+- Add `customAttributes: {}` to `EMPTY_FILTERS`
+- Pass `p_custom_attributes: Object.keys(filters.customAttributes).length > 0 ? filters.customAttributes : null` in the RPC call
 
-### 3. Add direct action handling for proactive insight params (UnifiedInsightsPanel.tsx)
+### 3. UI: Add "Vertical" tab to SearchFilters
 
-The proactive insights from the edge function include structured `actions` with `action` and `params` fields (e.g., `{ action: "enrich_contacts", params: { account_ids: [...] } }`). Add a handler that:
+**File: `src/components/list-builder/SearchFilters.tsx`**
 
-- Checks if the source insight has structured actions with params
-- Routes `enrich_contacts` to the enrichment modal with pre-selected accounts
-- Routes `search_accounts` to `/accounts` with the filter params (e.g., `min_score=80`)
-- Routes `enrich_data` / `score_accounts` / `build_campaign` to appropriate pages with query params
+- Fetch `custom_attribute_definitions` for the org on mount
+- Add a third tab "Vertical" (with a tag/layers icon) alongside Company and People
+- For each definition, render the appropriate input:
+  - `select` type: Input field for the value to match
+  - `number` type: Min/max number inputs
+  - `multi_select` type: Input field for comma-separated values
+  - `text` type: Text input for partial match
+- Store values in `filters.customAttributes` as `{ field_key: value }` (and `field_key_min`/`field_key_max` for numbers)
+- Update the `activeCount` calculation to include custom attribute filters
 
-### 4. Fallback improvement
+### 4. Update the tab layout
 
-Instead of a dead-end toast, the fallback will navigate to `/accounts` as a reasonable default so users always land somewhere useful.
+Change from 2-column grid to 3-column grid for the tabs: Company | People | Vertical
 
 ## Technical Details
 
-### File: `src/components/executive/UnifiedInsightsPanel.tsx`
+### New Migration SQL
 
-**Change 1** -- `mapNextActionToRoute` (line ~368-377): Add mappings for `enrich_contacts`, `enrich_data`, `build_campaign`, `contact_leads`, `search_accounts` all pointing to `/accounts`.
-
-**Change 2** -- `inferWorkflowType` (line ~474-480): Add regex patterns:
+```sql
+CREATE OR REPLACE FUNCTION public.search_list_builder(
+  -- existing params...
+  p_custom_attributes JSONB DEFAULT NULL,
+  p_page_offset INT DEFAULT 0,
+  p_page_limit INT DEFAULT 50
+)
+-- In the filtered_accounts CTE, add:
+AND (p_custom_attributes IS NULL OR (
+  SELECT bool_and(
+    CASE 
+      WHEN key LIKE '%_min' THEN
+        (a.custom_attributes ->> REPLACE(key, '_min', ''))::numeric >= (value)::numeric
+      WHEN key LIKE '%_max' THEN
+        (a.custom_attributes ->> REPLACE(key, '_max', ''))::numeric <= (value)::numeric
+      ELSE
+        a.custom_attributes ->> key ILIKE '%' || value::text || '%'
+    END
+  )
+  FROM jsonb_each_text(p_custom_attributes)
+))
 ```
-/find.*contact|contact|leads/ -> 'build_target_list'
-/enrich|fill|complete|missing/ -> 'enrich_data'  
-/score|calculate|rescore/ -> 'score_accounts'
-```
 
-**Change 3** -- `handleItemClick` (line ~483-530): Before the fallback toast, add a catch-all that:
-- Checks if action text contains "enrich" -> opens enrichment modal
-- Checks if action text contains "score" -> navigates to `/accounts?action=score`
-- Checks if action text contains "contact" or "find" -> navigates to `/accounts?action=find_contacts`
-- Otherwise navigates to `/accounts` as a safe default instead of showing error toast
+### Files Modified
 
-**Change 4** -- Insight mapping (line ~397-418): Preserve the original proactive insight `actions` array in the `source` so structured params are accessible in `handleItemClick`.
+| File | Change |
+|------|--------|
+| New migration SQL | Add `p_custom_attributes` param to RPC |
+| `src/hooks/use-list-builder.ts` | Add `customAttributes` to filter type and RPC call |
+| `src/components/list-builder/SearchFilters.tsx` | Add Vertical tab with dynamic attribute inputs |
 
-No new files or dependencies needed. All changes are in one file.
+### No new dependencies needed
