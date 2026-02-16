@@ -372,6 +372,11 @@ export function UnifiedInsightsPanel({
       view_accounts: '/accounts',
       review_accounts: '/accounts',
       export_csv: '/accounts',
+      enrich_contacts: '/accounts',
+      enrich_data: '/accounts',
+      build_campaign: '/accounts',
+      contact_leads: '/accounts',
+      search_accounts: '/accounts',
     };
     return map[nextAction];
   };
@@ -473,7 +478,10 @@ export function UnifiedInsightsPanel({
 
   const inferWorkflowType = (actionText: string): string | null => {
     const lower = actionText.toLowerCase();
+    if (/find.*contact|contact|leads/.test(lower)) return 'build_target_list';
     if (/penetrate|expand|target|build.*list|whitespace/.test(lower)) return 'build_target_list';
+    if (/enrich|fill|complete|missing/.test(lower)) return 'enrich_data';
+    if (/score|calculate|rescore/.test(lower)) return 'score_accounts';
     if (/optimize|refine|improve.*icp|tune/.test(lower)) return 'optimize_icp';
     if (/campaign|outreach|prepare|launch/.test(lower)) return 'prepare_campaign';
     if (/audit|quality|clean|standardize|duplicate/.test(lower)) return 'audit_data_quality';
@@ -509,9 +517,23 @@ export function UnifiedInsightsPanel({
 
     // 3. Infer workflow from action text
     if (item.action) {
-      // Direct enrich keyword
-      if (/enrich/i.test(item.action)) {
+      const actionLower = item.action.toLowerCase();
+
+      // Direct enrich keyword -> open enrichment modal
+      if (/enrich/i.test(actionLower)) {
         handleEnrichAction('enrich_ai_free');
+        return;
+      }
+
+      // Score keyword -> navigate to accounts with score action
+      if (/score|calculate|rescore/i.test(actionLower)) {
+        navigate('/accounts?action=score');
+        return;
+      }
+
+      // Contact/find keyword -> navigate to accounts with find_contacts action
+      if (/find.*contact|contact|leads/i.test(actionLower)) {
+        navigate('/accounts?action=find_contacts');
         return;
       }
 
@@ -524,10 +546,8 @@ export function UnifiedInsightsPanel({
       }
     }
 
-    // 4. Fallback
-    toast.info('Action not yet available', {
-      description: 'This insight type doesn\'t have an automated workflow yet.'
-    });
+    // 4. Fallback — navigate to accounts instead of dead-end toast
+    navigate('/accounts');
   };
 
   const handleEnrichAction = async (action: string, params?: Record<string, unknown>) => {
