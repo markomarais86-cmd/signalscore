@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { Plus, Trash2, Edit, Sparkles, Building2, Cpu, Factory, ShoppingBag, X } from 'lucide-react';
+import { Plus, Trash2, Edit, Sparkles, Building2, Cpu, Factory, ShoppingBag, X, CheckCircle2, Zap } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useEffectiveOrg } from '@/hooks/use-effective-org';
@@ -83,11 +83,19 @@ const INDUSTRY_TEMPLATES: TemplateDefinition[] = [
   },
 ];
 
+const CATEGORY_INDUSTRY_MAP: Record<string, string[]> = {
+  'Healthcare': ['Healthcare', 'Health'],
+  'SaaS': ['Technology', 'Software', 'SaaS', 'IT Services', 'Information Technology'],
+  'Manufacturing': ['Manufacturing', 'Industrial'],
+  'Retail': ['Retail', 'E-commerce', 'Ecommerce', 'Consumer Goods'],
+};
+
 export function CustomAttributeManager() {
   const [definitions, setDefinitions] = useState<CustomAttributeDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDef, setEditingDef] = useState<CustomAttributeDefinition | null>(null);
+  const [icpIndustries, setIcpIndustries] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     field_key: '',
     field_label: '',
@@ -101,8 +109,51 @@ export function CustomAttributeManager() {
   const { effectiveOrgId } = useEffectiveOrg();
 
   useEffect(() => {
-    if (effectiveOrgId) loadDefinitions();
+    if (effectiveOrgId) {
+      loadDefinitions();
+      // Fetch ICP industries for template suggestions
+      supabase
+        .from('icp_profiles')
+        .select('industries')
+        .eq('org_id', effectiveOrgId)
+        .eq('status', 'active')
+        .limit(1)
+        .single()
+        .then(({ data }) => {
+          if (data?.industries) setIcpIndustries(data.industries as string[]);
+        });
+    }
   }, [effectiveOrgId]);
+
+  const isSuggested = (template: TemplateDefinition): boolean => {
+    if (icpIndustries.length === 0) return false;
+    const matchTerms = CATEGORY_INDUSTRY_MAP[template.category] || [];
+    return matchTerms.some(term =>
+      icpIndustries.some(ind => ind.toLowerCase().includes(term.toLowerCase()))
+    );
+  };
+
+  const isTemplateApplied = (template: TemplateDefinition): boolean => {
+    const existingKeys = definitions.map(d => d.field_key);
+    return template.fields.every(f => existingKeys.includes(f.field_key));
+  };
+
+  const sortedTemplates = useMemo(() => {
+    return [...INDUSTRY_TEMPLATES].sort((a, b) => {
+      const aSuggested = isSuggested(a) ? 0 : 1;
+      const bSuggested = isSuggested(b) ? 0 : 1;
+      return aSuggested - bSuggested;
+    });
+  }, [icpIndustries, definitions]);
+
+  const suggestedTemplates = sortedTemplates.filter(t => isSuggested(t) && !isTemplateApplied(t));
+
+  const applyAllSuggested = async () => {
+    for (const template of suggestedTemplates) {
+      await applyTemplate(template);
+    }
+    toast({ title: 'All suggested templates applied', description: `Applied ${suggestedTemplates.length} template(s)` });
+  };
 
   const loadDefinitions = async () => {
     if (!effectiveOrgId) return;
@@ -367,24 +418,58 @@ export function CustomAttributeManager() {
 
       {/* Industry Templates */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Industry Templates</CardTitle>
-          <CardDescription>Quick-start with pre-built attribute sets for common verticals</CardDescription>
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Industry Templates</CardTitle>
+              <CardDescription>
+                Quick-start with pre-built attribute sets for common verticals
+                {icpIndustries.length > 0 && (
+                  <span className="ml-1 text-primary">• AI suggestions based on your ICP profile</span>
+                )}
+              </CardDescription>
+            </div>
+            {suggestedTemplates.length > 0 && (
+              <Button size="sm" onClick={applyAllSuggested} className="gap-2">
+                <Zap className="h-4 w-4" />
+                Apply All Suggested ({suggestedTemplates.length})
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {INDUSTRY_TEMPLATES.map(template => (
-              <Button
-                key={template.name}
-                variant="outline"
-                className="h-auto flex-col gap-2 py-4"
-                onClick={() => applyTemplate(template)}
-              >
-                {template.icon}
-                <span className="text-sm font-medium">{template.name}</span>
-                <span className="text-xs text-muted-foreground">{template.fields.length} fields</span>
-              </Button>
-            ))}
+            {sortedTemplates.map(template => {
+              const suggested = isSuggested(template);
+              const applied = isTemplateApplied(template);
+              return (
+                <Button
+                  key={template.name}
+                  variant="outline"
+                  className={`h-auto flex-col gap-2 py-4 relative ${
+                    suggested ? 'border-primary ring-1 ring-primary/20' : ''
+                  } ${applied ? 'opacity-60' : ''}`}
+                  onClick={() => !applied && applyTemplate(template)}
+                  disabled={applied}
+                >
+                  {suggested && (
+                    <Badge className="absolute -top-2 -right-2 gap-1 text-[10px] px-1.5 py-0.5">
+                      <Sparkles className="h-3 w-3" />
+                      AI Suggested
+                    </Badge>
+                  )}
+                  {applied ? (
+                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                  ) : (
+                    template.icon
+                  )}
+                  <span className="text-sm font-medium">{template.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {applied ? 'Applied' : `${template.fields.length} fields`}
+                  </span>
+                </Button>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
