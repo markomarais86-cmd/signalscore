@@ -640,7 +640,8 @@ export default function ExecutiveDashboard() {
             {/* Growth Command Center KPIs */}
             <GrowthCommandKPIs
               totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-              tamEstimate={tamData?.totalAccounts || 0}
+              totalScored={totalScores}
+              medFitAccounts={medFitAccounts}
               dataCompleteness={dataCompleteness}
               highFitAccounts={highFitAccounts}
               campaignReadyAccounts={campaignReadyAccounts}
