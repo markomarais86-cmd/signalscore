@@ -711,24 +711,23 @@ export default function ExecutiveDashboard() {
               />
             </div>
 
-            {/* Data Health, Signal Feed & AI Insights - 3 column layout */}
+            {/* Data Health & AI Insights - 2 column layout */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Data Health Widget */}
               <DataHealthWidget />
               
-              {/* Signal Feed */}
-              <SignalFeed maxHeight="400px" compact />
-              
-              {/* AI Insights */}
-              <UnifiedInsightsPanel
-                risks={risks}
-                insights={insights || []}
-                orgId={effectiveOrgId}
-                onRefresh={handleRefreshInsights}
-                campaignReadyCount={campaignReadyAccounts}
-                completenessScore={dataCompleteness}
-                totalScored={totalScores}
-              />
+              {/* AI Insights - 2 columns */}
+              <div className="lg:col-span-2">
+                <UnifiedInsightsPanel
+                  risks={risks}
+                  insights={insights || []}
+                  orgId={effectiveOrgId}
+                  onRefresh={handleRefreshInsights}
+                  campaignReadyCount={campaignReadyAccounts}
+                  completenessScore={dataCompleteness}
+                  totalScored={totalScores}
+                />
+              </div>
             </div>
           </>
         )}
