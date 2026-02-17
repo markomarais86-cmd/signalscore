@@ -8724,6 +8724,7 @@ export type Database = {
           title: string
         }[]
       }
+      get_user_accessible_org_ids: { Args: never; Returns: string[] }
       get_users_with_emails: {
         Args: { p_org_id?: string }
         Returns: {
