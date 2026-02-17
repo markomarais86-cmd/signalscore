@@ -1,67 +1,64 @@
 
-# Investigation: Revenue at Risk Shows $9.0M with No Scores
 
-## Root Cause
+# Fix: RLS Policy Blocking custom_attribute_definitions for Child Orgs
 
-The Revenue at Risk metric is **not related to scoring at all**. It is calculated purely from enrichment data completeness applied to the total account pool:
+## Problem
 
-```text
-revenueAtRisk = (1 - dataCompleteness / 100) * totalAccounts * averageDealSize * 0.1
+The `custom_attribute_definitions` table has RLS policies that check:
+```
+org_id IN (SELECT org_id FROM user_profiles WHERE user_id = auth.uid())
 ```
 
-For 91.Life:
-- `totalAccounts` = 39,928 (inherited from Launchpulse parent)
-- `averageDealSize` = $75,000 (default, no org-specific override)
-- `dataCompleteness` = ~97% (from enrichment metrics, not scoring)
-- Result: `0.03 * 39,928 * 75,000 * 0.1 = ~$9.0M`
+When a child org user (e.g., 91.Life) writes custom attribute definitions, the code uses `dataOrgId` (the parent org, Launchpulse) as the `org_id`. Since the user's profile has `org_id = 91.Life`, the RLS policy rejects the write because Launchpulse is not in the user's `org_id` set.
 
-The formula says: "For every account with incomplete enrichment data, assume 10% of ACV is at risk." With ~1,200 under-enriched accounts at $75K ACV, that produces $9M.
+The same issue affects **reads, updates, and deletes** -- child org users can't see or manage custom attributes stored under the parent org.
 
-## The Problem
+## Solution
 
-This is **not a bug** -- the formula is working as designed. However, it is **misleading** because:
+There are two parts to this fix:
 
-1. It implies $9M in revenue is threatened, but no accounts have been scored or entered a pipeline
-2. The metric conflates "enrichment gaps" with "revenue risk" -- these are different concerns
-3. The 10% multiplier and $75K default ACV are arbitrary, producing an inflated-sounding number
-4. For a child org with zero scoring history, it creates a false sense of urgency about revenue that doesn't exist yet
+### 1. Database: Update RLS policies to support parent org access
 
-## Recommended Fix
+Create a helper function `get_user_accessible_org_ids()` that returns both the user's own org and its parent org (if one exists). Then update all four RLS policies on `custom_attribute_definitions` to use it.
 
-Make Revenue at Risk **scoring-aware** so it only counts accounts that have actually been scored and are in-play:
-
-### Option A: Only count scored accounts (recommended)
-
-```text
-revenueAtRisk = unscoredAccounts * averageDealSize * conversionRate
+**New function:**
+```sql
+CREATE OR REPLACE FUNCTION public.get_user_accessible_org_ids()
+RETURNS SETOF uuid
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+  SELECT org_id FROM user_profiles WHERE user_id = auth.uid()
+  UNION
+  SELECT get_data_org_id(org_id) FROM user_profiles WHERE user_id = auth.uid()
+$$;
 ```
 
-Where `unscoredAccounts = totalAccounts - scoredAccounts`. This tells you: "Here's the pipeline value you can't prioritize because these accounts haven't been scored yet."
+This returns: the user's own org_id, plus the parent org_id (via the existing `get_data_org_id` function). For standalone orgs, both values are the same so it still works.
 
-- When 0 accounts are scored: shows the full potential gap
-- When all accounts are scored: shows $0 (no risk)
-- Uses org-specific `conversionRate` instead of arbitrary 0.1
-
-### Option B: Hybrid approach
-
-Keep the enrichment-gap angle but scale by scoring coverage:
-
-```text
-enrichmentGap = (1 - dataCompleteness / 100) * scoredAccounts * averageDealSize * conversionRate
-scoringGap = unscoredAccounts * averageDealSize * conversionRate
-revenueAtRisk = enrichmentGap + scoringGap
+**Updated policies (all four):** Change `USING`/`WITH CHECK` from:
+```
+org_id IN (SELECT org_id FROM user_profiles WHERE user_id = auth.uid())
+```
+to:
+```
+org_id IN (SELECT get_user_accessible_org_ids())
 ```
 
-### Changes Required
+### 2. Frontend: No changes needed
 
-**File: `src/pages/ExecutiveDashboard.tsx` (line 644-648)**
+The code in `CustomAttributeManager.tsx` already uses `dataOrgId` for both reads and writes, which is the correct behavior -- custom attributes are shared data owned by the parent org. The RLS fix is sufficient.
 
-Replace the inline calculation with a scoring-aware formula. Use `totalScores` (already available in the component) to determine how many accounts are scored vs unscored.
+## Technical Details
 
-**File: `src/components/executive/GrowthCommandKPIs.tsx` (line 91)**
+### Migration SQL
 
-Update the `soWhat` text from "Opportunity lost to data gaps" to something more accurate like "Unscored accounts represent unrealized pipeline" when scores are missing.
+A single migration that:
+1. Creates `get_user_accessible_org_ids()` function
+2. Drops and recreates all 4 policies on `custom_attribute_definitions`
 
-### No backend changes needed
+### Impact
 
-All the data (`totalAccounts`, `totalScores`, `averageDealSize`, `conversionRate`) is already available in the dashboard component. This is a frontend-only formula change.
+- Child org users will be able to read, create, update, and delete custom attribute definitions stored under the parent org
+- Standalone orgs are unaffected (the function returns only their own org_id)
+- The new function can be reused for other tables that need the same parent-org access pattern
