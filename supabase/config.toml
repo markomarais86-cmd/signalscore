@@ -37,7 +37,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.bulk-score-accounts]
-verify_jwt = true
+verify_jwt = false
 
 [functions.enrich-ai-firmographics]
 verify_jwt = true
