@@ -420,11 +420,7 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
 
       // Invoke edge function once - it will handle all chunking server-side
       const { error } = await supabase.functions.invoke("bulk-score-accounts", {
-        body: {
-          org_id: userProfile.org_id,
-          chunk_index: 0,
-          chunk_size: 5000,
-        },
+        body: { org_id: userProfile.org_id },
       });
 
       if (error) {
