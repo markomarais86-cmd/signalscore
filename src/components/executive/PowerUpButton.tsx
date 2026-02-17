@@ -53,7 +53,7 @@ export function PowerUpButton({ orgId, onComplete }: PowerUpButtonProps) {
       // Step 1: Bulk score
       setCurrentStep(1);
       const { error: scoreErr } = await supabase.functions.invoke("bulk-score-accounts", {
-        body: { org_id: orgId, chunk_size: 5000 },
+        body: { org_id: orgId },
       });
       if (scoreErr) console.error("Score error:", scoreErr);
 

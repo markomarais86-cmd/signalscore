@@ -159,6 +159,18 @@ serve(async (req) => {
     }
     const { org_id, icp_id, job_id: resumeJobId } = requestBody!;
 
+    // ========== RESOLVE DATA ORG (parent) FOR ACCOUNT QUERIES ==========
+    // Child orgs share accounts with their parent org. Use dataOrgId for
+    // account queries, but keep org_id for ICP profiles and score writes.
+    const supabaseForOrg = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: orgData } = await supabaseForOrg
+      .from('organizations')
+      .select('parent_org_id')
+      .eq('id', org_id)
+      .single();
+    const dataOrgId = orgData?.parent_org_id || org_id;
+    console.log(`Data org: ${dataOrgId} (child of parent: ${dataOrgId !== org_id})`);
+
     // Verify org access
     const { data: profile, error: profileError } = await authClient
       .from('user_profiles').select('org_id').eq('user_id', user.id).single();
@@ -208,7 +220,7 @@ serve(async (req) => {
 
     // ========== COUNT TOTAL ACCOUNTS ==========
     const { count: totalAccounts } = await supabase
-      .from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', org_id);
+      .from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', dataOrgId);
 
     const total = totalAccounts || 0;
     const totalChunks = Math.ceil(total / CHUNK_SIZE);
@@ -273,7 +285,7 @@ serve(async (req) => {
       const { data: accounts, error: fetchErr } = await supabase
         .from('accounts')
         .select('external_id, industry_norm, employee_count, country, revenue_range, custom_attributes')
-        .eq('org_id', org_id)
+        .eq('org_id', dataOrgId)
         .order('external_id', { ascending: true })
         .range(offset, offset + CHUNK_SIZE - 1);
 
