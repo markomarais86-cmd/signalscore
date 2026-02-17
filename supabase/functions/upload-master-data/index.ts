@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { validateAuth, unauthorizedResponse, handleCorsOptions, errorResponse, successResponse } from '../_shared/auth.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,6 +44,13 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Validate authentication
+    const authResult = await validateAuth(req);
+    if (!authResult.success) {
+      return unauthorizedResponse(req, authResult.error);
+    }
+
+    // Use service role for the actual data operations (needed to bypass RLS on master_account_data)
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -56,7 +64,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Processing batch of ${rows.length} rows`);
+    console.log(`[upload-master-data] User ${authResult.user?.email} uploading ${rows.length} rows`);
 
     const records: any[] = [];
     const skipped: string[] = [];
@@ -133,7 +141,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Upload error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: 'Upload failed' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
