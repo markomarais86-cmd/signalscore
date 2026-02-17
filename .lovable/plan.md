@@ -1,59 +1,81 @@
 
 
-# Fix: Move 91.Life ICP to Correct Org + Apollo Sync Returning Low Accounts
+# Fix: ICP Wizard -- Keywords, Titles, Verticals, and Save Issues
 
-## Problem 1: ICP in Wrong Organization
+## Issues Found
 
-The **91.Life Heart+ ICP** (`f0d17a6b-...`) is currently assigned to **Launchpulse** (`726a0dc0-...`) instead of **Ninety One Life** (`cd592f73-...`). This also explains the earlier sync error -- when syncing for the 91.Life org, no primary ICP was found because it's under the wrong org.
+### 1. ICP Save Uses Wrong Org (Root Cause of "Nothing Happens on Update")
+`ICPWizard.tsx` line 238 uses `userProfile.org_id` (Launchpulse) instead of `effectiveOrgId` (91.Life). When you click Update, the ICP gets saved to the wrong org, so it "disappears" from the 91.Life view.
 
-**Fix:** Update the ICP's `org_id` to point to the Ninety One Life organization.
+**Fix:** Import `useEffectiveOrg` and use `effectiveOrgId` in `handleSave`.
 
-```sql
-UPDATE icp_profiles
-SET org_id = 'cd592f73-3e0e-478d-905b-47fe7c5fb634'
-WHERE id = 'f0d17a6b-6476-4e2d-a90f-9afc8d8e232b';
-```
+### 2. Industries: Add Company Keywords Field
+Currently the industry section only offers a fixed dropdown of predefined industries/sub-industries. There is no way to add free-text company keywords (e.g., "electrophysiology", "remote patient monitoring") that would match against `industry_raw`, `industry_norm`, or company descriptions.
 
----
+**Fix:** Add a "Company Keywords" free-text input field (type and press Enter) to Step 2 alongside industries/sub-industries. This will be stored in a new `company_keywords` array field on the ICP. The scoring engine already does ILIKE fuzzy matching, so these keywords will expand the match scope beyond the fixed taxonomy.
 
-## Problem 2: Apollo Sync Only Fetching ~500 Accounts
-
-The `sync-external-provider` edge function currently fetches **only 1 page** from Apollo (line 163: `maxPages = 1`). Apollo returns approximately 25-100 organizations per page, so you're only getting a small sample. It then uses the `pagination.total_entries` value for the total count but the **breakdowns are based on that tiny sample**, making them statistically unreliable.
-
-Additionally, the `company_sizes` in the ICP contain values like `[30, 50, 75, 100, 150, 300, 500, 900, 1000]` which don't map well to Apollo's expected size buckets (1, 10, 50, 200, 500, 1000, 2000, 5000, 10000). Many of those values (30, 75, 100, 150, 300, 900) have no mapping and are silently dropped, resulting in overly narrow filters.
+### 3. Job Titles: Remove Management Level Prefixes
+The ICP currently has combined titles like "Service Line Director Cardiology", "Division Chief Electrophysiology", "System VP of Finance". The seniority/management level is already handled separately via `persona_seniority_levels`. Titles should be pure functional keywords like "Cardiology", "Electrophysiology", "Finance", "Revenue Cycle" -- except for C-level titles (CFO, CIO, CISO, CEO, CMO) which are inherently title + seniority combined.
 
 **Fix:** 
-1. Increase pagination to fetch more pages (e.g., 10-20 pages) for better breakdown accuracy
-2. Improve the company size mapping to handle intermediate values by mapping them to the nearest Apollo range bracket
+- Clean up the existing ICP data to strip management-level prefixes from titles
+- Update the wizard's placeholder text and tips to guide users: "Enter functional keywords only (e.g., Cardiology, Revenue Cycle). Seniority levels like VP, Director are set separately above."
 
-### Technical Details
+### 4. Vertical Attributes Not Showing ("The Bids")
+The Vertical Attributes card in Step 2 queries `custom_attribute_definitions` with `org_id = userProfile.org_id` (Launchpulse), but the ICP is now under 91.Life. The custom attributes (facility_type, bed_count, EHR system, specialties, CMS star rating) are defined under Launchpulse's org_id.
 
-**Company size mapping fix** -- map each ICP size to the nearest Apollo range:
+Two things need fixing:
+- The query in Step 2 must use `effectiveOrgId` instead of `userProfile.org_id`
+- The custom attribute definitions need to be copied/shared to the 91.Life org (or the existing definitions need their `org_id` updated)
 
-```text
-30  -> "11,50"    (was: dropped)
-50  -> "51,200"   (already works)
-75  -> "51,200"   (was: dropped)
-100 -> "51,200"   (was: dropped)
-150 -> "51,200"   (was: dropped)
-300 -> "201,500"  (was: dropped)
-500 -> "501,1000" (already works)
-900 -> "501,1000" (was: dropped)
-1000 -> "1001,5000" (already works)
-```
+**Fix:** 
+- Update Step 2 query to use `effectiveOrgId`
+- Copy custom attribute definitions to 91.Life org via SQL
 
-**Pagination fix** -- increase `maxPages` from 1 to 20 and add a small delay between requests to avoid rate limiting.
+### 5. Step 3 and Match Count Also Use Wrong Org
+`ICPWizardStep3.tsx` queries lead titles using `userProfile.org_id`. The match count RPC in Step 2 also uses `userProfile.org_id`. Both need `effectiveOrgId`.
 
-### Files Changed
+## Technical Changes
 
-1. **Data update** -- Move the 91.Life ICP to the correct org via SQL UPDATE
-2. **`supabase/functions/sync-external-provider/index.ts`** -- Fix company size mapping to handle intermediate values; increase pagination from 1 page to 20 pages for better statistical coverage
-3. **Redeploy** the edge function
+### File 1: `src/components/icp/ICPWizard.tsx`
+- Import `useEffectiveOrg` from `@/hooks/use-effective-org`
+- Replace `userProfile.org_id` with `effectiveOrgId` in `handleSave` (line 238)
+- Also update the guard check on line 233
 
-### Result
+### File 2: `src/components/icp/ICPWizardStep2.tsx`
+- Import `useEffectiveOrg`
+- Replace all `userProfile.org_id` references with `effectiveOrgId` (lines 30-71)
+- Add a new "Company Keywords" card with free-text input (type and press Enter, badge display with remove)
+- Store keywords in `formData.company_keywords` array
 
-After these fixes:
-- The 91.Life Heart+ ICP will appear under the Ninety One Life organization
-- Syncing Apollo for the 91.Life org will find the ICP and return accurate results
-- Company size filters will correctly map all ICP sizes to Apollo ranges, capturing far more accounts
+### File 3: `src/components/icp/ICPWizardStep3.tsx`
+- Import `useEffectiveOrg`
+- Replace `userProfile.org_id` with `effectiveOrgId` (lines 33-54)
+- Update placeholder text to: "Enter functional area only (e.g., Cardiology, Revenue Cycle). Seniority is set separately."
 
+### File 4: `src/types/icp.ts`
+- Add `company_keywords?: string[]` to both `ICPProfile` and `ICPFormData` interfaces
+
+### File 5: `src/components/icp/ICPWizard.tsx` (initialFormData + save)
+- Add `company_keywords: []` to `initialFormData`
+- Add `company_keywords` to the save payload in `handleSave`
+- Add `company_keywords` to the edit population in `useEffect`
+
+### File 6: Database migration
+- Add `company_keywords text[]` column to `icp_profiles` table
+- Copy custom attribute definitions from Launchpulse to 91.Life org
+- Clean up ICP job titles: strip management-level prefixes from existing titles (keep C-level intact)
+
+### File 7: Scoring engine update (SQL function)
+- Update the scoring function to also match `company_keywords` against `industry_raw`, `industry_norm`, and `sub_industry` columns using ILIKE
+
+## Summary of What Each Fix Solves
+
+| Problem | Fix |
+|---------|-----|
+| ICP "disappears" after Update | Use `effectiveOrgId` in save |
+| Industries only dropdown, no keywords | Add company_keywords field + scoring |
+| Titles include "Director", "VP" | Clean data + update guidance text |
+| Vertical attributes not showing | Use `effectiveOrgId` + copy definitions |
+| Dashboard empty | Cascading fix from correct org_id |
+| Match count wrong | Use `effectiveOrgId` in RPC call |
