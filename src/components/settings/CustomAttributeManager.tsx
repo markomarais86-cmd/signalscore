@@ -11,7 +11,7 @@ import { Progress } from '@/components/ui/progress';
 import { Plus, Trash2, Edit, Sparkles, Building2, Cpu, Factory, ShoppingBag, X, CheckCircle2, Zap, Landmark, GraduationCap, Briefcase, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
-import { useEffectiveOrg } from '@/hooks/use-effective-org';
+import { useDataOrgId } from '@/hooks/use-data-org';
 import { supabase } from '@/integrations/supabase/client';
 import { useUnifiedEnrichment } from '@/hooks/use-unified-enrichment';
 
@@ -148,7 +148,7 @@ export function CustomAttributeManager() {
   });
 
   const { toast } = useToast();
-  const { effectiveOrgId } = useEffectiveOrg();
+  const { dataOrgId, effectiveOrgId } = useDataOrgId();
 
   const { isEnriching, progress, enrichAccounts, reset: resetEnrichment } = useUnifiedEnrichment({
     onComplete: (result) => {
@@ -161,7 +161,7 @@ export function CustomAttributeManager() {
   });
 
   const handleFillMissing = useCallback(async (category: string, defs: CustomAttributeDefinition[]) => {
-    if (!effectiveOrgId || isEnriching) return;
+    if (!dataOrgId || isEnriching) return;
 
     const fieldKeys = defs.map(d => d.field_key);
     setEnrichingCategory(category);
@@ -172,7 +172,7 @@ export function CustomAttributeManager() {
       const { data: accounts, error } = await supabase
         .from('accounts')
         .select('external_id, name, domain, industry_norm, employee_count, revenue_range, country, state_province, city, custom_attributes')
-        .eq('org_id', effectiveOrgId)
+        .eq('org_id', dataOrgId)
         .not('domain', 'is', null)
         .limit(500);
 
@@ -204,7 +204,7 @@ export function CustomAttributeManager() {
         city: acc.city || undefined,
       }));
 
-      await enrichAccounts(effectiveOrgId, records, {
+      await enrichAccounts(dataOrgId, records, {
         fieldsToEnrich: fieldKeys,
         aggregateProviders: true,
       });
@@ -212,16 +212,16 @@ export function CustomAttributeManager() {
       toast({ title: 'Error', description: error.message || 'Failed to start enrichment', variant: 'destructive' });
       setEnrichingCategory(null);
     }
-  }, [effectiveOrgId, isEnriching, enrichAccounts, toast]);
+  }, [dataOrgId, isEnriching, enrichAccounts, toast]);
 
   useEffect(() => {
-    if (effectiveOrgId) {
+    if (dataOrgId) {
       loadDefinitions();
       // Fetch ICP industries for template suggestions
       supabase
         .from('icp_profiles')
         .select('industries')
-        .eq('org_id', effectiveOrgId)
+        .eq('org_id', effectiveOrgId || dataOrgId)
         .eq('status', 'active')
         .limit(1)
         .single()
@@ -229,7 +229,7 @@ export function CustomAttributeManager() {
           if (data?.industries) setIcpIndustries(data.industries as string[]);
         });
     }
-  }, [effectiveOrgId]);
+  }, [dataOrgId, effectiveOrgId]);
 
   const isSuggested = (template: TemplateDefinition): boolean => {
     if (icpIndustries.length === 0) return false;
@@ -262,13 +262,13 @@ export function CustomAttributeManager() {
   };
 
   const loadDefinitions = async () => {
-    if (!effectiveOrgId) return;
+    if (!dataOrgId) return;
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('custom_attribute_definitions' as any)
         .select('*')
-        .eq('org_id', effectiveOrgId)
+        .eq('org_id', dataOrgId)
         .order('category', { ascending: true })
         .order('field_label', { ascending: true });
 
@@ -282,7 +282,7 @@ export function CustomAttributeManager() {
   };
 
   const handleSave = async () => {
-    if (!effectiveOrgId || !formData.field_key || !formData.field_label) {
+    if (!dataOrgId || !formData.field_key || !formData.field_label) {
       toast({ title: 'Error', description: 'Field key and label are required', variant: 'destructive' });
       return;
     }
@@ -308,7 +308,7 @@ export function CustomAttributeManager() {
         const { error } = await supabase
           .from('custom_attribute_definitions' as any)
           .insert({
-            org_id: effectiveOrgId,
+            org_id: dataOrgId,
             field_key: key,
             field_label: formData.field_label,
             field_type: formData.field_type,
@@ -343,7 +343,7 @@ export function CustomAttributeManager() {
   };
 
   const applyTemplate = async (template: TemplateDefinition) => {
-    if (!effectiveOrgId) return;
+    if (!dataOrgId) return;
 
     try {
       const existingKeys = definitions.map(d => d.field_key);
@@ -355,7 +355,7 @@ export function CustomAttributeManager() {
       }
 
       const inserts = newFields.map(f => ({
-        org_id: effectiveOrgId,
+        org_id: dataOrgId,
         field_key: f.field_key,
         field_label: f.field_label,
         field_type: f.field_type,

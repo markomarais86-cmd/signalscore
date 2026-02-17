@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { SYSTEM_FIELDS, autoDetectMapping } from "./fieldMappingConstants";
+import { useDataOrgId } from "@/hooks/use-data-org";
 
 export interface FieldMapping {
   [csvColumn: string]: string;
@@ -39,7 +40,9 @@ interface FieldMappingDialogProps {
   orgId?: string;
 }
 
-export function FieldMappingDialog({ isOpen, onClose, onConfirm, csvHeaders, dataType, sampleData, orgId }: FieldMappingDialogProps) {
+export function FieldMappingDialog({ isOpen, onClose, onConfirm, csvHeaders, dataType, sampleData, orgId: propOrgId }: FieldMappingDialogProps) {
+  const { dataOrgId } = useDataOrgId();
+  const orgId = propOrgId || dataOrgId;
   const [mappings, setMappings] = useState<FieldMapping>({});
   const [autoDetected, setAutoDetected] = useState<FieldMappingData[]>([]);
   const systemFields = SYSTEM_FIELDS[dataType];
