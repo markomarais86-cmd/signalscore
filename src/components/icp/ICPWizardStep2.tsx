@@ -13,6 +13,7 @@ import { INDUSTRIES, SUB_INDUSTRIES, COMPANY_SIZES, REVENUE_RANGES, COUNTRIES, R
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { useEffectiveOrg } from '@/hooks/use-effective-org';
 import { formatNumber } from '@/utils/format-numbers';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,36 +24,39 @@ interface ICPWizardStep2Props {
 
 export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Props) {
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const navigate = useNavigate();
+  const [keywordInput, setKeywordInput] = useState('');
   
   // Load custom attribute definitions for vertical targeting
   const { data: customAttributes } = useQuery<any[]>({
-    queryKey: ['custom-attribute-definitions', userProfile?.org_id],
+    queryKey: ['custom-attribute-definitions', effectiveOrgId],
     queryFn: async () => {
-      if (!userProfile?.org_id) return [];
+      if (!effectiveOrgId) return [];
       const { data, error } = await supabase
         .from('custom_attribute_definitions' as any)
         .select('*')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', effectiveOrgId)
         .order('category', { ascending: true });
       if (error) { console.error('Error loading custom attributes:', error); return []; }
       return (data as any[]) || [];
     },
-    enabled: !!userProfile?.org_id,
+    enabled: !!effectiveOrgId,
   });
   
   // Real-time match count query
   const { data: matchCount } = useQuery<{ total: number; percentage: number; total_accounts: number } | null>({
-    queryKey: ['icp-match-count', userProfile?.org_id, formData.industries, formData.company_sizes, formData.revenue_ranges, formData.geographies],
+    queryKey: ['icp-match-count', effectiveOrgId, formData.industries, formData.company_sizes, formData.revenue_ranges, formData.geographies, formData.company_keywords],
     queryFn: async () => {
-      if (!userProfile?.org_id) return null;
+      if (!effectiveOrgId) return null;
       
       const { data, error } = await supabase.rpc('estimate_icp_matches', {
-        p_org_id: userProfile.org_id,
+        p_org_id: effectiveOrgId,
         p_industries: formData.industries.length > 0 ? formData.industries : null,
         p_sizes: formData.company_sizes.length > 0 ? formData.company_sizes : null,
         p_revenues: formData.revenue_ranges.length > 0 ? formData.revenue_ranges : null,
-        p_countries: formData.geographies.length > 0 ? formData.geographies : null
+        p_countries: formData.geographies.length > 0 ? formData.geographies : null,
+        p_company_keywords: formData.company_keywords.length > 0 ? formData.company_keywords : null
       });
       
       if (error) {
@@ -62,13 +66,14 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
       
       return data as { total: number; percentage: number; total_accounts: number };
     },
-    enabled: !!userProfile?.org_id && (
+    enabled: !!effectiveOrgId && (
       formData.industries.length > 0 ||
       formData.company_sizes.length > 0 ||
       formData.revenue_ranges.length > 0 ||
-      formData.geographies.length > 0
+      formData.geographies.length > 0 ||
+      formData.company_keywords.length > 0
     ),
-    staleTime: 30000 // 30 seconds - only refetch when form data changes
+    staleTime: 30000
   });
   
   const addToArray = (field: keyof ICPFormData, value: string | number) => {
@@ -231,6 +236,37 @@ export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Pro
                   Showing sub-industries from: {formData.industries.join(', ')}
                 </p>
               )}
+            </div>
+
+            {/* Company Keywords */}
+            <div>
+              <div className="flex items-center justify-between">
+                <Label>Company Keywords</Label>
+                <ClearButton field="company_keywords" count={formData.company_keywords.length} />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 mb-2">
+                Free-text keywords matched against company industry, sub-industry, and name (e.g., "electrophysiology", "remote patient monitoring")
+              </p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {formData.company_keywords.map((keyword, index) => (
+                  <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeFromArray('company_keywords', index)}>
+                    {keyword} ×
+                  </Badge>
+                ))}
+              </div>
+              <Input
+                value={keywordInput}
+                onChange={(e) => setKeywordInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && keywordInput.trim()) {
+                    e.preventDefault();
+                    addToArray('company_keywords', keywordInput.trim());
+                    setKeywordInput('');
+                  }
+                }}
+                placeholder="Type keyword and press Enter"
+                className="mt-2"
+              />
             </div>
           </CardContent>
         </Card>

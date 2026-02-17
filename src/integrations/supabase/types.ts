@@ -4773,6 +4773,7 @@ export type Database = {
           buying_triggers: string[] | null
           category: string | null
           cities: string[] | null
+          company_keywords: string[] | null
           company_sizes: number[] | null
           company_stages: string[] | null
           competitive_landscape: string[] | null
@@ -4824,6 +4825,7 @@ export type Database = {
           buying_triggers?: string[] | null
           category?: string | null
           cities?: string[] | null
+          company_keywords?: string[] | null
           company_sizes?: number[] | null
           company_stages?: string[] | null
           competitive_landscape?: string[] | null
@@ -4875,6 +4877,7 @@ export type Database = {
           buying_triggers?: string[] | null
           category?: string | null
           cities?: string[] | null
+          company_keywords?: string[] | null
           company_sizes?: number[] | null
           company_stages?: string[] | null
           competitive_landscape?: string[] | null
@@ -8423,16 +8426,28 @@ export type Database = {
         Returns: Json
       }
       enrich_accounts_from_master: { Args: { p_org_id: string }; Returns: Json }
-      estimate_icp_matches: {
-        Args: {
-          p_countries?: string[]
-          p_industries?: string[]
-          p_org_id: string
-          p_revenues?: string[]
-          p_sizes?: number[]
-        }
-        Returns: Json
-      }
+      estimate_icp_matches:
+        | {
+            Args: {
+              p_countries?: string[]
+              p_industries?: string[]
+              p_org_id: string
+              p_revenues?: string[]
+              p_sizes?: number[]
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_company_keywords?: string[]
+              p_countries?: string[]
+              p_industries?: string[]
+              p_org_id: string
+              p_revenues?: string[]
+              p_sizes?: number[]
+            }
+            Returns: Json
+          }
       expire_old_invitations: { Args: never; Returns: number }
       format_phone_to_e164: {
         Args: { country_input?: string; phone_input: string }

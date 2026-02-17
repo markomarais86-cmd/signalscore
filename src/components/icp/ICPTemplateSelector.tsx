@@ -101,6 +101,9 @@ export function ICPTemplateSelector({ onSelectTemplate, onSkip, onSelectClosedWo
       seasonal_patterns: [],
       budget_indicators: [],
       
+      // Company keywords
+      company_keywords: [],
+      
       // Metadata
       tags: [],
       status: 'draft' as const
