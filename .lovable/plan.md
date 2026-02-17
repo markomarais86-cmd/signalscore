@@ -1,69 +1,81 @@
 
 
-# Fix ICP Confidence Score Showing 0%
+# Fix Dashboard Slow Loading and Missing Data for Child Orgs
 
-## Problem
+## Root Cause
 
-The ICP profile "91.Life Heart+ - Hospital & Health System ICP" shows **0% Low** in the confidence meter because `confidence_score` defaults to `0` in the database and is only updated when the `analyze-closed-won` or `analyze-correlations` edge functions run. For manually created ICPs (not derived from closed-won analysis), the confidence score is never computed, so it stays at 0.
+The dashboard for the child org "Ninety One Life" (`cd592f73`) is timing out because:
 
-The ICP actually has extensive criteria filled in (6 industries, multiple company sizes, revenue ranges, geographies, personas, buying signals, pain points), so it should show a much higher confidence score based on profile completeness.
+1. **`get_dashboard_metrics_cached` RPC times out** -- For child orgs, it runs live JOIN queries across `accounts` (40K rows in parent org) and `scores` (16K rows in child org) plus a Leads JOIN (53K rows). Each query takes 1-2 seconds, and with all the FILTER clauses the full function exceeds the statement timeout.
+
+2. **`computeDataCompleteness` is extremely expensive** -- It fetches all 16,000 scored `external_id`s, then makes 32 batched queries (500 per batch), each with 6 sub-queries for field completeness. That is roughly 192 separate database calls.
+
+3. **`checkDataFreshness` polls every 3 seconds** -- It fires 6+ additional queries on every poll cycle, piling onto an already overloaded database.
 
 ## Solution
 
-Compute a **profile completeness-based confidence score** whenever the ICP is saved or displayed, so that even manually created ICPs get a meaningful score.
+### 1. Cache child org metrics in the database (SQL migration)
 
-### 1. Create a utility function: `src/utils/icp-confidence.ts`
+Create a `child_dashboard_metrics_cache` table that stores pre-computed metrics for child orgs. Update the `get_dashboard_metrics_cached` function to:
+- Check the cache table first
+- If a cached row exists and is less than 5 minutes old, return it immediately
+- Otherwise, compute the metrics, store them in the cache, and return
 
-A pure function that computes confidence from ICP field completeness:
+This turns a 5+ second query into a sub-millisecond lookup for subsequent loads.
 
-```
-fields checked (each worth points):
-- industries (15 pts if >= 1)
-- company_sizes (10 pts if >= 1)
-- revenue_ranges (10 pts if >= 1)
-- geographies (10 pts if >= 1)
-- persona_job_titles (10 pts if >= 1)
-- persona_seniority_levels (10 pts if >= 1)
-- persona_departments (5 pts if >= 1)
-- pain_points (10 pts if >= 1)
-- buying_signals (10 pts if >= 1)
-- tech_stack (5 pts if >= 1)
-- company_stages (5 pts if >= 1)
+```sql
+CREATE TABLE IF NOT EXISTS child_dashboard_metrics_cache (
+  org_id UUID PRIMARY KEY REFERENCES organizations(id),
+  metrics JSONB NOT NULL,
+  refreshed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
-Total possible: 100 pts
-```
+ALTER TABLE child_dashboard_metrics_cache ENABLE ROW LEVEL SECURITY;
 
-This gives a completeness-based confidence. The 91.Life ICP has most fields filled, so it would score around 85-95%.
-
-### 2. Update `src/pages/ICPManager.tsx`
-
-When saving/updating an ICP profile, compute the confidence score and include it in the upsert:
-
-```typescript
-const computedConfidence = computeICPConfidence(icpData);
-// Include confidence_score: computedConfidence in the upsert
+CREATE POLICY "Service role only" ON child_dashboard_metrics_cache
+  FOR ALL USING (false);
 ```
 
-### 3. Update `src/components/executive/ICPProfileSummaryCard.tsx`
+Then update `get_dashboard_metrics_cached` to check this cache first for child orgs.
 
-As a fallback for existing ICPs that haven't been re-saved, compute confidence on-the-fly when `confidence_score` is 0 or null:
+### 2. Simplify `computeDataCompleteness` for child orgs
 
-```typescript
-const confidenceScore = profile.confidence_score || computeICPConfidence(profile);
+Replace the 192-query approach with a single SQL query using conditional aggregation:
+
+```sql
+SELECT 
+  COUNT(*) as total,
+  COUNT(industry_norm) as has_industry,
+  COUNT(employee_count) as has_employee,
+  COUNT(revenue_range) as has_revenue,
+  COUNT(country) as has_country,
+  COUNT(domain) as has_domain
+FROM accounts a
+INNER JOIN scores s ON s.account_external_id = a.external_id 
+  AND s.org_id = '<child_org_id>'
+WHERE a.org_id = '<parent_org_id>'
 ```
 
-This ensures the meter always shows a meaningful value.
+This replaces 192 queries with 1 query.
 
-### 4. Backfill existing ICP
+### 3. Reduce `checkDataFreshness` polling frequency
 
-Run a one-time update to set the confidence score for the existing ICP based on its completeness, so the fix is immediately visible without requiring the user to re-save.
+Change the polling interval from 3 seconds to 30 seconds, and batch the 6 queries into a single query where possible. The polling is only needed to detect active scoring jobs and data staleness -- neither changes within 3-second windows.
 
-## Technical Summary
+### 4. Add the `campaign_ready_accounts` metric to the child org branch
+
+The current child org branch of the RPC function does not return `campaign_ready_accounts` or `both_accounts`, so those show as 0 on the dashboard. Add them to the child org query.
+
+## Files to Change
 
 | File | Change |
 |------|--------|
-| `src/utils/icp-confidence.ts` (new) | Pure function to compute ICP confidence from field completeness |
-| `src/pages/ICPManager.tsx` | Compute and persist confidence on save |
-| `src/components/executive/ICPProfileSummaryCard.tsx` | Fallback: compute on-the-fly when score is 0/null |
-| SQL migration | Backfill confidence_score for existing ICPs with filled-in fields |
+| SQL migration (new) | Create `child_dashboard_metrics_cache` table; update `get_dashboard_metrics_cached` to use it for child orgs; add missing metrics |
+| `src/hooks/use-dashboard-data.ts` | Replace batched `computeDataCompleteness` with single SQL query; reduce `checkDataFreshness` frequency |
+| `src/pages/ExecutiveDashboard.tsx` | Change polling interval from 3s to 30s |
 
+## Expected Result
+
+- Dashboard loads in under 1 second for child orgs (cached metrics)
+- Database load reduced by ~95% (192 queries down to 1 for completeness; cached RPC)
+- Data stays fresh with 5-minute cache TTL and manual refresh option
