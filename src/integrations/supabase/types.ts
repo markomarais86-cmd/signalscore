@@ -8497,7 +8497,7 @@ export type Database = {
       get_enriched_leads_metrics: {
         Args: { p_org_id: string }
         Returns: {
-          email_verified: number
+          email_verified_count: number
           high_confidence: number
           phone_discovered: number
           total_enriched: number
@@ -8548,6 +8548,38 @@ export type Database = {
         }[]
       }
       get_filtered_accounts:
+        | {
+            Args: {
+              p_cursor_id?: string
+              p_cursor_value?: string
+              p_icp_qualified?: boolean
+              p_industry?: string
+              p_max_score?: number
+              p_min_score?: number
+              p_org_id: string
+              p_page_size?: number
+              p_search?: string
+              p_sort_direction?: string
+              p_sort_field?: string
+            }
+            Returns: {
+              country: string
+              domain: string
+              employee_count: number
+              enriched_at: string
+              enrichment_confidence: number
+              external_id: string
+              icp_qualified: boolean
+              id: string
+              industry_norm: string
+              name: string
+              overall_score: number
+              propensity_score: number
+              revenue_range: string
+              total_count: number
+              updated_at: string
+            }[]
+          }
         | {
             Args: {
               p_campaign_ready?: boolean

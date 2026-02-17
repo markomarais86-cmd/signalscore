@@ -121,7 +121,7 @@ async function loadFromMemory(orgId: string, userId: string, key: string): Promi
       .eq('org_id', orgId)
       .eq('user_id', userId)
       .eq('memory_key', key)
-      .single();
+      .maybeSingle();
     return data?.memory_value || null;
   } catch {
     return null;
