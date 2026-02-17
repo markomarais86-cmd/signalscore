@@ -16,10 +16,12 @@ import {
   Users,
   Building2,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from "lucide-react";
 import { LaunchPulseMark } from "@/components/BrandLogo";
 import { supabase } from "@/integrations/supabase/client";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { toast } from "sonner";
 
 export interface AccountInsightsData {
@@ -69,7 +71,11 @@ export function AccountInsightsPanel({
   onRefresh,
   cached
 }: AccountInsightsPanelProps) {
+  const { dataOrgId } = useDataOrgId();
+  const [techInsightsText, setTechInsightsText] = useState<string | null>(null);
+  const [isTechLoading, setIsTechLoading] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    techStack: true,
     engagement: true,
     signals: true,
     similar: false,
@@ -78,6 +84,30 @@ export function AccountInsightsPanel({
 
   const toggleSection = (section: string) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  // Combined generate: triggers both personalized insights + tech enrichment
+  const handleGenerateAll = () => {
+    onRefresh();
+    generateTechInsights();
+  };
+
+  const generateTechInsights = async () => {
+    if (!dataOrgId) return;
+    setIsTechLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('enrich-technology-insights', {
+        body: { accountIds: [accountExternalId], orgId: dataOrgId }
+      });
+      if (error) throw error;
+      if (data?.results?.[0]?.ai_insights) {
+        setTechInsightsText(data.results[0].ai_insights);
+      }
+    } catch (err: any) {
+      console.error('Tech insights error:', err);
+    } finally {
+      setIsTechLoading(false);
+    }
   };
 
   const getStrengthColor = (strength: string) => {
@@ -94,14 +124,14 @@ export function AccountInsightsPanel({
     return (
       <Card>
         <CardContent className="py-8 text-center">
-          <LaunchPulseMark className="h-12 w-12 mx-auto text-primary mb-4" />
+          <Sparkles className="h-12 w-12 mx-auto text-primary mb-4" />
           <h4 className="font-semibold mb-2">AI Insights Available</h4>
           <p className="text-sm text-muted-foreground mb-4">
-            This high-fit account qualifies for personalized AI insights
+            Generate personalized engagement strategy, buying signals, and technology stack analysis
           </p>
-          <Button onClick={onRefresh}>
-            <LaunchPulseMark className="h-4 w-4 mr-2" />
-            Generate AI Insights
+          <Button onClick={handleGenerateAll}>
+            <Sparkles className="h-4 w-4 mr-2" />
+            Generate All Insights
           </Button>
         </CardContent>
       </Card>
@@ -181,11 +211,44 @@ export function AccountInsightsPanel({
             </Badge>
           )}
         </div>
-        <Button variant="ghost" size="sm" onClick={onRefresh}>
+        <Button variant="ghost" size="sm" onClick={handleGenerateAll}>
           <RefreshCw className="h-4 w-4 mr-1" />
-          Refresh
+          Refresh All
         </Button>
       </div>
+
+      {/* Technology Stack Section */}
+      {(techInsightsText || isTechLoading) && (
+        <Collapsible open={openSections.techStack} onOpenChange={() => toggleSection('techStack')}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <CardTitle className="flex items-center justify-between text-base">
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    Technology Stack Analysis
+                  </span>
+                  {openSections.techStack ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </CardTitle>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-0">
+                {isTechLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-16 w-full" />
+                  </div>
+                ) : (
+                  <div className="text-sm whitespace-pre-wrap text-muted-foreground">
+                    {techInsightsText}
+                  </div>
+                )}
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+      )}
 
       {/* Engagement Section */}
       <Collapsible open={openSections.engagement} onOpenChange={() => toggleSection('engagement')}>
