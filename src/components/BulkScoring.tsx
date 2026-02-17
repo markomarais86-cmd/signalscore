@@ -369,7 +369,11 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
   }, [currentJob?.processed_accounts, isScoring]);
 
   const runBulkScoring = async () => {
+    console.log("[BulkScoring] Button clicked, org_id:", userProfile?.org_id);
+    toast.info("Starting scoring process...");
+
     if (!userProfile?.org_id) {
+      console.log("[BulkScoring] No org_id found, aborting");
       toast.error("Organization not found");
       return;
     }
@@ -385,7 +389,8 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
       lastTriggeredChunk.current = -1;
 
       // Check for existing active job
-      const { data: existingJobs } = await supabase
+      console.log("[BulkScoring] Checking for existing active jobs...");
+      const { data: existingJobs, error: jobsError } = await supabase
         .from("bulk_scoring_jobs")
         .select("*")
         .eq("org_id", userProfile.org_id)
@@ -393,12 +398,16 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         .order("created_at", { ascending: false })
         .limit(1);
 
+      console.log("[BulkScoring] Existing jobs check:", { existingJobs, jobsError });
+
       if (existingJobs && existingJobs.length > 0) {
+        console.log("[BulkScoring] Found existing job, resuming:", existingJobs[0].id);
         toast.info("Resuming existing scoring job...");
         return; // Polling will handle the rest
       }
 
       // Validate prerequisites
+      console.log("[BulkScoring] Checking prerequisites...");
       const { count: accountCount } = await supabase
         .from("accounts")
         .select("*", { count: "exact", head: true })
@@ -410,7 +419,10 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
         .eq("org_id", userProfile.org_id)
         .eq("status", "active");
 
+      console.log("[BulkScoring] Prerequisites:", { accountCount, icpCount: icps?.length });
+
       if (!accountCount || !icps?.length) {
+        console.log("[BulkScoring] Prerequisites not met, aborting");
         toast.error("No accounts or active ICP profiles found");
         setIsScoring(false);
         return;
@@ -419,16 +431,24 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
       toast.info(`Starting bulk scoring for ${formatNumber(accountCount)} accounts...`);
 
       // Invoke edge function once - it will handle all chunking server-side
-      const { error } = await supabase.functions.invoke("bulk-score-accounts", {
+      console.log("[BulkScoring] Invoking edge function bulk-score-accounts...");
+      toast.info("Invoking scoring engine...");
+      const { data: invokeData, error } = await supabase.functions.invoke("bulk-score-accounts", {
         body: { org_id: userProfile.org_id },
       });
+
+      console.log("[BulkScoring] Edge function response:", { data: invokeData, error });
 
       if (error) {
         throw error;
       }
 
+      console.log("[BulkScoring] Edge function invoked successfully");
+      toast.success("Scoring job started successfully");
+
       // Polling will now track progress automatically
     } catch (error) {
+      console.error("[BulkScoring] Caught error:", JSON.stringify(error, Object.getOwnPropertyNames(error as object)));
       log.error("Bulk scoring error:", error);
       toast.error("Failed to start bulk scoring");
       setIsScoring(false);
