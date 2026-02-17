@@ -3,8 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { Sparkles, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -22,12 +22,12 @@ interface AITechnologyInsightsProps {
 
 export function AITechnologyInsights({ accountIds, onInsightsGenerated }: AITechnologyInsightsProps) {
   const { toast } = useToast();
-  const { userProfile } = useAuth();
+  const { dataOrgId } = useDataOrgId();
   const [isLoading, setIsLoading] = useState(false);
   const [insights, setInsights] = useState<AIInsight[]>([]);
 
   const generateInsights = async () => {
-    if (!userProfile?.org_id) {
+    if (!dataOrgId) {
       toast({
         title: "Not authenticated",
         description: "Please log in to generate insights",
@@ -43,7 +43,7 @@ export function AITechnologyInsights({ accountIds, onInsightsGenerated }: AITech
       const { data: accounts, error } = await supabase
         .from('accounts')
         .select('external_id')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', dataOrgId)
         .limit(5);
 
       if (error) {
@@ -75,7 +75,7 @@ export function AITechnologyInsights({ accountIds, onInsightsGenerated }: AITech
       const { data, error } = await supabase.functions.invoke('enrich-technology-insights', {
         body: {
           accountIds: targetAccountIds,
-          orgId: userProfile.org_id
+          orgId: dataOrgId
         }
       });
 
