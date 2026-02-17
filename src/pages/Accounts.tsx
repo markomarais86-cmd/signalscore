@@ -346,7 +346,7 @@ export default function Accounts() {
             p_data_source: 'crm'
           }),
         supabase
-          .rpc('count_high_fit_leads_total', {
+          .rpc('count_accounts_with_leads', {
             p_org_id: effectiveOrgId
           }),
         supabase
