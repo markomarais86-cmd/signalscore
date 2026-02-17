@@ -1,24 +1,21 @@
 
-# Add "Score All Accounts" Button to Dashboard
+# Add Debug Logging and Toast Messages to Bulk Scoring Handler
 
 ## What Changes
 
-Add the existing `BulkScoring` component to the Customer Dashboard page so you can trigger scoring without navigating to `/accounts`.
-
-## Where It Goes
-
-The button will appear as a new card at the bottom of the dashboard, after the "My Tasks" and "My Pipeline" cards. It will be wrapped in an error boundary (same pattern as the Accounts page) so any issues with scoring won't break the rest of the dashboard.
+Add step-by-step debug logging (`console.log`) and toast notifications to the `runBulkScoring` function in `src/components/BulkScoring.tsx` so every stage is visible -- both in the browser console and as on-screen toasts.
 
 ## Technical Details
 
-**File: `src/pages/CustomerDashboard.tsx`**
+**File: `src/components/BulkScoring.tsx` -- `runBulkScoring` function (line ~371)**
 
-1. Import `BulkScoring` and `ComponentErrorBoundary`
-2. Add a new section after the two-column grid containing:
-   ```
-   <ComponentErrorBoundary fallbackTitle="Bulk Scoring unavailable">
-     <BulkScoring />
-   </ComponentErrorBoundary>
-   ```
+Add logging and toasts at each decision point:
 
-No `onComplete` callback is needed since the dashboard metrics auto-refresh via React Query. This is a single-file change reusing existing components.
+1. **Entry** -- `console.log("[BulkScoring] Button clicked, org_id:", userProfile?.org_id)` + toast "Starting scoring process..."
+2. **After existing-job check** (line ~396) -- log the result and toast if resuming
+3. **After prerequisite check** (line ~413) -- log account count and ICP count
+4. **Before edge function invoke** (line ~422) -- `console.log("[BulkScoring] Invoking edge function...")` + toast
+5. **After invoke returns** (line ~426) -- log success/error response, toast on success
+6. **Catch block** (line ~431) -- log the full error object with `JSON.stringify` so we capture the complete error shape
+
+This is a single-file change to `src/components/BulkScoring.tsx` only. No new files or dependencies needed.
