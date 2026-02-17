@@ -6556,6 +6556,7 @@ export type Database = {
           icp_threshold: number | null
           id: string
           name: string
+          org_settings: Json | null
           plan_id: string | null
           scoring_version: string | null
           service_type: string
@@ -6574,6 +6575,7 @@ export type Database = {
           icp_threshold?: number | null
           id?: string
           name: string
+          org_settings?: Json | null
           plan_id?: string | null
           scoring_version?: string | null
           service_type?: string
@@ -6592,6 +6594,7 @@ export type Database = {
           icp_threshold?: number | null
           id?: string
           name?: string
+          org_settings?: Json | null
           plan_id?: string | null
           scoring_version?: string | null
           service_type?: string

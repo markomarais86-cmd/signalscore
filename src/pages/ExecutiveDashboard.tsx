@@ -13,6 +13,7 @@ import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useDashboardData, useGeographyData, useSourceFilterStats } from "@/hooks/use-dashboard-data";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { useDataChangeListener } from "@/hooks/use-data-change-listener";
+import { useOrgSettings } from "@/hooks/use-org-settings";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
@@ -28,6 +29,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
+import { AIBriefCard } from "@/components/executive/AIBriefCard";
+import { PowerUpButton } from "@/components/executive/PowerUpButton";
 
 // Simplified components
 import { GrowthCommandKPIs } from "@/components/executive/GrowthCommandKPIs";
@@ -50,6 +53,7 @@ export default function ExecutiveDashboard() {
   const navigate = useNavigate();
   const sidebar = useSidebar();
   const { insights, statistics, loading: insightsLoading, generateInsights } = useICPInsights();
+  const { averageDealSize, conversionRate } = useOrgSettings();
   
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('crm');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -482,6 +486,10 @@ export default function ExecutiveDashboard() {
             <ExportToPdf onExport={() => {}} />
           </div>
           
+          {effectiveOrgId && (
+            <PowerUpButton orgId={effectiveOrgId} onComplete={() => refetch()} />
+          )}
+          
           <QuickCampaignButton 
             highFitAccounts={highFitAccounts}
             disabled={isLoading || highFitAccounts === 0}
@@ -574,6 +582,18 @@ export default function ExecutiveDashboard() {
           </div>
         ) : (
           <>
+            {/* AI Brief */}
+            {effectiveOrgId && totalAccounts > 0 && (
+              <AIBriefCard
+                orgId={effectiveOrgId}
+                totalAccounts={totalAccounts}
+                scoredAccounts={totalScores}
+                highFitAccounts={highFitAccounts}
+                campaignReadyAccounts={campaignReadyAccounts}
+                dataCompleteness={dataCompleteness}
+              />
+            )}
+
             {/* Growth Command Center KPIs */}
             <GrowthCommandKPIs
               totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
@@ -581,13 +601,13 @@ export default function ExecutiveDashboard() {
               dataCompleteness={dataCompleteness}
               highFitAccounts={highFitAccounts}
               campaignReadyAccounts={campaignReadyAccounts}
-              pipelinePotential={campaignReadyAccounts * 75000 * 0.25}
+              pipelinePotential={campaignReadyAccounts * averageDealSize * 0.25}
               revenueAtRisk={
                 totalAccounts > 0
-                  ? Math.round((1 - dataCompleteness / 100) * totalAccounts * 75000 * 0.1)
+                  ? Math.round((1 - dataCompleteness / 100) * totalAccounts * averageDealSize * 0.1)
                   : 0
               }
-              averageDealSize={75000}
+              averageDealSize={averageDealSize}
             />
 
             {/* Central ICP Coverage Panel - Source-filtered */}
@@ -626,7 +646,8 @@ export default function ExecutiveDashboard() {
                 totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
                 highFitAccounts={highFitAccounts}
                 campaignReadyAccounts={campaignReadyAccounts}
-                averageDealSize={75000}
+                averageDealSize={averageDealSize}
+                conversionRate={conversionRate}
               />
               
               {/* Right Column - Geography Card */}

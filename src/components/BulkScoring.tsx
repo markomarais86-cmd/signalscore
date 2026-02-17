@@ -190,6 +190,22 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
             });
 
             toast.success(`Successfully scored ${formatNumber(scoredCount)} accounts!`);
+            
+            // Auto-compute intent signals for top 100 accounts
+            try {
+              const { data: topAccounts } = await supabase
+                .from("scores")
+                .select("account_external_id")
+                .eq("org_id", userProfile.org_id)
+                .order("overall", { ascending: false })
+                .limit(100);
+              if (topAccounts?.length) {
+                supabase.functions.invoke("compute-intent-signals", {
+                  body: { org_id: userProfile.org_id, account_ids: topAccounts.map(a => a.account_external_id) }
+                }).then(() => toast.success("Intent signals computed for top accounts"));
+              }
+            } catch {}
+            
             onCompleteRef.current?.();
           }
         }
@@ -259,6 +275,22 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
           }
 
           toast.success(`Successfully scored ${formatNumber(scoredCount)} accounts!`);
+          
+          // Auto-compute intent signals for top 100 accounts
+          try {
+            const { data: topAccounts } = await supabase
+              .from("scores")
+              .select("account_external_id")
+              .eq("org_id", userProfile.org_id)
+              .order("overall", { ascending: false })
+              .limit(100);
+            if (topAccounts?.length) {
+              supabase.functions.invoke("compute-intent-signals", {
+                body: { org_id: userProfile.org_id, account_ids: topAccounts.map(a => a.account_external_id) }
+              }).then(() => toast.success("Intent signals computed for top accounts"));
+            }
+          } catch {}
+          
           onCompleteRef.current?.();
           clearInterval(pollInterval);
         }
