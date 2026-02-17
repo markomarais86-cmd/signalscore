@@ -111,7 +111,7 @@ export function EnrichmentModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <LaunchPulseMark className="h-5 w-5 text-primary" />
@@ -179,17 +179,8 @@ export function EnrichmentModal({
           </div>
         )}
 
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={goToFullEnrichment}
-            className="w-full sm:w-auto text-muted-foreground hover:text-foreground"
-          >
-            <ExternalLink className="h-3 w-3 mr-1" />
-            Full Enrichment Options
-          </Button>
-          <div className="flex gap-2 w-full sm:w-auto">
+        <DialogFooter className="flex-col gap-2 pt-2">
+          <div className="flex justify-end gap-2 w-full">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isEnriching}>
               Cancel
             </Button>
@@ -207,6 +198,15 @@ export function EnrichmentModal({
               )}
             </Button>
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={goToFullEnrichment}
+            className="w-full text-muted-foreground hover:text-foreground"
+          >
+            <ExternalLink className="h-3 w-3 mr-1" />
+            Full Enrichment Options
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
