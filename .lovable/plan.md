@@ -1,81 +1,53 @@
 
 
-# Fix Dashboard Slow Loading and Missing Data for Child Orgs
+# Fix ICP Coverage Table, Leads Display, and Apollo Data Loading
 
-## Root Cause
+## Issues Found
 
-The dashboard for the child org "Ninety One Life" (`cd592f73`) is timing out because:
+### Issue 1: "ICP Coverage" table shows 16,000 as "Total" which is misleading
+The table is called "ICP Coverage by Source" but the "Total" column shows ALL scored accounts (16,000), including 6,586 low-fit accounts that are NOT ICP-fit. The user correctly says "ICP coverage is not 16,000" -- only 9,414 accounts are ICP-fit (high + medium).
 
-1. **`get_dashboard_metrics_cached` RPC times out** -- For child orgs, it runs live JOIN queries across `accounts` (40K rows in parent org) and `scores` (16K rows in child org) plus a Leads JOIN (53K rows). Each query takes 1-2 seconds, and with all the FILTER clauses the full function exceeds the statement timeout.
+**Fix**: Rename the "Total" column to "Scored" to make clear it's the total scored base, not the ICP coverage number.
 
-2. **`computeDataCompleteness` is extremely expensive** -- It fetches all 16,000 scored `external_id`s, then makes 32 batched queries (500 per batch), each with 6 sub-queries for field completeness. That is roughly 192 separate database calls.
+### Issue 2: ICP Coverage Panel also misleading
+The donut chart panel shows "Total Scored: 16,000" and "High-Fit: 2,798" with "Coverage: 17%". But ICP coverage should include BOTH high-fit AND medium-fit (9,414 accounts = 59% coverage). The center label says "17% High-Fit" which undersells the ICP coverage.
 
-3. **`checkDataFreshness` polls every 3 seconds** -- It fires 6+ additional queries on every poll cycle, piling onto an already overloaded database.
+**Fix**: Update the center metric to show ICP-Fit (high + medium) percentage instead of just High-Fit percentage. Change center label from "High-Fit" to "ICP-Fit" and the summary metric from "High-Fit" to "ICP-Fit".
 
-## Solution
+### Issue 3: Apollo/Database data not loading
+The Apollo data exists in `external_data_sources` for the child org (1.1M accounts, 3.1M contacts). The TAM query in the dashboard hook fetches from `external_data_sources` with `.eq('org_id', orgId)` and `.maybeSingle()`. The RLS policy should allow this, but the TAM error is silently swallowed. The likely issue is that the query returns an error (possibly due to RLS evaluation) and `.maybeSingle()` returns null, resulting in no Database row data.
 
-### 1. Cache child org metrics in the database (SQL migration)
+**Fix**: Add debug logging to the TAM result to surface errors. Also, since the TAM query uses the Supabase client (subject to RLS), and the `get_current_user_org_id()` function returns the user's actual org (`726a0dc0`), the child org policy should match via the second SELECT policy. However, as a safety net, also query with the parent org ID as a fallback if the child org query returns null. Additionally, ensure the TAM data is passed through correctly even when metrics show 0 for database accounts.
 
-Create a `child_dashboard_metrics_cache` table that stores pre-computed metrics for child orgs. Update the `get_dashboard_metrics_cached` function to:
-- Check the cache table first
-- If a cached row exists and is less than 5 minutes old, return it immediately
-- Otherwise, compute the metrics, store them in the cache, and return
+### Issue 4: Leads numbers may look off
+The leads data (23,260 total, 2,420 high-fit, 12,693 medium-fit, 8,147 low-fit) is mathematically correct -- it counts all leads linked to scored accounts. But the ICP Coverage Panel shows only "High-Fit" leads as the key metric, which undercounts ICP-fit leads (should be high + medium = 15,113).
 
-This turns a 5+ second query into a sub-millisecond lookup for subsequent loads.
+**Fix**: Same as Issue 2 -- update the leads tab in ICPCoveragePanel to show ICP-Fit (high + medium) as the key metric instead of just High-Fit.
 
-```sql
-CREATE TABLE IF NOT EXISTS child_dashboard_metrics_cache (
-  org_id UUID PRIMARY KEY REFERENCES organizations(id),
-  metrics JSONB NOT NULL,
-  refreshed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+## Changes
 
-ALTER TABLE child_dashboard_metrics_cache ENABLE ROW LEVEL SECURITY;
+### 1. `src/components/executive/SimpleICPTable.tsx`
+- Rename "Total" column header to "Scored" to avoid confusion with ICP count
 
-CREATE POLICY "Service role only" ON child_dashboard_metrics_cache
-  FOR ALL USING (false);
-```
+### 2. `src/components/executive/ICPCoveragePanel.tsx`
+- Change the key metric from "High-Fit" count to "ICP-Fit" count (high + medium) for both accounts and leads tabs
+- Update center donut label from "X% High-Fit" to "X% ICP-Fit"
+- Update summary box from "High-Fit" label to "ICP-Fit" label
+- Coverage percentage becomes `(highFit + medFit) / total` instead of `highFit / total`
 
-Then update `get_dashboard_metrics_cached` to check this cache first for child orgs.
+### 3. `src/hooks/use-dashboard-data.ts`
+- Add explicit error logging for TAM query failures
+- If `tamResult.data` is null and `tamResult.error` exists, log the full error
+- Add a fallback: if the child org TAM query returns null, try querying with the data org (parent) ID as some Apollo data may be linked to the parent
 
-### 2. Simplify `computeDataCompleteness` for child orgs
+## Expected Result After Fix
 
-Replace the 192-query approach with a single SQL query using conditional aggregation:
+**ICP Coverage by Source table**:
+- CRM row: Scored 16,000 | ICP-Fit 9,414 | 59% ICP-Fit
+- Database row: Scored 1,125,619 | ICP-Fit ~675K est. | ~60% ICP-Fit (Apollo data)
 
-```sql
-SELECT 
-  COUNT(*) as total,
-  COUNT(industry_norm) as has_industry,
-  COUNT(employee_count) as has_employee,
-  COUNT(revenue_range) as has_revenue,
-  COUNT(country) as has_country,
-  COUNT(domain) as has_domain
-FROM accounts a
-INNER JOIN scores s ON s.account_external_id = a.external_id 
-  AND s.org_id = '<child_org_id>'
-WHERE a.org_id = '<parent_org_id>'
-```
+**ICP Coverage Panel (donut)**:
+- Center: "59% ICP-Fit" (instead of "17% High-Fit")
+- Summary: "ICP-Fit: 9,414" (instead of "High-Fit: 2,798")
+- Leads tab: "ICP-Fit: 15,113" (instead of "High-Fit: 2,420")
 
-This replaces 192 queries with 1 query.
-
-### 3. Reduce `checkDataFreshness` polling frequency
-
-Change the polling interval from 3 seconds to 30 seconds, and batch the 6 queries into a single query where possible. The polling is only needed to detect active scoring jobs and data staleness -- neither changes within 3-second windows.
-
-### 4. Add the `campaign_ready_accounts` metric to the child org branch
-
-The current child org branch of the RPC function does not return `campaign_ready_accounts` or `both_accounts`, so those show as 0 on the dashboard. Add them to the child org query.
-
-## Files to Change
-
-| File | Change |
-|------|--------|
-| SQL migration (new) | Create `child_dashboard_metrics_cache` table; update `get_dashboard_metrics_cached` to use it for child orgs; add missing metrics |
-| `src/hooks/use-dashboard-data.ts` | Replace batched `computeDataCompleteness` with single SQL query; reduce `checkDataFreshness` frequency |
-| `src/pages/ExecutiveDashboard.tsx` | Change polling interval from 3s to 30s |
-
-## Expected Result
-
-- Dashboard loads in under 1 second for child orgs (cached metrics)
-- Database load reduced by ~95% (192 queries down to 1 for completeness; cached RPC)
-- Data stays fresh with 5-minute cache TTL and manual refresh option
