@@ -1,0 +1,1 @@
+UPDATE bulk_scoring_jobs SET status = 'failed', error_message = 'Manually marked as stale - job was stuck at 25000/39928', completed_at = now() WHERE id = 'dfa5c057-4a86-440c-a118-be8f666c5ae1' AND status = 'processing';

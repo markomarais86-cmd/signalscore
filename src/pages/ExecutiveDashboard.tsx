@@ -29,7 +29,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
-import { AIBriefCard } from "@/components/executive/AIBriefCard";
+
 import { PowerUpButton } from "@/components/executive/PowerUpButton";
 
 // Simplified components
@@ -630,17 +630,6 @@ export default function ExecutiveDashboard() {
           </div>
         ) : (
           <>
-            {/* AI Brief */}
-            {effectiveOrgId && totalAccounts > 0 && (
-              <AIBriefCard
-                orgId={effectiveOrgId}
-                totalAccounts={totalAccounts}
-                scoredAccounts={totalScores}
-                highFitAccounts={highFitAccounts}
-                campaignReadyAccounts={campaignReadyAccounts}
-                dataCompleteness={dataCompleteness}
-              />
-            )}
 
             {/* Growth Command Center KPIs */}
             <GrowthCommandKPIs
