@@ -11,6 +11,7 @@ interface SimpleTAMCardProps {
   tamValue?: number;
   totalAccounts: number;
   highFitAccounts: number;
+  medFitAccounts?: number;
   campaignReadyAccounts: number;
   averageDealSize?: number;
   conversionRate?: number;
@@ -38,6 +39,7 @@ export function SimpleTAMCard({
   tamValue,
   totalAccounts,
   highFitAccounts,
+  medFitAccounts = 0,
   campaignReadyAccounts,
   averageDealSize: initialDealSize = 75000,
   conversionRate: initialConversion = 0.15,
@@ -68,8 +70,8 @@ export function SimpleTAMCard({
     onSettingsChange?.({ averageDealSize: tempDealSize, conversionRate: tempConversion / 100 });
   };
 
-  // TAM: Total Addressable Market
-  const tamAccounts = totalAccounts;
+  // TAM: ICP-Fit Market (high-fit + medium-fit accounts)
+  const tamAccounts = highFitAccounts + medFitAccounts;
   const calculatedTAM = tamValue && tamValue > 0 ? tamValue : tamAccounts * averageDealSize;
 
   // SAM: Serviceable Addressable Market
@@ -85,7 +87,7 @@ export function SimpleTAMCard({
   const segments = [
     {
       label: "TAM",
-      sublabel: "Total Market",
+      sublabel: "ICP-Fit Market",
       value: calculatedTAM,
       accounts: tamAccounts,
       percentage: 100,

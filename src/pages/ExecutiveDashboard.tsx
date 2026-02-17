@@ -690,7 +690,8 @@ export default function ExecutiveDashboard() {
               <CollapsibleDashboardCard title="Market Sizing" icon={<Globe className="h-4 w-4 text-primary" />} defaultOpen>
                 <SimpleTAMCard
                   totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-                  highFitAccounts={highFitAccounts}
+                  highFitAccounts={sourceFilter === 'database' ? highFitDatabaseAccounts : sourceFilter === 'crm' ? highFitCrmAccounts : highFitAccounts}
+                  medFitAccounts={sourceFilter === 'database' ? medFitDatabaseAccounts : sourceFilter === 'crm' ? medFitCrmAccounts : medFitAccounts}
                   campaignReadyAccounts={campaignReadyAccounts}
                   averageDealSize={averageDealSize}
                   conversionRate={conversionRate}
