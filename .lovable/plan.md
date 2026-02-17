@@ -1,61 +1,77 @@
 
 
-# Make AI Chat Support Document Uploads for ICP Creation
+# Build a Detailed ICP for 91.Life from the Persona Playbook
 
-## Current State
+## What I Extracted from Your Document
 
-Your app has **two AI assistants**:
-1. **LaunchPulse AI** (Cmd+K, floating chat button) -- The full-featured one with action execution, ICP creation, search, analytics, etc. This one CAN create ICPs when you ask it to.
-2. **AI Assistant** (Cmd+J) -- A simpler Q&A chatbot with no action execution.
+Your uploaded **91Life Persona Playbook v2.1** defines a comprehensive ICP targeting **4 hospital segments** with **20+ buyer personas**. Here's the summary:
 
-The screenshot you shared shows the LaunchPulse AI (Cmd+K) chat. **ICP creation already works** if you type something like "Create an ICP for enterprise tech companies in the US with CTOs." The AI will generate a create_icp action, show a confirmation dialog, and create the ICP upon approval.
+### Target Segments
+| Segment | Size | Beds |
+|---------|------|------|
+| Academic Medical Centers | Large | 300-1,000+ |
+| Regional Integrated Health Systems | Mid-Large | 100-900 |
+| Community/Critical-Access Hospitals | Small | 30-150 |
+| Private/Specialty Heart Institutes | Small-Mid | 1-60 |
 
-However, **document upload is not supported** in the chat. The `parse-icp-document` function exists but is only used during onboarding. This plan adds document upload to the LaunchPulse AI chat.
+### Personas Identified (20+)
+**Academic Medical Centers:** Clinical Innovation Champion (EP Division Chief), Digital Transformation Executive (VP Digital Strategy), Clinical IT Leader, CISO, Chief AI & Data Officer, Advanced Practice NP, Finance & Operations Director, Strategic Sourcing Director, Patient Experience Officer
 
-## What Will Change
+**Regional Health Systems:** System CMO, Service Line Director (Cardiology), Enterprise Technology VP, Clinical Operations Manager, System VP of Finance, Strategic Sourcing Director, Population Health Director
 
-### 1. Add a file upload button to the chat input area
-- Add a paperclip/upload icon button next to the text input in `AIChat.tsx`
-- Support PDF, DOCX, TXT, and CSV files (up to 10MB)
-- Show the attached file name as a chip/badge above the input
+**Community Hospitals:** CEO & Medical Director, Chief Nursing Officer, Practice & IT Manager, Revenue Cycle Director, Clinical Operations Manager
 
-### 2. Client-side document text extraction
-- For PDFs: Use the existing `pdfjs-dist` dependency to extract text client-side (already installed)
-- For TXT/CSV: Read as plain text via FileReader
-- For DOCX: Add basic text extraction or use the AI to interpret the raw content
+**Private/Specialty Institutes:** Founder/CEO, Medical Director & Clinical Ops, Practice & IT Manager, Financial & Revenue Manager, EP Power User/Clinical Lead
 
-### 3. Wire document text into the AI chat flow
-- When a document is attached, extract its text and prepend it to the user's message as context
-- The system prompt already has `create_icp` instructions, so if the user says "Create an ICP from this document", the AI will parse the content and generate a `create_icp` action
-- Alternatively, if the user attaches a document without a message, auto-send: "Create an ICP profile from this document"
+**Cross-Segment:** Remote Monitoring Nurse, Regulatory Affairs/Compliance Manager, Clinical Educator/Training Lead
 
-### 4. Add a dedicated "Upload ICP Document" path
-- When a document is detected, also offer to use the specialized `parse-icp-document` edge function directly (which uses structured tool calling for better extraction accuracy)
-- Show a choice: "Quick parse with AI" vs "Deep ICP extraction"
+## What the Plan Will Do
 
-## Files to Change
+I will create **one comprehensive primary ICP** in LaunchPulse using all the rich data from the playbook, populating every available field in your `icp_profiles` table. This will be the most detailed ICP in your system.
 
-- **`src/components/AIChat.tsx`** -- Add file upload button, file preview chip, and upload handling logic
-- **`src/hooks/use-ai-chat.tsx`** -- Add `sendMessageWithDocument` method that includes extracted document text
-- **`src/lib/document-utils.ts`** (new) -- PDF/TXT text extraction utilities using pdfjs-dist
+### ICP Fields to Populate
 
-## Technical Details
+| Field | Value from Playbook |
+|-------|-------------------|
+| **name** | 91.Life Heart+ - Hospital & Health System ICP |
+| **description** | Full description from the playbook covering all 4 segments |
+| **industries** | Healthcare, Hospital & Health Systems, Medical Devices, Health IT |
+| **sub_industries** | Electrophysiology, Cardiology, Remote Patient Monitoring, Clinical IT, Population Health |
+| **company_sizes** | 30, 50, 75, 100, 150, 300, 500, 900, 1000 (bed counts mapped to employee ranges) |
+| **revenue_ranges** | $10M-$25M through $5B+ |
+| **geographies** | United States (primary market) |
+| **persona_job_titles** | All 20+ titles from the playbook (Division Chief EP, VP Digital Strategy, CISO, CMO, CNO, CEO, etc.) |
+| **persona_seniority_levels** | C-Suite, VP, Director, Manager, Practitioner |
+| **persona_departments** | Clinical/Medical, IT/Digital, Finance/Operations, Procurement/Supply Chain, Quality/Compliance, Nursing, Research |
+| **persona_decision_roles** | Decision Maker, Influencer, Champion, End User, Budget Holder, Gatekeeper |
+| **tech_stack** | Epic, Cerner, Meditech, NextGen, Mirth Connect, Splunk, Power BI, Tableau, ServiceNow, Databricks, SAP Ariba |
+| **pain_points** | Data silos, manual reporting, fragmented vendor portals, compliance burden, alert fatigue, lack of analytics |
+| **buying_signals** | EHR modernization, cloud migration, digital transformation, remote monitoring program launch, grant funding |
+| **buying_triggers** | New EHR rollout, regulatory audit, readmission penalties, staffing shortages, acquisition of new sites |
+| **competitive_landscape** | Vendor-specific monitoring portals, legacy analytics tools, manual spreadsheet workflows |
+| **decision_process** | Multi-stakeholder: clinical champion + IT validation + finance approval + compliance sign-off |
+| **budget_indicators** | Capital budget cycle, grant funding, CMS reimbursement changes, value-based care contracts |
+| **vertical_filters** | Hospital segment types as filters |
+| **weights** | Custom scoring weights emphasizing EHR integration, bed count, and cardiology focus |
 
-### File upload UI addition (AIChat.tsx)
-```text
-[paperclip icon] [text input...............] [send]
-             [attached-file.pdf  x]           
-```
+### Apollo/Enrichment Alignment
+The fields populated (especially **persona_job_titles**, **industries**, **company_sizes**, **tech_stack**, and **geographies**) directly map to Apollo's search filters, meaning:
+- You can search Apollo for contacts matching these exact titles
+- Company size and industry filters align with Apollo's database
+- Tech stack entries (Epic, Cerner, etc.) can be used as Apollo technographic filters
+- The ICP scoring engine will automatically score accounts against these criteria
 
-### Document text extraction flow
-```text
-User attaches file
-  -> If PDF: use pdfjs-dist getDocument() to extract text from all pages
-  -> If TXT/CSV: FileReader.readAsText()
-  -> If DOCX: basic extraction or send raw to AI
-  -> Extracted text is prepended to the user message
-  -> AI processes and generates create_icp action if appropriate
-```
+### Implementation Steps
 
-### Fallback to parse-icp-document
-For better structured extraction, optionally call the existing `parse-icp-document` edge function directly, which uses Gemini tool calling to return a properly structured ICP profile.
+1. **Create the ICP via the `ai-actions-icp` edge function** with all fields populated from the playbook data
+2. **Update the ICP record** with additional fields (pain_points, buying_signals, tech_stack, etc.) that go beyond what `create_icp` supports, using a direct database update
+3. **Optionally create 4 child ICPs** (one per segment) linked via `parent_icp_id` for segment-specific scoring
+
+### Technical Details
+
+The `create_icp` action in the edge function only supports a subset of fields (name, description, industries, company_sizes, revenue_ranges, geographies, persona_titles). The remaining fields (tech_stack, pain_points, buying_signals, sub_industries, persona_seniority_levels, persona_departments, decision_process, competitive_landscape, etc.) will need a follow-up `update_icp` call or direct database insert to populate all 40+ columns in the `icp_profiles` table.
+
+**Files to modify:**
+- `supabase/functions/ai-actions-icp/index.ts` -- Expand `create_icp` action to accept and store all available ICP fields (tech_stack, pain_points, buying_signals, sub_industries, weights, vertical_filters, etc.)
+- No new files needed -- uses existing infrastructure
+
