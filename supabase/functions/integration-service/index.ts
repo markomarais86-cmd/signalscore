@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
         return await testConnection(supabase, profile.org_id, body);
       
       case 'check-secrets':
-        return await checkSecrets(body.provider);
+        return await checkSecrets(body.provider, corsHeaders);
       
       case 'sync':
       case 'triggerSync':
@@ -707,7 +707,7 @@ async function testPDL(apiKey: string): Promise<TestConnectionResult> {
   }
 }
 
-async function checkSecrets(provider: string | null) {
+async function checkSecrets(provider: string | null, corsHeaders: Record<string, string>) {
   console.log('[checkSecrets] Checking provider:', provider);
 
   const envVarMap: { [key: string]: string } = {
