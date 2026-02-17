@@ -78,9 +78,11 @@ interface DashboardData {
   tamData: ExternalTAMData | null;
 }
 
-export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' | 'database' = 'crm') {
+export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' | 'database' = 'crm', dataOrgId?: string) {
+  // For data completeness, use the data org (parent) since accounts live there
+  const resolvedDataOrgId = dataOrgId || orgId;
   return useQuery({
-    queryKey: ['dashboard-metrics', orgId, sourceFilter],
+    queryKey: ['dashboard-metrics', orgId, sourceFilter, resolvedDataOrgId],
     queryFn: async (): Promise<DashboardData> => {
       if (!orgId) throw new Error('No org ID provided');
       
@@ -110,7 +112,7 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
           .order('last_synced_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
-        computeDataCompleteness(orgId)
+        computeDataCompleteness(resolvedDataOrgId!)
       ]);
       
       if (icpResult.error) {
