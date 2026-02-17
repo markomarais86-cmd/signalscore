@@ -46,7 +46,16 @@ serve(async (req) => {
 
     switch (action) {
       case "create_icp": {
-        const { name, description, industries, company_sizes, revenue_ranges, geographies, persona_titles } = parameters;
+        const {
+          name, description, industries, company_sizes, revenue_ranges, geographies, persona_titles,
+          sub_industries, tech_stack, pain_points, buying_signals, buying_triggers,
+          competitive_landscape, decision_process, budget_indicators, vertical_filters, weights,
+          persona_seniority_levels, persona_departments, persona_decision_roles,
+          intent_signals, seasonal_patterns, company_stages, growth_stage, funding_status,
+          excluded_industries, excluded_companies, regions, cities, timezones,
+          category, use_case, tags, is_primary, scoring_config, disqualifiers,
+          tam_estimate, template_source, version_notes,
+        } = parameters;
         if (!name) {
           return new Response(JSON.stringify({ success: false, error: "ICP name is required" }), {
             status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -70,14 +79,50 @@ serve(async (req) => {
           }).filter((n: number) => !isNaN(n) && n > 0);
         };
 
+        const insertData: Record<string, any> = {
+          org_id, name, description: description || `AI-generated ICP: ${name}`,
+          industries: industries || [], company_sizes: parseCompanySizes(company_sizes),
+          revenue_ranges: revenue_ranges || [], geographies: geographies || [],
+          persona_job_titles: persona_titles || [], status: "active",
+        };
+
+        // Add all optional fields if provided
+        if (sub_industries) insertData.sub_industries = sub_industries;
+        if (tech_stack) insertData.tech_stack = tech_stack;
+        if (pain_points) insertData.pain_points = pain_points;
+        if (buying_signals) insertData.buying_signals = buying_signals;
+        if (buying_triggers) insertData.buying_triggers = buying_triggers;
+        if (competitive_landscape) insertData.competitive_landscape = competitive_landscape;
+        if (decision_process) insertData.decision_process = decision_process;
+        if (budget_indicators) insertData.budget_indicators = budget_indicators;
+        if (vertical_filters) insertData.vertical_filters = vertical_filters;
+        if (weights) insertData.weights = weights;
+        if (persona_seniority_levels) insertData.persona_seniority_levels = persona_seniority_levels;
+        if (persona_departments) insertData.persona_departments = persona_departments;
+        if (persona_decision_roles) insertData.persona_decision_roles = persona_decision_roles;
+        if (intent_signals) insertData.intent_signals = intent_signals;
+        if (seasonal_patterns) insertData.seasonal_patterns = seasonal_patterns;
+        if (company_stages) insertData.company_stages = company_stages;
+        if (growth_stage) insertData.growth_stage = growth_stage;
+        if (funding_status) insertData.funding_status = funding_status;
+        if (excluded_industries) insertData.excluded_industries = excluded_industries;
+        if (excluded_companies) insertData.excluded_companies = excluded_companies;
+        if (regions) insertData.regions = regions;
+        if (cities) insertData.cities = cities;
+        if (timezones) insertData.timezones = timezones;
+        if (category) insertData.category = category;
+        if (use_case) insertData.use_case = use_case;
+        if (tags) insertData.tags = tags;
+        if (is_primary !== undefined) insertData.is_primary = is_primary;
+        if (scoring_config) insertData.scoring_config = scoring_config;
+        if (disqualifiers) insertData.disqualifiers = disqualifiers;
+        if (tam_estimate) insertData.tam_estimate = tam_estimate;
+        if (template_source) insertData.template_source = template_source;
+        if (version_notes) insertData.version_notes = version_notes;
+
         const { data: icp, error } = await supabase
           .from("icp_profiles")
-          .insert({
-            org_id, name, description: description || `AI-generated ICP: ${name}`,
-            industries: industries || [], company_sizes: parseCompanySizes(company_sizes),
-            revenue_ranges: revenue_ranges || [], geographies: geographies || [],
-            persona_job_titles: persona_titles || [], status: "active",
-          })
+          .insert(insertData)
           .select().single();
 
         if (error) throw new Error(error.message);
