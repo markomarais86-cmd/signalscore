@@ -8735,6 +8735,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      increment_enrichment_credits: {
+        Args: { p_amount: number; p_org_id: string }
+        Returns: undefined
+      }
       initialize_automation_settings: {
         Args: { target_org_id: string }
         Returns: undefined

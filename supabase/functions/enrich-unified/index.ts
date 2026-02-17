@@ -169,6 +169,18 @@ serve(async (req) => {
 
     console.log(`[enrich-unified] Starting ${record_type} enrichment for ${records.length} records`);
 
+    // Pre-enrichment credit check
+    const { data: orgData } = await supabase
+      .from('organizations')
+      .select('enrichment_credits_used, enrichment_credits_total')
+      .eq('id', org_id)
+      .single();
+
+    const creditsRemaining = (orgData?.enrichment_credits_total || 0) - (orgData?.enrichment_credits_used || 0);
+    if (creditsRemaining < records.length) {
+      throw new Error(`Insufficient credits: ${creditsRemaining} remaining, ${records.length} requested`);
+    }
+
     // Create or update job
     let jobId = job_id;
     if (!jobId) {
@@ -508,6 +520,19 @@ serve(async (req) => {
     };
 
     console.log(`[enrich-unified] Complete:`, response.summary);
+
+    // Deduct enrichment credits
+    if (enriched > 0) {
+      try {
+        await supabase.rpc('increment_enrichment_credits', {
+          p_org_id: org_id,
+          p_amount: enriched,
+        });
+        console.log(`[enrich-unified] Deducted ${enriched} enrichment credits for org ${org_id}`);
+      } catch (creditErr) {
+        console.error('[enrich-unified] Failed to deduct credits:', creditErr);
+      }
+    }
 
     return new Response(JSON.stringify(response), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
