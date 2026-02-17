@@ -1,46 +1,66 @@
 
 
-# Fix All Remaining Errors
+# Fix Bulk Scoring to Score All 39,928 Accounts
 
-## Issues Found
+## Problem
 
-### 1. 406 Error: `ai_memory` query uses `.single()` with no rows
-**File**: `src/hooks/use-ai-chat.tsx` (line 124)
-**Problem**: `loadFromMemory()` uses `.single()` to fetch `recent_filters` from `ai_memory`. When no row exists (first use), PostgREST returns 406 "JSON object requested, multiple (or no) rows returned".
-**Fix**: Replace `.single()` with `.maybeSingle()` which returns `null` instead of an error when no rows are found.
+Bulk scoring jobs keep getting stuck partway through (25,000 out of 39,928 accounts). This leaves **17,624 accounts unscored**, which means they don't appear in ICP-filtered views.
 
-### 2. 406 Error: `enrichment_jobs` paused job query uses `.single()` with no rows
-**Files**: 
-- `src/components/insights/ProactiveInsightsWidget.tsx` (lines 95, 124)
-- `src/components/executive/UnifiedInsightsPanel.tsx` (line 191)
-**Problem**: Queries for paused enrichment jobs use `.single()` but there may be no paused jobs, causing a 406 error.
-**Fix**: Replace `.single()` with `.maybeSingle()` on these queries. Also fix the active job queries at lines 93-95 in ProactiveInsightsWidget.
+**Root cause**: The edge function tries to score each account individually via RPC calls inside a background task (`EdgeRuntime.waitUntil`). Deno kills this background task after ~150 seconds, leaving thousands of accounts unscored.
 
-### 3. 400 Error: `get_enriched_leads_metrics` - ambiguous column reference
-**Problem**: The PL/pgSQL function uses `email_verified` as both a table column name and an output column alias, causing "column reference is ambiguous" error.
-**Fix**: Database migration to rename the output column alias from `email_verified` to `email_verified_count` to avoid conflict with the `"Leads".email_verified` column.
+**Good news**: There's already a database function called `bulk_score_all_accounts` that does the entire job in a single SQL operation -- it's much faster and won't time out. The edge function just isn't using it.
 
-### 4. 400 Error: `get_filtered_accounts` - `%I` format specifier issue
-**Problem**: The function uses `format(..., %I, ...)` with values like `'a.updated_at'`. The `%I` specifier treats the entire string as a quoted identifier (`"a.updated_at"` instead of `a.updated_at`), causing "column a.updated_at does not exist".
-**Fix**: Database migration to change the CASE expressions to return just the column name without table alias (e.g. `'updated_at'` instead of `'a.updated_at'`), since the FROM clause only has one source of those columns after the table alias. For `s.overall`, use a different approach since it's from a JOINed table -- add the table alias in the format string template instead.
+## Solution
 
-### 5. 500 Error: `get_leads_metrics` intermittent timeout
-**Problem**: The function scans all Leads rows without indexes optimized for the query patterns. It worked sometimes but timed out once.
-**Fix**: This appears intermittent (it succeeded on manual test). We'll add an index on `"Leads"(org_id)` if one doesn't already exist, and optimize the function with a more efficient query approach.
+Rewrite the `bulk-score-accounts` edge function to call the SQL-based `bulk_score_all_accounts` function instead of looping through accounts one by one.
 
----
+## What Changes
 
-## Technical Implementation
+### 1. Rewrite `supabase/functions/bulk-score-accounts/index.ts`
+
+Replace the current approach (individual RPC calls in background) with:
+- Keep all auth, idempotency, and zombie cleanup logic
+- Instead of `EdgeRuntime.waitUntil(processAllChunks(...))`, call `supabase.rpc('bulk_score_all_accounts', { p_org_id, p_icp_id })`
+- This single SQL call scores all 39,928 accounts in one operation and creates/completes the job record automatically
+- Remove the `processAllChunks` function entirely since it's no longer needed
+
+### 2. Database migration: Add statement timeout override
+
+The `bulk_score_all_accounts` function needs enough time to process ~40K accounts. Add a migration to set a generous statement timeout (10 minutes) on this function so it doesn't get killed by the default Postgres timeout.
+
+### 3. Update ICP match counts after scoring
+
+After `bulk_score_all_accounts` completes, update `icp_profiles.match_count` for each active ICP with the count of accounts scoring 70+.
+
+## Technical Details
+
+```text
+Current Flow (broken):
+  Edge Function -> EdgeRuntime.waitUntil -> 39,928 individual RPC calls -> TIMEOUT at ~25K
+
+New Flow (reliable):
+  Edge Function -> supabase.rpc('bulk_score_all_accounts') -> Single SQL INSERT...ON CONFLICT -> Done
+```
+
+### Edge Function Changes (bulk-score-accounts/index.ts)
+
+- Remove `processAllChunks` function (lines 81-183)
+- Replace `EdgeRuntime.waitUntil(processAllChunks(...))` block with a direct RPC call:
+  - Call `supabase.rpc('bulk_score_all_accounts', { p_org_id: org_id, p_icp_id: icp_id || null })`
+  - Parse the result (returns `{ success, job_id, processed, total_accounts, duration_seconds }`)
+  - Return job details to the frontend
+- Remove the manual job creation (`INSERT INTO bulk_scoring_jobs`) since the SQL function already creates and completes the job record
+- Keep: authentication, org verification, idempotency, zombie cleanup, rate limiting
 
 ### Database Migration
-A single migration to:
-1. Fix `get_enriched_leads_metrics` -- rename output alias from `email_verified` to `email_verified_count`
-2. Fix `get_filtered_accounts` -- change `%I` column references to remove table alias prefixes and handle the sort column mapping correctly
-3. Drop the old (unused) `get_filtered_accounts` overload that takes `text` cursor to prevent ambiguity
 
-### Frontend Code Changes
-1. **`src/hooks/use-ai-chat.tsx`**: Change `.single()` to `.maybeSingle()` in `loadFromMemory`
-2. **`src/components/insights/ProactiveInsightsWidget.tsx`**: Change `.single()` to `.maybeSingle()` for active and paused enrichment job queries (2 locations)
-3. **`src/components/executive/UnifiedInsightsPanel.tsx`**: Change `.single()` to `.maybeSingle()` for paused enrichment job query
-4. **`src/hooks/use-enriched-leads.tsx`**: Update to handle the renamed output column (`email_verified_count` instead of `email_verified`)
+- Set `statement_timeout` to 10 minutes for `bulk_score_all_accounts` to handle large orgs:
+  ```sql
+  ALTER FUNCTION public.bulk_score_all_accounts(uuid, uuid)
+  SET statement_timeout = '600s';
+  ```
+
+### No Frontend Changes Needed
+
+The `BulkScoring.tsx` component already polls job status from `bulk_scoring_jobs` -- the SQL function writes to that same table, so the UI will work as-is.
 
