@@ -204,7 +204,9 @@ export function buildStatusItems({
   onSyncApollo,
   onGoToICP,
   onEnrich,
-  syncingApollo
+  syncingApollo,
+  isChildOrg,
+  childOrgName
 }: {
   activeScoringJob?: any;
   apolloStale?: boolean;
@@ -216,6 +218,8 @@ export function buildStatusItems({
   onGoToICP?: () => void;
   onEnrich?: () => void;
   syncingApollo?: boolean;
+  isChildOrg?: boolean;
+  childOrgName?: string;
 }): StatusItem[] {
   const items: StatusItem[] = [];
   
@@ -274,6 +278,15 @@ export function buildStatusItems({
         label: 'Enrich Data',
         onClick: onEnrich
       } : undefined
+    });
+  }
+  // Child org filtered view indicator
+  if (isChildOrg) {
+    items.push({
+      id: 'child-org-filter',
+      type: 'info',
+      title: 'Showing scored accounts only',
+      description: `Data filtered to accounts scored by ${childOrgName || 'this organization'} — not the full parent dataset`
     });
   }
   

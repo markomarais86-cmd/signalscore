@@ -11,6 +11,7 @@ import { LaunchPulseMark } from '@/components/BrandLogo';
 import { useAuth } from "@/hooks/use-auth";
 import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useDataOrgId } from "@/hooks/use-data-org";
+import { useOrgSwitcher } from "@/contexts/OrgSwitcherContext";
 import { useDashboardData, useGeographyData, useSourceFilterStats } from "@/hooks/use-dashboard-data";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { useDataChangeListener } from "@/hooks/use-data-change-listener";
@@ -53,7 +54,8 @@ import { FileText } from "lucide-react";
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
   const { effectiveOrgId } = useEffectiveOrg();
-  const { dataOrgId } = useDataOrgId();
+  const { dataOrgId, isChildOrg } = useDataOrgId();
+  const { selectedOrg } = useOrgSwitcher();
   const { completeStep } = useOnboarding();
   const navigate = useNavigate();
   const sidebar = useSidebar();
@@ -394,7 +396,9 @@ export default function ExecutiveDashboard() {
     },
     onGoToICP: () => navigate('/icp-manager'),
     onEnrich: () => setIsEnrichmentModalOpen(true),
-    syncingApollo: syncingApolloFromAlert
+    syncingApollo: syncingApolloFromAlert,
+    isChildOrg,
+    childOrgName: selectedOrg?.name
   });
 
   // Auto-enrich new accounts that haven't been enriched yet
