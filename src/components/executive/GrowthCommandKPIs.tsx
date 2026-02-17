@@ -63,12 +63,14 @@ export function GrowthCommandKPIs({
     },
     {
       label: "Data Completeness",
-      value: `${dataCompleteness}%`,
-      soWhat: dataCompleteness >= 80
-        ? "Strong enrichment — ready for accurate scoring"
-        : "Enrich accounts to improve scoring accuracy",
+      value: dataCompleteness === 0 && totalScored === 0 ? "—" : `${dataCompleteness}%`,
+      soWhat: dataCompleteness === 0 && totalScored === 0
+        ? "No scored accounts yet — score to measure completeness"
+        : dataCompleteness >= 80
+          ? "Strong enrichment — ready for accurate scoring"
+          : "Enrich accounts to improve scoring accuracy",
       icon: Database,
-      benchmarkPercent: dataCompleteness,
+      benchmarkPercent: dataCompleteness === 0 && totalScored === 0 ? 50 : dataCompleteness,
       onClick: () => navigate("/enrichment"),
     },
     {

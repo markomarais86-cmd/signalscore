@@ -151,7 +151,7 @@ export function DataHealthWidget() {
     { label: "Industry", value: metrics.accountsWithIndustry, total: metrics.totalAccounts },
     { label: "Revenue", value: metrics.accountsWithRevenue, total: metrics.totalAccounts },
     { label: "Employees", value: metrics.accountsWithEmployees, total: metrics.totalAccounts },
-    { label: "Contacts", value: metrics.accountsWithContacts, total: metrics.totalAccounts },
+    { label: "Leads", value: metrics.accountsWithContacts, total: metrics.totalAccounts },
   ];
 
   // Find the field with lowest completion

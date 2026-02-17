@@ -266,8 +266,8 @@ export function buildStatusItems({
     });
   }
   
-  // Data quality warning
-  if (totalAccounts && totalAccounts > 0 && dataCompleteness !== undefined && dataCompleteness < 70) {
+  // Data quality warning — only when we actually have completeness data (not 0 from no scores)
+  if (totalAccounts && totalAccounts > 0 && dataCompleteness !== undefined && dataCompleteness > 0 && dataCompleteness < 70) {
     const missingPercent = Math.round(100 - dataCompleteness);
     items.push({
       id: 'data-quality',
