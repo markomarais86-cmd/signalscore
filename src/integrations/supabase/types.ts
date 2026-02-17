@@ -6560,6 +6560,7 @@ export type Database = {
           id: string
           name: string
           org_settings: Json | null
+          parent_org_id: string | null
           plan_id: string | null
           scoring_version: string | null
           service_type: string
@@ -6579,6 +6580,7 @@ export type Database = {
           id?: string
           name: string
           org_settings?: Json | null
+          parent_org_id?: string | null
           plan_id?: string | null
           scoring_version?: string | null
           service_type?: string
@@ -6598,6 +6600,7 @@ export type Database = {
           id?: string
           name?: string
           org_settings?: Json | null
+          parent_org_id?: string | null
           plan_id?: string | null
           scoring_version?: string | null
           service_type?: string
@@ -6608,6 +6611,13 @@ export type Database = {
           subscription_status?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "organizations_parent_org_id_fkey"
+            columns: ["parent_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "organizations_plan_id_fkey"
             columns: ["plan_id"]
@@ -8505,6 +8515,7 @@ export type Database = {
         Args: { p_org_id: string; p_source_filter?: string }
         Returns: Json
       }
+      get_data_org_id: { Args: { p_org_id: string }; Returns: string }
       get_deal_stage_duration_hours: {
         Args: { p_deal_id: string; p_stage: string }
         Returns: number

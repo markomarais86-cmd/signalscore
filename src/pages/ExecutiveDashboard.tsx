@@ -10,6 +10,7 @@ import { TrendingUp, Target, Database, Download, MapPin, Building2, Settings, Al
 import { LaunchPulseMark } from '@/components/BrandLogo';
 import { useAuth } from "@/hooks/use-auth";
 import { useEffectiveOrg } from "@/hooks/use-effective-org";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { useDashboardData, useGeographyData, useSourceFilterStats } from "@/hooks/use-dashboard-data";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { useDataChangeListener } from "@/hooks/use-data-change-listener";
@@ -52,6 +53,7 @@ import { FileText } from "lucide-react";
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
   const { effectiveOrgId } = useEffectiveOrg();
+  const { dataOrgId } = useDataOrgId();
   const { completeStep } = useOnboarding();
   const navigate = useNavigate();
   const sidebar = useSidebar();
@@ -65,7 +67,7 @@ export default function ExecutiveDashboard() {
   const [syncBreakdown, setSyncBreakdown] = useState<any>(null);
   
   // Use optimized React Query hooks with source filtering
-  const { data: dashboardData, isLoading, error: queryError, refetch } = useDashboardData(effectiveOrgId, sourceFilter);
+  const { data: dashboardData, isLoading, error: queryError, refetch } = useDashboardData(effectiveOrgId, sourceFilter, dataOrgId ?? undefined);
   const { data: geographyData } = useGeographyData(effectiveOrgId, !!dashboardData, sourceFilter);
   const { data: filterStats } = useSourceFilterStats(effectiveOrgId);
 
