@@ -65,20 +65,18 @@ serve(async (req) => {
       }
 
       // Helper function to map company sizes to Apollo ranges
+      // Maps any size to the nearest Apollo bucket rather than requiring exact matches
       const mapCompanySizesToApolloRanges = (sizes: number[]): string[] => {
-        const rangeMapping: Record<number, string> = {
-          1: '1,10',
-          10: '11,50',
-          50: '51,200',
-          200: '201,500',
-          500: '501,1000',
-          1000: '1001,5000',
-          2000: '1001,5000',
-          5000: '5001,10000',
-          10000: '10001,999999'
-        };
-        
-        const ranges = sizes.map(size => rangeMapping[size]).filter(Boolean);
+        const ranges = sizes.map(size => {
+          if (size <= 10) return '1,10';
+          if (size <= 50) return '11,50';
+          if (size <= 200) return '51,200';
+          if (size <= 500) return '201,500';
+          if (size <= 1000) return '501,1000';
+          if (size <= 5000) return '1001,5000';
+          if (size <= 10000) return '5001,10000';
+          return '10001,999999';
+        });
         return [...new Set(ranges)]; // Remove duplicates
       };
 
@@ -156,11 +154,11 @@ serve(async (req) => {
 
       console.log('Calling Apollo API with filters:', JSON.stringify(baseRequestBody, null, 2));
 
-      // Fetch only 1 page for statistical sample (~25-100 orgs)
-      // We get total_entries from pagination for full TAM count
+      // Fetch multiple pages for better statistical sampling
+      // More pages = more accurate breakdowns (extrapolated to total)
       const allOrganizations: any[] = [];
       let currentPage = 1;
-      const maxPages = 1; // Only fetch 1 page - use statistical sampling
+      const maxPages = 20; // Fetch up to 20 pages for reliable breakdowns
       let totalAccounts = 0;
 
       while (currentPage <= maxPages) {
@@ -187,15 +185,16 @@ serve(async (req) => {
         allOrganizations.push(...organizations);
         
         console.log(`Page ${currentPage}: fetched ${organizations.length} organizations (total so far: ${allOrganizations.length})`);
-        console.log(`📊 Total Available Market: ${totalAccounts.toLocaleString()} accounts`);
-        console.log(`💰 Credits Used: ~${allOrganizations.length} (statistical sample)`);
         
-        // Stop after fetching sample - we already have total count from pagination
+        // Stop if no more results or reached max pages
         if (organizations.length === 0 || currentPage >= maxPages) {
           break;
         }
         
         currentPage++;
+        
+        // Small delay between requests to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
 
       console.log(`Fetched ${allOrganizations.length} organizations from ${currentPage} pages. Total available: ${totalAccounts}`);
