@@ -171,10 +171,13 @@ serve(async (req) => {
     const dataOrgId = orgData?.parent_org_id || org_id;
     console.log(`Data org: ${dataOrgId} (child of parent: ${dataOrgId !== org_id})`);
 
-    // Verify org access
+    // Verify org access — allow if user belongs to the requested org OR its parent
     const { data: profile, error: profileError } = await authClient
       .from('user_profiles').select('org_id').eq('user_id', user.id).single();
-    if (profileError || !profile || profile.org_id !== org_id) {
+    const userOrgId = profile?.org_id;
+    const hasAccess = userOrgId === org_id || userOrgId === dataOrgId;
+    if (profileError || !profile || !hasAccess) {
+      console.log(`Access denied: user org ${userOrgId}, requested org ${org_id}, data org ${dataOrgId}`);
       return errorResponse(ErrorCodes.FORBIDDEN, 'Forbidden - you do not have access to this organization', 403);
     }
 

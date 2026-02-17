@@ -7411,13 +7411,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "fk_scores_account"
-            columns: ["org_id", "account_external_id"]
-            isOneToOne: true
-            referencedRelation: "accounts"
-            referencedColumns: ["org_id", "external_id"]
-          },
-          {
             foreignKeyName: "scores_icp_id_fkey"
             columns: ["icp_id"]
             isOneToOne: false
