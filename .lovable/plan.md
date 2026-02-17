@@ -1,25 +1,45 @@
 
+# Fix Market Coverage to Show ICP-Fit Accounts
 
-# Add Visual Indicator for Child Org Data Filtering
+## Problem
+The "Market Coverage" KPI tile currently shows `totalAccounts / tamEstimate` -- meaning it counts **all** accounts in the system, not just those that actually fit the ICP. A scored account with a low-fit score (D band) shouldn't count as "covered."
 
-## What Changes
-When the dashboard is showing data filtered to a child org's scored subset (rather than the full parent dataset), a new info-style status item will appear in the existing StatusBar component. This makes it immediately clear that the numbers represent a filtered view.
+## Correct Definition
+**Market Coverage** = High-Fit accounts (A+B bands) as a percentage of total scored accounts. This answers: "Of all the accounts we've evaluated, how many actually match our ICP?"
 
-## Technical Approach
+## Technical Change
 
-### 1. Update `buildStatusItems` in `src/components/executive/StatusBar.tsx`
-- Add a new parameter `isChildOrg: boolean` and optional `childOrgName: string`
-- When `isChildOrg` is true, push a new status item of type `'info'` with:
-  - Title: "Showing scored accounts only"
-  - Description: "Data filtered to accounts scored by [org name] -- not the full parent dataset"
-  - No action button needed (this is informational)
+### File: `src/components/executive/GrowthCommandKPIs.tsx`
 
-### 2. Update `src/pages/ExecutiveDashboard.tsx`
-- The page already imports `useDataOrgId()` which exposes `isChildOrg`
-- Pass `isChildOrg` (and the selected org name from `useOrgSwitcher`) into `buildStatusItems`
-- No new components needed -- reuses the existing StatusBar
+**Current logic (line 48):**
+```
+marketCoverage = totalAccounts / tamEstimate
+```
 
-### Result
-- Child orgs see a blue info banner: "Showing scored accounts only -- Data filtered to accounts scored by Ninety One Life"
-- Parent orgs and standalone orgs see no change
-- The indicator appears alongside existing status items (scoring progress, data quality alerts, etc.)
+**New logic:**
+```
+icpFitAccounts = highFitAccounts + medFitAccounts  (A+B bands)
+marketCoverage = totalScored > 0 ? (icpFitAccounts / totalScored) * 100 : 0
+```
+
+**Props change:** Add `totalScored: number` and `medFitAccounts: number` to `GrowthCommandKPIsProps`.
+
+**Tile updates:**
+- Value: `{marketCoverage}%` (percentage of scored accounts that fit)
+- "So what" text: `"{icpFitAccounts} of {totalScored} scored accounts match ICP (A+B bands)"`
+- Remove TAM-based fallback logic (the TAM concept moves to the dedicated TAM card)
+
+### File: `src/pages/ExecutiveDashboard.tsx`
+
+Pass the two new props to `GrowthCommandKPIs`:
+- `totalScored={totalScores}`
+- `medFitAccounts={medFitAccounts}`
+
+Both values are already computed in the dashboard page -- no new data fetching needed.
+
+## Result
+For Ninety One Life with ~16,000 scored accounts:
+- High-fit: ~6,600 accounts
+- Med-fit: ~2,800 accounts  
+- Market Coverage becomes: (6,600 + 2,800) / 16,000 = ~59% ICP coverage
+- Instead of the misleading raw count or TAM-based percentage
