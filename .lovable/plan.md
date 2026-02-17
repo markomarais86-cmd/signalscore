@@ -1,24 +1,25 @@
 
 
-# Refresh Stale Materialized View Cache for Parent Org
+# Add Visual Indicator for Child Org Data Filtering
 
-## Problem
-The materialized view cache (`dashboard_metrics_cache`) for the parent org (Launchpulse) was last refreshed on January 15th and shows stale numbers. The live query returns 39,928 accounts but the cache shows 14,360.
+## What Changes
+When the dashboard is showing data filtered to a child org's scored subset (rather than the full parent dataset), a new info-style status item will appear in the existing StatusBar component. This makes it immediately clear that the numbers represent a filtered view.
 
-## Solution
-Invoke the `scheduled-cache-refresh` edge function with `force: true` to refresh all materialized views immediately. This will update `dashboard_metrics_cache`, `leads_metrics_cache`, and all other cached views.
+## Technical Approach
 
-## Technical Steps
+### 1. Update `buildStatusItems` in `src/components/executive/StatusBar.tsx`
+- Add a new parameter `isChildOrg: boolean` and optional `childOrgName: string`
+- When `isChildOrg` is true, push a new status item of type `'info'` with:
+  - Title: "Showing scored accounts only"
+  - Description: "Data filtered to accounts scored by [org name] -- not the full parent dataset"
+  - No action button needed (this is informational)
 
-1. **Call the deployed `scheduled-cache-refresh` edge function** with `{ "force": true }` to bypass the 15-minute cooldown and refresh all 6 materialized views:
-   - `dashboard_metrics_cache`
-   - `leads_metrics_cache`
-   - `account_score_distribution_cache`
-   - `enrichment_coverage_cache`
-   - `pipeline_velocity_cache`
-   - `icp_performance_cache`
+### 2. Update `src/pages/ExecutiveDashboard.tsx`
+- The page already imports `useDataOrgId()` which exposes `isChildOrg`
+- Pass `isChildOrg` (and the selected org name from `useOrgSwitcher`) into `buildStatusItems`
+- No new components needed -- reuses the existing StatusBar
 
-2. **Verify** the refresh succeeded by checking the response and confirming the parent org's `dashboard_metrics_cache` now shows the correct total (39,928 accounts).
-
-No code changes are needed -- this is a one-time operational action using the existing edge function.
-
+### Result
+- Child orgs see a blue info banner: "Showing scored accounts only -- Data filtered to accounts scored by Ninety One Life"
+- Parent orgs and standalone orgs see no change
+- The indicator appears alongside existing status items (scoring progress, data quality alerts, etc.)
