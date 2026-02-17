@@ -8388,6 +8388,7 @@ export type Database = {
       cleanup_expired_idempotency_keys: { Args: never; Returns: number }
       cleanup_expired_oauth_states: { Args: never; Returns: number }
       cleanup_stuck_enrichment_jobs: { Args: never; Returns: Json }
+      count_accounts_with_leads: { Args: { p_org_id: string }; Returns: number }
       count_campaign_ready_accounts: {
         Args: { p_org_id: string }
         Returns: number
