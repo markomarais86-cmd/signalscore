@@ -7,179 +7,6 @@ import { checkExistingJob, generateIdempotencyKey, checkIdempotency, recordIdemp
 interface BulkScoreRequest {
   org_id: string;
   icp_id?: string;
-  job_id?: string;
-  chunk_index?: number;
-  chunk_size?: number;
-}
-
-interface RateLimitResult {
-  allowed: boolean;
-  current_count: number;
-  max_requests: number;
-  reset_at: string;
-}
-
-// Rate limit helper functions (inlined)
-async function checkRateLimit(
-  supabase: SupabaseClient,
-  orgId: string,
-  endpoint: string,
-  maxRequests: number = 100,
-  windowSeconds: number = 60
-): Promise<RateLimitResult> {
-  try {
-    const { data, error } = await supabase.rpc('check_rate_limit', {
-      p_org_id: orgId,
-      p_endpoint: endpoint,
-      p_max_requests: maxRequests,
-      p_window_seconds: windowSeconds
-    });
-
-    if (error) {
-      console.error('Rate limit check error:', error);
-      return {
-        allowed: true,
-        current_count: 0,
-        max_requests: maxRequests,
-        reset_at: new Date().toISOString()
-      };
-    }
-
-    return data as RateLimitResult;
-  } catch (error) {
-    console.error('Rate limit check exception:', error);
-    return {
-      allowed: true,
-      current_count: 0,
-      max_requests: maxRequests,
-      reset_at: new Date().toISOString()
-    };
-  }
-}
-
-function rateLimitResponse(result: RateLimitResult, corsHeaders: Record<string, string>) {
-  return new Response(
-    JSON.stringify({
-      error: 'Rate limit exceeded',
-      message: `Too many requests. Limit: ${result.max_requests} per ${Math.floor((new Date(result.reset_at).getTime() - Date.now()) / 1000)}s`,
-      retry_after: result.reset_at,
-      current: result.current_count,
-      limit: result.max_requests
-    }),
-    {
-      status: 429,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json',
-        'Retry-After': Math.ceil((new Date(result.reset_at).getTime() - Date.now()) / 1000).toString()
-      }
-    }
-  );
-}
-
-  // Background processing function
-  async function processAllChunks(
-    supabase: SupabaseClient,
-    jobId: string,
-    orgId: string,
-    orgScoringVersion: string,
-    icpProfiles: any[],
-    totalAccounts: number,
-    chunkSize: number
-  ) {
-  const totalChunks = Math.ceil(totalAccounts / chunkSize);
-  console.log(`🚀 Background processing: ${totalChunks} chunks, ${totalAccounts} accounts`);
-  
-  for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-    try {
-      const startIndex = chunkIndex * chunkSize;
-      const endIndex = startIndex + chunkSize - 1;
-      
-      console.log(`\n[Chunk ${chunkIndex + 1}/${totalChunks}] Fetching accounts ${startIndex}-${endIndex}`);
-      
-      const { data: accounts, error: accountsError } = await supabase
-        .from('accounts')
-        .select('external_id, name')
-        .eq('org_id', orgId)
-        .range(startIndex, endIndex);
-      
-      if (accountsError || !accounts) {
-        console.error(`❌ Chunk ${chunkIndex + 1} failed to fetch accounts:`, accountsError);
-        continue;
-      }
-      
-      console.log(`✓ Processing ${accounts.length} accounts`);
-      
-      let chunkSuccessful = 0;
-      let chunkErrors = 0;
-      
-      // Process accounts in batches of 100 for efficiency
-      const batchSize = 100;
-      for (let i = 0; i < accounts.length; i += batchSize) {
-        const batchAccounts = accounts.slice(i, Math.min(i + batchSize, accounts.length));
-        
-        const scoringPromises = [];
-        for (const account of batchAccounts) {
-          for (const icp of icpProfiles) {
-            scoringPromises.push(
-              supabase.rpc('calculate_account_score', {
-                p_account_external_id: account.external_id,
-                p_icp_id: icp.id,
-                p_org_id: orgId
-              })
-              .then(({ data, error }) => ({ success: !error, account, icp, data, error }))
-            );
-          }
-        }
-        
-        const results = await Promise.all(scoringPromises);
-        chunkSuccessful += results.filter(r => r.success).length;
-        chunkErrors += results.filter(r => !r.success).length;
-      }
-      
-      // Update progress
-      const processedSoFar = Math.min((chunkIndex + 1) * chunkSize, totalAccounts);
-      const isLastChunk = processedSoFar >= totalAccounts;
-      
-      await supabase.rpc('increment_bulk_scoring_job_progress', {
-        job_id_param: jobId,
-        chunk_successful: chunkSuccessful,
-        chunk_failed: chunkErrors,
-        processed_count: processedSoFar,
-        current_chunk_num: chunkIndex + 1,
-        is_last_chunk: isLastChunk
-      });
-      
-      console.log(`✅ Chunk ${chunkIndex + 1}/${totalChunks} complete: ${chunkSuccessful} scored, ${chunkErrors} failed`);
-      
-    } catch (error) {
-      console.error(`❌ Chunk ${chunkIndex + 1} error:`, error);
-    }
-  }
-  
-  // Update match_count for each ICP after scoring completes
-  console.log(`📊 Updating match counts for ${icpProfiles.length} ICP(s)...`);
-  for (const icp of icpProfiles) {
-    try {
-      const { count } = await supabase
-        .from('scores')
-        .select('*', { count: 'exact', head: true })
-        .eq('org_id', orgId)
-        .eq('icp_id', icp.id)
-        .gte('overall', 70);
-      
-      await supabase
-        .from('icp_profiles')
-        .update({ match_count: count || 0 })
-        .eq('id', icp.id);
-      
-      console.log(`✓ Updated ${icp.name}: ${count} high-fit matches`);
-    } catch (err) {
-      console.error(`Failed to update match_count for ICP ${icp.id}:`, err);
-    }
-  }
-  
-  console.log(`🎉 All ${totalAccounts} accounts scored!`);
 }
 
 serve(async (req) => {
@@ -203,7 +30,6 @@ serve(async (req) => {
       );
     }
 
-    // Create auth client to verify user
     const authClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     });
@@ -222,7 +48,6 @@ serve(async (req) => {
 
     const requestBody = await parseJsonBody<BulkScoreRequest>(req);
     
-    // Validate required fields
     const validation = validateRequired(requestBody, ['org_id']);
     if (!validation.valid) {
       return errorResponse(
@@ -231,7 +56,7 @@ serve(async (req) => {
         400
       );
     }
-    const { org_id, icp_id, chunk_size = 5000 } = requestBody!;
+    const { org_id, icp_id } = requestBody!;
 
     // Verify user belongs to the requested org
     const { data: profile, error: profileError } = await authClient
@@ -258,7 +83,6 @@ serve(async (req) => {
     console.log('\n=== BULK SCORING JOB STARTED ===');
     console.log('Org ID:', org_id);
     console.log('ICP ID:', icp_id);
-    console.log('Chunk Size:', chunk_size);
 
     // Check for duplicate request using idempotency
     const idempotencyKey = generateIdempotencyKey(org_id, 'bulk-score-accounts', { org_id, icp_id });
@@ -279,7 +103,7 @@ serve(async (req) => {
       'bulk_scoring_jobs',
       'status',
       ['pending', 'processing'],
-      60 // 60 minutes
+      60
     );
 
     if (hasExistingJob && existingJob) {
@@ -308,7 +132,7 @@ serve(async (req) => {
     if (stuckJobs && stuckJobs.length > 0) {
       console.log(`Found ${stuckJobs.length} stuck jobs - marking as failed`);
       
-      const { error: updateError } = await supabase
+      await supabase
         .from('bulk_scoring_jobs')
         .update({ 
           status: 'failed',
@@ -318,94 +142,68 @@ serve(async (req) => {
         })
         .in('id', stuckJobs.map(j => j.id));
       
-      if (updateError) {
-        console.error('Failed to update stuck jobs:', updateError);
-      } else {
-        console.log(`✅ Cleaned up ${stuckJobs.length} zombie job(s)`);
-      }
+      console.log(`✅ Cleaned up ${stuckJobs.length} zombie job(s)`);
     } else {
       console.log('✓ No stuck jobs found');
     }
     
-    // Get total account count
-    const { count: totalAccounts, error: countError } = await supabase
-      .from('accounts')
-      .select('*', { count: 'exact', head: true })
-      .eq('org_id', org_id);
+    // ========== CALL SQL-BASED BULK SCORING ==========
+    // This single RPC call scores ALL accounts in one SQL operation.
+    // The SQL function creates its own job record and completes it.
+    console.log(`🚀 Calling bulk_score_all_accounts SQL function...`);
+    
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('bulk_score_all_accounts', {
+      p_org_id: org_id,
+      p_icp_id: icp_id || null,
+    });
 
-    if (countError || !totalAccounts) {
-      throw new Error(`Failed to count accounts: ${countError?.message}`);
+    if (rpcError) {
+      console.error('❌ bulk_score_all_accounts RPC error:', rpcError);
+      throw new Error(`Bulk scoring failed: ${rpcError.message}`);
     }
 
-    console.log(`✓ Total accounts: ${totalAccounts}`);
+    console.log('✅ bulk_score_all_accounts completed:', JSON.stringify(rpcResult));
 
-    // Create new job
-    const totalChunks = Math.ceil(totalAccounts / chunk_size);
-    const { data: newJob, error: jobError } = await supabase
-      .from('bulk_scoring_jobs')
-      .insert({
-        org_id,
-        icp_id,
-        total_accounts: totalAccounts,
-        total_chunks: totalChunks,
-        chunk_size,
-        status: 'processing',
-        started_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    // Parse the result - the SQL function returns a JSON object
+    const result = typeof rpcResult === 'string' ? JSON.parse(rpcResult) : rpcResult;
 
-    if (jobError || !newJob) {
-      throw new Error(`Failed to create job: ${jobError?.message}`);
-    }
-
-    const jobId = newJob.id;
-    console.log(`✓ Created job: ${jobId} (${totalChunks} chunks)`);
-
-    // Get organization scoring version
-    const { data: org, error: orgError } = await supabase
-      .from('organizations')
-      .select('scoring_version')
-      .eq('id', org_id)
-      .single();
-
-    if (orgError || !org) {
-      throw new Error(`Organization not found: ${org_id}`);
-    }
-
-    const orgScoringVersion = org.scoring_version || 'legacy_v1.0';
-    console.log(`✓ Using org-level scoring version: ${orgScoringVersion}`);
-
-    // Get ICP profiles
-    const icpQuery = supabase
+    // Update match_count for each active ICP after scoring
+    console.log('📊 Updating ICP match counts...');
+    const { data: icpProfiles } = await supabase
       .from('icp_profiles')
       .select('id, name')
       .eq('org_id', org_id)
       .eq('status', 'active');
-    
-    if (icp_id) {
-      icpQuery.eq('id', icp_id);
+
+    if (icpProfiles && icpProfiles.length > 0) {
+      for (const icp of icpProfiles) {
+        try {
+          const { count } = await supabase
+            .from('scores')
+            .select('*', { count: 'exact', head: true })
+            .eq('org_id', org_id)
+            .eq('icp_id', icp.id)
+            .gte('overall', 70);
+
+          await supabase
+            .from('icp_profiles')
+            .update({ match_count: count || 0 })
+            .eq('id', icp.id);
+
+          console.log(`✓ Updated ${icp.name}: ${count} high-fit matches`);
+        } catch (err) {
+          console.error(`Failed to update match_count for ICP ${icp.id}:`, err);
+        }
+      }
     }
-
-    const { data: icpProfiles, error: icpError } = await icpQuery;
-
-    if (icpError || !icpProfiles || icpProfiles.length === 0) {
-      throw new Error('No active ICP profiles found');
-    }
-
-    console.log(`✓ Found ${icpProfiles.length} active ICP profile(s)`);
-
-    // Start background processing immediately
-    // @ts-ignore - EdgeRuntime is available in Deno
-    EdgeRuntime.waitUntil(
-      processAllChunks(supabase, jobId, org_id, orgScoringVersion, icpProfiles, totalAccounts, chunk_size)
-    );
 
     const responseBody = {
-      job_id: jobId,
-      message: "Scoring started in background",
-      total_accounts: totalAccounts,
-      total_chunks: totalChunks,
+      job_id: result?.job_id || null,
+      message: 'Scoring completed successfully',
+      total_accounts: result?.total_accounts || 0,
+      processed: result?.processed || 0,
+      duration_seconds: result?.duration_seconds || 0,
+      success: true,
     };
 
     // Record idempotency key with response
@@ -418,7 +216,7 @@ serve(async (req) => {
       IDEMPOTENCY_TTL['bulk-score-accounts']
     );
 
-    // Return immediately - scoring happens in background
+    console.log('🎉 Bulk scoring complete!');
     return successResponse(responseBody);
 
   } catch (error) {
