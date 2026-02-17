@@ -284,16 +284,39 @@ serve(async (req) => {
     const dismissedIds = new Set(dismissed?.map(d => d.recommendation_id) || []);
     console.log(`Found ${dismissedIds.size} dismissed recommendations to filter out`);
 
-    // Get accounts with scores
-    const { data: accounts, error: accountsError } = await supabase
+    // Get accounts and scores separately (no FK relationship between them)
+    const { data: rawAccounts, error: accountsError } = await supabase
       .from('accounts')
-      .select('*, scores(*)')
-      .eq('org_id', org_id)
-      .not('scores', 'is', null);
+      .select('*')
+      .eq('org_id', org_id);
 
     if (accountsError) {
       throw new Error(`Failed to fetch accounts: ${accountsError.message}`);
     }
+
+    const { data: scores, error: scoresError } = await supabase
+      .from('scores')
+      .select('*')
+      .eq('org_id', org_id);
+
+    if (scoresError) {
+      console.warn('Failed to fetch scores:', scoresError.message);
+    }
+
+    // Merge scores onto accounts by external_id
+    const scoresByExternalId: Record<string, any[]> = {};
+    (scores || []).forEach((s: any) => {
+      if (s.account_external_id) {
+        if (!scoresByExternalId[s.account_external_id]) {
+          scoresByExternalId[s.account_external_id] = [];
+        }
+        scoresByExternalId[s.account_external_id].push(s);
+      }
+    });
+
+    const accounts = (rawAccounts || [])
+      .map(a => ({ ...a, scores: scoresByExternalId[a.external_id] || [] }))
+      .filter(a => a.scores.length > 0);
 
     // Get leads (contact data)
     const { data: leads, error: leadsError } = await supabase
