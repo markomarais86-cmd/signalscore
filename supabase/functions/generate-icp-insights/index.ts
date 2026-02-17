@@ -199,10 +199,10 @@ serve(async (req) => {
     const { user, supabaseClient } = authResult;
     console.log(`[generate-icp-insights] Authenticated user: ${user!.id}`);
 
-    // Get user's org_id
+    // Get user's org_id and role
     const { data: profile, error: profileError } = await supabaseClient!
       .from('user_profiles')
-      .select('org_id')
+      .select('org_id, role')
       .eq('user_id', user!.id)
       .single();
 
@@ -212,6 +212,7 @@ serve(async (req) => {
     }
 
     const userOrgId = profile.org_id;
+    const userRole = profile.role;
     
     // Parse request body
     let requestBody: InsightsRequest = {};
@@ -233,8 +234,8 @@ serve(async (req) => {
         throw validationError;
       }
       
-      // Verify user has access to requested org_id
-      if (org_id !== userOrgId) {
+      // Verify user has access to requested org_id (admins can access any org)
+      if (org_id !== userOrgId && userRole !== 'admin') {
         console.warn(`[generate-icp-insights] User ${user!.id} attempted to access org ${org_id} but belongs to ${userOrgId}`);
         return errorResponse(req, 'Access denied to this organization', 403);
       }
