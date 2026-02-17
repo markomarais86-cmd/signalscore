@@ -1,88 +1,63 @@
 
+# Fix: Bulk Scoring Button Not Working
 
-# Fix: Bulk Scoring Timeout
+## Root Causes Found
 
-## The Problem
+### Issue 1: Conflicting Unique Constraints on `scores` Table
+The `scores` table has **two conflicting unique constraint sets**:
+- `unique_score_per_account` on `(org_id, account_external_id)` -- allows only ONE score per account
+- `scores_org_id_account_external_id_scoring_version_key` on `(org_id, account_external_id, scoring_version)` -- allows multiple scores per version
 
-The "Score All Accounts" button does reach the edge function, but the function times out because:
+The edge function upserts with `onConflict: 'org_id,account_external_id'`, but because there's also the 3-column unique constraint, PostgreSQL may reject the upsert when the `scoring_version` changes (e.g., from `fuzzy_v4.1_vertical` to `chunked_v1`). This causes silent failures.
 
-1. The `bulk_score_all_accounts` SQL function processes all 39,928 accounts in a **single transaction**, calling `calculate_account_score_readonly` once per account
-2. At ~25,000 accounts the 600-second statement timeout is exceeded
-3. The edge function has a **60-second runtime limit** and gets killed waiting for the RPC response -- which is why no logs appear
+### Issue 2: Frontend Sends Stale Parameters
+The UI sends `chunk_index` and `chunk_size` in the body, but the edge function's `BulkScoreRequest` interface expects `job_id` (not `chunk_index`/`chunk_size`). These extra fields are ignored, but the function no longer uses client-driven chunking -- it handles chunking internally. The mismatch is harmless but confusing.
 
-## The Fix: Chunked SQL Processing
+### Issue 3: No Edge Function Logs Appearing
+Zero logs means the function is either:
+- Not deployed (the rewrite hasn't been deployed yet), OR  
+- Crashing on import (the `_shared/idempotency.ts` or `_shared/response-helpers.ts` import fails)
 
-Replace the single massive RPC call with chunked processing inside the edge function itself. Instead of one SQL call that scores 40k accounts, process in batches of 2,000.
+This is the most likely blocker -- **the function needs to be redeployed**.
 
-### Part 1: New SQL Function -- `bulk_score_chunk`
+### Issue 4: icp_id Column in Upsert
+The edge function inserts `icp_id` in score rows, but the upsert conflict target `(org_id, account_external_id)` means only the last ICP's score survives per account. If there are multiple ICPs, this causes overwrites and incorrect counts.
 
-Create a lightweight SQL function that scores a **batch** of accounts using OFFSET/LIMIT:
+## Fix Plan
 
-```text
-bulk_score_chunk(org_id, icp_id, chunk_offset, chunk_limit)
-  --> scores 2,000 accounts at a time
-  --> returns { processed: N }
-```
-
-This keeps each SQL call under ~30 seconds.
-
-### Part 2: Rewrite Edge Function to Loop Chunks
-
-The edge function will:
-1. Create a `bulk_scoring_jobs` record
-2. Count total accounts
-3. Loop through chunks of 2,000, calling `bulk_score_chunk` for each
-4. Update job progress after each chunk
-5. Mark job as completed when done
-
-To handle the edge function's 60-second limit, it will use a "fire-and-continue" pattern: after processing a few chunks, if time is running low, it marks the job as `processing` with progress saved, then the `job-auto-recovery` function picks it back up.
-
-### Part 3: Alternative Simpler Approach -- Direct SQL in Chunks
-
-Actually, the simplest fix: skip the RPC entirely. The edge function can run direct UPDATE queries in chunks using the service-role Supabase client:
+### Step 1: Database Migration -- Clean Up Conflicting Constraints
+Drop the redundant 3-column unique constraint that conflicts with the 2-column one:
 
 ```text
-For each batch of 2,000 account IDs:
-  1. Fetch accounts with their fields
-  2. Score them in JavaScript (matching the SQL logic)  
-  3. Upsert scores in bulk
-  4. Update job progress
+DROP INDEX IF EXISTS scores_org_id_account_external_id_scoring_version_key;
+DROP INDEX IF EXISTS scores_org_account_unique;  -- duplicate of unique_score_per_account
 ```
 
-This avoids the SQL function timeout entirely and keeps each database call small.
+This leaves only `unique_score_per_account` on `(org_id, account_external_id)` as the single source of truth.
 
-## Technical Plan
+### Step 2: Redeploy the Edge Function
+Ensure the rewritten `bulk-score-accounts/index.ts` is deployed. The current "no logs" situation suggests the old version may still be running.
 
-### Files to Change
+### Step 3: Fix the Frontend Invocation
+Update `BulkScoring.tsx` line 422-428 to remove the stale `chunk_index` and `chunk_size` parameters that the new function doesn't use:
 
-1. **`supabase/functions/bulk-score-accounts/index.ts`** -- Rewrite to process accounts in JS chunks of 2,000 instead of calling a single RPC
-2. **Database migration** -- Create `bulk_score_chunk` helper function (optional, only if we keep SQL-based scoring)
+```typescript
+const { error } = await supabase.functions.invoke("bulk-score-accounts", {
+  body: { org_id: userProfile.org_id },
+});
+```
 
-### Implementation Details
+### Step 4: Fix Multi-ICP Scoring (Optional)
+If there's only one active ICP, this is a non-issue. If multiple ICPs exist, the upsert conflict target needs to include `icp_id`, or we pick the best-scoring ICP per account.
 
-The edge function rewrite will:
-- Remove the single `supabase.rpc('bulk_score_all_accounts')` call
-- Add a chunked loop: fetch 2,000 accounts, score them, upsert results
-- Implement JS-based scoring logic (matching `calculate_account_score_readonly`)
-- Update job progress after each chunk
-- Handle the 60-second edge function timeout by:
-  - Using `waitUntil` / background processing pattern, OR
-  - Having each invocation process as many chunks as possible within ~50 seconds, saving progress, then the auto-recovery system resumes it
+## Files to Change
 
-### Scoring Logic (JS port)
+1. **Database migration** -- Drop conflicting unique indexes on `scores`
+2. **`supabase/functions/bulk-score-accounts/index.ts`** -- Redeploy (no code changes needed beyond the previous rewrite)
+3. **`src/components/BulkScoring.tsx`** -- Clean up the invocation body to remove unused `chunk_index`/`chunk_size` params
 
-Port the `calculate_account_score_readonly` logic to JavaScript:
-- Industry match: 30 points (fuzzy LIKE match against ICP industries)
-- Company size: 25 points (range-based matching)
-- Geography: 25 points (exact country match)
-- Revenue: 20 points (exact range match)
-- Vertical filters: up to 15 bonus points
-- Overall = sum, capped at 100
-
-### Expected Outcome
-
-- Each chunk takes ~5-10 seconds (2,000 accounts)
-- Full 40k accounts complete in ~20 chunks (~2-3 minutes total)
-- Job progress updates in real-time so the UI can show a progress bar
-- No more timeouts
-
+## Expected Outcome
+- The "Score All Accounts" button triggers the edge function successfully
+- Logs appear in the Supabase dashboard
+- All 39,928 accounts get scored in ~2-3 minutes via chunked processing
+- Job progress updates in real-time in the UI
