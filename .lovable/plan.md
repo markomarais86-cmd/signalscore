@@ -1,35 +1,39 @@
 
 
-# Fix Quick Enrich Modal Layout
+# Fix "No accounts found" — Broken Sort in Database Function
 
 ## Problem
-The Quick Enrich modal content doesn't fit well -- the footer buttons are cramped and the layout feels tight, especially with the "Full Enrichment Options" link alongside "Cancel" and "Start".
+The Accounts page shows "No accounts found" with "Failed to load data" because the `get_filtered_accounts` database function crashes when executing its dynamic SQL `ORDER BY` clause.
 
-## Changes
+The root cause: the function uses Postgres `format('%I', 'a.updated_at')` which produces `"a.updated_at"` (treating the whole string including the dot as one column name). Postgres then can't find a column literally named `a.updated_at` and throws: **column "a.updated_at" does not exist**.
 
-**File: `src/components/executive/EnrichmentModal.tsx`**
+## Fix
 
-1. **Widen the modal** -- Change `max-w-md` to `max-w-lg` on `DialogContent` (line 114) to give more breathing room.
+**Database migration** — Update the `get_filtered_accounts` function to avoid using `%I` with table-qualified column names. Instead, build the ORDER BY clause safely using a CASE statement (already partially done for the column mapping) and inject it directly with `%s` since the values are controlled by the CASE (not user input).
 
-2. **Fix footer layout** -- Restructure the `DialogFooter` so:
-   - "Full Enrichment Options" sits on its own row (full width)
-   - "Cancel" and "Start" buttons sit together on a second row, right-aligned
-   - This prevents the three buttons from competing for horizontal space
+The CASE block already maps sort fields to qualified column references like `'a.updated_at'`, `'a.name'`, etc. The fix changes:
 
-3. **Add padding/spacing** -- Add `pt-2` to the footer to separate it from the form content above.
+```sql
+-- BEFORE (broken):
+ORDER BY %I %s   -- %I quotes "a.updated_at" as a single identifier
 
-The updated footer structure:
-
-```
-<DialogFooter className="flex-col gap-2 pt-2">
-  <div className="flex justify-end gap-2 w-full">
-    <Button variant="outline" ...>Cancel</Button>
-    <Button ...>Start</Button>
-  </div>
-  <Button variant="ghost" size="sm" onClick={goToFullEnrichment} className="w-full ...">
-    Full Enrichment Options
-  </Button>
-</DialogFooter>
+-- AFTER (fixed):
+ORDER BY ' || 
+  CASE p_sort_field
+    WHEN 'name' THEN 'a.name'
+    WHEN 'industry_norm' THEN 'a.industry_norm'  
+    WHEN 'country' THEN 'a.country'
+    WHEN 'score' THEN 's.overall'
+    ELSE 'a.updated_at'
+  END || ' ' ||
+  CASE WHEN p_sort_direction = 'asc' THEN 'ASC' ELSE 'DESC' END || '
+LIMIT $11'
 ```
 
-Single-file change, no new dependencies.
+This is safe because both CASE outputs are hardcoded strings (no user input reaches the SQL text).
+
+## Steps
+
+1. Run a database migration to replace the `get_filtered_accounts` function with the fixed ORDER BY logic
+2. No frontend code changes needed — the function signature and return type stay the same
+
