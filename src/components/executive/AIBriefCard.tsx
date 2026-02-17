@@ -65,7 +65,10 @@ export function AIBriefCard({
 Focus on the single most impactful action to take today. Be direct and specific.`;
 
       const { data, error } = await supabase.functions.invoke("ai-chat", {
-        body: { message: prompt },
+        body: {
+          messages: [{ role: "user", content: prompt }],
+          context: "Executive dashboard briefing",
+        },
       });
 
       if (error) throw error;
