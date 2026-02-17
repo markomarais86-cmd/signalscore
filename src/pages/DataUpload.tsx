@@ -401,6 +401,36 @@ export default function DataUpload() {
       await loadTotalRecords();
       completeStep('upload_data');
 
+      // Auto-enrich newly uploaded unenriched accounts
+      if (effectiveOrgId) {
+        try {
+          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+          const { data: unenriched } = await supabase
+            .from("accounts")
+            .select("external_id")
+            .eq("org_id", effectiveOrgId)
+            .is("enriched_at", null)
+            .gte("updated_at", fiveMinutesAgo)
+            .limit(50);
+
+          if (unenriched && unenriched.length > 0) {
+            toast({
+              title: "Auto-Enriching",
+              description: `Enriching ${unenriched.length} new accounts in the background...`,
+            });
+            await supabase.functions.invoke("enrich-unified", {
+              body: {
+                record_type: "account",
+                org_id: effectiveOrgId,
+                record_ids: unenriched.map((a) => a.external_id),
+              },
+            });
+          }
+        } catch (err) {
+          uploadLogger.error("Auto-enrich after upload failed:", err);
+        }
+      }
+
       // Matching is now handled by bulk-upload edge function automatically
       // Just show completion message
       setUploadProgress(100);

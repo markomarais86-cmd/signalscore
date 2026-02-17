@@ -12,6 +12,7 @@ import { useCampaignContext } from "@/hooks/use-campaign-context";
 
 import { GlobalCommandPalette, CommandPaletteTrigger } from "@/components/GlobalCommandPalette";
 import { OrgSwitcher, ImpersonationBanner } from "@/components/OrgSwitcher";
+import { GlobalAIAssistant } from "@/components/GlobalAIAssistant";
 
 interface LayoutProps {
   children: ReactNode;
@@ -58,6 +59,9 @@ export function Layout({ children }: LayoutProps) {
         
         {/* Global Command Palette - accessible from any page via Cmd+K */}
         <GlobalCommandPalette />
+        
+        {/* Global AI Assistant - accessible from any page via Cmd+J */}
+        <GlobalAIAssistant />
         
         {/* Global Campaign Builder - triggered from insights */}
         <CampaignBuilderV2
