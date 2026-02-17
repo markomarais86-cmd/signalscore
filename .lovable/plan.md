@@ -1,64 +1,102 @@
 
 
-# Fix: RLS Policy Blocking custom_attribute_definitions for Child Orgs
+# Run AI Technology Insights Enrichment for 91.Life ICP Scoring
 
 ## Problem
 
-The `custom_attribute_definitions` table has RLS policies that check:
-```
-org_id IN (SELECT org_id FROM user_profiles WHERE user_id = auth.uid())
-```
+91.Life needs tech stack data on accounts to score against EHR systems (Epic, Cerner, Athenahealth). Currently only **319 out of 39,928** accounts have `tech_stack` populated. The existing enrichment components have a **child org bug** -- they query accounts using `userProfile.org_id` (91.Life) but the accounts live under the parent org (Launchpulse).
 
-When a child org user (e.g., 91.Life) writes custom attribute definitions, the code uses `dataOrgId` (the parent org, Launchpulse) as the `org_id`. Since the user's profile has `org_id = 91.Life`, the RLS policy rejects the write because Launchpulse is not in the user's `org_id` set.
-
-The same issue affects **reads, updates, and deletes** -- child org users can't see or manage custom attributes stored under the parent org.
+Three components are affected:
+- `AITechnologyInsights.tsx` -- uses `userProfile.org_id` to fetch accounts
+- `SmartEnrichmentPanel.tsx` -- uses `userProfile.org_id` for all queries
+- `enrich-technology-insights` edge function -- receives `orgId` from frontend and queries with it
 
 ## Solution
 
-There are two parts to this fix:
+### 1. Fix AITechnologyInsights to use dataOrgId (frontend)
 
-### 1. Database: Update RLS policies to support parent org access
+**File: `src/components/AITechnologyInsights.tsx`**
 
-Create a helper function `get_user_accessible_org_ids()` that returns both the user's own org and its parent org (if one exists). Then update all four RLS policies on `custom_attribute_definitions` to use it.
+- Import `useEffectiveOrg` hook
+- Use `effectiveOrgId` (which resolves to parent org for child orgs) when:
+  - Fetching accounts from the `accounts` table (line 43-47)
+  - Passing `orgId` to the edge function (line 78)
 
-**New function:**
-```sql
-CREATE OR REPLACE FUNCTION public.get_user_accessible_org_ids()
-RETURNS SETOF uuid
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = 'public'
-AS $$
-  SELECT org_id FROM user_profiles WHERE user_id = auth.uid()
-  UNION
-  SELECT get_data_org_id(org_id) FROM user_profiles WHERE user_id = auth.uid()
-$$;
-```
+### 2. Fix SmartEnrichmentPanel to use dataOrgId (frontend)
 
-This returns: the user's own org_id, plus the parent org_id (via the existing `get_data_org_id` function). For standalone orgs, both values are the same so it still works.
+**File: `src/components/settings/SmartEnrichmentPanel.tsx`**
 
-**Updated policies (all four):** Change `USING`/`WITH CHECK` from:
-```
-org_id IN (SELECT org_id FROM user_profiles WHERE user_id = auth.uid())
-```
-to:
-```
-org_id IN (SELECT get_user_accessible_org_ids())
-```
+- Import `useEffectiveOrg` hook
+- Replace all `userProfile.org_id` references in database queries with `effectiveOrgId`:
+  - `loadDataQuality()` -- 6 queries (lines 53-87)
+  - `loadPriorityAccounts()` -- account fetch (line 122)
+  - `startBatchEnrichment()` -- `org_id` passed to edge functions (line 175)
+  - `startFreeAIEnrichment()` -- job creation and enrichment invocation (lines 227-255)
 
-### 2. Frontend: No changes needed
+### 3. Update enrich-technology-insights to persist tech_stack (backend)
 
-The code in `CustomAttributeManager.tsx` already uses `dataOrgId` for both reads and writes, which is the correct behavior -- custom attributes are shared data owned by the parent org. The RLS fix is sufficient.
+**File: `supabase/functions/enrich-technology-insights/index.ts`**
+
+Currently this function generates text insights but does NOT write `tech_stack` back to the `accounts` table. Update it to:
+
+- Modify the AI prompt to also return a structured JSON array of technology names alongside the text analysis
+- Parse the tech stack array from the response
+- Write the extracted `tech_stack` array back to the `accounts` table (using `account.id` and the provided `orgId`)
+- This way, each "Generate Insights" call also fills the tech stack gap
+
+### 4. No database changes needed
+
+The `accounts.tech_stack` column already exists as a `text[]` array. No migration required.
 
 ## Technical Details
 
-### Migration SQL
+### AITechnologyInsights.tsx changes
 
-A single migration that:
-1. Creates `get_user_accessible_org_ids()` function
-2. Drops and recreates all 4 policies on `custom_attribute_definitions`
+```text
++ import { useEffectiveOrg } from "@/hooks/use-effective-org";
 
-### Impact
+  // Inside component:
++ const { effectiveOrgId } = useEffectiveOrg();
 
-- Child org users will be able to read, create, update, and delete custom attribute definitions stored under the parent org
-- Standalone orgs are unaffected (the function returns only their own org_id)
-- The new function can be reused for other tables that need the same parent-org access pattern
+  // Account fetch (line 44):
+- .eq('org_id', userProfile.org_id)
++ .eq('org_id', effectiveOrgId)
+
+  // Edge function call (line 78):
+- orgId: userProfile.org_id
++ orgId: effectiveOrgId
+```
+
+### SmartEnrichmentPanel.tsx changes
+
+Same pattern -- replace all 8 occurrences of `userProfile.org_id` in data queries with `effectiveOrgId`. Keep `userProfile.org_id` only for the `useEffect` dependency and null checks.
+
+### enrich-technology-insights/index.ts changes
+
+Update the AI prompt to request both prose analysis AND a structured `tech_stack` JSON array. After getting the response, parse the array and upsert it:
+
+```text
+// After getting AI insights text, extract tech stack:
+const techStackMatch = insights.match(/\[.*?\]/s);
+let techStack = [];
+if (techStackMatch) {
+  try { techStack = JSON.parse(techStackMatch[0]); } catch {}
+}
+
+// Write back to accounts table:
+if (techStack.length > 0) {
+  await supabase
+    .from('accounts')
+    .update({ tech_stack: techStack })
+    .eq('external_id', account.external_id)
+    .eq('org_id', orgId);
+}
+```
+
+## Impact
+
+- 91.Life users will be able to trigger tech stack enrichment from the AI Insights panel
+- Each enrichment run will both display insights AND persist `tech_stack` data
+- ICP scoring against EHR systems (Epic, Cerner) will have actual tech stack data to match against
+- SmartEnrichmentPanel will show correct data quality metrics for child orgs
+
