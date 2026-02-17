@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -147,8 +148,8 @@ export function AskAccountAI({ accountExternalId, accountName }: AskAccountAIPro
                         <span className="text-sm">Thinking...</span>
                       </div>
                     ) : (
-                      <div className="text-sm whitespace-pre-wrap">
-                        {message.content}
+                      <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
+                        <ReactMarkdown>{message.content}</ReactMarkdown>
                       </div>
                     )}
                   </div>

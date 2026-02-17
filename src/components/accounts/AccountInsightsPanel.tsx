@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -240,8 +241,8 @@ export function AccountInsightsPanel({
                     <Skeleton className="h-16 w-full" />
                   </div>
                 ) : (
-                  <div className="text-sm whitespace-pre-wrap text-muted-foreground">
-                    {techInsightsText}
+                  <div className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown>{techInsightsText || ''}</ReactMarkdown>
                   </div>
                 )}
               </CardContent>
