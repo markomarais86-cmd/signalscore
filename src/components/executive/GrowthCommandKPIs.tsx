@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 
 interface GrowthCommandKPIsProps {
   totalAccounts: number;
-  tamEstimate: number;
+  totalScored: number;
+  medFitAccounts: number;
   dataCompleteness: number;
   highFitAccounts: number;
   campaignReadyAccounts: number;
@@ -34,7 +35,8 @@ function formatCurrency(value: number) {
 
 export function GrowthCommandKPIs({
   totalAccounts,
-  tamEstimate,
+  totalScored,
+  medFitAccounts,
   dataCompleteness,
   highFitAccounts,
   campaignReadyAccounts,
@@ -44,19 +46,19 @@ export function GrowthCommandKPIs({
 }: GrowthCommandKPIsProps) {
   const navigate = useNavigate();
 
-  const hasTAM = tamEstimate > 0 && tamEstimate !== totalAccounts;
-  const marketCoverage = hasTAM ? Math.round((totalAccounts / tamEstimate) * 100) : 0;
+  const icpFitAccounts = highFitAccounts + medFitAccounts;
+  const marketCoverage = totalScored > 0 ? Math.round((icpFitAccounts / totalScored) * 100) : 0;
   const priorityCount = highFitAccounts;
 
   const tiles = [
     {
       label: "Market Coverage",
-      value: hasTAM ? `${marketCoverage}%` : totalAccounts.toLocaleString(),
-      soWhat: hasTAM
-        ? `${totalAccounts.toLocaleString()} of ${tamEstimate.toLocaleString()} reachable accounts in system`
-        : `${totalAccounts.toLocaleString()} accounts loaded — connect TAM source for coverage %`,
+      value: totalScored > 0 ? `${marketCoverage}%` : "—",
+      soWhat: totalScored > 0
+        ? `${icpFitAccounts.toLocaleString()} of ${totalScored.toLocaleString()} scored accounts match ICP (A+B bands)`
+        : "No accounts scored yet — run scoring to see coverage",
       icon: Globe,
-      benchmarkPercent: hasTAM ? marketCoverage : (totalAccounts > 0 ? 60 : 0),
+      benchmarkPercent: marketCoverage,
       onClick: () => navigate("/accounts"),
     },
     {
