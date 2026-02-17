@@ -1,39 +1,30 @@
 
 
-# Fix "No accounts found" — Broken Sort in Database Function
+# Fix Lead Details Panel Layout
 
 ## Problem
-The Accounts page shows "No accounts found" with "Failed to load data" because the `get_filtered_accounts` database function crashes when executing its dynamic SQL `ORDER BY` clause.
+The lead details slide-out panel is too cramped. The 2-column grid causes text overlap (email bleeds into phone), and fields like company name get squeezed. This happens because the panel renders narrower than the `w-[600px]` on smaller viewports.
 
-The root cause: the function uses Postgres `format('%I', 'a.updated_at')` which produces `"a.updated_at"` (treating the whole string including the dot as one column name). Postgres then can't find a column literally named `a.updated_at` and throws: **column "a.updated_at" does not exist**.
+## Changes
 
-## Fix
+**File: `src/pages/Leads.tsx`**
 
-**Database migration** — Update the `get_filtered_accounts` function to avoid using `%I` with table-qualified column names. Instead, build the ORDER BY clause safely using a CASE statement (already partially done for the column mapping) and inject it directly with `%s` since the values are controlled by the CASE (not user input).
+1. **Make the SheetContent width responsive** -- Change `w-[600px] sm:w-[700px]` to `w-full sm:w-[540px] md:w-[640px]` so on mobile it takes full width gracefully, and on desktop it has comfortable sizing.
 
-The CASE block already maps sort fields to qualified column references like `'a.updated_at'`, `'a.name'`, etc. The fix changes:
+2. **Add `truncate` to overflowing text fields** -- The email and company fields can be long. Add `truncate` class to `<p>` elements in the Lead Information and Company Overview grids so text doesn't overflow into adjacent columns.
 
-```sql
--- BEFORE (broken):
-ORDER BY %I %s   -- %I quotes "a.updated_at" as a single identifier
+3. **Make grid columns responsive** -- Change `grid-cols-2` to `grid-cols-1 sm:grid-cols-2` on the Lead Information and Company Overview grids (lines 835, 874) so on very narrow screens the fields stack vertically.
 
--- AFTER (fixed):
-ORDER BY ' || 
-  CASE p_sort_field
-    WHEN 'name' THEN 'a.name'
-    WHEN 'industry_norm' THEN 'a.industry_norm'  
-    WHEN 'country' THEN 'a.country'
-    WHEN 'score' THEN 's.overall'
-    ELSE 'a.updated_at'
-  END || ' ' ||
-  CASE WHEN p_sort_direction = 'asc' THEN 'ASC' ELSE 'DESC' END || '
-LIMIT $11'
-```
+4. **Add `break-all` or `break-words`** -- For the email field specifically, add `break-all` so long email addresses wrap instead of overlapping.
 
-This is safe because both CASE outputs are hardcoded strings (no user input reaches the SQL text).
+## Specific line changes
 
-## Steps
+- **Line 811**: `w-full sm:w-[540px] md:w-[640px] overflow-y-auto`
+- **Line 835**: `grid grid-cols-1 sm:grid-cols-2 gap-4`
+- **Line 838**: Add `truncate` or `break-all` to email `<p>`
+- **Line 874**: `grid grid-cols-1 sm:grid-cols-2 gap-4`
+- **Line 877**: Add `truncate` to company name `<p>`
+- **Lines 948, 976**: Same responsive grid treatment for enrichment data grids
 
-1. Run a database migration to replace the `get_filtered_accounts` function with the fixed ORDER BY logic
-2. No frontend code changes needed — the function signature and return type stay the same
+No new dependencies. Single file change.
 
