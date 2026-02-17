@@ -1,81 +1,69 @@
 
+# Fix: Connect 91.Life Org Data -- ICP + Accounts + Dashboard
 
-# Fix: ICP Wizard -- Keywords, Titles, Verticals, and Save Issues
+## What's Actually Wrong
 
-## Issues Found
+The code changes from the last round (effectiveOrgId in wizard, company keywords, etc.) are all correctly deployed. The problem is **data**:
 
-### 1. ICP Save Uses Wrong Org (Root Cause of "Nothing Happens on Update")
-`ICPWizard.tsx` line 238 uses `userProfile.org_id` (Launchpulse) instead of `effectiveOrgId` (91.Life). When you click Update, the ICP gets saved to the wrong org, so it "disappears" from the 91.Life view.
+1. **The ICP is STILL under Launchpulse** (org `726a0dc0`), not 91.Life (`cd592f73`). The previous migration that was supposed to move it either didn't run or was reverted by a subsequent migration.
+2. **91.Life has ZERO accounts** -- no CRM accounts, no database accounts, no leads. The dashboard is empty because there is genuinely no data under that org ID.
+3. **No scores exist** for 91.Life since there are no accounts to score.
 
-**Fix:** Import `useEffectiveOrg` and use `effectiveOrgId` in `handleSave`.
+The dashboard code correctly uses `effectiveOrgId` to query, but it's querying an empty org.
 
-### 2. Industries: Add Company Keywords Field
-Currently the industry section only offers a fixed dropdown of predefined industries/sub-industries. There is no way to add free-text company keywords (e.g., "electrophysiology", "remote patient monitoring") that would match against `industry_raw`, `industry_norm`, or company descriptions.
+## What Needs to Happen
 
-**Fix:** Add a "Company Keywords" free-text input field (type and press Enter) to Step 2 alongside industries/sub-industries. This will be stored in a new `company_keywords` array field on the ICP. The scoring engine already does ILIKE fuzzy matching, so these keywords will expand the match scope beyond the fixed taxonomy.
+### Step 1: Move the ICP to 91.Life (again)
+The ICP `f0d17a6b-6476-4e2d-a90f-9afc8d8e232b` currently has `org_id = 726a0dc0` (Launchpulse). Update it to `cd592f73` (91.Life).
 
-### 3. Job Titles: Remove Management Level Prefixes
-The ICP currently has combined titles like "Service Line Director Cardiology", "Division Chief Electrophysiology", "System VP of Finance". The seniority/management level is already handled separately via `persona_seniority_levels`. Titles should be pure functional keywords like "Cardiology", "Electrophysiology", "Finance", "Revenue Cycle" -- except for C-level titles (CFO, CIO, CISO, CEO, CMO) which are inherently title + seniority combined.
+```sql
+UPDATE icp_profiles
+SET org_id = 'cd592f73-3e0e-478d-905b-47fe7c5fb634'
+WHERE id = 'f0d17a6b-6476-4e2d-a90f-9afc8d8e232b';
+```
 
-**Fix:** 
-- Clean up the existing ICP data to strip management-level prefixes from titles
-- Update the wizard's placeholder text and tips to guide users: "Enter functional keywords only (e.g., Cardiology, Revenue Cycle). Seniority levels like VP, Director are set separately above."
+### Step 2: Decide on account data strategy
 
-### 4. Vertical Attributes Not Showing ("The Bids")
-The Vertical Attributes card in Step 2 queries `custom_attribute_definitions` with `org_id = userProfile.org_id` (Launchpulse), but the ICP is now under 91.Life. The custom attributes (facility_type, bed_count, EHR system, specialties, CMS star rating) are defined under Launchpulse's org_id.
+The 91.Life org currently has zero accounts. There are two options:
 
-Two things need fixing:
-- The query in Step 2 must use `effectiveOrgId` instead of `userProfile.org_id`
-- The custom attribute definitions need to be copied/shared to the 91.Life org (or the existing definitions need their `org_id` updated)
+**Option A: Copy relevant accounts from Launchpulse to 91.Life**
+- Filter Launchpulse's 39,928 accounts by healthcare/hospital industry
+- Insert copies with `org_id = cd592f73` and `data_source = 'database'`
+- This gives 91.Life its own dataset to score against
 
-**Fix:** 
-- Update Step 2 query to use `effectiveOrgId`
-- Copy custom attribute definitions to 91.Life org via SQL
+**Option B: Keep accounts under Launchpulse, just view via org switcher**
+- This means the ICP should also stay under Launchpulse
+- When switched to 91.Life, the dashboard will always be empty unless accounts are added
+- This only makes sense if 91.Life will have its own CRM import
 
-### 5. Step 3 and Match Count Also Use Wrong Org
-`ICPWizardStep3.tsx` queries lead titles using `userProfile.org_id`. The match count RPC in Step 2 also uses `userProfile.org_id`. Both need `effectiveOrgId`.
+We need to clarify which approach is intended before proceeding.
 
-## Technical Changes
+### Step 3: After accounts exist, run scoring
+Once accounts exist under 91.Life, the scoring engine needs to run against them using the Heart+ ICP to populate the `scores` table. This is what makes the dashboard show fit breakdowns (high/medium/low).
 
-### File 1: `src/components/icp/ICPWizard.tsx`
-- Import `useEffectiveOrg` from `@/hooks/use-effective-org`
-- Replace `userProfile.org_id` with `effectiveOrgId` in `handleSave` (line 238)
-- Also update the guard check on line 233
+### Step 4: Refresh the dashboard metrics cache
+The materialized view (`get_dashboard_metrics_cached`) needs to be refreshed after scoring so the dashboard picks up the new data.
 
-### File 2: `src/components/icp/ICPWizardStep2.tsx`
-- Import `useEffectiveOrg`
-- Replace all `userProfile.org_id` references with `effectiveOrgId` (lines 30-71)
-- Add a new "Company Keywords" card with free-text input (type and press Enter, badge display with remove)
-- Store keywords in `formData.company_keywords` array
+## Technical Details
 
-### File 3: `src/components/icp/ICPWizardStep3.tsx`
-- Import `useEffectiveOrg`
-- Replace `userProfile.org_id` with `effectiveOrgId` (lines 33-54)
-- Update placeholder text to: "Enter functional area only (e.g., Cardiology, Revenue Cycle). Seniority is set separately."
+### Database Changes
+- SQL migration to move ICP org_id (again)
+- SQL to copy/create accounts under 91.Life (depending on chosen approach)
+- Trigger scoring run via edge function
+- Refresh metrics cache
 
-### File 4: `src/types/icp.ts`
-- Add `company_keywords?: string[]` to both `ICPProfile` and `ICPFormData` interfaces
+### No Code Changes Required
+All code changes from the previous round are already correctly in place:
+- ICPWizard uses `effectiveOrgId` for saves
+- ICPWizardStep2 uses `effectiveOrgId` for custom attrs + match counts + company keywords
+- ICPWizardStep3 uses `effectiveOrgId` for lead title suggestions
+- Dashboard uses `effectiveOrgId` for all data queries
+- Company keywords field and scoring engine are deployed
 
-### File 5: `src/components/icp/ICPWizard.tsx` (initialFormData + save)
-- Add `company_keywords: []` to `initialFormData`
-- Add `company_keywords` to the save payload in `handleSave`
-- Add `company_keywords` to the edit population in `useEffect`
+### Why the Dashboard Shows Nothing
+The dashboard queries `accounts`, `scores`, and `icp_profiles` all filtered by `org_id = effectiveOrgId` (91.Life). Since 91.Life has:
+- 0 accounts
+- 0 scores  
+- 0 ICP profiles (ICP is still under Launchpulse)
 
-### File 6: Database migration
-- Add `company_keywords text[]` column to `icp_profiles` table
-- Copy custom attribute definitions from Launchpulse to 91.Life org
-- Clean up ICP job titles: strip management-level prefixes from existing titles (keep C-level intact)
-
-### File 7: Scoring engine update (SQL function)
-- Update the scoring function to also match `company_keywords` against `industry_raw`, `industry_norm`, and `sub_industry` columns using ILIKE
-
-## Summary of What Each Fix Solves
-
-| Problem | Fix |
-|---------|-----|
-| ICP "disappears" after Update | Use `effectiveOrgId` in save |
-| Industries only dropdown, no keywords | Add company_keywords field + scoring |
-| Titles include "Director", "VP" | Clean data + update guidance text |
-| Vertical attributes not showing | Use `effectiveOrgId` + copy definitions |
-| Dashboard empty | Cascading fix from correct org_id |
-| Match count wrong | Use `effectiveOrgId` in RPC call |
+...every metric returns 0. This is correct behavior -- the data simply isn't there.
