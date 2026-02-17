@@ -643,7 +643,7 @@ export default function ExecutiveDashboard() {
               pipelinePotential={campaignReadyAccounts * averageDealSize * 0.25}
               revenueAtRisk={
                 totalAccounts > 0
-                  ? Math.round((1 - dataCompleteness / 100) * totalAccounts * averageDealSize * 0.1)
+                  ? Math.round((totalAccounts - totalScores) * averageDealSize * conversionRate)
                   : 0
               }
               averageDealSize={averageDealSize}

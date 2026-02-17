@@ -88,10 +88,12 @@ export function GrowthCommandKPIs({
     {
       label: "Revenue at Risk",
       value: formatCurrency(revenueAtRisk),
-      soWhat: "Opportunity lost to data gaps — enrich to recover",
+      soWhat: revenueAtRisk > 0
+        ? "Unscored accounts represent unrealized pipeline — score to unlock"
+        : "All accounts scored — pipeline fully visible",
       icon: AlertTriangle,
       benchmarkPercent: revenueAtRisk > 0 ? 30 : 80,
-      onClick: () => navigate("/enrichment"),
+      onClick: () => navigate("/accounts"),
     },
   ];
 
