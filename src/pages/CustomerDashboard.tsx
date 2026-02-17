@@ -7,6 +7,8 @@ import { useTasks } from "@/hooks/use-tasks";
 import { useOpportunities, DEAL_STAGES } from "@/hooks/use-opportunities";
 import { useAuth } from "@/hooks/use-auth";
 import { useBrandedConfig } from "@/hooks/useBrandedConfig";
+import { ComponentErrorBoundary } from "@/components/ComponentErrorBoundary";
+import { BulkScoring } from "@/components/BulkScoring";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -216,6 +218,11 @@ export default function CustomerDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Bulk Scoring */}
+      <ComponentErrorBoundary fallbackTitle="Bulk Scoring unavailable">
+        <BulkScoring />
+      </ComponentErrorBoundary>
     </div>
   );
 }
