@@ -266,6 +266,9 @@ serve(async (req) => {
       resume_candidates_found: 0,
       jobs_resumed: 0,
       jobs_failed_max_retries: 0,
+      bulk_scoring_stale_found: 0,
+      bulk_scoring_resumed: 0,
+      bulk_scoring_failed: 0,
       errors: [] as string[],
     };
 
@@ -427,6 +430,86 @@ serve(async (req) => {
         const errorMsg = `Failed to auto-resume job ${job.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
         results.errors.push(errorMsg);
         console.error(`[AutoRecovery] ${errorMsg}`);
+      }
+    }
+
+    // ========== Step 3: Monitor stale bulk_scoring_jobs ==========
+    console.log('[AutoRecovery] Checking for stale bulk scoring jobs...');
+    
+    const bulkStaleThreshold = new Date(Date.now() - STALE_JOB_THRESHOLD_MS).toISOString();
+    const { data: staleBulkJobs, error: bulkQueryErr } = await supabase
+      .from('bulk_scoring_jobs')
+      .select('id, org_id, status, updated_at, current_chunk, total_chunks, processed_accounts, total_accounts')
+      .eq('status', 'processing')
+      .lt('updated_at', bulkStaleThreshold)
+      .limit(10);
+
+    if (bulkQueryErr) {
+      results.errors.push(`Failed to query stale bulk scoring jobs: ${bulkQueryErr.message}`);
+      console.error('[AutoRecovery] Failed to query bulk_scoring_jobs:', bulkQueryErr.message);
+    } else if (staleBulkJobs?.length) {
+      results.bulk_scoring_stale_found = staleBulkJobs.length;
+      console.log(`[AutoRecovery] Found ${staleBulkJobs.length} stale bulk scoring job(s)`);
+
+      for (const job of staleBulkJobs) {
+        try {
+          // Check how many times we've already retried by looking at error_details
+          const { data: jobDetail } = await supabase
+            .from('bulk_scoring_jobs')
+            .select('error_details')
+            .eq('id', job.id)
+            .single();
+
+          const retryCount = (jobDetail?.error_details as any)?.auto_recovery_count || 0;
+
+          if (retryCount >= MAX_RECOVERY_ATTEMPTS) {
+            // Mark as failed
+            await supabase.from('bulk_scoring_jobs').update({
+              status: 'failed',
+              error_message: `Auto-recovery failed after ${MAX_RECOVERY_ATTEMPTS} attempts`,
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }).eq('id', job.id);
+            
+            results.bulk_scoring_failed++;
+            console.log(`[AutoRecovery] Bulk scoring job ${job.id} marked as failed after ${MAX_RECOVERY_ATTEMPTS} retries`);
+            continue;
+          }
+
+          // Update retry count in error_details
+          await supabase.from('bulk_scoring_jobs').update({
+            error_details: { auto_recovery_count: retryCount + 1, last_recovery_at: new Date().toISOString() },
+            updated_at: new Date().toISOString(),
+          }).eq('id', job.id);
+
+          // Invoke bulk-score-accounts to resume from where it left off
+          console.log(`[AutoRecovery] Resuming bulk scoring job ${job.id} (chunk ${job.current_chunk}/${job.total_chunks}, attempt ${retryCount + 1})...`);
+          
+          const response = await fetch(
+            `${Deno.env.get('SUPABASE_URL')}/functions/v1/bulk-score-accounts`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+              },
+              body: JSON.stringify({ job_id: job.id, org_id: job.org_id }),
+            }
+          );
+
+          if (response.ok) {
+            results.bulk_scoring_resumed++;
+            console.log(`[AutoRecovery] Successfully resumed bulk scoring job ${job.id}`);
+          } else {
+            const errorText = await response.text();
+            results.errors.push(`Failed to resume bulk scoring job ${job.id}: ${errorText}`);
+            console.error(`[AutoRecovery] Failed to resume bulk scoring job ${job.id}: ${errorText}`);
+          }
+        } catch (error) {
+          const errorMsg = `Failed to handle bulk scoring job ${job.id}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          results.errors.push(errorMsg);
+          console.error(`[AutoRecovery] ${errorMsg}`);
+        }
       }
     }
 
