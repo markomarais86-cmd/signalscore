@@ -38,7 +38,20 @@ serve(async (req) => {
       .single();
 
     if (icpError || !icpData) {
-      throw new Error(`No primary ICP found for org ${org_id}`);
+      console.log(`No primary ICP found for org ${org_id} - skipping sync`);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          skipped: true,
+          reason: 'No primary ICP found for this organization',
+          totalAccounts: 0,
+          totalContacts: 0
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200
+        }
+      );
     }
 
     console.log('Found primary ICP:', icpData.name);
