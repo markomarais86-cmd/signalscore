@@ -14,9 +14,12 @@ interface SimpleICPTableProps {
   databaseAccounts: number;
   highFitCrmAccounts: number;
   highFitDatabaseAccounts: number;
+  medFitCrmAccounts: number;
+  medFitDatabaseAccounts: number;
   // Apollo/external data for database source
   apolloAccounts?: number;
   apolloHighFitEstimate?: number;
+  apolloMedFitEstimate?: number;
   className?: string;
 }
 
@@ -25,20 +28,26 @@ export function SimpleICPTable({
   databaseAccounts,
   highFitCrmAccounts,
   highFitDatabaseAccounts,
+  medFitCrmAccounts,
+  medFitDatabaseAccounts,
   apolloAccounts,
   apolloHighFitEstimate,
+  apolloMedFitEstimate,
   className,
 }: SimpleICPTableProps) {
+  const crmIcpFit = highFitCrmAccounts + medFitCrmAccounts;
   const crmPercentage = crmAccounts > 0 
-    ? Math.round((highFitCrmAccounts / crmAccounts) * 100) 
+    ? Math.round((crmIcpFit / crmAccounts) * 100) 
     : 0;
   
   // Use Apollo data if provided, otherwise fall back to internal database accounts
   const effectiveDatabaseAccounts = apolloAccounts ?? databaseAccounts;
   const effectiveHighFitDatabase = apolloHighFitEstimate ?? highFitDatabaseAccounts;
+  const effectiveMedFitDatabase = apolloMedFitEstimate ?? medFitDatabaseAccounts;
+  const dbIcpFit = effectiveHighFitDatabase + effectiveMedFitDatabase;
   
   const databasePercentage = effectiveDatabaseAccounts > 0 
-    ? Math.round((effectiveHighFitDatabase / effectiveDatabaseAccounts) * 100) 
+    ? Math.round((dbIcpFit / effectiveDatabaseAccounts) * 100) 
     : 0;
 
   const data = [
@@ -46,14 +55,14 @@ export function SimpleICPTable({
       source: "CRM",
       icon: Cloud,
       total: crmAccounts,
-      highFit: highFitCrmAccounts,
+      icpFit: crmIcpFit,
       percentage: crmPercentage,
     },
     {
       source: "Database",
       icon: Database,
       total: effectiveDatabaseAccounts,
-      highFit: effectiveHighFitDatabase,
+      icpFit: dbIcpFit,
       percentage: databasePercentage,
       isExternal: !!apolloAccounts,
     },
@@ -75,7 +84,7 @@ export function SimpleICPTable({
             <TableRow className="border-border/50 hover:bg-transparent">
               <TableHead className="w-32 text-xs font-medium text-muted-foreground">Source</TableHead>
               <TableHead className="text-right text-xs font-medium text-muted-foreground">Total</TableHead>
-              <TableHead className="text-right text-xs font-medium text-muted-foreground">High-Fit</TableHead>
+              <TableHead className="text-right text-xs font-medium text-muted-foreground">ICP-Fit</TableHead>
               <TableHead className="text-right text-xs font-medium text-muted-foreground">Coverage</TableHead>
             </TableRow>
           </TableHeader>
@@ -97,14 +106,14 @@ export function SimpleICPTable({
                   {row.total.toLocaleString()}
                 </TableCell>
                 <TableCell className="text-right text-foreground font-medium">
-                  {row.highFit.toLocaleString()}
-                  {row.isExternal && row.highFit > 0 && (
+                  {row.icpFit.toLocaleString()}
+                  {row.isExternal && row.icpFit > 0 && (
                     <span className="text-[10px] text-muted-foreground ml-1">est.</span>
                   )}
                 </TableCell>
                 <TableCell className="text-right">
                   <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary/15 text-primary border border-primary/20">
-                    {row.percentage}% High-Fit
+                    {row.percentage}% ICP-Fit
                   </span>
                 </TableCell>
               </TableRow>

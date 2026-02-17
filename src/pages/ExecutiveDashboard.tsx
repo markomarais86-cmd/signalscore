@@ -678,10 +678,17 @@ export default function ExecutiveDashboard() {
                 databaseAccounts={databaseAccounts}
                 highFitCrmAccounts={highFitCrmAccounts}
                 highFitDatabaseAccounts={highFitDatabaseAccounts}
+                medFitCrmAccounts={medFitCrmAccounts}
+                medFitDatabaseAccounts={medFitDatabaseAccounts}
                 apolloAccounts={tamData?.totalAccounts}
                 apolloHighFitEstimate={
                   tamData?.totalAccounts && tamData?.industry_breakdown
                     ? Math.round(tamData.totalAccounts * 0.35)
+                    : undefined
+                }
+                apolloMedFitEstimate={
+                  tamData?.totalAccounts && tamData?.industry_breakdown
+                    ? Math.round(tamData.totalAccounts * 0.25)
                     : undefined
                 }
               />
