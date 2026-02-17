@@ -13,6 +13,7 @@ import { ICPWizardStep5Disqualifiers } from './ICPWizardStep5Disqualifiers';
 import { ICPWizardStep5 } from './ICPWizardStep5';
 import { ClosedWonInsights } from './ClosedWonInsights';
 import { supabase } from '@/integrations/supabase/client';
+import { computeICPConfidence } from '@/utils/icp-confidence';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { useAccountInsights } from '@/hooks/use-account-insights';
@@ -284,7 +285,8 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
         weights: (formData.weights || {}) as any,
         disqualifiers: (formData.disqualifiers || {}) as any,
         scoring_config: (formData.scoring_config || {}) as any,
-        version_notes: formData.version_notes || null
+        version_notes: formData.version_notes || null,
+        confidence_score: computeICPConfidence(formData),
       };
 
       if (editingICP) {

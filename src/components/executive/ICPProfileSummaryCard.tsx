@@ -7,6 +7,7 @@ import { Target, Building2, Users, MapPin, Cpu, ArrowRight, Plus, AlertCircle, T
 import { ConfidenceMeter } from "@/components/discovery/ConfidenceMeter";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { computeICPConfidence } from "@/utils/icp-confidence";
 
 interface ICPProfileSummaryCardProps {
   icpProfiles: any[];
@@ -53,7 +54,7 @@ export function ICPProfileSummaryCard({ icpProfiles, className }: ICPProfileSumm
   const painPoints = profile.pain_points || [];
   const buyingSignals = profile.buying_signals || [];
   const companyStages = profile.company_stages || [];
-  const confidenceScore = profile.confidence_score;
+  const confidenceScore = profile.confidence_score || computeICPConfidence(profile);
 
   const statusColor = profile.status === 'active' 
     ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20' 
