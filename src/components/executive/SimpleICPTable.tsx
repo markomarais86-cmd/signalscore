@@ -83,7 +83,7 @@ export function SimpleICPTable({
           <TableHeader>
             <TableRow className="border-border/50 hover:bg-transparent">
               <TableHead className="w-32 text-xs font-medium text-muted-foreground">Source</TableHead>
-              <TableHead className="text-right text-xs font-medium text-muted-foreground">Total</TableHead>
+              <TableHead className="text-right text-xs font-medium text-muted-foreground">Scored</TableHead>
               <TableHead className="text-right text-xs font-medium text-muted-foreground">ICP-Fit</TableHead>
               <TableHead className="text-right text-xs font-medium text-muted-foreground">Coverage</TableHead>
             </TableRow>

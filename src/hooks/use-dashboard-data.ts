@@ -123,8 +123,28 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
       }
 
       // TAM data is optional, don't throw if missing
+      let resolvedTam = tamResult;
       if (tamResult.error) {
-        dashboardLogger.warn('TAM fetch error:', tamResult.error);
+        dashboardLogger.warn('TAM fetch error for org', orgId, ':', tamResult.error);
+      }
+      // Fallback: if child org TAM query returned nothing, try parent org
+      if (!tamResult.data && !tamResult.error && resolvedDataOrgId && resolvedDataOrgId !== orgId) {
+        dashboardLogger.info('TAM not found for child org, trying parent org:', resolvedDataOrgId);
+        resolvedTam = await supabase
+          .from('external_data_sources')
+          .select(`
+            provider, total_accounts, total_contacts, last_synced_at,
+            geography_breakdown, industry_breakdown, company_size_breakdown,
+            revenue_breakdown, technology_breakdown, funding_breakdown
+          `)
+          .eq('org_id', resolvedDataOrgId)
+          .eq('is_active', true)
+          .order('last_synced_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (resolvedTam.error) {
+          dashboardLogger.warn('TAM parent fallback error:', resolvedTam.error);
+        }
       }
       
       // Fetch metrics from cached materialized view (much faster)
@@ -144,10 +164,7 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
         // Don't throw - return default metrics so page loads
       }
 
-      // TAM data is optional, don't throw if missing
-      if (tamResult.error) {
-        dashboardLogger.warn('TAM fetch error:', tamResult.error);
-      }
+      // (duplicate TAM warning removed - already handled above)
       
       // Map the function response to expected structure (handles both array and direct object returns)
       const rawMetrics = Array.isArray(metricsResult.data) 
@@ -195,24 +212,24 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
         totalAccounts: Number(rawMetrics.apollo_accounts_available) || 0,
         totalLeads: Number(rawMetrics.apollo_contacts_available) || 0,
         provider: rawMetrics.apollo_provider || 'Apollo',
-        lastSyncedAt: tamResult.data?.last_synced_at,
-        geography_breakdown: tamResult.data?.geography_breakdown,
-        industry_breakdown: tamResult.data?.industry_breakdown,
-        company_size_breakdown: tamResult.data?.company_size_breakdown,
-        revenue_breakdown: tamResult.data?.revenue_breakdown,
-        technology_breakdown: tamResult.data?.technology_breakdown,
-        funding_breakdown: tamResult.data?.funding_breakdown
-      } : (tamResult.data ? {
-        totalAccounts: Number(tamResult.data.total_accounts) || 0,
-        totalLeads: Number(tamResult.data.total_contacts) || 0,
-        provider: tamResult.data.provider || 'Unknown',
-        lastSyncedAt: tamResult.data.last_synced_at,
-        geography_breakdown: tamResult.data.geography_breakdown,
-        industry_breakdown: tamResult.data.industry_breakdown,
-        company_size_breakdown: tamResult.data.company_size_breakdown,
-        revenue_breakdown: tamResult.data.revenue_breakdown,
-        technology_breakdown: tamResult.data.technology_breakdown,
-        funding_breakdown: tamResult.data.funding_breakdown
+        lastSyncedAt: resolvedTam.data?.last_synced_at,
+        geography_breakdown: resolvedTam.data?.geography_breakdown,
+        industry_breakdown: resolvedTam.data?.industry_breakdown,
+        company_size_breakdown: resolvedTam.data?.company_size_breakdown,
+        revenue_breakdown: resolvedTam.data?.revenue_breakdown,
+        technology_breakdown: resolvedTam.data?.technology_breakdown,
+        funding_breakdown: resolvedTam.data?.funding_breakdown
+      } : (resolvedTam.data ? {
+        totalAccounts: Number(resolvedTam.data.total_accounts) || 0,
+        totalLeads: Number(resolvedTam.data.total_contacts) || 0,
+        provider: resolvedTam.data.provider || 'Unknown',
+        lastSyncedAt: resolvedTam.data.last_synced_at,
+        geography_breakdown: resolvedTam.data.geography_breakdown,
+        industry_breakdown: resolvedTam.data.industry_breakdown,
+        company_size_breakdown: resolvedTam.data.company_size_breakdown,
+        revenue_breakdown: resolvedTam.data.revenue_breakdown,
+        technology_breakdown: resolvedTam.data.technology_breakdown,
+        funding_breakdown: resolvedTam.data.funding_breakdown
       } : null);
 
       return {
