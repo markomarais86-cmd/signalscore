@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ interface PriorityAccount {
 
 export function SmartEnrichmentPanel() {
   const { userProfile } = useAuth();
+  const { dataOrgId } = useDataOrgId();
   const [loading, setLoading] = useState(true);
   const [enriching, setEnriching] = useState(false);
   const [aiEnriching, setAiEnriching] = useState(false);
@@ -37,14 +39,14 @@ export function SmartEnrichmentPanel() {
   const [priorityAccounts, setPriorityAccounts] = useState<PriorityAccount[]>([]);
 
   useEffect(() => {
-    if (userProfile?.org_id) {
+    if (dataOrgId) {
       loadDataQuality();
       loadPriorityAccounts();
     }
-  }, [userProfile?.org_id]);
+  }, [dataOrgId]);
 
   const loadDataQuality = async () => {
-    if (!userProfile?.org_id) return;
+    if (!dataOrgId) return;
 
     try {
       setLoading(true);
@@ -53,37 +55,37 @@ export function SmartEnrichmentPanel() {
       const { count: totalAccounts } = await supabase
         .from("accounts")
         .select("*", { count: "exact", head: true })
-        .eq("org_id", userProfile.org_id);
+        .eq("org_id", dataOrgId);
 
       // Calculate coverage for each field
       const { count: withTechStack } = await supabase
         .from("accounts")
         .select("*", { count: "exact", head: true })
-        .eq("org_id", userProfile.org_id)
+        .eq("org_id", dataOrgId)
         .not("tech_stack", "is", null);
 
       const { count: withFunding } = await supabase
         .from("accounts")
         .select("*", { count: "exact", head: true })
-        .eq("org_id", userProfile.org_id)
+        .eq("org_id", dataOrgId)
         .not("total_raised_usd", "is", null);
 
       const { count: withIndustry } = await supabase
         .from("accounts")
         .select("*", { count: "exact", head: true })
-        .eq("org_id", userProfile.org_id)
+        .eq("org_id", dataOrgId)
         .not("industry_raw", "is", null);
 
       const { count: withEmployees } = await supabase
         .from("accounts")
         .select("*", { count: "exact", head: true })
-        .eq("org_id", userProfile.org_id)
+        .eq("org_id", dataOrgId)
         .not("employee_count", "is", null);
 
       const { count: withLinkedin } = await supabase
         .from("accounts")
         .select("*", { count: "exact", head: true })
-        .eq("org_id", userProfile.org_id)
+        .eq("org_id", dataOrgId)
         .not("linkedin_url", "is", null);
 
       const total = totalAccounts || 1;
@@ -112,14 +114,14 @@ export function SmartEnrichmentPanel() {
   };
 
   const loadPriorityAccounts = async () => {
-    if (!userProfile?.org_id) return;
+    if (!dataOrgId) return;
 
     try {
       // Get high-fit accounts with missing data
       const { data: accounts, error } = await supabase
         .from("accounts")
         .select("id, name, domain, propensity_score, tech_stack, total_raised_usd, industry_raw, employee_count")
-        .eq("org_id", userProfile.org_id)
+        .eq("org_id", dataOrgId)
         .gte("propensity_score", 70)
         .not("domain", "is", null)
         .order("propensity_score", { ascending: false })
@@ -151,7 +153,7 @@ export function SmartEnrichmentPanel() {
   };
 
   const startBatchEnrichment = async () => {
-    if (!userProfile?.org_id || priorityAccounts.length === 0) return;
+    if (!dataOrgId || priorityAccounts.length === 0) return;
 
     try {
       setEnriching(true);
@@ -172,7 +174,7 @@ export function SmartEnrichmentPanel() {
                   body: {
                     account_id: account.id,
                     domain: account.domain,
-                    org_id: userProfile.org_id,
+                    org_id: dataOrgId,
                   },
                 });
               }
@@ -184,7 +186,7 @@ export function SmartEnrichmentPanel() {
                     account_id: account.id,
                     company_name: account.name,
                     domain: account.domain,
-                    org_id: userProfile.org_id,
+                    org_id: dataOrgId,
                   },
                 });
               }
@@ -212,7 +214,7 @@ export function SmartEnrichmentPanel() {
   };
 
   const startFreeAIEnrichment = async () => {
-    if (!userProfile?.org_id) return;
+    if (!dataOrgId) return;
 
     try {
       setAiEnriching(true);
@@ -224,7 +226,7 @@ export function SmartEnrichmentPanel() {
       const { count: needsEnrichment } = await supabase
         .from("accounts")
         .select("*", { count: "exact", head: true })
-        .eq("org_id", userProfile.org_id)
+        .eq("org_id", dataOrgId)
         .not("domain", "is", null)
         .or("employee_count.is.null,revenue_range.is.null,industry_raw.is.null,linkedin_url.is.null");
 
@@ -234,7 +236,7 @@ export function SmartEnrichmentPanel() {
       const { data: job, error: jobError } = await supabase
         .from('enrichment_jobs')
         .insert({
-          org_id: userProfile.org_id,
+          org_id: dataOrgId,
           provider: 'ai_free',
           job_type: 'accounts',
           status: 'processing',

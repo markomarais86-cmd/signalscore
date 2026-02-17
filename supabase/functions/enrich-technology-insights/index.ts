@@ -103,7 +103,10 @@ Based on this profile, provide:
 3. Top 3 buying signals or triggers
 4. Recommended engagement approach
 
-Keep your response concise and actionable.`;
+IMPORTANT: At the very end of your response, include a JSON array of technology names on its own line, formatted exactly like this:
+TECH_STACK_JSON: ["Technology1", "Technology2", "Technology3"]
+
+Include specific product names (e.g., "Epic EHR", "Salesforce", "AWS", "Cerner", "Athenahealth") not generic categories. Keep your analysis concise and actionable.`;
 
       try {
         const aiData = await callAIWithFallback([
@@ -119,10 +122,42 @@ Keep your response concise and actionable.`;
 
         const insights = aiData.choices?.[0]?.message?.content;
 
+        // Extract tech stack JSON from response
+        let techStack: string[] = [];
+        if (insights) {
+          const techMatch = insights.match(/TECH_STACK_JSON:\s*(\[.*?\])/s);
+          if (techMatch) {
+            try {
+              techStack = JSON.parse(techMatch[1]);
+            } catch (e) {
+              console.error(`Failed to parse tech stack JSON for ${account.name}:`, e);
+            }
+          }
+        }
+
+        // Persist tech_stack to accounts table if extracted
+        if (techStack.length > 0) {
+          const { error: updateError } = await supabase
+            .from('accounts')
+            .update({ tech_stack: techStack })
+            .eq('external_id', account.external_id)
+            .eq('org_id', orgId);
+
+          if (updateError) {
+            console.error(`Failed to update tech_stack for ${account.name}:`, updateError);
+          } else {
+            console.log(`Persisted ${techStack.length} tech stack items for ${account.name}`);
+          }
+        }
+
+        // Clean insights text (remove the JSON line for display)
+        const cleanInsights = insights?.replace(/\nTECH_STACK_JSON:.*$/s, '').trim();
+
         enrichedAccounts.push({
           account_id: account.external_id,
           account_name: account.name,
-          ai_insights: insights,
+          ai_insights: cleanInsights,
+          tech_stack: techStack,
           enriched_at: new Date().toISOString()
         });
 
