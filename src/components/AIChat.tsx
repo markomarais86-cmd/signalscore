@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import { MessageCircle, X, Send, Trash2, CheckCircle, XCircle, Loader2, Brain } from 'lucide-react';
+import { MessageCircle, X, Send, Trash2, CheckCircle, XCircle, Loader2, Brain, Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
+import { extractTextFromFile, isFileSupported, isFileTooLarge, getFileIcon, formatFileSize, ACCEPTED_EXTENSIONS } from '@/lib/document-utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAIChat, ChatMessage } from '@/hooks/use-ai-chat';
 import { useAIMemory } from '@/hooks/use-ai-memory';
@@ -346,9 +348,13 @@ function ActionConfirmation({ action, onConfirm, onCancel, isLoading }: ActionCo
 export function AIChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [extractedText, setExtractedText] = useState<string | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const currentPage = location.pathname;
@@ -454,12 +460,59 @@ export function AIChat() {
     }
   }, [messages, pendingAction]);
 
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!isFileSupported(file)) {
+      toast.error('Unsupported file type. Use PDF, TXT, CSV, or DOCX.');
+      return;
+    }
+    if (isFileTooLarge(file)) {
+      toast.error('File exceeds 10MB limit.');
+      return;
+    }
+
+    setAttachedFile(file);
+    setIsExtracting(true);
+
+    try {
+      const text = await extractTextFromFile(file);
+      setExtractedText(text);
+      toast.success(`Extracted ${text.length.toLocaleString()} characters from ${file.name}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to extract text');
+      setAttachedFile(null);
+      setExtractedText(null);
+    } finally {
+      setIsExtracting(false);
+      // Reset file input so the same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }, []);
+
+  const clearAttachment = useCallback(() => {
+    setAttachedFile(null);
+    setExtractedText(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, []);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (input.trim() && !isLoading) {
-      sendMessage(input);
-      setInput('');
+    const userText = input.trim();
+    const hasDoc = attachedFile && extractedText;
+    
+    if ((!userText && !hasDoc) || isLoading) return;
+
+    let messageToSend = userText;
+    if (hasDoc) {
+      const docPrefix = `[Document: ${attachedFile.name}]\n\n${extractedText}\n\n---\n\n`;
+      messageToSend = docPrefix + (userText || 'Create an ICP profile from this document');
     }
+
+    sendMessage(messageToSend);
+    setInput('');
+    clearAttachment();
   };
 
   const handleSuggestion = (suggestion: string) => {
@@ -597,19 +650,56 @@ export function AIChat() {
 
           {/* Input */}
           <form onSubmit={handleSubmit} className="p-3 border-t bg-muted/20">
+            {/* Attached file preview */}
+            {attachedFile && (
+              <div className="flex items-center gap-2 mb-2 px-1">
+                <div className="flex items-center gap-1.5 bg-muted rounded-md px-2 py-1 text-xs max-w-full">
+                  <span>{getFileIcon(attachedFile.name)}</span>
+                  <span className="truncate max-w-[200px] font-medium">{attachedFile.name}</span>
+                  <span className="text-muted-foreground flex-shrink-0">({formatFileSize(attachedFile.size)})</span>
+                  {isExtracting && <Loader2 className="w-3 h-3 animate-spin flex-shrink-0" />}
+                  {extractedText && <CheckCircle className="w-3 h-3 text-[hsl(var(--status-success))] flex-shrink-0" />}
+                  <button
+                    type="button"
+                    onClick={clearAttachment}
+                    className="ml-1 hover:text-destructive flex-shrink-0"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="flex gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_EXTENSIONS}
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 flex-shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading || !!pendingAction || isExtracting}
+                title="Attach document (PDF, TXT, CSV, DOCX)"
+              >
+                <Paperclip className="w-4 h-4" />
+              </Button>
               <Input
                 ref={inputRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask anything or give a command..."
+                placeholder={attachedFile ? "Add instructions or send as-is..." : "Ask anything or give a command..."}
                 className="flex-1 text-sm"
                 disabled={isLoading || !!pendingAction}
               />
               <Button
                 type="submit"
                 size="icon"
-                disabled={!input.trim() || isLoading || !!pendingAction}
+                disabled={(!input.trim() && !extractedText) || isLoading || !!pendingAction || isExtracting}
               >
                 <Send className="w-4 h-4" />
               </Button>
