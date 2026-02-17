@@ -28,7 +28,7 @@ import {
   UserSearch
 } from "lucide-react";
 import { SignalScoreDisplay } from "@/components/SignalScoreDisplay";
-import { AITechnologyInsights } from "@/components/AITechnologyInsights";
+
 import { EnrichmentSourceViewer } from "@/components/enrichment/EnrichmentSourceViewer";
 import { DiscoveredLeadsSection } from "@/components/leads/DiscoveredLeadsSection";
 import { AccountInsightsPanel, AccountInsightsData } from "./AccountInsightsPanel";
@@ -516,7 +516,7 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
               />
             </div>
             
-            <AITechnologyInsights accountIds={[account.external_id]} />
+            
             
             {/* Personalized AI Insights */}
             <AccountInsightsPanel
