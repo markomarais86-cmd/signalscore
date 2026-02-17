@@ -30,9 +30,8 @@ export function ICPCoveragePanel({
 }: ICPCoveragePanelProps) {
   const [activeTab, setActiveTab] = useState<"accounts" | "leads">("accounts");
 
-  const highFitPercentage = totalScored > 0 
-    ? Math.round((highFitAccounts / totalScored) * 100) 
-    : 0;
+  const icpFitAccounts = highFitAccounts + medFitAccounts;
+  const icpFitLeadsCount = highFitLeads + medFitLeads;
 
   const accountsData = [
     { name: "High-Fit", value: highFitAccounts, color: "hsl(161 85% 60%)" },
@@ -48,9 +47,9 @@ export function ICPCoveragePanel({
 
   const currentData = activeTab === "accounts" ? accountsData : leadsData;
   const currentTotal = activeTab === "accounts" ? totalScored : totalLeads;
-  const currentHighFit = activeTab === "accounts" ? highFitAccounts : highFitLeads;
-  const currentHighFitPercentage = currentTotal > 0 
-    ? Math.round((currentHighFit / currentTotal) * 100) 
+  const currentIcpFit = activeTab === "accounts" ? icpFitAccounts : icpFitLeadsCount;
+  const currentIcpFitPercentage = currentTotal > 0 
+    ? Math.round((currentIcpFit / currentTotal) * 100) 
     : 0;
 
   if (totalScored === 0) {
@@ -100,11 +99,11 @@ export function ICPCoveragePanel({
             <p className="text-xs text-muted-foreground">Total {activeTab === "accounts" ? "Scored" : "Leads"}</p>
           </div>
           <div className="text-center p-3 rounded-lg bg-primary/10 border border-primary/20">
-            <p className="text-2xl font-bold text-primary">{currentHighFit.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">High-Fit</p>
+            <p className="text-2xl font-bold text-primary">{currentIcpFit.toLocaleString()}</p>
+            <p className="text-xs text-muted-foreground">ICP-Fit</p>
           </div>
           <div className="text-center p-3 rounded-lg bg-muted/30">
-            <p className="text-2xl font-bold text-foreground">{currentHighFitPercentage}%</p>
+            <p className="text-2xl font-bold text-foreground">{currentIcpFitPercentage}%</p>
             <p className="text-xs text-muted-foreground">Coverage</p>
           </div>
         </div>
@@ -145,8 +144,8 @@ export function ICPCoveragePanel({
             {/* Center Label */}
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-[10px] font-semibold text-primary uppercase tracking-widest">ICP</span>
-              <span className="text-4xl font-bold text-foreground">{currentHighFitPercentage}%</span>
-              <span className="text-[10px] text-muted-foreground">High-Fit</span>
+              <span className="text-4xl font-bold text-foreground">{currentIcpFitPercentage}%</span>
+              <span className="text-[10px] text-muted-foreground">ICP-Fit</span>
             </div>
           </div>
 
