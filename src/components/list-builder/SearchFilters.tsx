@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, RotateCcw, Building2, Users, Layers } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffectiveOrg } from "@/hooks/use-effective-org";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import {
   ListBuilderFilters,
   REVENUE_BUCKETS,
@@ -81,21 +81,21 @@ export function SearchFilters({
   onReset,
   isLoading,
 }: SearchFiltersProps) {
-  const { effectiveOrgId } = useEffectiveOrg();
+  const { dataOrgId } = useDataOrgId();
   const [customAttrDefs, setCustomAttrDefs] = useState<CustomAttrDef[]>([]);
 
   useEffect(() => {
-    if (!effectiveOrgId) return;
+    if (!dataOrgId) return;
     (supabase
       .from("custom_attribute_definitions" as any)
       .select("id, field_key, display_name, field_type, allowed_values")
-      .eq("org_id", effectiveOrgId)
+      .eq("org_id", dataOrgId)
       .eq("is_active", true)
       .order("display_order", { ascending: true }) as any)
       .then(({ data }: { data: any[] | null }) => {
         if (data) setCustomAttrDefs(data as CustomAttrDef[]);
       });
-  }, [effectiveOrgId]);
+  }, [dataOrgId]);
 
   const update = <K extends keyof ListBuilderFilters>(
     key: K,

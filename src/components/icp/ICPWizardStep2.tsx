@@ -13,7 +13,7 @@ import { INDUSTRIES, SUB_INDUSTRIES, COMPANY_SIZES, REVENUE_RANGES, COUNTRIES, R
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
-import { useEffectiveOrg } from '@/hooks/use-effective-org';
+import { useDataOrgId } from '@/hooks/use-data-org';
 import { formatNumber } from '@/utils/format-numbers';
 import { useNavigate } from 'react-router-dom';
 
@@ -24,24 +24,24 @@ interface ICPWizardStep2Props {
 
 export function ICPWizardStep2({ formData, onUpdateFormData }: ICPWizardStep2Props) {
   const { userProfile } = useAuth();
-  const { effectiveOrgId } = useEffectiveOrg();
+  const { dataOrgId, effectiveOrgId } = useDataOrgId();
   const navigate = useNavigate();
   const [keywordInput, setKeywordInput] = useState('');
   
   // Load custom attribute definitions for vertical targeting
   const { data: customAttributes } = useQuery<any[]>({
-    queryKey: ['custom-attribute-definitions', effectiveOrgId],
+    queryKey: ['custom-attribute-definitions', dataOrgId],
     queryFn: async () => {
-      if (!effectiveOrgId) return [];
+      if (!dataOrgId) return [];
       const { data, error } = await supabase
         .from('custom_attribute_definitions' as any)
         .select('*')
-        .eq('org_id', effectiveOrgId)
+        .eq('org_id', dataOrgId)
         .order('category', { ascending: true });
       if (error) { console.error('Error loading custom attributes:', error); return []; }
       return (data as any[]) || [];
     },
-    enabled: !!effectiveOrgId,
+    enabled: !!dataOrgId,
   });
   
   // Real-time match count query
