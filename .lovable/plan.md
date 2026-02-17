@@ -1,75 +1,53 @@
 
+# Fix "With Leads" Metric Showing 0
 
-# Round 2: Admin Health, Global AI, Signal Feed, Auto-Enrichment, Board Report
+## Problem
+The "With Leads" metric on the Accounts Overview card shows **0** even though there are 53,303 leads in the `Leads` table linked to 13,920 accounts. Two issues:
 
-## Overview
+1. **Wrong metric**: The RPC `count_high_fit_leads_total` counts **leads belonging to high-fit accounts**, not **accounts that have leads**. The label "With Leads" implies "how many accounts have leads linked to them."
+2. **The value 0 in the screenshot**: The RPC actually returns 43,698 when called directly, but the destructured result may not be reaching the UI correctly, or the `effectiveOrgId` is not matching at render time.
 
-Five high-impact improvements across all focus areas: Admin, AI, Data Pipeline, and Dashboard. Each builds on existing components and edge functions -- no new backend work required.
+## Database Confirmation
+- `Leads` table: 53,303 rows (no "contacts" table exists -- that's correct)
+- Accounts with at least one lead: 13,920
+- High-fit accounts with leads: 8,952
+- The RPC works when called directly
 
----
+## Fix
 
-## 1. Live System Health on Admin Dashboard
+### 1. Replace the RPC call in `Accounts.tsx` (line ~348-351)
+Instead of calling `count_high_fit_leads_total` (which counts leads, not accounts), replace with a simple query:
 
-**What**: Add a "System Health" tab to `/admin` that reuses the existing `SystemHealthDashboard` component (already built for the executive dashboard) and adds a platform-wide view calling the `health-check` edge function.
+```
+supabase
+  .from('Leads')
+  .select('account_external_id', { count: 'exact', head: true })
+  -- can't do distinct count this way
+```
 
-**Changes**:
-- `AdminDashboard.tsx`: Add a new "System Health" tab trigger alongside existing tabs. Import `SystemHealthDashboard` and render it inside the tab content. Add a call to the `health-check` edge function to show database latency, auth status, and active enrichment jobs across all orgs.
-- `PlatformMetrics.tsx`: Add two new metric cards -- "Active Enrichment Jobs" (sum across orgs from `enrichment_jobs` where status = processing) and "Edge Function Health" (result from `health-check` edge function).
+Since Supabase JS doesn't support `COUNT(DISTINCT ...)` easily, create a small new RPC function `count_accounts_with_leads` that returns:
 
----
+```sql
+SELECT COUNT(DISTINCT l.account_external_id)::integer
+FROM "Leads" l
+INNER JOIN accounts a ON l.account_external_id = a.account_external_id
+WHERE l.org_id = p_org_id AND a.org_id = p_org_id
+AND l.account_external_id IS NOT NULL;
+```
 
-## 2. Global AI Assistant (Cmd+J)
+### 2. Update `Accounts.tsx` line ~348-351
+Call the new RPC instead:
+```ts
+supabase.rpc('count_accounts_with_leads', { p_org_id: effectiveOrgId })
+```
 
-**What**: A floating AI chat dialog accessible from any page via `Cmd+J`. Uses the existing `ai-chat` edge function with context-aware system prompts based on the current route.
+### 3. Update the label (optional clarification)
+The label "With Leads" is fine -- it now correctly shows how many accounts have at least one lead linked.
 
-**Changes**:
-- New file `src/components/GlobalAIAssistant.tsx`: A `CommandDialog`-style floating panel (using Radix Dialog) that opens on `Cmd+J`. Contains a text input, sends messages to `ai-chat` edge function, renders responses with `react-markdown`. Includes route-aware context (e.g., on `/accounts` it adds "The user is viewing their accounts list" to the system prompt). Maintains conversation history in component state (no persistence needed).
-- `Layout.tsx`: Import and render `GlobalAIAssistant` alongside the existing `GlobalCommandPalette`.
-- `GlobalCommandPalette.tsx`: Add a command item "Ask AI..." that opens the AI assistant.
+## Summary
+| Change | File |
+|--------|------|
+| New SQL function `count_accounts_with_leads` | Database migration |
+| Replace RPC call | `src/pages/Accounts.tsx` (~line 348) |
 
----
-
-## 3. Real-time Signal Feed on Dashboard
-
-**What**: Add the existing `SignalFeed` component to the executive dashboard. It already reads from `account_signals` and has filtering, dismiss, and detect capabilities -- it just needs to be wired into the dashboard layout.
-
-**Changes**:
-- `ExecutiveDashboard.tsx`: Import `SignalFeed` and add it to the dashboard grid, in the Data Health row (replace the current 1/3 + 2/3 split with a 1/3 + 1/3 + 1/3 layout, or place it above the insights panel). Only render when `account_signals` has data (the component already handles empty state gracefully).
-
----
-
-## 4. Auto-Enrich New Uploads
-
-**What**: After a CSV upload or Apollo sync completes, automatically queue newly imported accounts for enrichment. Leverages existing `enrich-unified` edge function.
-
-**Changes**:
-- `ExecutiveDashboard.tsx`: In the `onAccountsChanged` listener and `handleSyncApollo` success handler, add a check: query `accounts` where `enriched_at IS NULL` and `created_at > now() - 5 minutes`, limited to 50. If results exist, invoke `enrich-unified` with `record_type: 'account'` and those account IDs. Show toast: "Auto-enriching X new accounts..."
-- `src/pages/DataUpload.tsx` (or equivalent upload success handler): Add similar auto-enrichment trigger after successful upload.
-
----
-
-## 5. One-Click Board Report PDF
-
-**What**: Wire the existing `generate-board-report` edge function (already called by `use-branded-report.ts`) to a visible "Generate Board Report" button on the dashboard.
-
-**Changes**:
-- `ExecutiveDashboard.tsx`: Add a `FileText` icon button in the header actions area (next to Export PDF). On click, invoke `useBrandedReport` hook's generate function. Show loading state and download the resulting PDF. The hook and edge function already exist -- this just surfaces them in the UI.
-- Import `useBrandedReport` from existing hook.
-
----
-
-## Technical Summary
-
-| Item | New Files | Modified Files |
-|------|-----------|----------------|
-| Admin Health Tab | -- | `AdminDashboard.tsx`, `PlatformMetrics.tsx` |
-| Global AI (Cmd+J) | `src/components/GlobalAIAssistant.tsx` | `Layout.tsx`, `GlobalCommandPalette.tsx` |
-| Signal Feed on Dashboard | -- | `ExecutiveDashboard.tsx` |
-| Auto-Enrich Uploads | -- | `ExecutiveDashboard.tsx`, `DataUpload.tsx` |
-| Board Report Button | -- | `ExecutiveDashboard.tsx` |
-
-### Dependencies
-- Items 1-5 are independent and can be implemented in parallel
-- No new edge functions needed -- all use existing deployed functions
-- No database migrations required
-
+No other files need changes. The `AccountsSummaryCard` component already displays `withLeads` correctly.
