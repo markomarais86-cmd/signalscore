@@ -1,21 +1,35 @@
 
-# Add Debug Logging and Toast Messages to Bulk Scoring Handler
 
-## What Changes
+# Fix Quick Enrich Modal Layout
 
-Add step-by-step debug logging (`console.log`) and toast notifications to the `runBulkScoring` function in `src/components/BulkScoring.tsx` so every stage is visible -- both in the browser console and as on-screen toasts.
+## Problem
+The Quick Enrich modal content doesn't fit well -- the footer buttons are cramped and the layout feels tight, especially with the "Full Enrichment Options" link alongside "Cancel" and "Start".
 
-## Technical Details
+## Changes
 
-**File: `src/components/BulkScoring.tsx` -- `runBulkScoring` function (line ~371)**
+**File: `src/components/executive/EnrichmentModal.tsx`**
 
-Add logging and toasts at each decision point:
+1. **Widen the modal** -- Change `max-w-md` to `max-w-lg` on `DialogContent` (line 114) to give more breathing room.
 
-1. **Entry** -- `console.log("[BulkScoring] Button clicked, org_id:", userProfile?.org_id)` + toast "Starting scoring process..."
-2. **After existing-job check** (line ~396) -- log the result and toast if resuming
-3. **After prerequisite check** (line ~413) -- log account count and ICP count
-4. **Before edge function invoke** (line ~422) -- `console.log("[BulkScoring] Invoking edge function...")` + toast
-5. **After invoke returns** (line ~426) -- log success/error response, toast on success
-6. **Catch block** (line ~431) -- log the full error object with `JSON.stringify` so we capture the complete error shape
+2. **Fix footer layout** -- Restructure the `DialogFooter` so:
+   - "Full Enrichment Options" sits on its own row (full width)
+   - "Cancel" and "Start" buttons sit together on a second row, right-aligned
+   - This prevents the three buttons from competing for horizontal space
 
-This is a single-file change to `src/components/BulkScoring.tsx` only. No new files or dependencies needed.
+3. **Add padding/spacing** -- Add `pt-2` to the footer to separate it from the form content above.
+
+The updated footer structure:
+
+```
+<DialogFooter className="flex-col gap-2 pt-2">
+  <div className="flex justify-end gap-2 w-full">
+    <Button variant="outline" ...>Cancel</Button>
+    <Button ...>Start</Button>
+  </div>
+  <Button variant="ghost" size="sm" onClick={goToFullEnrichment} className="w-full ...">
+    Full Enrichment Options
+  </Button>
+</DialogFooter>
+```
+
+Single-file change, no new dependencies.
