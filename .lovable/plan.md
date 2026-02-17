@@ -1,103 +1,88 @@
 
 
-# Fix Industry Normalization
+# Fix: Bulk Scoring Timeout
 
 ## The Problem
 
-Your `industry_norm` column has **529 different labels** across **6,592 accounts** that don't match the 23 standard ZoomInfo primary industries. For healthcare alone, there are variants like:
-- "Hospitals & Healthcare" (276 accounts)
-- "Healthcare Services" (224 accounts) 
-- "Hospitals and Health Care" (102 accounts)
-- "Health, Wellness, and Fitness" (42 accounts)
-- "Hospital & Health Care" (2 accounts)
-- "Healthcare" (4 accounts)
-- Plus dozens more
+The "Score All Accounts" button does reach the edge function, but the function times out because:
 
-These should all map to a single ZoomInfo standard like "Hospitals & Physicians Clinics" or "Healthcare Services".
+1. The `bulk_score_all_accounts` SQL function processes all 39,928 accounts in a **single transaction**, calling `calculate_account_score_readonly` once per account
+2. At ~25,000 accounts the 600-second statement timeout is exceeded
+3. The edge function has a **60-second runtime limit** and gets killed waiting for the RPC response -- which is why no logs appear
 
-The same fragmentation exists across every industry -- "Professional Services" vs "Business Services", "Financial Services" vs "Finance", "Computer Software" vs "Software", etc.
+## The Fix: Chunked SQL Processing
 
-## Root Causes
+Replace the single massive RPC call with chunked processing inside the edge function itself. Instead of one SQL call that scores 40k accounts, process in batches of 2,000.
 
-1. **The `standardize-industry` edge function uses its own made-up taxonomy** (e.g. "Healthcare", "Financial Services", "Professional Services") instead of the official ZoomInfo taxonomy used everywhere else in the app.
-2. **The `industry_mapping` table only has 270 entries** -- many raw industry strings from CRM imports were never mapped.
-3. **No post-import normalization step** runs to clean up `industry_norm` values against the mapping table.
+### Part 1: New SQL Function -- `bulk_score_chunk`
 
-## Solution (3 Parts)
+Create a lightweight SQL function that scores a **batch** of accounts using OFFSET/LIMIT:
 
-### Part 1: Database Migration -- Bulk Re-normalize Existing Accounts
-
-Run a single SQL UPDATE that maps all 529 non-standard `industry_norm` values to the 23 ZoomInfo primaries using a comprehensive CASE statement. This covers all variants found in the data, including:
-
-- Healthcare variants --> "Hospitals & Physicians Clinics" or "Healthcare Services"
-- "Professional Services", "Business Consulting" --> "Business Services"
-- "Financial Services", "Banking", "Investment Services" --> "Finance"  
-- "Computer Software", "Technology", "IT Services" --> "Software" or "Business Services"
-- "Manufacturing - Durables/Non-Durables" --> "Manufacturing"
-- All LinkedIn-style compound labels (semicolons, commas) --> primary match
-- And 400+ more mappings
-
-### Part 2: Add Missing Entries to `industry_mapping` Table
-
-Insert ~260 new rows into the `industry_mapping` reference table so that future imports/enrichments automatically normalize correctly. This covers all the non-standard values found in the current data.
-
-### Part 3: Rewrite `standardize-industry` Edge Function
-
-Replace the made-up taxonomy with the actual ZoomInfo taxonomy from `src/constants/zoominfo-industries.ts`. Also add a database lookup step: check `industry_mapping` table first (fast exact match), then fall back to fuzzy matching.
-
-## Technical Details
-
-### Database Migration SQL
-
-A single migration with two statements:
-
-**Statement 1**: UPDATE accounts using a giant CASE mapping:
-```sql
-UPDATE accounts 
-SET industry_norm = CASE industry_norm
-  -- Healthcare variants
-  WHEN 'Hospitals & Healthcare' THEN 'Hospitals & Physicians Clinics'
-  WHEN 'Hospitals and Health Care' THEN 'Hospitals & Physicians Clinics'
-  WHEN 'Hospital & Health Care' THEN 'Hospitals & Physicians Clinics'
-  WHEN 'Healthcare' THEN 'Healthcare Services'
-  WHEN 'Health, Wellness, and Fitness' THEN 'Healthcare Services'
-  WHEN 'Medical Practices' THEN 'Hospitals & Physicians Clinics'
-  WHEN 'Medical Equipment Manufacturing' THEN 'Manufacturing'
-  -- Financial variants
-  WHEN 'Financial Services' THEN 'Finance'
-  WHEN 'Banking' THEN 'Finance'
-  WHEN 'Investment Services' THEN 'Finance'
-  -- ... (covers all 529 non-standard values)
-  ELSE industry_norm
-END
-WHERE industry_norm NOT IN (
-  'Agriculture','Business Services','Construction','Consumer Services','Education',
-  'Energy, Utilities & Waste','Finance','Government','Healthcare Services',
-  'Holding Companies & Conglomerates','Hospitals & Physicians Clinics','Hospitality',
-  'Insurance','Law Firms & Legal Services','Manufacturing','Media & Internet',
-  'Minerals & Mining','Organizations','Real Estate','Retail','Software',
-  'Telecommunications','Transportation'
-);
+```text
+bulk_score_chunk(org_id, icp_id, chunk_offset, chunk_limit)
+  --> scores 2,000 accounts at a time
+  --> returns { processed: N }
 ```
 
-**Statement 2**: INSERT into `industry_mapping` for all newly-discovered raw values.
+This keeps each SQL call under ~30 seconds.
 
-### Edge Function Rewrite (`supabase/functions/standardize-industry/index.ts`)
+### Part 2: Rewrite Edge Function to Loop Chunks
 
-- Replace the custom `ZOOMINFO_INDUSTRIES` array with the official 23-category ZoomInfo taxonomy
-- Add a Supabase client to check the `industry_mapping` table first
-- Fall back to fuzzy matching against the ZoomInfo taxonomy
-- Return standard ZoomInfo primary industry names
+The edge function will:
+1. Create a `bulk_scoring_jobs` record
+2. Count total accounts
+3. Loop through chunks of 2,000, calling `bulk_score_chunk` for each
+4. Update job progress after each chunk
+5. Mark job as completed when done
 
-### Files Changed
+To handle the edge function's 60-second limit, it will use a "fire-and-continue" pattern: after processing a few chunks, if time is running low, it marks the job as `processing` with progress saved, then the `job-auto-recovery` function picks it back up.
 
-1. New database migration (bulk UPDATE + INSERT into industry_mapping)
-2. `supabase/functions/standardize-industry/index.ts` -- full rewrite to use ZoomInfo taxonomy and DB lookup
+### Part 3: Alternative Simpler Approach -- Direct SQL in Chunks
+
+Actually, the simplest fix: skip the RPC entirely. The edge function can run direct UPDATE queries in chunks using the service-role Supabase client:
+
+```text
+For each batch of 2,000 account IDs:
+  1. Fetch accounts with their fields
+  2. Score them in JavaScript (matching the SQL logic)  
+  3. Upsert scores in bulk
+  4. Update job progress
+```
+
+This avoids the SQL function timeout entirely and keeps each database call small.
+
+## Technical Plan
+
+### Files to Change
+
+1. **`supabase/functions/bulk-score-accounts/index.ts`** -- Rewrite to process accounts in JS chunks of 2,000 instead of calling a single RPC
+2. **Database migration** -- Create `bulk_score_chunk` helper function (optional, only if we keep SQL-based scoring)
+
+### Implementation Details
+
+The edge function rewrite will:
+- Remove the single `supabase.rpc('bulk_score_all_accounts')` call
+- Add a chunked loop: fetch 2,000 accounts, score them, upsert results
+- Implement JS-based scoring logic (matching `calculate_account_score_readonly`)
+- Update job progress after each chunk
+- Handle the 60-second edge function timeout by:
+  - Using `waitUntil` / background processing pattern, OR
+  - Having each invocation process as many chunks as possible within ~50 seconds, saving progress, then the auto-recovery system resumes it
+
+### Scoring Logic (JS port)
+
+Port the `calculate_account_score_readonly` logic to JavaScript:
+- Industry match: 30 points (fuzzy LIKE match against ICP industries)
+- Company size: 25 points (range-based matching)
+- Geography: 25 points (exact country match)
+- Revenue: 20 points (exact range match)
+- Vertical filters: up to 15 bonus points
+- Overall = sum, capped at 100
 
 ### Expected Outcome
 
-- All 39,928 accounts will have one of exactly 23 standard industry labels
-- Healthcare accounts (~670) will consistently show as "Hospitals & Physicians Clinics" or "Healthcare Services"
-- Future imports will auto-normalize via the expanded mapping table
-- ICP filtering by industry will work correctly across all accounts
+- Each chunk takes ~5-10 seconds (2,000 accounts)
+- Full 40k accounts complete in ~20 chunks (~2-3 minutes total)
+- Job progress updates in real-time so the UI can show a progress bar
+- No more timeouts
 
