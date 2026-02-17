@@ -5,59 +5,24 @@ import { logger } from '@/lib/logger';
 const dashboardLogger = logger.scope('Dashboard');
 
 async function computeDataCompleteness(dataOrgId: string, childOrgId?: string): Promise<number> {
-  const fields = ['industry_norm', 'employee_count', 'revenue_range', 'country', 'domain'];
   const isChildOrg = childOrgId && childOrgId !== dataOrgId;
 
-  if (isChildOrg) {
-    // For child orgs, only count accounts that have been scored by the child
-    // Use an RPC or manual approach: get scored external_ids, then check completeness
-    const { data: scoredIds, error: scoredErr } = await supabase
-      .from('scores')
-      .select('account_external_id')
-      .eq('org_id', childOrgId);
-    
-    if (scoredErr || !scoredIds || scoredIds.length === 0) return 0;
+  try {
+    const { data, error } = await supabase.rpc('get_data_completeness' as any, {
+      p_data_org_id: dataOrgId,
+      p_child_org_id: isChildOrg ? childOrgId : null,
+    });
 
-    const externalIds = scoredIds.map(s => s.account_external_id);
-    
-    // Batch into chunks of 500 to avoid query size limits
-    const chunkSize = 500;
-    let total = 0;
-    const fieldTotals = fields.map(() => 0);
-
-    for (let i = 0; i < externalIds.length; i += chunkSize) {
-      const chunk = externalIds.slice(i, i + chunkSize);
-      const [countResult, ...fieldChunkResults] = await Promise.all([
-        supabase.from('accounts').select('*', { count: 'exact', head: true })
-          .eq('org_id', dataOrgId).in('external_id', chunk),
-        ...fields.map(f =>
-          supabase.from('accounts').select('*', { count: 'exact', head: true })
-            .eq('org_id', dataOrgId).in('external_id', chunk).not(f, 'is', null)
-        ),
-      ]);
-      total += countResult.count || 0;
-      fieldChunkResults.forEach((r, idx) => { fieldTotals[idx] += r.count || 0; });
+    if (error) {
+      dashboardLogger.error('Data completeness RPC error:', error);
+      return 0;
     }
 
-    if (total === 0) return 0;
-    const filledSum = fieldTotals.reduce((sum, v) => sum + v, 0);
-    return Math.round((filledSum / (total * fields.length)) * 100);
+    return (data as any)?.completeness || 0;
+  } catch (err) {
+    dashboardLogger.error('Data completeness error:', err);
+    return 0;
   }
-
-  // Parent org: count all accounts directly
-  const [totalResult, ...fieldResults] = await Promise.all([
-    supabase.from('accounts').select('*', { count: 'exact', head: true }).eq('org_id', dataOrgId),
-    ...fields.map(f =>
-      supabase.from('accounts').select('*', { count: 'exact', head: true })
-        .eq('org_id', dataOrgId).not(f, 'is', null)
-    ),
-  ]);
-
-  const total = totalResult.count || 0;
-  if (total === 0) return 0;
-
-  const filledSum = fieldResults.reduce((sum, r) => sum + (r.count || 0), 0);
-  return Math.round((filledSum / (total * fields.length)) * 100);
 }
 
 interface DashboardMetrics {

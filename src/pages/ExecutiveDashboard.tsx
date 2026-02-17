@@ -260,10 +260,10 @@ export default function ExecutiveDashboard() {
 
     checkDataFreshness();
     
-    // Poll every 3 seconds (faster polling for better UX)
+    // Poll every 30 seconds to reduce DB load
     const interval = setInterval(() => {
       checkDataFreshness();
-    }, 3000);
+    }, 30000);
     
     return () => clearInterval(interval);
   }, [effectiveOrgId]);

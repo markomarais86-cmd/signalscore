@@ -2304,6 +2304,32 @@ export type Database = {
         }
         Relationships: []
       }
+      child_dashboard_metrics_cache: {
+        Row: {
+          metrics: Json
+          org_id: string
+          refreshed_at: string
+        }
+        Insert: {
+          metrics?: Json
+          org_id: string
+          refreshed_at?: string
+        }
+        Update: {
+          metrics?: Json
+          org_id?: string
+          refreshed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "child_dashboard_metrics_cache_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clay_webhook_config: {
         Row: {
           created_at: string
@@ -8506,6 +8532,10 @@ export type Database = {
       }
       get_dashboard_metrics_fast: {
         Args: { p_org_id: string; p_source_filter?: string }
+        Returns: Json
+      }
+      get_data_completeness: {
+        Args: { p_child_org_id?: string; p_data_org_id: string }
         Returns: Json
       }
       get_data_org_id: { Args: { p_org_id: string }; Returns: string }
