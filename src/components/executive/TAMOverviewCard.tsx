@@ -121,7 +121,7 @@ export function TAMOverviewCard() {
   };
 
   // Calculate TAM/SAM/SOM
-  const averageDealSize = 75000;
+  const averageDealSize = 75000; // TODO: wire to useOrgSettings when this component is used standalone
   
   const externalTAM = (tamData?.totalAccounts || 0) * averageDealSize;
   

@@ -1,4 +1,4 @@
-import { Download, RefreshCw, UserPlus, Sparkles } from "lucide-react";
+import { Download, RefreshCw, UserPlus, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { EnrichedLead } from "@/hooks/use-enriched-leads";
 import { useCampaignContext } from "@/hooks/use-campaign-context";
 import { useState } from "react";
+import { toast as sonnerToast } from "sonner";
 
 interface EnrichedLeadsHeaderProps {
   selectedLeads: EnrichedLead[];
@@ -26,6 +27,7 @@ export function EnrichedLeadsHeader({
   const { openCampaignBuilder } = useCampaignContext();
   const [isExporting, setIsExporting] = useState(false);
   const [isReEnriching, setIsReEnriching] = useState(false);
+  const [isBulkEnriching, setIsBulkEnriching] = useState(false);
 
   const hasSelection = selectedLeads.length > 0;
 
@@ -242,6 +244,50 @@ export function EnrichedLeadsHeader({
       </div>
 
       <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={async () => {
+            if (!orgId || isBulkEnriching) return;
+            setIsBulkEnriching(true);
+            try {
+              // Find unenriched leads with emails
+              const { data: unenrichedLeads } = await supabase
+                .from('Leads')
+                .select('id, email')
+                .eq('org_id', orgId)
+                .is('enriched_at', null)
+                .not('email', 'is', null)
+                .limit(50);
+              
+              if (!unenrichedLeads?.length) {
+                sonnerToast.info('No unenriched leads with emails found');
+                return;
+              }
+
+              const { error } = await supabase.functions.invoke('enrich-unified', {
+                body: {
+                  org_id: orgId,
+                  record_type: 'lead',
+                  lead_ids: unenrichedLeads.map(l => l.id),
+                  batchSize: unenrichedLeads.length,
+                }
+              });
+
+              if (error) throw error;
+              sonnerToast.success(`Enriching ${unenrichedLeads.length} leads...`);
+              setTimeout(onRefresh, 3000);
+            } catch (error) {
+              sonnerToast.error(error instanceof Error ? error.message : 'Bulk enrichment failed');
+            } finally {
+              setIsBulkEnriching(false);
+            }
+          }}
+          disabled={isBulkEnriching || !orgId}
+        >
+          <Zap className={`h-4 w-4 mr-2 ${isBulkEnriching ? 'animate-pulse' : ''}`} />
+          {isBulkEnriching ? 'Enriching...' : 'Bulk Enrich'}
+        </Button>
         <Button
           variant="outline"
           size="sm"

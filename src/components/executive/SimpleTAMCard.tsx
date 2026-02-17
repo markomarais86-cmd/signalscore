@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +50,16 @@ export function SimpleTAMCard({
   const [tempDealSize, setTempDealSize] = useState(initialDealSize);
   const [tempConversion, setTempConversion] = useState(initialConversion * 100);
   const [viewMode, setViewMode] = useState<"funnel" | "highlight">("highlight");
+
+  // Sync from props when they change (persisted settings)
+  useEffect(() => {
+    setAverageDealSize(initialDealSize);
+    setTempDealSize(initialDealSize);
+  }, [initialDealSize]);
+  useEffect(() => {
+    setConversionRate(initialConversion);
+    setTempConversion(initialConversion * 100);
+  }, [initialConversion]);
 
   const handleSaveSettings = () => {
     setAverageDealSize(tempDealSize);
