@@ -87,9 +87,8 @@ export function GlobalAIAssistant() {
       const routeContext = getRouteContext(location.pathname);
       const { data, error } = await supabase.functions.invoke("ai-chat", {
         body: {
-          message: trimmed,
+          messages: updatedMessages.slice(-10),
           context: routeContext,
-          messages: updatedMessages.slice(-10), // Last 10 messages for context
         },
       });
 
