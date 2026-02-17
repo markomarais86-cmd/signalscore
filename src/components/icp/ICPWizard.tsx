@@ -16,6 +16,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { useAccountInsights } from '@/hooks/use-account-insights';
+import { useEffectiveOrg } from '@/hooks/use-effective-org';
 
 interface ICPWizardProps {
   isOpen: boolean;
@@ -65,6 +66,9 @@ const initialFormData: ICPFormData = {
   seasonal_patterns: [],
   budget_indicators: [],
   
+  // Company keywords
+  company_keywords: [],
+  
   // Metadata
   tags: [],
   status: 'draft'
@@ -90,6 +94,7 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const { data: insights } = useAccountInsights();
+  const { effectiveOrgId } = useEffectiveOrg();
 
   useEffect(() => {
     if (editingICP && isOpen) {
@@ -128,6 +133,7 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
         seasonal_patterns: editingICP.seasonal_patterns || [],
         budget_indicators: editingICP.budget_indicators || [],
         
+        company_keywords: editingICP.company_keywords || [],
         tags: editingICP.tags || [],
         status: editingICP.status || 'draft',
         weights: editingICP.weights || {},
@@ -230,12 +236,12 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
   };
 
   const handleSave = async () => {
-    if (!validateCurrentStep() || !userProfile?.org_id) return;
+    if (!validateCurrentStep() || !effectiveOrgId) return;
 
     setIsSaving(true);
     try {
       const icpData = {
-        org_id: userProfile.org_id,
+        org_id: effectiveOrgId,
         name: formData.name,
         description: formData.description || null,
         use_case: formData.use_case || null,
@@ -270,6 +276,7 @@ export function ICPWizard({ isOpen, onClose, onComplete, editingICP }: ICPWizard
         seasonal_patterns: formData.seasonal_patterns.length > 0 ? formData.seasonal_patterns : null,
         budget_indicators: formData.budget_indicators.length > 0 ? formData.budget_indicators : null,
         
+        company_keywords: formData.company_keywords.length > 0 ? formData.company_keywords : null,
         tags: formData.tags.length > 0 ? formData.tags : null,
         template_source: selectedTemplate?.name || null,
         status: formData.status,

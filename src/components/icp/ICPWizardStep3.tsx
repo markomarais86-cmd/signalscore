@@ -18,6 +18,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { useEffectiveOrg } from '@/hooks/use-effective-org';
 
 interface ICPWizardStep3Props {
   formData: ICPFormData;
@@ -27,17 +28,17 @@ interface ICPWizardStep3Props {
 export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Props) {
   const [jobTitleInput, setJobTitleInput] = useState('');
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
 
   // Fetch top job titles from user's leads using server-side aggregation (RPC)
   const { data: topTitles } = useQuery({
-    queryKey: ['top-lead-titles', userProfile?.org_id, formData.persona_job_titles],
+    queryKey: ['top-lead-titles', effectiveOrgId, formData.persona_job_titles],
     queryFn: async () => {
-      if (!userProfile?.org_id) return [];
+      if (!effectiveOrgId) return [];
       
-      // Use server-side aggregation via RPC for better performance
       const { data, error } = await supabase.rpc('get_top_lead_titles', {
-        p_org_id: userProfile.org_id,
-        p_limit: 10 // Fetch more to filter out already selected
+        p_org_id: effectiveOrgId,
+        p_limit: 10
       });
       
       if (error || !data) {
@@ -45,14 +46,13 @@ export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Pro
         return [];
       }
       
-      // Filter out already selected titles
       return (data as { title: string; count: number }[])
         .map(t => t.title)
         .filter(title => !formData.persona_job_titles.includes(title))
         .slice(0, 5);
     },
-    enabled: !!userProfile?.org_id,
-    staleTime: 5 * 60 * 1000 // Cache for 5 minutes
+    enabled: !!effectiveOrgId,
+    staleTime: 5 * 60 * 1000
   });
 
   const addToArray = (field: keyof ICPFormData, value: string) => {
@@ -163,11 +163,11 @@ export function ICPWizardStep3({ formData, onUpdateFormData }: ICPWizardStep3Pro
                 value={jobTitleInput}
                 onChange={(e) => setJobTitleInput(e.target.value)}
                 onKeyDown={handleJobTitleKeyDown}
-                placeholder="Type job title and press Enter (e.g., Storage Engineer, Database Manager)"
+                placeholder="Enter functional area only (e.g., Cardiology, Revenue Cycle). Seniority is set separately."
                 className="mt-2"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Matching uses "contains" logic - e.g., "Data" will match "Data Architect", "Database Manager", etc.
+                Enter functional keywords only — seniority levels like VP, Director are set separately above. Exception: C-level titles (CFO, CIO, CEO) should be entered as-is.
               </p>
             </div>
 

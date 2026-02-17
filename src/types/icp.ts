@@ -91,6 +91,9 @@ export interface ICPProfile {
   last_validated_at?: string;
   created_at: string;
   
+  // Company keywords for broader matching
+  company_keywords?: string[];
+  
   // Vertical targeting
   vertical_filters?: Record<string, any>;
   
@@ -178,6 +181,9 @@ export interface ICPFormData {
   tags: string[];
   template_source?: string;
   status: 'draft' | 'active' | 'archived';
+  
+  // Company keywords for broader matching
+  company_keywords: string[];
   
   // Vertical targeting
   vertical_filters?: Record<string, any>;
