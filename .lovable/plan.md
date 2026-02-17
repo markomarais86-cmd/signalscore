@@ -1,66 +1,103 @@
 
 
-# Fix Bulk Scoring to Score All 39,928 Accounts
+# Fix Industry Normalization
 
-## Problem
+## The Problem
 
-Bulk scoring jobs keep getting stuck partway through (25,000 out of 39,928 accounts). This leaves **17,624 accounts unscored**, which means they don't appear in ICP-filtered views.
+Your `industry_norm` column has **529 different labels** across **6,592 accounts** that don't match the 23 standard ZoomInfo primary industries. For healthcare alone, there are variants like:
+- "Hospitals & Healthcare" (276 accounts)
+- "Healthcare Services" (224 accounts) 
+- "Hospitals and Health Care" (102 accounts)
+- "Health, Wellness, and Fitness" (42 accounts)
+- "Hospital & Health Care" (2 accounts)
+- "Healthcare" (4 accounts)
+- Plus dozens more
 
-**Root cause**: The edge function tries to score each account individually via RPC calls inside a background task (`EdgeRuntime.waitUntil`). Deno kills this background task after ~150 seconds, leaving thousands of accounts unscored.
+These should all map to a single ZoomInfo standard like "Hospitals & Physicians Clinics" or "Healthcare Services".
 
-**Good news**: There's already a database function called `bulk_score_all_accounts` that does the entire job in a single SQL operation -- it's much faster and won't time out. The edge function just isn't using it.
+The same fragmentation exists across every industry -- "Professional Services" vs "Business Services", "Financial Services" vs "Finance", "Computer Software" vs "Software", etc.
 
-## Solution
+## Root Causes
 
-Rewrite the `bulk-score-accounts` edge function to call the SQL-based `bulk_score_all_accounts` function instead of looping through accounts one by one.
+1. **The `standardize-industry` edge function uses its own made-up taxonomy** (e.g. "Healthcare", "Financial Services", "Professional Services") instead of the official ZoomInfo taxonomy used everywhere else in the app.
+2. **The `industry_mapping` table only has 270 entries** -- many raw industry strings from CRM imports were never mapped.
+3. **No post-import normalization step** runs to clean up `industry_norm` values against the mapping table.
 
-## What Changes
+## Solution (3 Parts)
 
-### 1. Rewrite `supabase/functions/bulk-score-accounts/index.ts`
+### Part 1: Database Migration -- Bulk Re-normalize Existing Accounts
 
-Replace the current approach (individual RPC calls in background) with:
-- Keep all auth, idempotency, and zombie cleanup logic
-- Instead of `EdgeRuntime.waitUntil(processAllChunks(...))`, call `supabase.rpc('bulk_score_all_accounts', { p_org_id, p_icp_id })`
-- This single SQL call scores all 39,928 accounts in one operation and creates/completes the job record automatically
-- Remove the `processAllChunks` function entirely since it's no longer needed
+Run a single SQL UPDATE that maps all 529 non-standard `industry_norm` values to the 23 ZoomInfo primaries using a comprehensive CASE statement. This covers all variants found in the data, including:
 
-### 2. Database migration: Add statement timeout override
+- Healthcare variants --> "Hospitals & Physicians Clinics" or "Healthcare Services"
+- "Professional Services", "Business Consulting" --> "Business Services"
+- "Financial Services", "Banking", "Investment Services" --> "Finance"  
+- "Computer Software", "Technology", "IT Services" --> "Software" or "Business Services"
+- "Manufacturing - Durables/Non-Durables" --> "Manufacturing"
+- All LinkedIn-style compound labels (semicolons, commas) --> primary match
+- And 400+ more mappings
 
-The `bulk_score_all_accounts` function needs enough time to process ~40K accounts. Add a migration to set a generous statement timeout (10 minutes) on this function so it doesn't get killed by the default Postgres timeout.
+### Part 2: Add Missing Entries to `industry_mapping` Table
 
-### 3. Update ICP match counts after scoring
+Insert ~260 new rows into the `industry_mapping` reference table so that future imports/enrichments automatically normalize correctly. This covers all the non-standard values found in the current data.
 
-After `bulk_score_all_accounts` completes, update `icp_profiles.match_count` for each active ICP with the count of accounts scoring 70+.
+### Part 3: Rewrite `standardize-industry` Edge Function
+
+Replace the made-up taxonomy with the actual ZoomInfo taxonomy from `src/constants/zoominfo-industries.ts`. Also add a database lookup step: check `industry_mapping` table first (fast exact match), then fall back to fuzzy matching.
 
 ## Technical Details
 
-```text
-Current Flow (broken):
-  Edge Function -> EdgeRuntime.waitUntil -> 39,928 individual RPC calls -> TIMEOUT at ~25K
+### Database Migration SQL
 
-New Flow (reliable):
-  Edge Function -> supabase.rpc('bulk_score_all_accounts') -> Single SQL INSERT...ON CONFLICT -> Done
+A single migration with two statements:
+
+**Statement 1**: UPDATE accounts using a giant CASE mapping:
+```sql
+UPDATE accounts 
+SET industry_norm = CASE industry_norm
+  -- Healthcare variants
+  WHEN 'Hospitals & Healthcare' THEN 'Hospitals & Physicians Clinics'
+  WHEN 'Hospitals and Health Care' THEN 'Hospitals & Physicians Clinics'
+  WHEN 'Hospital & Health Care' THEN 'Hospitals & Physicians Clinics'
+  WHEN 'Healthcare' THEN 'Healthcare Services'
+  WHEN 'Health, Wellness, and Fitness' THEN 'Healthcare Services'
+  WHEN 'Medical Practices' THEN 'Hospitals & Physicians Clinics'
+  WHEN 'Medical Equipment Manufacturing' THEN 'Manufacturing'
+  -- Financial variants
+  WHEN 'Financial Services' THEN 'Finance'
+  WHEN 'Banking' THEN 'Finance'
+  WHEN 'Investment Services' THEN 'Finance'
+  -- ... (covers all 529 non-standard values)
+  ELSE industry_norm
+END
+WHERE industry_norm NOT IN (
+  'Agriculture','Business Services','Construction','Consumer Services','Education',
+  'Energy, Utilities & Waste','Finance','Government','Healthcare Services',
+  'Holding Companies & Conglomerates','Hospitals & Physicians Clinics','Hospitality',
+  'Insurance','Law Firms & Legal Services','Manufacturing','Media & Internet',
+  'Minerals & Mining','Organizations','Real Estate','Retail','Software',
+  'Telecommunications','Transportation'
+);
 ```
 
-### Edge Function Changes (bulk-score-accounts/index.ts)
+**Statement 2**: INSERT into `industry_mapping` for all newly-discovered raw values.
 
-- Remove `processAllChunks` function (lines 81-183)
-- Replace `EdgeRuntime.waitUntil(processAllChunks(...))` block with a direct RPC call:
-  - Call `supabase.rpc('bulk_score_all_accounts', { p_org_id: org_id, p_icp_id: icp_id || null })`
-  - Parse the result (returns `{ success, job_id, processed, total_accounts, duration_seconds }`)
-  - Return job details to the frontend
-- Remove the manual job creation (`INSERT INTO bulk_scoring_jobs`) since the SQL function already creates and completes the job record
-- Keep: authentication, org verification, idempotency, zombie cleanup, rate limiting
+### Edge Function Rewrite (`supabase/functions/standardize-industry/index.ts`)
 
-### Database Migration
+- Replace the custom `ZOOMINFO_INDUSTRIES` array with the official 23-category ZoomInfo taxonomy
+- Add a Supabase client to check the `industry_mapping` table first
+- Fall back to fuzzy matching against the ZoomInfo taxonomy
+- Return standard ZoomInfo primary industry names
 
-- Set `statement_timeout` to 10 minutes for `bulk_score_all_accounts` to handle large orgs:
-  ```sql
-  ALTER FUNCTION public.bulk_score_all_accounts(uuid, uuid)
-  SET statement_timeout = '600s';
-  ```
+### Files Changed
 
-### No Frontend Changes Needed
+1. New database migration (bulk UPDATE + INSERT into industry_mapping)
+2. `supabase/functions/standardize-industry/index.ts` -- full rewrite to use ZoomInfo taxonomy and DB lookup
 
-The `BulkScoring.tsx` component already polls job status from `bulk_scoring_jobs` -- the SQL function writes to that same table, so the UI will work as-is.
+### Expected Outcome
+
+- All 39,928 accounts will have one of exactly 23 standard industry labels
+- Healthcare accounts (~670) will consistently show as "Hospitals & Physicians Clinics" or "Healthcare Services"
+- Future imports will auto-normalize via the expanded mapping table
+- ICP filtering by industry will work correctly across all accounts
 
