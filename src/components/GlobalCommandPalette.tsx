@@ -205,6 +205,16 @@ export function GlobalCommandPalette() {
     },
     // AI Actions
     {
+      id: "ai-assistant",
+      label: "Ask AI...",
+      description: "Open AI assistant (⌘J)",
+      icon: Sparkles,
+      action: () => window.dispatchEvent(new Event("openGlobalAI")),
+      group: "ai-actions",
+      keywords: ["chat", "ask", "help", "assistant", "ai"],
+      shortcut: "⌘J",
+    },
+    {
       id: "ai-discover",
       label: "AI Contact Discovery",
       description: "Find new contacts using AI",

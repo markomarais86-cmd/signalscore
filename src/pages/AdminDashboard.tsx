@@ -20,6 +20,7 @@ import { FeatureToggles } from '@/components/settings/FeatureToggles';
 import { OrganizationFeatureFlags } from '@/components/platform-admin/OrganizationFeatureFlags';
 import { CreditManagementDashboard } from '@/components/platform-admin/CreditManagementDashboard';
 import { MarketingLeadsTab } from '@/components/platform-admin/MarketingLeadsTab';
+import { SystemHealthDashboard } from '@/components/settings/SystemHealthDashboard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
@@ -333,6 +334,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="invitations">Invitations</TabsTrigger>
           <TabsTrigger value="feature-flags">Feature Flags</TabsTrigger>
           <TabsTrigger value="marketing-leads">Marketing Leads</TabsTrigger>
+          <TabsTrigger value="system-health">System Health</TabsTrigger>
           <TabsTrigger value="audit">Audit Logs</TabsTrigger>
         </TabsList>
 
@@ -566,6 +568,18 @@ export default function AdminDashboard() {
 
         <TabsContent value="marketing-leads">
           <MarketingLeadsTab />
+        </TabsContent>
+
+        <TabsContent value="system-health">
+          <Card>
+            <CardHeader>
+              <CardTitle>System Health Monitor</CardTitle>
+              <CardDescription>Platform-wide health status including database, auth, and edge functions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <SystemHealthDashboard />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="audit">

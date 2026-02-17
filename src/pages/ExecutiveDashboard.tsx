@@ -44,7 +44,10 @@ import { ICPProfileSummaryCard } from "@/components/executive/ICPProfileSummaryC
 
 import { StatusBar, buildStatusItems } from "@/components/executive/StatusBar";
 import { ExportToPdf } from "@/components/executive/ExportToPdf";
+import { SignalFeed } from "@/components/executive/SignalFeed";
+import { useBrandedReport } from "@/hooks/use-branded-report";
 import { dashboardLogger } from "@/lib/logger";
+import { FileText } from "lucide-react";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -80,6 +83,7 @@ export default function ExecutiveDashboard() {
   const [apolloStale, setApolloStale] = useState(false);
   const [syncingApolloFromAlert, setSyncingApolloFromAlert] = useState(false);
   const [selectedAgentRunId, setSelectedAgentRunId] = useState<string | null>(null);
+  const { generateReport, isGenerating } = useBrandedReport();
   
 
   const totalAccounts = dashboardData?.metrics?.total_accounts || 0;
@@ -132,6 +136,8 @@ export default function ExecutiveDashboard() {
       dashboardLogger.debug('Accounts changed, refreshing dashboard...');
       await refetch();
       toast.info('Dashboard updated with new account data');
+      // Auto-enrich newly imported unenriched accounts
+      autoEnrichNewAccounts();
     },
     onScoringCompleted: async () => {
       dashboardLogger.debug('Scoring completed, refreshing insights...');
@@ -321,6 +327,9 @@ export default function ExecutiveDashboard() {
 
       toast.success('Apollo sync completed! Refreshing dashboard...');
       
+      // Auto-enrich new accounts after sync
+      autoEnrichNewAccounts();
+      
       // Refresh the dashboard data to show the new breakdowns
       setTimeout(() => {
         refetch();
@@ -385,6 +394,34 @@ export default function ExecutiveDashboard() {
     onEnrich: () => setIsEnrichmentModalOpen(true),
     syncingApollo: syncingApolloFromAlert
   });
+
+  // Auto-enrich new accounts that haven't been enriched yet
+  const autoEnrichNewAccounts = async () => {
+    if (!effectiveOrgId) return;
+    try {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data: unenriched } = await supabase
+        .from("accounts")
+        .select("external_id")
+        .eq("org_id", effectiveOrgId)
+        .is("enriched_at", null)
+        .gte("updated_at", fiveMinutesAgo)
+        .limit(50);
+
+      if (unenriched && unenriched.length > 0) {
+        toast.info(`Auto-enriching ${unenriched.length} new accounts...`);
+        await supabase.functions.invoke("enrich-unified", {
+          body: {
+            record_type: "account",
+            org_id: effectiveOrgId,
+            record_ids: unenriched.map((a) => a.external_id),
+          },
+        });
+      }
+    } catch (err) {
+      dashboardLogger.error("Auto-enrich failed:", err);
+    }
+  };
 
   // Score accounts handler for command palette
   const handleScoreAccounts = async () => {
@@ -482,6 +519,17 @@ export default function ExecutiveDashboard() {
             >
               <Activity className="mr-2 h-4 w-4" />
               Health
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => generateReport()}
+              disabled={isGenerating}
+              className="hover:shadow-sm transition-shadow active:scale-[0.98]"
+              title="Generate Board Report PDF"
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              {isGenerating ? "Generating..." : "Board Report"}
             </Button>
             <ExportToPdf onExport={() => {}} />
           </div>
@@ -663,24 +711,24 @@ export default function ExecutiveDashboard() {
               />
             </div>
 
-            {/* Data Health & AI Insights - 2 column layout */}
+            {/* Data Health, Signal Feed & AI Insights - 3 column layout */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Data Health Widget - 1 column */}
+              {/* Data Health Widget */}
               <DataHealthWidget />
               
-              {/* AI Insights - 2 columns */}
-              <div className="lg:col-span-2">
-                <UnifiedInsightsPanel
-                  risks={risks}
-                  insights={insights || []}
-                  orgId={effectiveOrgId}
-                  onRefresh={handleRefreshInsights}
-                  campaignReadyCount={campaignReadyAccounts}
-                  completenessScore={dataCompleteness}
-                  totalScored={totalScores}
-                />
-              </div>
-
+              {/* Signal Feed */}
+              <SignalFeed maxHeight="400px" compact />
+              
+              {/* AI Insights */}
+              <UnifiedInsightsPanel
+                risks={risks}
+                insights={insights || []}
+                orgId={effectiveOrgId}
+                onRefresh={handleRefreshInsights}
+                campaignReadyCount={campaignReadyAccounts}
+                completenessScore={dataCompleteness}
+                totalScored={totalScores}
+              />
             </div>
           </>
         )}
