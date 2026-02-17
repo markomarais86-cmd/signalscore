@@ -6,7 +6,7 @@ import { formatAbbreviated } from "@/utils/format-numbers";
 
 interface SyncBreakdown {
   accounts: number;
-  contacts: number;
+  leads: number;
   geography?: Record<string, { percentage: number }>;
   industry?: Record<string, { percentage: number }>;
 }
@@ -102,9 +102,9 @@ export function SyncProgressModal({
                 <div className="space-y-1 bg-muted/30 rounded-lg p-3">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Users className="h-4 w-4" />
-                    <span>Contacts</span>
+                    <span>Leads</span>
                   </div>
-                  <div className="text-2xl font-bold">{formatAbbreviated(breakdown.contacts)}</div>
+                  <div className="text-2xl font-bold">{formatAbbreviated(breakdown.leads)}</div>
                 </div>
               </div>
 

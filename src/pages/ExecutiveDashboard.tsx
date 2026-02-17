@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
-import { TrendingUp, Target, Database, Download, MapPin, Building2, Settings, AlertCircle, Users, RefreshCw, Activity, Search } from "lucide-react";
+import { TrendingUp, Target, Database, Download, MapPin, Building2, Settings, AlertCircle, Users, RefreshCw, Activity, Search, Globe } from "lucide-react";
 import { LaunchPulseMark } from '@/components/BrandLogo';
 import { useAuth } from "@/hooks/use-auth";
 import { useEffectiveOrg } from "@/hooks/use-effective-org";
@@ -42,6 +42,7 @@ import { SimpleICPTable } from "@/components/executive/SimpleICPTable";
 import { SimpleTAMCard } from "@/components/executive/SimpleTAMCard";
 import { SimpleGeographyCard } from "@/components/executive/SimpleGeographyCard";
 import { DataHealthWidget } from "@/components/executive/DataHealthWidget";
+import { CollapsibleDashboardCard } from "@/components/executive/CollapsibleDashboardCard";
 import { ICPProfileSummaryCard } from "@/components/executive/ICPProfileSummaryCard";
 
 import { StatusBar, buildStatusItems } from "@/components/executive/StatusBar";
@@ -378,7 +379,7 @@ export default function ExecutiveDashboard() {
   const effectiveAccountCount = sourceFilter === 'database' 
     ? (tamData?.totalAccounts || 0) 
     : totalAccounts;
-  const showEmptyState = effectiveAccountCount === 0 && !isLoading;
+  const showEmptyState = effectiveAccountCount === 0 && totalScores === 0 && !isLoading;
 
   // Build status items for StatusBar
   const statusItems = buildStatusItems({
@@ -686,31 +687,37 @@ export default function ExecutiveDashboard() {
               />
               
               {/* Center Column - TAM/SAM/SOM Card */}
-              <SimpleTAMCard
-                totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-                highFitAccounts={highFitAccounts}
-                campaignReadyAccounts={campaignReadyAccounts}
-                averageDealSize={averageDealSize}
-                conversionRate={conversionRate}
-              />
+              <CollapsibleDashboardCard title="Market Sizing" icon={<Globe className="h-4 w-4 text-primary" />} defaultOpen>
+                <SimpleTAMCard
+                  totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
+                  highFitAccounts={highFitAccounts}
+                  campaignReadyAccounts={campaignReadyAccounts}
+                  averageDealSize={averageDealSize}
+                  conversionRate={conversionRate}
+                />
+              </CollapsibleDashboardCard>
               
               {/* Right Column - Geography Card */}
-              <SimpleGeographyCard
-                geoData={
-                  sourceFilter === 'database' && tamData?.geography_breakdown
-                    ? Object.entries(tamData.geography_breakdown as Record<string, { accounts?: number }>).map(([country, data]) => ({
-                        country,
-                        count: typeof data === 'object' ? (data.accounts || 0) : (typeof data === 'number' ? data : 0),
-                      })).sort((a, b) => b.count - a.count)
-                    : geographyDistribution.map(g => ({ country: g.country, count: g.count }))
-                }
-              />
+              <CollapsibleDashboardCard title="Top Geographies" icon={<MapPin className="h-4 w-4 text-primary" />} defaultOpen>
+                <SimpleGeographyCard
+                  geoData={
+                    sourceFilter === 'database' && tamData?.geography_breakdown
+                      ? Object.entries(tamData.geography_breakdown as Record<string, { accounts?: number }>).map(([country, data]) => ({
+                          country,
+                          count: typeof data === 'object' ? (data.accounts || 0) : (typeof data === 'number' ? data : 0),
+                        })).sort((a, b) => b.count - a.count)
+                      : geographyDistribution.map(g => ({ country: g.country, count: g.count }))
+                  }
+                />
+              </CollapsibleDashboardCard>
             </div>
 
             {/* Data Health & AI Insights - 2 column layout */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Data Health Widget */}
-              <DataHealthWidget />
+              <CollapsibleDashboardCard title="Data Health" icon={<Activity className="h-4 w-4 text-primary" />} defaultOpen>
+                <DataHealthWidget />
+              </CollapsibleDashboardCard>
               
               {/* AI Insights - 2 columns */}
               <div className="lg:col-span-2">
