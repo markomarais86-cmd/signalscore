@@ -1,80 +1,61 @@
 
-# Fix: Accounts Page + Credits Not Decreasing
 
-## Two Issues Found
+# Make AI Chat Support Document Uploads for ICP Creation
 
-### Issue 1: Accounts Page Still Not Loading
-The database function `get_filtered_accounts` has been fixed and **works correctly in the test environment** (verified: returns 39,928 accounts). If you're seeing the issue on the **published (live) URL** (signalscore.lovable.app), you need to **Publish** the project to push the database migration to production. The test/preview environment already works.
+## Current State
 
-### Issue 2: Credits Never Decrease
-The `enrichment_credits_used` counter in your `organizations` table is `0` despite 11,055 enriched accounts. **Root cause**: the main enrichment function (`enrich-unified`) processes records and tracks cost internally but **never writes back to `organizations.enrichment_credits_used`**. No enrichment function in the codebase increments this counter.
+Your app has **two AI assistants**:
+1. **LaunchPulse AI** (Cmd+K, floating chat button) -- The full-featured one with action execution, ICP creation, search, analytics, etc. This one CAN create ICPs when you ask it to.
+2. **AI Assistant** (Cmd+J) -- A simpler Q&A chatbot with no action execution.
 
-## Plan
+The screenshot you shared shows the LaunchPulse AI (Cmd+K) chat. **ICP creation already works** if you type something like "Create an ICP for enterprise tech companies in the US with CTOs." The AI will generate a create_icp action, show a confirmation dialog, and create the ICP upon approval.
 
-### Step 1: Add credit deduction to `enrich-unified`
-After the enrichment loop completes and we know how many records were enriched, increment `enrichment_credits_used` on the organization:
+However, **document upload is not supported** in the chat. The `parse-icp-document` function exists but is only used during onboarding. This plan adds document upload to the LaunchPulse AI chat.
 
-```typescript
-// After enrichment loop, before returning response:
-if (enriched > 0) {
-  await supabase.rpc('increment_enrichment_credits', {
-    p_org_id: org_id,
-    p_amount: enriched
-  });
-}
+## What Will Change
+
+### 1. Add a file upload button to the chat input area
+- Add a paperclip/upload icon button next to the text input in `AIChat.tsx`
+- Support PDF, DOCX, TXT, and CSV files (up to 10MB)
+- Show the attached file name as a chip/badge above the input
+
+### 2. Client-side document text extraction
+- For PDFs: Use the existing `pdfjs-dist` dependency to extract text client-side (already installed)
+- For TXT/CSV: Read as plain text via FileReader
+- For DOCX: Add basic text extraction or use the AI to interpret the raw content
+
+### 3. Wire document text into the AI chat flow
+- When a document is attached, extract its text and prepend it to the user's message as context
+- The system prompt already has `create_icp` instructions, so if the user says "Create an ICP from this document", the AI will parse the content and generate a `create_icp` action
+- Alternatively, if the user attaches a document without a message, auto-send: "Create an ICP profile from this document"
+
+### 4. Add a dedicated "Upload ICP Document" path
+- When a document is detected, also offer to use the specialized `parse-icp-document` edge function directly (which uses structured tool calling for better extraction accuracy)
+- Show a choice: "Quick parse with AI" vs "Deep ICP extraction"
+
+## Files to Change
+
+- **`src/components/AIChat.tsx`** -- Add file upload button, file preview chip, and upload handling logic
+- **`src/hooks/use-ai-chat.tsx`** -- Add `sendMessageWithDocument` method that includes extracted document text
+- **`src/lib/document-utils.ts`** (new) -- PDF/TXT text extraction utilities using pdfjs-dist
+
+## Technical Details
+
+### File upload UI addition (AIChat.tsx)
+```text
+[paperclip icon] [text input...............] [send]
+             [attached-file.pdf  x]           
 ```
 
-### Step 2: Create the database function `increment_enrichment_credits`
-A simple atomic increment function to avoid race conditions:
-
-```sql
-CREATE OR REPLACE FUNCTION increment_enrichment_credits(
-  p_org_id UUID,
-  p_amount INTEGER
-) RETURNS void AS $$
-BEGIN
-  UPDATE organizations
-  SET enrichment_credits_used = COALESCE(enrichment_credits_used, 0) + p_amount
-  WHERE id = p_org_id;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+### Document text extraction flow
+```text
+User attaches file
+  -> If PDF: use pdfjs-dist getDocument() to extract text from all pages
+  -> If TXT/CSV: FileReader.readAsText()
+  -> If DOCX: basic extraction or send raw to AI
+  -> Extracted text is prepended to the user message
+  -> AI processes and generates create_icp action if appropriate
 ```
 
-### Step 3: Add pre-enrichment credit check
-Before processing records, check if the org has enough credits remaining. If not, reject with a clear error:
-
-```typescript
-// Before processing, check credits
-const { data: org } = await supabase
-  .from('organizations')
-  .select('enrichment_credits_used, enrichment_credits_total')
-  .eq('id', org_id)
-  .single();
-
-const remaining = (org?.enrichment_credits_total || 0) - (org?.enrichment_credits_used || 0);
-if (remaining < records.length) {
-  throw new Error(`Insufficient credits: ${remaining} remaining, ${records.length} requested`);
-}
-```
-
-### Step 4: Backfill current usage (optional one-time fix)
-Since 11,055 accounts were already enriched without tracking, update the current count:
-
-```sql
-UPDATE organizations
-SET enrichment_credits_used = (
-  SELECT COUNT(*) FROM accounts 
-  WHERE org_id = '726a0dc0-99c7-43c2-b20f-b849f2760c3f' 
-  AND enriched_at IS NOT NULL
-)
-WHERE id = '726a0dc0-99c7-43c2-b20f-b849f2760c3f';
-```
-
-## Files Changed
-- `supabase/functions/enrich-unified/index.ts` -- Add credit check before processing and credit deduction after
-- New database migration -- Create `increment_enrichment_credits` function
-
-## Technical Notes
-- The credit deduction uses an atomic `UPDATE ... SET col = col + N` pattern to avoid race conditions from concurrent enrichment jobs
-- The pre-check is advisory (not a hard lock) since concurrent jobs could pass the check simultaneously, but the deduction itself is always accurate
-- The `CreditsDisplay` component already has a real-time subscription on the `organizations` table, so the UI will update automatically when credits change
+### Fallback to parse-icp-document
+For better structured extraction, optionally call the existing `parse-icp-document` edge function directly, which uses Gemini tool calling to return a properly structured ICP profile.
