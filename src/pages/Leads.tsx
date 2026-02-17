@@ -808,7 +808,7 @@ export default function Leads() {
                         </TableCell>
                       </TableRow>
                     </SheetTrigger>
-                    <SheetContent className="w-[600px] sm:w-[700px] overflow-y-auto">
+                    <SheetContent className="w-full sm:w-[540px] md:w-[640px] overflow-y-auto">
                       <SheetHeader>
                         <SheetTitle className="flex items-center gap-2">
                           {fullName}
@@ -832,10 +832,10 @@ export default function Leads() {
                       {/* Lead Information */}
                       <div>
                         <h3 className="text-lg font-semibold mb-3">Lead Information</h3>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <Label className="text-sm font-medium">Email</Label>
-                            <p className="text-sm">{lead.email || '-'}</p>
+                            <p className="text-sm break-all">{lead.email || '-'}</p>
                           </div>
                           <div>
                             <Label className="text-sm font-medium">Phone</Label>
@@ -871,10 +871,10 @@ export default function Leads() {
                       {/* Company Information */}
                       <div>
                         <h3 className="text-lg font-semibold mb-3">Company Overview</h3>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <Label className="text-sm font-medium">Company</Label>
-                            <p className="text-sm">{lead.company || '-'}</p>
+                            <p className="text-sm truncate">{lead.company || '-'}</p>
                           </div>
                           <div>
                             <Label className="text-sm font-medium">Website</Label>
@@ -945,7 +945,7 @@ export default function Leads() {
                             </div>
 
                             {/* Enrichment Quality Score */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div>
                                 <Label className="text-sm font-medium">Quality Score</Label>
                                 <div className="flex items-center gap-2 mt-1">
@@ -973,7 +973,7 @@ export default function Leads() {
                             </div>
 
                             {/* LinkedIn & Direct Phone */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div>
                                 <Label className="text-sm font-medium">LinkedIn</Label>
                                 {lead.linkedin_url ? (
