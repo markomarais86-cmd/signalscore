@@ -1,88 +1,67 @@
 
-# Fix: Bulk Scoring Not Working
+# Investigation: Revenue at Risk Shows $9.0M with No Scores
 
-## Problems Identified
+## Root Cause
 
-### Problem 1: Child orgs (91.Life) can never score -- accounts query returns 0 rows
-The `bulk-score-accounts` edge function queries accounts with `.eq('org_id', org_id)` where `org_id` is the child org's ID. But all accounts belong to the **parent org** (Launchpulse). The function finds zero accounts and either creates a job with `total_accounts: 0` or errors out.
-
-### Problem 2: Launchpulse jobs time out and never complete
-Recent jobs for Launchpulse (39,928 accounts) get stuck at 25K-30K accounts. The edge function has a 50-second time budget, processes what it can, then marks the job as "processing" expecting auto-resume. But the **auto-recovery function only monitors `enrichment_jobs`**, not `bulk_scoring_jobs`. So these jobs are never resumed and eventually get manually marked as failed.
-
-### Problem 3: No auto-resume for bulk scoring jobs
-The `job-auto-recovery` edge function is hard-coded to only look at the `enrichment_jobs` table. The `bulk_scoring_jobs` table is completely unmonitored, so when a scoring job pauses at the 50-second mark, nothing ever resumes it.
-
----
-
-## Fix Plan
-
-### 1. Fix child org account resolution in `bulk-score-accounts/index.ts`
-- After extracting `org_id` from the request, resolve the **data org** (parent) using the `get_data_org_id()` database function or a direct lookup on `organizations.parent_org_id`
-- Use `dataOrgId` for querying accounts (shared data)
-- Keep using `org_id` (child) for ICP profiles and writing scores (these are org-specific)
+The Revenue at Risk metric is **not related to scoring at all**. It is calculated purely from enrichment data completeness applied to the total account pool:
 
 ```text
-Before:
-  accounts query: .eq('org_id', org_id)     --> 0 rows for child orgs
-  ICP query:      .eq('org_id', org_id)     --> correct
-  scores write:   org_id                     --> correct
-
-After:
-  accounts query: .eq('org_id', dataOrgId)  --> parent's accounts
-  ICP query:      .eq('org_id', org_id)     --> child's ICPs
-  scores write:   org_id                     --> child's scores
+revenueAtRisk = (1 - dataCompleteness / 100) * totalAccounts * averageDealSize * 0.1
 ```
 
-### 2. Add bulk scoring job monitoring to `job-auto-recovery/index.ts`
-- Add a new step that detects stale `bulk_scoring_jobs` (status = 'processing', not updated in 2+ minutes)
-- When found, invoke `bulk-score-accounts` with the `job_id` parameter to resume from where it left off
-- Cap at 3 retries before marking as failed
+For 91.Life:
+- `totalAccounts` = 39,928 (inherited from Launchpulse parent)
+- `averageDealSize` = $75,000 (default, no org-specific override)
+- `dataCompleteness` = ~97% (from enrichment metrics, not scoring)
+- Result: `0.03 * 39,928 * 75,000 * 0.1 = ~$9.0M`
 
-### 3. Fix the resume path in `bulk-score-accounts/index.ts`
-- The resume path (`job_id` parameter) currently skips auth org verification. Ensure it works when called by auto-recovery with service role
-- When resuming, also resolve `dataOrgId` for the account query
+The formula says: "For every account with incomplete enrichment data, assume 10% of ACV is at risk." With ~1,200 under-enriched accounts at $75K ACV, that produces $9M.
 
----
+## The Problem
 
-## Technical Details
+This is **not a bug** -- the formula is working as designed. However, it is **misleading** because:
 
-### File: `supabase/functions/bulk-score-accounts/index.ts`
+1. It implies $9M in revenue is threatened, but no accounts have been scored or entered a pipeline
+2. The metric conflates "enrichment gaps" with "revenue risk" -- these are different concerns
+3. The 10% multiplier and $75K default ACV are arbitrary, producing an inflated-sounding number
+4. For a child org with zero scoring history, it creates a false sense of urgency about revenue that doesn't exist yet
 
-Changes:
-1. After line 160 (after extracting `org_id`), add a lookup for parent org:
-   ```typescript
-   // Resolve data org (parent) for account queries
-   const { data: orgData } = await supabase
-     .from('organizations')
-     .select('parent_org_id')
-     .eq('id', org_id)
-     .single();
-   const dataOrgId = orgData?.parent_org_id || org_id;
-   console.log(`Data org: ${dataOrgId} (parent: ${dataOrgId !== org_id})`);
-   ```
+## Recommended Fix
 
-2. Line 211 -- change account count query from `.eq('org_id', org_id)` to `.eq('org_id', dataOrgId)`
-3. Line 274 -- change account fetch query from `.eq('org_id', org_id)` to `.eq('org_id', dataOrgId)`
-4. Keep ICP query (line 198-201) using `org_id` (child's own ICPs)
-5. Keep score writes (line 303) using `org_id` (child's own scores)
+Make Revenue at Risk **scoring-aware** so it only counts accounts that have actually been scored and are in-play:
 
-### File: `supabase/functions/job-auto-recovery/index.ts`
+### Option A: Only count scored accounts (recommended)
 
-Add a new section after the enrichment job recovery (after line 431) that:
-1. Queries `bulk_scoring_jobs` for jobs with status = 'processing' and `updated_at` older than 2 minutes
-2. For each stale job, invokes `bulk-score-accounts` with `{ job_id, org_id }` to resume
-3. After 3 failed resume attempts, marks the job as 'failed'
+```text
+revenueAtRisk = unscoredAccounts * averageDealSize * conversionRate
+```
 
-### File: `src/components/executive/PowerUpButton.tsx`
+Where `unscoredAccounts = totalAccounts - scoredAccounts`. This tells you: "Here's the pipeline value you can't prioritize because these accounts haven't been scored yet."
 
-Line 56 -- the body sends `chunk_size: 5000` which is ignored by the edge function (it uses CHUNK_SIZE = 2000). Remove the unused parameter to avoid confusion.
+- When 0 accounts are scored: shows the full potential gap
+- When all accounts are scored: shows $0 (no risk)
+- Uses org-specific `conversionRate` instead of arbitrary 0.1
 
----
+### Option B: Hybrid approach
 
-## Summary
+Keep the enrichment-gap angle but scale by scoring coverage:
 
-| Problem | Root Cause | Fix |
-|---------|-----------|-----|
-| 91.Life scores never created | Accounts queried by child org_id (0 results) | Use `dataOrgId` (parent) for account queries |
-| Launchpulse jobs time out at ~25K | 50s edge function limit + no auto-resume | Add bulk scoring to job-auto-recovery |
-| Jobs never resume | Auto-recovery only monitors enrichment_jobs | Extend auto-recovery to monitor bulk_scoring_jobs |
+```text
+enrichmentGap = (1 - dataCompleteness / 100) * scoredAccounts * averageDealSize * conversionRate
+scoringGap = unscoredAccounts * averageDealSize * conversionRate
+revenueAtRisk = enrichmentGap + scoringGap
+```
+
+### Changes Required
+
+**File: `src/pages/ExecutiveDashboard.tsx` (line 644-648)**
+
+Replace the inline calculation with a scoring-aware formula. Use `totalScores` (already available in the component) to determine how many accounts are scored vs unscored.
+
+**File: `src/components/executive/GrowthCommandKPIs.tsx` (line 91)**
+
+Update the `soWhat` text from "Opportunity lost to data gaps" to something more accurate like "Unscored accounts represent unrealized pipeline" when scores are missing.
+
+### No backend changes needed
+
+All the data (`totalAccounts`, `totalScores`, `averageDealSize`, `conversionRate`) is already available in the dashboard component. This is a frontend-only formula change.
