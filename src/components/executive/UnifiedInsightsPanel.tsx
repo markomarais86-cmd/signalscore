@@ -188,7 +188,7 @@ export function UnifiedInsightsPanel({
       .gt('total_records', 0)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
     
     if (pausedJob) {
       const needsAutoResume = pausedJob.error_message?.includes('Auto-paused') || 

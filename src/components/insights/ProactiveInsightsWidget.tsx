@@ -92,7 +92,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
       .gt('total_records', 0)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
     
     if (activeJob) {
       const lastUpdate = activeJob.last_progress_update ? new Date(activeJob.last_progress_update) : null;
@@ -121,7 +121,7 @@ export function ProactiveInsightsWidget({ orgId, onAction }: ProactiveInsightsWi
       .gt('total_records', 0)
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
     
     if (pausedJob) {
       const needsAutoResume = pausedJob.error_message?.includes('Auto-paused') || 

@@ -267,7 +267,7 @@ export function useEnrichedLeadsMetrics(orgId: string | null) {
           totalEnriched: Number(row?.total_enriched ?? 0),
           highConfidence: Number(row?.high_confidence ?? 0),
           phoneDiscovered: Number(row?.phone_discovered ?? 0),
-          emailVerified: Number(row?.email_verified ?? 0),
+          emailVerified: Number(row?.email_verified_count ?? 0),
           isLoading: false
         });
       } catch (error) {
