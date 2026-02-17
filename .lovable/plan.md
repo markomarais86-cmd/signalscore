@@ -1,30 +1,34 @@
 
 
-# Fix Lead Details Panel Layout
+# Fix Accounts Page — Type Mismatch in Database Function
 
 ## Problem
-The lead details slide-out panel is too cramped. The 2-column grid causes text overlap (email bleeds into phone), and fields like company name get squeezed. This happens because the panel renders narrower than the `w-[600px]` on smaller viewports.
+The Accounts page still shows "No accounts found" / "Failed to load data" because of a **different error** than the one fixed previously. The error is:
 
-## Changes
+> "Returned type integer does not match expected type numeric in column 14."
 
-**File: `src/pages/Leads.tsx`**
+The `get_filtered_accounts` function (12-parameter overload) declares its return column `enrichment_overall_score` as type `numeric`, but the actual `accounts.enrichment_overall_score` column in the database is type `integer`. Postgres refuses to implicitly convert between these types in function return values.
 
-1. **Make the SheetContent width responsive** -- Change `w-[600px] sm:w-[700px]` to `w-full sm:w-[540px] md:w-[640px]` so on mobile it takes full width gracefully, and on desktop it has comfortable sizing.
+## Fix
 
-2. **Add `truncate` to overflowing text fields** -- The email and company fields can be long. Add `truncate` class to `<p>` elements in the Lead Information and Company Overview grids so text doesn't overflow into adjacent columns.
+**Database migration** -- Cast `a.enrichment_overall_score` to `numeric` in the SELECT inside the function body.
 
-3. **Make grid columns responsive** -- Change `grid-cols-2` to `grid-cols-1 sm:grid-cols-2` on the Lead Information and Company Overview grids (lines 835, 874) so on very narrow screens the fields stack vertically.
+Change line in the dynamic SQL from:
+```
+a.enrichment_overall_score,
+```
+to:
+```
+a.enrichment_overall_score::numeric,
+```
 
-4. **Add `break-all` or `break-words`** -- For the email field specifically, add `break-all` so long email addresses wrap instead of overlapping.
+This is a single-line change inside the existing `CREATE OR REPLACE FUNCTION` migration for the 12-parameter overload. The function signature and return type stay the same -- we just add a cast so the integer column matches the declared numeric return type.
 
-## Specific line changes
+## Technical Details
 
-- **Line 811**: `w-full sm:w-[540px] md:w-[640px] overflow-y-auto`
-- **Line 835**: `grid grid-cols-1 sm:grid-cols-2 gap-4`
-- **Line 838**: Add `truncate` or `break-all` to email `<p>`
-- **Line 874**: `grid grid-cols-1 sm:grid-cols-2 gap-4`
-- **Line 877**: Add `truncate` to company name `<p>`
-- **Lines 948, 976**: Same responsive grid treatment for enrichment data grids
-
-No new dependencies. Single file change.
+- **Affected overload**: The one with 12 parameters (includes `p_sort_field`, `p_sort_direction`)
+- **Column 14 in return type**: `enrichment_overall_score numeric`
+- **Actual column type**: `integer`
+- **Solution**: `CAST(a.enrichment_overall_score AS numeric)` or `a.enrichment_overall_score::numeric`
+- No frontend changes needed
 
