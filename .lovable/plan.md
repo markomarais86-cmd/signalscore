@@ -1,57 +1,61 @@
 
 
-## Fix: Enrichment Page Shows All Zeros for Child Orgs (91.Life)
+## Fix: Bulk Scoring Jobs Stalling at ~30k Accounts
 
 ### Root Cause
 
-The entire Enrichment page and all its sub-components query `accounts` and `Leads` using `userProfile.org_id` directly. For child orgs like 91.life, accounts live under the parent org (LaunchPulse). This causes every metric, data gap, export, and quality dashboard to return zero.
+The bulk scoring edge function has a 50-second time budget per invocation (line 8: `MAX_RUNTIME_MS = 50_000`). For 39,928 accounts with 80 chunks, a single invocation only processes ~15-20 chunks before timing out. It then marks the job as `processing` and relies on auto-recovery (cron) to resume it.
 
-### Scope of Changes
+**The auto-recovery fails because of an authentication mismatch:**
+- Auto-recovery calls `bulk-score-accounts` with `Authorization: Bearer SUPABASE_SERVICE_ROLE_KEY`
+- But `bulk-score-accounts` calls `authClient.auth.getUser()` which does NOT work with service role keys -- it returns null
+- This causes "Unauthorized - invalid token", and after 3 failed attempts, the job is marked as `failed`
 
-Every component on the Enrichment page that queries `accounts` or `Leads` needs the parent org resolution. Here is the full list:
+This explains the pattern in the job history: every job gets partway through (15k-23k accounts), times out, auto-recovery fails to resume, and eventually the job fails.
 
-| File | Current Query ID | Fix |
-|------|-----------------|-----|
-| `src/pages/Enrichment.tsx` | `effectiveOrgId` via RPC | Pass resolved `dataOrgId` to `get_enrichment_page_stats` |
-| `src/components/enrichment/DataGapsVisualization.tsx` | `userProfile.org_id` (12+ queries) | Use `dataOrgId` for all account queries; keep child org ID for `enrichment_jobs` and edge function calls |
-| `src/components/enrichment/ExportAccountsButton.tsx` | `userProfile.org_id` | Use `dataOrgId` for account SELECT queries |
-| `src/components/enrichment/ExportLeadsButton.tsx` | `userProfile.org_id` | Use `dataOrgId` for lead SELECT queries |
-| `src/components/enrichment/RecentEnrichmentActivity.tsx` | `userProfile.org_id` | Keep as-is (enrichment_jobs belong to the child org) |
-| `src/components/enrichment/ICPAccountDiscovery.tsx` | `userProfile.org_id` | Use `dataOrgId` for account lookups; keep child org for ICP profiles |
-| `src/components/settings/DataQualityDashboard.tsx` | `userProfile.org_id` | Use `dataOrgId` for account queries; keep child org for RPCs and edge function calls |
-| `src/components/settings/EnrichmentQualityDashboard.tsx` | `userProfile.org_id` | Use `dataOrgId` for account queries; keep child org for enrichment_jobs and data_quality_history |
-| `src/components/enrichment/EnrichmentAccuracyReport.tsx` | Needs checking | Same pattern if it queries accounts |
+### Fix
 
-### Pattern for Each Fix
+Update `supabase/functions/bulk-score-accounts/index.ts` to detect when the request is authenticated with the service role key (used by auto-recovery cron) and skip the user-level auth check in that case.
 
-Each component will:
-1. Import `useDataOrgId` from `@/hooks/use-data-org`
-2. Destructure `{ dataOrgId }` from the hook
-3. Replace `userProfile.org_id` with `dataOrgId` **only** for queries against `accounts` and `Leads` tables
-4. Keep `userProfile.org_id` (or `effectiveOrgId`) for:
-   - `enrichment_jobs` (job tracking belongs to the child org)
-   - `icp_profiles` and `scores` (belong to child org)
-   - Edge function invocations (the functions handle resolution internally)
-   - `data_quality_history` (tracked per child org)
-
-### Key Rule
+**Specifically:**
+1. After extracting the auth header, check if it matches the service role key
+2. If it does, skip `getUser()` and the org access check (the service role has full access)
+3. If it's a regular user JWT, keep the existing auth flow unchanged
 
 ```text
-accounts, Leads tables --> use dataOrgId (parent)
-enrichment_jobs, icp_profiles, scores, settings --> use effectiveOrgId (child)
+CURRENT (lines 226-269):
+  const authHeader = req.headers.get('Authorization');
+  ...
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return errorResponse(UNAUTHORIZED);
+  ...verify org access via user profile...
+
+AFTER:
+  const authHeader = req.headers.get('Authorization');
+  const token = authHeader?.replace('Bearer ', '');
+  const isServiceRole = token === supabaseServiceKey;
+
+  if (!isServiceRole) {
+    // Regular user auth flow (unchanged)
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) return errorResponse(UNAUTHORIZED);
+    ...verify org access via user profile...
+  }
+  // Service role: skip user check (auto-recovery cron has full access)
 ```
 
-### Files to Modify
+### Technical Details
 
-1. `src/pages/Enrichment.tsx`
-2. `src/components/enrichment/DataGapsVisualization.tsx`
-3. `src/components/enrichment/ExportAccountsButton.tsx`
-4. `src/components/enrichment/ExportLeadsButton.tsx`
-5. `src/components/enrichment/ICPAccountDiscovery.tsx`
-6. `src/components/settings/DataQualityDashboard.tsx`
-7. `src/components/settings/EnrichmentQualityDashboard.tsx`
-8. `src/components/enrichment/EnrichmentAccuracyReport.tsx` (if applicable)
+| Item | Detail |
+|------|--------|
+| File to modify | `supabase/functions/bulk-score-accounts/index.ts` |
+| Lines affected | ~226-269 (authentication block) |
+| Risk | Low -- only adds an alternative auth path for the service role key, which auto-recovery already uses |
+| No other files need changes | Auto-recovery already sends the correct `org_id` and `job_id` in the request body |
 
 ### Expected Result
 
-After the fix, 91.life's Enrichment page will show the same account totals, data completeness, enriched counts, and data gaps as LaunchPulse, since they share the same underlying account database.
+- Auto-recovery will successfully resume stale bulk scoring jobs
+- The current stuck job (chunk 60/80) will complete on the next cron run
+- All 39,928 accounts will be scored for 91.life
+
