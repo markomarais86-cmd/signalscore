@@ -1,26 +1,145 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Progress } from "@/components/ui/progress";
 import { Target, Building2, Users, MapPin, Cpu, ArrowRight, Plus, AlertCircle, TrendingUp, Briefcase, ChevronDown } from "lucide-react";
-import { ConfidenceMeter } from "@/components/discovery/ConfidenceMeter";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { computeICPConfidence } from "@/utils/icp-confidence";
+import { computeEnhancedICPConfidence, type ICPConfidenceResult, type ScoringStats } from "@/utils/icp-confidence";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ICPProfileSummaryCardProps {
   icpProfiles: any[];
   className?: string;
 }
 
+function useICPScoringStats(icpId: string | undefined) {
+  const [stats, setStats] = useState<ScoringStats>({});
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!icpId) return;
+    setLoading(true);
+
+    supabase
+      .from('scores')
+      .select('fit, computed_at')
+      .eq('icp_id', icpId)
+      .then(({ data, error }) => {
+        if (error || !data) {
+          setLoading(false);
+          return;
+        }
+        const scoredAccounts = data.length;
+        const avgFit = scoredAccounts > 0
+          ? data.reduce((sum, s) => sum + (s.fit ?? 0), 0) / scoredAccounts
+          : null;
+        const lastScoredAt = scoredAccounts > 0
+          ? data.reduce((latest, s) => (!latest || (s.computed_at && s.computed_at > latest) ? s.computed_at : latest), null as string | null)
+          : null;
+
+        setStats({ scoredAccounts, avgFit, lastScoredAt });
+        setLoading(false);
+      });
+  }, [icpId]);
+
+  return { stats, loading };
+}
+
+function ConfidenceBreakdownTooltip({ result }: { result: ICPConfidenceResult }) {
+  const getBarColor = (score: number) => {
+    if (score >= 80) return 'bg-green-500';
+    if (score >= 50) return 'bg-blue-500';
+    if (score >= 25) return 'bg-yellow-500';
+    return 'bg-orange-500';
+  };
+
+  return (
+    <div className="space-y-2.5 min-w-[200px]">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold">Confidence Breakdown</span>
+        <span className="text-xs font-bold">{result.total}%</span>
+      </div>
+      {result.breakdown.map((b) => (
+        <div key={b.label} className="space-y-0.5">
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-muted-foreground">{b.label} ({Math.round(b.weight * 100)}%)</span>
+            <span className="font-medium">{b.score}</span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-muted/40">
+            <div
+              className={cn("h-full rounded-full transition-all", getBarColor(b.score))}
+              style={{ width: `${b.score}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EnhancedConfidenceMeter({ result }: { result: ICPConfidenceResult }) {
+  const confidence = result.total;
+
+  const getColorClasses = () => {
+    if (confidence >= 90) return { bg: 'bg-green-500', text: 'text-green-600' };
+    if (confidence >= 70) return { bg: 'bg-blue-500', text: 'text-blue-600' };
+    if (confidence >= 50) return { bg: 'bg-yellow-500', text: 'text-yellow-600' };
+    return { bg: 'bg-orange-500', text: 'text-orange-600' };
+  };
+
+  const getLabel = () => {
+    if (confidence >= 90) return 'Excellent';
+    if (confidence >= 70) return 'Good';
+    if (confidence >= 50) return 'Fair';
+    return 'Low';
+  };
+
+  const colors = getColorClasses();
+  const radius = 18;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (confidence / 100) * circumference;
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="relative flex items-center justify-center w-12 h-12 cursor-help">
+            <svg className="absolute inset-0 transform -rotate-90" viewBox="0 0 50 50">
+              <circle cx="25" cy="25" r={radius} fill="none" stroke="currentColor" strokeWidth={4} className="text-muted/30" />
+              <circle
+                cx="25" cy="25" r={radius} fill="none" stroke="currentColor" strokeWidth={4}
+                strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset}
+                className={colors.bg.replace('bg-', 'text-')}
+                style={{ transition: 'stroke-dashoffset 0.5s ease-in-out' }}
+              />
+            </svg>
+            <div className="flex flex-col items-center justify-center z-10">
+              <span className={cn('font-bold text-xs', colors.text)}>{confidence}%</span>
+              <span className="font-medium text-[10px] text-muted-foreground">{getLabel()}</span>
+            </div>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="left" className="p-3">
+          <ConfidenceBreakdownTooltip result={result} />
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export function ICPProfileSummaryCard({ icpProfiles, className }: ICPProfileSummaryCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
 
-  const profile = icpProfiles.find((p: any) => p.is_primary) 
-    || icpProfiles.find((p: any) => p.status === 'active') 
+  const profile = icpProfiles.find((p: any) => p.is_primary)
+    || icpProfiles.find((p: any) => p.status === 'active')
     || icpProfiles[0];
+
+  const { stats } = useICPScoringStats(profile?.id);
 
   if (!profile) {
     return (
@@ -54,12 +173,17 @@ export function ICPProfileSummaryCard({ icpProfiles, className }: ICPProfileSumm
   const painPoints = profile.pain_points || [];
   const buyingSignals = profile.buying_signals || [];
   const companyStages = profile.company_stages || [];
-  const confidenceScore = profile.confidence_score || computeICPConfidence(profile);
 
-  const statusColor = profile.status === 'active' 
-    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20' 
-    : profile.status === 'draft' 
-      ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20' 
+  const confidenceResult = computeEnhancedICPConfidence(profile, {
+    matchCount: profile.match_count ?? 0,
+    tamEstimate: profile.tam_estimate ?? 0,
+    ...stats,
+  });
+
+  const statusColor = profile.status === 'active'
+    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/20'
+    : profile.status === 'draft'
+      ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/20'
       : 'bg-muted text-muted-foreground';
 
   const renderTags = (items: string[], max = 5) => {
@@ -109,9 +233,7 @@ export function ICPProfileSummaryCard({ icpProfiles, className }: ICPProfileSumm
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {confidenceScore != null && (
-                  <ConfidenceMeter confidence={confidenceScore} size="sm" reason="Based on ICP profile completeness and match data" />
-                )}
+                <EnhancedConfidenceMeter result={confidenceResult} />
                 <Badge className={cn("text-xs capitalize", statusColor)}>
                   {profile.status || 'active'}
                 </Badge>
