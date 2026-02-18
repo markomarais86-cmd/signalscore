@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
-import { Plus, Trash2, Edit, Sparkles, Building2, Cpu, Factory, ShoppingBag, X, CheckCircle2, Zap, Landmark, GraduationCap, Briefcase, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Edit, Sparkles, Building2, Cpu, Factory, ShoppingBag, X, CheckCircle2, Zap, Landmark, GraduationCap, Briefcase, Loader2, TableProperties } from 'lucide-react';
+import { BulkAttributeEditor } from './BulkAttributeEditor';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { useDataOrgId } from '@/hooks/use-data-org';
@@ -138,6 +139,7 @@ export function CustomAttributeManager() {
   const [editingDef, setEditingDef] = useState<CustomAttributeDefinition | null>(null);
   const [icpIndustries, setIcpIndustries] = useState<string[]>([]);
   const [enrichingCategory, setEnrichingCategory] = useState<string | null>(null);
+  const [editDataCategory, setEditDataCategory] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     field_key: '',
     field_label: '',
@@ -602,34 +604,45 @@ export function CustomAttributeManager() {
                   <CardTitle className="text-base">{category}</CardTitle>
                   <CardDescription>{defs.length} attribute{defs.length !== 1 ? 's' : ''}</CardDescription>
                 </div>
-                {defs.some(d => d.enrichment_prompt) && (
-                  enrichingCategory === category ? (
-                    <div className="flex items-center gap-3 min-w-[200px]">
-                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      <div className="flex-1">
-                        <div className="text-xs text-muted-foreground mb-1">
-                          {progress
-                            ? `${progress.enriched}/${progress.total} enriched`
-                            : 'Starting...'}
-                        </div>
-                        <Progress
-                          value={progress ? (progress.processed / progress.total) * 100 : 0}
-                          className="h-2"
-                        />
+                {enrichingCategory === category ? (
+                  <div className="flex items-center gap-3 min-w-[200px]">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <div className="flex-1">
+                      <div className="text-xs text-muted-foreground mb-1">
+                        {progress
+                          ? `${progress.enriched}/${progress.total} enriched`
+                          : 'Starting...'}
                       </div>
+                      <Progress
+                        value={progress ? (progress.processed / progress.total) * 100 : 0}
+                        className="h-2"
+                      />
                     </div>
-                  ) : (
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant={editDataCategory === category ? 'default' : 'outline'}
                       className="gap-2"
-                      disabled={isEnriching}
-                      onClick={() => handleFillMissing(category, defs)}
+                      onClick={() => setEditDataCategory(prev => prev === category ? null : category)}
                     >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Fill Missing
+                      <TableProperties className="h-3.5 w-3.5" />
+                      Edit Data
                     </Button>
-                  )
+                    {defs.some(d => d.enrichment_prompt) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        disabled={isEnriching}
+                        onClick={() => handleFillMissing(category, defs)}
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Fill Missing
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
             </CardHeader>
@@ -670,6 +683,13 @@ export function CustomAttributeManager() {
                   </div>
                 ))}
               </div>
+              {editDataCategory === category && dataOrgId && (
+                <BulkAttributeEditor
+                  orgId={dataOrgId}
+                  category={category}
+                  definitions={defs}
+                />
+              )}
             </CardContent>
           </Card>
         ))
