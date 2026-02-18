@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Search, Save, ChevronLeft, ChevronRight, Loader2, X } from 'lucide-react';
+import { Search, Save, ChevronLeft, ChevronRight, Loader2, X, Sparkles } from 'lucide-react';
 import { Json } from '@/integrations/supabase/types';
 
 interface AttributeDefinition {
@@ -21,6 +21,9 @@ interface BulkAttributeEditorProps {
   orgId: string;
   category: string;
   definitions: AttributeDefinition[];
+  onEnrichFiltered?: (fieldKey: string) => void;
+  isEnriching?: boolean;
+  enrichProgress?: { processed: number; total: number; enriched: number } | null;
 }
 
 interface AccountRow {
@@ -32,7 +35,7 @@ interface AccountRow {
 
 const PAGE_SIZE = 50;
 
-export function BulkAttributeEditor({ orgId, category, definitions }: BulkAttributeEditorProps) {
+export function BulkAttributeEditor({ orgId, category, definitions, onEnrichFiltered, isEnriching: enrichingProp, enrichProgress }: BulkAttributeEditorProps) {
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(0);
@@ -186,6 +189,18 @@ export function BulkAttributeEditor({ orgId, category, definitions }: BulkAttrib
             ))}
           </SelectContent>
         </Select>
+        {missingField && onEnrichFiltered && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-2"
+            disabled={enrichingProp}
+            onClick={() => onEnrichFiltered(missingField)}
+          >
+            {enrichingProp ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            Enrich Filtered
+          </Button>
+        )}
         <div className="text-sm text-muted-foreground">
           {totalCount.toLocaleString()} accounts
         </div>
