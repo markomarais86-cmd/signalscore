@@ -1,116 +1,72 @@
 
 
-## Lovable Slides: In-App Pitch Deck (Replacing PowerPoint Export)
+## Fix Missing Slide Data + Add Slide Export
 
-### Overview
+### Two Issues to Address
 
-Replace the "PowerPoint (Soon)" placeholder in the Export Report dropdown with a **"Pitch Deck"** option that opens a fullscreen, in-app slide presentation built from dashboard data. This uses the same data pipeline as the Board PDF Report but renders it as interactive slides instead of a static file.
+**Issue 1: Slides showing no data for Industry, Geography, Top Prospects, Risks, and Next Steps**
 
-### What You'll Get
+The console logs show `FunctionsFetchError: Failed to send a request to the Edge Function` -- the `generate-board-report` edge function call is failing entirely, so the deck never loads any data. The slide components themselves are correctly wired to display the data when present.
 
-- A "Pitch Deck" menu item replaces "PowerPoint (Soon)" in the Export dropdown
-- Clicking it navigates to `/presentations` -- a fullscreen slide deck auto-generated from your org's data
-- Slides include: Title/Cover, ICP Summary, Fit Distribution, TAM/SAM/SOM, Geography, Top Prospects, Risks, and a Call-to-Action
-- Fullscreen presentation mode (F5 or "Present" button) with keyboard navigation
-- Slide thumbnails sidebar for quick navigation
-- Branded with your org logo and colors (same brand config as PDF report)
+However, the slides also lack empty-state handling -- if any data array happens to be empty (e.g., no risks detected, no geography data), the slides show a blank white area with just a title. We should add graceful empty states to each slide.
 
-### Slide Content (auto-generated from dashboard data)
+**Issue 2: No way to export/download the slides**
 
-1. **Cover Slide** -- Company logo, name, date, "Market Intelligence Report"
-2. **Executive Summary** -- AI-generated narrative (reuses `generate-board-report` edge function)
-3. **ICP Fit Distribution** -- Donut chart with High/Medium/Low counts
-4. **TAM / SAM / SOM** -- Revenue opportunity funnel
-5. **Industry Breakdown** -- Bar chart of top industries
-6. **Geography Distribution** -- Top countries/regions table
-7. **Top 10 Prospects** -- Table with fit scores and estimated value
-8. **Risks and Actions** -- Key risks with mitigations
-9. **Next Steps / CTA** -- Strategic recommendations
+Currently the slide deck only supports in-app viewing and fullscreen presentation. There's no download/export option. We'll add a **"Download PDF"** button to the toolbar that captures each slide as an image and compiles them into a multi-page PDF.
 
 ---
 
-### Technical Plan
+### Changes
 
-#### New Files
+#### 1. Add empty states to slides that may have no data
 
+Update these 5 slide components to show a helpful message when their data arrays are empty:
+
+- **IndustrySlide** -- "No industry data available yet. Score accounts to see industry breakdown."
+- **GeographySlide** -- "No geography data available yet."
+- **ProspectsSlide** -- "No scored accounts yet. Run scoring to see top prospects."
+- **RisksSlide** -- "No risks identified -- your data quality looks good!"
+- **CTASlide** -- Already has a fallback (the "Ready to accelerate" message), no change needed.
+
+#### 2. Add PDF export to the SlideDeck toolbar
+
+Add a "Download PDF" button next to the "Present" button in the toolbar. This will:
+
+- Iterate through all 9 slides
+- Render each at 1920x1080 using `html2canvas` (already installed)
+- Compile into a landscape PDF using `jsPDF` (already installed)
+- Download as `{companyName}-pitch-deck.pdf`
+
+**Files to create:**
 | File | Purpose |
 |------|---------|
-| `src/pages/Presentations.tsx` | Page component, fetches data via `generate-board-report` edge function, builds slide array |
-| `src/components/slides/SlideLayout.tsx` | 1920x1080 scaled wrapper (the core scaling logic) |
-| `src/components/slides/SlideRenderer.tsx` | Renders a single slide by type (cover, chart, table, etc.) |
-| `src/components/slides/SlideDeck.tsx` | Main deck controller: sidebar thumbnails, canvas, toolbar, keyboard nav |
-| `src/components/slides/FullscreenPresenter.tsx` | Fullscreen API wrapper with black background, hidden cursor |
-| `src/components/slides/slides/*.tsx` | Individual slide templates (CoverSlide, ICPFitSlide, TAMSlide, etc.) |
-| `src/components/slides/slide-styles.css` | Scoped font scaling for `.slide-content` |
-| `src/hooks/use-slide-deck.ts` | Hook to fetch report data and transform it into slide definitions |
+| `src/utils/slide-pdf-export.ts` | Utility function that takes a container ref, renders each slide to canvas, and builds the PDF |
 
-#### Modified Files
-
+**Files to modify:**
 | File | Change |
 |------|--------|
-| `src/components/executive/ExportToPdf.tsx` | Replace "PowerPoint (Soon)" with "Pitch Deck" that navigates to `/presentations` |
-| `src/App.tsx` | Add `/presentations` route |
+| `src/components/slides/slides/IndustrySlide.tsx` | Add empty state when `industryBreakdown` is empty |
+| `src/components/slides/slides/GeographySlide.tsx` | Add empty state when `geographyDistribution` is empty |
+| `src/components/slides/slides/ProspectsSlide.tsx` | Add empty state when `topProspects` is empty |
+| `src/components/slides/slides/RisksSlide.tsx` | Add empty state when no risks exist |
+| `src/components/slides/SlideDeck.tsx` | Add "Download PDF" button to toolbar, implement export logic |
 
-#### Architecture
+### Technical Approach for PDF Export
 
-```text
-ExportToPdf dropdown
-  |
-  +--> "Board PDF Report" (existing, unchanged)
-  +--> "Pitch Deck" --> navigate('/presentations')
-  +--> "Raw Data CSV (Soon)" (unchanged)
-
-/presentations page
-  |
-  +--> useSlideDeck(orgId)
-  |      |
-  |      +--> supabase.functions.invoke('generate-board-report')
-  |      +--> transforms response into Slide[] array
-  |
-  +--> SlideDeck component
-         |
-         +--> Toolbar (back button, present, slide count)
-         +--> Sidebar (thumbnails via SlideLayout at small scale)
-         +--> Canvas (SlideLayout at fit-to-viewport scale)
-         +--> FullscreenPresenter (on "Present" click)
-```
-
-#### Scaling Approach
-
-All slides render at a fixed 1920x1080 resolution and scale to fit the container using CSS transforms:
+The export will temporarily render each slide off-screen at full 1920x1080 resolution, capture it with `html2canvas`, then add each capture as a page in a landscape jsPDF document. This reuses the existing `html2canvas` and `jspdf` dependencies already in the project.
 
 ```text
-Container size (e.g. 1200x675)
-  --> scaleX = 1200/1920 = 0.625
-  --> scaleY = 675/1080 = 0.625
-  --> scale = min(scaleX, scaleY)
-  --> slide is centered with transform-origin: center
+User clicks "Download PDF"
+  --> Show loading spinner on button
+  --> For each slide in SLIDE_ORDER:
+       --> Render SlideRenderer into a hidden div (1920x1080)
+       --> html2canvas captures it as a canvas
+       --> Add canvas as JPEG page to jsPDF
+  --> Save PDF as "{companyName}-pitch-deck.pdf"
+  --> Remove loading spinner
 ```
 
-#### Data Reuse
+### Edge Function Error
 
-The pitch deck reuses the **same `generate-board-report` edge function** that powers the Board PDF. No new backend work needed. The hook transforms `BrandedReportData` into slide definitions:
-
-```text
-BrandedReportData --> useSlideDeck() --> Slide[]
-  where Slide = { type: 'cover' | 'icp' | 'tam' | ... , data: {...} }
-```
-
-#### Keyboard Navigation
-
-- Arrow keys / Space: next/previous slide
-- Escape: exit fullscreen
-- F5: enter fullscreen presentation
-- G: toggle grid/overview mode
-
-### Implementation Order
-
-1. Create `SlideLayout` scaling component and CSS
-2. Build individual slide templates (cover, ICP, TAM, geography, prospects, risks)
-3. Create `SlideDeck` controller with sidebar + canvas
-4. Create `useSlideDeck` hook (calls existing edge function, maps to slides)
-5. Create `Presentations` page
-6. Add route to `App.tsx`
-7. Update `ExportToPdf` dropdown to link to pitch deck
-8. Add fullscreen presentation mode
+The `FunctionsFetchError` in console is a separate issue -- the `generate-board-report` edge function may need redeployment or the user may need to be logged in. The empty states will at least ensure the slides degrade gracefully when data is missing, rather than showing blank content.
 
