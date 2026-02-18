@@ -1,71 +1,47 @@
 
 
-## Fix: Resolve Parent Org for Account Queries in Board Report
+## Fix: Score Button Not Working for 91.Life (Child Org)
 
 ### Root Cause
 
-The `generate-board-report` edge function queries all data tables using the raw `org_id` passed in the request. For child organizations like 91.Life, accounts are stored under the **parent** org (LaunchPulse), while scores and ICPs are stored under the **child** org. This mismatch causes every account query to return zero rows.
+The "Score" button and "Power Up" button both fail for 91.life because the **client-side** prerequisite checks query `accounts` using the child org's ID directly. Since 91.life is a child org, its accounts live under the parent org (LaunchPulse). The queries return 0 accounts, and the UI aborts with "No accounts or active ICP profiles found" before ever calling the edge function.
 
-| Data | Stored Under | Should Query With |
-|------|-------------|-------------------|
-| Accounts, Leads | Parent org (LaunchPulse) | `dataOrgId` (resolved parent) |
-| Scores, ICP Profiles | Child org (91.Life) | `orgId` (as-is) |
-| Metrics RPC | Handles resolution internally | `orgId` (as-is) |
+The edge function itself already handles parent org resolution correctly -- the problem is purely in the frontend.
 
-### The Fix
+### Affected Components
 
-Add parent org resolution at the top of `fetchAllReportData()`, then use the correct org ID for each query type.
+| Component | Problem |
+|-----------|---------|
+| `BulkScoring.tsx` (line 414) | `accounts.select().eq("org_id", userProfile.org_id)` returns 0 for child orgs |
+| `PowerUpButton.tsx` (line 38) | `accounts.select().eq("org_id", orgId)` returns 0 for child orgs |
 
-### File: `supabase/functions/generate-board-report/index.ts`
+### Fix
 
-**Step 1: Resolve the data org (parent) before querying**
+#### 1. `src/components/BulkScoring.tsx`
 
-At the start of `fetchAllReportData`, look up `parent_org_id` from the `organizations` table and use it for account/lead queries:
+Use the `useDataOrgId()` hook (already exists in the codebase) to resolve the parent org for account queries:
 
-```text
-const { data: orgLookup } = await supabase
-  .from('organizations')
-  .select('parent_org_id')
-  .eq('id', orgId)
-  .single();
-const dataOrgId = orgLookup?.parent_org_id || orgId;
-```
+- Import `useDataOrgId` from `@/hooks/use-data-org`
+- Use `dataOrgId` for the account count prerequisite check (line 414)
+- Keep `userProfile.org_id` (or `effectiveOrgId`) for ICP profile lookup and edge function invocation (scores and ICPs belong to the child org)
 
-**Step 2: Use `dataOrgId` for account and lead queries**
+#### 2. `src/components/executive/PowerUpButton.tsx`
 
-Change these queries from `.eq("org_id", orgId)` to `.eq("org_id", dataOrgId)`:
+Same fix -- resolve parent org for account queries:
 
-- Line 69: `accountsWithIndustry` (industry breakdown)
-- Line 71: `accountsForSize` (size breakdown)
-- Line 72: `accountsForCompleteness` (data completeness)
-- Line 74: `accountsForGeo` (geography distribution)
-- Line 76: `accountsForLowData` (low-data count)
-- Line 68: `leadsRes` (lead count)
-- Line 219: `accountDetails` lookup for top prospects
-- Line 221: `leadCounts` for top prospects
+- Add parent org resolution by querying `organizations.parent_org_id` for the given `orgId`
+- Use the resolved `dataOrgId` for the account query at line 38 (enrichment candidates)
+- Keep `orgId` for score queries, edge function calls, and ICP-related operations
 
-**Step 3: Keep `orgId` for org-specific queries**
+### What Won't Change
 
-These must continue using the child org's ID:
+- The `bulk-score-accounts` edge function already handles `dataOrgId` resolution server-side -- no backend changes needed
+- The scoring logic (bed count caps, range-based size matching, etc.) stays as-is
+- ICP profiles and scores continue to be read/written under the child org ID
 
-- Line 63: `metricsRes` (RPC handles resolution internally)
-- Line 64: `icpRes` (ICP profiles belong to child org)
-- Line 65: `topScoresRes` (scores stored under child org)
-- Line 67: `orgRes` (org name lookup)
-- Line 78: `scoresRes` (score map for cross-referencing)
-- Line 81: `signalsRes` (signals per child org)
-- Line 82: `brandConfigRes` (brand config per child org)
+### Expected Result
 
-### Expected Result After Fix
-
-| Slide | Before (91.Life) | After |
-|-------|------------------|-------|
-| Industry Breakdown | "No data available" | Shows industry distribution from parent's 39,928 accounts |
-| Geography | "No data available" | Shows country distribution |
-| Data Completeness | 0% | Reflects actual enrichment status |
-| Top Prospects | UUIDs and "N/A" everywhere | Actual company names, industries, countries |
-| Executive Summary | References 0% completeness | Accurate AI-generated analysis |
-
-### Deployment
-
-Redeploy the `generate-board-report` edge function after the change. No database migrations needed.
+After the fix, clicking "Score Accounts" or "Power Up" for 91.life will:
+1. Find the parent org's ~40,000 accounts in the prerequisite check
+2. Successfully invoke the edge function
+3. Score all accounts against 91.life's ICP profiles
