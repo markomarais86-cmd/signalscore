@@ -1,56 +1,94 @@
 
 
-## Fix: Pipeline Potential and Campaign-Ready Accounts Show $0/0 on CRM Tab
+## Bulk Re-Score All 39K Accounts for LaunchPulse and 91.life
 
-### Root Cause
+### Current State
 
-Two issues combine to produce $0 Pipeline Potential and 0 campaign-ready accounts:
-
-1. **GrowthCommandKPIs receives unfiltered props** -- On lines 644-648 of `ExecutiveDashboard.tsx`, `highFitAccounts`, `medFitAccounts`, and `campaignReadyAccounts` are passed as global (unfiltered) values. While other components like `ICPCoveragePanel` (line 660) properly switch based on `sourceFilter`, `GrowthCommandKPIs` does not.
-
-2. **No source-filtered campaign-ready count exists** -- The `count_campaign_ready_accounts` SQL function has no `data_source` filter parameter. It always returns the global count (7,718 for the main org). When the CRM tab is active, there's no way to get a CRM-only campaign-ready count.
-
-   However, for the main org (LaunchPulse), all 39,928 accounts are CRM-sourced, so the global count (7,718) IS the CRM count. This means the value should still display correctly -- unless the RPC result isn't being read properly.
-
-3. **Likely data-shape issue with `campaignReadyResult`** -- The `count_campaign_ready_accounts` RPC returns a scalar integer. The Supabase client wraps this as `{ data: 7718 }`. Line 211 reads `campaignReadyResult?.data || 0`. If the destructured `campaignReadyResult` from `Promise.all` is somehow `undefined` or the `data` field is unexpectedly `null`, it falls back to `rawMetrics?.campaign_ready_accounts` which also doesn't exist in the cached metrics response -- yielding 0.
+- **39,928 accounts** all belong to LaunchPulse (parent org `726a0dc0`). 91.life (`cd592f73`) is a child org that shares the same accounts via the parent-child model.
+- Scores are **written per org** (each org has its own ICP and scores table entries).
+- The `bulk-score-accounts` edge function already supports chunked processing with auto-resume (2,000 accounts per chunk, 50s time budget, then pauses and auto-recovery resumes).
+- **Previous jobs have failed** -- both orgs show `failed` status on recent runs.
+- The JS scoring engine in `bulk-score-accounts` is **out of sync** with the SQL functions -- it does NOT yet enforce the "missing bed_count = cap at Band C (max 69)" rule we just added.
 
 ### What Changes
 
-**File: `src/hooks/use-dashboard-data.ts`**
+#### 1. Update JS Scoring Engine (bulk-score-accounts/index.ts)
 
-- Add defensive logging when `campaignReadyResult` returns to verify the actual value
-- Use explicit null check instead of falsy check (since `campaignReadyResult?.data` could theoretically be `0` for orgs with no campaign-ready accounts, but `|| 0` already handles that -- the real risk is the shape)
-- Change line 211 to: `campaign_ready_accounts: (typeof campaignReadyResult?.data === 'number' ? campaignReadyResult.data : 0) || rawMetrics?.campaign_ready_accounts || 0`
+Add the missing bed_count cap logic to the `scoreAccount()` function to match the updated SQL functions:
 
-**File: `src/pages/ExecutiveDashboard.tsx`**
+- Before computing final scores, check if the ICP has any segment with `bed_range` defined
+- If so and the account has no `bed_count` (null/empty), set a `missingRequiredVertical` flag
+- When flagged, cap both `fit` and `overall` at 69 (Band C ceiling)
+- Update `scoring_version` to `chunked_v2_bed_required`
+- Also: fix the `bed_range` criterion to **always count** against `critTotal` even when `bed_count` is missing (currently skipped entirely at line 114)
 
-- Apply source filtering to `GrowthCommandKPIs` props to match the pattern used by `ICPCoveragePanel`:
-  - `highFitAccounts` -- switch between `highFitCrmAccounts`, `highFitDatabaseAccounts`, and global
-  - `medFitAccounts` -- switch between `medFitCrmAccounts`, `medFitDatabaseAccounts`, and global
-  - `campaignReadyAccounts` -- for now, pass the global value for all tabs (since the RPC doesn't filter by source), but ensure it's not zero
-  - `pipelinePotential` -- recalculate using the correctly filtered `campaignReadyAccounts`
+#### 2. Reset Failed Jobs
 
-**File: SQL migration (optional enhancement)**
+Before triggering new runs, clear the stale failed jobs so idempotency checks don't block new ones:
 
-- Add an optional `p_data_source` parameter to `count_campaign_ready_accounts` so it can return source-filtered counts:
-  ```sql
-  CREATE OR REPLACE FUNCTION count_campaign_ready_accounts(p_org_id uuid, p_data_source text DEFAULT NULL)
-  RETURNS integer AS $$
-  ...
-  WHERE a.org_id = p_org_id
-    AND (p_data_source IS NULL OR a.data_source = p_data_source)
-  ...
-  ```
+```sql
+UPDATE bulk_scoring_jobs 
+SET status = 'cancelled' 
+WHERE status = 'failed' 
+  AND org_id IN ('726a0dc0-99c7-43c2-b20f-b849f2760c3f', 'cd592f73-3e0e-478d-905b-47fe7c5fb634');
+```
 
-### Implementation Steps
+#### 3. Trigger Separate Scoring Runs
 
-1. Update `count_campaign_ready_accounts` SQL function to accept optional `p_data_source` parameter
-2. Update `use-dashboard-data.ts` to pass the source filter to the RPC and add defensive type checking
-3. Update `ExecutiveDashboard.tsx` to pass source-filtered props to `GrowthCommandKPIs` consistently
+After deploying the updated function, invoke it twice -- once per org:
 
-### Expected Result
+- **LaunchPulse** (`726a0dc0`): Scores all 39,928 accounts against LaunchPulse's active ICPs
+- **91.life** (`cd592f73`): Scores the same 39,928 accounts against 91.life's active ICPs
 
-- CRM tab: Pipeline Potential = 7,718 x $75,000 x 0.25 = ~$144.7M
-- Database tab: Pipeline Potential = 0 (no database accounts currently)
-- All tab: Pipeline Potential = 7,718 x $75,000 x 0.25 = ~$144.7M
+Each run will:
+- Process ~2,000 accounts per chunk
+- Pause after ~50s and auto-resume via the `job-auto-recovery` cron
+- Complete all ~20 chunks across multiple invocations
+
+### Technical Details
+
+**File: `supabase/functions/bulk-score-accounts/index.ts`**
+
+Changes to `scoreAccount()` function (lines 80-166):
+
+```typescript
+// After segments loop, add bed_count cap check:
+let missingRequiredVertical = false;
+
+if (Array.isArray(vf.segments) && vf.segments.length > 0) {
+  // Check if ANY segment defines bed_range
+  const anySegHasBeds = segments.some(s => s.bed_range != null);
+  const bedCount = attrs.bed_count != null ? Number(attrs.bed_count) : null;
+  
+  if (anySegHasBeds && bedCount == null) {
+    missingRequiredVertical = true;
+  }
+
+  // Also: always count bed_range as a criterion even when bedCount is null
+  // (currently line 114 skips entirely if bedCount is null)
+  for (const seg of segments) {
+    if (seg.bed_range) {
+      critTotal++;  // Always count
+      if (bedCount != null) {
+        // existing range match logic
+      }
+      // If bedCount is null, critMatched stays 0 → penalized
+    }
+  }
+}
+
+// After computing totalScore:
+if (missingRequiredVertical) {
+  totalScore = Math.min(totalScore, 69);
+  fitScore = Math.min(fitScore, 69);
+}
+```
+
+### Expected Results
+
+- **Accounts WITH bed_count**: Scored normally (can reach Band A/B)
+- **661 healthcare accounts WITHOUT bed_count**: Capped at Band C (score <= 69)
+- **Non-healthcare accounts**: Unaffected (no bed_range in ICP segments)
+- Both orgs get independent score sets reflecting their own ICP criteria
+- Auto-resume handles the full 39K across multiple function invocations (~20 chunks each)
 
