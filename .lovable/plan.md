@@ -1,45 +1,100 @@
 
 
-## Fix: Dashboard Branding Uses Wrong Org When Impersonating
+## Fix: Apollo Sync Missing Industry, Sub-Industry, and Vertical Filters
 
-### Problem
+### The Problem
 
-When you (a LaunchPulse super admin) switch the org selector to view 91.Life's data, the dashboard still shows **LaunchPulse branding** (teal #3CF1AE) instead of **91.Life branding** (indigo #6366f1).
+The `sync-external-provider` edge function builds the Apollo search query from the ICP profile but **skips industry filters entirely** (line 153: `// Skip industry filters - Apollo expects numeric tag IDs, not names`). It also ignores:
 
-This is because three components fetch brand config using `userProfile?.org_id` (your personal org = LaunchPulse) instead of `effectiveOrgId` (the org you're currently viewing = 91.Life).
+- `sub_industries` (e.g., "Electrophysiology", "Cardiology", "Medical & Surgical Hospitals")
+- `vertical_filters` (e.g., bed count segments, specific personas)
+- `company_keywords`
+- `excluded_industries`
+
+Without industry filters, Apollo returns **every company in the US** matching the employee count and revenue range -- which is why you're seeing ~1 million results instead of a focused healthcare/hospital set.
 
 ### Root Cause
 
-```text
-CustomerLayout.tsx    -->  useBrandedConfig({ orgId: userProfile?.org_id })   // Always LaunchPulse
-CustomerSidebar.tsx   -->  useBrandedConfig({ orgId: userProfile?.org_id })   // Always LaunchPulse
-CustomerDashboard.tsx -->  useBrandedConfig({ orgId: userProfile?.org_id })   // Always LaunchPulse
-```
+The code comment says "Apollo expects numeric tag IDs, not names" -- but this is wrong. Apollo's Organization Search API (`/api/v1/mixed_companies/search`) supports `q_organization_keyword_tags[]` which accepts **plain text keywords** like "healthcare", "hospitals", "medical devices". This is exactly what we have in the ICP profile.
 
-Should be:
+### What We Have in the 91.Life ICP
 
 ```text
-CustomerLayout.tsx    -->  useBrandedConfig({ orgId: effectiveOrgId })        // 91.Life when impersonating
-CustomerSidebar.tsx   -->  useBrandedConfig({ orgId: effectiveOrgId })        // 91.Life when impersonating
-CustomerDashboard.tsx -->  useBrandedConfig({ orgId: effectiveOrgId })        // 91.Life when impersonating
+industries: ["Healthcare", "Hospital & Health Systems", "Medical Devices", ...]
+sub_industries: ["Electrophysiology", "Cardiology", "Medical & Surgical Hospitals", ...]
+company_keywords: null (currently unused)
+vertical_filters: { segments: [{ name: "Academic Medical Centers", bed_range: "300-1000+" }, ...] }
 ```
 
-### Changes
+### What Apollo Gets Today
 
-**File 1: `src/components/CustomerLayout.tsx`**
-- Import `useEffectiveOrg` instead of relying on `useAuth().userProfile.org_id`
-- Change `useBrandedConfig({ orgId: orgId })` to use `effectiveOrgId`
+```text
+organization_locations: ["United States"]
+organization_num_employees_ranges: ["11,50", "51,200", "201,500"]
+revenue_range[min]: 10000000
+revenue_range[max]: 5000000000
+(NO industry filter at all)
+```
 
-**File 2: `src/components/CustomerSidebar.tsx`**
-- Same fix: use `effectiveOrgId` from `useEffectiveOrg()` for the brand config lookup
+This matches every mid-size US company across ALL industries -- hence ~1 million results.
 
-**File 3: `src/pages/CustomerDashboard.tsx`**
-- Same fix: use `effectiveOrgId` from `useEffectiveOrg()` for the brand config lookup
+### The Fix
 
-### Result
+**File: `supabase/functions/sync-external-provider/index.ts`**
 
-When you switch the org selector to 91.Life, the entire dashboard (layout, sidebar, dashboard page) will immediately reflect 91.Life's indigo branding. When you switch back to LaunchPulse, it shows teal. Non-admin users see their own org's branding as before (since `effectiveOrgId` equals their `org_id`).
+1. **Add industry keyword filtering** -- Replace the "skip industry" comment with actual filtering using `q_organization_keyword_tags`:
+   - Combine `industries` + `sub_industries` into keyword tags
+   - Apollo's keyword tag filter accepts plain text strings and matches them against its internal industry taxonomy
+   
+2. **Use the correct API endpoint** -- The function currently calls `/v1/organizations/search` but the documented endpoint is `/api/v1/mixed_companies/search`. Both may work, but the documented one is more reliable.
 
-### Note on the PDF Report
+3. **Add excluded industries** -- If the ICP has `excluded_industries`, pass those too (Apollo doesn't have a direct exclude-industry param, but we can note it in the company_keywords negation or post-filter).
 
-The PDF report (`use-branded-report.ts`) already correctly uses `effectiveOrgId` -- so the generated PDF shows 91.Life branding correctly. The issue is only in the live dashboard UI.
+4. **Add company_keywords support** -- If `company_keywords` is set on the ICP, include those as additional `q_organization_keyword_tags`.
+
+### Changes in Detail
+
+```typescript
+// BEFORE (line 153):
+// Skip industry filters - Apollo expects numeric tag IDs, not names
+
+// AFTER:
+// Add industry + sub-industry as keyword tags (Apollo accepts plain text)
+const keywordTags: string[] = [];
+
+if (icpData.industries && icpData.industries.length > 0) {
+  keywordTags.push(...icpData.industries);
+}
+if (icpData.sub_industries && icpData.sub_industries.length > 0) {
+  keywordTags.push(...icpData.sub_industries);
+}
+if (icpData.company_keywords && icpData.company_keywords.length > 0) {
+  keywordTags.push(...icpData.company_keywords);
+}
+
+if (keywordTags.length > 0) {
+  // Apollo uses q_organization_keyword_tags for text-based industry/keyword matching
+  baseRequestBody.q_organization_keyword_tags = keywordTags;
+}
+```
+
+### Expected Result
+
+With the 91.Life ICP, Apollo will receive:
+- `q_organization_keyword_tags`: ["Healthcare", "Hospital & Health Systems", "Medical Devices", "Health IT", ..., "Electrophysiology", "Cardiology", "Medical & Surgical Hospitals", ...]
+- `organization_locations`: ["United States"]
+- `organization_num_employees_ranges`: ["11,50", "51,200", "201,500"]
+- `revenue_range`: min/max based on $10M-$5B+
+
+This should narrow the result from ~1M down to a realistic healthcare TAM (likely 5K-50K organizations depending on Apollo's coverage).
+
+### Summary
+
+| What | Before | After |
+|------|--------|-------|
+| Industries | Skipped entirely | Sent as `q_organization_keyword_tags` |
+| Sub-industries | Ignored | Included in keyword tags |
+| Company keywords | Ignored | Included in keyword tags |
+| Result count | ~1,000,000 (all US companies) | Focused healthcare subset |
+
+Only one file changes: `supabase/functions/sync-external-provider/index.ts`
