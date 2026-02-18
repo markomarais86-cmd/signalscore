@@ -149,14 +149,21 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
       
       // Fetch metrics from cached materialized view (much faster)
       let metricsResult;
+      let campaignReadyResult;
       try {
-        metricsResult = await supabase.rpc('get_dashboard_metrics_cached' as any, { 
-          p_org_id: orgId
-        });
+        [metricsResult, campaignReadyResult] = await Promise.all([
+          supabase.rpc('get_dashboard_metrics_cached' as any, { 
+            p_org_id: orgId
+          }),
+          supabase.rpc('count_campaign_ready_accounts', {
+            p_org_id: orgId
+          })
+        ]);
       } catch (err) {
         dashboardLogger.error('Metrics RPC timeout/error:', err);
         // Return empty metrics on timeout, don't block the whole page
         metricsResult = { data: null, error: err };
+        campaignReadyResult = { data: 0, error: err };
       }
       
       if (metricsResult.error) {
@@ -201,7 +208,7 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
         medium_fit_database_leads: rawMetrics?.medium_fit_database_leads || 0,
         low_fit_crm_leads: rawMetrics?.low_fit_crm_leads || 0,
         low_fit_database_leads: rawMetrics?.low_fit_database_leads || 0,
-        campaign_ready_accounts: rawMetrics?.campaign_ready_accounts || 0,
+        campaign_ready_accounts: campaignReadyResult?.data || rawMetrics?.campaign_ready_accounts || 0,
         campaign_ready_contacts: rawMetrics?.campaign_ready || 0,
         campaign_ready_leads: rawMetrics?.campaign_ready || 0,
         data_completeness: dataCompleteness,
