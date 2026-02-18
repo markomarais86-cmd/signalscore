@@ -1,47 +1,59 @@
 
 
-## Fix: Score Button Not Working for 91.Life (Child Org)
+## Fix: Enrichment "Too Many Records" Error and Child Org Support
 
-### Root Cause
+### Problems Found
 
-The "Score" button and "Power Up" button both fail for 91.life because the **client-side** prerequisite checks query `accounts` using the child org's ID directly. Since 91.life is a child org, its accounts live under the parent org (LaunchPulse). The queries return 0 accounts, and the UI aborts with "No accounts or active ICP profiles found" before ever calling the edge function.
+1. **Too many records per request**: The batch size selector allows 100-2500 records, but `enrich-unified` has a hard limit of 100 per request. The `enrichAccounts` hook sends all records in one call with no chunking.
 
-The edge function itself already handles parent org resolution correctly -- the problem is purely in the frontend.
+2. **Child org issue (91.life)**: The "existing data" enrichment query at line 1062 uses `userProfile.org_id` directly, which returns 0 accounts for child organizations whose data lives under the parent org.
 
-### Affected Components
+### Fix 1: Add client-side chunking in the enrichment hook
 
-| Component | Problem |
-|-----------|---------|
-| `BulkScoring.tsx` (line 414) | `accounts.select().eq("org_id", userProfile.org_id)` returns 0 for child orgs |
-| `PowerUpButton.tsx` (line 38) | `accounts.select().eq("org_id", orgId)` returns 0 for child orgs |
+**File: `src/hooks/use-unified-enrichment.ts`**
 
-### Fix
+Update `enrichAccounts` to automatically chunk records into batches of 100 (matching the edge function limit). Process each chunk sequentially, aggregate results, and report combined progress.
 
-#### 1. `src/components/BulkScoring.tsx`
+```text
+BEFORE:
+  const { data, error } = await supabase.functions.invoke('enrich-unified', {
+    body: { org_id, record_type: 'account', records, config }
+  });
 
-Use the `useDataOrgId()` hook (already exists in the codebase) to resolve the parent org for account queries:
+AFTER:
+  const CHUNK_SIZE = 100;
+  const chunks = [];
+  for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+    chunks.push(records.slice(i, i + CHUNK_SIZE));
+  }
+  // Process each chunk, merge results
+  for (const chunk of chunks) {
+    const { data, error } = await supabase.functions.invoke('enrich-unified', {
+      body: { org_id, record_type: 'account', records: chunk, config }
+    });
+    // Accumulate summary totals across chunks
+  }
+```
 
-- Import `useDataOrgId` from `@/hooks/use-data-org`
-- Use `dataOrgId` for the account count prerequisite check (line 414)
-- Keep `userProfile.org_id` (or `effectiveOrgId`) for ICP profile lookup and edge function invocation (scores and ICPs belong to the child org)
+Same chunking applied to `enrichLeads`.
 
-#### 2. `src/components/executive/PowerUpButton.tsx`
+### Fix 2: Resolve parent org for "existing data" enrichment
 
-Same fix -- resolve parent org for account queries:
+**File: `src/components/enrichment/UnifiedEnrichmentWizard.tsx`**
 
-- Add parent org resolution by querying `organizations.parent_org_id` for the given `orgId`
-- Use the resolved `dataOrgId` for the account query at line 38 (enrichment candidates)
-- Keep `orgId` for score queries, edge function calls, and ICP-related operations
+At line 1062, the account query uses `userProfile.org_id`. For child orgs, this needs to resolve to the parent org's ID (same pattern used in BulkScoring and PowerUpButton).
 
-### What Won't Change
+- Import `useDataOrgId` hook
+- Use the resolved `dataOrgId` for the account fetch query
+- Keep `userProfile.org_id` for the `enrichAccounts()` call (scores/ICP belong to child org)
 
-- The `bulk-score-accounts` edge function already handles `dataOrgId` resolution server-side -- no backend changes needed
-- The scoring logic (bed count caps, range-based size matching, etc.) stays as-is
-- ICP profiles and scores continue to be read/written under the child org ID
+### Files Modified
 
-### Expected Result
+| File | Change |
+|------|--------|
+| `src/hooks/use-unified-enrichment.ts` | Add automatic chunking (100 records per request) for both `enrichAccounts` and `enrichLeads` |
+| `src/components/enrichment/UnifiedEnrichmentWizard.tsx` | Use `dataOrgId` for account fetch query in existing-data enrichment mode |
 
-After the fix, clicking "Score Accounts" or "Power Up" for 91.life will:
-1. Find the parent org's ~40,000 accounts in the prerequisite check
-2. Successfully invoke the edge function
-3. Score all accounts against 91.life's ICP profiles
+### No Backend Changes
+
+The edge function's 100-record limit is correct and stays as-is. Chunking is handled client-side.
