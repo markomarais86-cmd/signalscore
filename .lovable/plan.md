@@ -1,69 +1,133 @@
 
 
-## Fix Slide Data Accuracy
+## Fix ICP Scoring Accuracy for 91.Life
 
-### The Problem
+### Root Causes Identified
 
-The slides display data from the `generate-board-report` edge function, but for orgs where accounts haven't been fully enriched, several slides show poor or missing information:
+| Problem | Impact | Accounts Affected |
+|---------|--------|-------------------|
+| `bed_count` data missing on 99.94% of accounts, causing Band C cap | All accounts capped at max fit score 69 | 39,904 / 39,928 |
+| Size matching uses exact values instead of ranges | Most accounts fail size match even when within ICP range | ~35,000 miss that otherwise fall in range |
+| Industry taxonomy mismatch between ICP terms and enriched data | Industry score = 0 for many healthcare accounts | ~1,500 healthcare accounts partially missed |
+| Intent and reachability are hardcoded constants | No differentiation between engaged and inactive accounts | All 27,500 scored accounts |
 
-1. **Top Prospects** show raw UUIDs/internal IDs instead of company names (because `accounts.name` is null, the code falls back to `account_external_id`)
-2. **Industry Breakdown** is completely empty (the edge function query filters out accounts where `industry_norm IS NULL`)
-3. **Geography Distribution** is completely empty (same filtering for `country IS NULL`)
+### Proposed Fixes (in priority order)
 
-### Root Cause
+#### 1. Make bed_count a soft signal, not a hard gate
 
-The edge function queries at lines 69-76 of `generate-board-report/index.ts` explicitly exclude accounts without enriched data:
+**Current behavior:** If ANY ICP segment defines `bed_range` and the account has no `bed_count`, the entire score is capped at 69 (`missing_required_vertical = true`).
 
-- Industry query: `.not("industry_norm", "is", null)` -- excludes un-enriched accounts
-- Geography query: `.not("country", "is", null)` -- same
+**Proposed behavior:** Treat missing `bed_count` as a **scoring penalty** rather than a hard cap. Accounts missing `bed_count` lose the vertical score points (up to 15) but are NOT capped at Band C. This lets well-matching accounts on industry/size/geo/revenue still reach Band A.
 
-For Top Prospects, the fallback `acct?.name || s.account_external_id` shows the raw external ID when the account record has no name.
+**File:** `supabase/functions/bulk-score-accounts/index.ts`
+- Remove the Band C cap logic (lines 182-195) that enforces `Math.min(totalScore, 69)` when `bed_count` is null
+- Keep `missing_required_vertical` in the breakdown for visibility but stop using it to cap the score
+- Add a smaller penalty: reduce vertical score contribution by 50% when bed_count is missing (instead of capping the entire score)
 
-### Proposed Fixes
+#### 2. Use range-based size matching instead of exact values
 
-#### 1. Top Prospects: Show domain-based names instead of raw IDs
+**Current behavior:** `icp.company_sizes.some(s => s === ec)` with a few hardcoded fallback ranges.
 
-In the edge function, improve the fallback name logic. Instead of showing raw UUIDs, extract a readable name from `external_id` when it follows the `lp-domain.com` pattern, or show "Unnamed Account" for truly random IDs.
+**Proposed behavior:** Interpret the ICP `company_sizes` array as defining a target range (min to max of the array values). Score based on proximity to that range:
+- Within range: 25 points (full match)
+- Within 2x of range boundaries: 15 points (partial match)
+- Outside: 0 points
 
-**File:** `supabase/functions/generate-board-report/index.ts`
-- Change line 232 from `name: acct?.name || s.account_external_id`
-- To a smarter fallback that extracts domain names from `lp-*` prefixed IDs (e.g., `lp-childrenscolorado.org` becomes `childrenscolorado.org`) and labels UUID-style IDs as "Account #N"
+**File:** `supabase/functions/bulk-score-accounts/index.ts` (lines 56-63)
 
-#### 2. Industry Breakdown: Include "Unknown" category for un-enriched accounts
+#### 3. Improve industry fuzzy matching
 
-Instead of filtering out accounts with no industry, count them as "Unknown / Not Enriched" so the chart still shows useful distribution data.
+**Current behavior:** Case-insensitive `includes()` check between account industry and ICP industry terms.
 
-**File:** `supabase/functions/generate-board-report/index.ts`
-- Change the `accountsWithIndustry` query (line 69-70) to remove the `.not("industry_norm", "is", null)` filter
-- The existing code already handles `a.industry_norm || "Unknown"` at line 117, but currently the filtered query prevents Unknown from appearing
-- Add the Unknown category back so the chart shows the proportion of enriched vs. un-enriched accounts
+**Proposed behavior:** Additionally tokenize compound industry strings (split on `,`, `/`, `&`, `;`) and match each token individually. This catches "Hospitals & Healthcare" matching ICP term "Healthcare" and "Hospital & Health Care, Pharmaceuticals" matching "Healthcare".
 
-#### 3. Geography Distribution: Include "Unknown" category
+**File:** `supabase/functions/bulk-score-accounts/index.ts` (lines 46-53)
 
-Same approach as industry -- include accounts without country data as "Unknown".
+#### 4. Add basic intent signals from score history
 
-**File:** `supabase/functions/generate-board-report/index.ts`
-- Change the `accountsForGeo` query (line 74-75) to remove the `.not("country", "is", null)` filter
-- The existing code at line 164 already handles `a.country || "Unknown"`
+**Current behavior:** `intent: 50` hardcoded for every account.
 
-#### 4. Filter "Unknown" from chart display (optional improvement)
+**Proposed behavior:** Query `score_history` table for recent score changes and derive a basic intent signal:
+- Recent score improvement: higher intent
+- Multiple scoring cycles with stable high fit: moderate intent
+- No history: baseline 50
 
-In the slide components, optionally filter out the "Unknown" category from the visual chart but show a note like "X accounts not yet enriched" so users understand the gap without cluttering the chart.
+This aligns with the existing architecture note about using `score_history` as a proxy for engagement velocity.
 
-**Files:**
-- `src/components/slides/slides/IndustrySlide.tsx` -- filter "Unknown" from bar chart, show enrichment note
-- `src/components/slides/slides/GeographySlide.tsx` -- filter "Unknown" from table, show enrichment note
-
-### Implementation Steps
-
-1. Update `generate-board-report` edge function:
-   - Remove NULL filters on industry and geography queries
-   - Improve prospect name fallback logic
-2. Redeploy the edge function
-3. Update IndustrySlide and GeographySlide to handle "Unknown" entries gracefully
-4. Test with the 91.Life org to verify improved output
+**File:** `supabase/functions/bulk-score-accounts/index.ts` -- add a pre-processing step that loads recent score deltas
 
 ### Technical Details
 
-The edge function changes are minimal -- removing two `.not()` filters and improving one name fallback. The slide component changes add a small enrichment status note. No new dependencies or tables needed.
+#### Change 1: Soft bed_count penalty (biggest impact)
+
+```text
+BEFORE:
+  if (anySegHasBeds && bedCount == null) {
+    missingRequiredVertical = true;
+    totalScore = Math.min(totalScore, 69);  // HARD CAP
+    fitScore = Math.min(fitScore, 69);
+  }
+
+AFTER:
+  if (anySegHasBeds && bedCount == null) {
+    missingRequiredVertical = true;
+    // Soft penalty: reduce vertical contribution, don't cap entire score
+    verticalScore = Math.round(verticalScore * 0.3);  // 70% penalty on vertical only
+    // No hard cap -- let other dimensions determine band
+  }
+```
+
+#### Change 2: Range-based size scoring
+
+```text
+BEFORE:
+  const sizeMatch = icp.company_sizes.some(s => s === ec) || hardcoded fallbacks
+
+AFTER:
+  const sortedSizes = [...icp.company_sizes].sort((a,b) => a - b);
+  const minSize = sortedSizes[0];
+  const maxSize = sortedSizes[sortedSizes.length - 1];
+  if (ec >= minSize && ec <= maxSize) { sizeScore = 25; matches++; }
+  else if (ec >= minSize * 0.5 && ec <= maxSize * 2) { sizeScore = 15; matches++; }
+```
+
+#### Change 3: Tokenized industry matching
+
+```text
+BEFORE:
+  normLower.includes(indLower) || indLower.includes(normLower)
+
+AFTER:
+  // Split compound industries on delimiters
+  const tokens = normLower.split(/[,\/&;]+/).map(t => t.trim());
+  // Match if any token contains or is contained by any ICP term
+  tokens.some(token => token.includes(indLower) || indLower.includes(token))
+```
+
+### Implementation Order
+
+1. Update `scoreAccount()` in `bulk-score-accounts/index.ts` with all 3 scoring fixes
+2. Update the SQL scoring function `calculate_account_score_readonly` to match (if it exists)
+3. Redeploy the edge function
+4. Trigger a re-score for the 91.life org to apply the new logic
+
+### Expected Impact
+
+| Metric | Before | After (estimated) |
+|--------|--------|-------------------|
+| Band A accounts (fit >= 80) | 17 | ~2,000-3,000 |
+| Band B accounts (fit 50-79) | 17,118 | ~8,000-10,000 |
+| Accounts capped by bed_count | 23,483 | 0 (penalty instead of cap) |
+| Industry matches | ~1,800 | ~2,500+ |
+| Size matches | ~2,136 exact | ~14,000 range |
+
+### Files Modified
+
+| File | Change |
+|------|--------|
+| `supabase/functions/bulk-score-accounts/index.ts` | Scoring logic: soft bed penalty, range sizes, tokenized industry |
+
+### No Database Changes Required
+
+All changes are in the edge function scoring logic. No schema migrations needed.
 
