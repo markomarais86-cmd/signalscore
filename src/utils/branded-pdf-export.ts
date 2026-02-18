@@ -93,6 +93,7 @@ export interface BrandedReportData {
     revenueRange?: string;
     leadCount?: number;
     estimatedValue?: number;
+    bedCount?: number | null;
   }>;
 
   insights: ICPInsight[];
