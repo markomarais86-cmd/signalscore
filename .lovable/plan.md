@@ -1,40 +1,24 @@
 
 
-## Fill Missing Enrichment: 163 Hospital Accounts
+## Add "Missing Value" Filter to Bulk Attribute Editor
 
-Run the `enrich-unified` edge function against hospital accounts to auto-populate `bed_count`, `facility_type`, and `ehr_system` via Perplexity.
+Add a dropdown filter to the toolbar that lets you filter accounts to only those missing a value for a specific attribute (e.g. `bed_count`). This makes it easy to find accounts that still need data entry or enrichment.
 
-### What happens
+### What changes
 
-1. **Query hospital accounts** from the database -- filter by Healthcare vertical with missing custom attributes
-2. **Call `enrich-unified`** in batches (the function handles up to 500 records per call) with the Launchpulse org ID
-3. **Monitor logs** to confirm Perplexity is invoked for each account and returns custom attribute values (using the detailed logging just added)
-4. **Verify results** by querying the database for populated `bed_count`, `facility_type`, and `ehr_system` values
+**File: `src/components/settings/BulkAttributeEditor.tsx`**
+
+1. **New state**: Add a `missingField` state (`string | null`) to track which attribute field to filter by
+2. **Toolbar**: Add a `Select` dropdown between the search input and account count, with options:
+   - "All accounts" (default / no filter)
+   - One option per attribute definition: "Missing {field_label}" (e.g. "Missing Bed Count")
+3. **Query logic**: When `missingField` is set, add a Supabase `.or()` filter that matches accounts where `custom_attributes` is null OR the specific key is missing/null. This uses the JSONB arrow operator: `custom_attributes->>{field_key}.is.null,custom_attributes.is.null`
+4. **Reset page**: Changing the filter resets to page 0 (same pattern as search)
 
 ### Technical Details
 
-- **Edge function**: `enrich-unified` (already deployed with new logging)
-- **Org ID**: `726a0dc0-99c7-43c2-b20f-b849f2760c3f`
-- **Record type**: `account`
-- **Filter**: Accounts with `industry_norm = 'Healthcare'` (or similar) AND name containing "hospital", limited to ~163 records
-- **Config**: Default (Smart Enrichment) -- Perplexity is already wired in for custom attributes in Step 4.5
-- **Estimated cost**: ~163 enrichment credits (you have ~3,943 remaining)
-- **No code changes required** -- this is purely a batch invocation of the existing pipeline
-
-### Verification
-
-After enrichment completes, query to confirm results:
-
-```sql
-SELECT name, domain,
-  custom_attributes->>'bed_count' as bed_count,
-  custom_attributes->>'facility_type' as facility_type,
-  custom_attributes->>'ehr_system' as ehr_system
-FROM accounts
-WHERE org_id = '726a0dc0-99c7-43c2-b20f-b849f2760c3f'
-  AND name ILIKE '%hospital%'
-  AND custom_attributes->>'bed_count' IS NOT NULL
-ORDER BY name
-LIMIT 20;
-```
+- The filter uses Supabase's PostgREST JSONB filtering: `.or(\`custom_attributes.is.null,custom_attributes->>${missingField}.is.null\`)`
+- The `missingField` value is added to the `fetchAccounts` dependency array alongside `debouncedSearch`
+- The Select component uses `"__all__"` as the value for "no filter" since Radix Select doesn't support empty string values
+- No new dependencies needed -- reuses existing `Select` component already imported
 
