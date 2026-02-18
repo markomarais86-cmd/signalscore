@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,13 +20,14 @@ const LARGE_EXPORT_THRESHOLD = 5000;
 
 export function ExportLeadsButton() {
   const { userProfile, user } = useAuth();
+  const { dataOrgId, effectiveOrgId } = useDataOrgId();
   const [exporting, setExporting] = useState(false);
   const [showLargeExportDialog, setShowLargeExportDialog] = useState(false);
   const [pendingFilter, setPendingFilter] = useState<ExportFilter>("all");
   const [recordCount, setRecordCount] = useState(0);
 
   const checkCountAndExport = async (filter: ExportFilter) => {
-    if (!userProfile?.org_id) return;
+    if (!dataOrgId) return;
 
     try {
       setExporting(true);
@@ -34,7 +36,7 @@ export function ExportLeadsButton() {
       let query = supabase
         .from("Leads")
         .select("id", { count: "exact", head: true })
-        .eq("org_id", userProfile.org_id);
+        .eq("org_id", dataOrgId);
 
       if (filter === "with_email") {
         query = query.not("email", "is", null);
@@ -72,7 +74,7 @@ export function ExportLeadsButton() {
   };
 
   const exportLeadsClientSide = async (filter: ExportFilter) => {
-    if (!userProfile?.org_id) return;
+    if (!dataOrgId) return;
 
     try {
       setExporting(true);
@@ -166,7 +168,7 @@ export function ExportLeadsButton() {
           created_at,
           updated_at
         `)
-        .eq("org_id", userProfile.org_id);
+        .eq("org_id", dataOrgId);
 
       // Apply filter
       if (filter === "with_email") {
@@ -176,7 +178,7 @@ export function ExportLeadsButton() {
         const { data: highFitAccounts } = await supabase
           .from("scores")
           .select("account_external_id")
-          .eq("org_id", userProfile.org_id)
+          .eq("org_id", effectiveOrgId)
           .gte("overall_score", 70);
 
         const accountIds = highFitAccounts?.map(a => a.account_external_id) || [];

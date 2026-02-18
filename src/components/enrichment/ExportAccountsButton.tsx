@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,13 +20,14 @@ const LARGE_EXPORT_THRESHOLD = 5000;
 
 export function ExportAccountsButton() {
   const { userProfile, user } = useAuth();
+  const { dataOrgId } = useDataOrgId();
   const [exporting, setExporting] = useState(false);
   const [showLargeExportDialog, setShowLargeExportDialog] = useState(false);
   const [pendingFilter, setPendingFilter] = useState<ExportFilter>("all");
   const [recordCount, setRecordCount] = useState(0);
 
   const checkCountAndExport = async (filter: ExportFilter) => {
-    if (!userProfile?.org_id) return;
+    if (!dataOrgId) return;
 
     try {
       setExporting(true);
@@ -34,7 +36,7 @@ export function ExportAccountsButton() {
       let query = supabase
         .from("accounts")
         .select("id", { count: "exact", head: true })
-        .eq("org_id", userProfile.org_id);
+        .eq("org_id", dataOrgId);
 
       if (filter === "enriched" || filter === "all_full") {
         if (filter === "enriched") {
@@ -73,7 +75,7 @@ export function ExportAccountsButton() {
   };
 
   const exportAccountsClientSide = async (filter: ExportFilter) => {
-    if (!userProfile?.org_id) return;
+    if (!dataOrgId) return;
 
     try {
       setExporting(true);
@@ -132,7 +134,7 @@ export function ExportAccountsButton() {
           manually_verified,
           updated_at
         `)
-        .eq("org_id", userProfile.org_id);
+        .eq("org_id", dataOrgId);
 
       // Apply filter
       if (filter === "enriched" || filter === "all_full") {

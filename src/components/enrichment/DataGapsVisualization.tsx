@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,7 @@ const BATCH_OPTIONS = [
 
 export function DataGapsVisualization() {
   const { userProfile } = useAuth();
+  const { dataOrgId, effectiveOrgId } = useDataOrgId();
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [totalAccounts, setTotalAccounts] = useState(0);
@@ -58,11 +60,11 @@ export function DataGapsVisualization() {
   const [activeJob, setActiveJob] = useState<ActiveJob | null>(null);
 
   useEffect(() => {
-    if (userProfile?.org_id) {
+    if (dataOrgId) {
       loadDataGaps();
       checkActiveJob();
     }
-  }, [userProfile?.org_id]);
+  }, [dataOrgId]);
 
   // Poll for active job progress
   useEffect(() => {
@@ -94,7 +96,7 @@ export function DataGapsVisualization() {
   }, [activeJob?.id, activeJob?.status]);
 
   const loadDataGaps = async () => {
-    if (!userProfile?.org_id) return;
+    if (!dataOrgId) return;
     // Only show loading spinner on initial load, not refreshes
     const isInitialLoad = dataGaps.length === 0;
     if (isInitialLoad) setLoading(true);
@@ -110,13 +112,13 @@ export function DataGapsVisualization() {
         { count: missingLinkedin },
         { count: missingCountry }
       ] = await Promise.all([
-        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id),
-        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("employee_count", null),
-        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("revenue_range", null),
-        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("industry_raw", null),
-        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("sub_industry", null),
-        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("linkedin_url", null),
-        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", userProfile.org_id).is("country", null),
+        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", dataOrgId),
+        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", dataOrgId).is("employee_count", null),
+        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", dataOrgId).is("revenue_range", null),
+        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", dataOrgId).is("industry_raw", null),
+        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", dataOrgId).is("sub_industry", null),
+        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", dataOrgId).is("linkedin_url", null),
+        supabase.from("accounts").select("*", { count: "exact", head: true }).eq("org_id", dataOrgId).is("country", null),
       ]);
 
       const gaps: DataGap[] = [
@@ -138,13 +140,13 @@ export function DataGapsVisualization() {
   };
 
   const checkActiveJob = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
 
     // Only check for truly active jobs (not failed - those are handled separately)
     const { data } = await supabase
       .from("enrichment_jobs")
       .select("id, status, processed_records, accounts_enriched, fields_enriched, total_records, error_message")
-      .eq("org_id", userProfile.org_id)
+      .eq("org_id", effectiveOrgId)
       .in("status", ["processing", "paused", "pending"])
       .order("started_at", { ascending: false })
       .limit(1)
@@ -156,7 +158,7 @@ export function DataGapsVisualization() {
   };
 
   const resumeJob = async () => {
-    if (!activeJob || !userProfile?.org_id) return;
+    if (!activeJob || !effectiveOrgId || !dataOrgId) return;
 
     try {
       setStarting(true);
@@ -166,7 +168,7 @@ export function DataGapsVisualization() {
       const { data: accounts } = await supabase
         .from("accounts")
         .select("external_id, name, domain, industry_norm, industry_raw, sub_industry, employee_count, revenue_range, country, state_province, city")
-        .eq("org_id", userProfile.org_id)
+        .eq("org_id", dataOrgId)
         .or(gapFields.length > 0 ? gapFields.join(",") : "employee_count.is.null")
         .not("domain", "is", null)
         .limit(100);
@@ -174,7 +176,7 @@ export function DataGapsVisualization() {
       const { error } = await supabase.functions.invoke("enrich-unified", {
         body: {
           job_id: activeJob.id,
-          org_id: userProfile.org_id,
+          org_id: effectiveOrgId,
           record_type: 'account',
           records: accounts || [],
           config: { skipPaidProviders: true }
@@ -198,7 +200,7 @@ export function DataGapsVisualization() {
     : Math.min(parseInt(batchSize), totalAccounts);
 
   const startEnrichment = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId || !dataOrgId) return;
 
     try {
       setStarting(true);
@@ -215,7 +217,7 @@ export function DataGapsVisualization() {
       const { data: accounts, error: fetchError } = await supabase
         .from("accounts")
         .select("external_id, name, domain, industry_norm, industry_raw, sub_industry, employee_count, revenue_range, country, state_province, city")
-        .eq("org_id", userProfile.org_id)
+        .eq("org_id", dataOrgId)
         .or(gapFields.join(","))
         .not("domain", "is", null)
         .limit(Math.min(limit, 100)); // Edge function max is 100 per request
@@ -229,7 +231,7 @@ export function DataGapsVisualization() {
 
       const { error } = await supabase.functions.invoke("enrich-unified", {
         body: {
-          org_id: userProfile.org_id,
+          org_id: effectiveOrgId,
           record_type: 'account',
           records: accounts,
           config: { skipPaidProviders: true }
