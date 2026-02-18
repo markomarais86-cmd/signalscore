@@ -162,30 +162,37 @@ export function CustomAttributeManager() {
     },
   });
 
-  const handleFillMissing = useCallback(async (category: string, defs: CustomAttributeDefinition[]) => {
+  const handleFillMissing = useCallback(async (category: string, defs: CustomAttributeDefinition[], specificFieldKeys?: string[]) => {
     if (!dataOrgId || isEnriching) return;
 
-    const fieldKeys = defs.map(d => d.field_key);
+    const fieldKeys = specificFieldKeys || defs.map(d => d.field_key);
     setEnrichingCategory(category);
 
     try {
-      // Fetch accounts missing custom attributes for this category
-      // We fetch accounts where custom_attributes is null OR domain exists
-      const { data: accounts, error } = await supabase
+      // Build query with industry filter for relevant categories
+      let query = supabase
         .from('accounts')
         .select('external_id, name, domain, industry_norm, employee_count, revenue_range, country, state_province, city, custom_attributes')
         .eq('org_id', dataOrgId)
-        .not('domain', 'is', null)
-        .limit(500);
+        .not('domain', 'is', null);
+
+      // Apply industry filter if category has a mapping
+      const industryTerms = CATEGORY_INDUSTRY_MAP[category];
+      if (industryTerms && industryTerms.length > 0) {
+        const ilikeFilters = industryTerms.map(term => `industry_norm.ilike.%${term}%`).join(',');
+        query = query.or(ilikeFilters);
+      }
+
+      const { data: accounts, error } = await query.limit(1000);
 
       if (error) throw error;
 
-      // Client-side filter: keep accounts missing any of the category's field keys
+      // Client-side filter: keep accounts missing any of the target field keys
       const missingAccounts = (accounts || []).filter(acc => {
         const ca = acc.custom_attributes as Record<string, any> | null;
         if (!ca) return true;
         return fieldKeys.some(key => ca[key] === undefined || ca[key] === null || ca[key] === '');
-      }).slice(0, 250);
+      }).slice(0, 500);
 
       if (missingAccounts.length === 0) {
         toast({ title: 'All filled', description: `All accounts already have ${category} attributes populated.` });
@@ -688,6 +695,9 @@ export function CustomAttributeManager() {
                   orgId={dataOrgId}
                   category={category}
                   definitions={defs}
+                  onEnrichFiltered={(fieldKey) => handleFillMissing(category, defs, [fieldKey])}
+                  isEnriching={isEnriching && enrichingCategory === category}
+                  enrichProgress={progress}
                 />
               )}
             </CardContent>
