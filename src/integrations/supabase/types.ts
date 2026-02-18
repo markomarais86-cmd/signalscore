@@ -8321,6 +8321,7 @@ export type Database = {
         Args: { p_org_id?: string }
         Returns: Json
       }
+      batch_move_accounts_org: { Args: never; Returns: number }
       bidirectional_firmographic_sync: {
         Args: { p_org_id: string }
         Returns: Json
