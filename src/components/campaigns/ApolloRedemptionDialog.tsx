@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useApolloCredits } from "@/hooks/use-apollo-credits";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useContactProvider, ContactProvider } from "@/hooks/use-contact-provider";
 import { toast } from "sonner";
 import { contactsLogger } from "@/lib/logger";
@@ -57,6 +58,7 @@ export function ApolloRedemptionDialog({
   onRedemptionComplete
 }: ApolloRedemptionDialogProps) {
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const { creditsRemaining, dailyLimit, configured, apiAccessible } = useApolloCredits();
   const { providerStatus, activeProvider, checkProviders, previewContacts, redeemContacts } = useContactProvider();
   
@@ -107,7 +109,7 @@ export function ApolloRedemptionDialog({
 
   // Analyze and preview when dialog opens
   useEffect(() => {
-    if (open && userProfile?.org_id) {
+    if (open && effectiveOrgId) {
       if (isTamMode) {
         previewApolloByICP();
         analyzeDuplicatesForOrg();
@@ -116,7 +118,7 @@ export function ApolloRedemptionDialog({
         analyzeDuplicates();
       }
     }
-  }, [open, userProfile?.org_id, accountDomains, isTamMode]);
+  }, [open, effectiveOrgId, accountDomains, isTamMode]);
 
   // Re-preview when personas change
   useEffect(() => {
@@ -197,13 +199,13 @@ export function ApolloRedemptionDialog({
 
   // Full org duplicate analysis for TAM mode
   const analyzeDuplicatesForOrg = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
     
     setIsAnalyzing(true);
     try {
       const { data, error } = await supabase.functions.invoke('check-apollo-duplicates', {
         body: {
-          org_id: userProfile.org_id,
+          org_id: effectiveOrgId,
           check_type: 'full_analysis'
         }
       });
@@ -219,13 +221,13 @@ export function ApolloRedemptionDialog({
 
   // Domain-specific duplicate analysis
   const analyzeDuplicates = async () => {
-    if (!userProfile?.org_id || accountDomains.length === 0) return;
+    if (!effectiveOrgId || accountDomains.length === 0) return;
     
     setIsAnalyzing(true);
     try {
       const { data, error } = await supabase.functions.invoke('check-apollo-duplicates', {
         body: {
-          org_id: userProfile.org_id,
+          org_id: effectiveOrgId,
           domains: accountDomains,
           check_type: 'full_analysis'
         }
@@ -254,7 +256,7 @@ export function ApolloRedemptionDialog({
     : 0;
 
   const handleRedeem = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
 
     setIsRedeeming(true);
     setRedemptionProgress(10);
@@ -272,14 +274,14 @@ export function ApolloRedemptionDialog({
         const functionName = isTamMode ? 'redeem-apollo-by-icp' : 'redeem-apollo-contacts';
         const requestBody = isTamMode 
           ? {
-              org_id: userProfile.org_id,
+              org_id: effectiveOrgId,
               icp_criteria: icpCriteria,
               persona_filters: selectedPersonas,
               max_contacts: effectiveLimit,
               campaign_name: campaignName
             }
           : {
-              org_id: userProfile.org_id,
+              org_id: effectiveOrgId,
               account_domains: accountDomains,
               persona_filters: selectedPersonas,
               max_contacts: effectiveLimit,
@@ -295,7 +297,7 @@ export function ApolloRedemptionDialog({
           // Try PDL fallback
           const pdlResult = await supabase.functions.invoke('redeem-pdl-contacts', {
             body: {
-              org_id: userProfile.org_id,
+              org_id: effectiveOrgId,
               domains: isTamMode ? undefined : accountDomains,
               icp_criteria: isTamMode ? icpCriteria : undefined,
               persona_filters: selectedPersonas,
@@ -315,7 +317,7 @@ export function ApolloRedemptionDialog({
         // Use PDL directly
         const result = await supabase.functions.invoke('redeem-pdl-contacts', {
           body: {
-            org_id: userProfile.org_id,
+            org_id: effectiveOrgId,
             domains: isTamMode ? undefined : accountDomains,
             icp_criteria: isTamMode ? icpCriteria : undefined,
             persona_filters: selectedPersonas,

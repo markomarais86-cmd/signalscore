@@ -10,6 +10,7 @@ import { AICampaignAssistant } from "./AICampaignAssistant";
 import { ApolloCreditsDisplay } from "./ApolloCreditsDisplay";
 import { ApolloRedemptionDialog } from "./ApolloRedemptionDialog";
 import { campaignsLogger } from "@/lib/logger";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 
 // Hooks
 import { useCampaignState, InsightContext, ICPProfile } from "./hooks/useCampaignState";
@@ -37,6 +38,7 @@ interface CampaignBuilderV2Props {
 
 export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightContext }: CampaignBuilderV2Props) {
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const { toast } = useToast();
   
   // Core state management
@@ -82,10 +84,10 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
 
   // Load ICP on open
   useEffect(() => {
-    if (isOpen && userProfile?.org_id) {
+    if (isOpen && effectiveOrgId) {
       loadICP();
     }
-  }, [isOpen, userProfile?.org_id, icpId]);
+  }, [isOpen, effectiveOrgId, icpId]);
 
   // Reset on close
   useEffect(() => {
@@ -99,12 +101,12 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
   }, [isOpen]);
 
   const loadICP = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
     setLoadingICP(true);
     try {
       let icpToLoad = icpId;
       if (!icpToLoad) {
-        const { data: activeICPs } = await supabase.from('icp_profiles').select('id').eq('org_id', userProfile.org_id).eq('status', 'active').order('created_at', { ascending: false }).limit(1);
+        const { data: activeICPs } = await supabase.from('icp_profiles').select('id').eq('org_id', effectiveOrgId).eq('status', 'active').order('created_at', { ascending: false }).limit(1);
         if (!activeICPs || activeICPs.length === 0) {
           toast({ title: "No Active ICP", description: "You can still create a campaign without an ICP" });
           setUseICP(false);
@@ -144,7 +146,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
 
   // AI Functions
   const generateCampaignNames = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
     setIsGeneratingNames(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-campaign-name', {
@@ -161,7 +163,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
   };
 
   const optimizeSequence = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
     setIsOptimizingSequence(true);
     try {
       const { data, error } = await supabase.functions.invoke('optimize-sequence', {
@@ -178,13 +180,13 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
   };
 
   const estimateROI = async () => {
-    if (!userProfile?.org_id || !previewData) return;
+    if (!effectiveOrgId || !previewData) return;
     setIsEstimatingROI(true);
     try {
       const scores = previewData.map((acc: any) => acc.overall_score || 0);
       const avgFitScore = scores.reduce((a: number, b: number) => a + b, 0) / scores.length;
       const { data, error } = await supabase.functions.invoke('estimate-campaign-roi', {
-        body: { accountCount: previewData.length, avgFitScore, dataSource, provider, orgId: userProfile.org_id, leadCount: estimatedLeads }
+        body: { accountCount: previewData.length, avgFitScore, dataSource, provider, orgId: effectiveOrgId, leadCount: estimatedLeads }
       });
       if (error) throw error;
       setRoiEstimate(data);
