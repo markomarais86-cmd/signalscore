@@ -155,8 +155,9 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
           supabase.rpc('get_dashboard_metrics_cached' as any, { 
             p_org_id: orgId
           }),
-          supabase.rpc('count_campaign_ready_accounts', {
-            p_org_id: orgId
+          supabase.rpc('count_campaign_ready_accounts' as any, {
+            p_org_id: orgId,
+            p_data_source: sourceFilter === 'crm' ? 'crm' : sourceFilter === 'database' ? 'database' : null
           })
         ]);
       } catch (err) {
@@ -208,7 +209,7 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
         medium_fit_database_leads: rawMetrics?.medium_fit_database_leads || 0,
         low_fit_crm_leads: rawMetrics?.low_fit_crm_leads || 0,
         low_fit_database_leads: rawMetrics?.low_fit_database_leads || 0,
-        campaign_ready_accounts: campaignReadyResult?.data || rawMetrics?.campaign_ready_accounts || 0,
+        campaign_ready_accounts: (typeof campaignReadyResult?.data === 'number' ? campaignReadyResult.data : 0) || rawMetrics?.campaign_ready_accounts || 0,
         campaign_ready_contacts: rawMetrics?.campaign_ready || 0,
         campaign_ready_leads: rawMetrics?.campaign_ready || 0,
         data_completeness: dataCompleteness,
