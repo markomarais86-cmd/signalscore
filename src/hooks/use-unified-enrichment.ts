@@ -76,30 +76,69 @@ export function useUnifiedEnrichment(options: UseUnifiedEnrichmentOptions = {}) 
     setResult(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('enrich-unified', {
-        body: {
-          org_id: orgId,
-          record_type: 'account',
-          records,
-          config: config || {},
-        },
-      });
-
-      if (error) throw error;
-
-      const enrichmentResult = data as UnifiedEnrichmentResult;
-      setResult(enrichmentResult);
-      setProgress(enrichmentResult.summary);
-
-      if (enrichmentResult.success) {
-        options.onComplete?.(enrichmentResult);
-        toast({
-          title: 'Enrichment Complete',
-          description: `Enriched ${enrichmentResult.summary.enriched} of ${enrichmentResult.summary.total} accounts`,
-        });
+      const CHUNK_SIZE = 100;
+      const chunks: typeof records[] = [];
+      for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+        chunks.push(records.slice(i, i + CHUNK_SIZE));
       }
 
-      return enrichmentResult;
+      const aggregated: EnrichmentSummary = {
+        total: records.length,
+        processed: 0,
+        enriched: 0,
+        failed: 0,
+        remaining: records.length,
+        totalCost: 0,
+        avgConfidence: 0,
+      };
+      let lastResult: UnifiedEnrichmentResult | null = null;
+      let totalConfidenceSum = 0;
+
+      for (const chunk of chunks) {
+        const { data, error } = await supabase.functions.invoke('enrich-unified', {
+          body: {
+            org_id: orgId,
+            record_type: 'account',
+            records: chunk,
+            config: config || {},
+          },
+        });
+
+        if (error) throw error;
+
+        const chunkResult = data as UnifiedEnrichmentResult;
+        lastResult = chunkResult;
+
+        aggregated.processed += chunkResult.summary.processed;
+        aggregated.enriched += chunkResult.summary.enriched;
+        aggregated.failed += chunkResult.summary.failed;
+        aggregated.remaining = aggregated.total - aggregated.processed;
+        aggregated.totalCost += chunkResult.summary.totalCost;
+        totalConfidenceSum += chunkResult.summary.avgConfidence * chunkResult.summary.processed;
+        aggregated.avgConfidence = aggregated.processed > 0
+          ? totalConfidenceSum / aggregated.processed
+          : 0;
+
+        setProgress({ ...aggregated });
+        options.onProgress?.(aggregated);
+      }
+
+      const finalResult: UnifiedEnrichmentResult = {
+        success: true,
+        job_id: lastResult?.job_id || '',
+        status: 'completed',
+        summary: aggregated,
+        source_breakdown: lastResult?.source_breakdown || {},
+      };
+      setResult(finalResult);
+
+      options.onComplete?.(finalResult);
+      toast({
+        title: 'Enrichment Complete',
+        description: `Enriched ${aggregated.enriched} of ${aggregated.total} accounts`,
+      });
+
+      return finalResult;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Enrichment failed';
       options.onError?.(errorMessage);
@@ -137,30 +176,69 @@ export function useUnifiedEnrichment(options: UseUnifiedEnrichmentOptions = {}) 
     setResult(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('enrich-unified', {
-        body: {
-          org_id: orgId,
-          record_type: 'lead',
-          records,
-          config: config || {},
-        },
-      });
-
-      if (error) throw error;
-
-      const enrichmentResult = data as UnifiedEnrichmentResult;
-      setResult(enrichmentResult);
-      setProgress(enrichmentResult.summary);
-
-      if (enrichmentResult.success) {
-        options.onComplete?.(enrichmentResult);
-        toast({
-          title: 'Enrichment Complete',
-          description: `Enriched ${enrichmentResult.summary.enriched} of ${enrichmentResult.summary.total} leads`,
-        });
+      const CHUNK_SIZE = 100;
+      const chunks: typeof records[] = [];
+      for (let i = 0; i < records.length; i += CHUNK_SIZE) {
+        chunks.push(records.slice(i, i + CHUNK_SIZE));
       }
 
-      return enrichmentResult;
+      const aggregated: EnrichmentSummary = {
+        total: records.length,
+        processed: 0,
+        enriched: 0,
+        failed: 0,
+        remaining: records.length,
+        totalCost: 0,
+        avgConfidence: 0,
+      };
+      let lastResult: UnifiedEnrichmentResult | null = null;
+      let totalConfidenceSum = 0;
+
+      for (const chunk of chunks) {
+        const { data, error } = await supabase.functions.invoke('enrich-unified', {
+          body: {
+            org_id: orgId,
+            record_type: 'lead',
+            records: chunk,
+            config: config || {},
+          },
+        });
+
+        if (error) throw error;
+
+        const chunkResult = data as UnifiedEnrichmentResult;
+        lastResult = chunkResult;
+
+        aggregated.processed += chunkResult.summary.processed;
+        aggregated.enriched += chunkResult.summary.enriched;
+        aggregated.failed += chunkResult.summary.failed;
+        aggregated.remaining = aggregated.total - aggregated.processed;
+        aggregated.totalCost += chunkResult.summary.totalCost;
+        totalConfidenceSum += chunkResult.summary.avgConfidence * chunkResult.summary.processed;
+        aggregated.avgConfidence = aggregated.processed > 0
+          ? totalConfidenceSum / aggregated.processed
+          : 0;
+
+        setProgress({ ...aggregated });
+        options.onProgress?.(aggregated);
+      }
+
+      const finalResult: UnifiedEnrichmentResult = {
+        success: true,
+        job_id: lastResult?.job_id || '',
+        status: 'completed',
+        summary: aggregated,
+        source_breakdown: lastResult?.source_breakdown || {},
+      };
+      setResult(finalResult);
+
+      options.onComplete?.(finalResult);
+      toast({
+        title: 'Enrichment Complete',
+        description: `Enriched ${aggregated.enriched} of ${aggregated.total} leads`,
+      });
+
+      return finalResult;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Enrichment failed';
       options.onError?.(errorMessage);
