@@ -641,10 +641,10 @@ export default function ExecutiveDashboard() {
             {/* Growth Command Center KPIs */}
             <GrowthCommandKPIs
               totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-              totalScored={totalScores}
-              medFitAccounts={medFitAccounts}
+              totalScored={sourceFilter === 'database' ? databaseScoredAccounts : sourceFilter === 'crm' ? crmScoredAccounts : totalScores}
+              medFitAccounts={sourceFilter === 'database' ? medFitDatabaseAccounts : sourceFilter === 'crm' ? medFitCrmAccounts : medFitAccounts}
               dataCompleteness={dataCompleteness}
-              highFitAccounts={highFitAccounts}
+              highFitAccounts={sourceFilter === 'database' ? highFitDatabaseAccounts : sourceFilter === 'crm' ? highFitCrmAccounts : highFitAccounts}
               campaignReadyAccounts={campaignReadyAccounts}
               pipelinePotential={campaignReadyAccounts * averageDealSize * 0.25}
               revenueAtRisk={
