@@ -2362,6 +2362,7 @@ export async function runEnrichmentWaterfall(
         // Use Perplexity for real-time web search if available
         const perplexityKey = Deno.env.get('PERPLEXITY_API_KEY');
         if (perplexityKey && companyName) {
+          console.log(`[provider-waterfall] Step 4.5: Perplexity prompt for "${companyName}" (${domain}): ${customPrompt}`);
           try {
             const perplexityResponse = await fetch('https://api.perplexity.ai/chat/completions', {
               method: 'POST',
@@ -2381,6 +2382,7 @@ export async function runEnrichmentWaterfall(
             if (perplexityResponse.ok) {
               const perplexityData = await perplexityResponse.json();
               const rawContent = perplexityData.choices?.[0]?.message?.content || '';
+              console.log(`[provider-waterfall] Step 4.5: Perplexity raw response: ${rawContent}`);
               
               // Extract JSON from response
               const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
@@ -2392,10 +2394,12 @@ export async function runEnrichmentWaterfall(
                       customAttrs[def.field_key] = parsed[def.field_key];
                     }
                   }
-                  console.log(`[provider-waterfall] Step 4.5: Perplexity extracted ${Object.keys(parsed).length} custom attributes`);
+                  console.log(`[provider-waterfall] Step 4.5: Perplexity parsed values: ${JSON.stringify(parsed)}`);
                 } catch (parseErr) {
                   console.warn('[provider-waterfall] Step 4.5: Failed to parse Perplexity custom attributes JSON');
                 }
+              } else {
+                console.warn(`[provider-waterfall] Step 4.5: No JSON found in Perplexity response: ${rawContent.substring(0, 200)}`);
               }
               
               sources.push({
@@ -2406,6 +2410,9 @@ export async function runEnrichmentWaterfall(
                 cost: PROVIDER_COSTS.perplexity,
               });
               totalCost += PROVIDER_COSTS.perplexity;
+            } else {
+              const errBody = await perplexityResponse.text().catch(() => '');
+              console.warn(`[provider-waterfall] Step 4.5: Perplexity HTTP error: ${perplexityResponse.status} ${errBody}`);
             }
           } catch (perplexityErr) {
             console.warn('[provider-waterfall] Step 4.5: Perplexity custom attribute enrichment failed:', perplexityErr);
@@ -2440,6 +2447,7 @@ export async function runEnrichmentWaterfall(
             if (geminiResponse.ok) {
               const geminiData = await geminiResponse.json();
               const geminiContent = geminiData.choices?.[0]?.message?.content || '';
+              console.log(`[provider-waterfall] Step 4.5: Gemini raw response: ${geminiContent}`);
               const geminiJson = geminiContent.match(/\{[\s\S]*\}/);
               if (geminiJson) {
                 try {
@@ -2463,7 +2471,7 @@ export async function runEnrichmentWaterfall(
         
         if (Object.keys(customAttrs).length > 0) {
           data.custom_attributes = customAttrs;
-          console.log(`[provider-waterfall] Step 4.5 complete: ${Object.keys(customAttrs).length} custom attributes populated`);
+          console.log(`[provider-waterfall] Step 4.5: Final custom_attributes: ${JSON.stringify(customAttrs)}`);
         }
       } catch (customErr) {
         console.warn('[provider-waterfall] Step 4.5: Custom attribute enrichment failed:', customErr);
