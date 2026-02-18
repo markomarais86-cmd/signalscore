@@ -1,120 +1,60 @@
 
-## Fix: Executive Report Slides — Industry Filter, Prospects Detail, and Data Pipeline
 
-### Problems Identified
+## Auto-Run Bed Count Enrichment for All Accounts
 
-**1. Industry Breakdown Shows All Industries (Not ICP-Filtered)**
+### Current Problem
 
-The `generate-board-report` edge function (line 124-142) counts every account's `industry_norm` across all 40,000 accounts. This means "Business Services" (5,763), "Manufacturing" (3,241), "Construction" (985), etc. all appear — even though the 91.life ICP only targets: Healthcare, Hospital & Health Systems, Medical Devices, Health IT, Hospitals & Physicians Clinics, Healthcare Services, Insurance.
+- Only 25 of ~40,000 accounts have `bed_count` data
+- The `enrich-bed-counts` function requires a user JWT (same auth bug we fixed for bulk-score-accounts)
+- No cron or auto-loop exists to keep calling it until all accounts are processed
+- Each invocation processes max 200 accounts in its 50-second time budget (~30-40 with Perplexity calls)
 
-The slide should filter to show ICP-relevant industries prominently, with non-ICP industries grouped as "Other."
+### Fix (3 Changes)
 
-**2. ICP Column Name Mismatch (Root Cause of Empty AI Context)**
+#### 1. Add service role auth bypass to `enrich-bed-counts`
 
-In `generate-board-report/index.ts` line 199-201:
-```
-targetIndustries: p.target_industries || [],    // WRONG: column is "industries"
-geographies: p.target_geographies || [],        // WRONG: column is "geographies"
-```
-This means the AI narrative generator receives **empty arrays** for ICP industries and geographies, so it cannot generate ICP-aware risk assessments or recommendations. This is why the Risks and Next Steps slides are weak/empty.
+Same pattern as the bulk-score-accounts fix: detect the service role key and skip `getUser()`.
 
-**3. Top Prospects Missing "Why" and Bed Count**
+**File:** `supabase/functions/enrich-bed-counts/index.ts`
 
-The ProspectsSlide only shows name, industry, country, fit score, and estimated value. For 91.life (healthcare), it should also show:
-- `bed_count` from `custom_attributes`
-- A brief "why" column (e.g., "100% ICP fit, 422 beds, Hospital")
+- Extract token from Authorization header
+- If token matches `SUPABASE_SERVICE_ROLE_KEY`, skip user auth
+- Still require `org_id` in the request body (the cron will provide it)
 
-The edge function already fetches account details but does not pull `custom_attributes`.
+#### 2. Set up a cron job to call `enrich-bed-counts` every 2 minutes
 
-**4. SOM Is Low Because of Hardcoded ACV**
+Uses `pg_cron` + `pg_net` (already enabled) to POST to the function with:
+- `org_id`: the LaunchPulse parent org ID (`726a0dc0-99c7-43c2-b20f-b849f2760c3f`)
+- `batch_size`: 200 (max allowed)
+- Authorization: service role key
 
-The edge function uses `DEFAULT_ACV = $75,000` for all orgs. For 91.life's healthcare vertical, the actual ACV could be different. This is a secondary issue but worth noting.
+The function already returns `enriched: 0` when all accounts are done, so the cron will harmlessly no-op once complete.
 
-### Fix Plan
+#### 3. Increase batch size and parallel throughput
 
-#### Fix 1: Correct ICP Column Names (Edge Function)
+- Change `DEFAULT_BATCH_SIZE` from 50 to 200
+- Increase `PARALLEL_BATCH` from 5 to 10 (more concurrent AI calls per run)
 
-**File:** `supabase/functions/generate-board-report/index.ts`
+### Estimated Timeline
 
-At line 199-201, fix the column references:
-```
-BEFORE:
-  targetIndustries: p.target_industries || [],
-  geographies: p.target_geographies || [],
+At ~30-40 accounts per 50-second run, every 2 minutes:
+- ~20-30 enrichments per cycle (some will be "not a hospital" skips)
+- ~40,000 accounts / ~30 per cycle = ~1,333 cycles
+- At one cycle every 2 minutes = ~44 hours for full coverage
 
-AFTER:
-  targetIndustries: p.industries || [],
-  geographies: p.geographies || [],
-```
+Most non-hospital accounts will return `null` quickly (skipped), so actual throughput will be higher. Realistically 12-24 hours for full coverage.
 
-This immediately fixes the AI narrative context, giving Gemini the correct ICP industries to reason about for Risks and Next Steps.
+### After Completion
 
-#### Fix 2: Filter Industry Breakdown by ICP Relevance
-
-**File:** `supabase/functions/generate-board-report/index.ts`
-
-After building `industryBreakdown` (line 134-142), cross-reference with the active ICP profiles' `industries` arrays. Sort ICP-matching industries first. Roll up non-ICP industries beyond top 3 into an "Other" bucket. This ensures the Industry Slide only shows relevant industries.
-
-```text
-AFTER building industryBreakdown:
-  const icpIndustries = new Set(
-    icpProfiles.flatMap(p => p.targetIndustries)  // now correctly populated
-  );
-  
-  // Split into ICP-matched vs other
-  const icpMatched = industryBreakdown.filter(i => icpIndustries.has(i.name));
-  const nonIcp = industryBreakdown.filter(i => !icpIndustries.has(i.name) && i.name !== 'Unknown');
-  
-  // Keep top 3 non-ICP, roll rest into "Other"
-  const otherCount = nonIcp.slice(3).reduce((s, i) => s + i.accounts, 0);
-  const finalBreakdown = [
-    ...icpMatched,
-    ...nonIcp.slice(0, 3),
-    ...(otherCount > 0 ? [{ name: 'Other', accounts: otherCount, ... }] : [])
-  ];
-```
-
-#### Fix 3: Add Bed Count and "Why" to Top Prospects
-
-**File:** `supabase/functions/generate-board-report/index.ts`
-
-Update the account details query (line 226) to include `custom_attributes`:
-```
-.select("external_id, name, industry_norm, employee_count, country, revenue_range, custom_attributes")
-```
-
-Add `bedCount` to each prospect object:
-```
-bedCount: acct?.custom_attributes?.bed_count || null,
-```
-
-**File:** `src/utils/branded-pdf-export.ts`
-
-Add `bedCount` to the `topProspects` type definition.
-
-**File:** `src/components/slides/slides/ProspectsSlide.tsx`
-
-Add a "Beds" column to the table (between Country and Fit Score). Only render this column if any prospect has bed count data, keeping it clean for non-healthcare orgs.
-
-#### Fix 4: Pass ICP Context to AI for Better Risks/Next Steps
-
-Already fixed by Fix 1 (column name correction). The AI prompt at line 346+ already includes ICP profile details including target industries, geographies, pain points, and buying signals. Once the column names are correct, Gemini will receive:
-```
-Target Industries: Healthcare, Hospital & Health Systems, Medical Devices, ...
-```
-Instead of empty arrays, enabling it to generate meaningful risk assessments and strategic recommendations.
+Once all accounts are enriched, we can remove the cron job. The function's "All accounts already have bed_count data" response will confirm completion.
 
 ### Files to Modify
 
 | File | Change |
 |------|--------|
-| `supabase/functions/generate-board-report/index.ts` | Fix ICP column names, filter industry breakdown by ICP, add `custom_attributes` to prospect query |
-| `src/utils/branded-pdf-export.ts` | Add `bedCount` to topProspects type |
-| `src/components/slides/slides/ProspectsSlide.tsx` | Add conditional Beds column |
+| `supabase/functions/enrich-bed-counts/index.ts` | Add service role auth bypass, increase batch size to 200, increase parallelism to 10 |
 
-### Expected Result
+### Database Change (SQL, not a migration)
 
-- Industry Slide: Shows Healthcare, Hospitals, Insurance at top; irrelevant industries grouped as "Other"
-- Prospects Slide: Shows bed count for healthcare accounts, helping users understand WHY each is a top prospect
-- Risks Slide: Gemini receives full ICP context, generates healthcare-specific risk analysis
-- Next Steps Slide: Gemini generates actionable recommendations aligned to the ICP (e.g., "Target 1,113 Hospitals & Physicians Clinics accounts")
+A `cron.schedule()` call to set up the recurring job (same pattern as the existing `job-auto-recovery-cron`).
+
