@@ -67,12 +67,12 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     supabase.from("organizations").select("name").eq("id", orgId).maybeSingle(),
     supabase.from("Leads").select("id", { count: "exact", head: true }).eq("org_id", orgId),
     supabase.from("accounts").select("external_id, industry_norm, revenue_range")
-      .eq("org_id", orgId).not("industry_norm", "is", null).limit(50000),
+      .eq("org_id", orgId).limit(50000),
     supabase.from("accounts").select("employee_count").eq("org_id", orgId).limit(50000),
     supabase.from("accounts").select("name, industry_norm, employee_count, country, domain, revenue_range")
       .eq("org_id", orgId).limit(500),
     supabase.from("accounts").select("external_id, country")
-      .eq("org_id", orgId).not("country", "is", null).limit(50000),
+      .eq("org_id", orgId).limit(50000),
     supabase.from("accounts").select("industry_norm, employee_count, country, revenue_range")
       .eq("org_id", orgId).limit(5000),
     supabase.from("scores").select("account_external_id, overall, fit")
@@ -229,7 +229,7 @@ async function fetchAllReportData(supabase: any, orgId: string) {
       const acct = accountMap.get(s.account_external_id) as any;
       const midpoint = revenueRangeToMidpoint(acct?.revenue_range);
       return {
-        name: acct?.name || s.account_external_id,
+        name: acct?.name || (s.account_external_id.startsWith("lp-") ? s.account_external_id.slice(3) : `Account #${topScores.indexOf(s) + 1}`),
         industry: acct?.industry_norm || "N/A",
         size: categorizeEmployeeCount(acct?.employee_count),
         country: acct?.country || "N/A",
