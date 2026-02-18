@@ -3,7 +3,7 @@ import { useSearchParams, useLocation, useNavigate, Link } from "react-router-do
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useEffectiveOrg } from "@/hooks/use-effective-org";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { useToast } from "@/hooks/use-toast";
 import { LaunchPulseMark } from "@/components/BrandLogo";
 import { useOnboarding } from "@/hooks/use-onboarding";
@@ -130,7 +130,7 @@ export default function Accounts() {
   const [uniqueStates, setUniqueStates] = useState<string[]>([]);
   
   const { userProfile } = useAuth();
-  const { effectiveOrgId } = useEffectiveOrg();
+  const { dataOrgId, effectiveOrgId } = useDataOrgId();
   const { toast } = useToast();
   const { completeStep } = useOnboarding();
 
@@ -178,7 +178,7 @@ export default function Accounts() {
   }, [effectiveOrgId, icpContext?.icpId]);
 
   // Fetch predictions for accounts
-  const { data: predictionsData, isPending: isPredictionsLoading } = useBatchPredictions(effectiveOrgId || null);
+  const { data: predictionsData, isPending: isPredictionsLoading } = useBatchPredictions(dataOrgId || null);
   
   // Create predictions map for fast lookup
   const predictionsMap = useMemo(() => {
@@ -213,7 +213,7 @@ export default function Accounts() {
     retry,
     lastError
   } = useInfiniteAccounts({
-    orgId: effectiveOrgId || null,
+    orgId: dataOrgId || null,
     pageSize: 25,
     searchTerm,
     industryFilter,
@@ -222,7 +222,7 @@ export default function Accounts() {
     fitFilter,
     countryFilter,
     campaignReadyFilter,
-    enabled: !!effectiveOrgId,
+    enabled: !!dataOrgId,
     mode: displayMode,
     integrationConfigId: integrationConfigId || undefined,
     sortField,
@@ -310,13 +310,13 @@ export default function Accounts() {
 
   // Load summary stats
   useEffect(() => {
-    if (effectiveOrgId) {
+    if (dataOrgId) {
       loadSummaryStats();
     }
-  }, [effectiveOrgId]);
+  }, [dataOrgId]);
 
   const loadSummaryStats = async () => {
-    if (!effectiveOrgId) return;
+    if (!dataOrgId) return;
     
     try {
       const [
@@ -330,30 +330,30 @@ export default function Accounts() {
         supabase
           .from('accounts')
           .select('*', { count: 'exact', head: true })
-          .eq('org_id', effectiveOrgId),
+          .eq('org_id', dataOrgId),
         supabase
           .from('accounts')
           .select('*', { count: 'exact', head: true })
-          .eq('org_id', effectiveOrgId)
+          .eq('org_id', dataOrgId)
           .in('data_source', ['crm', 'both', 'closed_won']),
         supabase
           .from('accounts')
           .select('*', { count: 'exact', head: true })
-          .eq('org_id', effectiveOrgId)
+          .eq('org_id', dataOrgId)
           .eq('data_source', 'database'),
         supabase
           .rpc('count_high_fit_accounts_by_source', {
-            p_org_id: effectiveOrgId,
+            p_org_id: dataOrgId,
             p_data_source: 'crm'
           }),
         supabase
           .rpc('count_accounts_with_leads', {
-            p_org_id: effectiveOrgId
+            p_org_id: dataOrgId
           }),
         supabase
           .from('accounts')
           .select('name, domain, industry_norm, employee_count, revenue_range, country')
-          .eq('org_id', effectiveOrgId)
+          .eq('org_id', dataOrgId)
           .limit(50000)
       ]);
 
@@ -403,12 +403,12 @@ export default function Accounts() {
   // Fetch filter options
   useEffect(() => {
     const fetchFilterOptions = async () => {
-      if (!effectiveOrgId) return;
+      if (!dataOrgId) return;
       
       const { data } = await supabase
         .from('accounts')
         .select('country, state_province')
-        .eq('org_id', effectiveOrgId);
+        .eq('org_id', dataOrgId);
       
       const countries = Array.from(new Set((data || []).map(a => a.country).filter(Boolean))).sort();
       const states = Array.from(new Set((data || []).map(a => a.state_province).filter(Boolean))).sort();
@@ -418,7 +418,7 @@ export default function Accounts() {
     };
     
     fetchFilterOptions();
-  }, [effectiveOrgId]);
+  }, [dataOrgId]);
 
   const clearFilters = () => {
     setSearchParams({});
