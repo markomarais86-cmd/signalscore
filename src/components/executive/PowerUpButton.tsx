@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Rocket, Check, Loader2 } from "lucide-react";
@@ -21,6 +21,20 @@ const STEPS = [
 export function PowerUpButton({ orgId, onComplete }: PowerUpButtonProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [currentStep, setCurrentStep] = useState(-1);
+  const [dataOrgId, setDataOrgId] = useState<string>(orgId);
+
+  // Resolve parent org for account queries
+  useEffect(() => {
+    if (!orgId) return;
+    supabase
+      .from("organizations")
+      .select("parent_org_id")
+      .eq("id", orgId)
+      .single()
+      .then(({ data }) => {
+        setDataOrgId((data as any)?.parent_org_id || orgId);
+      });
+  }, [orgId]);
 
   const progressPercent = isRunning ? ((currentStep + 1) / STEPS.length) * 100 : 0;
 
@@ -35,7 +49,7 @@ export function PowerUpButton({ orgId, onComplete }: PowerUpButtonProps) {
         const { data: fundingAccounts } = await supabase
           .from("accounts")
           .select("id, name, domain")
-          .eq("org_id", orgId)
+          .eq("org_id", dataOrgId)
           .is("last_funding_date", null)
           .not("domain", "is", null)
           .limit(50);
