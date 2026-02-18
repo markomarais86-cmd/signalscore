@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Progress } from "@/components/ui/progress";
-import { Target, Building2, Users, MapPin, Cpu, ArrowRight, Plus, AlertCircle, TrendingUp, Briefcase, ChevronDown } from "lucide-react";
+import { Target, Building2, Users, MapPin, Cpu, ArrowRight, Plus, AlertCircle, TrendingUp, Briefcase, ChevronDown, CheckCircle2, Crosshair, BarChart3, Clock } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { computeEnhancedICPConfidence, type ICPConfidenceResult, type ScoringStats } from "@/utils/icp-confidence";
@@ -131,6 +131,59 @@ function EnhancedConfidenceMeter({ result }: { result: ICPConfidenceResult }) {
   );
 }
 
+const FACTOR_ICONS = [CheckCircle2, Crosshair, BarChart3, Clock];
+const FACTOR_COLORS = [
+  { bar: 'bg-blue-500', bg: 'bg-blue-500/10', text: 'text-blue-600 dark:text-blue-400' },
+  { bar: 'bg-violet-500', bg: 'bg-violet-500/10', text: 'text-violet-600 dark:text-violet-400' },
+  { bar: 'bg-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-600 dark:text-amber-400' },
+  { bar: 'bg-emerald-500', bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400' },
+];
+
+function ConfidenceFactorBreakdown({ result }: { result: ICPConfidenceResult }) {
+  return (
+    <div className="rounded-lg border bg-muted/20 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Confidence Factors
+        </span>
+        <Badge variant="outline" className="text-xs font-bold">
+          {result.total}% Overall
+        </Badge>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {result.breakdown.map((b, i) => {
+          const Icon = FACTOR_ICONS[i];
+          const colors = FACTOR_COLORS[i];
+          return (
+            <div key={b.label} className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <div className={cn("rounded p-1", colors.bg)}>
+                  <Icon className={cn("h-3 w-3", colors.text)} />
+                </div>
+                <span className="text-[11px] font-medium text-muted-foreground truncate">{b.label}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-2 rounded-full bg-muted/50 overflow-hidden">
+                  <div
+                    className={cn("h-full rounded-full transition-all duration-500", colors.bar)}
+                    style={{ width: `${b.score}%` }}
+                  />
+                </div>
+                <span className={cn("text-xs font-semibold tabular-nums min-w-[28px] text-right", colors.text)}>
+                  {b.score}
+                </span>
+              </div>
+              <span className="text-[10px] text-muted-foreground">
+                {Math.round(b.weight * 100)}% weight · +{b.weighted} pts
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ICPProfileSummaryCard({ icpProfiles, className }: ICPProfileSummaryCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
@@ -246,7 +299,10 @@ export function ICPProfileSummaryCard({ icpProfiles, className }: ICPProfileSumm
           </CardHeader>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <CardContent>
+          <CardContent className="space-y-5">
+            {/* Confidence Factor Breakdown */}
+            <ConfidenceFactorBreakdown result={confidenceResult} />
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Column 1: Industries + Company Profile */}
               <div className="space-y-4">
