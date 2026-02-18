@@ -39,6 +39,7 @@ interface Account {
   revenue_range: string | null;
   country: string | null;
   updated_at: string;
+  custom_attributes?: Record<string, any> | null;
   data_source?: 'crm' | 'database' | 'both';
   external_database_match?: boolean;
   enriched_from?: string | null;

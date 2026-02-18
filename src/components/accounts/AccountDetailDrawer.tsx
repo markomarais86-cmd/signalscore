@@ -33,8 +33,10 @@ import { EnrichmentSourceViewer } from "@/components/enrichment/EnrichmentSource
 import { DiscoveredLeadsSection } from "@/components/leads/DiscoveredLeadsSection";
 import { AccountInsightsPanel, AccountInsightsData } from "./AccountInsightsPanel";
 import { AskAccountAI } from "./AskAccountAI";
+import { CustomAttributesEditor } from "./CustomAttributesEditor";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { toast } from "sonner";
 
 interface Lead {
@@ -62,6 +64,7 @@ interface Account {
   icp_fail_reasons?: string[] | null;
   enrichment_overall_score?: number | null;
   enrichment_field_scores?: Record<string, number> | null;
+  custom_attributes?: Record<string, any> | null;
   score?: {
     overall: number;
     fit: number;
@@ -80,10 +83,15 @@ interface AccountDetailDrawerProps {
 
 export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: AccountDetailDrawerProps) {
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const navigate = useNavigate();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
   
+  // Custom attribute definitions
+  const [attrDefinitions, setAttrDefinitions] = useState<any[]>([]);
+  const [localCustomAttrs, setLocalCustomAttrs] = useState<Record<string, any> | null>(null);
+
   // AI Insights state
   const [accountInsights, setAccountInsights] = useState<AccountInsightsData | null>(null);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
@@ -117,11 +125,21 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
   useEffect(() => {
     if (isOpen && account) {
       fetchLeads();
-      // Reset insights when account changes
       setAccountInsights(null);
       setInsightsError(null);
+      setLocalCustomAttrs(account.custom_attributes || null);
+
+      // Fetch custom attribute definitions
+      const orgId = effectiveOrgId || userProfile?.org_id;
+      if (orgId) {
+        supabase
+          .from("custom_attribute_definitions")
+          .select("id, field_key, field_label, field_type, options, category")
+          .eq("org_id", orgId)
+          .then(({ data }) => setAttrDefinitions(data || []));
+      }
     }
-  }, [isOpen, account, fetchLeads]);
+  }, [isOpen, account, fetchLeads, effectiveOrgId, userProfile?.org_id]);
 
   // Fetch AI insights for high-scoring accounts
   const fetchAccountInsights = useCallback(async (forceRefresh = false) => {
@@ -376,6 +394,16 @@ export function AccountDetailDrawer({ account, isOpen, onClose, onViewScore }: A
                 </div>
               </CardContent>
             </Card>
+
+            {/* Vertical Attributes */}
+            {attrDefinitions.length > 0 && (
+              <CustomAttributesEditor
+                accountId={account.id}
+                customAttributes={localCustomAttrs}
+                definitions={attrDefinitions}
+                onUpdate={(updated) => setLocalCustomAttrs(updated)}
+              />
+            )}
 
             {/* Data Quality */}
             <Card>
