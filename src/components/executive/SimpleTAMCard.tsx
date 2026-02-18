@@ -46,26 +46,22 @@ export function SimpleTAMCard({
   className,
   onSettingsChange,
 }: SimpleTAMCardProps) {
-  const [averageDealSize, setAverageDealSize] = useState(initialDealSize);
-  const [conversionRate, setConversionRate] = useState(initialConversion);
+  const averageDealSize = initialDealSize;
+  const conversionRate = initialConversion;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [tempDealSize, setTempDealSize] = useState(initialDealSize);
   const [tempConversion, setTempConversion] = useState(initialConversion * 100);
   const [viewMode, setViewMode] = useState<"funnel" | "highlight">("highlight");
 
-  // Sync from props when they change (persisted settings)
+  // Sync temp values when props change (after DB save)
   useEffect(() => {
-    setAverageDealSize(initialDealSize);
     setTempDealSize(initialDealSize);
   }, [initialDealSize]);
   useEffect(() => {
-    setConversionRate(initialConversion);
     setTempConversion(initialConversion * 100);
   }, [initialConversion]);
 
   const handleSaveSettings = () => {
-    setAverageDealSize(tempDealSize);
-    setConversionRate(tempConversion / 100);
     setIsSettingsOpen(false);
     onSettingsChange?.({ averageDealSize: tempDealSize, conversionRate: tempConversion / 100 });
   };
