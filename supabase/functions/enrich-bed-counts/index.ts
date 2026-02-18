@@ -92,7 +92,8 @@ serve(async (req) => {
     let skipped = 0;
 
     // Process accounts - batch them into groups of 5 for parallel Perplexity calls
-    const PARALLEL_BATCH = 10;
+    const PARALLEL_BATCH = 3;
+    const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
     for (let i = 0; i < needsBeds.length; i += PARALLEL_BATCH) {
       if (Date.now() - startTime > MAX_RUNTIME_MS) {
         console.log(`[enrich-bed-counts] Time budget exceeded after ${enriched} enrichments`);
@@ -133,6 +134,11 @@ serve(async (req) => {
           console.error(`[enrich-bed-counts] Error for ${account.name}:`, (result as PromiseRejectedResult).reason);
           failed++;
         }
+      }
+
+      // Rate limit: wait 2s between batches to avoid Perplexity 429s
+      if (i + PARALLEL_BATCH < needsBeds.length) {
+        await delay(2000);
       }
     }
 
