@@ -169,7 +169,13 @@ async function enrichBedCount(
 
   if (!companyName && !domain) return null;
 
-  const prompt = `How many licensed hospital/healthcare facility beds does "${companyName}" (${domain}) have? Return ONLY a JSON object like {"bed_count": 150}. If this is not a hospital or healthcare facility with beds, return {"bed_count": null}. If you cannot determine the exact number, provide your best estimate.`;
+  // Skip clearly non-hospital industries based on name/domain heuristics
+  const skipPatterns = /\b(hotel|motel|resort|inn|suites|lodge|hostel|aimbridge|marriott|hilton|hyatt|wyndham|ihg|accor|bestwestern|choicehotels|restaurant|cafe|diner|barbershop|salon|spa\b(?!.*medical)|gym|fitness|realty|real estate|mortgage|insurance(?!.*health)|automotive|dealership|car wash|laundry|cleaners|landscap|plumbing|electric(?!.*medical)|roofing|construction|trucking|logistics(?!.*health)|freight|shipping|warehouse(?!.*pharma))\b/i;
+  if (skipPatterns.test(companyName) || skipPatterns.test(domain)) {
+    return null;
+  }
+
+  const prompt = `How many licensed hospital/healthcare facility beds does "${companyName}" (${domain}) have? Return ONLY a JSON object like {"bed_count": 150}. If this is not a hospital or healthcare facility with beds, return {"bed_count": null}. Do NOT return strings like "Not applicable" — only return a number or null. If you cannot determine the exact number, provide your best estimate.`;
 
   // Try Perplexity first (real-time web search)
   if (perplexityKey) {
@@ -195,10 +201,11 @@ async function enrichBedCount(
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
-          if (parsed.bed_count != null && typeof parsed.bed_count === 'number' && parsed.bed_count > 0) {
+          // Only accept numeric values — reject strings like "Not applicable"
+          if (typeof parsed.bed_count === 'number' && parsed.bed_count > 0) {
             return parsed.bed_count;
           }
-          if (parsed.bed_count === null) return null; // Not a hospital
+          return null; // Not a hospital or non-numeric response
         }
       } else {
         const errText = await response.text().catch(() => '');
@@ -233,10 +240,10 @@ async function enrichBedCount(
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
-          if (parsed.bed_count != null && typeof parsed.bed_count === 'number' && parsed.bed_count > 0) {
+          if (typeof parsed.bed_count === 'number' && parsed.bed_count > 0) {
             return parsed.bed_count;
           }
-          if (parsed.bed_count === null) return null;
+          return null;
         }
       }
     } catch (e) {
