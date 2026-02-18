@@ -135,6 +135,8 @@ const CATEGORY_INDUSTRY_MAP: Record<string, string[]> = {
 export function CustomAttributeManager() {
   const [definitions, setDefinitions] = useState<CustomAttributeDefinition[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadedOrgId, setLoadedOrgId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingDef, setEditingDef] = useState<CustomAttributeDefinition | null>(null);
   const [icpIndustries, setIcpIndustries] = useState<string[]>([]);
@@ -224,7 +226,8 @@ export function CustomAttributeManager() {
   }, [dataOrgId, isEnriching, enrichAccounts, toast]);
 
   useEffect(() => {
-    if (dataOrgId) {
+    if (dataOrgId && dataOrgId !== loadedOrgId) {
+      setLoadedOrgId(dataOrgId);
       loadDefinitions();
       // Fetch ICP industries for template suggestions
       supabase
@@ -272,7 +275,8 @@ export function CustomAttributeManager() {
 
   const loadDefinitions = async () => {
     if (!dataOrgId) return;
-    setLoading(true);
+    // Only show full loading skeleton on initial load
+    if (definitions.length === 0) setLoading(true);
     try {
       const { data, error } = await supabase
         .from('custom_attribute_definitions' as any)
@@ -287,6 +291,7 @@ export function CustomAttributeManager() {
       console.error('Error loading custom attribute definitions:', error);
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   };
 
@@ -590,7 +595,7 @@ export function CustomAttributeManager() {
       </Card>
 
       {/* Existing Definitions */}
-      {loading ? (
+      {initialLoading ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">Loading...</CardContent>
         </Card>
