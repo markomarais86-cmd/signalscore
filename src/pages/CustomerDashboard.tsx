@@ -7,6 +7,7 @@ import { useTasks } from "@/hooks/use-tasks";
 import { useOpportunities, DEAL_STAGES } from "@/hooks/use-opportunities";
 import { useAuth } from "@/hooks/use-auth";
 import { useBrandedConfig } from "@/hooks/useBrandedConfig";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { ComponentErrorBoundary } from "@/components/ComponentErrorBoundary";
 import { BulkScoring } from "@/components/BulkScoring";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,7 +33,8 @@ function useLeadCount() {
 
 export default function CustomerDashboard() {
   const { userProfile } = useAuth();
-  const { data: brandConfig } = useBrandedConfig({ orgId: userProfile?.org_id || undefined });
+  const { effectiveOrgId } = useEffectiveOrg();
+  const { data: brandConfig } = useBrandedConfig({ orgId: effectiveOrgId || undefined });
   const { tasks, isLoading: tasksLoading } = useTasks();
   const { data: deals, isLoading: dealsLoading } = useOpportunities();
   const { data: leadCount, isLoading: leadsLoading } = useLeadCount();

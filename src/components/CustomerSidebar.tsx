@@ -1,6 +1,7 @@
 import { LayoutDashboard, Users, ClipboardList, Kanban, Settings, LogOut, ChevronDown, ShoppingCart, Upload, Target, Building2 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { BrandLogo } from "@/components/BrandLogo";
 import { useBrandedConfig } from "@/hooks/useBrandedConfig";
 import { useServiceType } from "@/hooks/use-service-type";
@@ -42,9 +43,9 @@ const bottomNav = [
 export function CustomerSidebar() {
   const location = useLocation();
   const { signOut, userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const currentPath = location.pathname;
-  const orgId = userProfile?.org_id;
-  const { data: brandConfig } = useBrandedConfig({ orgId: orgId || undefined });
+  const { data: brandConfig } = useBrandedConfig({ orgId: effectiveOrgId || undefined });
   const { isSelfService } = useServiceType();
 
   const isActive = (path: string) => currentPath.startsWith(path);

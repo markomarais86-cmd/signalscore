@@ -5,7 +5,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationCenter } from "@/components/notifications/NotificationCenter";
 import { ManagedUpgradeBanner } from "@/components/ManagedUpgradeBanner";
 import { useBrandedConfig } from "@/hooks/useBrandedConfig";
-import { useAuth } from "@/hooks/use-auth";
+import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useServiceType } from "@/hooks/use-service-type";
 
 interface CustomerLayoutProps {
@@ -13,10 +13,9 @@ interface CustomerLayoutProps {
 }
 
 export function CustomerLayout({ children }: CustomerLayoutProps) {
-  const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const { isManaged } = useServiceType();
-  const orgId = userProfile?.org_id;
-  const { data: brandConfig } = useBrandedConfig({ orgId: orgId || undefined });
+  const { data: brandConfig } = useBrandedConfig({ orgId: effectiveOrgId || undefined });
 
   const brandStyles = brandConfig?.brand_primary_color
     ? { "--brand-primary": brandConfig.brand_primary_color } as React.CSSProperties
