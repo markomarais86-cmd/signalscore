@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { formatNumber } from "@/utils/format-numbers";
 import { scoringLogger as log } from "@/lib/logger";
 import { useIntentEnrichment } from "@/hooks/use-intent-enrichment";
+import { useDataOrgId } from "@/hooks/use-data-org";
 
 interface BulkScoringProps {
   onComplete?: () => void;
@@ -29,6 +30,7 @@ interface ScoringJob {
 
 export function BulkScoring({ onComplete }: BulkScoringProps) {
   const { userProfile } = useAuth();
+  const { dataOrgId } = useDataOrgId();
   const { isEnriching, progress: enrichProgress, runEnrichment } = useIntentEnrichment(userProfile?.org_id);
   const [isScoring, setIsScoring] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -408,10 +410,11 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
 
       // Validate prerequisites
       console.log("[BulkScoring] Checking prerequisites...");
+      const accountOrgId = dataOrgId || userProfile.org_id;
       const { count: accountCount } = await supabase
         .from("accounts")
         .select("*", { count: "exact", head: true })
-        .eq("org_id", userProfile.org_id);
+        .eq("org_id", accountOrgId);
 
       const { data: icps } = await supabase
         .from("icp_profiles")
