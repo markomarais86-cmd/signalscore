@@ -78,7 +78,9 @@ export function GrowthCommandKPIs({
       value: priorityCount.toLocaleString(),
       soWhat: "High-fit & high-readiness — sales focus here",
       icon: Star,
-      benchmarkPercent: totalAccounts > 0 ? Math.round((priorityCount / totalAccounts) * 100) : 0,
+      benchmarkPercent: totalScored > 0
+        ? (priorityCount / totalScored >= 0.10 ? 80 : priorityCount / totalScored >= 0.05 ? 50 : 20)
+        : 50,
       onClick: () => navigate("/accounts?fit=high"),
     },
     {
@@ -86,7 +88,7 @@ export function GrowthCommandKPIs({
       value: formatCurrency(pipelinePotential),
       soWhat: `Modelled upside across ${campaignReadyAccounts.toLocaleString()} campaign-ready accounts`,
       icon: TrendingUp,
-      benchmarkPercent: pipelinePotential > 0 ? 60 : 30,
+      benchmarkPercent: pipelinePotential > 0 ? 80 : campaignReadyAccounts > 0 ? 50 : 30,
       onClick: () => navigate("/accounts"),
     },
     {
@@ -96,7 +98,10 @@ export function GrowthCommandKPIs({
         ? "Unscored accounts represent unrealized pipeline — score to unlock"
         : "All accounts scored — pipeline fully visible",
       icon: AlertTriangle,
-      benchmarkPercent: revenueAtRisk > 0 ? 30 : 80,
+      benchmarkPercent: revenueAtRisk === 0 ? 80
+        : totalAccounts > 0
+          ? (totalScored / totalAccounts >= 0.80 ? 50 : totalScored / totalAccounts >= 0.50 ? 40 : 20)
+          : 50,
       onClick: () => navigate("/accounts"),
     },
   ];
