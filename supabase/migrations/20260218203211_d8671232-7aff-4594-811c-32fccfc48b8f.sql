@@ -1,0 +1,1 @@
+UPDATE bulk_scoring_jobs SET status = 'cancelled' WHERE id IN ('2c5ed6aa-dbe7-45c7-b386-a3f06122ab08', '2ddfa91c-7a12-4055-af71-d3d23e202b47');

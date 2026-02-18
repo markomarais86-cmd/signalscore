@@ -1,0 +1,1 @@
+UPDATE bulk_scoring_jobs SET status = 'cancelled' WHERE status = 'failed' AND org_id IN ('726a0dc0-99c7-43c2-b20f-b849f2760c3f', 'cd592f73-3e0e-478d-905b-47fe7c5fb634');

@@ -4,7 +4,7 @@ import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-
 import { successResponse, errorResponse, handleCors, ErrorCodes, parseJsonBody, validateRequired } from '../_shared/response-helpers.ts';
 import { checkExistingJob, generateIdempotencyKey, checkIdempotency, recordIdempotencyKey, IDEMPOTENCY_TTL } from '../_shared/idempotency.ts';
 
-const CHUNK_SIZE = 2000;
+const CHUNK_SIZE = 500;
 const MAX_RUNTIME_MS = 50_000; // Leave 10s buffer before 60s edge function limit
 
 interface BulkScoreRequest {
@@ -98,6 +98,13 @@ function scoreAccount(account: AccountRow, icp: IcpProfile) {
 
       let bestSegmentScore = 0;
 
+      // Check if ANY segment defines bed_range — if so, missing bed_count = cap at Band C
+      const anySegHasBeds = segments.some(s => s.bed_range != null);
+      let missingRequiredVertical = false;
+      if (anySegHasBeds && bedCount == null) {
+        missingRequiredVertical = true;
+      }
+
       for (const seg of segments) {
         let critTotal = 0;
         let critMatched = 0;
@@ -110,17 +117,17 @@ function scoreAccount(account: AccountRow, icp: IcpProfile) {
           if (range && ec >= range[0] && ec <= range[1]) critMatched++;
         }
 
-        // Match on bed_range if bed_count custom attribute exists
-        if (seg.bed_range && bedCount != null) {
+        // Match on bed_range — ALWAYS count as a criterion when defined
+        if (seg.bed_range) {
           critTotal++;
-          const rangeParts = seg.bed_range.replace('+', '').split('-').map(s => parseInt(s.trim(), 10));
-          const minBeds = rangeParts[0] || 0;
-          const maxBeds = seg.bed_range.includes('+') ? 999999 : (rangeParts[1] || 999999);
-          if (bedCount >= minBeds && bedCount <= maxBeds) critMatched++;
+          if (bedCount != null) {
+            const rangeParts = seg.bed_range.replace('+', '').split('-').map(s => parseInt(s.trim(), 10));
+            const minBeds = rangeParts[0] || 0;
+            const maxBeds = seg.bed_range.includes('+') ? 999999 : (rangeParts[1] || 999999);
+            if (bedCount >= minBeds && bedCount <= maxBeds) critMatched++;
+          }
+          // If bedCount is null, critMatched stays 0 → penalized
         }
-
-        // Match on key_personas against persona_job_titles in ICP (already scored elsewhere, but gives vertical affinity)
-        // Skip to avoid double-counting
 
         if (critTotal > 0) {
           const segScore = Math.round(15 * critMatched / critTotal);
@@ -170,14 +177,29 @@ function scoreAccount(account: AccountRow, icp: IcpProfile) {
   // Multi-criteria boost
   if (matches >= 3) totalScore = Math.min(100, totalScore + 10);
 
-  const fitScore = totalScore;
+  let fitScore = totalScore;
+
+  // Cap at Band C (max 69) when ICP requires bed_count but account is missing it
+  const vf = icp.vertical_filters as Record<string, unknown> | null;
+  let missingRequiredVertical = false;
+  if (vf && Array.isArray(vf.segments) && vf.segments.length > 0) {
+    const segments = vf.segments as Array<{ bed_range?: string }>;
+    const anySegHasBeds = segments.some(s => s.bed_range != null);
+    const attrs = account.custom_attributes || {};
+    const bedCount = (attrs as Record<string, unknown>).bed_count;
+    if (anySegHasBeds && bedCount == null) {
+      missingRequiredVertical = true;
+      totalScore = Math.min(totalScore, 69);
+      fitScore = Math.min(fitScore, 69);
+    }
+  }
 
   return {
     overall: totalScore,
     fit: fitScore,
     intent: 50,
     reachability: 70,
-    breakdown: { industry_score: industryScore, size_score: sizeScore, geo_score: geoScore, revenue_score: revenueScore, vertical_score: verticalScore, matches },
+    breakdown: { industry_score: industryScore, size_score: sizeScore, geo_score: geoScore, revenue_score: revenueScore, vertical_score: verticalScore, matches, missing_required_vertical: missingRequiredVertical },
   };
 }
 
@@ -378,7 +400,7 @@ serve(async (req) => {
               intent: result.intent,
               reachability: result.reachability,
               reasons: result.breakdown as unknown as Record<string, unknown>,
-              scoring_version: 'chunked_v1',
+              scoring_version: 'chunked_v2_bed_required',
               computed_at: new Date().toISOString(),
             });
             successfulScores++;
