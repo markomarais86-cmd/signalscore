@@ -1,30 +1,42 @@
 
 
-## Test Fill Missing Enrichment on a Real Hospital Account
+## Add Detailed Logging to Enrichment Pipeline
 
-Your enrichment credit limit is already at **15,000** (11,057 used, ~3,943 remaining) -- no change needed there.
+Add granular logging at key points in the Perplexity custom attribute enrichment flow so you can trace exactly what happens during each enrichment call.
 
-This plan runs a single test enrichment on **Nathan Littauer Hospital** (nlh.org, 501 employees) to verify Perplexity fills `bed_count`, `facility_type`, and `ehr_system`.
+### Changes
 
-### What happens
+**File: `supabase/functions/_shared/provider-waterfall.ts`**
 
-1. **Call `enrich-unified`** edge function with Nathan Littauer Hospital as the single record, using standard config (no bypass needed since credits are available)
-2. **Check edge function logs** to confirm Perplexity (`sonar-pro`) was invoked and what custom attribute values it returned
-3. **Query the database** to verify `custom_attributes` on the account now contains `bed_count`, `facility_type`, and `ehr_system`
+Add logging at these specific points in Step 4.5:
+
+1. **Before Perplexity call** (~line 2364): Log the full prompt being sent, including company name, domain, and all custom attribute questions
+2. **Perplexity raw response** (~line 2383): Log the raw content returned by Perplexity before JSON parsing
+3. **Parsed custom attributes** (~line 2395): Log the actual parsed values for each field (currently only logs count -- expand to show key-value pairs)
+4. **Perplexity HTTP failure** (~line 2381): Log status code and response body when Perplexity returns non-OK
+5. **No JSON found** (~line 2387): Log when regex fails to find JSON in the response
+6. **Gemini raw response** (~line 2442): Log Gemini's raw response for the fallback call
+7. **Final custom_attributes object** (~line 2466): Log the complete final `custom_attributes` object being saved
+
+**File: `supabase/functions/enrich-unified/index.ts`**
+
+No additional changes needed -- it already logs `custom_attributes` at line 330.
+
+### Specific Log Additions
+
+```text
+provider-waterfall.ts, Step 4.5:
+
+[provider-waterfall] Step 4.5: Perplexity prompt for "Nathan Littauer Hospital" (nlh.org): <full prompt text>
+[provider-waterfall] Step 4.5: Perplexity raw response: <raw content string>
+[provider-waterfall] Step 4.5: Perplexity parsed values: {"bed_count": 74, "facility_type": "Community Hospital", ...}
+[provider-waterfall] Step 4.5: Perplexity HTTP error: 429 {"error": "rate limited"}
+[provider-waterfall] Step 4.5: No JSON found in Perplexity response: <first 200 chars>
+[provider-waterfall] Step 4.5: Gemini raw response: <raw content string>
+[provider-waterfall] Step 4.5: Final custom_attributes: {"bed_count": 74, "facility_type": "Community Hospital", "ehr_system": "Other"}
+```
 
 ### Technical Details
 
-- **Edge function call**: POST to `enrich-unified` with:
-  - `org_id`: `726a0dc0-99c7-43c2-b20f-b849f2760c3f`
-  - `record_type`: `account`
-  - `records`: one record for Nathan Littauer Hospital (id, external_id, name, domain)
-  - No special config needed -- credits are available and Perplexity is already wired in
-
-- **No code changes required** -- this is purely a test invocation of the existing pipeline
-- **Expected result**: `custom_attributes` JSONB column populated with values like `{ "bed_count": 74, "facility_type": "Critical Access Hospital", "ehr_system": "..." }`
-- **Cost**: ~1 enrichment credit
-
-### Why This Account
-
-Nathan Littauer Hospital is a real 74-bed community hospital in Gloversville, NY. Public data for `bed_count`, `facility_type`, and `ehr_system` should be readily available to Perplexity, making it an ideal test case (unlike the previous dental practice test).
+Seven `console.log` / `console.warn` additions in `supabase/functions/_shared/provider-waterfall.ts`, all within the existing Step 4.5 block (lines 2345-2471). No logic changes -- purely observability improvements. Redeploy `enrich-unified` after editing since it imports the shared module.
 
