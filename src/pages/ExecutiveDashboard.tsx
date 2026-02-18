@@ -71,7 +71,7 @@ export default function ExecutiveDashboard() {
   
   // Use optimized React Query hooks with source filtering
   const { data: dashboardData, isLoading, error: queryError, refetch } = useDashboardData(effectiveOrgId, sourceFilter, dataOrgId ?? undefined);
-  const { data: geographyData } = useGeographyData(effectiveOrgId, !!dashboardData, sourceFilter);
+  const { data: geographyData } = useGeographyData(effectiveOrgId, !!dashboardData, sourceFilter, dataOrgId ?? undefined);
   const { data: filterStats } = useSourceFilterStats(effectiveOrgId);
 
   const [isEnrichmentModalOpen, setIsEnrichmentModalOpen] = useState(false);
