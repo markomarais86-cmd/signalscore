@@ -61,7 +61,7 @@ export default function ExecutiveDashboard() {
   const navigate = useNavigate();
   const sidebar = useSidebar();
   const { insights, statistics, loading: insightsLoading, generateInsights } = useICPInsights();
-  const { averageDealSize, conversionRate } = useOrgSettings();
+  const { averageDealSize, conversionRate, updateSettings } = useOrgSettings();
   
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('crm');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -702,6 +702,9 @@ export default function ExecutiveDashboard() {
                   campaignReadyAccounts={campaignReadyAccounts}
                   averageDealSize={averageDealSize}
                   conversionRate={conversionRate}
+                  onSettingsChange={({ averageDealSize: ds, conversionRate: cr }) => {
+                    updateSettings({ average_deal_size: ds, conversion_rate: cr });
+                  }}
                 />
               </CollapsibleDashboardCard>
               
