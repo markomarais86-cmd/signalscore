@@ -1,27 +1,30 @@
 
 
-## Increase Enrichment Credit Limit to 15,000
+## Test Fill Missing Enrichment on a Real Hospital Account
 
-A single data update to the `organizations` table for your **Launchpulse** org.
+Your enrichment credit limit is already at **15,000** (11,057 used, ~3,943 remaining) -- no change needed there.
 
-**Current state:**
-- `enrichment_credits_total`: 10,000
-- `enrichment_credits_used`: 11,057 (already over limit)
+This plan runs a single test enrichment on **Nathan Littauer Hospital** (nlh.org, 501 employees) to verify Perplexity fills `bed_count`, `facility_type`, and `ehr_system`.
 
-**Change:**
-- Update `enrichment_credits_total` from 10,000 to 15,000
+### What happens
 
-This is a one-line SQL update -- no schema changes, no code changes needed.
+1. **Call `enrich-unified`** edge function with Nathan Littauer Hospital as the single record, using standard config (no bypass needed since credits are available)
+2. **Check edge function logs** to confirm Perplexity (`sonar-pro`) was invoked and what custom attribute values it returned
+3. **Query the database** to verify `custom_attributes` on the account now contains `bed_count`, `facility_type`, and `ehr_system`
 
 ### Technical Details
 
-Run this update on the `organizations` table:
+- **Edge function call**: POST to `enrich-unified` with:
+  - `org_id`: `726a0dc0-99c7-43c2-b20f-b849f2760c3f`
+  - `record_type`: `account`
+  - `records`: one record for Nathan Littauer Hospital (id, external_id, name, domain)
+  - No special config needed -- credits are available and Perplexity is already wired in
 
-```sql
-UPDATE organizations
-SET enrichment_credits_total = 15000
-WHERE id = '726a0dc0-99c7-43c2-b20f-b849f2760c3f';
-```
+- **No code changes required** -- this is purely a test invocation of the existing pipeline
+- **Expected result**: `custom_attributes` JSONB column populated with values like `{ "bed_count": 74, "facility_type": "Critical Access Hospital", "ehr_system": "..." }`
+- **Cost**: ~1 enrichment credit
 
-This will immediately unblock "Fill Missing" enrichment runs since used (11,057) will be under the new limit (15,000), giving you ~3,943 credits to test Perplexity on healthcare accounts.
+### Why This Account
+
+Nathan Littauer Hospital is a real 74-bed community hospital in Gloversville, NY. Public data for `bed_count`, `facility_type`, and `ehr_system` should be readily available to Perplexity, making it an ideal test case (unlike the previous dental practice test).
 
