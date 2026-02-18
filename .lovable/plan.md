@@ -1,133 +1,71 @@
 
 
-## Fix ICP Scoring Accuracy for 91.Life
+## Fix: Resolve Parent Org for Account Queries in Board Report
 
-### Root Causes Identified
+### Root Cause
 
-| Problem | Impact | Accounts Affected |
-|---------|--------|-------------------|
-| `bed_count` data missing on 99.94% of accounts, causing Band C cap | All accounts capped at max fit score 69 | 39,904 / 39,928 |
-| Size matching uses exact values instead of ranges | Most accounts fail size match even when within ICP range | ~35,000 miss that otherwise fall in range |
-| Industry taxonomy mismatch between ICP terms and enriched data | Industry score = 0 for many healthcare accounts | ~1,500 healthcare accounts partially missed |
-| Intent and reachability are hardcoded constants | No differentiation between engaged and inactive accounts | All 27,500 scored accounts |
+The `generate-board-report` edge function queries all data tables using the raw `org_id` passed in the request. For child organizations like 91.Life, accounts are stored under the **parent** org (LaunchPulse), while scores and ICPs are stored under the **child** org. This mismatch causes every account query to return zero rows.
 
-### Proposed Fixes (in priority order)
+| Data | Stored Under | Should Query With |
+|------|-------------|-------------------|
+| Accounts, Leads | Parent org (LaunchPulse) | `dataOrgId` (resolved parent) |
+| Scores, ICP Profiles | Child org (91.Life) | `orgId` (as-is) |
+| Metrics RPC | Handles resolution internally | `orgId` (as-is) |
 
-#### 1. Make bed_count a soft signal, not a hard gate
+### The Fix
 
-**Current behavior:** If ANY ICP segment defines `bed_range` and the account has no `bed_count`, the entire score is capped at 69 (`missing_required_vertical = true`).
+Add parent org resolution at the top of `fetchAllReportData()`, then use the correct org ID for each query type.
 
-**Proposed behavior:** Treat missing `bed_count` as a **scoring penalty** rather than a hard cap. Accounts missing `bed_count` lose the vertical score points (up to 15) but are NOT capped at Band C. This lets well-matching accounts on industry/size/geo/revenue still reach Band A.
+### File: `supabase/functions/generate-board-report/index.ts`
 
-**File:** `supabase/functions/bulk-score-accounts/index.ts`
-- Remove the Band C cap logic (lines 182-195) that enforces `Math.min(totalScore, 69)` when `bed_count` is null
-- Keep `missing_required_vertical` in the breakdown for visibility but stop using it to cap the score
-- Add a smaller penalty: reduce vertical score contribution by 50% when bed_count is missing (instead of capping the entire score)
+**Step 1: Resolve the data org (parent) before querying**
 
-#### 2. Use range-based size matching instead of exact values
-
-**Current behavior:** `icp.company_sizes.some(s => s === ec)` with a few hardcoded fallback ranges.
-
-**Proposed behavior:** Interpret the ICP `company_sizes` array as defining a target range (min to max of the array values). Score based on proximity to that range:
-- Within range: 25 points (full match)
-- Within 2x of range boundaries: 15 points (partial match)
-- Outside: 0 points
-
-**File:** `supabase/functions/bulk-score-accounts/index.ts` (lines 56-63)
-
-#### 3. Improve industry fuzzy matching
-
-**Current behavior:** Case-insensitive `includes()` check between account industry and ICP industry terms.
-
-**Proposed behavior:** Additionally tokenize compound industry strings (split on `,`, `/`, `&`, `;`) and match each token individually. This catches "Hospitals & Healthcare" matching ICP term "Healthcare" and "Hospital & Health Care, Pharmaceuticals" matching "Healthcare".
-
-**File:** `supabase/functions/bulk-score-accounts/index.ts` (lines 46-53)
-
-#### 4. Add basic intent signals from score history
-
-**Current behavior:** `intent: 50` hardcoded for every account.
-
-**Proposed behavior:** Query `score_history` table for recent score changes and derive a basic intent signal:
-- Recent score improvement: higher intent
-- Multiple scoring cycles with stable high fit: moderate intent
-- No history: baseline 50
-
-This aligns with the existing architecture note about using `score_history` as a proxy for engagement velocity.
-
-**File:** `supabase/functions/bulk-score-accounts/index.ts` -- add a pre-processing step that loads recent score deltas
-
-### Technical Details
-
-#### Change 1: Soft bed_count penalty (biggest impact)
+At the start of `fetchAllReportData`, look up `parent_org_id` from the `organizations` table and use it for account/lead queries:
 
 ```text
-BEFORE:
-  if (anySegHasBeds && bedCount == null) {
-    missingRequiredVertical = true;
-    totalScore = Math.min(totalScore, 69);  // HARD CAP
-    fitScore = Math.min(fitScore, 69);
-  }
-
-AFTER:
-  if (anySegHasBeds && bedCount == null) {
-    missingRequiredVertical = true;
-    // Soft penalty: reduce vertical contribution, don't cap entire score
-    verticalScore = Math.round(verticalScore * 0.3);  // 70% penalty on vertical only
-    // No hard cap -- let other dimensions determine band
-  }
+const { data: orgLookup } = await supabase
+  .from('organizations')
+  .select('parent_org_id')
+  .eq('id', orgId)
+  .single();
+const dataOrgId = orgLookup?.parent_org_id || orgId;
 ```
 
-#### Change 2: Range-based size scoring
+**Step 2: Use `dataOrgId` for account and lead queries**
 
-```text
-BEFORE:
-  const sizeMatch = icp.company_sizes.some(s => s === ec) || hardcoded fallbacks
+Change these queries from `.eq("org_id", orgId)` to `.eq("org_id", dataOrgId)`:
 
-AFTER:
-  const sortedSizes = [...icp.company_sizes].sort((a,b) => a - b);
-  const minSize = sortedSizes[0];
-  const maxSize = sortedSizes[sortedSizes.length - 1];
-  if (ec >= minSize && ec <= maxSize) { sizeScore = 25; matches++; }
-  else if (ec >= minSize * 0.5 && ec <= maxSize * 2) { sizeScore = 15; matches++; }
-```
+- Line 69: `accountsWithIndustry` (industry breakdown)
+- Line 71: `accountsForSize` (size breakdown)
+- Line 72: `accountsForCompleteness` (data completeness)
+- Line 74: `accountsForGeo` (geography distribution)
+- Line 76: `accountsForLowData` (low-data count)
+- Line 68: `leadsRes` (lead count)
+- Line 219: `accountDetails` lookup for top prospects
+- Line 221: `leadCounts` for top prospects
 
-#### Change 3: Tokenized industry matching
+**Step 3: Keep `orgId` for org-specific queries**
 
-```text
-BEFORE:
-  normLower.includes(indLower) || indLower.includes(normLower)
+These must continue using the child org's ID:
 
-AFTER:
-  // Split compound industries on delimiters
-  const tokens = normLower.split(/[,\/&;]+/).map(t => t.trim());
-  // Match if any token contains or is contained by any ICP term
-  tokens.some(token => token.includes(indLower) || indLower.includes(token))
-```
+- Line 63: `metricsRes` (RPC handles resolution internally)
+- Line 64: `icpRes` (ICP profiles belong to child org)
+- Line 65: `topScoresRes` (scores stored under child org)
+- Line 67: `orgRes` (org name lookup)
+- Line 78: `scoresRes` (score map for cross-referencing)
+- Line 81: `signalsRes` (signals per child org)
+- Line 82: `brandConfigRes` (brand config per child org)
 
-### Implementation Order
+### Expected Result After Fix
 
-1. Update `scoreAccount()` in `bulk-score-accounts/index.ts` with all 3 scoring fixes
-2. Update the SQL scoring function `calculate_account_score_readonly` to match (if it exists)
-3. Redeploy the edge function
-4. Trigger a re-score for the 91.life org to apply the new logic
+| Slide | Before (91.Life) | After |
+|-------|------------------|-------|
+| Industry Breakdown | "No data available" | Shows industry distribution from parent's 39,928 accounts |
+| Geography | "No data available" | Shows country distribution |
+| Data Completeness | 0% | Reflects actual enrichment status |
+| Top Prospects | UUIDs and "N/A" everywhere | Actual company names, industries, countries |
+| Executive Summary | References 0% completeness | Accurate AI-generated analysis |
 
-### Expected Impact
+### Deployment
 
-| Metric | Before | After (estimated) |
-|--------|--------|-------------------|
-| Band A accounts (fit >= 80) | 17 | ~2,000-3,000 |
-| Band B accounts (fit 50-79) | 17,118 | ~8,000-10,000 |
-| Accounts capped by bed_count | 23,483 | 0 (penalty instead of cap) |
-| Industry matches | ~1,800 | ~2,500+ |
-| Size matches | ~2,136 exact | ~14,000 range |
-
-### Files Modified
-
-| File | Change |
-|------|--------|
-| `supabase/functions/bulk-score-accounts/index.ts` | Scoring logic: soft bed penalty, range sizes, tokenized industry |
-
-### No Database Changes Required
-
-All changes are in the edge function scoring logic. No schema migrations needed.
-
+Redeploy the `generate-board-report` edge function after the change. No database migrations needed.
