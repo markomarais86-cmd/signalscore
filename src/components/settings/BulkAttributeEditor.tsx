@@ -38,6 +38,7 @@ export function BulkAttributeEditor({ orgId, category, definitions }: BulkAttrib
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [missingField, setMissingField] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [changes, setChanges] = useState<Record<string, Record<string, any>>>({});
@@ -66,6 +67,10 @@ export function BulkAttributeEditor({ orgId, category, definitions }: BulkAttrib
         query = query.or(`name.ilike.%${debouncedSearch}%,domain.ilike.%${debouncedSearch}%`);
       }
 
+      if (missingField) {
+        query = query.or(`custom_attributes.is.null,custom_attributes->>${missingField}.is.null`);
+      }
+
       const { data, error, count } = await query;
       if (error) throw error;
       setAccounts((data as AccountRow[]) || []);
@@ -75,7 +80,7 @@ export function BulkAttributeEditor({ orgId, category, definitions }: BulkAttrib
     } finally {
       setLoading(false);
     }
-  }, [orgId, page, debouncedSearch, toast]);
+  }, [orgId, page, debouncedSearch, missingField, toast]);
 
   useEffect(() => {
     fetchAccounts();
@@ -162,6 +167,25 @@ export function BulkAttributeEditor({ orgId, category, definitions }: BulkAttrib
             className="pl-9 h-9"
           />
         </div>
+        <Select
+          value={missingField || '__all__'}
+          onValueChange={v => {
+            setMissingField(v === '__all__' ? null : v);
+            setPage(0);
+          }}
+        >
+          <SelectTrigger className="w-[180px] h-9">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__all__">All accounts</SelectItem>
+            {definitions.map(def => (
+              <SelectItem key={def.field_key} value={def.field_key}>
+                Missing {def.field_label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <div className="text-sm text-muted-foreground">
           {totalCount.toLocaleString()} accounts
         </div>
