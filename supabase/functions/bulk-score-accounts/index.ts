@@ -78,35 +78,90 @@ function scoreAccount(account: AccountRow, icp: IcpProfile) {
   }
 
   // Vertical / custom attribute scoring (up to 15 bonus points)
-  if (icp.vertical_filters && Object.keys(icp.vertical_filters).length > 0 && account.custom_attributes) {
-    let totalCriteria = 0;
-    let matchedCriteria = 0;
+  if (icp.vertical_filters && Object.keys(icp.vertical_filters).length > 0) {
+    const vf = icp.vertical_filters as Record<string, unknown>;
 
-    for (const [key, val] of Object.entries(icp.vertical_filters)) {
-      if (val == null) continue;
-      totalCriteria++;
+    // Handle segments-based vertical filters (healthcare-style)
+    if (Array.isArray(vf.segments) && vf.segments.length > 0) {
+      const segments = vf.segments as Array<{ name?: string; size?: string; bed_range?: string; key_personas?: string[] }>;
+      const ec = account.employee_count;
+      const attrs = account.custom_attributes || {};
+      const bedCount = attrs.bed_count != null ? Number(attrs.bed_count) : null;
 
-      const attrs = account.custom_attributes;
-      if (key.endsWith('_min')) {
-        const attrKey = key.replace(/_min$/, '');
-        const attrVal = attrs[attrKey];
-        if (attrVal != null && Number(attrVal) >= Number(val)) matchedCriteria++;
-      } else if (key.endsWith('_max')) {
-        const attrKey = key.replace(/_max$/, '');
-        const attrVal = attrs[attrKey];
-        if (attrVal != null && Number(attrVal) <= Number(val)) matchedCriteria++;
-      } else if (Array.isArray(val)) {
-        const attrVal = attrs[key];
-        if (attrVal != null && val.includes(String(attrVal))) matchedCriteria++;
-      } else {
-        const attrVal = attrs[key];
-        if (attrVal != null && String(attrVal).toLowerCase() === String(val).toLowerCase()) matchedCriteria++;
+      // Size label to employee_count range mapping
+      const sizeRanges: Record<string, [number, number]> = {
+        'small': [1, 100],
+        'small-mid': [30, 300],
+        'mid-large': [200, 5000],
+        'large': [500, 999999],
+      };
+
+      let bestSegmentScore = 0;
+
+      for (const seg of segments) {
+        let critTotal = 0;
+        let critMatched = 0;
+
+        // Match on size label using employee_count
+        if (seg.size && ec != null) {
+          critTotal++;
+          const sizeLower = seg.size.toLowerCase();
+          const range = sizeRanges[sizeLower];
+          if (range && ec >= range[0] && ec <= range[1]) critMatched++;
+        }
+
+        // Match on bed_range if bed_count custom attribute exists
+        if (seg.bed_range && bedCount != null) {
+          critTotal++;
+          const rangeParts = seg.bed_range.replace('+', '').split('-').map(s => parseInt(s.trim(), 10));
+          const minBeds = rangeParts[0] || 0;
+          const maxBeds = seg.bed_range.includes('+') ? 999999 : (rangeParts[1] || 999999);
+          if (bedCount >= minBeds && bedCount <= maxBeds) critMatched++;
+        }
+
+        // Match on key_personas against persona_job_titles in ICP (already scored elsewhere, but gives vertical affinity)
+        // Skip to avoid double-counting
+
+        if (critTotal > 0) {
+          const segScore = Math.round(15 * critMatched / critTotal);
+          bestSegmentScore = Math.max(bestSegmentScore, segScore);
+        }
       }
-    }
 
-    if (totalCriteria > 0) {
-      verticalScore = Math.round(15 * matchedCriteria / totalCriteria);
-      if (matchedCriteria > 0) matches++;
+      verticalScore = bestSegmentScore;
+      if (verticalScore > 0) matches++;
+
+    // Handle flat key-value vertical filters (original logic)
+    } else if (account.custom_attributes) {
+      let totalCriteria = 0;
+      let matchedCriteria = 0;
+
+      for (const [key, val] of Object.entries(vf)) {
+        if (val == null) continue;
+        totalCriteria++;
+
+        const attrs = account.custom_attributes;
+        if (key.endsWith('_min')) {
+          const attrKey = key.replace(/_min$/, '');
+          const attrVal = (attrs as Record<string, unknown>)[attrKey];
+          if (attrVal != null && Number(attrVal) >= Number(val)) matchedCriteria++;
+        } else if (key.endsWith('_max')) {
+          const attrKey = key.replace(/_max$/, '');
+          const attrVal = (attrs as Record<string, unknown>)[attrKey];
+          if (attrVal != null && Number(attrVal) <= Number(val)) matchedCriteria++;
+        } else if (Array.isArray(val)) {
+          const attrVal = (attrs as Record<string, unknown>)[key];
+          if (attrVal != null && val.includes(String(attrVal))) matchedCriteria++;
+        } else {
+          const attrVal = (attrs as Record<string, unknown>)[key];
+          if (attrVal != null && String(attrVal).toLowerCase() === String(val).toLowerCase()) matchedCriteria++;
+        }
+      }
+
+      if (totalCriteria > 0) {
+        verticalScore = Math.round(15 * matchedCriteria / totalCriteria);
+        if (matchedCriteria > 0) matches++;
+      }
     }
   }
 

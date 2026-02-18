@@ -8349,22 +8349,40 @@ export type Database = {
         Args: { p_icp_id?: string; p_org_id: string }
         Returns: Json
       }
-      calculate_account_score: {
-        Args: {
-          p_account_external_id: string
-          p_icp_id: string
-          p_org_id: string
-        }
-        Returns: Json
-      }
-      calculate_account_score_readonly: {
-        Args: {
-          account_external_id: string
-          icp_id: string
-          org_id_param: string
-        }
-        Returns: Json
-      }
+      calculate_account_score:
+        | {
+            Args: {
+              p_account_external_id: string
+              p_icp_id: string
+              p_org_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_account_external_id: string
+              p_icp_id?: string
+              p_org_id: string
+            }
+            Returns: Json
+          }
+      calculate_account_score_readonly:
+        | {
+            Args: {
+              account_external_id: string
+              icp_id: string
+              org_id_param: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_account_external_id: string
+              p_icp_id?: string
+              p_org_id: string
+            }
+            Returns: Json
+          }
       calculate_adaptive_overall_score: {
         Args: { p_fit: number; p_intent: number; p_reachability: number }
         Returns: number
