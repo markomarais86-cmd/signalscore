@@ -229,44 +229,70 @@ serve(async (req) => {
       return errorResponse(ErrorCodes.UNAUTHORIZED, 'Unauthorized - missing authorization header', 401);
     }
 
-    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
+    // Detect service role key (used by auto-recovery cron)
+    const token = authHeader.replace('Bearer ', '');
+    const isServiceRole = token === supabaseServiceKey;
 
-    const { data: { user }, error: authError } = await authClient.auth.getUser();
-    if (authError || !user) {
-      return errorResponse(ErrorCodes.UNAUTHORIZED, 'Unauthorized - invalid token', 401);
+    if (!isServiceRole) {
+      // Regular user auth flow
+      const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      const { data: { user }, error: authError } = await authClient.auth.getUser();
+      if (authError || !user) {
+        return errorResponse(ErrorCodes.UNAUTHORIZED, 'Unauthorized - invalid token', 401);
+      }
+
+      // Parse body early so we can check org access
+      const requestBody = await parseJsonBody<BulkScoreRequest>(req);
+      const validation = validateRequired(requestBody, ['org_id']);
+      if (!validation.valid) {
+        return errorResponse(ErrorCodes.VALIDATION_ERROR, `Missing required fields: ${validation.missing.join(', ')}`, 400);
+      }
+      var { org_id, icp_id, job_id: requestedJobId } = requestBody!;
+      var resumeJobId = requestedJobId;
+
+      // Resolve data org for access check
+      const supabaseForOrg = createClient(supabaseUrl, supabaseServiceKey);
+      const { data: orgData } = await supabaseForOrg
+        .from('organizations')
+        .select('parent_org_id')
+        .eq('id', org_id)
+        .single();
+      var dataOrgId = orgData?.parent_org_id || org_id;
+
+      // Verify org access
+      const { data: profile, error: profileError } = await authClient
+        .from('user_profiles').select('org_id').eq('user_id', user.id).single();
+      const userOrgId = profile?.org_id;
+      const hasAccess = userOrgId === org_id || userOrgId === dataOrgId;
+      if (profileError || !profile || !hasAccess) {
+        console.log(`Access denied: user org ${userOrgId}, requested org ${org_id}, data org ${dataOrgId}`);
+        return errorResponse(ErrorCodes.FORBIDDEN, 'Forbidden - you do not have access to this organization', 403);
+      }
+    } else {
+      // Service role auth (auto-recovery cron) — skip user check
+      console.log('[Auth] Service role key detected — skipping user auth');
+      const requestBody = await parseJsonBody<BulkScoreRequest>(req);
+      const validation = validateRequired(requestBody, ['org_id']);
+      if (!validation.valid) {
+        return errorResponse(ErrorCodes.VALIDATION_ERROR, `Missing required fields: ${validation.missing.join(', ')}`, 400);
+      }
+      var { org_id, icp_id, job_id: requestedJobId } = requestBody!;
+      var resumeJobId = requestedJobId;
+
+      // Resolve data org
+      const supabaseForOrg = createClient(supabaseUrl, supabaseServiceKey);
+      const { data: orgData } = await supabaseForOrg
+        .from('organizations')
+        .select('parent_org_id')
+        .eq('id', org_id)
+        .single();
+      var dataOrgId = orgData?.parent_org_id || org_id;
     }
-
-    const requestBody = await parseJsonBody<BulkScoreRequest>(req);
-    const validation = validateRequired(requestBody, ['org_id']);
-    if (!validation.valid) {
-      return errorResponse(ErrorCodes.VALIDATION_ERROR, `Missing required fields: ${validation.missing.join(', ')}`, 400);
-    }
-    const { org_id, icp_id, job_id: requestedJobId } = requestBody!;
-    let resumeJobId = requestedJobId;
-
-    // ========== RESOLVE DATA ORG (parent) FOR ACCOUNT QUERIES ==========
-    // Child orgs share accounts with their parent org. Use dataOrgId for
-    // account queries, but keep org_id for ICP profiles and score writes.
-    const supabaseForOrg = createClient(supabaseUrl, supabaseServiceKey);
-    const { data: orgData } = await supabaseForOrg
-      .from('organizations')
-      .select('parent_org_id')
-      .eq('id', org_id)
-      .single();
-    const dataOrgId = orgData?.parent_org_id || org_id;
     console.log(`Data org: ${dataOrgId} (child of parent: ${dataOrgId !== org_id})`);
-
-    // Verify org access — allow if user belongs to the requested org OR its parent
-    const { data: profile, error: profileError } = await authClient
-      .from('user_profiles').select('org_id').eq('user_id', user.id).single();
-    const userOrgId = profile?.org_id;
-    const hasAccess = userOrgId === org_id || userOrgId === dataOrgId;
-    if (profileError || !profile || !hasAccess) {
-      console.log(`Access denied: user org ${userOrgId}, requested org ${org_id}, data org ${dataOrgId}`);
-      return errorResponse(ErrorCodes.FORBIDDEN, 'Forbidden - you do not have access to this organization', 403);
-    }
+    console.log(`Auth: ${isServiceRole ? 'service-role' : 'user-jwt'}, Org: ${org_id}`);
 
     // ========== SERVICE CLIENT ==========
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
