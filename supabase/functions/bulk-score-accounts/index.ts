@@ -188,8 +188,7 @@ function scoreAccount(account: AccountRow, icp: IcpProfile, intentMap?: Map<stri
 
   let fitScore = totalScore;
 
-  // Soft penalty when ICP requires bed_count but account is missing it
-  // Instead of hard-capping at 69, apply a 70% penalty to vertical score only
+  // Cap at Band C (max 69) when ICP requires bed_count but account is missing it
   const vf = icp.vertical_filters as Record<string, unknown> | null;
   let missingRequiredVertical = false;
   if (vf && Array.isArray(vf.segments) && vf.segments.length > 0) {
@@ -199,10 +198,8 @@ function scoreAccount(account: AccountRow, icp: IcpProfile, intentMap?: Map<stri
     const bedCount = (attrs as Record<string, unknown>).bed_count;
     if (anySegHasBeds && bedCount == null) {
       missingRequiredVertical = true;
-      // Reduce vertical contribution instead of capping entire score
-      const verticalPenalty = verticalScore - Math.round(verticalScore * 0.3);
-      totalScore -= verticalPenalty;
-      fitScore = totalScore;
+      totalScore = Math.min(totalScore, 69);
+      fitScore = Math.min(fitScore, 69);
     }
   }
 
