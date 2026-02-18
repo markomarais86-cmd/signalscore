@@ -131,7 +131,7 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     industries.set(ind, entry);
   });
   const totalIndustryAccounts = (accountsWithIndustry.data || []).length;
-  const industryBreakdown = Array.from(industries.entries())
+  const rawIndustryBreakdown = Array.from(industries.entries())
     .map(([name, d]) => ({
       name, accounts: d.accounts,
       percentage: totalIndustryAccounts > 0 ? (d.accounts / totalIndustryAccounts) * 100 : 0,
@@ -139,7 +139,7 @@ async function fetchAllReportData(supabase: any, orgId: string) {
       highFitPct: d.accounts > 0 ? (d.highFit / d.accounts) * 100 : 0,
       avgScore: d.scoredCount > 0 ? Math.round(d.totalScore / d.scoredCount) : 0,
     }))
-    .sort((a, b) => b.highFitCount - a.highFitCount).slice(0, 12);
+    .sort((a, b) => b.highFitCount - a.highFitCount);
 
   // Revenue range breakdown
   const revRangeBuckets = new Map<string, number>();
@@ -196,9 +196,9 @@ async function fetchAllReportData(supabase: any, orgId: string) {
   const icpProfiles = (icpRes.data || []).map((p: any) => ({
     name: p.name || "Unnamed",
     description: p.description || "",
-    targetIndustries: p.target_industries || [],
+    targetIndustries: p.industries || [],
     companySizes: p.company_sizes || [],
-    geographies: p.target_geographies || [],
+    geographies: p.geographies || [],
     matchCount: p.match_count || 0,
     tamEstimate: p.tam_estimate || 0,
     confidence: p.confidence_score || 0,
@@ -224,7 +224,7 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     const extIds = topScores.map((s: any) => s.account_external_id);
     const [{ data: accountDetails }, { data: leadCounts }] = await Promise.all([
       supabase.from("accounts")
-        .select("external_id, name, industry_norm, employee_count, country, revenue_range")
+      .select("external_id, name, industry_norm, employee_count, country, revenue_range, custom_attributes")
         .eq("org_id", dataOrgId).in("external_id", extIds),
       supabase.from("Leads").select("account_external_id")
         .eq("org_id", dataOrgId).in("account_external_id", extIds),
@@ -237,6 +237,7 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     topProspects = topScores.map((s: any) => {
       const acct = accountMap.get(s.account_external_id) as any;
       const midpoint = revenueRangeToMidpoint(acct?.revenue_range);
+      const customAttrs = acct?.custom_attributes as Record<string, any> | null;
       return {
         name: acct?.name || (s.account_external_id.startsWith("lp-") ? s.account_external_id.slice(3) : `Account #${topScores.indexOf(s) + 1}`),
         industry: acct?.industry_norm || "N/A",
@@ -248,6 +249,7 @@ async function fetchAllReportData(supabase: any, orgId: string) {
         revenueRange: acct?.revenue_range || "N/A",
         leadCount: leadCountMap.get(s.account_external_id) || 0,
         estimatedValue: midpoint ? Math.round(midpoint * 0.001) : DEFAULT_ACV,
+        bedCount: customAttrs?.bed_count ?? null,
       };
     });
   }
@@ -272,6 +274,33 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     brand_secondary_color: brandConfigRes.data.brand_secondary_color || null,
     value_proposition: brandConfigRes.data.value_proposition || null,
   } : null;
+
+  // Filter industry breakdown by ICP relevance
+  const icpIndustrySet = new Set<string>(
+    icpProfiles.flatMap((p: any) => p.targetIndustries as string[])
+  );
+  let industryBreakdown: typeof rawIndustryBreakdown;
+  if (icpIndustrySet.size > 0) {
+    const icpMatched = rawIndustryBreakdown.filter(i => icpIndustrySet.has(i.name));
+    const nonIcp = rawIndustryBreakdown.filter(i => !icpIndustrySet.has(i.name) && i.name !== 'Unknown');
+    const topNonIcp = nonIcp.slice(0, 3);
+    const otherAccounts = nonIcp.slice(3).reduce((s, i) => s + i.accounts, 0);
+    const otherHighFit = nonIcp.slice(3).reduce((s, i) => s + i.highFitCount, 0);
+    industryBreakdown = [
+      ...icpMatched,
+      ...topNonIcp,
+      ...(otherAccounts > 0 ? [{
+        name: 'Other',
+        accounts: otherAccounts,
+        percentage: totalIndustryAccounts > 0 ? (otherAccounts / totalIndustryAccounts) * 100 : 0,
+        highFitCount: otherHighFit,
+        highFitPct: otherAccounts > 0 ? (otherHighFit / otherAccounts) * 100 : 0,
+        avgScore: 0,
+      }] : []),
+    ];
+  } else {
+    industryBreakdown = rawIndustryBreakdown.slice(0, 12);
+  }
 
   return {
     companyName,

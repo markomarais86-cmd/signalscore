@@ -15,6 +15,7 @@ function fmtVal(n?: number) {
 export function ProspectsSlide({ data, brandColor }: ProspectsSlideProps) {
   const accent = brandColor || 'hsl(var(--primary))';
   const prospects = (data.topProspects || []).slice(0, 10);
+  const hasBeds = prospects.some(p => p.bedCount != null && p.bedCount > 0);
 
   if (prospects.length === 0) {
     return (
@@ -40,6 +41,7 @@ export function ProspectsSlide({ data, brandColor }: ProspectsSlideProps) {
               <th className="text-left text-base font-semibold text-foreground py-3">Company</th>
               <th className="text-left text-base font-semibold text-foreground py-3">Industry</th>
               <th className="text-left text-base font-semibold text-foreground py-3">Country</th>
+              {hasBeds && <th className="text-right text-base font-semibold text-foreground py-3">Beds</th>}
               <th className="text-right text-base font-semibold text-foreground py-3">Fit Score</th>
               <th className="text-right text-base font-semibold text-foreground py-3">Est. Value</th>
             </tr>
@@ -51,6 +53,11 @@ export function ProspectsSlide({ data, brandColor }: ProspectsSlideProps) {
                 <td className="text-lg text-foreground py-3 font-medium">{p.name}</td>
                 <td className="text-lg text-muted-foreground py-3">{p.industry}</td>
                 <td className="text-lg text-muted-foreground py-3">{p.country}</td>
+                {hasBeds && (
+                  <td className="text-lg text-foreground py-3 text-right">
+                    {p.bedCount != null && p.bedCount > 0 ? p.bedCount.toLocaleString() : '—'}
+                  </td>
+                )}
                 <td className="text-lg text-foreground py-3 text-right font-semibold">{p.fitScore}</td>
                 <td className="text-lg py-3 text-right font-semibold" style={{ color: accent }}>
                   {fmtVal(p.estimatedValue)}
