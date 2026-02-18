@@ -7,7 +7,10 @@ interface GeographySlideProps {
 
 export function GeographySlide({ data, brandColor }: GeographySlideProps) {
   const accent = brandColor || 'hsl(var(--primary))';
-  const geos = (data.geographyDistribution || []).slice(0, 10);
+  const allGeos = data.geographyDistribution || [];
+  const unknownGeo = allGeos.find(g => g.country === 'Unknown');
+  const unknownCount = unknownGeo?.accounts || 0;
+  const geos = allGeos.filter(g => g.country !== 'Unknown').slice(0, 10);
 
   if (geos.length === 0) {
     return (
@@ -23,7 +26,10 @@ export function GeographySlide({ data, brandColor }: GeographySlideProps) {
   return (
     <div className="w-full h-full bg-card text-card-foreground p-20 flex flex-col">
       <h2 className="text-4xl font-bold mb-4" style={{ color: accent }}>Geography Distribution</h2>
-      <p className="text-lg text-muted-foreground mb-8">Top markets by account concentration</p>
+      <p className="text-lg text-muted-foreground mb-8">
+        Top markets by account concentration
+        {unknownCount > 0 && <span className="ml-2 text-base opacity-70">({unknownCount} accounts not yet enriched)</span>}
+      </p>
 
       <div className="flex-1 overflow-hidden">
         <table className="w-full">
