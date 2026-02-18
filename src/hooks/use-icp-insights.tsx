@@ -135,12 +135,15 @@ export function useICPInsights() {
         
         // Cache the results
         try {
-          const cacheData = {
-            insights: data.insights,
-            statistics: data.statistics
-          };
-          localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-          localStorage.setItem(timestampKey, timestamp.toString());
+          // Only cache non-empty results to avoid persisting errors/empty states
+          if (data.insights && data.insights.length > 0) {
+            const cacheData = {
+              insights: data.insights,
+              statistics: data.statistics
+            };
+            localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+            localStorage.setItem(timestampKey, timestamp.toString());
+          }
           setLastUpdated(new Date(timestamp));
         } catch (err) {
           insightsLogger.warn('Cache write error:', err);
