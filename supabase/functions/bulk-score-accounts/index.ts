@@ -34,7 +34,9 @@ interface AccountRow {
 
 // ========== JS SCORING ENGINE (mirrors calculate_account_score_readonly) ==========
 
-function scoreAccount(account: AccountRow, icp: IcpProfile) {
+function scoreAccount(account: AccountRow, icp: IcpProfile, intentMap?: Map<string, number>) {
+  // Look up pre-computed intent for this account, default to 50
+  const intentScore = intentMap?.get(account.external_id) ?? 50;
   let industryScore = 0;
   let sizeScore = 0;
   let geoScore = 0;
@@ -42,24 +44,31 @@ function scoreAccount(account: AccountRow, icp: IcpProfile) {
   let verticalScore = 0;
   let matches = 0;
 
-  // Industry scoring (30 points) - fuzzy LIKE match
+  // Industry scoring (30 points) - tokenized fuzzy match
   if (account.industry_norm && icp.industries?.length) {
     const normLower = account.industry_norm.toLowerCase();
+    // Tokenize compound industry strings on common delimiters
+    const tokens = normLower.split(/[,\/&;]+/).map(t => t.trim()).filter(t => t.length > 0);
     const matched = icp.industries.some(ind => {
       const indLower = ind.toLowerCase();
-      return normLower.includes(indLower) || indLower.includes(normLower);
+      // Check full string match OR any token match
+      return normLower.includes(indLower) || indLower.includes(normLower) ||
+        tokens.some(token => token.includes(indLower) || indLower.includes(token));
     });
     if (matched) { industryScore = 30; matches++; }
   }
 
-  // Size scoring (25 points) - range-based
+  // Size scoring (25 points) - range-based using min/max of ICP sizes
   if (account.employee_count != null && icp.company_sizes?.length) {
     const ec = account.employee_count;
-    const sizeMatch = icp.company_sizes.some(s => s === ec) ||
-      (ec >= 100 && icp.company_sizes.includes(200)) ||
-      (ec >= 400 && icp.company_sizes.includes(500)) ||
-      (ec >= 800 && icp.company_sizes.includes(1000));
-    if (sizeMatch) { sizeScore = 25; matches++; }
+    const sortedSizes = [...icp.company_sizes].sort((a, b) => a - b);
+    const minSize = sortedSizes[0];
+    const maxSize = sortedSizes[sortedSizes.length - 1];
+    if (ec >= minSize && ec <= maxSize) {
+      sizeScore = 25; matches++; // Within ICP range
+    } else if (ec >= minSize * 0.5 && ec <= maxSize * 2) {
+      sizeScore = 15; matches++; // Within 2x proximity
+    }
   }
 
   // Geography scoring (25 points) - exact country match
@@ -179,7 +188,8 @@ function scoreAccount(account: AccountRow, icp: IcpProfile) {
 
   let fitScore = totalScore;
 
-  // Cap at Band C (max 69) when ICP requires bed_count but account is missing it
+  // Soft penalty when ICP requires bed_count but account is missing it
+  // Instead of hard-capping at 69, apply a 70% penalty to vertical score only
   const vf = icp.vertical_filters as Record<string, unknown> | null;
   let missingRequiredVertical = false;
   if (vf && Array.isArray(vf.segments) && vf.segments.length > 0) {
@@ -189,15 +199,17 @@ function scoreAccount(account: AccountRow, icp: IcpProfile) {
     const bedCount = (attrs as Record<string, unknown>).bed_count;
     if (anySegHasBeds && bedCount == null) {
       missingRequiredVertical = true;
-      totalScore = Math.min(totalScore, 69);
-      fitScore = Math.min(fitScore, 69);
+      // Reduce vertical contribution instead of capping entire score
+      const verticalPenalty = verticalScore - Math.round(verticalScore * 0.3);
+      totalScore -= verticalPenalty;
+      fitScore = totalScore;
     }
   }
 
   return {
     overall: totalScore,
     fit: fitScore,
-    intent: 50,
+    intent: intentScore,
     reachability: 70,
     breakdown: { industry_score: industryScore, size_score: sizeScore, geo_score: geoScore, revenue_score: revenueScore, vertical_score: verticalScore, matches, missing_required_vertical: missingRequiredVertical },
   };
@@ -352,6 +364,43 @@ serve(async (req) => {
       console.log(`Created job: ${jobId}`);
     }
 
+    // ========== COMPUTE INTENT SIGNALS FROM SCORE HISTORY ==========
+    const intentMap = new Map<string, number>();
+    try {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: recentHistory } = await supabase
+        .from('score_history')
+        .select('account_external_id, old_score, new_score, computed_at')
+        .eq('org_id', org_id)
+        .gte('computed_at', thirtyDaysAgo)
+        .order('computed_at', { ascending: false })
+        .limit(5000);
+
+      if (recentHistory?.length) {
+        // Group by account and compute intent
+        const byAccount = new Map<string, Array<{ old_overall: number; new_overall: number; computed_at: string }>>();
+        for (const h of recentHistory) {
+          const oldScore = (h.old_score as any)?.overall ?? 0;
+          const newScore = (h.new_score as any)?.overall ?? 0;
+          if (!byAccount.has(h.account_external_id)) byAccount.set(h.account_external_id, []);
+          byAccount.get(h.account_external_id)!.push({ old_overall: oldScore, new_overall: newScore, computed_at: h.computed_at });
+        }
+
+        for (const [accountId, entries] of byAccount) {
+          let intent = 50; // baseline
+          const latestDelta = entries[0].new_overall - entries[0].old_overall;
+          if (latestDelta > 10) intent = 75;       // Recent big improvement
+          else if (latestDelta > 0) intent = 65;    // Recent improvement
+          else if (entries.length >= 2 && entries[0].new_overall >= 70) intent = 60; // Stable high fit
+          else if (latestDelta < -10) intent = 35;  // Declining
+          intentMap.set(accountId, intent);
+        }
+        console.log(`Computed intent signals for ${intentMap.size} accounts from score_history`);
+      }
+    } catch (e) {
+      console.log('Intent signal computation skipped (non-critical):', e.message);
+    }
+
     // ========== PROCESS CHUNKS ==========
     let successfulScores = 0;
     let failedScores = 0;
@@ -398,17 +447,17 @@ serve(async (req) => {
       for (const account of accounts) {
         for (const icp of icpProfiles) {
           try {
-            const result = scoreAccount(account as AccountRow, icp as IcpProfile);
+            const result = scoreAccount(account as AccountRow, icp as IcpProfile, intentMap);
             scoreRows.push({
               org_id,
               account_external_id: account.external_id,
               icp_id: icp.id,
-              overall: result.overall,
+    overall: result.overall,
               fit: result.fit,
               intent: result.intent,
               reachability: result.reachability,
               reasons: result.breakdown as unknown as Record<string, unknown>,
-              scoring_version: 'chunked_v2_bed_required',
+              scoring_version: 'chunked_v3_soft_penalty',
               computed_at: new Date().toISOString(),
             });
             successfulScores++;
