@@ -1,54 +1,78 @@
 
 
-## Continue Batch Enrichment for Missing bed_count Values
-
-### Current State
-
-- **39,928 total accounts** in the database
-- **Only 20 accounts** currently have a `bed_count` value
-- **~39,908 accounts** are missing `bed_count` (though many may not be healthcare -- 672 have a healthcare `industry_norm`)
-- The "Fill Missing" button on Settings > Verticals already works, but processes only **250 accounts per run** (fetches 500, filters client-side, caps at 250)
-
-### What Already Works
-
-- The **"Missing" dropdown** in the Bulk Attribute Editor filters accounts where `bed_count` is null -- you can use it right now to see which accounts need values
-- The **"Fill Missing" button** on the Healthcare card triggers AI enrichment via `enrich-unified` for accounts missing any Healthcare attribute (bed_count, facility_type, EHR system, etc.)
+## Fix: Edit Data Toggle Button Not Working in Bulk Attribute Editor
 
 ### The Problem
 
-With ~672 healthcare accounts missing `bed_count`, one click of "Fill Missing" only covers 250. You'd need to click it 3 times and wait each time. Additionally, the query fetches all accounts (not just healthcare ones), wasting slots on non-healthcare accounts that won't have meaningful bed counts.
+Clicking the "Edit Data" button on the Healthcare (or any) vertical card does nothing -- the BulkAttributeEditor table never appears. The button's `onClick` calls `setEditDataCategory(prev => prev === category ? null : category)`, but the state change doesn't produce a visual result. No accounts query fires, confirming the `BulkAttributeEditor` component never mounts.
 
-### Proposed Changes
+### Root Cause Investigation
 
-#### 1. Smarter filtering in `handleFillMissing` (CustomAttributeManager.tsx)
+The button is inside a `CardHeader` which is inside a `Card`. The state setter fires, but something causes the component to re-render and reset. Looking at the code structure:
 
-- Add an `industry_norm` filter so the Healthcare "Fill Missing" only pulls healthcare-related accounts (not all 39,928)
-- Increase the per-batch limit from 250 to 500 for faster processing
-- This ensures all ~672 healthcare accounts get processed in a single click
+1. The `loadDefinitions` function (line 272) sets `setLoading(true)`, which causes the render path to switch to the loading skeleton (line 593-596), unmounting all cards
+2. If `loadDefinitions` is called during or after the state change, the cards unmount and remount -- losing the `editDataCategory` state visually (it gets set but then the loading branch renders instead)
+3. The `useEffect` on line 226 depends on `[dataOrgId, effectiveOrgId]`. If the `useDataOrgId` hook's React Query resolves asynchronously after the tab renders, it could re-trigger `loadDefinitions`, causing a flash of loading state
 
-#### 2. Add "Enrich Filtered" button to BulkAttributeEditor
+However, the most likely cause is simpler: **the button click works, but `dataOrgId` might momentarily be null** during a React Query refetch cycle, causing the condition `editDataCategory === category && dataOrgId` (line 693) to be false even when `editDataCategory` is set.
 
-- When the "Missing" filter is active (e.g., "Missing Number of Beds"), add an "Enrich Filtered" button next to the filter dropdown
-- This button triggers enrichment specifically for the filtered accounts visible in the bulk editor
-- Shows progress inline, same as the category-level "Fill Missing"
+### The Fix
 
-### Technical Details
+**File: `src/components/settings/CustomAttributeManager.tsx`**
 
-**File 1: `src/components/settings/CustomAttributeManager.tsx`**
-- In `handleFillMissing`, add `.ilike('industry_norm', '%health%')` filter when the category is "Healthcare" (or use a category-to-industry mapping)
-- Increase `.limit(500)` and `.slice(0, 500)` to process more accounts per batch
+1. **Prevent `loadDefinitions` from resetting loading state on refetch** -- Only set `loading: true` on initial load, not on subsequent re-fetches. This prevents cards from unmounting.
 
-**File 2: `src/components/settings/BulkAttributeEditor.tsx`**
-- Accept new optional props: `onEnrichFiltered` callback and `isEnriching` / `progress` state
-- When `missingField` is set and `onEnrichFiltered` exists, render an "Enrich Filtered" button in the toolbar
-- Clicking it calls `onEnrichFiltered(missingField)` which the parent handles
+2. **Use `dataOrgId` fallback** -- Cache the last known `dataOrgId` so a momentary `null` during refetch doesn't hide the editor.
 
-**File 3: `src/components/settings/CustomAttributeManager.tsx` (wiring)**
-- Pass `onEnrichFiltered`, `isEnriching`, and `progress` props down to `BulkAttributeEditor`
-- The callback triggers enrichment scoped to accounts missing that specific field
+3. **Add a guard to prevent re-calling `loadDefinitions`** -- Once definitions are loaded, don't call it again unless the org actually changes.
 
-### Result
+```typescript
+// Change 1: Only show loading skeleton on initial load
+const [initialLoading, setInitialLoading] = useState(true);
 
-- One click of "Fill Missing" or "Enrich Filtered" will process all ~672 healthcare accounts missing bed_count
-- Non-healthcare accounts won't waste enrichment slots
-- The Bulk Editor's "Missing" filter + "Enrich Filtered" button gives a focused workflow for filling specific fields
+const loadDefinitions = async () => {
+  if (!dataOrgId) return;
+  // Only show full loading skeleton on first load
+  if (definitions.length === 0) setLoading(true);
+  try {
+    // ... existing query
+  } finally {
+    setLoading(false);
+    setInitialLoading(false);
+  }
+};
+
+// Change 2: In the useEffect, track whether we've loaded for this org
+const [loadedOrgId, setLoadedOrgId] = useState<string | null>(null);
+
+useEffect(() => {
+  if (dataOrgId && dataOrgId !== loadedOrgId) {
+    setLoadedOrgId(dataOrgId);
+    loadDefinitions();
+    // ... ICP fetch
+  }
+}, [dataOrgId, effectiveOrgId]);
+
+// Change 3: Use initialLoading for the skeleton guard
+{initialLoading ? (
+  <Card><CardContent>Loading...</CardContent></Card>
+) : definitions.length === 0 ? (
+  // ...empty state
+) : (
+  // ...render cards with Edit Data
+)}
+```
+
+### Expected Result
+
+- Clicking "Edit Data" toggles the bulk editor table inline below the attribute list
+- The "Missing" filter dropdown shows field options (e.g., "Missing Number of Beds")
+- Selecting "Missing Number of Beds" shows the 663 healthcare accounts that still need `bed_count` values
+- The "Enrich Filtered" button appears next to the dropdown for targeted enrichment
+
+### Data Summary (from database)
+
+- 663 healthcare accounts still missing `bed_count`
+- 20 accounts already have `bed_count` populated
+- Total accounts in org: 39,928
+
