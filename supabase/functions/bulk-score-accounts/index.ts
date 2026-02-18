@@ -17,6 +17,7 @@ interface IcpProfile {
   id: string;
   name: string;
   industries: string[] | null;
+  excluded_industries: string[] | null;
   company_sizes: number[] | null;
   geographies: string[] | null;
   revenue_ranges: string[] | null;
@@ -32,175 +33,182 @@ interface AccountRow {
   custom_attributes: Record<string, unknown> | null;
 }
 
-// ========== JS SCORING ENGINE (mirrors calculate_account_score_readonly) ==========
+// ========== JS SCORING ENGINE (segment-weighted, mirrors calculate_account_score_readonly) ==========
 
 function scoreAccount(account: AccountRow, icp: IcpProfile, intentMap?: Map<string, number>) {
-  // Look up pre-computed intent for this account, default to 50
   const intentScore = intentMap?.get(account.external_id) ?? 50;
   let industryScore = 0;
   let sizeScore = 0;
   let geoScore = 0;
   let revenueScore = 0;
-  let verticalScore = 0;
+  let segmentScore = 0;
   let matches = 0;
+  let matchedSegmentName: string | null = null;
+  let missingRequiredVertical = false;
 
-  // Industry scoring (30 points) - tokenized fuzzy match
+  // --- Excluded industries check ---
+  if (account.industry_norm && icp.excluded_industries?.length) {
+    const normLower = account.industry_norm.toLowerCase();
+    const excluded = icp.excluded_industries.some(ex => normLower.includes(ex.toLowerCase()));
+    if (excluded) {
+      return {
+        overall: 0, fit: 0, intent: intentScore, reachability: 0,
+        breakdown: { industry_score: 0, size_score: 0, geo_score: 0, revenue_score: 0, segment_score: 0, matches: 0, missing_required_vertical: false, matched_segment: null },
+      };
+    }
+  }
+
+  // --- Industry scoring (20 points) ---
   if (account.industry_norm && icp.industries?.length) {
     const normLower = account.industry_norm.toLowerCase();
-    // Tokenize compound industry strings on common delimiters
     const tokens = normLower.split(/[,\/&;]+/).map(t => t.trim()).filter(t => t.length > 0);
     const matched = icp.industries.some(ind => {
       const indLower = ind.toLowerCase();
-      // Check full string match OR any token match
       return normLower.includes(indLower) || indLower.includes(normLower) ||
         tokens.some(token => token.includes(indLower) || indLower.includes(token));
     });
-    if (matched) { industryScore = 30; matches++; }
+    if (matched) { industryScore = 20; matches++; }
   }
 
-  // Size scoring (25 points) - range-based using min/max of ICP sizes
+  // --- Size scoring (15 points) ---
   if (account.employee_count != null && icp.company_sizes?.length) {
     const ec = account.employee_count;
     const sortedSizes = [...icp.company_sizes].sort((a, b) => a - b);
     const minSize = sortedSizes[0];
     const maxSize = sortedSizes[sortedSizes.length - 1];
     if (ec >= minSize && ec <= maxSize) {
-      sizeScore = 25; matches++; // Within ICP range
+      sizeScore = 15; matches++;
     } else if (ec >= minSize * 0.5 && ec <= maxSize * 2) {
-      sizeScore = 15; matches++; // Within 2x proximity
+      sizeScore = 8; matches++;
     }
   }
 
-  // Geography scoring (25 points) - exact country match
+  // --- Geography scoring (10 points) ---
   if (account.country && icp.geographies?.length) {
     const countryLower = account.country.toLowerCase();
     if (icp.geographies.some(g => g.toLowerCase() === countryLower)) {
-      geoScore = 25; matches++;
+      geoScore = 10; matches++;
     }
   }
 
-  // Revenue scoring (20 points) - exact range match
+  // --- Revenue scoring (20 points) - tiered by parsed dollar value ---
   if (account.revenue_range && icp.revenue_ranges?.length) {
     if (icp.revenue_ranges.includes(account.revenue_range)) {
-      revenueScore = 20; matches++;
-    }
-  }
-
-  // Vertical / custom attribute scoring (up to 15 bonus points)
-  if (icp.vertical_filters && Object.keys(icp.vertical_filters).length > 0) {
-    const vf = icp.vertical_filters as Record<string, unknown>;
-
-    // Handle segments-based vertical filters (healthcare-style)
-    if (Array.isArray(vf.segments) && vf.segments.length > 0) {
-      const segments = vf.segments as Array<{ name?: string; size?: string; bed_range?: string; key_personas?: string[] }>;
-      const ec = account.employee_count;
-      const attrs = account.custom_attributes || {};
-      const bedCount = attrs.bed_count != null ? Number(attrs.bed_count) : null;
-
-      // Size label to employee_count range mapping
-      const sizeRanges: Record<string, [number, number]> = {
-        'small': [1, 100],
-        'small-mid': [30, 300],
-        'mid-large': [200, 5000],
-        'large': [500, 999999],
-      };
-
-      let bestSegmentScore = 0;
-
-      // Check if ANY segment defines bed_range — if so, missing bed_count = cap at Band C
-      const anySegHasBeds = segments.some(s => s.bed_range != null);
-      let missingRequiredVertical = false;
-      if (anySegHasBeds && bedCount == null) {
-        missingRequiredVertical = true;
-      }
-
-      for (const seg of segments) {
-        let critTotal = 0;
-        let critMatched = 0;
-
-        // Match on size label using employee_count
-        if (seg.size && ec != null) {
-          critTotal++;
-          const sizeLower = seg.size.toLowerCase();
-          const range = sizeRanges[sizeLower];
-          if (range && ec >= range[0] && ec <= range[1]) critMatched++;
-        }
-
-        // Match on bed_range — ALWAYS count as a criterion when defined
-        if (seg.bed_range) {
-          critTotal++;
-          if (bedCount != null) {
-            const rangeParts = seg.bed_range.replace('+', '').split('-').map(s => parseInt(s.trim(), 10));
-            const minBeds = rangeParts[0] || 0;
-            const maxBeds = seg.bed_range.includes('+') ? 999999 : (rangeParts[1] || 999999);
-            if (bedCount >= minBeds && bedCount <= maxBeds) critMatched++;
-          }
-          // If bedCount is null, critMatched stays 0 → penalized
-        }
-
-        if (critTotal > 0) {
-          const segScore = Math.round(15 * critMatched / critTotal);
-          bestSegmentScore = Math.max(bestSegmentScore, segScore);
-        }
-      }
-
-      verticalScore = bestSegmentScore;
-      if (verticalScore > 0) matches++;
-
-    // Handle flat key-value vertical filters (original logic)
-    } else if (account.custom_attributes) {
-      let totalCriteria = 0;
-      let matchedCriteria = 0;
-
-      for (const [key, val] of Object.entries(vf)) {
-        if (val == null) continue;
-        totalCriteria++;
-
-        const attrs = account.custom_attributes;
-        if (key.endsWith('_min')) {
-          const attrKey = key.replace(/_min$/, '');
-          const attrVal = (attrs as Record<string, unknown>)[attrKey];
-          if (attrVal != null && Number(attrVal) >= Number(val)) matchedCriteria++;
-        } else if (key.endsWith('_max')) {
-          const attrKey = key.replace(/_max$/, '');
-          const attrVal = (attrs as Record<string, unknown>)[attrKey];
-          if (attrVal != null && Number(attrVal) <= Number(val)) matchedCriteria++;
-        } else if (Array.isArray(val)) {
-          const attrVal = (attrs as Record<string, unknown>)[key];
-          if (attrVal != null && val.includes(String(attrVal))) matchedCriteria++;
-        } else {
-          const attrVal = (attrs as Record<string, unknown>)[key];
-          if (attrVal != null && String(attrVal).toLowerCase() === String(val).toLowerCase()) matchedCriteria++;
-        }
-      }
-
-      if (totalCriteria > 0) {
-        verticalScore = Math.round(15 * matchedCriteria / totalCriteria);
-        if (matchedCriteria > 0) matches++;
+      // Parse approximate dollar value from range string to tier
+      const revStr = account.revenue_range.toLowerCase();
+      const isEnterprise = revStr.includes('$1b') || revStr.includes('$5b') || revStr.includes('$10b') ||
+        revStr.includes('$250m') || revStr.includes('$500m');
+      if (isEnterprise) {
+        revenueScore = 20; matches++;
+      } else {
+        revenueScore = 12; matches++;
       }
     }
   }
 
-  let totalScore = industryScore + sizeScore + geoScore + revenueScore + verticalScore;
+  // --- Segment scoring (30 points) — the core differentiator ---
+  const vf = icp.vertical_filters as Record<string, unknown> | null;
+  if (vf && Array.isArray(vf.segments) && vf.segments.length > 0) {
+    const segments = vf.segments as Array<{ name?: string; size?: string; bed_range?: string; key_personas?: string[] }>;
+    const ec = account.employee_count;
+    const attrs = (account.custom_attributes || {}) as Record<string, unknown>;
+    const bedCount = attrs.bed_count != null ? Number(attrs.bed_count) : null;
 
-  // Multi-criteria boost
-  if (matches >= 3) totalScore = Math.min(100, totalScore + 10);
+    const sizeRanges: Record<string, [number, number]> = {
+      'small': [1, 100],
+      'small-mid': [30, 300],
+      'mid-large': [200, 5000],
+      'large': [500, 999999],
+    };
+
+    const anySegHasBeds = segments.some(s => s.bed_range != null);
+    if (anySegHasBeds && bedCount == null) {
+      missingRequiredVertical = true;
+    }
+
+    let bestScore = 0;
+    let bestSegName: string | null = null;
+
+    for (const seg of segments) {
+      let critTotal = 0;
+      let critMatched = 0;
+
+      // Bed range matching (primary criterion)
+      if (seg.bed_range) {
+        critTotal += 2; // Double weight for bed_count
+        if (bedCount != null) {
+          const rangeParts = seg.bed_range.replace('+', '').split('-').map(s => parseInt(s.trim(), 10));
+          const minBeds = rangeParts[0] || 0;
+          const maxBeds = seg.bed_range.includes('+') ? 999999 : (rangeParts[1] || 999999);
+          if (bedCount >= minBeds && bedCount <= maxBeds) critMatched += 2;
+        }
+      }
+
+      // Size tier matching
+      if (seg.size && ec != null) {
+        critTotal++;
+        const sizeLower = seg.size.toLowerCase();
+        const range = sizeRanges[sizeLower];
+        if (range && ec >= range[0] && ec <= range[1]) critMatched++;
+      }
+
+      if (critTotal > 0) {
+        const score = Math.round(30 * critMatched / critTotal);
+        if (score > bestScore) {
+          bestScore = score;
+          bestSegName = seg.name || null;
+        }
+      }
+    }
+
+    segmentScore = bestScore;
+    matchedSegmentName = bestSegName;
+    if (segmentScore > 0) matches++;
+
+  } else if (icp.vertical_filters && account.custom_attributes) {
+    // Flat key-value vertical filters (non-segment ICPs)
+    const vfFlat = icp.vertical_filters as Record<string, unknown>;
+    let totalCriteria = 0;
+    let matchedCriteria = 0;
+
+    for (const [key, val] of Object.entries(vfFlat)) {
+      if (val == null || key === 'segments') continue;
+      totalCriteria++;
+      const attrs = account.custom_attributes as Record<string, unknown>;
+      if (key.endsWith('_min')) {
+        const attrKey = key.replace(/_min$/, '');
+        const attrVal = attrs[attrKey];
+        if (attrVal != null && Number(attrVal) >= Number(val)) matchedCriteria++;
+      } else if (key.endsWith('_max')) {
+        const attrKey = key.replace(/_max$/, '');
+        const attrVal = attrs[attrKey];
+        if (attrVal != null && Number(attrVal) <= Number(val)) matchedCriteria++;
+      } else if (Array.isArray(val)) {
+        const attrVal = attrs[key];
+        if (attrVal != null && val.includes(String(attrVal))) matchedCriteria++;
+      } else {
+        const attrVal = attrs[key];
+        if (attrVal != null && String(attrVal).toLowerCase() === String(val).toLowerCase()) matchedCriteria++;
+      }
+    }
+    if (totalCriteria > 0) {
+      segmentScore = Math.round(30 * matchedCriteria / totalCriteria);
+      if (matchedCriteria > 0) matches++;
+    }
+  }
+
+  // --- Total score (max 95 base + 5 boost = 100) ---
+  let totalScore = industryScore + sizeScore + geoScore + revenueScore + segmentScore;
+
+  // Multi-criteria boost: 3+ dimensions matched
+  if (matches >= 3) totalScore = Math.min(100, totalScore + 5);
 
   let fitScore = totalScore;
 
   // Cap at Band C (max 69) when ICP requires bed_count but account is missing it
-  const vf = icp.vertical_filters as Record<string, unknown> | null;
-  let missingRequiredVertical = false;
-  if (vf && Array.isArray(vf.segments) && vf.segments.length > 0) {
-    const segments = vf.segments as Array<{ bed_range?: string }>;
-    const anySegHasBeds = segments.some(s => s.bed_range != null);
-    const attrs = account.custom_attributes || {};
-    const bedCount = (attrs as Record<string, unknown>).bed_count;
-    if (anySegHasBeds && bedCount == null) {
-      missingRequiredVertical = true;
-      totalScore = Math.min(totalScore, 69);
-      fitScore = Math.min(fitScore, 69);
-    }
+  if (missingRequiredVertical) {
+    totalScore = Math.min(totalScore, 69);
+    fitScore = Math.min(fitScore, 69);
   }
 
   return {
@@ -208,7 +216,7 @@ function scoreAccount(account: AccountRow, icp: IcpProfile, intentMap?: Map<stri
     fit: fitScore,
     intent: intentScore,
     reachability: 70,
-    breakdown: { industry_score: industryScore, size_score: sizeScore, geo_score: geoScore, revenue_score: revenueScore, vertical_score: verticalScore, matches, missing_required_vertical: missingRequiredVertical },
+    breakdown: { industry_score: industryScore, size_score: sizeScore, geo_score: geoScore, revenue_score: revenueScore, segment_score: segmentScore, matches, missing_required_vertical: missingRequiredVertical, matched_segment: matchedSegmentName },
   };
 }
 
@@ -331,7 +339,7 @@ serve(async (req) => {
 
     // ========== FETCH ALL ICP PROFILES ==========
     let icpQuery = supabase.from('icp_profiles')
-      .select('id, name, industries, company_sizes, geographies, revenue_ranges, vertical_filters')
+      .select('id, name, industries, excluded_industries, company_sizes, geographies, revenue_ranges, vertical_filters')
       .eq('org_id', org_id).eq('status', 'active');
     if (icp_id) icpQuery = icpQuery.eq('id', icp_id);
 
