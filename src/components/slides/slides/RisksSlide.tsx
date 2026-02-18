@@ -18,11 +18,22 @@ export function RisksSlide({ data, brandColor }: RisksSlideProps) {
   const aiRisks = data.aiNarratives?.riskAssessment;
   const risks = aiRisks?.length
     ? aiRisks.slice(0, 6)
-    : data.risks.slice(0, 6).map(r => ({
+    : (data.risks || []).slice(0, 6).map(r => ({
         risk: r.title,
         severity: r.severity,
         mitigation: r.description,
       }));
+
+  if (risks.length === 0) {
+    return (
+      <div className="w-full h-full bg-card text-card-foreground p-20 flex flex-col">
+        <h2 className="text-4xl font-bold mb-4" style={{ color: accent }}>Risks & Mitigations</h2>
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-2xl text-muted-foreground">No risks identified — your data quality looks good!</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full bg-card text-card-foreground p-20 flex flex-col">

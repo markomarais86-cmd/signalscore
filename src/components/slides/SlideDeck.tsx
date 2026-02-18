@@ -1,10 +1,12 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { createRoot } from 'react-dom/client';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, ChevronLeft, ChevronRight, Maximize, Grid } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Maximize, Grid, Download, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SlideRenderer, SlideDefinition, SLIDE_ORDER } from './SlideRenderer';
 import { FullscreenPresenter } from './FullscreenPresenter';
 import { SlideLayout } from './SlideLayout';
+import { exportSlidesToPdf } from '@/utils/slide-pdf-export';
 import type { BrandedReportData } from '@/utils/branded-pdf-export';
 import './slide-styles.css';
 
@@ -20,6 +22,53 @@ export function SlideDeck({ data, logoUrl, brandColor, onBack }: SlideDeckProps)
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isGrid, setIsGrid] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPdf = useCallback(async () => {
+    setIsExporting(true);
+    try {
+      // Create an off-screen container for rendering slides at full resolution
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      document.body.appendChild(container);
+
+      const slideEls: HTMLElement[] = [];
+
+      for (const slide of slides) {
+        const wrapper = document.createElement('div');
+        wrapper.style.width = '1920px';
+        wrapper.style.height = '1080px';
+        container.appendChild(wrapper);
+
+        const root = createRoot(wrapper);
+        root.render(
+          <SlideRenderer
+            slide={slide}
+            data={data}
+            logoUrl={logoUrl}
+            brandColor={brandColor}
+            fixedScale={1}
+          />
+        );
+
+        // Wait for render + charts
+        await new Promise(r => setTimeout(r, 500));
+        const inner = wrapper.querySelector('.slide-wrapper') as HTMLElement;
+        slideEls.push(inner || wrapper);
+      }
+
+      const filename = `${data.companyName || 'pitch-deck'}-slides.pdf`;
+      await exportSlidesToPdf(slideEls, filename);
+
+      document.body.removeChild(container);
+    } catch (err) {
+      console.error('PDF export failed:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [slides, data, logoUrl, brandColor]);
 
   const goTo = useCallback((idx: number) => {
     setCurrentIndex(Math.max(0, Math.min(slides.length - 1, idx)));
@@ -72,6 +121,10 @@ export function SlideDeck({ data, logoUrl, brandColor, onBack }: SlideDeckProps)
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => setIsGrid(v => !v)}>
             <Grid className="h-4 w-4 mr-1" /> {isGrid ? 'Slide' : 'Grid'}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleExportPdf} disabled={isExporting}>
+            {isExporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
+            {isExporting ? 'Exporting…' : 'Download PDF'}
           </Button>
           <Button variant="default" size="sm" onClick={() => setIsFullscreen(true)}>
             <Maximize className="h-4 w-4 mr-1" /> Present

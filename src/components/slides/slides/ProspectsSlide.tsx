@@ -14,7 +14,18 @@ function fmtVal(n?: number) {
 
 export function ProspectsSlide({ data, brandColor }: ProspectsSlideProps) {
   const accent = brandColor || 'hsl(var(--primary))';
-  const prospects = data.topProspects.slice(0, 10);
+  const prospects = (data.topProspects || []).slice(0, 10);
+
+  if (prospects.length === 0) {
+    return (
+      <div className="w-full h-full bg-card text-card-foreground p-20 flex flex-col">
+        <h2 className="text-4xl font-bold mb-4" style={{ color: accent }}>Top Prospects</h2>
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-2xl text-muted-foreground">No scored accounts yet. Run scoring to see top prospects.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full bg-card text-card-foreground p-20 flex flex-col">

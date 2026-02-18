@@ -7,7 +7,18 @@ interface GeographySlideProps {
 
 export function GeographySlide({ data, brandColor }: GeographySlideProps) {
   const accent = brandColor || 'hsl(var(--primary))';
-  const geos = data.geographyDistribution.slice(0, 10);
+  const geos = (data.geographyDistribution || []).slice(0, 10);
+
+  if (geos.length === 0) {
+    return (
+      <div className="w-full h-full bg-card text-card-foreground p-20 flex flex-col">
+        <h2 className="text-4xl font-bold mb-4" style={{ color: accent }}>Geography Distribution</h2>
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-2xl text-muted-foreground">No geography data available yet.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full bg-card text-card-foreground p-20 flex flex-col">

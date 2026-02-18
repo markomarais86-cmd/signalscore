@@ -8,10 +8,21 @@ interface IndustrySlideProps {
 
 export function IndustrySlide({ data, brandColor }: IndustrySlideProps) {
   const accent = brandColor || 'hsl(var(--primary))';
-  const chartData = data.industryBreakdown.slice(0, 8).map(d => ({
+  const chartData = (data.industryBreakdown || []).slice(0, 8).map(d => ({
     name: d.name.length > 20 ? d.name.slice(0, 18) + '…' : d.name,
     accounts: d.accounts,
   }));
+
+  if (chartData.length === 0) {
+    return (
+      <div className="w-full h-full bg-card text-card-foreground p-20 flex flex-col">
+        <h2 className="text-4xl font-bold mb-4" style={{ color: accent }}>Industry Breakdown</h2>
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-2xl text-muted-foreground">No industry data available yet. Score accounts to see industry breakdown.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full bg-card text-card-foreground p-20 flex flex-col">
