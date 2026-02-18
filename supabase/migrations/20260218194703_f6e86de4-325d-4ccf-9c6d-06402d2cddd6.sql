@@ -1,0 +1,1 @@
+UPDATE organizations SET slug = '91life' WHERE id = 'cd592f73-3e0e-478d-905b-47fe7c5fb634';
