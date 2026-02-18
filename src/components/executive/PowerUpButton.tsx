@@ -12,6 +12,7 @@ interface PowerUpButtonProps {
 
 const STEPS = [
   { key: "enrich", label: "Enriching intent data" },
+  { key: "beds", label: "Finding hospital bed counts" },
   { key: "score", label: "Scoring all accounts" },
   { key: "signals", label: "Computing intent signals" },
   { key: "insights", label: "Generating AI insights" },
@@ -50,8 +51,23 @@ export function PowerUpButton({ orgId, onComplete }: PowerUpButtonProps) {
         }
       } catch { /* non-critical */ }
 
-      // Step 1: Bulk score
+      // Step 1: Enrich bed counts for healthcare accounts
       setCurrentStep(1);
+      try {
+        // Run multiple batches of bed count enrichment
+        for (let batch = 0; batch < 4; batch++) {
+          const { error: bedErr } = await supabase.functions.invoke("enrich-bed-counts", {
+            body: { org_id: orgId, batch_size: 50 },
+          });
+          if (bedErr) {
+            console.error("Bed enrichment error:", bedErr);
+            break;
+          }
+        }
+      } catch { /* non-critical */ }
+
+      // Step 2: Bulk score
+      setCurrentStep(2);
       const { error: scoreErr } = await supabase.functions.invoke("bulk-score-accounts", {
         body: { org_id: orgId },
       });
@@ -71,8 +87,8 @@ export function PowerUpButton({ orgId, onComplete }: PowerUpButtonProps) {
         if (!job || job.status === "completed" || job.status === "failed") scoringDone = true;
       }
 
-      // Step 2: Compute intent signals for top accounts
-      setCurrentStep(2);
+      // Step 3: Compute intent signals for top accounts
+      setCurrentStep(3);
       try {
         const { data: topAccounts } = await supabase
           .from("scores")
@@ -91,8 +107,8 @@ export function PowerUpButton({ orgId, onComplete }: PowerUpButtonProps) {
         }
       } catch { /* non-critical */ }
 
-      // Step 3: Generate AI insights for top 10
-      setCurrentStep(3);
+      // Step 4: Generate AI insights for top 10
+      setCurrentStep(4);
       try {
         const { data: top10 } = await supabase
           .from("scores")
