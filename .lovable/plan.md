@@ -1,72 +1,69 @@
 
 
-## Fix Missing Slide Data + Add Slide Export
+## Fix Slide Data Accuracy
 
-### Two Issues to Address
+### The Problem
 
-**Issue 1: Slides showing no data for Industry, Geography, Top Prospects, Risks, and Next Steps**
+The slides display data from the `generate-board-report` edge function, but for orgs where accounts haven't been fully enriched, several slides show poor or missing information:
 
-The console logs show `FunctionsFetchError: Failed to send a request to the Edge Function` -- the `generate-board-report` edge function call is failing entirely, so the deck never loads any data. The slide components themselves are correctly wired to display the data when present.
+1. **Top Prospects** show raw UUIDs/internal IDs instead of company names (because `accounts.name` is null, the code falls back to `account_external_id`)
+2. **Industry Breakdown** is completely empty (the edge function query filters out accounts where `industry_norm IS NULL`)
+3. **Geography Distribution** is completely empty (same filtering for `country IS NULL`)
 
-However, the slides also lack empty-state handling -- if any data array happens to be empty (e.g., no risks detected, no geography data), the slides show a blank white area with just a title. We should add graceful empty states to each slide.
+### Root Cause
 
-**Issue 2: No way to export/download the slides**
+The edge function queries at lines 69-76 of `generate-board-report/index.ts` explicitly exclude accounts without enriched data:
 
-Currently the slide deck only supports in-app viewing and fullscreen presentation. There's no download/export option. We'll add a **"Download PDF"** button to the toolbar that captures each slide as an image and compiles them into a multi-page PDF.
+- Industry query: `.not("industry_norm", "is", null)` -- excludes un-enriched accounts
+- Geography query: `.not("country", "is", null)` -- same
 
----
+For Top Prospects, the fallback `acct?.name || s.account_external_id` shows the raw external ID when the account record has no name.
 
-### Changes
+### Proposed Fixes
 
-#### 1. Add empty states to slides that may have no data
+#### 1. Top Prospects: Show domain-based names instead of raw IDs
 
-Update these 5 slide components to show a helpful message when their data arrays are empty:
+In the edge function, improve the fallback name logic. Instead of showing raw UUIDs, extract a readable name from `external_id` when it follows the `lp-domain.com` pattern, or show "Unnamed Account" for truly random IDs.
 
-- **IndustrySlide** -- "No industry data available yet. Score accounts to see industry breakdown."
-- **GeographySlide** -- "No geography data available yet."
-- **ProspectsSlide** -- "No scored accounts yet. Run scoring to see top prospects."
-- **RisksSlide** -- "No risks identified -- your data quality looks good!"
-- **CTASlide** -- Already has a fallback (the "Ready to accelerate" message), no change needed.
+**File:** `supabase/functions/generate-board-report/index.ts`
+- Change line 232 from `name: acct?.name || s.account_external_id`
+- To a smarter fallback that extracts domain names from `lp-*` prefixed IDs (e.g., `lp-childrenscolorado.org` becomes `childrenscolorado.org`) and labels UUID-style IDs as "Account #N"
 
-#### 2. Add PDF export to the SlideDeck toolbar
+#### 2. Industry Breakdown: Include "Unknown" category for un-enriched accounts
 
-Add a "Download PDF" button next to the "Present" button in the toolbar. This will:
+Instead of filtering out accounts with no industry, count them as "Unknown / Not Enriched" so the chart still shows useful distribution data.
 
-- Iterate through all 9 slides
-- Render each at 1920x1080 using `html2canvas` (already installed)
-- Compile into a landscape PDF using `jsPDF` (already installed)
-- Download as `{companyName}-pitch-deck.pdf`
+**File:** `supabase/functions/generate-board-report/index.ts`
+- Change the `accountsWithIndustry` query (line 69-70) to remove the `.not("industry_norm", "is", null)` filter
+- The existing code already handles `a.industry_norm || "Unknown"` at line 117, but currently the filtered query prevents Unknown from appearing
+- Add the Unknown category back so the chart shows the proportion of enriched vs. un-enriched accounts
 
-**Files to create:**
-| File | Purpose |
-|------|---------|
-| `src/utils/slide-pdf-export.ts` | Utility function that takes a container ref, renders each slide to canvas, and builds the PDF |
+#### 3. Geography Distribution: Include "Unknown" category
 
-**Files to modify:**
-| File | Change |
-|------|--------|
-| `src/components/slides/slides/IndustrySlide.tsx` | Add empty state when `industryBreakdown` is empty |
-| `src/components/slides/slides/GeographySlide.tsx` | Add empty state when `geographyDistribution` is empty |
-| `src/components/slides/slides/ProspectsSlide.tsx` | Add empty state when `topProspects` is empty |
-| `src/components/slides/slides/RisksSlide.tsx` | Add empty state when no risks exist |
-| `src/components/slides/SlideDeck.tsx` | Add "Download PDF" button to toolbar, implement export logic |
+Same approach as industry -- include accounts without country data as "Unknown".
 
-### Technical Approach for PDF Export
+**File:** `supabase/functions/generate-board-report/index.ts`
+- Change the `accountsForGeo` query (line 74-75) to remove the `.not("country", "is", null)` filter
+- The existing code at line 164 already handles `a.country || "Unknown"`
 
-The export will temporarily render each slide off-screen at full 1920x1080 resolution, capture it with `html2canvas`, then add each capture as a page in a landscape jsPDF document. This reuses the existing `html2canvas` and `jspdf` dependencies already in the project.
+#### 4. Filter "Unknown" from chart display (optional improvement)
 
-```text
-User clicks "Download PDF"
-  --> Show loading spinner on button
-  --> For each slide in SLIDE_ORDER:
-       --> Render SlideRenderer into a hidden div (1920x1080)
-       --> html2canvas captures it as a canvas
-       --> Add canvas as JPEG page to jsPDF
-  --> Save PDF as "{companyName}-pitch-deck.pdf"
-  --> Remove loading spinner
-```
+In the slide components, optionally filter out the "Unknown" category from the visual chart but show a note like "X accounts not yet enriched" so users understand the gap without cluttering the chart.
 
-### Edge Function Error
+**Files:**
+- `src/components/slides/slides/IndustrySlide.tsx` -- filter "Unknown" from bar chart, show enrichment note
+- `src/components/slides/slides/GeographySlide.tsx` -- filter "Unknown" from table, show enrichment note
 
-The `FunctionsFetchError` in console is a separate issue -- the `generate-board-report` edge function may need redeployment or the user may need to be logged in. The empty states will at least ensure the slides degrade gracefully when data is missing, rather than showing blank content.
+### Implementation Steps
+
+1. Update `generate-board-report` edge function:
+   - Remove NULL filters on industry and geography queries
+   - Improve prospect name fallback logic
+2. Redeploy the edge function
+3. Update IndustrySlide and GeographySlide to handle "Unknown" entries gracefully
+4. Test with the 91.Life org to verify improved output
+
+### Technical Details
+
+The edge function changes are minimal -- removing two `.not()` filters and improving one name fallback. The slide component changes add a small enrichment status note. No new dependencies or tables needed.
 
