@@ -1,61 +1,68 @@
 
 
-## Bulk Custom Attribute Editor on Settings > Verticals
+## Bypass Credit Check and Test Perplexity Enrichment
 
-Add an inline data-entry table directly on the Settings > Verticals page so you can view and edit custom attribute values for all accounts in bulk -- no need to open individual account drawers.
+Temporarily skip the credit check in the `enrich-unified` edge function, then run a test enrichment on a real healthcare account to verify Perplexity populates `bed_count`, `facility_type`, and `ehr_system`.
 
-### What You'll See
+### Step 1: Add a `bypass_credits` flag to `enrich-unified`
 
-Below each category's attribute definitions (e.g., Healthcare), a new **"Edit Data"** toggle/button expands an editable table:
+In `supabase/functions/enrich-unified/index.ts`, modify the credit check (lines 172-182) to accept an optional `bypass_credits: true` parameter in the request body. When set, skip the credit check entirely and log a warning.
 
-- **Rows** = accounts (name, domain displayed for context)
-- **Columns** = each custom attribute in that category (bed_count, facility_type, ehr_system, etc.)
-- Cells are **inline-editable** matching field type (number input, text input, dropdown, multi-select chips)
-- **Search/filter** bar to find specific accounts by name or domain
-- **Pagination** (50 rows per page) since there are ~40K accounts
-- **Save** button to batch-update all changed rows at once
-- **Dirty tracking** highlights changed cells so you know what will be saved
+```
+Before:
+  const creditsRemaining = ...;
+  if (creditsRemaining < records.length) {
+    throw new Error(`Insufficient credits...`);
+  }
 
-### User Flow
+After:
+  if (!bypass_credits) {
+    const creditsRemaining = ...;
+    if (creditsRemaining < records.length) {
+      throw new Error(`Insufficient credits...`);
+    }
+  } else {
+    console.warn('[enrich-unified] CREDIT CHECK BYPASSED - test mode');
+  }
+```
 
-1. Go to Settings > Verticals
-2. Under a category (e.g., Healthcare), click **"Edit Data"**
-3. Table expands showing accounts with columns for each attribute
-4. Type values directly into cells (e.g., enter 250 for bed_count)
-5. Click **Save Changes** to persist all edits
+### Step 2: Add verbose logging for Perplexity + custom attributes
+
+Add extra console.log statements in the enrichment pipeline so we can confirm:
+- Custom attribute definitions were loaded (already logged at line 163)
+- Perplexity was called with the enrichment prompts
+- What Perplexity returned for `bed_count`, `facility_type`, `ehr_system`
+- Whether `custom_attributes` was written to the account record
+
+### Step 3: Run a test enrichment via curl
+
+Call the edge function directly with one healthcare account and `bypass_credits: true`:
+
+- **Account**: "Don Castellarin" (domain: dentistdonsmiles.com, industry: Hospitals & Physicians Clinics)
+- **Record type**: account
+- **Config**: `{ bypass_credits: true }`
+
+### Step 4: Check logs and verify data
+
+After the test call:
+1. Read edge function logs to confirm Perplexity was invoked
+2. Query the `accounts` table to verify `custom_attributes` now contains `bed_count`, `facility_type`, and `ehr_system` values
+
+### Step 5: Remove bypass (cleanup)
+
+After verification, remove the `bypass_credits` flag so the credit check is enforced again in production.
 
 ---
 
-## Technical Details
+### Files Modified
 
-### New Component: `BulkAttributeEditor`
+- **`supabase/functions/enrich-unified/index.ts`** -- Add `bypass_credits` flag support, add verbose logging around Perplexity calls and custom attribute storage
+- No other files changed; this is a backend-only test
 
-Create `src/components/settings/BulkAttributeEditor.tsx`:
+### What You'll See
 
-- **Props**: `orgId`, `category`, `definitions` (the attribute defs for this category)
-- **Data fetching**: Paginated query to `accounts` table filtered by `org_id`, selecting `id, name, domain, custom_attributes`, with client-side search on name/domain
-- **Rendering**: Uses the existing `Table` components from `src/components/ui/table.tsx`
-- **Inline editing**: Each cell renders the appropriate input based on `field_type`:
-  - `number` -> `<Input type="number" />`
-  - `text` -> `<Input type="text" />`
-  - `select` -> `<Select>` dropdown with the definition's `options`
-  - `multi_select` -> Dropdown with checkboxes
-- **State management**: Local `Record<accountId, Record<fieldKey, value>>` tracking changes
-- **Batch save**: On save, iterates changed accounts and calls `supabase.from('accounts').update({ custom_attributes: mergedJson }).eq('id', accountId)` for each changed row
-- **Pagination**: 50 rows per page with next/prev controls
-- **Search**: Debounced text filter using `ilike` on name or domain
-
-### Modify: `CustomAttributeManager.tsx`
-
-- Import `BulkAttributeEditor`
-- Add a toggle button ("Edit Data") next to each category's "Fill Missing" button
-- When toggled, render `<BulkAttributeEditor>` below the category's attribute definition list
-- Pass the category's definitions and org ID
-
-### Files
-
-- **Create**: `src/components/settings/BulkAttributeEditor.tsx`
-- **Modify**: `src/components/settings/CustomAttributeManager.tsx` (add toggle + render the new component)
-
-No database changes needed -- this reads/writes to the existing `accounts.custom_attributes` JSONB column.
+After running the test, I'll show you:
+- The edge function logs proving Perplexity was called with healthcare prompts
+- The actual values returned (e.g., bed_count = 5, facility_type = "Community Hospital", ehr_system = "Dentrix")
+- The database row confirming `custom_attributes` was populated
 
