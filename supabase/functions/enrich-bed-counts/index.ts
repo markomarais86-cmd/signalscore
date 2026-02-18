@@ -14,7 +14,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { successResponse, errorResponse, handleCors, ErrorCodes, parseJsonBody, validateRequired } from '../_shared/response-helpers.ts';
 
 const MAX_RUNTIME_MS = 50_000;
-const DEFAULT_BATCH_SIZE = 50;
+const DEFAULT_BATCH_SIZE = 200;
 
 serve(async (req) => {
   const corsResponse = handleCors(req);
@@ -27,17 +27,23 @@ serve(async (req) => {
   const lovableKey = Deno.env.get('LOVABLE_API_KEY');
 
   try {
-    // Auth
+    // Auth — allow service role key OR scheduled trigger to bypass user auth
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) return errorResponse(ErrorCodes.UNAUTHORIZED, 'Missing authorization', 401);
 
-    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
-    const { data: { user }, error: authError } = await authClient.auth.getUser();
-    if (authError || !user) return errorResponse(ErrorCodes.UNAUTHORIZED, 'Invalid token', 401);
+    const token = authHeader.replace('Bearer ', '');
+    const isServiceRole = token === supabaseServiceKey;
 
-    const body = await parseJsonBody<{ org_id: string; batch_size?: number }>(req);
+    const body = await parseJsonBody<{ org_id: string; batch_size?: number; triggered_by?: string }>(req);
+    const isScheduled = body?.triggered_by === 'scheduled';
+
+    if (!isServiceRole && !isScheduled) {
+      const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+      const { data: { user }, error: authError } = await authClient.auth.getUser();
+      if (authError || !user) return errorResponse(ErrorCodes.UNAUTHORIZED, 'Invalid token', 401);
+    }
     const validation = validateRequired(body, ['org_id']);
     if (!validation.valid) return errorResponse(ErrorCodes.VALIDATION_ERROR, `Missing: ${validation.missing.join(', ')}`, 400);
 
@@ -86,7 +92,7 @@ serve(async (req) => {
     let skipped = 0;
 
     // Process accounts - batch them into groups of 5 for parallel Perplexity calls
-    const PARALLEL_BATCH = 5;
+    const PARALLEL_BATCH = 10;
     for (let i = 0; i < needsBeds.length; i += PARALLEL_BATCH) {
       if (Date.now() - startTime > MAX_RUNTIME_MS) {
         console.log(`[enrich-bed-counts] Time budget exceeded after ${enriched} enrichments`);
