@@ -150,7 +150,24 @@ serve(async (req) => {
         }
       }
 
-      // Skip industry filters - Apollo expects numeric tag IDs, not names
+      // Add industry + sub-industry + company keywords as keyword tags
+      // Apollo's q_organization_keyword_tags accepts plain text strings
+      const keywordTags: string[] = [];
+
+      if (icpData.industries && icpData.industries.length > 0) {
+        keywordTags.push(...icpData.industries);
+      }
+      if (icpData.sub_industries && icpData.sub_industries.length > 0) {
+        keywordTags.push(...icpData.sub_industries);
+      }
+      if (icpData.company_keywords && icpData.company_keywords.length > 0) {
+        keywordTags.push(...icpData.company_keywords);
+      }
+
+      if (keywordTags.length > 0) {
+        baseRequestBody.q_organization_keyword_tags = keywordTags;
+        console.log(`Added ${keywordTags.length} keyword tags:`, keywordTags);
+      }
 
       console.log('Calling Apollo API with filters:', JSON.stringify(baseRequestBody, null, 2));
 
