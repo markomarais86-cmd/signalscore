@@ -234,7 +234,8 @@ serve(async (req) => {
     if (!validation.valid) {
       return errorResponse(ErrorCodes.VALIDATION_ERROR, `Missing required fields: ${validation.missing.join(', ')}`, 400);
     }
-    const { org_id, icp_id, job_id: resumeJobId } = requestBody!;
+    const { org_id, icp_id, job_id: requestedJobId } = requestBody!;
+    let resumeJobId = requestedJobId;
 
     // ========== RESOLVE DATA ORG (parent) FOR ACCOUNT QUERIES ==========
     // Child orgs share accounts with their parent org. Use dataOrgId for
@@ -278,11 +279,18 @@ serve(async (req) => {
         supabase, org_id, 'bulk_scoring_jobs', 'status', ['pending', 'processing'], 60
       );
       if (hasExistingJob && existingJob) {
-        return successResponse({
-          job_id: existingJob.id, message: 'Existing scoring job in progress',
-          status: existingJob.status, total_accounts: existingJob.total_accounts,
-          processed_accounts: existingJob.processed_accounts, _existing_job: true,
-        });
+        const jobAge = Date.now() - new Date(existingJob.updated_at).getTime();
+        if (jobAge > 60_000) {
+          // Stale for > 1 minute — resume instead of blocking
+          console.log(`Resuming stale job ${existingJob.id} (age: ${Math.round(jobAge / 1000)}s)`);
+          resumeJobId = existingJob.id;
+        } else {
+          return successResponse({
+            job_id: existingJob.id, message: 'Existing scoring job in progress',
+            status: existingJob.status, total_accounts: existingJob.total_accounts,
+            processed_accounts: existingJob.processed_accounts, _existing_job: true,
+          });
+        }
       }
     }
 
