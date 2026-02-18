@@ -1,59 +1,57 @@
 
 
-## Fix: Enrichment "Too Many Records" Error and Child Org Support
+## Fix: Enrichment Page Shows All Zeros for Child Orgs (91.Life)
 
-### Problems Found
+### Root Cause
 
-1. **Too many records per request**: The batch size selector allows 100-2500 records, but `enrich-unified` has a hard limit of 100 per request. The `enrichAccounts` hook sends all records in one call with no chunking.
+The entire Enrichment page and all its sub-components query `accounts` and `Leads` using `userProfile.org_id` directly. For child orgs like 91.life, accounts live under the parent org (LaunchPulse). This causes every metric, data gap, export, and quality dashboard to return zero.
 
-2. **Child org issue (91.life)**: The "existing data" enrichment query at line 1062 uses `userProfile.org_id` directly, which returns 0 accounts for child organizations whose data lives under the parent org.
+### Scope of Changes
 
-### Fix 1: Add client-side chunking in the enrichment hook
+Every component on the Enrichment page that queries `accounts` or `Leads` needs the parent org resolution. Here is the full list:
 
-**File: `src/hooks/use-unified-enrichment.ts`**
+| File | Current Query ID | Fix |
+|------|-----------------|-----|
+| `src/pages/Enrichment.tsx` | `effectiveOrgId` via RPC | Pass resolved `dataOrgId` to `get_enrichment_page_stats` |
+| `src/components/enrichment/DataGapsVisualization.tsx` | `userProfile.org_id` (12+ queries) | Use `dataOrgId` for all account queries; keep child org ID for `enrichment_jobs` and edge function calls |
+| `src/components/enrichment/ExportAccountsButton.tsx` | `userProfile.org_id` | Use `dataOrgId` for account SELECT queries |
+| `src/components/enrichment/ExportLeadsButton.tsx` | `userProfile.org_id` | Use `dataOrgId` for lead SELECT queries |
+| `src/components/enrichment/RecentEnrichmentActivity.tsx` | `userProfile.org_id` | Keep as-is (enrichment_jobs belong to the child org) |
+| `src/components/enrichment/ICPAccountDiscovery.tsx` | `userProfile.org_id` | Use `dataOrgId` for account lookups; keep child org for ICP profiles |
+| `src/components/settings/DataQualityDashboard.tsx` | `userProfile.org_id` | Use `dataOrgId` for account queries; keep child org for RPCs and edge function calls |
+| `src/components/settings/EnrichmentQualityDashboard.tsx` | `userProfile.org_id` | Use `dataOrgId` for account queries; keep child org for enrichment_jobs and data_quality_history |
+| `src/components/enrichment/EnrichmentAccuracyReport.tsx` | Needs checking | Same pattern if it queries accounts |
 
-Update `enrichAccounts` to automatically chunk records into batches of 100 (matching the edge function limit). Process each chunk sequentially, aggregate results, and report combined progress.
+### Pattern for Each Fix
+
+Each component will:
+1. Import `useDataOrgId` from `@/hooks/use-data-org`
+2. Destructure `{ dataOrgId }` from the hook
+3. Replace `userProfile.org_id` with `dataOrgId` **only** for queries against `accounts` and `Leads` tables
+4. Keep `userProfile.org_id` (or `effectiveOrgId`) for:
+   - `enrichment_jobs` (job tracking belongs to the child org)
+   - `icp_profiles` and `scores` (belong to child org)
+   - Edge function invocations (the functions handle resolution internally)
+   - `data_quality_history` (tracked per child org)
+
+### Key Rule
 
 ```text
-BEFORE:
-  const { data, error } = await supabase.functions.invoke('enrich-unified', {
-    body: { org_id, record_type: 'account', records, config }
-  });
-
-AFTER:
-  const CHUNK_SIZE = 100;
-  const chunks = [];
-  for (let i = 0; i < records.length; i += CHUNK_SIZE) {
-    chunks.push(records.slice(i, i + CHUNK_SIZE));
-  }
-  // Process each chunk, merge results
-  for (const chunk of chunks) {
-    const { data, error } = await supabase.functions.invoke('enrich-unified', {
-      body: { org_id, record_type: 'account', records: chunk, config }
-    });
-    // Accumulate summary totals across chunks
-  }
+accounts, Leads tables --> use dataOrgId (parent)
+enrichment_jobs, icp_profiles, scores, settings --> use effectiveOrgId (child)
 ```
 
-Same chunking applied to `enrichLeads`.
+### Files to Modify
 
-### Fix 2: Resolve parent org for "existing data" enrichment
+1. `src/pages/Enrichment.tsx`
+2. `src/components/enrichment/DataGapsVisualization.tsx`
+3. `src/components/enrichment/ExportAccountsButton.tsx`
+4. `src/components/enrichment/ExportLeadsButton.tsx`
+5. `src/components/enrichment/ICPAccountDiscovery.tsx`
+6. `src/components/settings/DataQualityDashboard.tsx`
+7. `src/components/settings/EnrichmentQualityDashboard.tsx`
+8. `src/components/enrichment/EnrichmentAccuracyReport.tsx` (if applicable)
 
-**File: `src/components/enrichment/UnifiedEnrichmentWizard.tsx`**
+### Expected Result
 
-At line 1062, the account query uses `userProfile.org_id`. For child orgs, this needs to resolve to the parent org's ID (same pattern used in BulkScoring and PowerUpButton).
-
-- Import `useDataOrgId` hook
-- Use the resolved `dataOrgId` for the account fetch query
-- Keep `userProfile.org_id` for the `enrichAccounts()` call (scores/ICP belong to child org)
-
-### Files Modified
-
-| File | Change |
-|------|--------|
-| `src/hooks/use-unified-enrichment.ts` | Add automatic chunking (100 records per request) for both `enrichAccounts` and `enrichLeads` |
-| `src/components/enrichment/UnifiedEnrichmentWizard.tsx` | Use `dataOrgId` for account fetch query in existing-data enrichment mode |
-
-### No Backend Changes
-
-The edge function's 100-record limit is correct and stays as-is. Chunking is handled client-side.
+After the fix, 91.life's Enrichment page will show the same account totals, data completeness, enriched counts, and data gaps as LaunchPulse, since they share the same underlying account database.
