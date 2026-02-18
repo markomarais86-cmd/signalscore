@@ -44,6 +44,15 @@ function revenueRangeToMidpoint(range: string | null): number | null {
 // ─── Data Fetching ──────────────────────────────────────────────────────────
 
 async function fetchAllReportData(supabase: any, orgId: string) {
+  // Resolve parent org for account/lead queries (child orgs store data under parent)
+  const { data: orgLookup } = await supabase
+    .from("organizations")
+    .select("parent_org_id")
+    .eq("id", orgId)
+    .single();
+  const dataOrgId = orgLookup?.parent_org_id || orgId;
+  console.log(`[board-report] orgId=${orgId}, dataOrgId=${dataOrgId}, isChild=${dataOrgId !== orgId}`);
+
   // Parallel data fetches — added brand config + full ICP fields
   const [
     metricsRes,
@@ -65,16 +74,16 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     supabase.from("scores").select("account_external_id, overall, fit, intent, org_id")
       .eq("org_id", orgId).order("overall", { ascending: false }).limit(10),
     supabase.from("organizations").select("name").eq("id", orgId).maybeSingle(),
-    supabase.from("Leads").select("id", { count: "exact", head: true }).eq("org_id", orgId),
+    supabase.from("Leads").select("id", { count: "exact", head: true }).eq("org_id", dataOrgId),
     supabase.from("accounts").select("external_id, industry_norm, revenue_range")
-      .eq("org_id", orgId).limit(50000),
-    supabase.from("accounts").select("employee_count").eq("org_id", orgId).limit(50000),
+      .eq("org_id", dataOrgId).limit(50000),
+    supabase.from("accounts").select("employee_count").eq("org_id", dataOrgId).limit(50000),
     supabase.from("accounts").select("name, industry_norm, employee_count, country, domain, revenue_range")
-      .eq("org_id", orgId).limit(500),
+      .eq("org_id", dataOrgId).limit(500),
     supabase.from("accounts").select("external_id, country")
-      .eq("org_id", orgId).limit(50000),
+      .eq("org_id", dataOrgId).limit(50000),
     supabase.from("accounts").select("industry_norm, employee_count, country, revenue_range")
-      .eq("org_id", orgId).limit(5000),
+      .eq("org_id", dataOrgId).limit(5000),
     supabase.from("scores").select("account_external_id, overall, fit")
       .eq("org_id", orgId),
     supabase.from("account_signals").select("signal_priority, signal_type")
@@ -216,9 +225,9 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     const [{ data: accountDetails }, { data: leadCounts }] = await Promise.all([
       supabase.from("accounts")
         .select("external_id, name, industry_norm, employee_count, country, revenue_range")
-        .eq("org_id", orgId).in("external_id", extIds),
+        .eq("org_id", dataOrgId).in("external_id", extIds),
       supabase.from("Leads").select("account_external_id")
-        .eq("org_id", orgId).in("account_external_id", extIds),
+        .eq("org_id", dataOrgId).in("account_external_id", extIds),
     ]);
     const accountMap = new Map((accountDetails || []).map((a: any) => [a.external_id, a]));
     const leadCountMap = new Map<string, number>();
