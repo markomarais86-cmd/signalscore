@@ -24,26 +24,36 @@ function useICPScoringStats(icpId: string | undefined) {
     if (!icpId) return;
     setLoading(true);
 
-    supabase
-      .from('scores')
-      .select('fit, computed_at')
-      .eq('icp_id', icpId)
-      .then(({ data, error }) => {
-        if (error || !data) {
-          setLoading(false);
-          return;
-        }
-        const scoredAccounts = data.length;
-        const avgFit = scoredAccounts > 0
-          ? data.reduce((sum, s) => sum + (s.fit ?? 0), 0) / scoredAccounts
-          : null;
-        const lastScoredAt = scoredAccounts > 0
-          ? data.reduce((latest, s) => (!latest || (s.computed_at && s.computed_at > latest) ? s.computed_at : latest), null as string | null)
-          : null;
-
-        setStats({ scoredAccounts, avgFit, lastScoredAt });
+    // Use two parallel queries to avoid Supabase's 1000-row default limit:
+    // 1. head:true with count:'exact' for accurate total count
+    // 2. Sample the 500 most recent scores for avgFit + lastScoredAt
+    Promise.all([
+      supabase
+        .from('scores')
+        .select('*', { count: 'exact', head: true })
+        .eq('icp_id', icpId),
+      supabase
+        .from('scores')
+        .select('fit, computed_at')
+        .eq('icp_id', icpId)
+        .order('computed_at', { ascending: false })
+        .limit(500),
+    ]).then(([countResult, statsResult]) => {
+      if (countResult.error || statsResult.error) {
         setLoading(false);
-      });
+        return;
+      }
+
+      const scoredAccounts = countResult.count ?? 0;
+      const sampleData = statsResult.data ?? [];
+      const avgFit = sampleData.length > 0
+        ? sampleData.reduce((sum, s) => sum + (s.fit ?? 0), 0) / sampleData.length
+        : null;
+      const lastScoredAt = sampleData.length > 0 ? sampleData[0].computed_at : null;
+
+      setStats({ scoredAccounts, avgFit, lastScoredAt });
+      setLoading(false);
+    });
   }, [icpId]);
 
   return { stats, loading };

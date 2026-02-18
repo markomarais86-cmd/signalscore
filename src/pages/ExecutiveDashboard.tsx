@@ -176,14 +176,14 @@ export default function ExecutiveDashboard() {
         .catch((e) => dashboardLogger.error('Failed to detect risks:', e));
       
       // Generate insights if we have data
-      if (totalScores > 0 && effectiveOrgId) {
+      if ((totalScores > 0 || totalAccounts > 0) && effectiveOrgId) {
         generateInsights();
       }
 
       // Check for stale data and active scoring jobs
       checkDataFreshness();
     }
-  }, [dashboardData?.metrics, effectiveOrgId, totalScores]);
+  }, [dashboardData?.metrics, effectiveOrgId, totalScores, totalAccounts]);
 
   const checkDataFreshness = async () => {
     if (!effectiveOrgId) return;
