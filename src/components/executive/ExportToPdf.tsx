@@ -7,6 +7,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useBrandedReport } from "@/hooks/use-branded-report";
+import { useNavigate } from "react-router-dom";
 
 interface ExportToPdfProps {
   onExport: (format: 'pdf' | 'pptx' | 'csv') => void;
@@ -20,6 +21,7 @@ export function ExportToPdf({
   size = "sm"
 }: ExportToPdfProps) {
   const { generateReport, isGenerating } = useBrandedReport();
+  const navigate = useNavigate();
 
   const handlePdfExport = async () => {
     await generateReport();
@@ -42,9 +44,9 @@ export function ExportToPdf({
           <FileText className="h-4 w-4 mr-2" />
           Board PDF Report
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onExport('pptx')}>
+        <DropdownMenuItem onClick={() => navigate('/presentations')}>
           <Presentation className="h-4 w-4 mr-2" />
-          PowerPoint (Soon)
+          Pitch Deck
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onExport('csv')}>
           <Download className="h-4 w-4 mr-2" />

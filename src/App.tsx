@@ -57,6 +57,7 @@ import APIAccess from "./pages/APIAccess";
 import Tasks from "./pages/Tasks";
 import CustomerOnboarding from "./pages/admin/CustomerOnboarding";
 import ListBuilder from "./pages/ListBuilder";
+import Presentations from "./pages/Presentations";
 
 import PipelineAnalyticsPage from "./pages/PipelineAnalyticsPage";
 import Opportunities from "./pages/Opportunities";
@@ -423,6 +424,14 @@ function AppContent() {
                       <Layout>
                         <APIAccess />
                       </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/presentations"
+                  element={
+                    <ProtectedRoute>
+                      <Presentations />
                     </ProtectedRoute>
                   }
                 />
