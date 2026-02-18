@@ -1,78 +1,69 @@
 
 
-## Fix: Edit Data Toggle Button Not Working in Bulk Attribute Editor
+## Fix KPI Card Color Thresholds
 
-### The Problem
+### Problem
 
-Clicking the "Edit Data" button on the Healthcare (or any) vertical card does nothing -- the BulkAttributeEditor table never appears. The button's `onClick` calls `setEditDataCategory(prev => prev === category ? null : category)`, but the state change doesn't produce a visual result. No accounts query fires, confirming the `BulkAttributeEditor` component never mounts.
+Three KPI cards show red because they all share a single `getBenchmarkColor/getBenchmarkBg` function with fixed thresholds (>=70 green, >=40 yellow, <40 red). But each metric has a different "healthy" range:
 
-### Root Cause Investigation
+- **Priority Accounts**: 24% of total accounts are high-fit. Per the Score Bands doc, A-band should be 10-20%, so 24% is actually excellent -- should be green.
+- **Pipeline Potential**: Shows $0 because `campaignReadyAccounts` is passed as 0 from the dashboard (likely the SOM/settings fix hasn't propagated). When $0, the hardcoded benchmark is 30 (red).
+- **Revenue at Risk**: Any non-zero value gets benchmark 30 (red). While this is directionally correct as a warning, the color logic should be more nuanced.
 
-The button is inside a `CardHeader` which is inside a `Card`. The state setter fires, but something causes the component to re-render and reset. Looking at the code structure:
+### Changes
 
-1. The `loadDefinitions` function (line 272) sets `setLoading(true)`, which causes the render path to switch to the loading skeleton (line 593-596), unmounting all cards
-2. If `loadDefinitions` is called during or after the state change, the cards unmount and remount -- losing the `editDataCategory` state visually (it gets set but then the loading branch renders instead)
-3. The `useEffect` on line 226 depends on `[dataOrgId, effectiveOrgId]`. If the `useDataOrgId` hook's React Query resolves asynchronously after the tab renders, it could re-trigger `loadDefinitions`, causing a flash of loading state
+**File: `src/components/executive/GrowthCommandKPIs.tsx`**
 
-However, the most likely cause is simpler: **the button click works, but `dataOrgId` might momentarily be null** during a React Query refetch cycle, causing the condition `editDataCategory === category && dataOrgId` (line 693) to be false even when `editDataCategory` is set.
+Replace the hardcoded `benchmarkPercent` values with metric-appropriate thresholds:
 
-### The Fix
-
-**File: `src/components/settings/CustomAttributeManager.tsx`**
-
-1. **Prevent `loadDefinitions` from resetting loading state on refetch** -- Only set `loading: true` on initial load, not on subsequent re-fetches. This prevents cards from unmounting.
-
-2. **Use `dataOrgId` fallback** -- Cache the last known `dataOrgId` so a momentary `null` during refetch doesn't hide the editor.
-
-3. **Add a guard to prevent re-calling `loadDefinitions`** -- Once definitions are loaded, don't call it again unless the org actually changes.
+1. **Priority Accounts** -- Use percentage of *scored* accounts (not total), and lower the green threshold. If high-fit is >=10% of scored, that's healthy (green). Below 5% is concerning (red).
 
 ```typescript
-// Change 1: Only show loading skeleton on initial load
-const [initialLoading, setInitialLoading] = useState(true);
+// BEFORE
+benchmarkPercent: totalAccounts > 0 ? Math.round((priorityCount / totalAccounts) * 100) : 0,
 
-const loadDefinitions = async () => {
-  if (!dataOrgId) return;
-  // Only show full loading skeleton on first load
-  if (definitions.length === 0) setLoading(true);
-  try {
-    // ... existing query
-  } finally {
-    setLoading(false);
-    setInitialLoading(false);
-  }
-};
-
-// Change 2: In the useEffect, track whether we've loaded for this org
-const [loadedOrgId, setLoadedOrgId] = useState<string | null>(null);
-
-useEffect(() => {
-  if (dataOrgId && dataOrgId !== loadedOrgId) {
-    setLoadedOrgId(dataOrgId);
-    loadDefinitions();
-    // ... ICP fetch
-  }
-}, [dataOrgId, effectiveOrgId]);
-
-// Change 3: Use initialLoading for the skeleton guard
-{initialLoading ? (
-  <Card><CardContent>Loading...</CardContent></Card>
-) : definitions.length === 0 ? (
-  // ...empty state
-) : (
-  // ...render cards with Edit Data
-)}
+// AFTER
+benchmarkPercent: totalScored > 0
+  ? (priorityCount / totalScored >= 0.10 ? 80 : priorityCount / totalScored >= 0.05 ? 50 : 20)
+  : 50,
 ```
+
+2. **Pipeline Potential** -- Green when there are campaign-ready accounts AND a non-zero value. Yellow when there are campaign-ready accounts but $0 (settings issue). Red only when no campaign-ready accounts at all.
+
+```typescript
+// BEFORE
+benchmarkPercent: pipelinePotential > 0 ? 60 : 30,
+
+// AFTER
+benchmarkPercent: pipelinePotential > 0 ? 80 : campaignReadyAccounts > 0 ? 50 : 30,
+```
+
+3. **Revenue at Risk** -- Invert the severity: if most accounts are scored (low risk), show green. If a large portion is unscored, show red. Use ratio of unscored-to-total.
+
+```typescript
+// BEFORE  
+benchmarkPercent: revenueAtRisk > 0 ? 30 : 80,
+
+// AFTER
+benchmarkPercent: totalAccounts > 0
+  ? (totalScored / totalAccounts >= 0.80 ? 50 : totalScored / totalAccounts >= 0.50 ? 40 : 20)
+  : 50,
+```
+This makes Revenue at Risk yellow (caution) when 80%+ are scored (since some risk remains), and red only when less than 50% are scored. Fully scored (revenueAtRisk === 0) keeps the existing green (80).
+
+### Also Investigate: Pipeline Potential showing $0
+
+The `campaignReadyAccounts` prop is showing 0 in the KPIs despite the database cache having 1,515. I'll trace the prop from `ExecutiveDashboard.tsx` to confirm the value is being passed correctly after the recent SOM fix. If `campaignReadyAccounts` is sourced from the CRM-filtered view (which may return 0 for the "CRM" tab), that explains both this $0 and the SOM $0 on the Market Sizing card.
 
 ### Expected Result
 
-- Clicking "Edit Data" toggles the bulk editor table inline below the attribute list
-- The "Missing" filter dropdown shows field options (e.g., "Missing Number of Beds")
-- Selecting "Missing Number of Beds" shows the 663 healthcare accounts that still need `bed_count` values
-- The "Enrich Filtered" button appears next to the dropdown for targeted enrichment
+After the fix:
+- **Market Coverage** (96%): stays green
+- **Data Completeness** (97%): stays green
+- **Priority Accounts** (9,609 = ~43% of scored): green (well above 10% threshold)
+- **Pipeline Potential** ($0): yellow (campaign-ready accounts exist but value is $0 due to settings/source filter)
+- **Revenue at Risk** ($198.3M): yellow (56% scored, caution but not critical)
 
-### Data Summary (from database)
+### Summary
 
-- 663 healthcare accounts still missing `bed_count`
-- 20 accounts already have `bed_count` populated
-- Total accounts in org: 39,928
-
+One file changes: `GrowthCommandKPIs.tsx`. Replace the three hardcoded `benchmarkPercent` values with metric-appropriate logic that reflects actual business health thresholds.
