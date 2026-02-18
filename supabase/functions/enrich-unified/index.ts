@@ -161,6 +161,8 @@ serve(async (req) => {
             options: d.options || [],
           }));
           console.log(`[enrich-unified] Loaded ${defsWithPrompts.length} custom attribute definitions for vertical enrichment`);
+          console.log(`[enrich-unified] Custom attribute keys: ${defsWithPrompts.map((d: any) => d.field_key).join(', ')}`);
+          console.log(`[enrich-unified] Custom attribute prompts:`, JSON.stringify(defsWithPrompts.map((d: any) => ({ key: d.field_key, prompt: d.enrichment_prompt?.substring(0, 80) }))));
         }
       }
     } catch (defsLoadErr) {
@@ -316,7 +318,7 @@ serve(async (req) => {
               if (result.data.twitter_url) updateData.twitter_url = result.data.twitter_url;
               if (result.data.naics) updateData.naics = result.data.naics;
               if (result.data.sic_code) updateData.sic_code = result.data.sic_code;
-              if (result.data.tech_stack) updateData.tech_stack = result.data.tech_stack;
+              if (result.data.tech_stack && Array.isArray(result.data.tech_stack) && result.data.tech_stack.length > 0) updateData.tech_stack = result.data.tech_stack;
               if (result.data.total_raised_usd) updateData.total_raised_usd = result.data.total_raised_usd;
               if (result.data.last_funding_round) updateData.last_funding_round = result.data.last_funding_round;
               if (result.data.sub_industry) updateData.sub_industry = result.data.sub_industry;
@@ -325,7 +327,9 @@ serve(async (req) => {
               // Store custom vertical attributes
               if (result.data.custom_attributes && Object.keys(result.data.custom_attributes).length > 0) {
                 updateData.custom_attributes = result.data.custom_attributes;
-                console.log(`[enrich-unified] Storing ${Object.keys(result.data.custom_attributes).length} custom attributes for ${record.external_id}`);
+                console.log(`[enrich-unified] 🎯 CUSTOM ATTRIBUTES for ${record.external_id}:`, JSON.stringify(result.data.custom_attributes));
+              } else {
+                console.log(`[enrich-unified] ⚠️ No custom_attributes returned for ${record.external_id}. Result data keys: ${Object.keys(result.data).join(', ')}`);
               }
 
               const { error: updateError, count } = await supabase
