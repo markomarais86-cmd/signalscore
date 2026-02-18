@@ -12,7 +12,7 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useEffectiveOrg } from "@/hooks/use-effective-org";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { useRoles } from "@/hooks/use-roles";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,7 +44,7 @@ interface HeroStats {
 
 export default function Enrichment() {
   const { userProfile } = useAuth();
-  const { effectiveOrgId } = useEffectiveOrg();
+  const { dataOrgId, effectiveOrgId } = useDataOrgId();
   const { isSuperAdmin, isOrgAdmin } = useRoles();
   const { flags, isLoading: flagsLoading } = useFeatureFlags();
   const isAdmin = isSuperAdmin || isOrgAdmin;
@@ -58,18 +58,18 @@ export default function Enrichment() {
   });
 
   useEffect(() => {
-    if (effectiveOrgId) {
+    if (dataOrgId) {
       loadHeroStats();
     }
-  }, [effectiveOrgId]);
+  }, [dataOrgId]);
 
   const loadHeroStats = async () => {
-    if (!effectiveOrgId) return;
+    if (!dataOrgId) return;
 
     try {
       // Use the new RPC that correctly queries accounts and leads tables
       const { data, error } = await supabase.rpc('get_enrichment_page_stats', {
-        p_org_id: effectiveOrgId
+        p_org_id: dataOrgId
       });
 
       if (error) {

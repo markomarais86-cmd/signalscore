@@ -17,6 +17,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 
@@ -39,17 +40,19 @@ interface ProviderSummary {
 
 export function EnrichmentAccuracyReport() {
   const { userProfile } = useAuth();
+  const { effectiveOrgId } = useDataOrgId();
+
   const [activeTab, setActiveTab] = useState("providers");
 
   const { data: validations, isLoading, refetch } = useQuery({
-    queryKey: ['enrichment-validations', userProfile?.org_id],
+    queryKey: ['enrichment-validations', effectiveOrgId],
     queryFn: async () => {
-      if (!userProfile?.org_id) return [];
+      if (!effectiveOrgId) return [];
       
       const { data, error } = await supabase
         .from('enrichment_validations')
         .select('*')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', effectiveOrgId)
         .not('is_accurate', 'is', null)
         .order('validated_at', { ascending: false })
         .limit(500);
@@ -57,7 +60,7 @@ export function EnrichmentAccuracyReport() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!userProfile?.org_id
+    enabled: !!effectiveOrgId
   });
 
   // Calculate provider summaries

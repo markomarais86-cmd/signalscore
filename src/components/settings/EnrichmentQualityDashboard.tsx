@@ -7,6 +7,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Database, TrendingUp, DollarSign, CheckCircle2, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { useToast } from "@/hooks/use-toast";
 
 interface EnrichmentStats {
@@ -39,16 +40,17 @@ export function EnrichmentQualityDashboard() {
   const [timeline, setTimeline] = useState<any[]>([]);
   
   const { userProfile } = useAuth();
+  const { dataOrgId, effectiveOrgId } = useDataOrgId();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (userProfile?.org_id) {
+    if (dataOrgId) {
       loadDashboardData();
     }
-  }, [userProfile?.org_id]);
+  }, [dataOrgId]);
 
   const loadDashboardData = async () => {
-    if (!userProfile?.org_id) return;
+    if (!dataOrgId) return;
 
     setLoading(true);
     try {
@@ -56,7 +58,7 @@ export function EnrichmentQualityDashboard() {
       const { data: jobs, error: jobsError } = await supabase
         .from('enrichment_jobs')
         .select('*')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', effectiveOrgId)
         .eq('job_type', 'firmographic')
         .order('created_at', { ascending: false });
 
@@ -103,7 +105,7 @@ export function EnrichmentQualityDashboard() {
       const { data: accounts } = await supabase
         .from('accounts')
         .select('industry_norm, employee_count, revenue_range, country')
-        .eq('org_id', userProfile.org_id);
+        .eq('org_id', dataOrgId);
 
       if (accounts && accounts.length > 0) {
         const total = accounts.length;
@@ -119,7 +121,7 @@ export function EnrichmentQualityDashboard() {
       const { data: history } = await supabase
         .from('data_quality_history')
         .select('*')
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', effectiveOrgId)
         .order('created_at', { ascending: true })
         .limit(7);
 

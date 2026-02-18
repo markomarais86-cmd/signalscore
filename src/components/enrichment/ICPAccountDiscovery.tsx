@@ -24,6 +24,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -52,6 +53,7 @@ interface DiscoveredCompany {
 
 export function ICPAccountDiscovery() {
   const { userProfile } = useAuth();
+  const { dataOrgId, effectiveOrgId } = useDataOrgId();
   const [icpProfiles, setIcpProfiles] = useState<ICPProfile[]>([]);
   const [selectedIcpId, setSelectedIcpId] = useState<string>("");
   const [limit, setLimit] = useState(20);
@@ -62,18 +64,18 @@ export function ICPAccountDiscovery() {
   const [importedCount, setImportedCount] = useState(0);
 
   useEffect(() => {
-    if (userProfile?.org_id) {
+    if (effectiveOrgId) {
       loadICPProfiles();
     }
-  }, [userProfile?.org_id]);
+  }, [effectiveOrgId]);
 
   const loadICPProfiles = async () => {
-    if (!userProfile?.org_id) return;
+    if (!effectiveOrgId) return;
 
     const { data, error } = await supabase
       .from("icp_profiles")
       .select("*")
-      .eq("org_id", userProfile.org_id)
+      .eq("org_id", effectiveOrgId)
       .eq("status", "active");
 
     if (error) {
@@ -96,7 +98,7 @@ export function ICPAccountDiscovery() {
   };
 
   const discoverAccounts = async (previewOnly = true) => {
-    if (!userProfile?.org_id || !selectedIcpId) return;
+    if (!effectiveOrgId || !selectedIcpId) return;
 
     const selectedIcp = icpProfiles.find(p => p.id === selectedIcpId);
     if (!selectedIcp) return;
@@ -107,7 +109,7 @@ export function ICPAccountDiscovery() {
     try {
       const { data, error } = await supabase.functions.invoke("ai-discover-accounts", {
         body: {
-          org_id: userProfile.org_id,
+          org_id: effectiveOrgId,
           criteria: {
             industries: selectedIcp.target_industries || [],
             geographies: selectedIcp.target_geographies || [],
@@ -145,7 +147,7 @@ export function ICPAccountDiscovery() {
   };
 
   const importSelected = async () => {
-    if (!userProfile?.org_id || !selectedIcpId) return;
+    if (!effectiveOrgId || !selectedIcpId) return;
 
     const selectedCompanies = discoveredCompanies.filter(c => c.selected);
     if (selectedCompanies.length === 0) {
@@ -164,7 +166,7 @@ export function ICPAccountDiscovery() {
         const { error } = await supabase
           .from("accounts")
           .insert({
-            org_id: userProfile.org_id,
+            org_id: effectiveOrgId,
             external_id: externalId,
             name: company.name,
             domain: company.domain?.toLowerCase().replace(/^www\./, ''),

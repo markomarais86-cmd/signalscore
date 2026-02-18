@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/hooks/use-auth';
+import { useDataOrgId } from '@/hooks/use-data-org';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CheckCircle2, AlertCircle, TrendingUp, Database, Sparkles, RefreshCw, ArrowLeftRight, Loader2, Zap, MapPin } from 'lucide-react';
@@ -34,6 +35,7 @@ interface SyncProgress {
 
 export function DataQualityDashboard() {
   const { userProfile } = useAuth();
+  const { dataOrgId, effectiveOrgId } = useDataOrgId();
   const [metrics, setMetrics] = useState<DataQualityMetrics | null>(null);
   const [syncOpportunities, setSyncOpportunities] = useState<SyncOpportunities | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,10 +50,10 @@ export function DataQualityDashboard() {
   useEffect(() => {
     loadMetrics();
     loadSyncOpportunities();
-  }, [userProfile?.org_id]);
+  }, [dataOrgId]);
 
   const loadMetrics = async () => {
-    if (!userProfile?.org_id) return;
+    if (!dataOrgId) return;
 
     try {
       setIsLoading(true);
@@ -59,7 +61,7 @@ export function DataQualityDashboard() {
       const { data: accounts, error } = await supabase
         .from('accounts')
         .select('industry_norm, industry_raw, employee_count, revenue_range, country')
-        .eq('org_id', userProfile.org_id);
+        .eq('org_id', dataOrgId);
 
       if (error) throw error;
 
@@ -95,11 +97,11 @@ export function DataQualityDashboard() {
   };
 
   const loadSyncOpportunities = async () => {
-    if (!userProfile?.org_id) return;
+    if (!dataOrgId) return;
 
     try {
       const { data, error } = await supabase.rpc('get_firmographic_sync_opportunities', {
-        p_org_id: userProfile.org_id
+        p_org_id: dataOrgId
       });
 
       if (error) throw error;
@@ -116,7 +118,7 @@ export function DataQualityDashboard() {
     try {
       // Use the new batched orchestrator instead of direct RPC
       const { data, error } = await supabase.functions.invoke('bidirectional-sync-orchestrator', {
-        body: { org_id: userProfile?.org_id }
+        body: { org_id: effectiveOrgId }
       });
       
       if (error) throw error;
@@ -202,7 +204,7 @@ export function DataQualityDashboard() {
     setActionInProgress('conflicts');
     try {
       const { data, error } = await supabase.rpc('detect_firmographic_conflicts', {
-        p_org_id: userProfile?.org_id
+        p_org_id: effectiveOrgId
       });
       
       if (error) throw error;
@@ -221,7 +223,7 @@ export function DataQualityDashboard() {
     setActionInProgress('resolve');
     try {
       const { data, error } = await supabase.functions.invoke('resolve-firmographic-conflicts', {
-        body: { org_id: userProfile?.org_id, auto_apply: true }
+        body: { org_id: effectiveOrgId, auto_apply: true }
       });
       
       if (error) throw error;
@@ -240,7 +242,7 @@ export function DataQualityDashboard() {
     setActionInProgress('hq-enrich');
     try {
       const { data, error } = await supabase.functions.invoke('enrich-hq-address', {
-        body: { org_id: userProfile?.org_id, max_accounts: 100 }
+        body: { org_id: effectiveOrgId, max_accounts: 100 }
       });
       
       if (error) throw error;
@@ -263,7 +265,7 @@ export function DataQualityDashboard() {
       const { data: accounts, error: fetchError } = await supabase
         .from('accounts')
         .select('id, industry_raw')
-        .eq('org_id', userProfile?.org_id)
+        .eq('org_id', dataOrgId)
         .is('industry_norm', null)
         .not('industry_raw', 'is', null)
         .limit(100);
