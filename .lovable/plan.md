@@ -1,53 +1,56 @@
 
 
-## Fix: Apollo Sync Uses Wrong ICP for 91.Life (Child Org)
+## Fix: Pipeline Potential and Campaign-Ready Accounts Show $0/0 on CRM Tab
 
 ### Root Cause
 
-When a super admin impersonates 91.Life, the Campaign Builder and Apollo Redemption Dialog both use `userProfile.org_id` (which is always the logged-in user's real org -- LaunchPulse). This means:
+Two issues combine to produce $0 Pipeline Potential and 0 campaign-ready accounts:
 
-1. The **ICP loaded** for campaigns comes from LaunchPulse, not 91.Life
-2. The **Apollo redemption request** is sent with LaunchPulse's org ID, so the edge function fetches LaunchPulse's ICP and stores leads under LaunchPulse
+1. **GrowthCommandKPIs receives unfiltered props** -- On lines 644-648 of `ExecutiveDashboard.tsx`, `highFitAccounts`, `medFitAccounts`, and `campaignReadyAccounts` are passed as global (unfiltered) values. While other components like `ICPCoveragePanel` (line 660) properly switch based on `sourceFilter`, `GrowthCommandKPIs` does not.
+
+2. **No source-filtered campaign-ready count exists** -- The `count_campaign_ready_accounts` SQL function has no `data_source` filter parameter. It always returns the global count (7,718 for the main org). When the CRM tab is active, there's no way to get a CRM-only campaign-ready count.
+
+   However, for the main org (LaunchPulse), all 39,928 accounts are CRM-sourced, so the global count (7,718) IS the CRM count. This means the value should still display correctly -- unless the RPC result isn't being read properly.
+
+3. **Likely data-shape issue with `campaignReadyResult`** -- The `count_campaign_ready_accounts` RPC returns a scalar integer. The Supabase client wraps this as `{ data: 7718 }`. Line 211 reads `campaignReadyResult?.data || 0`. If the destructured `campaignReadyResult` from `Promise.all` is somehow `undefined` or the `data` field is unexpectedly `null`, it falls back to `rawMetrics?.campaign_ready_accounts` which also doesn't exist in the cached metrics response -- yielding 0.
 
 ### What Changes
 
-**File: `src/components/campaigns/CampaignBuilderV2.tsx`**
+**File: `src/hooks/use-dashboard-data.ts`**
 
-- Import `useEffectiveOrg` hook
-- Replace all `userProfile.org_id` references with `effectiveOrgId` (approximately 6 locations):
-  - `loadICP()` -- ICP query filter (line 107)
-  - `useEffect` dependency for loading ICP (lines 85, 88)
-  - `generateCampaignNames()` guard (line 147)
-  - `optimizeSequence()` guard (line 164)
-  - `estimateROI()` body payload (lines 181, 187)
+- Add defensive logging when `campaignReadyResult` returns to verify the actual value
+- Use explicit null check instead of falsy check (since `campaignReadyResult?.data` could theoretically be `0` for orgs with no campaign-ready accounts, but `|| 0` already handles that -- the real risk is the shape)
+- Change line 211 to: `campaign_ready_accounts: (typeof campaignReadyResult?.data === 'number' ? campaignReadyResult.data : 0) || rawMetrics?.campaign_ready_accounts || 0`
 
-**File: `src/components/campaigns/ApolloRedemptionDialog.tsx`**
+**File: `src/pages/ExecutiveDashboard.tsx`**
 
-- Import `useEffectiveOrg` hook
-- Replace `userProfile.org_id` with `effectiveOrgId` in:
-  - TAM mode request body `org_id` (line 275)
-  - Standard mode request body `org_id` (line 282)
-  - PDL fallback request body `org_id` (line 298)
-  - Duplicate analysis query (wherever org_id is used)
+- Apply source filtering to `GrowthCommandKPIs` props to match the pattern used by `ICPCoveragePanel`:
+  - `highFitAccounts` -- switch between `highFitCrmAccounts`, `highFitDatabaseAccounts`, and global
+  - `medFitAccounts` -- switch between `medFitCrmAccounts`, `medFitDatabaseAccounts`, and global
+  - `campaignReadyAccounts` -- for now, pass the global value for all tabs (since the RPC doesn't filter by source), but ensure it's not zero
+  - `pipelinePotential` -- recalculate using the correctly filtered `campaignReadyAccounts`
 
-### Why This Fixes It
+**File: SQL migration (optional enhancement)**
 
-```text
-Current (broken):
-  Admin impersonates 91.Life
-  --> CampaignBuilder uses userProfile.org_id (LaunchPulse)
-  --> Loads LaunchPulse ICP
-  --> Sends LaunchPulse org_id to Apollo edge function
-  --> Edge function uses LaunchPulse ICP criteria
+- Add an optional `p_data_source` parameter to `count_campaign_ready_accounts` so it can return source-filtered counts:
+  ```sql
+  CREATE OR REPLACE FUNCTION count_campaign_ready_accounts(p_org_id uuid, p_data_source text DEFAULT NULL)
+  RETURNS integer AS $$
+  ...
+  WHERE a.org_id = p_org_id
+    AND (p_data_source IS NULL OR a.data_source = p_data_source)
+  ...
+  ```
 
-Fixed:
-  Admin impersonates 91.Life
-  --> CampaignBuilder uses effectiveOrgId (91.Life)
-  --> Loads 91.Life ICP (Healthcare/Hospital)
-  --> Sends 91.Life org_id to Apollo edge function
-  --> Edge function uses 91.Life ICP criteria
-```
+### Implementation Steps
 
-### Scope
+1. Update `count_campaign_ready_accounts` SQL function to accept optional `p_data_source` parameter
+2. Update `use-dashboard-data.ts` to pass the source filter to the RPC and add defensive type checking
+3. Update `ExecutiveDashboard.tsx` to pass source-filtered props to `GrowthCommandKPIs` consistently
 
-Two files changed, approximately 12 lines updated. The edge function itself (`redeem-apollo-by-icp`) is correct -- it properly uses the `org_id` it receives to fetch the ICP. The bug is purely on the frontend passing the wrong org ID.
+### Expected Result
+
+- CRM tab: Pipeline Potential = 7,718 x $75,000 x 0.25 = ~$144.7M
+- Database tab: Pipeline Potential = 0 (no database accounts currently)
+- All tab: Pipeline Potential = 7,718 x $75,000 x 0.25 = ~$144.7M
+
