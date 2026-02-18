@@ -33,6 +33,7 @@ import { parseCSV } from "@/utils/csv-parser";
 import { EnrichmentProgressMonitor } from "@/components/settings/EnrichmentProgressMonitor";
 import { useUnifiedEnrichment, EnrichmentConfig } from "@/hooks/use-unified-enrichment";
 import { LaunchPulseMark } from "@/components/BrandLogo";
+import { useDataOrgId } from "@/hooks/use-data-org";
 
 type EnrichmentType = "accounts" | "leads";
 type InputMethod = "paste" | "upload" | "existing";
@@ -146,6 +147,7 @@ const ENRICHMENT_PROVIDERS: EnrichmentProvider[] = [
 
 export function UnifiedEnrichmentWizard() {
   const { userProfile } = useAuth();
+  const { dataOrgId } = useDataOrgId();
   const [searchParams] = useSearchParams();
   
   // Check for URL params to auto-select mode
@@ -1059,7 +1061,7 @@ export function UnifiedEnrichmentWizard() {
                     const { data: accounts, error } = await supabase
                       .from('accounts')
                       .select('external_id, name, domain, industry_norm, industry_raw, employee_count, revenue_range, country, state_province, city')
-                      .eq('org_id', userProfile.org_id)
+                      .eq('org_id', dataOrgId || userProfile.org_id)
                       .or('employee_count.is.null,revenue_range.is.null,industry_norm.is.null')
                       .not('domain', 'is', null)
                       .limit(selectedProvider === 'deep_research' ? Math.min(batchSize, 50) : batchSize);
