@@ -1,100 +1,71 @@
 
 
-## Fix: Apollo Sync Missing Industry, Sub-Industry, and Vertical Filters
+## Fix: Settings Not Persisting and SOM Showing $0
 
-### The Problem
+### Problem 1: Settings Not Updating
 
-The `sync-external-provider` edge function builds the Apollo search query from the ICP profile but **skips industry filters entirely** (line 153: `// Skip industry filters - Apollo expects numeric tag IDs, not names`). It also ignores:
+When you change Average Deal Size to $80,000 and Conversion Rate to 17% and click "Apply", the values revert on next load. The settings popover in the Market Sizing card updates only the card's internal state -- it never saves to the database.
 
-- `sub_industries` (e.g., "Electrophysiology", "Cardiology", "Medical & Surgical Hospitals")
-- `vertical_filters` (e.g., bed count segments, specific personas)
-- `company_keywords`
-- `excluded_industries`
+**Root Cause:** The `SimpleTAMCard` component has an `onSettingsChange` callback prop, but the `ExecutiveDashboard` never passes it. So the "Apply" button updates the card visually for the current session, but the values are lost on refresh because they were never written to `org_settings` in the database (currently empty `{}`).
 
-Without industry filters, Apollo returns **every company in the US** matching the employee count and revenue range -- which is why you're seeing ~1 million results instead of a focused healthcare/hospital set.
+### Problem 2: SOM = $0
 
-### Root Cause
+SOM (Serviceable Obtainable Market) is calculated as: `campaignReadyAccounts x averageDealSize x conversionRate`. The database cache shows 1,515 campaign-ready accounts, so this should produce a non-zero value. However, the SOM shows $0.
 
-The code comment says "Apollo expects numeric tag IDs, not names" -- but this is wrong. Apollo's Organization Search API (`/api/v1/mixed_companies/search`) supports `q_organization_keyword_tags[]` which accepts **plain text keywords** like "healthcare", "hospitals", "medical devices". This is exactly what we have in the ICP profile.
+**Root Cause:** The `campaignReadyAccounts` value (1,515) is loaded from the dashboard metrics cache, but the `SimpleTAMCard` component initializes its local `averageDealSize` and `conversionRate` state from props. If the org settings haven't loaded yet when the card first renders (the `useOrgSettings` hook returns defaults asynchronously), the `useEffect` sync may not re-trigger properly, or there could be a race where the component renders with stale values. Most critically though, verifying the actual runtime value of `campaignReadyAccounts` passed to the card is needed -- the source filter logic may be filtering it differently.
 
-### What We Have in the 91.Life ICP
+After closer inspection: `campaignReadyAccounts` is always passed directly (line 702), not affected by sourceFilter. So the value should be 1,515. The $0 display likely stems from a brief state where data hasn't loaded yet, or the org settings load resetting local state to 0 momentarily. The real fix is to remove the duplicated local state management entirely and rely on the parent's values directly.
 
-```text
-industries: ["Healthcare", "Hospital & Health Systems", "Medical Devices", ...]
-sub_industries: ["Electrophysiology", "Cardiology", "Medical & Surgical Hospitals", ...]
-company_keywords: null (currently unused)
-vertical_filters: { segments: [{ name: "Academic Medical Centers", bed_range: "300-1000+" }, ...] }
-```
+### Changes
 
-### What Apollo Gets Today
+#### File 1: `src/pages/ExecutiveDashboard.tsx`
 
-```text
-organization_locations: ["United States"]
-organization_num_employees_ranges: ["11,50", "51,200", "201,500"]
-revenue_range[min]: 10000000
-revenue_range[max]: 5000000000
-(NO industry filter at all)
-```
-
-This matches every mid-size US company across ALL industries -- hence ~1 million results.
-
-### The Fix
-
-**File: `supabase/functions/sync-external-provider/index.ts`**
-
-1. **Add industry keyword filtering** -- Replace the "skip industry" comment with actual filtering using `q_organization_keyword_tags`:
-   - Combine `industries` + `sub_industries` into keyword tags
-   - Apollo's keyword tag filter accepts plain text strings and matches them against its internal industry taxonomy
-   
-2. **Use the correct API endpoint** -- The function currently calls `/v1/organizations/search` but the documented endpoint is `/api/v1/mixed_companies/search`. Both may work, but the documented one is more reliable.
-
-3. **Add excluded industries** -- If the ICP has `excluded_industries`, pass those too (Apollo doesn't have a direct exclude-industry param, but we can note it in the company_keywords negation or post-filter).
-
-4. **Add company_keywords support** -- If `company_keywords` is set on the ICP, include those as additional `q_organization_keyword_tags`.
-
-### Changes in Detail
+Wire up the `onSettingsChange` callback to persist settings:
 
 ```typescript
-// BEFORE (line 153):
-// Skip industry filters - Apollo expects numeric tag IDs, not names
+// Import updateSettings from useOrgSettings (already imported on line 64)
+const { averageDealSize, conversionRate, updateSettings } = useOrgSettings();
 
-// AFTER:
-// Add industry + sub-industry as keyword tags (Apollo accepts plain text)
-const keywordTags: string[] = [];
-
-if (icpData.industries && icpData.industries.length > 0) {
-  keywordTags.push(...icpData.industries);
-}
-if (icpData.sub_industries && icpData.sub_industries.length > 0) {
-  keywordTags.push(...icpData.sub_industries);
-}
-if (icpData.company_keywords && icpData.company_keywords.length > 0) {
-  keywordTags.push(...icpData.company_keywords);
-}
-
-if (keywordTags.length > 0) {
-  // Apollo uses q_organization_keyword_tags for text-based industry/keyword matching
-  baseRequestBody.q_organization_keyword_tags = keywordTags;
-}
+// Pass onSettingsChange to SimpleTAMCard
+<SimpleTAMCard
+  totalAccounts={...}
+  highFitAccounts={...}
+  medFitAccounts={...}
+  campaignReadyAccounts={campaignReadyAccounts}
+  averageDealSize={averageDealSize}
+  conversionRate={conversionRate}
+  onSettingsChange={({ averageDealSize: ds, conversionRate: cr }) => {
+    updateSettings({ average_deal_size: ds, conversion_rate: cr });
+  }}
+/>
 ```
 
-### Expected Result
+This ensures clicking "Apply" writes the new values to the `org_settings` JSON column in the `organizations` table, so they persist across sessions.
 
-With the 91.Life ICP, Apollo will receive:
-- `q_organization_keyword_tags`: ["Healthcare", "Hospital & Health Systems", "Medical Devices", "Health IT", ..., "Electrophysiology", "Cardiology", "Medical & Surgical Hospitals", ...]
-- `organization_locations`: ["United States"]
-- `organization_num_employees_ranges`: ["11,50", "51,200", "201,500"]
-- `revenue_range`: min/max based on $10M-$5B+
+#### File 2: `src/components/executive/SimpleTAMCard.tsx`
 
-This should narrow the result from ~1M down to a realistic healthcare TAM (likely 5K-50K organizations depending on Apollo's coverage).
+Simplify state management to prevent stale/zero values:
+
+- Remove the duplicated `useState` for `averageDealSize` and `conversionRate` -- use the prop values directly for calculations
+- Keep the `temp` state only for the settings popover (editing in progress)
+- This eliminates the race condition where `useEffect` sync from props can produce intermediate $0 values
+
+```typescript
+// BEFORE: Duplicated state that can go stale
+const [averageDealSize, setAverageDealSize] = useState(initialDealSize);
+const [conversionRate, setConversionRate] = useState(initialConversion);
+
+// AFTER: Use props directly for calculations
+// Only keep temp state for the popover editing
+const averageDealSize = initialDealSize;
+const conversionRate = initialConversion;
+```
 
 ### Summary
 
-| What | Before | After |
-|------|--------|-------|
-| Industries | Skipped entirely | Sent as `q_organization_keyword_tags` |
-| Sub-industries | Ignored | Included in keyword tags |
-| Company keywords | Ignored | Included in keyword tags |
-| Result count | ~1,000,000 (all US companies) | Focused healthcare subset |
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| Settings revert after refresh | `onSettingsChange` prop not wired to `updateSettings` | Pass callback from dashboard that calls `useOrgSettings().updateSettings` |
+| SOM = $0 | Duplicated local state with async sync can produce stale/zero values | Remove duplicated state; use prop values directly for calculations |
 
-Only one file changes: `supabase/functions/sync-external-provider/index.ts`
+Two files change: `ExecutiveDashboard.tsx` and `SimpleTAMCard.tsx`
