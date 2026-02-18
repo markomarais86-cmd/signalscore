@@ -255,21 +255,22 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
 }
 
 // Hook for geography data (lazy loaded)
-export function useGeographyData(orgId: string | undefined, enabled: boolean = true, sourceFilter: 'crm' | 'database' = 'crm') {
+export function useGeographyData(orgId: string | undefined, enabled: boolean = true, sourceFilter: 'crm' | 'database' = 'crm', dataOrgId?: string) {
+  const resolvedOrgId = dataOrgId || orgId;
   return useQuery({
-    queryKey: ['geography-distribution', orgId, sourceFilter],
+    queryKey: ['geography-distribution', resolvedOrgId, sourceFilter],
     queryFn: async () => {
-      if (!orgId) throw new Error('No org ID provided');
+      if (!resolvedOrgId) throw new Error('No org ID provided');
       
       const { data, error } = await supabase.rpc('get_geography_distribution', {
-        p_org_id: orgId,
+        p_org_id: resolvedOrgId,
         p_source_filter: sourceFilter
       });
       
       if (error) throw error;
       return data;
     },
-    enabled: !!orgId && enabled,
+    enabled: !!resolvedOrgId && enabled,
     staleTime: 10 * 60 * 1000, // Cache for 10 minutes
     gcTime: 15 * 60 * 1000,
   });
