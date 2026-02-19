@@ -279,18 +279,30 @@ async function fetchAllReportData(supabase: any, orgId: string) {
   const icpIndustryList: string[] = icpProfiles.flatMap((p: any) => p.targetIndustries as string[]);
   const icpIndustryLower = icpIndustryList.map((i: string) => i.toLowerCase());
 
+  // Stop-words that cause false cross-category matches
+  const INDUSTRY_STOP_WORDS = new Set(['services', 'systems', 'companies', 'firms', 'products', 'management', 'solutions']);
+
   function isIcpRelevantIndustry(industryName: string): boolean {
-    const lower = industryName.toLowerCase();
-    return icpIndustryLower.some(icp =>
-      lower.includes(icp) || icp.includes(lower) ||
-      // word-level overlap: if >=50% of words in either string match
-      (() => {
-        const wordsA = new Set(lower.replace(/[&,]/g, ' ').split(/\s+/).filter(w => w.length > 2));
-        const wordsB = new Set(icp.replace(/[&,]/g, ' ').split(/\s+/).filter(w => w.length > 2));
-        const overlap = [...wordsA].filter(w => wordsB.has(w)).length;
-        return overlap > 0 && (overlap / Math.min(wordsA.size, wordsB.size) >= 0.5);
-      })()
-    );
+    const lower = industryName.toLowerCase().trim();
+    return icpIndustryLower.some(icp => {
+      // 1. Exact match
+      if (lower === icp) return true;
+      // 2. Substring containment (one fully contains the other)
+      if (lower.includes(icp) || icp.includes(lower)) return true;
+      // 3. Meaningful-word match: strip stop-words, then check if ALL remaining words overlap
+      const stripWords = (s: string) => s.replace(/[&,]/g, ' ').split(/\s+/)
+        .filter(w => w.length > 2 && !INDUSTRY_STOP_WORDS.has(w));
+      const wordsA = stripWords(lower);
+      const wordsB = stripWords(icp);
+      if (wordsA.length > 0 && wordsB.length > 0) {
+        const setB = new Set(wordsB);
+        const allAInB = wordsA.every(w => setB.has(w));
+        const setA = new Set(wordsA);
+        const allBInA = wordsB.every(w => setA.has(w));
+        if (allAInB || allBInA) return true;
+      }
+      return false;
+    });
   }
 
   let industryBreakdown: typeof rawIndustryBreakdown;
