@@ -1,65 +1,81 @@
 
 
-# Fix enrich-bed-counts Stalled Pipeline
+# Fix Lead Qualification Agent: 0 Records Every Run
 
 ## Root Cause
 
-The function on line 68-74 fetches accounts like this:
+The agent has a **parent/child org mismatch** in its query path. It correctly resolves the parent org for fetching leads, but queries scores using the child org ID.
 
+```text
+Query Path (current - broken):
+  org_id = cd592f73 (Ninety One Life - child)
+  dataOrgId = 726a0dc0 (LaunchPulse - parent)
+
+  Step 1: scores WHERE org_id = cd592f73  --> 39,928 rows (but only since TODAY)
+  Step 2: leads WHERE org_id = 726a0dc0   --> 53,190 rows
+  Step 3: leads matched to high-fit scores --> 1,489 (works NOW, was 0 before today)
 ```
-.order('name', { ascending: true })
-.limit(batchSize * 3)  // = 600
-```
 
-Then on lines 82-85, it filters client-side for accounts where `bed_count` is null/undefined.
+**Why it returned 0 on every run (Feb 14-16):** Scores for `cd592f73` were only computed today (Feb 19, 15:13-15:26 UTC). Before that, the scores table had zero rows for the child org. The agent queried scores on the child org, found nothing, and exited with 0 leads.
 
-**The problem:** The first ~625 accounts alphabetically were already processed and now have `bed_count` set (either 0 for non-hospitals or a real number). Since the query always fetches the FIRST 600 alphabetically and ALL of them already have `bed_count`, the client-side filter returns 0 every time. The remaining 39,303 accounts are never reached.
-
-**Data confirms this:**
-- 625 accounts have `bed_count` key (47 with actual beds, 576 marked as 0)
-- 39,303 accounts have no `bed_count` key at all
-- But the query always returns the same 600 already-processed accounts
+**Why it will break again:** The scoring pipeline stores scores under whichever org triggers it. If scoring runs under the parent org (726a0dc0), the agent on the child org (cd592f73) will miss all of them. This is fragile and will break whenever the score data moves.
 
 ## The Fix
 
-Move the `bed_count` filter to the database query instead of doing it client-side. PostgREST supports filtering on JSONB key absence using `custom_attributes->bed_count.is.null`.
+Use `dataOrgId` (parent org) consistently for BOTH scores and leads queries. This matches the existing pattern: leads and accounts live under the parent org, so scores should be queried there too.
 
-**File:** `supabase/functions/enrich-bed-counts/index.ts`
+### File: `supabase/functions/agent-lead-qualification/index.ts`
 
-**Change:** Replace lines 68-85 with a server-side filtered query:
+**Change 1** - Line 224: Fix adaptive threshold count query
 
 ```typescript
-// Find accounts missing bed_count that have a name or domain
-// Filter bed_count absence at DB level to avoid fetching already-processed accounts
-const { data: accounts, error: fetchErr } = await supabase
-  .from('accounts')
-  .select('id, external_id, name, domain, custom_attributes')
-  .eq('org_id', dataOrgId)
-  .or('name.not.is.null,domain.not.is.null')
-  .is('custom_attributes->bed_count', null)
-  .order('name', { ascending: true })
-  .limit(batchSize);
+// Before:
+.eq('org_id', org_id)
 
-if (fetchErr) {
-  console.error('Fetch error:', fetchErr);
-  return errorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to fetch accounts', 500);
-}
-
-const needsBeds = accounts || [];
+// After:
+.eq('org_id', dataOrgId)
 ```
 
-This single change:
-1. Filters out already-processed accounts at the database level
-2. Removes the need for over-fetching (no more `batchSize * 3`)
-3. Removes the redundant client-side filter
-4. Correctly advances through all 39,303 remaining accounts
+**Change 2** - Line 248: Fix high-fit scores query
 
-## Technical Details
+```typescript
+// Before:
+.eq('org_id', org_id)
 
-- `custom_attributes->bed_count` returns SQL NULL when the key doesn't exist in JSONB
-- `.is('custom_attributes->bed_count', null)` translates to `custom_attributes->'bed_count' IS NULL` in PostgREST
-- This correctly matches accounts without the `bed_count` key while excluding those with `bed_count: 0` or any positive value
+// After:
+.eq('org_id', dataOrgId)
+```
 
-## Expected Outcome
+These are the only two lines that need to change. The leads query (line 271) already correctly uses `dataOrgId`.
 
-After deployment, each cron run (every 2 minutes) will process up to 200 accounts that truly lack `bed_count` data, steadily working through all 39,303 remaining accounts.
+## Impact
+
+| Metric | Before Fix | After Fix |
+|--------|-----------|-----------|
+| Scores queried from | Child org (cd592f73) | Parent org (726a0dc0) |
+| Accounts scoring >= 50 | 635 (child, only since today) | 11,310 (parent, stable) |
+| Accounts scoring >= 70 | 24 (child) | 1,859 (parent) |
+| Leads matched | 0-1,489 (fragile) | ~5,000+ (stable) |
+| Adaptive threshold needed | Yes (always < 50 high-scorers) | No (1,859 >= 50) |
+
+## Secondary Issue: LeadQualificationQueue UI Component
+
+The `LeadQualificationQueue.tsx` component filters leads with `.is("status", null)` (line 30), but no leads have NULL status -- all 53,190 have `status = 'open'`. This means the UI queue always shows empty ("All leads have been qualified!") even though nothing has been qualified. This should be updated to filter for `status = 'open'` to match the actual data.
+
+### File: `src/components/agents/LeadQualificationQueue.tsx`
+
+**Change** - Line 30: Fix status filter
+
+```typescript
+// Before:
+.is("status", null)
+
+// After:
+.eq("status", "open")
+```
+
+## Deployment
+
+After making the two edge function line changes and the UI fix:
+1. Deploy `agent-lead-qualification`
+2. Trigger a test run to verify leads are now found and processed
