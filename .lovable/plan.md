@@ -1,56 +1,59 @@
 
 
-## Fix Bulk Scoring Failures
+## Fix Industry Slide: Only Show Healthcare-Related Industries for 91.Life
 
-### Root Cause
+### Problem
 
-The `scores` table has **22 indexes** (many redundant) on only 62K rows. The index overhead is **116 MB** vs **32 MB** of actual data. Every upsert of 500 rows must update all 22 indexes, causing **statement timeouts** (error code `57014`) that cascade through every chunk.
+The industry filtering in `generate-board-report` uses a word-overlap algorithm with a 50% threshold. The 91.Life ICP targets these industries:
+- Healthcare
+- Hospital & Health Systems
+- Medical Devices
+- Health IT
+- Hospitals & Physicians Clinics
+- Healthcare Services
 
-### Current State
-- **Launchpulse job** (`d6c92111`): 2,500/39,928 processed, 2,000 failed scores -- all upsert timeouts
-- **Ninety One Life job** (`b2e398e6`): 11,000/39,928 processed, then stuck -- same timeout issue
-- Both jobs are stuck in `processing` status
+But the word "services" in "Healthcare Services" causes false matches against "Business Services", "Law Firms & Legal Services", "Consumer Services", "Professional Services", and others -- because one shared word out of two = 50% overlap, which passes the threshold.
 
-### Plan
+### Solution
 
-#### 1. Drop Redundant Indexes (the primary fix)
+Replace the loose word-overlap matching with a stricter algorithm in `supabase/functions/generate-board-report/index.ts`:
 
-The following indexes are **duplicates** of the unique constraint `unique_score_per_account (org_id, account_external_id)` or of each other:
+1. **Exact match first** -- if the normalized industry name equals an ICP industry, it's a match
+2. **Substring containment** -- if one string fully contains the other (e.g., "Healthcare" is contained in "Healthcare Services"), it's a match
+3. **Remove the 50% word-overlap logic entirely** -- this is the source of all false positives
+4. **Add a stop-word filter** -- words like "services", "systems", "companies" should be excluded from any fuzzy matching to prevent cross-category contamination
 
-| Index to DROP | Reason |
-|---|---|
-| `idx_scores_account` | Duplicate of `unique_score_per_account` |
-| `idx_scores_account_lookup` | Duplicate of `unique_score_per_account` |
-| `idx_scores_org_account` | Duplicate of `unique_score_per_account` |
-| `idx_scores_account_external_id` | Subset of `idx_scores_external_id_org` |
-| `idx_scores_external_id_org` | Redundant with `idx_scores_account_org` (which has INCLUDE columns) |
-| `idx_scores_org_overall` | Redundant with `idx_scores_org_overall_desc` (which has INCLUDE columns) |
-| `idx_scores_org_account_overall` | Covered by unique + `idx_scores_org_overall_desc` |
-| `idx_scores_overall` | Low selectivity, rarely useful alone |
-| `idx_scores_org_id` | Covered by every composite index starting with `org_id` |
+### Expected Result for 91.Life
 
-This removes **9 indexes**, cutting write overhead roughly in half.
+After the fix, the industry slide will show only:
+- **Hospitals & Physicians Clinics** (exact match, ~1,113 accounts)
+- **Healthcare Services** (exact match to ICP list)
+- **Other (Non-ICP)** (everything else collapsed)
 
-#### 2. Reduce Upsert Batch Size
+Plus any sub-industries that genuinely contain "healthcare", "hospital", "medical", or "health" as meaningful terms.
 
-Change `CHUNK_SIZE` from 500 to **200** in the edge function. Smaller batches complete within the statement timeout window.
+### Files to Change
 
-#### 3. Reset Failed Jobs
+**`supabase/functions/generate-board-report/index.ts`** (lines ~282-294):
+- Rewrite `isIcpRelevantIndustry()` to use exact + substring matching only
+- Add a stop-word set (`services`, `systems`, `companies`, `firms`) that gets excluded before any partial matching
+- Keep the existing ICP-aware filtering structure (lines 296-315) unchanged
 
-Mark both stuck jobs as `failed` so fresh scoring runs can start clean.
+### Technical Detail
 
-#### 4. Fix match_count Threshold
-
-Line 563 still uses `>= 70` for ICP match counts -- update to use `>= 60` to match the new threshold.
-
-### Technical Details
-
+Current broken logic (line 288-292):
 ```text
-BEFORE:  22 indexes, 148 MB total, upserts timeout at 2 min
-AFTER:   13 indexes, ~80 MB total, upserts complete in seconds
+Word overlap: "business services" vs "healthcare services"
+wordsA = {business, services}
+wordsB = {healthcare, services}
+overlap = 1 ("services"), min size = 2
+1/2 = 0.5 >= 0.5 threshold --> FALSE POSITIVE
 ```
 
-**Files to change:**
-- **Database migration**: Drop 9 redundant indexes, reset stuck jobs
-- `supabase/functions/bulk-score-accounts/index.ts`: Reduce `CHUNK_SIZE` to 200, fix match_count threshold from 70 to 60
-
+New logic:
+```text
+1. Exact match: "business services" === "healthcare services"? No
+2. Substring: "business services" contains "healthcare services"? No
+   "healthcare services" contains "business services"? No
+3. No match --> correctly excluded
+```
