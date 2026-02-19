@@ -80,40 +80,52 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     if (!userProfile?.org_id) return;
 
     try {
-      // Check if user has data
-      const [accountsRes, icpsRes, scoresRes] = await Promise.all([
-        supabase.from('accounts').select('id', { count: 'exact', head: true }).eq('org_id', userProfile.org_id),
-        supabase.from('icp_profiles').select('id', { count: 'exact', head: true }).eq('org_id', userProfile.org_id),
-        supabase.from('scores').select('id', { count: 'exact', head: true }).eq('org_id', userProfile.org_id)
-      ]);
-
-      const hasAccounts = (accountsRes.count || 0) > 0;
-      const hasICPs = (icpsRes.count || 0) > 0;
-      const hasScores = (scoresRes.count || 0) > 0;
-
-      // Load from localStorage
+      // Load from localStorage first
       const savedState = localStorage.getItem(`onboarding_${userProfile.org_id}`);
       
       if (savedState) {
         const parsed = JSON.parse(savedState);
         setOnboarding(parsed);
-      } else {
-        // Auto-detect completed steps
-        const updatedSteps = [...defaultSteps];
-        updatedSteps[0].completed = hasAccounts;
-        updatedSteps[1].completed = hasICPs;
-        updatedSteps[2].completed = hasScores;
-        
-        const allComplete = hasAccounts && hasICPs && hasScores;
-        const currentStep = updatedSteps.findIndex(s => !s.completed);
-
-        setOnboarding({
-          isComplete: allComplete,
-          currentStep: currentStep === -1 ? updatedSteps.length - 1 : currentStep,
-          steps: updatedSteps,
-          showWizard: !allComplete && !savedState
-        });
+        return;
       }
+
+      // Check if user has data (with timeout protection)
+      const [accountsRes, icpsRes, scoresRes] = await Promise.all([
+        supabase.from('accounts').select('id', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).limit(1),
+        supabase.from('icp_profiles').select('id', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).limit(1),
+        supabase.from('scores').select('id', { count: 'exact', head: true }).eq('org_id', userProfile.org_id).limit(1)
+      ]);
+
+      // If any query errored (e.g. timeout), don't show the wizard
+      if (accountsRes.error || icpsRes.error || scoresRes.error) {
+        console.warn('Onboarding queries failed, skipping wizard', { 
+          accounts: accountsRes.error?.message, 
+          icps: icpsRes.error?.message, 
+          scores: scoresRes.error?.message 
+        });
+        setOnboarding(prev => ({ ...prev, showWizard: false }));
+        return;
+      }
+
+      const hasAccounts = (accountsRes.count || 0) > 0;
+      const hasICPs = (icpsRes.count || 0) > 0;
+      const hasScores = (scoresRes.count || 0) > 0;
+
+      // Auto-detect completed steps
+      const updatedSteps = [...defaultSteps];
+      updatedSteps[0].completed = hasAccounts;
+      updatedSteps[1].completed = hasICPs;
+      updatedSteps[2].completed = hasScores;
+      
+      const allComplete = hasAccounts && hasICPs && hasScores;
+      const currentStep = updatedSteps.findIndex(s => !s.completed);
+
+      setOnboarding({
+        isComplete: allComplete,
+        currentStep: currentStep === -1 ? updatedSteps.length - 1 : currentStep,
+        steps: updatedSteps,
+        showWizard: !allComplete
+      });
     } catch (error) {
       console.error('Error loading onboarding state:', error);
     }
