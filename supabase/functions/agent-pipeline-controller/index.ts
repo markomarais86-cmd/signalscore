@@ -38,7 +38,15 @@ serve(async (req) => {
       });
     }
 
-    console.log(`[Pipeline Controller] Starting pipeline for org: ${org_id}, stages: ${stages || 'all'}, dry_run: ${dry_run}`);
+    // Resolve dataOrgId (parent org) for shared data queries (leads, accounts, scores)
+    const { data: orgRow } = await supabase
+      .from("organizations")
+      .select("parent_org_id")
+      .eq("id", org_id)
+      .single();
+    const dataOrgId = orgRow?.parent_org_id || org_id;
+
+    console.log(`[Pipeline Controller] Starting pipeline for org: ${org_id}, dataOrgId: ${dataOrgId}, stages: ${stages || 'all'}, dry_run: ${dry_run}`);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -112,7 +120,7 @@ serve(async (req) => {
         const { count } = await supabase
           .from("Leads")
           .select("id", { count: "exact" })
-          .eq("org_id", org_id)
+          .eq("org_id", dataOrgId)
           .eq("status", "open");
 
         results.push({
@@ -136,7 +144,7 @@ serve(async (req) => {
               pipeline_triggered_by: 'lead_qualification',
               pipeline_updated_at: new Date().toISOString(),
             })
-            .eq("org_id", org_id)
+            .eq("org_id", dataOrgId)
             .eq("status", "qualified")
             .eq("pipeline_stage", "new");
         }
@@ -158,11 +166,19 @@ serve(async (req) => {
       console.log("[Pipeline Controller] Running Data Enrichment...");
       const stageStart = Date.now();
 
+    // Resolve dataOrgId (parent org) for score queries
+      const { data: orgData } = await supabase
+        .from("organizations")
+        .select("parent_org_id")
+        .eq("id", org_id)
+        .single();
+      const dataOrgId = orgData?.parent_org_id || org_id;
+
       // Get high-scoring accounts that need enrichment
       const { data: needsEnrichment, count } = await supabase
         .from("scores")
         .select("account_external_id", { count: "exact" })
-        .eq("org_id", org_id)
+        .eq("org_id", dataOrgId)
         .gte("overall", 70)
         .limit(50);
 
@@ -214,7 +230,7 @@ serve(async (req) => {
       const { count: qualifiedCount } = await supabase
         .from("Leads")
         .select("id", { count: "exact" })
-        .eq("org_id", org_id)
+        .eq("org_id", dataOrgId)
         .eq("pipeline_stage", "qualified");
 
       if (dry_run) {
@@ -239,7 +255,7 @@ serve(async (req) => {
               pipeline_triggered_by: 'follow_up_agent',
               pipeline_updated_at: new Date().toISOString(),
             })
-            .eq("org_id", org_id)
+            .eq("org_id", dataOrgId)
             .eq("pipeline_stage", "qualified")
             .limit(result.affected);
         }
@@ -275,7 +291,7 @@ serve(async (req) => {
       const { data: followedUpLeads, count: fuCount } = await supabase
         .from("Leads")
         .select("id", { count: "exact" })
-        .eq("org_id", org_id)
+        .eq("org_id", dataOrgId)
         .eq("pipeline_stage", "follow_up");
 
       if (dry_run) {
@@ -300,7 +316,7 @@ serve(async (req) => {
               pipeline_triggered_by: 'meeting_scheduler',
               pipeline_updated_at: new Date().toISOString(),
             })
-            .eq("org_id", org_id)
+            .eq("org_id", dataOrgId)
             .eq("pipeline_stage", "follow_up")
             .limit(result.affected);
 
