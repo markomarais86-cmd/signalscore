@@ -221,7 +221,7 @@ serve(async (req) => {
     const { count: highScoreCount } = await supabase
       .from('scores')
       .select('*', { count: 'exact', head: true })
-      .eq('org_id', org_id)
+      .eq('org_id', dataOrgId)
       .gte('overall', 70);
 
     if ((highScoreCount || 0) < 50) {
@@ -244,7 +244,7 @@ serve(async (req) => {
     const { data: highFitScores, error: scoresError } = await supabase
       .from('scores')
       .select('account_external_id, overall')
-      .eq('org_id', org_id)
+      .eq('org_id', dataOrgId)
       .gte('overall', minScoreThreshold)
       .order('overall', { ascending: false })
       .limit(1000);

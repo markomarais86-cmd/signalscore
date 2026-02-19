@@ -25,7 +25,7 @@ export function LeadQualificationQueue() {
         .from("Leads")
         .select("*")
         .eq("org_id", userProfile.org_id)
-        .is("status", null)
+        .eq("status", "open")
         .order("created_at", { ascending: false })
         .limit(50);
 
