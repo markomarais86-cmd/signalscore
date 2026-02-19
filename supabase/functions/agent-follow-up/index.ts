@@ -159,6 +159,15 @@ serve(async (req) => {
 
     console.log(`[Follow-Up Agent] Starting AI-powered run for agent ${agent_id}, org ${org_id}`);
 
+    // Resolve parent org for shared data (leads/accounts live under parent)
+    const { data: orgData } = await supabase
+      .from('organizations')
+      .select('parent_org_id')
+      .eq('id', org_id)
+      .single();
+    const dataOrgId = orgData?.parent_org_id || org_id;
+    console.log(`[Follow-Up Agent] Data org: ${dataOrgId} (child: ${dataOrgId !== org_id})`);
+
     // Fetch agent configuration
     const { data: agent, error: agentError } = await supabase
       .from('ai_agents')
@@ -205,7 +214,7 @@ serve(async (req) => {
     const { data: staleLeads, error: leadsError } = await supabase
       .from('Leads')
       .select('id, first_name, last_name, name, title, email, status, account_external_id, updated_at')
-      .eq('org_id', org_id)
+      .eq('org_id', dataOrgId)
       .in('status', ['contacted', 'qualified', 'open'])
       .lt('updated_at', cutoffDate.toISOString())
       .not('email', 'is', null)
@@ -228,7 +237,7 @@ serve(async (req) => {
       const { data: accountsData } = await supabase
         .from('accounts')
         .select('external_id, name, industry_raw, propensity_score, icp_qualified')
-        .eq('org_id', org_id)
+        .eq('org_id', dataOrgId)
         .in('external_id', accountIds);
 
       const accountsMap = new Map(accountsData?.map(a => [a.external_id, a]) || []);
