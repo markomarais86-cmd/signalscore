@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { FilterCriteria, ICPProfile } from './useCampaignState';
 import { campaignsLogger } from '@/lib/logger';
+import { HIGH_FIT_THRESHOLD, MEDIUM_FIT_THRESHOLD } from '@/lib/score-bands';
 
 interface AccountWithScore {
   external_id: string;
@@ -238,8 +239,8 @@ export function useCampaignData(
     const breakdown = { A: 0, B: 0, C: 0 };
     previewData.forEach((acc: any) => {
       const score = acc.overall_score || 0;
-      if (score >= 70) breakdown.A++;
-      else if (score >= 40) breakdown.B++;
+      if (score >= HIGH_FIT_THRESHOLD) breakdown.A++;
+      else if (score >= MEDIUM_FIT_THRESHOLD) breakdown.B++;
       else breakdown.C++;
     });
     return breakdown;

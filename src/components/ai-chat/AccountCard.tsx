@@ -32,13 +32,13 @@ interface AccountCardProps {
 }
 
 function getScoreColor(score: number): string {
-  if (score >= 70) return 'bg-[hsl(var(--fit-high))] text-[hsl(var(--fit-high-foreground))]';
+  if (score >= 60) return 'bg-[hsl(var(--fit-high))] text-[hsl(var(--fit-high-foreground))]';
   if (score >= 40) return 'bg-[hsl(var(--fit-medium))] text-[hsl(var(--fit-medium-foreground))]';
   return 'bg-[hsl(var(--fit-low))] text-[hsl(var(--fit-low-foreground))]';
 }
 
 function getScoreLabel(score: number): string {
-  if (score >= 70) return 'High Fit';
+  if (score >= 60) return 'High Fit';
   if (score >= 40) return 'Medium Fit';
   return 'Low Fit';
 }

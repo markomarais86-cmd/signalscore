@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { toastError } from "@/lib/friendly-errors";
+import { getScoreBand } from "@/lib/score-bands";
 
 interface QuickCampaignButtonProps {
   highFitAccounts: number;
@@ -101,12 +102,6 @@ export function QuickCampaignButton({ highFitAccounts, disabled }: QuickCampaign
         lead.direct_phone || lead.cell_phone || lead.mobile || lead.phone || '';
 
       // Helper to calculate score band
-      const getScoreBand = (overall: number | null) => {
-        if (!overall) return 'C';
-        if (overall >= 70) return 'A';
-        if (overall >= 40) return 'B';
-        return 'C';
-      };
 
       // Prepare contacts with full intelligence
       const contacts = filteredAccounts.flatMap(account => {
