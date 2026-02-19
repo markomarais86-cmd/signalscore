@@ -15,6 +15,9 @@ import { successResponse, errorResponse, handleCors, ErrorCodes, parseJsonBody, 
 
 const MAX_RUNTIME_MS = 50_000;
 const DEFAULT_BATCH_SIZE = 200;
+const AI_FETCH_TIMEOUT_MS = 15_000;
+
+const SKIP_PATTERNS = /\b(hotel|motel|resort|inn|suites|lodge|hostel|aimbridge|marriott|hilton|hyatt|wyndham|ihg|accor|bestwestern|choicehotels|restaurant|cafe|diner|barbershop|salon|spa\b(?!.*medical)|gym|fitness|realty|real estate|mortgage|insurance(?!.*health)|automotive|dealership|car wash|laundry|cleaners|landscap|plumbing|electric(?!.*medical)|roofing|construction|trucking|logistics(?!.*health)|freight|shipping|warehouse(?!.*pharma))\b/i;
 
 serve(async (req) => {
   const corsResponse = handleCors(req);
@@ -87,20 +90,53 @@ serve(async (req) => {
       return successResponse({ message: 'All accounts already have bed_count data', enriched: 0, total_missing: 0 });
     }
 
+    // === Change 2: Pre-skip non-hospitals in bulk BEFORE AI calls ===
+    const regexSkipped: typeof needsBeds = [];
+    const aiCandidates: typeof needsBeds = [];
+
+    for (const account of needsBeds) {
+      const companyName = account.name || '';
+      const domain = account.domain || '';
+      if (SKIP_PATTERNS.test(companyName) || SKIP_PATTERNS.test(domain)) {
+        regexSkipped.push(account);
+      } else {
+        aiCandidates.push(account);
+      }
+    }
+
+    // Bulk-update regex-skipped accounts with bed_count: 0
+    let bulkSkipped = 0;
+    if (regexSkipped.length > 0) {
+      const BULK_BATCH = 20;
+      for (let i = 0; i < regexSkipped.length; i += BULK_BATCH) {
+        const chunk = regexSkipped.slice(i, i + BULK_BATCH);
+        await Promise.all(chunk.map(async (account) => {
+          const existingAttrs = (account.custom_attributes as Record<string, any>) || {};
+          const updatedAttrs = { ...existingAttrs, bed_count: 0 };
+          const { error } = await supabase
+            .from('accounts')
+            .update({ custom_attributes: updatedAttrs })
+            .eq('id', account.id);
+          if (!error) bulkSkipped++;
+        }));
+      }
+      console.log(`[enrich-bed-counts] Bulk pre-skipped ${bulkSkipped} non-hospital accounts (regex)`);
+    }
+
     let enriched = 0;
     let failed = 0;
-    let skipped = 0;
+    let skipped = bulkSkipped;
 
-    // Process accounts - batch them into groups of 5 for parallel Perplexity calls
+    // Process only AI candidates
     const PARALLEL_BATCH = 3;
     const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
-    for (let i = 0; i < needsBeds.length; i += PARALLEL_BATCH) {
+    for (let i = 0; i < aiCandidates.length; i += PARALLEL_BATCH) {
       if (Date.now() - startTime > MAX_RUNTIME_MS) {
         console.log(`[enrich-bed-counts] Time budget exceeded after ${enriched} enrichments`);
         break;
       }
 
-      const batch = needsBeds.slice(i, i + PARALLEL_BATCH);
+      const batch = aiCandidates.slice(i, i + PARALLEL_BATCH);
       const results = await Promise.allSettled(
         batch.map(account => enrichBedCount(account, perplexityKey, lovableKey))
       );
@@ -111,7 +147,6 @@ serve(async (req) => {
 
         if (result.status === 'fulfilled' && result.value != null) {
           const bedCount = result.value;
-          // Merge into existing custom_attributes
           const existingAttrs = (account.custom_attributes as Record<string, any>) || {};
           const updatedAttrs = { ...existingAttrs, bed_count: bedCount };
 
@@ -128,7 +163,13 @@ serve(async (req) => {
             enriched++;
           }
         } else if (result.status === 'fulfilled' && result.value == null) {
-          // AI couldn't determine bed count (not a hospital?)
+          // === Change 1: Persist skipped accounts with bed_count: 0 ===
+          const existingAttrs = (account.custom_attributes as Record<string, any>) || {};
+          const updatedAttrs = { ...existingAttrs, bed_count: 0 };
+          await supabase
+            .from('accounts')
+            .update({ custom_attributes: updatedAttrs })
+            .eq('id', account.id);
           skipped++;
         } else {
           console.error(`[enrich-bed-counts] Error for ${account.name}:`, (result as PromiseRejectedResult).reason);
@@ -136,8 +177,8 @@ serve(async (req) => {
         }
       }
 
-      // Rate limit: wait 2s between batches to avoid Perplexity 429s
-      if (i + PARALLEL_BATCH < needsBeds.length) {
+      // Rate limit: wait 2s between batches
+      if (i + PARALLEL_BATCH < aiCandidates.length) {
         await delay(2000);
       }
     }
@@ -165,6 +206,7 @@ serve(async (req) => {
   }
 });
 
+// === Change 3: Added AbortController timeouts to fetch calls ===
 async function enrichBedCount(
   account: { name: string | null; domain: string | null; external_id: string },
   perplexityKey: string | undefined,
@@ -175,17 +217,14 @@ async function enrichBedCount(
 
   if (!companyName && !domain) return null;
 
-  // Skip clearly non-hospital industries based on name/domain heuristics
-  const skipPatterns = /\b(hotel|motel|resort|inn|suites|lodge|hostel|aimbridge|marriott|hilton|hyatt|wyndham|ihg|accor|bestwestern|choicehotels|restaurant|cafe|diner|barbershop|salon|spa\b(?!.*medical)|gym|fitness|realty|real estate|mortgage|insurance(?!.*health)|automotive|dealership|car wash|laundry|cleaners|landscap|plumbing|electric(?!.*medical)|roofing|construction|trucking|logistics(?!.*health)|freight|shipping|warehouse(?!.*pharma))\b/i;
-  if (skipPatterns.test(companyName) || skipPatterns.test(domain)) {
-    return null;
-  }
-
   const prompt = `How many licensed hospital/healthcare facility beds does "${companyName}" (${domain}) have? Return ONLY a JSON object like {"bed_count": 150}. If this is not a hospital or healthcare facility with beds, return {"bed_count": null}. Do NOT return strings like "Not applicable" — only return a number or null. If you cannot determine the exact number, provide your best estimate.`;
 
   // Try Perplexity first (real-time web search)
   if (perplexityKey) {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), AI_FETCH_TIMEOUT_MS);
+
       const response = await fetch('https://api.perplexity.ai/chat/completions', {
         method: 'POST',
         headers: {
@@ -199,7 +238,9 @@ async function enrichBedCount(
             { role: 'user', content: prompt },
           ],
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       if (response.ok) {
         const data = await response.json();
@@ -207,24 +248,27 @@ async function enrichBedCount(
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
-          // Only accept numeric values — reject strings like "Not applicable"
           if (typeof parsed.bed_count === 'number' && parsed.bed_count > 0) {
             return parsed.bed_count;
           }
-          return null; // Not a hospital or non-numeric response
+          return null;
         }
       } else {
         const errText = await response.text().catch(() => '');
         console.warn(`[enrich-bed-counts] Perplexity error ${response.status}: ${errText.substring(0, 200)}`);
       }
     } catch (e) {
-      console.warn(`[enrich-bed-counts] Perplexity failed for ${companyName}:`, e.message);
+      const msg = e.name === 'AbortError' ? 'timeout' : e.message;
+      console.warn(`[enrich-bed-counts] Perplexity failed for ${companyName}: ${msg}`);
     }
   }
 
   // Fallback to Lovable AI (Gemini)
   if (lovableKey) {
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), AI_FETCH_TIMEOUT_MS);
+
       const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -238,7 +282,9 @@ async function enrichBedCount(
             { role: 'user', content: prompt },
           ],
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       if (response.ok) {
         const data = await response.json();
@@ -253,7 +299,8 @@ async function enrichBedCount(
         }
       }
     } catch (e) {
-      console.warn(`[enrich-bed-counts] Gemini failed for ${companyName}:`, e.message);
+      const msg = e.name === 'AbortError' ? 'timeout' : e.message;
+      console.warn(`[enrich-bed-counts] Gemini failed for ${companyName}: ${msg}`);
     }
   }
 
