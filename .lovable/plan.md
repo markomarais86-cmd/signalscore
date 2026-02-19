@@ -1,42 +1,81 @@
 
+# Investigation Results: Why Hospital Systems Score 10-18
 
-# Re-Score All Accounts via bulk-score-accounts
+## Root Cause Found
 
-## What This Does
+The low scores are **not a scoring algorithm bug** -- they're a **data display bug**. The dashboard is showing scores from the **wrong ICP**.
 
-Trigger the `bulk-score-accounts` edge function for **both organizations** to re-score all accounts with the latest bed_count data and updated skip patterns. This will:
+### Two Score Sets Exist Per Account
 
-- Re-score the **116 accounts currently capped at 69 or below** that now have valid bed counts
-- Score the **56 accounts that have never been scored**
-- Apply the latest scoring formula to all ~3,900+ accounts
+Each account has two score rows in the `scores` table:
 
-## Current State
+| Org | ICP Used | CommonSpirit | AdventHealth | Alberta Health |
+|-----|----------|-------------|-------------|----------------|
+| Parent (`726a0dc0`) | Enterprise Technology & Data Infrastructure | **10** | **70** | **18** |
+| Child (`cd592f73`) | 91.Life Heart+ Hospital ICP | **85** | **93** | **50** |
 
-- **Last scoring run:** Feb 19, 2026 — Ninety One Life completed successfully, Launchpulse failed
-- The 15 false-positive bed counts were already reset to 0 (previous migration)
-- Skip patterns are updated to prevent future false positives
+The dashboard currently shows the **parent org scores** (10-18) because of an org ID mismatch in the data-fetching layer.
 
-## Execution Steps
+### Why The Parent Org Scores Are Low
 
-### Step 1: Trigger for Ninety One Life (child org)
-Call `bulk-score-accounts` with `org_id: cd592f73-3e0e-478d-905b-47fe7c5fb634`. This is the child org where accounts and scores live.
+When scored against the "Enterprise Technology" ICP, hospitals fail because:
+- **Industry**: "Hospitals & Physicians Clinics" does not match tech-focused industries (0/20 pts)
+- **Segment**: No vertical filters/segments defined in Enterprise Tech ICP (0/30 pts)
+- **Revenue**: "$10B+" not in Enterprise Tech revenue ranges (0/20 pts)
+- **Size**: 175,000 employees exceeds Enterprise Tech company_sizes max of 10,000 (0/15 pts)
+- Only **Geography** matches (10/10 pts for US)
 
-### Step 2: Monitor completion
-Poll `bulk_scoring_jobs` table to confirm the job reaches `completed` status. The function processes accounts in chunks of 200 and typically takes 1-3 minutes.
+### Why The Child Org Scores Are Correct
 
-### Step 3: Trigger for Launchpulse (parent org)
-Call `bulk-score-accounts` with `org_id: 726a0dc0-99c7-43c2-b20f-b849f2760c3f`. The previous run for this org failed -- re-triggering should resolve it.
+When scored against the Healthcare ICP (which is the intended one):
+- CommonSpirit: 85 (industry 20 + segment 30 + revenue 20 + geo 10 + boost 5)
+- AdventHealth: 93 (industry 20 + segment 30 + revenue 20 + geo 10 + size 8 + boost 5)
+- Alberta Health: 50 (revenue 20 + segment 30 + size 0 + geo 0 [Canada, ICP says US only])
 
-### Step 4: Verify results
-Query the database to compare before/after scores for the 165+ hospital accounts with bed_count > 0, specifically checking:
-- How many moved above 69
-- Average score change
-- Any remaining accounts still unscored
+## The Fix
 
-## Technical Details
+### File: `src/hooks/use-infinite-accounts.tsx`
 
-- The function requires authentication -- will invoke via `supabase.functions.invoke()` using the curl tool with the service role
-- The function has idempotency checks with a 10-minute TTL, so if a recent run exists it may return cached results
-- Accounts are scored against all active `icp_profiles` for the org
-- The scoring formula uses bed_count within the Segment dimension (30 pts weight)
+The hook accepts an `orgId` parameter (line 65) and uses it for **both** account queries and score queries. But accounts live in the parent org while scores live in the child org.
 
+**Change needed**: Add a separate `scoreOrgId` parameter (or derive it internally) so that:
+- Accounts are fetched with `dataOrgId` (parent org -- where accounts live)
+- Scores are fetched with `effectiveOrgId` (child org -- where ICP scores live)
+
+Specifically, line 305:
+```
+// BEFORE (wrong):
+.eq('org_id', orgId)    // orgId = dataOrgId = parent org
+
+// AFTER (correct):
+.eq('org_id', scoreOrgId)  // scoreOrgId = effectiveOrgId = child org
+```
+
+### File: `src/pages/Accounts.tsx`
+
+Pass both org IDs to the hook:
+- `orgId` (for accounts) = `dataOrgId` (parent, already correct)
+- `scoreOrgId` (for scores) = `effectiveOrgId` (child org)
+
+### Impact
+
+- 39,928 accounts already have correct scores in the child org
+- No re-scoring needed
+- Dashboard will immediately show correct scores once the org ID fix is applied
+- CommonSpirit goes from 10 to 85, AdventHealth from 70 to 93, etc.
+
+### Alberta Health Services (score: 50)
+
+Even with the correct ICP, Alberta Health scores 50 because:
+- **Geography**: 0 pts -- Canada is not in the ICP (US only). Consider adding Canada to the ICP geographies if Canadian hospitals are targets.
+- **Industry**: 0 pts -- "Hospitals and Health Care" doesn't match any ICP industry string (the ICP has "Hospitals & Physicians Clinics", "Hospital & Health Systems", etc. but not "Hospitals and Health Care"). This is a normalization gap.
+- **Size**: 0 pts -- employee_count 10,001 exceeds ICP max of 500. The ICP company_sizes [30-500] are too small for large health systems.
+- **Segment**: 30 pts -- bed_count 39,803 matches "Academic Medical Centers" (300-1000+)
+- **Revenue**: 20 pts -- "$10B+" matches ICP revenue ranges
+
+### Optional: ICP Tuning Recommendations
+
+To improve scores for large hospital systems beyond the display fix:
+1. Add "Hospitals and Health Care" to ICP industries (fixes industry matching for 20+ accounts)
+2. Add Canada, United Kingdom to ICP geographies if those markets matter
+3. Increase ICP company_sizes to include larger employee counts (e.g., add 1000, 5000, 10000) for enterprise health systems
