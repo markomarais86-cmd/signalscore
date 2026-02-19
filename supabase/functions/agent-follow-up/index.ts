@@ -258,7 +258,7 @@ serve(async (req) => {
               match_reasoning: `AI Follow-Up Priority: ${decision.priority.toUpperCase()}\nApproach: ${decision.approach}\nReasoning: ${decision.reasoning}\nSuggested: ${decision.suggested_action}`
             })
             .eq('id', decision.lead_id)
-            .eq('org_id', org_id);
+            .eq('org_id', dataOrgId);
 
           if (!updateError) {
             recordsAffected++;
