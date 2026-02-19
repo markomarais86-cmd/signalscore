@@ -275,22 +275,34 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     value_proposition: brandConfigRes.data.value_proposition || null,
   } : null;
 
-  // Filter industry breakdown by ICP relevance
-  const icpIndustrySet = new Set<string>(
-    icpProfiles.flatMap((p: any) => p.targetIndustries as string[])
-  );
+  // Filter industry breakdown by ICP relevance (fuzzy matching)
+  const icpIndustryList: string[] = icpProfiles.flatMap((p: any) => p.targetIndustries as string[]);
+  const icpIndustryLower = icpIndustryList.map((i: string) => i.toLowerCase());
+
+  function isIcpRelevantIndustry(industryName: string): boolean {
+    const lower = industryName.toLowerCase();
+    return icpIndustryLower.some(icp =>
+      lower.includes(icp) || icp.includes(lower) ||
+      // word-level overlap: if >=50% of words in either string match
+      (() => {
+        const wordsA = new Set(lower.replace(/[&,]/g, ' ').split(/\s+/).filter(w => w.length > 2));
+        const wordsB = new Set(icp.replace(/[&,]/g, ' ').split(/\s+/).filter(w => w.length > 2));
+        const overlap = [...wordsA].filter(w => wordsB.has(w)).length;
+        return overlap > 0 && (overlap / Math.min(wordsA.size, wordsB.size) >= 0.5);
+      })()
+    );
+  }
+
   let industryBreakdown: typeof rawIndustryBreakdown;
-  if (icpIndustrySet.size > 0) {
-    const icpMatched = rawIndustryBreakdown.filter(i => icpIndustrySet.has(i.name));
-    const nonIcp = rawIndustryBreakdown.filter(i => !icpIndustrySet.has(i.name) && i.name !== 'Unknown');
-    const topNonIcp = nonIcp.slice(0, 3);
-    const otherAccounts = nonIcp.slice(3).reduce((s, i) => s + i.accounts, 0);
-    const otherHighFit = nonIcp.slice(3).reduce((s, i) => s + i.highFitCount, 0);
+  if (icpIndustryLower.length > 0) {
+    const icpMatched = rawIndustryBreakdown.filter(i => isIcpRelevantIndustry(i.name));
+    const nonIcp = rawIndustryBreakdown.filter(i => !isIcpRelevantIndustry(i.name) && i.name !== 'Unknown');
+    const otherAccounts = nonIcp.reduce((s, i) => s + i.accounts, 0);
+    const otherHighFit = nonIcp.reduce((s, i) => s + i.highFitCount, 0);
     industryBreakdown = [
       ...icpMatched,
-      ...topNonIcp,
       ...(otherAccounts > 0 ? [{
-        name: 'Other',
+        name: 'Other (Non-ICP)',
         accounts: otherAccounts,
         percentage: totalIndustryAccounts > 0 ? (otherAccounts / totalIndustryAccounts) * 100 : 0,
         highFitCount: otherHighFit,
@@ -406,7 +418,15 @@ ${icpSummary || "No ICP profiles configured"}
         {
           role: "system",
           content:
-            "You are a senior strategic analyst preparing a board-level intelligence brief. Your analysis must be data-driven, actionable, and focused on revenue impact. Use precise numbers from the data provided. Be concise but insightful. Identify patterns, risks, and opportunities that executives need to act on. Pay special attention to ICP profile alignment — analyze whether the defined personas, tech stack, and buying signals align with actual account data.",
+            `You are a senior strategic analyst preparing a board-level intelligence brief for a consulting firm's client. This report will be shared directly with the client, so it must be professional, actionable, and focused on their specific industry and ICP.
+
+CRITICAL RULES:
+- All analysis MUST be relevant to the client's ICP target industries. Do NOT mention industries outside the ICP unless they represent a strategic expansion opportunity.
+- Risks must be specific and actionable (e.g., "12,000 hospital accounts lack contact data" NOT generic statements like "lack of ICP configuration").
+- Recommendations must be concrete next steps the client can execute within 30 days.
+- Use precise numbers from the data. Never be vague.
+- Frame everything in terms of revenue impact and pipeline acceleration.
+- The "High-Fit" threshold is a score of 60+. "Medium-Fit" is 40-59. Reference these correctly.`,
         },
         { role: "user", content: dataContext },
       ],
