@@ -55,10 +55,11 @@ serve(async (req) => {
 
     // Get current metrics for comparison
     const metrics = await getCurrentMetrics(supabase, orgId);
+    const apiMetrics = await getApiMetrics(supabase, orgId);
     const results: AlertCheck[] = [];
 
     for (const alert of alerts) {
-      const check = evaluateAlert(alert, metrics);
+      const check = evaluateAlert(alert, metrics, apiMetrics);
       results.push(check);
 
       // If triggered, send notification
@@ -202,7 +203,33 @@ async function getCurrentMetrics(supabase: any, orgId: string) {
   };
 }
 
-function evaluateAlert(alert: any, metrics: any): AlertCheck {
+async function getApiMetrics(supabase: any, orgId: string) {
+  // Fetch external data sources for API credit monitoring
+  const { data: sources } = await supabase
+    .from('external_data_sources')
+    .select('provider, credits_remaining, is_active')
+    .eq('org_id', orgId);
+
+  const allSources = sources || [];
+  const minCredits = allSources.length > 0
+    ? Math.min(...allSources.map((s: any) => s.credits_remaining ?? Infinity))
+    : Infinity;
+
+  // Fetch service health for degradation monitoring
+  const { data: healthRecords } = await supabase
+    .from('ai_provider_health')
+    .select('provider, status, failure_count')
+    .in('status', ['degraded', 'down']);
+
+  const failureCount = (healthRecords || []).reduce(
+    (sum: number, h: any) => sum + (h.failure_count || 0), 0
+  );
+  const degradedProviders = (healthRecords || []).length;
+
+  return { minCredits, failureCount, degradedProviders };
+}
+
+function evaluateAlert(alert: any, metrics: any, apiMetrics: any): AlertCheck {
   let currentValue = 0;
   const thresholdValue = alert.threshold_value || 0;
   const operator = alert.threshold_operator || 'lt';
@@ -223,6 +250,12 @@ function evaluateAlert(alert: any, metrics: any): AlertCheck {
       break;
     case 'deal_at_risk':
       currentValue = metrics.overdueDealsCount;
+      break;
+    case 'api_credits_low':
+      currentValue = apiMetrics.minCredits === Infinity ? 9999 : apiMetrics.minCredits;
+      break;
+    case 'service_degraded':
+      currentValue = apiMetrics.degradedProviders;
       break;
     default:
       currentValue = 0;
@@ -264,6 +297,8 @@ function generateAlertMessage(alert: any, check: AlertCheck): string {
     slippage_increase: `Pipeline slippage is at ${check.currentValue.toFixed(1)}% (threshold: ${check.thresholdValue}%)`,
     pipeline_threshold: `Pipeline value is $${check.currentValue.toLocaleString()} (threshold: $${check.thresholdValue.toLocaleString()})`,
     deal_at_risk: `${check.currentValue} deals are at risk (threshold: ${check.thresholdValue})`,
+    api_credits_low: `API credits running low: ${check.currentValue} remaining (threshold: ${check.thresholdValue})`,
+    service_degraded: `${check.currentValue} API provider(s) degraded/down (threshold: ${check.thresholdValue})`,
   };
 
   return typeMessages[alert.alert_type] || `Alert triggered: ${alert.name}`;

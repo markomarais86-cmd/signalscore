@@ -201,6 +201,23 @@ serve(async (req) => {
 
     if (icpError) throw icpError;
 
+    // Auto-provision org infrastructure (agents, alerts, data sources)
+    try {
+      console.log(`[parse-icp-document] Triggering provision-org for ${effectiveOrgId}`);
+      const provisionRes = await fetch(`${supabaseUrl}/functions/v1/provision-org`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ org_id: effectiveOrgId }),
+      });
+      const provisionResult = await provisionRes.json();
+      console.log(`[parse-icp-document] Provision result:`, JSON.stringify(provisionResult));
+    } catch (provisionErr) {
+      console.error('[parse-icp-document] Provision failed (non-fatal):', provisionErr);
+    }
+
     // Also populate org_onboarding_config with extracted data (if fields are empty)
     try {
       const { data: existingConfig } = await supabase
