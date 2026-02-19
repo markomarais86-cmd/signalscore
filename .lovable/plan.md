@@ -1,70 +1,88 @@
 
 
-# Fix Plan: Dashboard Data Issues for Both Organizations
+# Fix Dashboard Data Issues - Complete Resolution
 
-## Root Cause Analysis
+## Root Cause Summary
 
-After thorough investigation, I found several distinct problems affecting both orgs:
+After deep investigation of the actual database state, here is what's happening:
 
-### Launchpulse (parent org) Issues:
-1. **No ICP profiles exist** - All ICPs were created under the child org (Ninety One Life), so when viewing Launchpulse directly, ICP-dependent features (market sizing, ICP fit, smart insights) have nothing to work with
-2. **Leads metrics cache is stale** - Last refreshed Jan 15, showing 63,516 leads vs actual 53,303
-3. **17,621 accounts are unscored** at the parent level (only 22,307 of 39,928 have scores under Launchpulse)
-4. **Dashboard materialized views need refresh** to pick up current data
+### The Real Data State
 
-### Ninety One Life (child org) Issues:
-1. **Apollo/external data source checks use `effectiveOrgId`** instead of resolving to the correct org - several queries in `ExecutiveDashboard.tsx` (lines 236-240 for Apollo staleness, and the `checkDataFreshness` function) query `external_data_sources` using only the child org ID
-2. **Only 19 high-fit accounts** out of 39,928 scored - the scoring thresholds (70+ for high fit) combined with the `chunked_v3_soft_penalty` scoring version may be producing mostly medium/low scores
-3. **Data completeness, priority accounts, pipeline potential** all derive from the cached metrics which show this skewed distribution
+| Metric | Launchpulse (parent) | Ninety One Life (child) |
+|--------|---------------------|------------------------|
+| Accounts | 39,928 | 39,928 (inherited from parent) |
+| Scores (parent org_id) | 22,307 scored: 9,099 high / 11,717 med / 1,491 low | -- |
+| Scores (child org_id) | -- | 39,928 scored: **19 high** / 23,988 med / 15,921 low |
+| ICPs | **None** | 2 active ICPs |
+| Apollo (external_data_sources) | 66,818 accounts (synced Feb 17) | 188,955 accounts (synced Feb 18) |
+| Matview staleness | **2 days old** (Feb 17) | Cache was invalidated, recomputes on load |
 
-## Fix Steps
+### Problems Identified
 
-### Step 1: Refresh Materialized Views (Database)
-Run SQL to refresh the stale materialized views for the parent org so Launchpulse shows current data:
-- Refresh `dashboard_metrics_cache`
-- Refresh `leads_metrics_cache`
-- Invalidate the child's `child_dashboard_metrics_cache` so it recomputes on next load
+1. **Materialized views are stale** -- `dashboard_metrics_cache` and `leads_metrics_cache` haven't been refreshed since Feb 17. The parent org dashboard reads directly from these stale matviews.
 
-### Step 2: Fix Dashboard Queries Using Wrong Org ID (Code)
-In `src/pages/ExecutiveDashboard.tsx`, the `checkDataFreshness` function queries several tables using only `effectiveOrgId` when it should also check `dataOrgId` for shared data. Specifically:
-- **Apollo stale check** (lines 235-240): queries `external_data_sources` with `effectiveOrgId` -- should also fall back to `dataOrgId`
-- **ICP profiles check** (lines 206-210, 228-233): correctly uses `effectiveOrgId` since ICPs are per-child-org
-- **Scores check** (lines 214-218): uses `effectiveOrgId` -- correct since scores are per-child-org
+2. **Child org genuinely has only 19 high-fit accounts** -- This is the actual scoring result, not a cache bug. The child org's scoring run (using `chunked_v3_soft_penalty`) against its ICPs produced this distribution. The previous scoring may have used different thresholds or ICP weights.
 
-The fix: Pass `dataOrgId` into `checkDataFreshness` and use it for Apollo data lookups (since `external_data_sources` may be stored under either org).
+3. **Data completeness RPC times out** -- `get_data_completeness` is hitting statement timeout, returning 0%.
 
-### Step 3: Fix ICP Display for Launchpulse (Code)
-When viewing Launchpulse directly (not via child org), the dashboard shows "ICP is not defined" because ICPs only exist under the child org. Two options:
-- **Option A**: The dashboard, when viewing a parent org, should show a message like "View client org for ICP data" since ICPs are client-specific
-- **Option B**: Copy or reference the child's ICPs when viewing the parent
+4. **Apollo data source resolution** -- Already fixed in the previous code change (falls back to parent org).
 
-Recommended: Option A -- parent orgs are data containers; ICP/scoring views should direct users to use the org switcher to view a specific client.
+5. **DataHealthWidget** -- Already fixed to use `dataOrgId` in the previous change.
 
-### Step 4: Fix Smart Insights Query (Code)
-The `generateInsights` function likely queries ICP profiles and scores using `effectiveOrgId`. When viewing Launchpulse (no ICPs, different score versions), it produces wrong or empty insights. Need to verify this function also handles the parent-org case gracefully.
+## Fix Plan
 
-### Step 5: Refresh Leads Count Mismatch (Database)
-The `leads_metrics_cache` for Launchpulse shows 63,516 but actual count is 53,303. This is because the materialized view hasn't been refreshed since January. The refresh in Step 1 will fix this.
+### Step 1: Refresh Materialized Views (Database Migration)
+
+Run SQL migration to refresh the stale materialized views so the parent org (Launchpulse) shows current data:
+
+```text
+REFRESH MATERIALIZED VIEW CONCURRENTLY dashboard_metrics_cache;
+REFRESH MATERIALIZED VIEW CONCURRENTLY leads_metrics_cache;
+```
+
+This will update the parent org's metrics from the 2-day-old snapshot to current values.
+
+### Step 2: Fix `get_data_completeness` Timeout (Database Migration)
+
+The `get_data_completeness` RPC is timing out on 39,928 accounts. Need to optimize it or add a timeout-safe fallback. Investigate the function source and add appropriate indexes or simplify the query.
+
+### Step 3: Verify Apollo TAM Display for Launchpulse
+
+The parent org has Apollo data (66,818 accounts, 280,636 contacts) stored under its org_id in `external_data_sources`. The `useDashboardData` hook first queries with `effectiveOrgId` (which is correct for the parent), so this should already work. Need to verify the `is_active` filter -- the parent has an **active** Apollo record.
+
+However, the parent **also** has an **inactive** ZoomInfo record. The query uses `.eq('is_active', true)` which correctly filters it out.
+
+### Step 4: Address the 19 High-Fit Scoring Issue
+
+The child org scoring genuinely produced only 19 high-fit accounts (overall score >= 70). This is a scoring calibration issue, not a display bug. Options:
+- **Re-run scoring** with adjusted ICP weights if the current distribution doesn't match expectations
+- **Adjust thresholds** -- if the scoring model produces mostly 40-69 scores, the 70+ threshold for "high fit" may be too aggressive
+- **Leave as-is** if the scoring is intentionally strict
+
+This is a business decision, not a code fix.
+
+### Step 5: No Code Changes Needed Beyond Previous Fix
+
+The code changes from the previous message (Apollo fallback in `checkDataFreshness`, `DataHealthWidget` using `dataOrgId`) are already applied and correct. No additional frontend code changes are required.
 
 ## Technical Details
 
-### Files to Modify:
-1. **`src/pages/ExecutiveDashboard.tsx`** - Pass `dataOrgId` to `checkDataFreshness`, fix Apollo staleness check to fall back to parent org
-2. **Database** - Refresh materialized views and invalidate child cache
+### Files Modified (already done):
+- `src/pages/ExecutiveDashboard.tsx` -- Apollo staleness check falls back to parent org
+- `src/components/executive/DataHealthWidget.tsx` -- Uses `dataOrgId` for account/lead queries
 
-### SQL to Execute:
-```text
--- Refresh materialized views
-REFRESH MATERIALIZED VIEW CONCURRENTLY dashboard_metrics_cache;
-REFRESH MATERIALIZED VIEW CONCURRENTLY leads_metrics_cache;
+### Database Operations Needed:
+1. **Migration**: `REFRESH MATERIALIZED VIEW CONCURRENTLY dashboard_metrics_cache`
+2. **Migration**: `REFRESH MATERIALIZED VIEW CONCURRENTLY leads_metrics_cache`
+3. **Investigate**: `get_data_completeness` function for timeout optimization
 
--- Invalidate child cache to force recomputation
-DELETE FROM child_dashboard_metrics_cache 
-WHERE org_id = 'cd592f73-3e0e-478d-905b-47fe7c5fb634';
-```
+### What Will Improve After Matview Refresh:
+- Launchpulse dashboard will show current account/lead counts
+- Launchpulse Apollo/database tab will correctly show 66,818 TAM accounts
+- Launchpulse scoring distribution will update to current values (9,099 high / 11,717 med / 1,491 low)
 
-### Code Changes Summary:
-- Update `checkDataFreshness` to accept and use `dataOrgId` for external data source queries
-- Add parent-org awareness to the dashboard so it handles the "no ICP" case gracefully instead of showing broken widgets
-- Ensure geography, data health, and pipeline potential widgets handle the parent-org view correctly
+### What Won't Change (by design):
+- Ninety One Life showing 19 high-fit accounts -- this is the actual child-org scoring result
+- Launchpulse showing no ICPs -- ICPs are client-specific, stored under child org only
+- Data completeness showing 0% -- requires optimizing the `get_data_completeness` RPC separately
 
