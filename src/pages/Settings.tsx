@@ -74,6 +74,7 @@ const ServiceHealthStatus = lazy(() => import("@/components/settings/ServiceHeal
 const RoutingRulesSettings = lazy(() => import("@/components/settings/RoutingRulesSettings").then(m => ({ default: m.RoutingRulesSettings })));
 const AdPlatformAPISettings = lazy(() => import("@/components/settings/AdPlatformAPISettings").then(m => ({ default: m.AdPlatformAPISettings })));
 const CustomAttributeManager = lazy(() => import("@/components/settings/CustomAttributeManager"));
+const AlertsConfiguration = lazy(() => import("@/components/settings/AlertsConfiguration"));
 
 interface TeamMember {
   id: string;
@@ -287,6 +288,12 @@ export default function Settings() {
               <span className="hidden sm:inline">Automation & AI</span>
             </TabsTrigger>
           )}
+          {isAdmin && (
+            <TabsTrigger value="alerts" className="flex items-center gap-2 flex-shrink-0">
+              <Bell className="h-4 w-4" />
+              <span className="hidden sm:inline">Alerts</span>
+            </TabsTrigger>
+          )}
           <TabsTrigger value="export-history" className="flex items-center gap-2 flex-shrink-0">
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">Exports</span>
@@ -448,6 +455,15 @@ export default function Settings() {
             <Suspense fallback={<SettingsSkeleton />}>
               <AutomationSettings />
               <AIAgentSettings />
+            </Suspense>
+          </TabsContent>
+        )}
+
+        {/* Alerts & Notifications - Admin Only */}
+        {isAdmin && (
+          <TabsContent value="alerts" className="space-y-6">
+            <Suspense fallback={<SettingsSkeleton />}>
+              <AlertsConfiguration />
             </Suspense>
           </TabsContent>
         )}
