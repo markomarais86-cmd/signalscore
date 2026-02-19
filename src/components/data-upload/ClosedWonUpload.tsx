@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Trophy, Download, Info, CheckCircle, AlertCircle, Zap, ListChecks, Database, HelpCircle, RefreshCw, FileQuestion } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Trophy, Download, Info, CheckCircle, AlertCircle, Zap, ListChecks, Database, HelpCircle, RefreshCw, FileQuestion, Building2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +15,8 @@ import { normalizeDomain, createNormalizedDomainMap } from "@/utils/domain-norma
 import { SampleDataGenerator } from "@/components/SampleDataGenerator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { uploadLogger } from "@/lib/logger";
+import { useRoles } from "@/hooks/use-roles";
+import { useQuery } from "@tanstack/react-query";
 
 // CSV headers for different modes
 const EASY_MODE_HEADERS = ['domain'];
@@ -44,7 +47,12 @@ interface UploadResult {
   accountsMatched?: number;
 }
 
-export function ClosedWonUpload() {
+interface ClosedWonUploadProps {
+  /** Override org ID for admin uploads to child orgs */
+  targetOrgId?: string;
+}
+
+export function ClosedWonUpload({ targetOrgId }: ClosedWonUploadProps = {}) {
   const [uploadMode, setUploadMode] = useState<'easy' | 'detailed'>('easy');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -53,21 +61,56 @@ export function ClosedWonUpload() {
   const [dbError, setDbError] = useState<string | null>(null);
   const [accountCount, setAccountCount] = useState<number>(0);
   const [showTroubleshooting, setShowTroubleshooting] = useState(false);
+  const [selectedOrgId, setSelectedOrgId] = useState<string | null>(targetOrgId || null);
   const fileRefEasy = useRef<HTMLInputElement>(null);
   const fileRefDetailed = useRef<HTMLInputElement>(null);
   const { userProfile, user, loading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { isSuperAdmin } = useRoles();
+
+  // For super admins: fetch all child orgs to allow per-customer uploads
+  const { data: childOrgs } = useQuery({
+    queryKey: ['child-orgs-for-upload'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('id, name, parent_org_id')
+        .order('name');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: isSuperAdmin && !targetOrgId,
+  });
+
+  // The effective org for uploads: selected child org > targetOrgId prop > user's own org
+  const uploadOrgId = selectedOrgId || targetOrgId || userProfile?.org_id;
+
+  // Resolve the data org (parent) for account lookups
+  const { data: resolvedDataOrgId } = useQuery({
+    queryKey: ['upload-data-org', uploadOrgId],
+    queryFn: async () => {
+      if (!uploadOrgId) return null;
+      const { data } = await supabase
+        .from('organizations')
+        .select('parent_org_id')
+        .eq('id', uploadOrgId)
+        .single();
+      return (data as any)?.parent_org_id || uploadOrgId;
+    },
+    enabled: !!uploadOrgId,
+  });
+
+  const accountQueryOrgId = resolvedDataOrgId || uploadOrgId;
 
   // Check database connection and prerequisites on mount
   useEffect(() => {
     checkDatabaseConnection();
-  }, [userProfile?.org_id]);
+  }, [uploadOrgId]);
 
   const checkDatabaseConnection = async () => {
-    uploadLogger.debug('Checking DB connection. Auth loading:', authLoading, 'User:', !!user, 'Profile:', !!userProfile, 'Org ID:', userProfile?.org_id);
+    uploadLogger.debug('Checking DB connection. Auth loading:', authLoading, 'User:', !!user, 'Profile:', !!userProfile, 'Upload Org:', uploadOrgId);
     
-    if (!userProfile?.org_id) {
-      // Don't set error if we're still loading auth
+    if (!uploadOrgId) {
       if (!authLoading && user) {
         setDbConnectionStatus('error');
         setDbError('User profile not found. Please sign out and sign back in.');
@@ -81,7 +124,7 @@ export function ClosedWonUpload() {
       const { data: accounts, error: accountsError } = await supabase
         .from('accounts')
         .select('id', { count: 'exact' })
-        .eq('org_id', userProfile.org_id)
+        .eq('org_id', accountQueryOrgId)
         .limit(1);
 
       if (accountsError) {
@@ -102,7 +145,7 @@ export function ClosedWonUpload() {
       const { count } = await supabase
         .from('accounts')
         .select('*', { count: 'exact', head: true })
-        .eq('org_id', userProfile.org_id);
+        .eq('org_id', accountQueryOrgId);
 
       setAccountCount(count || 0);
       setDbConnectionStatus('connected');
@@ -145,7 +188,7 @@ export function ClosedWonUpload() {
     // Reset previous upload result
     setUploadResult(null);
     
-    if (!userProfile?.org_id) {
+    if (!uploadOrgId) {
       uploadLogger.warn('No org_id found');
       toast({
         title: "Error",
@@ -161,7 +204,7 @@ export function ClosedWonUpload() {
       description: `Processing ${file.name}...`
     });
 
-    uploadLogger.debug('Starting upload for org:', userProfile.org_id);
+    uploadLogger.debug('Starting upload for org:', uploadOrgId);
     setUploading(true);
     setUploadProgress(0);
     setUploadResult(null);
@@ -202,7 +245,7 @@ export function ClosedWonUpload() {
         const { data: accounts, error: accountError } = await supabase
           .from('accounts')
           .select('external_id, domain')
-          .eq('org_id', userProfile.org_id)
+          .eq('org_id', accountQueryOrgId)
           .not('domain', 'is', null);
 
         if (accountError) throw accountError;
@@ -247,7 +290,7 @@ export function ClosedWonUpload() {
 
         // Create new accounts for unmatched domains
         const newAccountsToCreate = unmatchedRows.map(({ normalizedDomain, originalDomain }) => ({
-          org_id: userProfile.org_id,
+          org_id: accountQueryOrgId!,
           external_id: `CW_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
           domain: normalizedDomain,
           name: deriveCompanyName(normalizedDomain),
@@ -297,7 +340,7 @@ export function ClosedWonUpload() {
             }
             
             return {
-              org_id: userProfile.org_id,
+              org_id: uploadOrgId!,
               account_external_id: domainMap.get(item.normalizedDomain),
               deal_value: 0,
               close_date: today,
@@ -317,7 +360,7 @@ export function ClosedWonUpload() {
         setUploadProgress(50);
 
         transformedData = validData.map(row => ({
-          org_id: userProfile.org_id,
+          org_id: uploadOrgId!,
           account_external_id: row.account_external_id,
           deal_value: parseFloat(row.deal_value) || 0,
           close_date: row.close_date,
@@ -581,6 +624,35 @@ export function ClosedWonUpload() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+        {/* Super Admin: Org Selector for per-customer uploads */}
+        {isSuperAdmin && !targetOrgId && childOrgs && childOrgs.length > 0 && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Upload For Organization
+            </label>
+            <Select
+              value={selectedOrgId || ''}
+              onValueChange={(val) => setSelectedOrgId(val || null)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select customer organization..." />
+              </SelectTrigger>
+              <SelectContent>
+                {childOrgs.map((org) => (
+                  <SelectItem key={org.id} value={org.id}>
+                    {org.name} {org.parent_org_id ? '(Managed)' : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedOrgId && selectedOrgId !== userProfile?.org_id && (
+              <p className="text-xs text-muted-foreground">
+                Closed-won deals will be uploaded to this customer's organization.
+              </p>
+            )}
+          </div>
+        )}
         <Tabs value={uploadMode} onValueChange={(v) => setUploadMode(v as 'easy' | 'detailed')}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="easy" className="flex items-center gap-2">

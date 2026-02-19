@@ -191,6 +191,15 @@ export function BulkScoring({ onComplete }: BulkScoringProps) {
               org_id_param: userProfile.org_id
             });
 
+            // Refresh dashboard metrics cache so dashboard shows updated scores
+            try {
+              await supabase.rpc('get_dashboard_metrics_cached', {
+                p_org_id: userProfile.org_id
+              });
+            } catch (cacheErr) {
+              log.warn('Cache refresh failed (non-critical):', cacheErr);
+            }
+
             toast.success(`Successfully scored ${formatNumber(scoredCount)} accounts!`);
             
             // Auto-compute intent signals for top 100 accounts

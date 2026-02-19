@@ -6578,6 +6578,7 @@ export type Database = {
       organizations: {
         Row: {
           created_at: string | null
+          default_acv: number | null
           enrichment_credits_bonus: number | null
           enrichment_credits_reset_at: string | null
           enrichment_credits_total: number | null
@@ -6598,6 +6599,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          default_acv?: number | null
           enrichment_credits_bonus?: number | null
           enrichment_credits_reset_at?: string | null
           enrichment_credits_total?: number | null
@@ -6618,6 +6620,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          default_acv?: number | null
           enrichment_credits_bonus?: number | null
           enrichment_credits_reset_at?: string | null
           enrichment_credits_total?: number | null
