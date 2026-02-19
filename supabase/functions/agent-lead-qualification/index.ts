@@ -9,6 +9,9 @@ const corsHeaders = {
 const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 const AI_GATEWAY_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
 
+// Hard timeout: leave 10s buffer before edge function limit
+const MAX_RUNTIME_MS = 45_000;
+
 interface LeadQualificationDecision {
   lead_id: number;
   qualified: boolean;
@@ -62,6 +65,9 @@ ${JSON.stringify(leadsContext, null, 2)}
 For each lead, decide if they should be qualified and explain why.`;
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000); // 30s timeout for AI call
+
     const response = await fetch(AI_GATEWAY_URL, {
       method: 'POST',
       headers: {
@@ -102,8 +108,11 @@ For each lead, decide if they should be qualified and explain why.`;
           }
         }],
         tool_choice: { type: 'function', function: { name: 'qualify_leads' } }
-      })
+      }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeout);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -138,6 +147,9 @@ serve(async (req) => {
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
+
+  const startTime = Date.now();
+  let runId: string | null = null;
 
   try {
     const { agent_id, org_id, run_id } = await req.json();
@@ -181,6 +193,7 @@ serve(async (req) => {
         throw error;
       }
       run = data;
+      runId = run_id;
       console.log(`[agent-lead-qualification] Using existing run record: ${run_id}`);
     } else {
       const { data, error: runError } = await supabase
@@ -198,10 +211,25 @@ serve(async (req) => {
         throw new Error(`Failed to create run record: ${runError?.message}`);
       }
       run = data;
+      runId = run.id;
       console.log(`[agent-lead-qualification] Created new run record: ${run.id}`);
     }
 
-    const minScoreThreshold = agent.parameters?.min_score_threshold || 70;
+    // Adaptive threshold: if org has < 50 accounts scoring >= 70, lower to 50
+    let minScoreThreshold = agent.parameters?.min_score_threshold || 70;
+    
+    const { count: highScoreCount } = await supabase
+      .from('scores')
+      .select('*', { count: 'exact', head: true })
+      .eq('org_id', org_id)
+      .gte('overall', 70);
+
+    if ((highScoreCount || 0) < 50) {
+      const adaptedThreshold = 50;
+      console.log(`[agent-lead-qualification] Only ${highScoreCount} accounts score >= 70, adapting threshold from ${minScoreThreshold} to ${adaptedThreshold}`);
+      minScoreThreshold = adaptedThreshold;
+    }
+
     console.log(`[agent-lead-qualification] Score threshold: ${minScoreThreshold}`);
     
     let recordsProcessed = 0;
@@ -276,6 +304,12 @@ serve(async (req) => {
       }
 
       for (const batch of batches) {
+        // Check timeout before each batch
+        if (Date.now() - startTime > MAX_RUNTIME_MS) {
+          console.log(`[agent-lead-qualification] ⏰ Timeout approaching after ${recordsProcessed} leads, stopping gracefully`);
+          break;
+        }
+
         recordsProcessed += batch.length;
 
         // Try AI-powered qualification
@@ -342,15 +376,17 @@ serve(async (req) => {
       }
     }
 
-    // Update run with results
+    // Always mark run as completed — never leave it stuck
     const runResults = {
       leads_processed: recordsProcessed,
       leads_qualified: recordsAffected,
       ai_qualified: aiQualified,
       ai_rejected: aiRejected,
       threshold: minScoreThreshold,
+      adapted_threshold: (highScoreCount || 0) < 50,
       ai_powered: aiQualified > 0 || aiRejected > 0,
-      ai_summary: aiSummary || 'No AI analysis performed'
+      ai_summary: aiSummary || 'No AI analysis performed',
+      timed_out: Date.now() - startTime > MAX_RUNTIME_MS,
     };
 
     await supabase
@@ -395,6 +431,23 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('[agent-lead-qualification] Fatal error:', error);
+
+    // CRITICAL: Always mark the run as failed so it doesn't stay stuck
+    if (runId) {
+      try {
+        await supabase
+          .from('ai_agent_runs')
+          .update({
+            status: 'failed',
+            completed_at: new Date().toISOString(),
+            error_message: error instanceof Error ? error.message : 'Unknown error',
+          })
+          .eq('id', runId);
+        console.log(`[agent-lead-qualification] Marked run ${runId} as failed`);
+      } catch (updateErr) {
+        console.error('[agent-lead-qualification] Failed to mark run as failed:', updateErr);
+      }
+    }
     
     return new Response(
       JSON.stringify({ 

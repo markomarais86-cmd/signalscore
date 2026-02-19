@@ -137,7 +137,7 @@ serve(async (req) => {
               pipeline_updated_at: new Date().toISOString(),
             })
             .eq("org_id", org_id)
-            .eq("icp_qualified", true)
+            .eq("status", "qualified")
             .eq("pipeline_stage", "new");
         }
 
