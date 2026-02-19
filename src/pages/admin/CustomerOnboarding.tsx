@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ArrowRight, Check, Building2, Target, Users, Route, Megaphone, Rocket, Sparkles, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Building2, Target, Users, Route, Megaphone, Rocket, Sparkles, Plus, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OnboardingStepCompany } from "@/components/admin/OnboardingStepCompany";
 import { OnboardingStepICP } from "@/components/admin/OnboardingStepICP";
@@ -14,11 +14,14 @@ import { OnboardingStepTeam } from "@/components/admin/OnboardingStepTeam";
 import { OnboardingStepRouting } from "@/components/admin/OnboardingStepRouting";
 import { OnboardingStepCampaigns } from "@/components/admin/OnboardingStepCampaigns";
 import { OnboardingStepReview } from "@/components/admin/OnboardingStepReview";
+import { OnboardingStepClosedWon } from "@/components/admin/OnboardingStepClosedWon";
 import { AICustomerOnboardingDialog } from "@/components/admin/AICustomerOnboardingDialog";
 import { QuickCreateOrgDialog } from "@/components/QuickCreateOrgDialog";
+import { AuditChecklist } from "@/components/admin/AuditChecklist";
 
 const steps = [
   { label: "Company", icon: Building2 },
+  { label: "Closed Won", icon: Trophy },
   { label: "ICP", icon: Target },
   { label: "Team", icon: Users },
   { label: "Routing", icon: Route },
@@ -103,6 +106,7 @@ export default function CustomerOnboarding() {
 
   const StepComponent = [
     OnboardingStepCompany,
+    OnboardingStepClosedWon,
     OnboardingStepICP,
     OnboardingStepTeam,
     OnboardingStepRouting,
@@ -153,16 +157,23 @@ export default function CustomerOnboarding() {
       </div>
 
       {/* Step content */}
-      <Card>
-        <CardContent className="pt-6">
-          <StepComponent
-            orgId={orgId!}
-            config={config}
-            onSave={(values: Record<string, unknown>) => upsertConfig.mutateAsync(values)}
-            onActivate={() => activateMutation.mutateAsync()}
-          />
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <Card>
+            <CardContent className="pt-6">
+              <StepComponent
+                orgId={orgId!}
+                config={config}
+                onSave={(values: Record<string, unknown>) => upsertConfig.mutateAsync(values)}
+                onActivate={() => activateMutation.mutateAsync()}
+              />
+            </CardContent>
+          </Card>
+        </div>
+        <div>
+          <AuditChecklist orgId={orgId!} />
+        </div>
+      </div>
 
       {/* Navigation */}
       <div className="flex justify-between">

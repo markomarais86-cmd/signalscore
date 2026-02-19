@@ -72,7 +72,10 @@ serve(async (req) => {
       throw new Error('No organization found');
     }
 
-    const orgId = profile.org_id;
+    // Accept optional target_org_id for admin uploads to child orgs
+    let body: any = {};
+    try { body = await req.json(); } catch {}
+    const orgId = body.target_org_id || profile.org_id;
 
     // Fetch all closed won deals
     const { data: deals, error: dealsError } = await supabase

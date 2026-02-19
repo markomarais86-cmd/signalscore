@@ -47,11 +47,12 @@ async function fetchAllReportData(supabase: any, orgId: string) {
   // Resolve parent org for account/lead queries (child orgs store data under parent)
   const { data: orgLookup } = await supabase
     .from("organizations")
-    .select("parent_org_id")
+    .select("parent_org_id, default_acv")
     .eq("id", orgId)
     .single();
   const dataOrgId = orgLookup?.parent_org_id || orgId;
-  console.log(`[board-report] orgId=${orgId}, dataOrgId=${dataOrgId}, isChild=${dataOrgId !== orgId}`);
+  const orgAcv = orgLookup?.default_acv ? Number(orgLookup.default_acv) : DEFAULT_ACV;
+  console.log(`[board-report] orgId=${orgId}, dataOrgId=${dataOrgId}, isChild=${dataOrgId !== orgId}, acv=${orgAcv}`);
 
   // Parallel data fetches — using server-side RPCs for aggregation (bypasses 1000-row limit)
   const [
@@ -181,12 +182,12 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     techStack: p.tech_stack || [],
   }));
 
-  // Revenue modeling
+  // Revenue modeling — use per-org ACV
   const unscoredAccounts = Math.max(metrics.totalAccounts - metrics.scoredAccounts, 0);
-  const tamRevenue = metrics.totalAccounts * DEFAULT_ACV;
-  const samRevenue = (metrics.highFitAccounts + metrics.mediumFitAccounts) * DEFAULT_ACV;
-  const somRevenue = metrics.campaignReadyAccounts * DEFAULT_ACV * DEFAULT_CONVERSION_RATE;
-  const leakageRevenue = (unscoredAccounts + lowDataCount) * DEFAULT_ACV * DEFAULT_CONVERSION_RATE;
+  const tamRevenue = metrics.totalAccounts * orgAcv;
+  const samRevenue = (metrics.highFitAccounts + metrics.mediumFitAccounts) * orgAcv;
+  const somRevenue = metrics.campaignReadyAccounts * orgAcv * DEFAULT_CONVERSION_RATE;
+  const leakageRevenue = (unscoredAccounts + lowDataCount) * orgAcv * DEFAULT_CONVERSION_RATE;
 
   // Top 10 prospects
   const topScores = topScoresRes.data || [];
@@ -219,7 +220,7 @@ async function fetchAllReportData(supabase: any, orgId: string) {
         overallScore: s.overall || 0,
         revenueRange: acct?.revenue_range || "N/A",
         leadCount: leadCountMap.get(s.account_external_id) || 0,
-        estimatedValue: midpoint ? Math.round(midpoint * 0.001) : DEFAULT_ACV,
+        estimatedValue: midpoint ? Math.round(midpoint * 0.001) : orgAcv,
         bedCount: customAttrs?.bed_count ?? null,
       };
     });
@@ -304,7 +305,7 @@ async function fetchAllReportData(supabase: any, orgId: string) {
       leadsPerAccount: metrics.totalAccounts > 0 ? parseFloat((totalLeads / metrics.totalAccounts).toFixed(1)) : 0,
     },
     revenueModeling: {
-      acv: DEFAULT_ACV,
+      acv: orgAcv,
       conversionRate: DEFAULT_CONVERSION_RATE,
       pipelinePotential: somRevenue,
       revenueAtRisk: leakageRevenue,
