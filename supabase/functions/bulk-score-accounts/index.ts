@@ -4,7 +4,7 @@ import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-
 import { successResponse, errorResponse, handleCors, ErrorCodes, parseJsonBody, validateRequired } from '../_shared/response-helpers.ts';
 import { checkExistingJob, generateIdempotencyKey, checkIdempotency, recordIdempotencyKey, IDEMPOTENCY_TTL } from '../_shared/idempotency.ts';
 
-const CHUNK_SIZE = 500;
+const CHUNK_SIZE = 200;
 const MAX_RUNTIME_MS = 50_000; // Leave 10s buffer before 60s edge function limit
 
 interface BulkScoreRequest {
@@ -422,7 +422,7 @@ serve(async (req) => {
           const latestDelta = entries[0].new_overall - entries[0].old_overall;
           if (latestDelta > 10) intent = 75;       // Recent big improvement
           else if (latestDelta > 0) intent = 65;    // Recent improvement
-          else if (entries.length >= 2 && entries[0].new_overall >= 70) intent = 60; // Stable high fit
+          else if (entries.length >= 2 && entries[0].new_overall >= 60) intent = 60; // Stable high fit
           else if (latestDelta < -10) intent = 35;  // Declining
           intentMap.set(accountId, intent);
         }
@@ -560,7 +560,7 @@ serve(async (req) => {
       try {
         const { count } = await supabase.from('scores')
           .select('*', { count: 'exact', head: true })
-          .eq('org_id', org_id).eq('icp_id', icp.id).gte('overall', 70);
+          .eq('org_id', org_id).eq('icp_id', icp.id).gte('overall', 60);
         await supabase.from('icp_profiles').update({ match_count: count || 0 }).eq('id', icp.id);
       } catch (_) { /* best effort */ }
     }
