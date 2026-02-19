@@ -85,7 +85,7 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     supabase.from("accounts").select("industry_norm, employee_count, country, revenue_range")
       .eq("org_id", dataOrgId).limit(5000),
     supabase.from("scores").select("account_external_id, overall, fit")
-      .eq("org_id", orgId),
+      .eq("org_id", orgId).limit(50000),
     supabase.from("account_signals").select("signal_priority, signal_type")
       .eq("org_id", orgId).is("dismissed_at", null).is("actioned_at", null),
     supabase.from("org_onboarding_config").select("company_name, logo_url, brand_primary_color, brand_secondary_color, value_proposition")
@@ -127,7 +127,7 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     const entry = industries.get(ind) || { accounts: 0, highFit: 0, totalScore: 0, scoredCount: 0 };
     entry.accounts++;
     const score = scoreMap.get(a.external_id);
-    if (score) { entry.scoredCount++; entry.totalScore += score.overall; if (score.fit >= 70) entry.highFit++; }
+    if (score) { entry.scoredCount++; entry.totalScore += score.overall; if (score.fit >= 60) entry.highFit++; }
     industries.set(ind, entry);
   });
   const totalIndustryAccounts = (accountsWithIndustry.data || []).length;
