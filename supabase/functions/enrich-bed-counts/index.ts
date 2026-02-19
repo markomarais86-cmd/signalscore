@@ -65,24 +65,22 @@ serve(async (req) => {
     const dataOrgId = orgData?.parent_org_id || org_id;
 
     // Find accounts missing bed_count that have a name or domain
+    // Filter bed_count absence at DB level to avoid fetching already-processed accounts
     const { data: accounts, error: fetchErr } = await supabase
       .from('accounts')
       .select('id, external_id, name, domain, custom_attributes')
       .eq('org_id', dataOrgId)
       .or('name.not.is.null,domain.not.is.null')
+      .is('custom_attributes->bed_count', null)
       .order('name', { ascending: true })
-      .limit(batchSize * 3); // Fetch extra to filter client-side
+      .limit(batchSize);
 
     if (fetchErr) {
       console.error('Fetch error:', fetchErr);
       return errorResponse(ErrorCodes.INTERNAL_ERROR, 'Failed to fetch accounts', 500);
     }
 
-    // Filter to accounts missing bed_count
-    const needsBeds = (accounts || []).filter(a => {
-      const attrs = a.custom_attributes as Record<string, any> || {};
-      return attrs.bed_count == null || attrs.bed_count === undefined;
-    }).slice(0, batchSize);
+    const needsBeds = accounts || [];
 
     console.log(`[enrich-bed-counts] Found ${needsBeds.length} accounts needing bed_count (from ${accounts?.length} candidates)`);
 
