@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { HIGH_FIT_THRESHOLD } from "@/lib/score-bands";
 
 export type RiskSeverity = 'critical' | 'high' | 'medium' | 'low';
 
@@ -52,7 +53,7 @@ export async function detectRisks(orgId: string, metrics: any): Promise<RiskItem
       .from('scores')
       .select('account_external_id')
       .eq('org_id', orgId)
-      .gte('overall', 70)
+      .gte('overall', HIGH_FIT_THRESHOLD)
       .limit(10000);
 
     if (highFitWithoutLeads) {

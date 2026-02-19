@@ -8,6 +8,7 @@ interface CoverSlideProps {
 
 export function CoverSlide({ data, logoUrl, brandColor }: CoverSlideProps) {
   const accent = brandColor || 'hsl(var(--primary))';
+  const icpFitAccounts = data.metrics.highFitAccounts + data.metrics.mediumFitAccounts;
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center bg-card text-card-foreground p-20">
@@ -37,9 +38,15 @@ export function CoverSlide({ data, logoUrl, brandColor }: CoverSlideProps) {
         </div>
         <div>
           <div className="text-4xl font-bold" style={{ color: accent }}>
+            {icpFitAccounts.toLocaleString()}
+          </div>
+          <div className="text-base text-muted-foreground mt-1">ICP-Fit Accounts</div>
+        </div>
+        <div>
+          <div className="text-4xl font-bold" style={{ color: accent }}>
             {data.metrics.highFitAccounts.toLocaleString()}
           </div>
-          <div className="text-base text-muted-foreground mt-1">High Fit</div>
+          <div className="text-base text-muted-foreground mt-1">High Fit (A+B)</div>
         </div>
         <div>
           <div className="text-4xl font-bold" style={{ color: accent }}>
