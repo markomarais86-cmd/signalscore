@@ -144,6 +144,15 @@ serve(async (req) => {
 
     console.log(`[agent-lead-qualification] Starting for agent ${agent_id}, org ${org_id}, run_id ${run_id}`);
 
+    // Resolve parent org for shared data (leads/accounts live under parent)
+    const { data: orgData } = await supabase
+      .from('organizations')
+      .select('parent_org_id')
+      .eq('id', org_id)
+      .single();
+    const dataOrgId = orgData?.parent_org_id || org_id;
+    console.log(`[agent-lead-qualification] Data org: ${dataOrgId} (child: ${dataOrgId !== org_id})`);
+
     // Fetch agent configuration
     const { data: agent, error: agentError } = await supabase
       .from('ai_agents')
@@ -231,7 +240,7 @@ serve(async (req) => {
       const { data: leadsData, error: leadsError } = await supabase
         .from('Leads')
         .select('id, external_id, name, email, title, company_name, account_external_id, status')
-        .eq('org_id', org_id)
+        .eq('org_id', dataOrgId)
         .in('status', ['open', 'new'])
         .in('account_external_id', highFitAccountIds)
         .limit(500);

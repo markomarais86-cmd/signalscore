@@ -361,6 +361,15 @@ serve(async (req) => {
     console.log(`[Data Enrichment Agent] ========== STARTING RUN ==========`);
     console.log(`[Data Enrichment Agent] Agent: ${agent_id}, Org: ${org_id}`);
 
+    // Resolve parent org for shared data (accounts live under parent)
+    const { data: orgData } = await supabase
+      .from('organizations')
+      .select('parent_org_id')
+      .eq('id', org_id)
+      .single();
+    const dataOrgId = orgData?.parent_org_id || org_id;
+    console.log(`[Data Enrichment Agent] Data org: ${dataOrgId} (child: ${dataOrgId !== org_id})`);
+
     // Fetch agent configuration
     const { data: agent, error: agentError } = await supabase
       .from('ai_agents')
@@ -412,7 +421,7 @@ serve(async (req) => {
     const { data: accounts, error: accountsError } = await supabase
       .from('accounts')
       .select('id, external_id, name, domain, industry_raw, employee_count, revenue_range, tech_stack, total_raised_usd, icp_qualified, propensity_score')
-      .eq('org_id', org_id)
+      .eq('org_id', dataOrgId)
       .or('industry_raw.is.null,employee_count.is.null,revenue_range.is.null,tech_stack.is.null,total_raised_usd.is.null')
       .limit(batchSize);
 
