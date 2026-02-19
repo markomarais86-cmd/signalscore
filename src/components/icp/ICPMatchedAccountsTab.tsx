@@ -59,10 +59,11 @@ export function ICPMatchedAccountsTab({ icpId, icpName }: ICPMatchedAccountsTabP
         .eq('icp_id', icpId);
 
       if (distData) {
+        const { HIGH_FIT_THRESHOLD, MEDIUM_FIT_THRESHOLD } = await import('@/lib/score-bands');
         const dist = {
-          highFit: distData.filter(s => s.overall >= 70).length,
-          mediumFit: distData.filter(s => s.overall >= 40 && s.overall < 70).length,
-          lowFit: distData.filter(s => s.overall < 40).length,
+          highFit: distData.filter(s => s.overall >= HIGH_FIT_THRESHOLD).length,
+          mediumFit: distData.filter(s => s.overall >= MEDIUM_FIT_THRESHOLD && s.overall < HIGH_FIT_THRESHOLD).length,
+          lowFit: distData.filter(s => s.overall < MEDIUM_FIT_THRESHOLD).length,
           total: distData.length
         };
         setDistribution(dist);
@@ -113,7 +114,7 @@ export function ICPMatchedAccountsTab({ icpId, icpName }: ICPMatchedAccountsTabP
   }
 
   const getFitBadge = (score: number) => {
-    if (score >= 70) return <Badge className="bg-[hsl(var(--signal-high))]/10 text-[hsl(var(--signal-high))] border-[hsl(var(--signal-high))]/20">High Fit</Badge>;
+    if (score >= 60) return <Badge className="bg-[hsl(var(--signal-high))]/10 text-[hsl(var(--signal-high))] border-[hsl(var(--signal-high))]/20">High Fit</Badge>;
     if (score >= 40) return <Badge className="bg-[hsl(var(--signal-medium))]/10 text-[hsl(var(--signal-medium))] border-[hsl(var(--signal-medium))]/20">Medium Fit</Badge>;
     return <Badge className="bg-[hsl(var(--signal-low))]/10 text-[hsl(var(--signal-low))] border-[hsl(var(--signal-low))]/20">Low Fit</Badge>;
   };

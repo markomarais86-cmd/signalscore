@@ -237,8 +237,8 @@ export function PreviewStep({
                       <td className="p-2 text-sm">{account.industry_norm}</td>
                       <td className="p-2 text-sm">{account.country}</td>
                       <td className="p-2 text-sm text-right">
-                        <Badge variant={account.overall_score >= 70 ? "default" : account.overall_score >= 40 ? "secondary" : "outline"} 
-                               className={account.overall_score >= 70 ? "bg-green-500" : ""}>
+                        <Badge variant={account.overall_score >= 60 ? "default" : account.overall_score >= 40 ? "secondary" : "outline"} 
+                               className={account.overall_score >= 60 ? "bg-green-500" : ""}>
                           {account.overall_score}
                         </Badge>
                       </td>

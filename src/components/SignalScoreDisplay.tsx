@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { getScoreBand } from "@/lib/score-bands";
 
 interface SignalScoreDisplayProps {
   score: number;
@@ -20,7 +21,7 @@ export function SignalScoreDisplay({
   band
 }: SignalScoreDisplayProps) {
   // Auto-calculate band if not provided
-  const scoreBand = band || (score >= 70 ? 'A' : score >= 40 ? 'B' : 'C');
+  const scoreBand = band || getScoreBand(score);
   const getScoreColor = (score: number) => {
     if (score >= 80) return "text-[hsl(var(--signal-high))]";
     if (score >= 50) return "text-[hsl(var(--signal-medium))]";

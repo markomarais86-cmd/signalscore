@@ -41,7 +41,7 @@ const DEFAULT_ASSUMPTIONS: TAMAssumptions = {
   averageDealSize: 75000,
   conversionRate: 0.15,
   timeHorizon: 12,
-  highFitThreshold: 70
+  highFitThreshold: 60
 };
 
 export function TAMSAMSOMCalculator({
@@ -109,11 +109,11 @@ export function TAMSAMSOMCalculator({
   // SAM: Serviceable Addressable Market - Accounts matching ICP (high fit)
   // Adjust based on custom threshold (proportional estimation)
   const samAccounts = useMemo(() => {
-    if (assumptions.highFitThreshold === 70) {
+    if (assumptions.highFitThreshold === 60) {
       return highFitAccounts;
     }
     // Estimate: higher threshold = fewer accounts
-    const thresholdFactor = (90 - assumptions.highFitThreshold) / (90 - 70);
+    const thresholdFactor = (90 - assumptions.highFitThreshold) / (90 - 60);
     return Math.round(highFitAccounts * thresholdFactor);
   }, [highFitAccounts, assumptions.highFitThreshold]);
 

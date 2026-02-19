@@ -39,7 +39,7 @@ export function deriveStageReadiness(intentScore: number): string {
 
 export function deriveNextAction(fitScore: number, intentScore: number, leadCount: number): string {
   if (intentScore >= 60) return 'Engage Now';
-  if (fitScore >= 70 && intentScore >= 40) return 'Accelerate';
+  if (fitScore >= 60 && intentScore >= 40) return 'Accelerate';
   if (fitScore >= 60 && intentScore < 40) return 'Warm with Content';
   if (leadCount < 2) return 'Source Contacts';
   return 'Monitor';
