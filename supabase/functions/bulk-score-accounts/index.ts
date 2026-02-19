@@ -205,10 +205,11 @@ function scoreAccount(account: AccountRow, icp: IcpProfile, intentMap?: Map<stri
 
   let fitScore = totalScore;
 
-  // Cap at Band C (max 69) when ICP requires bed_count but account is missing it
+  // Penalty (not hard cap) when ICP requires bed_count but account is missing it
+  // 15-point deduction preserves score differentiation while still penalizing missing vertical data
   if (missingRequiredVertical) {
-    totalScore = Math.min(totalScore, 69);
-    fitScore = Math.min(fitScore, 69);
+    totalScore = Math.max(0, totalScore - 15);
+    fitScore = Math.max(0, fitScore - 15);
   }
 
   return {
@@ -498,17 +499,34 @@ serve(async (req) => {
         }
       }
 
-      // Upsert scores in bulk
+      // Upsert scores in bulk with retry on failure
       if (scoreRows.length > 0) {
         const { error: upsertErr } = await supabase
           .from('scores')
           .upsert(scoreRows, { onConflict: 'org_id,account_external_id' });
 
         if (upsertErr) {
-          console.error(`Upsert error chunk ${chunk}:`, upsertErr);
-          // Scores were counted as successful but upsert failed - adjust
-          failedScores += scoreRows.length;
-          successfulScores -= scoreRows.length;
+          console.warn(`Upsert error chunk ${chunk}, retrying with smaller batches:`, upsertErr.message);
+          // Retry with smaller sub-chunks of 100
+          const RETRY_SIZE = 100;
+          let retrySuccess = 0;
+          let retryFail = 0;
+          for (let r = 0; r < scoreRows.length; r += RETRY_SIZE) {
+            const subChunk = scoreRows.slice(r, r + RETRY_SIZE);
+            const { error: retryErr } = await supabase
+              .from('scores')
+              .upsert(subChunk, { onConflict: 'org_id,account_external_id' });
+            if (retryErr) {
+              console.error(`Retry sub-chunk failed:`, retryErr.message);
+              retryFail += subChunk.length;
+            } else {
+              retrySuccess += subChunk.length;
+            }
+          }
+          // Adjust counts based on retry results
+          failedScores += retryFail;
+          successfulScores -= retryFail;
+          console.log(`Retry results: ${retrySuccess} succeeded, ${retryFail} failed`);
         }
       }
 
