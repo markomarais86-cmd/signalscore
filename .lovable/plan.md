@@ -1,34 +1,61 @@
 
 
-# Clean Up Test Onboarding Corp
+# Add Skip Patterns to Filter Non-Healthcare False Positives
 
-## What Will Be Deleted
+## Problem
 
-The test org `2cdf2add-9d96-4b13-991d-ebbb400becde` ("Test Onboarding Corp") and all its provisioned data across 6 tables:
+The Perplexity/Gemini AI is returning false bed counts for non-healthcare companies. Out of ~165 accounts with `bed_count > 0`, at least 20+ are clearly not hospitals -- banks, industrial conglomerates, insurance companies, government entities, and military organizations are being assigned bed counts ranging from 500 to 4,847.
 
-| Table | Records | Details |
-|-------|---------|---------|
-| ai_agent_registry | 4 | lead_qualification, data_enrichment, follow_up, meeting_scheduler |
-| alerts | 2 | api_credits_low, service_degraded |
-| external_data_sources | 1 | Apollo provider record |
-| icp_profiles | 1 | Extracted ICP from test onboarding |
-| audit_logs | 1 | Onboarding audit entry |
-| organizations | 1 | The org itself |
+## Examples of False Positives
 
-## Execution Order
+| Company | Domain | False Bed Count | Category |
+|---------|--------|----------------|----------|
+| Bank of Georgia Group | bankofgeorgiagroup.com | 4,461 | Banking |
+| Acciona | acciona.com | 4,847 | Industrial |
+| Arvind | arvind.com | 3,500 | Textile/Industrial |
+| Allianz | allianz.de | 2,823 | Insurance |
+| ArcelorMittal | corporate.arcelormittal.com | 1,347 | Steel |
+| Adani | adani.com | 2,000 | Conglomerate |
+| AIG | aig.com | 800 | Insurance |
+| 1543 Capital | 1543capital.com | 526 | Finance |
+| Alleghany | alleghany.com | 2,500 | Finance |
+| Al Jaber | aljaber.com | 1,168 | Construction |
+| Bahri | bahri.sa | 500 | Shipping |
+| Altice | nuvancehealth.org | 2,303 | Telecom |
+| Auma | auma.com | 786 | Industrial valves |
+| Artemis | artemis.uk.com | 713 | Investment |
+| Anne Arundel County | aacounty.org | 684 | Government |
 
-Child records must be deleted before the parent org (foreign key constraints):
+## Solution
 
-1. Delete from `ai_agent_registry` where org_id matches
-2. Delete from `alerts` where org_id matches
-3. Delete from `external_data_sources` where org_id matches
-4. Delete from `icp_profiles` where org_id matches
-5. Delete from `audit_logs` where org_id matches
-6. Delete from `organizations` where id matches
+### 1. Expand SKIP_PATTERNS regex in `supabase/functions/enrich-bed-counts/index.ts`
 
-## Technical Details
+Add the following categories to the existing regex:
 
-All deletions use the Supabase data insert/update tool (not migrations, since these are data operations). Each DELETE targets rows by `org_id = '2cdf2add-9d96-4b13-991d-ebbb400becde'`, except the org table itself which uses `id`.
+- **Banking/Finance:** bank, banking, capital, equity, securities, investment, hedge fund, asset management, venture, private equity, financial group, credit union, savings, brokerage, wealth management
+- **Insurance (non-health):** allianz, aig, prudential, metlife, allstate, geico, underwriter
+- **Industrial/Manufacturing:** steel, mining, cement, chemical, petroleum, oil, gas, energy, refinery, smelter, foundry, textile, manufacturing
+- **Conglomerates (known):** adani, acciona, arcelormittal, arvind, tata (non-health), al jaber
+- **Government/Military:** county, municipality, city of, town of, borough, guards, regiment, battalion, brigade, air force, navy, army
+- **Telecom/Tech (non-health):** telecom, telco, broadband, cable, wireless, data center
+- **Shipping/Transport:** shipping, maritime, tanker, fleet, cargo, port authority
 
-No code changes are needed -- this is purely a database cleanup.
+### 2. Reset false positive bed counts
+
+Write a migration to set `bed_count = 0` for known false positives already in the database. This targets the ~20 clearly incorrect entries identified above.
+
+### 3. File changes
+
+**`supabase/functions/enrich-bed-counts/index.ts`** (line 22):
+Update the `SKIP_PATTERNS` regex constant to include the new patterns. The expanded regex will follow the same `\b...\b` word-boundary format as the existing patterns.
+
+**New migration file:**
+A SQL migration to reset `custom_attributes` for the specific false-positive account IDs, setting their `bed_count` back to `0`.
+
+## Technical Notes
+
+- The regex uses case-insensitive matching (`/i` flag) so capitalization does not matter
+- Word boundaries (`\b`) prevent partial matches (e.g., "bank" won't match "Fairbanks")
+- The edge function must be redeployed after the code change
+- Already-processed accounts with false bed counts need a one-time data fix via migration
 
