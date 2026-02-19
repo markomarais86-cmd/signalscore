@@ -205,11 +205,11 @@ function scoreAccount(account: AccountRow, icp: IcpProfile, intentMap?: Map<stri
 
   let fitScore = totalScore;
 
-  // Penalty (not hard cap) when ICP requires bed_count but account is missing it
-  // 15-point deduction preserves score differentiation while still penalizing missing vertical data
+  // Proportional penalty (15%) + cap at 69 when bed_count is missing
+  // Prevents Band A assignment while preserving score differentiation
   if (missingRequiredVertical) {
-    totalScore = Math.max(0, totalScore - 15);
-    fitScore = Math.max(0, fitScore - 15);
+    totalScore = Math.min(Math.round(totalScore * 0.85), 69);
+    fitScore = Math.min(Math.round(fitScore * 0.85), 69);
   }
 
   return {
