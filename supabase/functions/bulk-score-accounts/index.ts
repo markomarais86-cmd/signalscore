@@ -4,7 +4,7 @@ import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-
 import { successResponse, errorResponse, handleCors, ErrorCodes, parseJsonBody, validateRequired } from '../_shared/response-helpers.ts';
 import { checkExistingJob, generateIdempotencyKey, checkIdempotency, recordIdempotencyKey, IDEMPOTENCY_TTL } from '../_shared/idempotency.ts';
 
-const CHUNK_SIZE = 200;
+const CHUNK_SIZE = 500;
 const MAX_RUNTIME_MS = 50_000; // Leave 10s buffer before 60s edge function limit
 
 interface BulkScoreRequest {

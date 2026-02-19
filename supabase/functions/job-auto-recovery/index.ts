@@ -15,7 +15,7 @@ const STALE_JOB_THRESHOLD_MS = 120000; // 2 minutes
 const AUTO_RESUME_THRESHOLD_MS = 300000; // 5 minutes
 
 // Max recovery attempts before marking job as failed
-const MAX_RECOVERY_ATTEMPTS = 3;
+const MAX_RECOVERY_ATTEMPTS = 10;
 
 // Pending job threshold - jobs pending for longer than this should be auto-started
 const PENDING_JOB_THRESHOLD_MS = 120000; // 2 minutes
