@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useAuth } from "./use-auth";
+import { useRoles } from "./use-roles";
 import { supabase } from "@/integrations/supabase/client";
 
 interface OnboardingStep {
@@ -63,6 +64,7 @@ const OnboardingContext = createContext<OnboardingContextType | undefined>(undef
 
 export function OnboardingProvider({ children }: { children: ReactNode }) {
   const { userProfile } = useAuth();
+  const { isSuperAdmin, loading: rolesLoading } = useRoles();
   const [onboarding, setOnboarding] = useState<OnboardingState>({
     isComplete: false,
     currentStep: 0,
@@ -71,10 +73,16 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
+    if (rolesLoading) return;
+    // Super admins never see the onboarding wizard
+    if (isSuperAdmin) {
+      setOnboarding(prev => ({ ...prev, isComplete: true, showWizard: false }));
+      return;
+    }
     if (userProfile?.org_id) {
       loadOnboardingState();
     }
-  }, [userProfile?.org_id]);
+  }, [userProfile?.org_id, isSuperAdmin, rolesLoading]);
 
   const loadOnboardingState = async () => {
     if (!userProfile?.org_id) return;
