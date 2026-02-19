@@ -20,7 +20,7 @@ serve(async (req) => {
   }
 
   try {
-    const { orgId } = await req.json();
+    const { orgId, testMode, testAlertId } = await req.json();
 
     if (!orgId) {
       return new Response(
@@ -33,14 +33,21 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log(`[check-alerts] Checking alerts for org ${orgId}`);
+    console.log(`[check-alerts] Checking alerts for org ${orgId}${testMode ? ' (TEST MODE)' : ''}`);
 
     // Fetch active alerts for the org
-    const { data: alerts, error: alertsError } = await supabase
+    let alertsQuery = supabase
       .from('alerts')
       .select('*')
-      .eq('org_id', orgId)
-      .eq('is_active', true);
+      .eq('org_id', orgId);
+    
+    if (testMode && testAlertId) {
+      alertsQuery = alertsQuery.eq('id', testAlertId);
+    } else {
+      alertsQuery = alertsQuery.eq('is_active', true);
+    }
+    
+    const { data: alerts, error: alertsError } = await alertsQuery;
 
     if (alertsError) {
       throw new Error(`Failed to fetch alerts: ${alertsError.message}`);
@@ -62,8 +69,8 @@ serve(async (req) => {
       const check = evaluateAlert(alert, metrics, apiMetrics);
       results.push(check);
 
-      // If triggered, send notification
-      if (check.triggered) {
+      // If triggered (or testMode), send notification
+      if (check.triggered || testMode) {
         console.log(`[check-alerts] Alert triggered: ${alert.name} (${alert.alert_type})`);
         
         // Call send-alert function
