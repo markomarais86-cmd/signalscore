@@ -40,6 +40,15 @@ function getPlanDisplayName(source: string | undefined): string | null {
   return null;
 }
 
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -47,7 +56,7 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     const data: DemoRequest = await req.json();
-    console.log("Received demo request:", data);
+    console.log("Received demo request:", { name: data.name, email: data.email, source: data.source });
 
     if (!data.name || !data.email) {
       return new Response(
@@ -56,17 +65,42 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Validate email format
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(data.email)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid email format" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Validate input lengths
+    if (data.name.length > 200 || data.email.length > 255 || (data.message && data.message.length > 2000)) {
+      return new Response(
+        JSON.stringify({ error: "Input too long" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     const timestamp = new Date().toISOString();
     const planDisplayName = getPlanDisplayName(data.source);
     
+    // Escape all user inputs for safe HTML embedding
+    const safeName = escapeHtml(data.name);
+    const safeEmail = escapeHtml(data.email);
+    const safeCompany = data.company ? escapeHtml(data.company) : null;
+    const safeSubject = data.subject ? escapeHtml(data.subject) : null;
+    const safeMessage = data.message ? escapeHtml(data.message) : null;
+    const safeSource = escapeHtml(data.source || 'website');
+
     const emailSubject = planDisplayName 
-      ? `New Demo Request: ${planDisplayName} - ${data.name}`
-      : `New Demo Request from ${data.name}`;
+      ? `New Demo Request: ${planDisplayName} - ${safeName}`
+      : `New Demo Request from ${safeName}`;
 
     const selectedPlanRow = planDisplayName ? `
         <tr style="background-color: #6366f1;">
           <td style="padding: 12px; border: 1px solid #5558e3; color: white;"><strong>Selected Plan</strong></td>
-          <td style="padding: 12px; border: 1px solid #5558e3; color: white; font-weight: bold; font-size: 16px;">${planDisplayName}</td>
+          <td style="padding: 12px; border: 1px solid #5558e3; color: white; font-weight: bold; font-size: 16px;">${escapeHtml(planDisplayName)}</td>
         </tr>
     ` : '';
 
@@ -74,12 +108,12 @@ const handler = async (req: Request): Promise<Response> => {
       <h1>New Demo Request</h1>
       <table style="border-collapse: collapse; width: 100%;">
         ${selectedPlanRow}
-        <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Name</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${data.name}</td></tr>
-        <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Email</strong></td><td style="padding: 8px; border: 1px solid #ddd;"><a href="mailto:${data.email}">${data.email}</a></td></tr>
-        ${data.company ? `<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Company</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${data.company}</td></tr>` : ''}
-        ${data.subject ? `<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Subject</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${data.subject}</td></tr>` : ''}
-        ${data.message ? `<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Message</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${data.message}</td></tr>` : ''}
-        <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Source</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${data.source || 'website'}</td></tr>
+        <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Name</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${safeName}</td></tr>
+        <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Email</strong></td><td style="padding: 8px; border: 1px solid #ddd;"><a href="mailto:${safeEmail}">${safeEmail}</a></td></tr>
+        ${safeCompany ? `<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Company</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${safeCompany}</td></tr>` : ''}
+        ${safeSubject ? `<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Subject</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${safeSubject}</td></tr>` : ''}
+        ${safeMessage ? `<tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Message</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${safeMessage}</td></tr>` : ''}
+        <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Source</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${safeSource}</td></tr>
         <tr><td style="padding: 8px; border: 1px solid #ddd;"><strong>Submitted At</strong></td><td style="padding: 8px; border: 1px solid #ddd;">${timestamp}</td></tr>
       </table>
     `;
@@ -96,7 +130,7 @@ const handler = async (req: Request): Promise<Response> => {
     const confirmationHtml = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
         <h1 style="color: #1a1a2e;">Thanks for your interest in LaunchPulse!</h1>
-        <p>Hi ${data.name},</p>
+        <p>Hi ${safeName},</p>
         <p>We've received your demo request and are excited to show you how LaunchPulse can transform your go-to-market strategy.</p>
         <p><strong>What happens next?</strong></p>
         <ul>
