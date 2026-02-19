@@ -278,21 +278,8 @@ async function fetchAllReportData(supabase: any, orgId: string) {
 
   let industryBreakdown: typeof rawIndustryBreakdown;
   if (icpIndustryLower.length > 0) {
-    const icpMatched = rawIndustryBreakdown.filter(i => isIcpRelevantIndustry(i.name));
-    const nonIcp = rawIndustryBreakdown.filter(i => !isIcpRelevantIndustry(i.name) && i.name !== 'Unknown');
-    const otherAccounts = nonIcp.reduce((s, i) => s + i.accounts, 0);
-    const otherHighFit = nonIcp.reduce((s, i) => s + i.highFitCount, 0);
-    industryBreakdown = [
-      ...icpMatched,
-      ...(otherAccounts > 0 ? [{
-        name: 'Other (Non-ICP)',
-        accounts: otherAccounts,
-        percentage: totalIndustryAccounts > 0 ? (otherAccounts / totalIndustryAccounts) * 100 : 0,
-        highFitCount: otherHighFit,
-        highFitPct: otherAccounts > 0 ? (otherHighFit / otherAccounts) * 100 : 0,
-        avgScore: 0,
-      }] : []),
-    ];
+    // Only keep ICP-relevant industries — no "Other" bucket
+    industryBreakdown = rawIndustryBreakdown.filter(i => isIcpRelevantIndustry(i.name));
   } else {
     industryBreakdown = rawIndustryBreakdown.slice(0, 12);
   }
