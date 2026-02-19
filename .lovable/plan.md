@@ -1,70 +1,63 @@
 
+# Fix LaunchPulse Scoring Job Timeout Failure
 
-# Fix 91.Life Scoring Regression
+## Root Cause
 
-## Root Cause Analysis
+The scoring job is **working correctly per invocation** but the auto-recovery system kills it too early.
 
-The -15 flat penalty is mathematically wrong for this score distribution.
+**The math:**
+- 39,928 accounts / 200 per chunk = 200 chunks needed
+- Each edge function invocation has a 50s time budget
+- Each invocation processes ~25 chunks (~5,000 accounts) before timing out
+- 200 chunks / 25 per invocation = **8 invocations needed** to complete
+- But `MAX_RECOVERY_ATTEMPTS = 3` in `job-auto-recovery` kills the job after only 3 retries
+- Result: job dies at ~15,400/39,928 accounts (77 chunks -- exactly 3 x ~25)
 
-**The data tells the story:**
+The REINDEX was a red herring. The scores table indexes are healthy (49MB across 7 indexes on 33MB of data -- normal ratio). The real problem is a mismatch between the recovery limit and the work required.
 
-| Group | Count | Avg Base (before penalty) | Old Avg (cap at 69) | New Avg (-15 flat) |
-|-------|-------|--------------------------|---------------------|-------------------|
-| Has bed_count (missing_vert=false) | 1,989 | 10.3 | 10.3 | 10.3 (unaffected) |
-| Missing bed_count (missing_vert=true) | 37,939 | 32.0 | ~32.0 | 20.4 |
+## The Fix (Two Changes)
 
-**Why the old cap (min at 69) was nearly invisible:** The average base score for accounts missing bed_count is only 32. Since 32 < 69, the old cap `Math.min(score, 69)` had zero effect on 99.9% of accounts. It only clipped the top ~29 accounts that scored 60-69.
+### 1. Increase chunk size from 200 to 500 in `bulk-score-accounts`
 
-**Why the new -15 penalty crushed everything:** Subtracting 15 from an average of 32 yields 17. Every single one of the 37,939 accounts lost 15 points, dragging the org average from ~34 to ~20. The penalty hits low-scoring accounts just as hard as high-scoring ones -- that's the bug.
-
-**Current distribution for missing_vert=true accounts (after -15):**
-- 0-10: 8,283 accounts (21.8%)
-- 10-20: 10,186 accounts (26.8%) -- massive pileup
-- 20-30: 9,399 accounts (24.8%)
-- 30-40: 7,515 accounts (19.8%)
-- 40-50: 2,030 accounts
-- 50-70: 526 accounts
-
-## The Fix
-
-Replace the flat -15 penalty with a **proportional penalty (15%) plus a hard cap at 69** to prevent Band A without bed_count:
-
-```typescript
-if (missingRequiredVertical) {
-  totalScore = Math.min(Math.round(totalScore * 0.85), 69);
-  fitScore = Math.min(Math.round(fitScore * 0.85), 69);
-}
-```
-
-**Why this works:**
-
-| Base Score | Old (cap 69) | Current (-15) | Fixed (x0.85, cap 69) |
-|-----------|-------------|--------------|----------------------|
-| 85 | 69 | 70 | 69 |
-| 60 | 60 | 45 | 51 |
-| 45 | 45 | 30 | 38 |
-| 32 (avg) | 32 | 17 | 27 |
-| 20 | 20 | 5 | 17 |
-
-- **Preserves rank order** -- no compression to a single value
-- **Proportional** -- low-scoring accounts lose only ~5 points, not 15
-- **Band A protected** -- cap at 69 means no account reaches Band A without bed_count
-- **Predicted new org average:** ~27 (up from current 20.4, slightly below old 34 which is correct since bed_count matters)
-
-## Implementation
+This reduces total chunks from 200 to 80, meaning fewer invocations needed. Each invocation will process ~10 chunks of 500 (~5,000 accounts) instead of ~25 chunks of 200 -- same throughput but fewer chunk overhead (fewer progress-update queries).
 
 **File:** `supabase/functions/bulk-score-accounts/index.ts`
 
-**Change:** Lines 208-213 -- replace the flat penalty with proportional + cap:
-
 ```typescript
-// Proportional penalty (15%) + cap at 69 when bed_count is missing
-// Prevents Band A assignment while preserving score differentiation
-if (missingRequiredVertical) {
-  totalScore = Math.min(Math.round(totalScore * 0.85), 69);
-  fitScore = Math.min(Math.round(fitScore * 0.85), 69);
-}
+const CHUNK_SIZE = 500; // was 200
 ```
 
-**Post-fix:** Re-trigger `bulk-score-accounts` for 91.Life org `cd592f73` to rescore all 39,928 accounts with the corrected logic.
+### 2. Increase MAX_RECOVERY_ATTEMPTS from 3 to 10 in `job-auto-recovery`
 
+For a 40K account org, 8 invocations is the minimum. With a buffer, 10 attempts ensures completion.
+
+**File:** `supabase/functions/job-auto-recovery/index.ts`
+
+```typescript
+const MAX_RECOVERY_ATTEMPTS = 10; // was 3
+```
+
+### 3. Also increase MAX_RECOVERY_ATTEMPTS in `bulk-score-accounts` itself
+
+The `bulk-score-accounts` function also has its own stale-detection code that reads the `auto_recovery_count` from `error_details`. The auto-recovery logic in `job-auto-recovery` checks `retryCount >= MAX_RECOVERY_ATTEMPTS` -- this threshold needs to match.
+
+### 4. Reset the failed job and re-trigger
+
+After deploying the fixes:
+- Mark the failed job (`53823758`) as stale so auto-recovery picks it up, OR
+- Trigger a fresh scoring run for LaunchPulse (`726a0dc0-99c7-43c2-b20f-b849f2760c3f`)
+
+## Technical Details
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Chunk size | 200 | 500 |
+| Total chunks (40K accounts) | 200 | 80 |
+| Max recovery attempts | 3 | 10 |
+| Invocations needed | ~8 | ~8 |
+| Recovery headroom | -5 (fails) | +2 (succeeds) |
+
+## Risk Assessment
+
+- **Chunk size 500:** The retry logic already handles upsert failures by splitting into sub-chunks of 100, so larger chunks are safe. The previous job with chunk_size=500 also processed without upsert errors (0 `failed_scores`).
+- **Recovery attempts 10:** This just means more retries before giving up. Each retry is a normal edge function invocation -- no resource risk.
