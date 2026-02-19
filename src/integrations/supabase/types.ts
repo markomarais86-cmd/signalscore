@@ -8719,11 +8719,30 @@ export type Database = {
         Args: { p_org_id: string }
         Returns: Json
       }
+      get_geography_breakdown: {
+        Args: { p_org_id: string; p_score_org_id: string }
+        Returns: {
+          account_count: number
+          country_name: string
+          scored_count: number
+          total_score: number
+        }[]
+      }
       get_geography_distribution: {
         Args: { p_org_id: string; p_source_filter?: string }
         Returns: {
           count: number
           country: string
+        }[]
+      }
+      get_industry_breakdown: {
+        Args: { p_org_id: string; p_score_org_id: string }
+        Returns: {
+          account_count: number
+          high_fit_count: number
+          industry_name: string
+          scored_count: number
+          total_score: number
         }[]
       }
       get_industry_drilldown: {
@@ -8766,6 +8785,20 @@ export type Database = {
           coverage_rate: number
           id: string
           name: string
+        }[]
+      }
+      get_revenue_range_breakdown: {
+        Args: { p_org_id: string }
+        Returns: {
+          account_count: number
+          range_name: string
+        }[]
+      }
+      get_size_breakdown: {
+        Args: { p_org_id: string }
+        Returns: {
+          account_count: number
+          size_bucket: string
         }[]
       }
       get_top_lead_titles: {

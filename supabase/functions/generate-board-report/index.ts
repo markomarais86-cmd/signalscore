@@ -53,21 +53,21 @@ async function fetchAllReportData(supabase: any, orgId: string) {
   const dataOrgId = orgLookup?.parent_org_id || orgId;
   console.log(`[board-report] orgId=${orgId}, dataOrgId=${dataOrgId}, isChild=${dataOrgId !== orgId}`);
 
-  // Parallel data fetches — added brand config + full ICP fields
+  // Parallel data fetches — using server-side RPCs for aggregation (bypasses 1000-row limit)
   const [
     metricsRes,
     icpRes,
     topScoresRes,
     orgRes,
     leadsRes,
-    accountsWithIndustry,
-    accountsForSize,
     accountsForCompleteness,
-    accountsForGeo,
     accountsForLowData,
-    scoresRes,
     signalsRes,
     brandConfigRes,
+    industryRpc,
+    geoRpc,
+    sizeRpc,
+    revenueRpc,
   ] = await Promise.all([
     supabase.rpc("get_dashboard_metrics_cached", { p_org_id: orgId }),
     supabase.from("icp_profiles").select("*").eq("org_id", orgId).eq("status", "active"),
@@ -75,21 +75,18 @@ async function fetchAllReportData(supabase: any, orgId: string) {
       .eq("org_id", orgId).order("overall", { ascending: false }).limit(10),
     supabase.from("organizations").select("name").eq("id", orgId).maybeSingle(),
     supabase.from("Leads").select("id", { count: "exact", head: true }).eq("org_id", dataOrgId),
-    supabase.from("accounts").select("external_id, industry_norm, revenue_range")
-      .eq("org_id", dataOrgId).limit(50000),
-    supabase.from("accounts").select("employee_count").eq("org_id", dataOrgId).limit(50000),
     supabase.from("accounts").select("name, industry_norm, employee_count, country, domain, revenue_range")
       .eq("org_id", dataOrgId).limit(500),
-    supabase.from("accounts").select("external_id, country")
-      .eq("org_id", dataOrgId).limit(50000),
     supabase.from("accounts").select("industry_norm, employee_count, country, revenue_range")
       .eq("org_id", dataOrgId).limit(5000),
-    supabase.from("scores").select("account_external_id, overall, fit")
-      .eq("org_id", orgId).limit(50000),
     supabase.from("account_signals").select("signal_priority, signal_type")
       .eq("org_id", orgId).is("dismissed_at", null).is("actioned_at", null),
     supabase.from("org_onboarding_config").select("company_name, logo_url, brand_primary_color, brand_secondary_color, value_proposition")
       .eq("org_id", orgId).maybeSingle(),
+    supabase.rpc("get_industry_breakdown", { p_org_id: dataOrgId, p_score_org_id: orgId }),
+    supabase.rpc("get_geography_breakdown", { p_org_id: dataOrgId, p_score_org_id: orgId }),
+    supabase.rpc("get_size_breakdown", { p_org_id: dataOrgId }),
+    supabase.rpc("get_revenue_range_breakdown", { p_org_id: dataOrgId }),
   ]);
 
   // Parse metrics
@@ -114,77 +111,51 @@ async function fetchAllReportData(supabase: any, orgId: string) {
     dataCompleteness,
   };
 
-  // Score map for industry/geo scoring
-  const scoreMap = new Map<string, { overall: number; fit: number }>();
-  (scoresRes.data || []).forEach((s: any) => {
-    scoreMap.set(s.account_external_id, { overall: s.overall || 0, fit: s.fit || 0 });
-  });
+  // ── Industry breakdown (from RPC, no row limit) ──
+  const industryRows = industryRpc.data || [];
+  const totalIndustryAccounts = industryRows.reduce((s: number, r: any) => s + Number(r.account_count), 0);
+  console.log(`[board-report] Industry RPC returned ${industryRows.length} groups, ${totalIndustryAccounts} total accounts`);
+  const rawIndustryBreakdown = industryRows.map((r: any) => ({
+    name: r.industry_name,
+    accounts: Number(r.account_count),
+    percentage: totalIndustryAccounts > 0 ? (Number(r.account_count) / totalIndustryAccounts) * 100 : 0,
+    highFitCount: Number(r.high_fit_count),
+    highFitPct: Number(r.account_count) > 0 ? (Number(r.high_fit_count) / Number(r.account_count)) * 100 : 0,
+    avgScore: Number(r.scored_count) > 0 ? Math.round(Number(r.total_score) / Number(r.scored_count)) : 0,
+  }));
 
-  // Industry breakdown
-  const industries = new Map<string, { accounts: number; highFit: number; totalScore: number; scoredCount: number }>();
-  (accountsWithIndustry.data || []).forEach((a: any) => {
-    const ind = a.industry_norm || "Unknown";
-    const entry = industries.get(ind) || { accounts: 0, highFit: 0, totalScore: 0, scoredCount: 0 };
-    entry.accounts++;
-    const score = scoreMap.get(a.external_id);
-    if (score) { entry.scoredCount++; entry.totalScore += score.overall; if (score.fit >= 60) entry.highFit++; }
-    industries.set(ind, entry);
-  });
-  const totalIndustryAccounts = (accountsWithIndustry.data || []).length;
-  const rawIndustryBreakdown = Array.from(industries.entries())
-    .map(([name, d]) => ({
-      name, accounts: d.accounts,
-      percentage: totalIndustryAccounts > 0 ? (d.accounts / totalIndustryAccounts) * 100 : 0,
-      highFitCount: d.highFit,
-      highFitPct: d.accounts > 0 ? (d.highFit / d.accounts) * 100 : 0,
-      avgScore: d.scoredCount > 0 ? Math.round(d.totalScore / d.scoredCount) : 0,
+  // ── Revenue range breakdown (from RPC) ──
+  const revRows = revenueRpc.data || [];
+  const totalRevAccounts = revRows.reduce((s: number, r: any) => s + Number(r.account_count), 0);
+  const revenueRangeBreakdown = revRows
+    .filter((r: any) => r.range_name !== "Unknown")
+    .map((r: any) => ({
+      name: r.range_name,
+      accounts: Number(r.account_count),
+      percentage: totalRevAccounts > 0 ? (Number(r.account_count) / totalRevAccounts) * 100 : 0,
     }))
-    .sort((a, b) => b.highFitCount - a.highFitCount);
+    .sort((a: any, b: any) => b.accounts - a.accounts);
 
-  // Revenue range breakdown
-  const revRangeBuckets = new Map<string, number>();
-  (accountsWithIndustry.data || []).forEach((a: any) => {
-    const range = a.revenue_range || "Unknown";
-    revRangeBuckets.set(range, (revRangeBuckets.get(range) || 0) + 1);
-  });
-  const totalRevRangeAccounts = Array.from(revRangeBuckets.values()).reduce((s, v) => s + v, 0);
-  const revenueRangeBreakdown = Array.from(revRangeBuckets.entries())
-    .filter(([name]) => name !== "Unknown")
-    .map(([name, accounts]) => ({
-      name,
-      accounts,
-      percentage: totalRevRangeAccounts > 0 ? (accounts / totalRevRangeAccounts) * 100 : 0,
+  // ── Size breakdown (from RPC) ──
+  const sizeRows = sizeRpc.data || [];
+  const totalSizeAccounts = sizeRows.reduce((s: number, r: any) => s + Number(r.account_count), 0);
+  const sizeBreakdown = sizeRows
+    .map((r: any) => ({
+      name: r.size_bucket,
+      accounts: Number(r.account_count),
+      percentage: totalSizeAccounts > 0 ? (Number(r.account_count) / totalSizeAccounts) * 100 : 0,
     }))
-    .sort((a, b) => b.accounts - a.accounts);
+    .sort((a: any, b: any) => b.accounts - a.accounts);
 
-  // Size breakdown
-  const sizeBuckets: Record<string, number> = { "1-10": 0, "11-50": 0, "51-200": 0, "201-1000": 0, "1001-5000": 0, "5000+": 0, Unknown: 0 };
-  const sizeAccounts = accountsForSize.data || [];
-  sizeAccounts.forEach((a: any) => { const b = categorizeEmployeeCount(a.employee_count); sizeBuckets[b] = (sizeBuckets[b] || 0) + 1; });
-  const totalSizeAccounts = sizeAccounts.length;
-  const sizeBreakdown = Object.entries(sizeBuckets)
-    .filter(([, c]) => c > 0)
-    .map(([name, accounts]) => ({ name, accounts, percentage: totalSizeAccounts > 0 ? (accounts / totalSizeAccounts) * 100 : 0 }))
-    .sort((a, b) => b.accounts - a.accounts);
-
-  // Geo breakdown
-  const geoData = new Map<string, { count: number; totalScore: number; scoredCount: number }>();
-  (accountsForGeo.data || []).forEach((a: any) => {
-    const country = a.country || "Unknown";
-    const entry = geoData.get(country) || { count: 0, totalScore: 0, scoredCount: 0 };
-    entry.count++;
-    const score = scoreMap.get(a.external_id);
-    if (score !== undefined) { entry.scoredCount++; entry.totalScore += score.overall; }
-    geoData.set(country, entry);
-  });
-  const totalGeoAccounts = (accountsForGeo.data || []).length;
-  const geographyDistribution = Array.from(geoData.entries())
-    .map(([country, d]) => ({
-      country, accounts: d.count,
-      percentage: totalGeoAccounts > 0 ? (d.count / totalGeoAccounts) * 100 : 0,
-      avgScore: d.scoredCount > 0 ? Math.round(d.totalScore / d.scoredCount) : 0,
-    }))
-    .sort((a, b) => b.accounts - a.accounts);
+  // ── Geo breakdown (from RPC) ──
+  const geoRows = geoRpc.data || [];
+  const totalGeoAccounts = geoRows.reduce((s: number, r: any) => s + Number(r.account_count), 0);
+  const geographyDistribution = geoRows.map((r: any) => ({
+    country: r.country_name,
+    accounts: Number(r.account_count),
+    percentage: totalGeoAccounts > 0 ? (Number(r.account_count) / totalGeoAccounts) * 100 : 0,
+    avgScore: Number(r.scored_count) > 0 ? Math.round(Number(r.total_score) / Number(r.scored_count)) : 0,
+  }));
 
   // Low data count
   const lowDataCount = (accountsForLowData.data || []).filter((a: any) => {
