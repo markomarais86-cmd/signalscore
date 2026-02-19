@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Activity, AlertTriangle, CheckCircle, Database, Users, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useEffectiveOrg } from "@/hooks/use-effective-org";
+import { useDataOrgId } from "@/hooks/use-data-org";
 
 interface DataHealthMetrics {
   totalAccounts: number;
@@ -21,10 +21,11 @@ interface DataHealthMetrics {
 }
 
 export function DataHealthWidget() {
-  const { effectiveOrgId } = useEffectiveOrg();
+  const { dataOrgId } = useDataOrgId();
   const navigate = useNavigate();
 
-  const orgId = effectiveOrgId;
+  // Use dataOrgId since accounts/leads live under the parent org
+  const orgId = dataOrgId;
 
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["data-health-metrics", orgId],

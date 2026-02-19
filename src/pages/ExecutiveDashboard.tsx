@@ -188,6 +188,9 @@ export default function ExecutiveDashboard() {
   const checkDataFreshness = async () => {
     if (!effectiveOrgId) return;
 
+    // Use dataOrgId for shared data queries (external_data_sources may be under parent org)
+    const sharedDataOrgId = dataOrgId || effectiveOrgId;
+
     try {
       // Check for active scoring jobs
       const { data: activeJob } = await supabase
@@ -201,7 +204,7 @@ export default function ExecutiveDashboard() {
 
       setActiveScoringJob(activeJob);
 
-      // Check if ICP was updated after last scoring
+      // Check if ICP was updated after last scoring (ICP is per-child-org)
       const { data: latestICP } = await supabase
         .from('icp_profiles')
         .select('created_at')
@@ -232,12 +235,29 @@ export default function ExecutiveDashboard() {
         .eq('is_primary', true)
         .maybeSingle();
 
-      const { data: apolloData } = await supabase
+      // Apollo external_data_sources may be stored under the parent org (shared data)
+      // Try child org first, then fall back to parent org
+      let apolloData: { last_synced_at: string | null } | null = null;
+      
+      const { data: childApollo } = await supabase
         .from('external_data_sources')
         .select('last_synced_at')
         .eq('org_id', effectiveOrgId!)
         .eq('provider', 'apollo')
         .maybeSingle();
+      
+      if (childApollo) {
+        apolloData = childApollo;
+      } else if (sharedDataOrgId !== effectiveOrgId) {
+        // Fall back to parent org for Apollo data
+        const { data: parentApollo } = await supabase
+          .from('external_data_sources')
+          .select('last_synced_at')
+          .eq('org_id', sharedDataOrgId)
+          .eq('provider', 'apollo')
+          .maybeSingle();
+        apolloData = parentApollo;
+      }
 
       if (primaryICP?.created_at && apolloData?.last_synced_at) {
         const icpTime = new Date(primaryICP.created_at).getTime();
