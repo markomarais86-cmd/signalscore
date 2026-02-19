@@ -1,61 +1,42 @@
 
 
-# Add Skip Patterns to Filter Non-Healthcare False Positives
+# Re-Score All Accounts via bulk-score-accounts
 
-## Problem
+## What This Does
 
-The Perplexity/Gemini AI is returning false bed counts for non-healthcare companies. Out of ~165 accounts with `bed_count > 0`, at least 20+ are clearly not hospitals -- banks, industrial conglomerates, insurance companies, government entities, and military organizations are being assigned bed counts ranging from 500 to 4,847.
+Trigger the `bulk-score-accounts` edge function for **both organizations** to re-score all accounts with the latest bed_count data and updated skip patterns. This will:
 
-## Examples of False Positives
+- Re-score the **116 accounts currently capped at 69 or below** that now have valid bed counts
+- Score the **56 accounts that have never been scored**
+- Apply the latest scoring formula to all ~3,900+ accounts
 
-| Company | Domain | False Bed Count | Category |
-|---------|--------|----------------|----------|
-| Bank of Georgia Group | bankofgeorgiagroup.com | 4,461 | Banking |
-| Acciona | acciona.com | 4,847 | Industrial |
-| Arvind | arvind.com | 3,500 | Textile/Industrial |
-| Allianz | allianz.de | 2,823 | Insurance |
-| ArcelorMittal | corporate.arcelormittal.com | 1,347 | Steel |
-| Adani | adani.com | 2,000 | Conglomerate |
-| AIG | aig.com | 800 | Insurance |
-| 1543 Capital | 1543capital.com | 526 | Finance |
-| Alleghany | alleghany.com | 2,500 | Finance |
-| Al Jaber | aljaber.com | 1,168 | Construction |
-| Bahri | bahri.sa | 500 | Shipping |
-| Altice | nuvancehealth.org | 2,303 | Telecom |
-| Auma | auma.com | 786 | Industrial valves |
-| Artemis | artemis.uk.com | 713 | Investment |
-| Anne Arundel County | aacounty.org | 684 | Government |
+## Current State
 
-## Solution
+- **Last scoring run:** Feb 19, 2026 — Ninety One Life completed successfully, Launchpulse failed
+- The 15 false-positive bed counts were already reset to 0 (previous migration)
+- Skip patterns are updated to prevent future false positives
 
-### 1. Expand SKIP_PATTERNS regex in `supabase/functions/enrich-bed-counts/index.ts`
+## Execution Steps
 
-Add the following categories to the existing regex:
+### Step 1: Trigger for Ninety One Life (child org)
+Call `bulk-score-accounts` with `org_id: cd592f73-3e0e-478d-905b-47fe7c5fb634`. This is the child org where accounts and scores live.
 
-- **Banking/Finance:** bank, banking, capital, equity, securities, investment, hedge fund, asset management, venture, private equity, financial group, credit union, savings, brokerage, wealth management
-- **Insurance (non-health):** allianz, aig, prudential, metlife, allstate, geico, underwriter
-- **Industrial/Manufacturing:** steel, mining, cement, chemical, petroleum, oil, gas, energy, refinery, smelter, foundry, textile, manufacturing
-- **Conglomerates (known):** adani, acciona, arcelormittal, arvind, tata (non-health), al jaber
-- **Government/Military:** county, municipality, city of, town of, borough, guards, regiment, battalion, brigade, air force, navy, army
-- **Telecom/Tech (non-health):** telecom, telco, broadband, cable, wireless, data center
-- **Shipping/Transport:** shipping, maritime, tanker, fleet, cargo, port authority
+### Step 2: Monitor completion
+Poll `bulk_scoring_jobs` table to confirm the job reaches `completed` status. The function processes accounts in chunks of 200 and typically takes 1-3 minutes.
 
-### 2. Reset false positive bed counts
+### Step 3: Trigger for Launchpulse (parent org)
+Call `bulk-score-accounts` with `org_id: 726a0dc0-99c7-43c2-b20f-b849f2760c3f`. The previous run for this org failed -- re-triggering should resolve it.
 
-Write a migration to set `bed_count = 0` for known false positives already in the database. This targets the ~20 clearly incorrect entries identified above.
+### Step 4: Verify results
+Query the database to compare before/after scores for the 165+ hospital accounts with bed_count > 0, specifically checking:
+- How many moved above 69
+- Average score change
+- Any remaining accounts still unscored
 
-### 3. File changes
+## Technical Details
 
-**`supabase/functions/enrich-bed-counts/index.ts`** (line 22):
-Update the `SKIP_PATTERNS` regex constant to include the new patterns. The expanded regex will follow the same `\b...\b` word-boundary format as the existing patterns.
-
-**New migration file:**
-A SQL migration to reset `custom_attributes` for the specific false-positive account IDs, setting their `bed_count` back to `0`.
-
-## Technical Notes
-
-- The regex uses case-insensitive matching (`/i` flag) so capitalization does not matter
-- Word boundaries (`\b`) prevent partial matches (e.g., "bank" won't match "Fairbanks")
-- The edge function must be redeployed after the code change
-- Already-processed accounts with false bed counts need a one-time data fix via migration
+- The function requires authentication -- will invoke via `supabase.functions.invoke()` using the curl tool with the service role
+- The function has idempotency checks with a 10-minute TTL, so if a recent run exists it may return cached results
+- Accounts are scored against all active `icp_profiles` for the org
+- The scoring formula uses bed_count within the Segment dimension (30 pts weight)
 
