@@ -42,6 +42,8 @@ export type SortDirection = 'asc' | 'desc';
 
 interface UseInfiniteAccountsOptions {
   orgId: string | null;
+  /** Org ID for fetching scores (child org). Falls back to orgId if not provided. */
+  scoreOrgId?: string | null;
   pageSize?: number;
   searchTerm?: string;
   industryFilter?: string;
@@ -63,6 +65,7 @@ interface UseInfiniteAccountsOptions {
 export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
   const {
     orgId,
+    scoreOrgId,
     pageSize = 25,
     searchTerm = '',
     industryFilter = 'all',
@@ -299,10 +302,12 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
           const accountIds = accounts.map((a) => a.external_id);
           
           // Fetch scores
+          // Use scoreOrgId (child org) for scores, fall back to orgId
+          const scoresOrgId = scoreOrgId || orgId;
           const { data: scores } = await supabase
             .from('scores')
             .select('*')
-            .eq('org_id', orgId)
+            .eq('org_id', scoresOrgId!)
             .in('account_external_id', accountIds);
 
           // Fetch lead counts per account
@@ -374,8 +379,8 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
     },
     [
       orgId,
+      scoreOrgId,
       enabled,
-      pageSize,
       searchTerm,
       industryFilter,
       subIndustryFilter,

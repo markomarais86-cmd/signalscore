@@ -214,6 +214,7 @@ export default function Accounts() {
     lastError
   } = useInfiniteAccounts({
     orgId: dataOrgId || null,
+    scoreOrgId: effectiveOrgId || null,
     pageSize: 25,
     searchTerm,
     industryFilter,
