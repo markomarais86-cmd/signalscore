@@ -1,39 +1,34 @@
 
-# Update Healthcare ICP Company Sizes
+# Add "Hospitals and Health Care" to Healthcare ICP Industry Filters
 
 ## Problem
-The Healthcare ICP (`91.Life Heart+ - Hospital & Health System ICP`) has `company_sizes` of `[30, 50, 75, 100, 150, 300, 500]`. The maximum is 500 employees, but large hospital systems have 10,000-175,000+ employees. This causes all major hospital systems to score 0/15 on the size dimension.
+The Healthcare ICP's `industries` array does not include `"Hospitals and Health Care"`, which is the `industry_norm` value for **100 accounts** (28 with bed counts). These accounts lose up to 20 points on the industry dimension because their industry string doesn't match any entry in the ICP filter.
+
+## Current ICP Industries
+```
+Healthcare, Hospital & Health Systems, Medical Devices, Health IT,
+Hospitals & Physicians Clinics, Healthcare Services
+```
+
+Missing: `"Hospitals and Health Care"` and `"Hospitals & Healthcare"` (273 accounts use this variant too).
 
 ## Change
 
-Run a single SQL update to add 1000, 5000, and 10000 to the existing company_sizes array:
+Run this SQL in the Supabase SQL Editor to append the two missing industry strings:
 
 ```sql
 UPDATE icp_profiles
-SET company_sizes = ARRAY[30, 50, 75, 100, 150, 300, 500, 1000, 5000, 10000]
+SET industries = array_cat(industries, ARRAY['Hospitals and Health Care', 'Hospitals & Healthcare'])
 WHERE id = 'f0d17a6b-6476-4e2d-a90f-9afc8d8e232b';
 ```
 
-This extends the range from [30-500] to [30-10000], which covers the scoring function's range-based logic (accounts between min and max of the array earn size points).
+No code changes are needed — this is a data-only update.
 
 ## Impact
-
-The scoring function (in the latest migration) uses range-based matching:
-- It finds `MIN(company_sizes)` = 30 and `MAX(company_sizes)` = 10000
-- Accounts with employee_count between 30 and 10000 earn full size points (15/15)
-- Accounts above 10000 (e.g., CommonSpirit at 175,000) will still score partial points based on proximity
-
-After updating, a **re-score** of the 232 hospital accounts will be needed to recalculate fit scores with the new size range. This can be triggered via the existing bulk scoring function.
-
-## Expected Score Changes (examples)
-
-| Hospital | Current Score | Expected Gain | New Score |
-|----------|--------------|---------------|-----------|
-| CommonSpirit Health | 85 | +8-15 pts | ~93-100 |
-| AdventHealth | 93 | +0-7 pts | ~93-100 |
-| Ascension | 65 | +8-15 pts | ~73-80 |
-| Alberta Health | 50 | +8-15 pts | ~58-65 |
+- **100+ accounts** with `industry_norm = 'Hospitals and Health Care'` will now match the ICP industry filter and earn up to 20 points on the industry dimension
+- **273 accounts** with `industry_norm = 'Hospitals & Healthcare'` will also match
+- After updating, a re-score of affected accounts is needed to recalculate fit scores
 
 ## Steps
-1. Update the `company_sizes` array in the `icp_profiles` table (data update via SQL)
-2. Trigger a re-score of hospital accounts to apply the new size dimension
+1. Run the SQL update in the Supabase SQL Editor
+2. Trigger a re-score of hospital accounts to apply the new industry matching
