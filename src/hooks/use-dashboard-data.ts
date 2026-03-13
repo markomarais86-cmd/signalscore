@@ -10,7 +10,7 @@ async function computeDataCompleteness(dataOrgId: string, childOrgId?: string): 
   const isChildOrg = childOrgId && childOrgId !== dataOrgId;
 
   try {
-    const { data, error } = await supabase.rpc('get_data_completeness' as any, {
+    const { data, error } = await callCustomRpc<DataCompletenessResult>('get_data_completeness', {
       p_data_org_id: dataOrgId,
       p_child_org_id: isChildOrg ? childOrgId : null,
     });
