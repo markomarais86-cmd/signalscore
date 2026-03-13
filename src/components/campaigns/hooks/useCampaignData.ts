@@ -262,6 +262,8 @@ export function useCampaignData(
 
   return {
     previewData,
+    suppressedCount,
+    suppressionRuleCount,
     estimatedLeads,
     estimatedCost,
     setEstimatedCost,
