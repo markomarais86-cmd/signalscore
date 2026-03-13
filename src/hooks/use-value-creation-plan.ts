@@ -233,7 +233,7 @@ export function useValueCreationPlan(orgId: string | null) {
         .from("value_creation_milestones")
         .update({
           completed_at: new Date().toISOString(),
-          completed_by: userProfile?.id,
+          completed_by: userProfile?.user_id,
           manual_notes: notes || null,
         } as any)
         .eq("id", milestoneId);
