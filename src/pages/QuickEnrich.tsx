@@ -26,7 +26,7 @@ import {
   Target
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
-import { useEffectiveOrg } from "@/hooks/use-effective-org";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parseCSV, LEADS_HEADERS, generateCSVTemplate } from "@/utils/csv-parser";
