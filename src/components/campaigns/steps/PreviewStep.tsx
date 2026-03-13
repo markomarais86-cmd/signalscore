@@ -135,6 +135,16 @@ export function PreviewStep({
         fitScoreMax={fitScoreMax}
       />
       
+      {/* Suppression Info */}
+      {applySuppression && suppressedCount > 0 && (
+        <Alert className="border-orange-500/50 bg-orange-500/10">
+          <ShieldOff className="h-4 w-4 text-orange-500" />
+          <AlertDescription>
+            <strong>{suppressedCount}</strong> account{suppressedCount !== 1 ? 's' : ''} excluded by suppression rules
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Deduplication Warning */}
       {duplicateEmails.size > 0 && (
         <Alert className="border-amber-500 bg-amber-500/10">
