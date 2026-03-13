@@ -355,7 +355,7 @@ export default function DueDiligencePage() {
                   <CardTitle className="text-sm font-medium">Industry Distribution</CardTitle>
                 </div>
                 {report.icpAnalysis.concentrationRisk > 50 && (
-                  <CardDescription className="text-xs text-amber-600 dark:text-amber-400">
+                  <CardDescription className="text-xs text-[hsl(var(--status-warning))]">
                     ⚠ High concentration in {report.icpAnalysis.topIndustry}
                   </CardDescription>
                 )}
