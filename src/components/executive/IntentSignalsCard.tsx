@@ -55,6 +55,18 @@ const signalTypeConfig: Record<IntentSignalType, {
     color: 'text-rose-500',
     bgColor: 'bg-rose-500/10',
   },
+  new_high_fit: {
+    icon: TrendingUp,
+    label: 'New High Fit',
+    color: 'text-green-500',
+    bgColor: 'bg-green-500/10',
+  },
+  data_freshness: {
+    icon: AlertTriangle,
+    label: 'Stale Data',
+    color: 'text-orange-500',
+    bgColor: 'bg-orange-500/10',
+  },
 };
 
 const priorityColors: Record<string, string> = {
