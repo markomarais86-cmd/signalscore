@@ -35,11 +35,11 @@ import {
 } from "lucide-react";
 
 const gradeColors: Record<string, string> = {
-  A: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
-  B: "text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/30",
-  C: "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/30",
-  D: "text-orange-600 dark:text-orange-400 bg-orange-500/10 border-orange-500/30",
-  F: "text-red-600 dark:text-red-400 bg-red-500/10 border-red-500/30",
+  A: "text-primary bg-primary/10 border-primary/30",
+  B: "text-secondary-foreground bg-secondary/30 border-secondary/40",
+  C: "text-[hsl(var(--status-warning))] bg-[hsl(var(--status-warning)/0.1)] border-[hsl(var(--status-warning)/0.3)]",
+  D: "text-[hsl(var(--status-warning))] bg-[hsl(var(--status-warning)/0.15)] border-[hsl(var(--status-warning)/0.4)]",
+  F: "text-destructive bg-destructive/10 border-destructive/30",
 };
 
 function ScoreCard({ title, score, grade, icon: Icon, children }: {
@@ -111,9 +111,9 @@ function DistributionTable({ data, label }: { data: { name: string; count: numbe
 
 function FindingsPanel({ findings }: { findings: DueDiligenceReport["findings"] }) {
   const icons = {
-    positive: <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />,
-    warning: <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />,
-    critical: <XCircle className="h-4 w-4 text-red-500 shrink-0" />,
+    positive: <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />,
+    warning: <AlertTriangle className="h-4 w-4 text-[hsl(var(--status-warning))] shrink-0" />,
+    critical: <XCircle className="h-4 w-4 text-destructive shrink-0" />,
   };
   return (
     <Card>
@@ -143,11 +143,6 @@ export default function DueDiligencePage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  if (!rolesLoading && !isSuperAdmin) {
-    navigate("/dashboard");
-    return null;
-  }
 
   const handleFileUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -190,6 +185,11 @@ export default function DueDiligencePage() {
     setError(null);
     setCompanyName("");
   };
+
+  if (!rolesLoading && !isSuperAdmin) {
+    navigate("/dashboard");
+    return null;
+  }
 
   return (
     <div className="space-y-6">
@@ -355,7 +355,7 @@ export default function DueDiligencePage() {
                   <CardTitle className="text-sm font-medium">Industry Distribution</CardTitle>
                 </div>
                 {report.icpAnalysis.concentrationRisk > 50 && (
-                  <CardDescription className="text-xs text-amber-600 dark:text-amber-400">
+                  <CardDescription className="text-xs text-[hsl(var(--status-warning))]">
                     ⚠ High concentration in {report.icpAnalysis.topIndustry}
                   </CardDescription>
                 )}
