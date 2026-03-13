@@ -121,6 +121,20 @@ export function useAccountSignals(options?: {
     },
   });
 
+  const bulkActionSignals = useMutation({
+    mutationFn: async (signalIds: string[]) => {
+      const { error } = await supabase
+        .from('account_signals')
+        .update({ actioned_at: new Date().toISOString() })
+        .in('id', signalIds);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['account-signals'] });
+      toast.success('Signals marked as actioned');
+    },
+  });
+
   const detectSignals = useMutation({
     mutationFn: async () => {
       if (!effectiveOrgId) throw new Error('No org ID');
