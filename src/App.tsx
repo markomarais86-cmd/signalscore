@@ -65,6 +65,7 @@ import AIFeedbackPage from "./pages/AIFeedbackPage";
 import BrandedLanding from "./pages/BrandedLanding";
 import CustomerUpgrade from "./pages/CustomerUpgrade";
 import PortfolioCommandCenter from "./pages/PortfolioCommandCenter";
+import ValueCreationPlan from "./pages/ValueCreationPlan";
 
 const queryClient = new QueryClient();
 
