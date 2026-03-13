@@ -186,6 +186,11 @@ export default function DueDiligencePage() {
     setCompanyName("");
   };
 
+  if (!rolesLoading && !isSuperAdmin) {
+    navigate("/dashboard");
+    return null;
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
