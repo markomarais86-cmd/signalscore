@@ -21,6 +21,8 @@ interface ExportOptions {
   previewData: any[] | null;
   estimatedLeads: number;
   duplicateEmails: Set<string>;
+  fuelLineType?: string;
+  signalSourceIds?: string[];
 }
 
 export function useCampaignExport() {
@@ -143,6 +145,8 @@ export function useCampaignExport() {
         destination,
         data_source: options.dataSource,
         contacts: finalAccounts,
+        fuel_line_type: options.fuelLineType,
+        signal_source_ids: options.signalSourceIds,
         batch_metadata: {
           source_accounts: previewData?.length || 0,
           icp_id: options.activeICP?.id,
@@ -156,6 +160,22 @@ export function useCampaignExport() {
         }
       };
 
+      // Persist campaign record for tracking
+      const saveCampaignRecord = async () => {
+        try {
+          await supabase.from('campaigns').insert({
+            org_id: userProfile.org_id,
+            name: campaignName || 'Untitled Campaign',
+            campaign_type: destination,
+            fuel_line_type: options.fuelLineType || null,
+            signal_source_ids: options.signalSourceIds || null,
+            total_accounts: previewData?.length || 0,
+            total_contacts: estimatedLeads,
+            metadata: campaignData.batch_metadata as any,
+          });
+        } catch (_) { /* non-critical */ }
+      };
+
       if (destination === 'salesforce') {
         setCrmSyncStatus('syncing');
         const { error } = await supabase.functions.invoke('push-campaign-to-crm', {
@@ -167,6 +187,7 @@ export function useCampaignExport() {
         }
         setCrmSyncStatus('success');
         toast({ title: "Campaign Created", description: `Successfully pushed ${formatNumber(estimatedLeads)} leads to Salesforce` });
+        await saveCampaignRecord();
         setPushComplete(true);
       } else if (destination === 'hubspot') {
         setCrmSyncStatus('syncing');
@@ -179,6 +200,7 @@ export function useCampaignExport() {
         }
         setCrmSyncStatus('success');
         toast({ title: "Campaign Created", description: `Successfully pushed ${formatNumber(estimatedLeads)} contacts to HubSpot` });
+        await saveCampaignRecord();
         setPushComplete(true);
       } else {
         // CSV Export
@@ -190,6 +212,7 @@ export function useCampaignExport() {
           downloadCSV(csvContent, `${campaignName || 'campaign'}.csv`);
           const rowCount = csvContent.split('\n').length - 1;
           toast({ title: "Campaign Exported", description: `Downloaded ${rowCount} leads as CSV` });
+          await saveCampaignRecord();
           setPushComplete(true);
         } catch (csvError: any) {
           toast({ 

@@ -2154,10 +2154,12 @@ export type Database = {
           contact_ids: number[] | null
           created_at: string
           created_by: string | null
+          fuel_line_type: string | null
           id: string
           metadata: Json | null
           name: string
           org_id: string
+          signal_source_ids: string[] | null
           status: string
           total_accounts: number | null
           total_contacts: number | null
@@ -2169,10 +2171,12 @@ export type Database = {
           contact_ids?: number[] | null
           created_at?: string
           created_by?: string | null
+          fuel_line_type?: string | null
           id?: string
           metadata?: Json | null
           name: string
           org_id: string
+          signal_source_ids?: string[] | null
           status?: string
           total_accounts?: number | null
           total_contacts?: number | null
@@ -2184,10 +2188,12 @@ export type Database = {
           contact_ids?: number[] | null
           created_at?: string
           created_by?: string | null
+          fuel_line_type?: string | null
           id?: string
           metadata?: Json | null
           name?: string
           org_id?: string
+          signal_source_ids?: string[] | null
           status?: string
           total_accounts?: number | null
           total_contacts?: number | null

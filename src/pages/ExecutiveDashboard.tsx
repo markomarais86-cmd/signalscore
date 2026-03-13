@@ -50,6 +50,7 @@ import { ExportToPdf } from "@/components/executive/ExportToPdf";
 import { SignalFeed } from "@/components/executive/SignalFeed";
 import { SignalActionCards } from "@/components/dashboard/SignalActionCards";
 import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
+import { FuelLineAnalytics } from "@/components/campaigns/FuelLineAnalytics";
 import { useBrandedReport } from "@/hooks/use-branded-report";
 import { dashboardLogger } from "@/lib/logger";
 import { FileText } from "lucide-react";
@@ -675,6 +676,8 @@ export default function ExecutiveDashboard() {
               }}
             />
 
+            {/* Fuel Line Performance */}
+            <FuelLineAnalytics />
 
             <GrowthCommandKPIs
               totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
