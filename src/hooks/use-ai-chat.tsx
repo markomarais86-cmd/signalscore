@@ -40,6 +40,8 @@ interface UseAIChatOptions {
   };
   onActionExecuted?: (action: ActionResult) => void;
   onWorkflowUpdate?: (status: WorkflowStatus) => void;
+  onNavigate?: (path: string) => void;
+  onOpenCampaignBuilder?: (params: Record<string, any>) => void;
 }
 
 // Parse action blocks from AI response
