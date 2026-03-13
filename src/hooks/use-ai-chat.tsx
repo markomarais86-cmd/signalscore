@@ -138,7 +138,69 @@ async function loadFromMemory(orgId: string, userId: string, key: string): Promi
   }
 }
 
-export function useAIChat(options: UseAIChatOptions = {}) {
+// Client-side signal search
+async function executeSignalSearch(params: Record<string, any>): Promise<ActionResult> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return { action: 'search_signals', success: false, error: 'Not authenticated' };
+
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('org_id')
+      .eq('user_id', session.user.id)
+      .single();
+
+    if (!profile?.org_id) return { action: 'search_signals', success: false, error: 'No org' };
+
+    let query = supabase
+      .from('account_signals')
+      .select('*')
+      .eq('org_id', profile.org_id)
+      .order('created_at', { ascending: false })
+      .limit(params.limit || 25);
+
+    if (params.signal_type) {
+      query = query.eq('signal_type', params.signal_type);
+    }
+    if (params.priority) {
+      query = query.eq('signal_priority', params.priority);
+    }
+    if (params.unactioned_only) {
+      query = query.is('actioned_at', null).is('dismissed_at', null);
+    }
+    if (params.days) {
+      const since = new Date(Date.now() - params.days * 86400000).toISOString();
+      query = query.gte('created_at', since);
+    }
+
+    const { data: signals, error } = await query;
+    if (error) throw error;
+
+    const signalTypes: Record<string, number> = {};
+    (signals || []).forEach((s: any) => {
+      signalTypes[s.signal_type] = (signalTypes[s.signal_type] || 0) + 1;
+    });
+
+    return {
+      action: 'search_signals',
+      success: true,
+      result: {
+        message: `Found **${signals?.length || 0}** signals${params.signal_type ? ` of type "${params.signal_type}"` : ''}${params.days ? ` in the last ${params.days} days` : ''}.`,
+        total: signals?.length || 0,
+        signals: (signals || []).slice(0, 10),
+        signal_type_breakdown: signalTypes,
+        total_accounts: signals?.length || 0,
+        recommendations: signals && signals.length > 0
+          ? ['Build an ABM campaign from these signals', 'Show account details for the top signal']
+          : ['Try broadening your search window'],
+      },
+    };
+  } catch (e) {
+    return { action: 'search_signals', success: false, error: e instanceof Error ? e.message : 'Signal search failed' };
+  }
+}
+
+
   const { session, loading: authLoading } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
