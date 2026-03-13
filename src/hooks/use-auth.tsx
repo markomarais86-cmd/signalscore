@@ -298,7 +298,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (error) {
-      const friendlyMsg = error.message?.toLowerCase().includes('rate limit') || (error as any).status === 429
+      const friendlyMsg = error.message?.toLowerCase().includes('rate limit') || ('status' in error && (error as { status?: number }).status === 429)
         ? 'Too many reset attempts. Please wait about 60 minutes before trying again.'
         : friendlyErrorMessage(error.message);
       toast({

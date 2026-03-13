@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import type { DashboardMetricsCachedResult, DataCompletenessResult } from '@/types/supabase-rpc';
-import { unwrapRpcResult } from '@/types/supabase-rpc';
+import { unwrapRpcResult, callCustomRpc } from '@/types/supabase-rpc';
 
 const dashboardLogger = logger.scope('Dashboard');
 
@@ -10,7 +10,7 @@ async function computeDataCompleteness(dataOrgId: string, childOrgId?: string): 
   const isChildOrg = childOrgId && childOrgId !== dataOrgId;
 
   try {
-    const { data, error } = await supabase.rpc('get_data_completeness' as any, {
+    const { data, error } = await callCustomRpc<DataCompletenessResult>('get_data_completeness', {
       p_data_org_id: dataOrgId,
       p_child_org_id: isChildOrg ? childOrgId : null,
     });
@@ -150,10 +150,10 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
       let campaignReadyResult;
       try {
         [metricsResult, campaignReadyResult] = await Promise.all([
-          supabase.rpc('get_dashboard_metrics_cached' as any, { 
+          callCustomRpc<DashboardMetricsCachedResult>('get_dashboard_metrics_cached', { 
             p_org_id: orgId
           }),
-          supabase.rpc('count_campaign_ready_accounts' as any, {
+          callCustomRpc<number>('count_campaign_ready_accounts', {
             p_org_id: orgId,
             p_data_source: sourceFilter === 'crm' ? 'crm' : sourceFilter === 'database' ? 'database' : null
           })

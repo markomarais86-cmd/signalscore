@@ -31,7 +31,7 @@ export function useFuelLineMetrics() {
       const grouped = new Map<string, FuelLineMetric>();
 
       for (const row of data) {
-        const type = (row as any).fuel_line_type || 'unknown';
+        const type = row.fuel_line_type || 'unknown';
         const existing = grouped.get(type) || {
           fuel_line_type: type,
           campaign_count: 0,
@@ -42,7 +42,7 @@ export function useFuelLineMetrics() {
         existing.campaign_count += 1;
         existing.total_accounts += row.total_accounts || 0;
         existing.total_contacts += row.total_contacts || 0;
-        if ((row as any).signal_source_ids?.length > 0) {
+        if (row.signal_source_ids && row.signal_source_ids.length > 0) {
           existing.from_signals += 1;
         }
         grouped.set(type, existing);

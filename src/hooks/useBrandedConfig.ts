@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import type { BrandedConfigRow } from "@/types/supabase-rpc";
+import { callCustomRpc, unwrapRpcResult } from "@/types/supabase-rpc";
 
 export type { BrandedConfigRow as BrandConfig };
 
@@ -23,20 +23,18 @@ export function useBrandedConfig(params: UseBrandedConfigParams) {
     queryKey: ["branded-config", slug || orgId],
     queryFn: async () => {
       if (slug) {
-        const { data, error } = await supabase.rpc("get_branded_config_by_slug" as any, {
+        const { data, error } = await callCustomRpc<BrandedConfigRow[]>("get_branded_config_by_slug", {
           p_slug: slug,
         });
         if (error) throw error;
-        const rows = data as BrandedConfigRow[];
-        return rows?.[0] ?? null;
+        return (data as BrandedConfigRow[])?.[0] ?? null;
       }
       if (orgId) {
-        const { data, error } = await supabase.rpc("get_branded_config_by_org_id" as any, {
+        const { data, error } = await callCustomRpc<BrandedConfigRow[]>("get_branded_config_by_org_id", {
           p_org_id: orgId,
         });
         if (error) throw error;
-        const rows = data as BrandedConfigRow[];
-        return rows?.[0] ?? null;
+        return (data as BrandedConfigRow[])?.[0] ?? null;
       }
       return null;
     },
