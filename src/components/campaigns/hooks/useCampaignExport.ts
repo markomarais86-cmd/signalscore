@@ -187,6 +187,7 @@ export function useCampaignExport() {
         }
         setCrmSyncStatus('success');
         toast({ title: "Campaign Created", description: `Successfully pushed ${formatNumber(estimatedLeads)} leads to Salesforce` });
+        await saveCampaignRecord();
         setPushComplete(true);
       } else if (destination === 'hubspot') {
         setCrmSyncStatus('syncing');
