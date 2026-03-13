@@ -6,13 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, RotateCcw, Building2, Users, Layers } from "lucide-react";
+import { Search, RotateCcw, Building2, Users, Layers, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useDataOrgId } from "@/hooks/use-data-org";
 import {
   ListBuilderFilters,
   REVENUE_BUCKETS,
   EMPLOYEE_RANGES,
+  FIT_SCORE_RANGES,
   PERSONAS,
   LEVELS,
 } from "@/hooks/use-list-builder";
