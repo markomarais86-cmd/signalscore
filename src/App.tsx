@@ -243,6 +243,16 @@ function AppContent() {
                   }
                 />
                 <Route
+                  path="/value-creation"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <ValueCreationPlan />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/admin/customer-onboarding"
                   element={
                     <ProtectedRoute>
