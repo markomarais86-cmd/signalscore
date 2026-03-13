@@ -192,7 +192,7 @@ export function ResultsTable({
           <TableBody>
             {results.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                   No accounts match your criteria. Try adjusting your filters.
                 </TableCell>
               </TableRow>
