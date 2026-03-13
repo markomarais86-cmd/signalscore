@@ -200,7 +200,7 @@ async function executeSignalSearch(params: Record<string, any>): Promise<ActionR
   }
 }
 
-
+export function useAIChat(options: UseAIChatOptions = {}) {
   const { session, loading: authLoading } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
