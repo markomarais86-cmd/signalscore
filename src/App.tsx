@@ -239,7 +239,9 @@ function AppContent() {
                   element={
                     <ProtectedRoute>
                       <Layout>
-                        <PortfolioCommandCenter />
+                        <FeatureErrorBoundary fallbackTitle="Portfolio Command Center failed to load">
+                          <PortfolioCommandCenter />
+                        </FeatureErrorBoundary>
                       </Layout>
                     </ProtectedRoute>
                   }
