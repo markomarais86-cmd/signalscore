@@ -53,7 +53,7 @@ export function useIntentSignals(orgId: string | undefined): IntentSignalsResult
         .from('account_signals')
         .select('*')
         .eq('org_id', orgId)
-        .in('signal_type', ['engagement_velocity', 'multi_thread', 'score_change', 'coverage_gap'])
+        .in('signal_type', ['engagement_velocity', 'multi_thread', 'score_change', 'coverage_gap', 'new_high_fit', 'data_freshness'])
         .is('dismissed_at', null)
         .is('actioned_at', null)
         .order('created_at', { ascending: false })
