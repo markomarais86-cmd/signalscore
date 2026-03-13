@@ -1,152 +1,116 @@
 
-# LaunchPulse Fuel Line Engine — Implementation Plan
 
-## Context
-LaunchPulse operates a **Managed Demand Engine** — we run campaigns on behalf of customers.
-We're borrowing the "Fuel Line" concept (segmented data pipelines into campaigns) but adapting it to our managed model where **we** control the infrastructure and customers action the output.
+# Architecture Improvement Plan — Full Platform Audit
 
-TPG doesn't have 28 databases — they repackage a handful of providers. We already have a strong enrichment waterfall (Apollo, PDL, Firecrawl, Perplexity, Hunter). The gap is in **how we route enriched data into campaigns**.
+## Assessment Summary
 
----
-
-## Current State
-
-### What we have
-- **CampaignBuilderV2**: 7-step wizard (Setup → Targeting → Sequence → Persona → DataSource → Preview → Export)
-- **3 sequence templates**: Enterprise, SMB, Partner
-- **Enrichment waterfall**: 8-stage pipeline across 6+ providers
-- **ICP scoring**: Automated fit scoring with bulk jobs
-- **Account signals**: Intent, tech changes, funding events tracked in `account_signals`
-- **Suppression**: Basic dedup via `apollo_redemption_log.redeemed_emails`
-
-### What's missing
-1. No concept of **Fuel Line type** — all campaigns use the same generic flow
-2. No **suppression list** management (global exclusions)
-3. No **signal-to-campaign routing** (signals exist but don't auto-trigger campaigns)
-4. No **fuel line performance tracking** (which data source/segment converts best)
-5. Sequence templates are hardcoded, not tied to fuel line type
+After reviewing all major pages, hooks, and data flows, I found **3 systemic issues** that affect the majority of the platform, plus **4 targeted improvements** for specific subsystems.
 
 ---
 
-## Phase 1: Fuel Line Types in Campaign Builder (UI-only, no migration)
+## Systemic Issue 1: Inconsistent Org Resolution (Critical)
 
-**Goal**: Let operators pick a fuel line type in Step 1 (Setup), which auto-configures targeting, persona, and sequence defaults.
+The platform has a well-designed `useDataOrgId()` hook that correctly resolves parent-org for accounts/leads vs child-org for scores/ICPs. But **most pages ignore it**:
 
-### Fuel Line Definitions
+| Page | Currently Uses | Should Use |
+|---|---|---|
+| **Leads** | `useEffectiveOrg()` for accounts+leads queries | `useDataOrgId()` — leads live in parent org |
+| **AIAgents** | `useEffectiveOrg()` | Fine (agents are org-specific) |
+| **ICPManager** | `useEffectiveOrg()` | Fine (ICPs are child-org) |
+| **ListBuilder** | `useEffectiveOrg()` for `search_list_builder` RPC | `useDataOrgId()` — searches accounts+leads |
+| **Settings** | `useEffectiveOrg()` | Fine (settings are org-specific) |
+| **CampaignBuilderV2** | `useEffectiveOrg()` | `useDataOrgId()` for account/lead queries |
+| **useCampaignData** | `userProfile.org_id` directly | `useDataOrgId()` — queries accounts+leads+scores |
+| **useICPScoring** | `useEffectiveOrg()` for both accounts AND scores | Split: `dataOrgId` for accounts, `effectiveOrgId` for scores |
+| **QuickEnrich** | `useEffectiveOrg()` | `useDataOrgId()` — enriches accounts |
 
-| Fuel Line | Description | Auto-config |
-|-----------|-------------|-------------|
-| **ABM** | Named accounts from signals/manual selection | Pre-selects signal-triggered accounts, Enterprise sequence |
-| **Technographic** | Accounts using specific tech stack | Filters by `tech_stack[]` column, SMB/Enterprise sequence based on size |
-| **Firmographic** | Industry + size + geography targeting | Uses existing segment filters, auto-sets employee/revenue ranges |
-| **Persona** | Job title + seniority + department first | Leads with persona filters, pulls matching accounts second |
+**Impact**: For managed/child organizations, these pages query the wrong org and return zero results.
 
-### Files to modify
-- `src/components/campaigns/constants/campaign-config.ts` — Add `FUEL_LINE_TYPES` config with defaults per type
-- `src/components/campaigns/hooks/useCampaignState.ts` — Add `fuelLineType` to state, auto-apply defaults on selection
-- `src/components/campaigns/steps/SetupStep.tsx` — Add fuel line selector cards before campaign name
-- `src/components/campaigns/steps/TargetingStep.tsx` — Conditionally show filters based on fuel line type
-
-### No database changes needed — fuel line type is stored in campaign `metadata` JSON on export.
-
----
-
-## Phase 2: Suppression List Management
-
-**Goal**: Global and per-campaign suppression lists to prevent contacting excluded domains/emails.
-
-### Database (migration)
-```sql
-CREATE TABLE suppression_lists (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id uuid REFERENCES organizations(id) NOT NULL,
-  name text NOT NULL,
-  list_type text NOT NULL DEFAULT 'domain', -- 'domain' | 'email' | 'company'
-  entries text[] NOT NULL DEFAULT '{}',
-  is_global boolean DEFAULT false,
-  created_by uuid,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-
-ALTER TABLE suppression_lists ENABLE ROW LEVEL SECURITY;
-```
-
-### Files to create
-- `src/components/campaigns/SuppressionListManager.tsx` — CRUD UI for suppression lists
-- `src/components/campaigns/steps/PreviewStep.tsx` — Show suppression count in preview stats
-
-### Files to modify
-- `src/components/campaigns/hooks/useCampaignData.ts` — Filter out suppressed domains/emails from preview
-- `src/components/campaigns/steps/DataSourceStep.tsx` — Add suppression list selector
+### Fix
+Migrate all account/lead data queries to `useDataOrgId()`. Approximately 6 files need updating. Score and ICP queries stay on `effectiveOrgId`.
 
 ---
 
-## Phase 3: Signal-to-Campaign Routing
+## Systemic Issue 2: Remaining `as any` Casts (140 instances across 12 hooks)
 
-**Goal**: When high-priority signals fire, auto-suggest or auto-create campaigns with the right fuel line pre-selected.
+The previous cleanup addressed `AlertsConfiguration` and `use-value-creation-plan`. The remaining hotspots:
 
-### How it works
-1. `account_signals` table already tracks: intent signals, tech stack changes, funding events
-2. New component watches for unactioned high-priority signals
-3. One-click "Create Campaign" from signal → opens CampaignBuilderV2 with:
-   - Fuel line auto-selected based on signal type
-   - Accounts pre-loaded from signal
-   - Sequence template pre-selected
+| File | Count | Root Cause |
+|---|---|---|
+| `use-dashboard-data.ts` | ~10 | RPC functions not in generated types (`get_dashboard_metrics_cached`, `count_campaign_ready_accounts`, `get_data_completeness`) |
+| `use-data-org.ts` | 1 | `parent_org_id` not in generated types |
+| `useBrandedConfig.ts` | 4 | RPCs `get_branded_config_by_slug/org_id` not typed |
+| `use-enriched-leads.tsx` | 4 | Missing `seniority_level`, `department_category` columns |
+| `use-notification-dispatcher.ts` | 4 | Realtime payload typing |
+| `use-data-change-listener.tsx` | 6 | Realtime payload typing |
+| `use-score-history.tsx` | 2 | `old_score`/`new_score` JSON typing |
+| `use-org-settings.ts` | 1 | `org_settings` JSONB column |
+| `use-icp-scoring.tsx` | 1 | `reasons` JSON typing |
 
-### Signal → Fuel Line mapping
-| Signal Type | Fuel Line | Sequence |
-|-------------|-----------|----------|
-| `intent` | ABM | Enterprise |
-| `tech_change` | Technographic | Enterprise |
-| `funding` | ABM | Enterprise |
-| `expansion` | Firmographic | Enterprise |
-| `new_hire` | Persona | SMB |
-
-### Files to create
-- `src/components/campaigns/SignalCampaignRouter.tsx` — Maps signals to campaign configs
-- `src/components/dashboard/SignalActionCards.tsx` — Dashboard cards with "Launch Campaign" CTA
-
-### Files to modify
-- `src/components/campaigns/CampaignBuilderV2.tsx` — Accept `signalContext` prop alongside `insightContext`
+### Fix
+1. Create a `src/types/supabase-rpc.ts` file with typed overloads for the ~6 custom RPCs
+2. Create `src/types/realtime-payloads.ts` with interfaces for signal, scoring_job, and enrichment_job payloads
+3. Replace `as any` with proper typed helpers
 
 ---
 
-## Phase 4: Fuel Line Performance Tracking
+## Systemic Issue 3: `useICPScoring` Loads All 50K Accounts Client-Side
 
-**Goal**: Track which fuel line type produces the best results so operators can optimize allocation.
+`use-icp-scoring.tsx` line 75-79 does `.limit(50000)` to load every account into browser memory, then scores them in JS. This is the single largest performance bottleneck for orgs with real data.
 
-### Database (migration)
-```sql
-ALTER TABLE campaigns ADD COLUMN fuel_line_type text;
-ALTER TABLE campaigns ADD COLUMN signal_source_id uuid REFERENCES account_signals(id);
-```
+### Fix
+This scoring should already happen server-side via the `score-accounts` edge function. Remove the client-side scoring loop and make `useICPScoring` read-only (fetch pre-computed scores from the `scores` table). If ad-hoc "what-if" scoring is needed, add a server RPC that returns scored results paginated.
 
-### New dashboard widget
-- Conversion rate by fuel line type
-- Cost per qualified lead by fuel line
-- Time-to-meeting by fuel line
-- Uses existing `campaigns` + `campaign_snapshots` data
+---
 
-### Files to create
-- `src/components/campaigns/FuelLineAnalytics.tsx` — Performance dashboard
-- `src/hooks/use-fuel-line-metrics.ts` — Data fetching hook
+## Targeted Improvement 4: Leads Page Uses Hardcoded Score Colors
+
+`Leads.tsx` line 320-324 uses hardcoded `bg-green-500` for score badges instead of brand tokens. Multiple other places in the file likely do the same.
+
+### Fix
+Replace with `bg-[hsl(var(--signal-high))]` / `bg-[hsl(var(--signal-medium))]` / `bg-destructive` to match the brand system used everywhere else.
+
+---
+
+## Targeted Improvement 5: List Builder Missing `dataOrgId` + No Score Integration
+
+The List Builder queries accounts but never joins scores. Users can't filter by fit score, which is the platform's core differentiator vs Clay/Apollo.
+
+### Fix
+1. Update `search_list_builder` RPC (or create a v2) to accept `p_score_org_id` and join `scores` table
+2. Add `fitScoreMin`/`fitScoreMax` to `ListBuilderFilters`
+3. Add score column to results table
+4. Switch to `useDataOrgId()` for correct managed-org behavior
+
+---
+
+## Targeted Improvement 6: Campaign Builder Uses `userProfile.org_id` Directly
+
+`useCampaignData.ts` bypasses all org resolution hooks and uses `userProfile.org_id` directly. This breaks for super admins viewing other orgs and for managed child orgs.
+
+### Fix
+Accept `dataOrgId` and `scoreOrgId` as parameters (or use `useDataOrgId()` internally). Update account queries to use `dataOrgId`, score queries to use `scoreOrgId`.
+
+---
+
+## Targeted Improvement 7: ReportBuilder Wraps Itself in `<Layout>`
+
+`ReportBuilder.tsx` line 56 renders `<Layout>` inside itself, but it's already rendered inside `<Layout>` by `App.tsx`. This causes a double-Layout (double sidebar, double header).
+
+### Fix
+Remove the `<Layout>` wrapper from `ReportBuilder.tsx`.
 
 ---
 
 ## Implementation Order
 
-1. **Phase 1** (UI only, no migration) — 1 session
-2. **Phase 2** (migration + UI) — 1 session  
-3. **Phase 3** (routing logic) — 1 session
-4. **Phase 4** (analytics) — 1 session
+| Priority | Task | Files |
+|---|---|---|
+| 1 | Fix org resolution across Leads, ListBuilder, CampaignData, ICPScoring, QuickEnrich | 5 hooks + 2 pages |
+| 2 | Remove client-side 50K account load in useICPScoring | 1 hook |
+| 3 | Create typed RPC + realtime payload interfaces, eliminate `as any` | 2 new type files + 8 hooks |
+| 4 | Fix hardcoded colors in Leads score badges | 1 page |
+| 5 | Add score filtering to List Builder | 1 hook + 1 component + 1 RPC |
+| 6 | Fix Campaign Builder org resolution | 1 hook |
+| 7 | Fix ReportBuilder double-Layout | 1 page |
 
-Each phase is independently shippable. Phase 1 has zero backend risk.
-
----
-
-## What this is NOT
-- We are NOT adding 28 fake data sources
-- We are NOT rebranding existing providers as separate databases
-- We ARE making our existing enrichment waterfall smarter about HOW data flows into campaigns
-- We ARE giving operators control over campaign segmentation strategy
