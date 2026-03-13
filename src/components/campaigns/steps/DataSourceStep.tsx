@@ -31,7 +31,10 @@ export function DataSourceStep({
   setProvider,
   estimatedCost,
   apolloTamData,
-  selectedAccountCount = 0
+  selectedAccountCount = 0,
+  applySuppression = true,
+  setApplySuppression,
+  suppressionRuleCount = 0
 }: DataSourceStepProps) {
   // Real-time provider health from service_health table
   const { data: providerHealth, isLoading: isLoadingHealth } = useProviderHealth(['apollo', 'pdl', 'hunter']);
