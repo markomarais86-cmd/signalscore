@@ -244,10 +244,10 @@ export function AlertsConfiguration() {
     return badges;
   };
 
-  const updateChannel = (key: string, val: boolean) => {
+  const updateChannel = (key: keyof NotificationChannels, val: boolean) => {
     setForm(prev => ({
       ...prev,
-      notification_channels: { ...(prev.notification_channels || {}), [key]: val },
+      notification_channels: { ...parseChannels(prev.notification_channels), [key]: val },
     }));
   };
 
