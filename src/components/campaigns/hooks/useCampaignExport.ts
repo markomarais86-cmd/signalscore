@@ -212,6 +212,7 @@ export function useCampaignExport() {
           downloadCSV(csvContent, `${campaignName || 'campaign'}.csv`);
           const rowCount = csvContent.split('\n').length - 1;
           toast({ title: "Campaign Exported", description: `Downloaded ${rowCount} leads as CSV` });
+          await saveCampaignRecord();
           setPushComplete(true);
         } catch (csvError: any) {
           toast({ 
