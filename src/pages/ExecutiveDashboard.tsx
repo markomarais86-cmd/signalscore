@@ -676,6 +676,8 @@ export default function ExecutiveDashboard() {
               }}
             />
 
+            {/* Fuel Line Performance */}
+            <FuelLineAnalytics />
 
             <GrowthCommandKPIs
               totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
