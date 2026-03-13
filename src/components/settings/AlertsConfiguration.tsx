@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { 
-  Bell, Plus, Edit, Trash2, TestTube, Send, Slack, Webhook, Mail,
-  AlertTriangle, Activity, TrendingDown, DollarSign, ShieldAlert, Zap, Loader2
+  Bell, Plus, Edit, Trash2, Send, Slack, Webhook, Mail,
+  AlertTriangle, Activity, TrendingDown, DollarSign, ShieldAlert, Zap, Loader2,
+  Bot, Megaphone, Radio
 } from "lucide-react";
 import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useToast } from "@/hooks/use-toast";
@@ -26,6 +27,7 @@ interface Alert {
   notification_channels: any;
   slack_webhook_url: string | null;
   webhook_url: string | null;
+  teams_webhook_url: string | null;
   email_recipients: string[] | null;
   last_triggered_at: string | null;
   trigger_count: number;
@@ -40,6 +42,9 @@ const ALERT_TYPE_CONFIG: Record<string, { label: string; icon: any; description:
   slippage_increase: { label: "Pipeline Slippage", icon: AlertTriangle, description: "Fires when deal slippage exceeds threshold", unit: "%" },
   pipeline_threshold: { label: "Pipeline Threshold", icon: DollarSign, description: "Fires when pipeline value drops below threshold", unit: "$" },
   deal_at_risk: { label: "Deals at Risk", icon: AlertTriangle, description: "Fires when overdue deals exceed threshold", unit: "deals" },
+  high_priority_signal: { label: "High-Priority Signal", icon: Radio, description: "Fires when a high/critical priority signal is detected", unit: "signals" },
+  agent_completed: { label: "Agent Completed", icon: Bot, description: "Fires when an AI agent run completes", unit: "records" },
+  campaign_completed: { label: "Campaign Completed", icon: Megaphone, description: "Fires when a campaign reaches completed/sent status", unit: "contacts" },
 };
 
 const OPERATOR_OPTIONS = [
@@ -50,15 +55,23 @@ const OPERATOR_OPTIONS = [
   { value: "eq", label: "Equal to" },
 ];
 
+// Teams icon as inline SVG since lucide doesn't have it
+const TeamsIcon = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+    <path d="M19.5 3h-15A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3zm-6.75 13.5h-1.5v-6h-2.25V9h6v1.5h-2.25v6z"/>
+  </svg>
+);
+
 const emptyForm = (): Partial<Alert> => ({
   name: "",
   alert_type: "api_credits_low",
   threshold_value: 100,
   threshold_operator: "lt",
   is_active: true,
-  notification_channels: { slack: false, webhook: false, email: false },
+  notification_channels: { slack: false, webhook: false, email: false, teams: false },
   slack_webhook_url: null,
   webhook_url: null,
+  teams_webhook_url: null,
   email_recipients: [],
 });
 
@@ -104,7 +117,7 @@ export function AlertsConfiguration() {
     setEditingAlert(alert);
     const channels = typeof alert.notification_channels === 'object' && alert.notification_channels
       ? alert.notification_channels
-      : { slack: false, webhook: false, email: false };
+      : { slack: false, webhook: false, email: false, teams: false };
     setForm({
       name: alert.name,
       alert_type: alert.alert_type,
@@ -114,6 +127,7 @@ export function AlertsConfiguration() {
       notification_channels: channels,
       slack_webhook_url: alert.slack_webhook_url,
       webhook_url: alert.webhook_url,
+      teams_webhook_url: alert.teams_webhook_url,
       email_recipients: alert.email_recipients,
     });
     setDialogOpen(true);
@@ -132,6 +146,7 @@ export function AlertsConfiguration() {
       notification_channels: form.notification_channels || {},
       slack_webhook_url: form.slack_webhook_url || null,
       webhook_url: form.webhook_url || null,
+      teams_webhook_url: (form as any).teams_webhook_url || null,
       email_recipients: form.email_recipients || [],
       org_id: effectiveOrgId,
     };
@@ -198,10 +213,12 @@ export function AlertsConfiguration() {
     OPERATOR_OPTIONS.find(o => o.value === op)?.label || op || "—";
 
   const getChannelBadges = (alert: Alert) => {
-    const badges = [];
+    const badges: Array<{ label: string; icon: any; ok: boolean }> = [];
     const ch = typeof alert.notification_channels === 'object' && alert.notification_channels ? alert.notification_channels : {};
     if ((ch as any).slack && alert.slack_webhook_url) badges.push({ label: "Slack", icon: Slack, ok: true });
     else if ((ch as any).slack) badges.push({ label: "Slack", icon: Slack, ok: false });
+    if ((ch as any).teams && (alert as any).teams_webhook_url) badges.push({ label: "Teams", icon: TeamsIcon, ok: true });
+    else if ((ch as any).teams) badges.push({ label: "Teams", icon: TeamsIcon, ok: false });
     if ((ch as any).webhook && alert.webhook_url) badges.push({ label: "Webhook", icon: Webhook, ok: true });
     else if ((ch as any).webhook) badges.push({ label: "Webhook", icon: Webhook, ok: false });
     if ((ch as any).email && alert.email_recipients?.length) badges.push({ label: "Email", icon: Mail, ok: true });
@@ -237,7 +254,7 @@ export function AlertsConfiguration() {
                 Alerts & Notifications
               </CardTitle>
               <CardDescription>
-                Configure alerts for API credit monitoring, service health, and pipeline metrics
+                Configure alerts for signals, agent completions, campaigns, and pipeline metrics with Slack &amp; Teams delivery
               </CardDescription>
             </div>
             <Button onClick={openCreate} size="sm">
@@ -366,7 +383,7 @@ export function AlertsConfiguration() {
             <div>
               <Label>Alert Name</Label>
               <Input
-                placeholder="e.g. Low Apollo Credits"
+                placeholder="e.g. High-Priority Signal Alert"
                 value={form.name || ""}
                 onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
               />
@@ -444,6 +461,32 @@ export function AlertsConfiguration() {
                     value={form.slack_webhook_url || ""}
                     onChange={e => setForm(prev => ({ ...prev, slack_webhook_url: e.target.value }))}
                   />
+                )}
+              </div>
+
+              {/* Microsoft Teams */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TeamsIcon className="h-4 w-4" />
+                    <span className="text-sm font-medium">Microsoft Teams</span>
+                  </div>
+                  <Switch
+                    checked={(form.notification_channels as any)?.teams || false}
+                    onCheckedChange={v => updateChannel("teams", v)}
+                  />
+                </div>
+                {(form.notification_channels as any)?.teams && (
+                  <div className="space-y-1">
+                    <Input
+                      placeholder="https://outlook.office.com/webhook/..."
+                      value={(form as any).teams_webhook_url || ""}
+                      onChange={e => setForm(prev => ({ ...prev, teams_webhook_url: e.target.value }))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Paste the Incoming Webhook URL from your Teams channel connector
+                    </p>
+                  </div>
                 )}
               </div>
 
