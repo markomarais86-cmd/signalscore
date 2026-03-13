@@ -91,6 +91,8 @@ export default function ExecutiveDashboard() {
   const [syncingApolloFromAlert, setSyncingApolloFromAlert] = useState(false);
   const [selectedAgentRunId, setSelectedAgentRunId] = useState<string | null>(null);
   const { generateReport, isGenerating } = useBrandedReport();
+  const [signalCampaignOpen, setSignalCampaignOpen] = useState(false);
+  const [signalCampaignContext, setSignalCampaignContext] = useState<any>(undefined);
   
 
   const totalAccounts = dashboardData?.metrics?.total_accounts || 0;
