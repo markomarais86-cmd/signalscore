@@ -94,7 +94,7 @@ export const LEVELS = [
 ];
 
 export function useListBuilder() {
-  const { effectiveOrgId } = useEffectiveOrg();
+  const { dataOrgId: effectiveOrgId } = useDataOrgId();
   const [filters, setFilters] = useState<ListBuilderFilters>(EMPTY_FILTERS);
   const [searchTriggered, setSearchTriggered] = useState(false);
   const [page, setPage] = useState(0);

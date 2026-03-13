@@ -188,6 +188,6 @@ export default function ReportBuilder() {
           </Card>
         )}
       </div>
-    </Layout>
+    </div>
   );
 }

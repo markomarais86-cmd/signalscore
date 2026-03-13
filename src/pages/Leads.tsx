@@ -97,7 +97,7 @@ export default function Leads() {
   const [hasAttemptedMatch, setHasAttemptedMatch] = useState(false);
   const [activeView, setActiveView] = useState<'all' | 'enriched'>('all');
   const { userProfile } = useAuth();
-  const { effectiveOrgId } = useEffectiveOrg();
+  const { dataOrgId: effectiveOrgId } = useDataOrgId();
   const { toast } = useToast();
   const { flags } = useFeatureFlags();
 
