@@ -145,6 +145,8 @@ export function useCampaignExport() {
         destination,
         data_source: options.dataSource,
         contacts: finalAccounts,
+        fuel_line_type: options.fuelLineType,
+        signal_source_ids: options.signalSourceIds,
         batch_metadata: {
           source_accounts: previewData?.length || 0,
           icp_id: options.activeICP?.id,
@@ -156,6 +158,22 @@ export function useCampaignExport() {
             departments: options.selectedDepartments
           }
         }
+      };
+
+      // Persist campaign record for tracking
+      const saveCampaignRecord = async () => {
+        try {
+          await supabase.from('campaigns').insert({
+            org_id: userProfile.org_id,
+            name: campaignName || 'Untitled Campaign',
+            campaign_type: destination,
+            fuel_line_type: options.fuelLineType || null,
+            signal_source_ids: options.signalSourceIds || null,
+            total_accounts: previewData?.length || 0,
+            total_contacts: estimatedLeads,
+            metadata: campaignData.batch_metadata as any,
+          });
+        } catch (_) { /* non-critical */ }
       };
 
       if (destination === 'salesforce') {
