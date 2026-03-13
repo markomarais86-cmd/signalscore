@@ -249,7 +249,9 @@ function AppContent() {
                   element={
                     <ProtectedRoute>
                       <Layout>
-                        <ValueCreationPlan />
+                        <FeatureErrorBoundary fallbackTitle="Value Creation Plan failed to load">
+                          <ValueCreationPlan />
+                        </FeatureErrorBoundary>
                       </Layout>
                     </ProtectedRoute>
                   }
