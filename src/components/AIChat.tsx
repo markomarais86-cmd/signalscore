@@ -108,6 +108,10 @@ const ACTION_LABELS: Record<string, string> = {
   update_icp: 'Update ICP',
   sync_to_crm: 'Sync to CRM',
   schedule_enrichment: 'Schedule Enrichment',
+  // Client-side actions
+  navigate: 'Navigate',
+  open_campaign_builder: 'Open Campaign Builder',
+  search_signals: 'Search Signals',
 };
 
 function MessageBubble({ message, onSendMessage }: { message: ChatMessage; onSendMessage: (msg: string) => void }) {
