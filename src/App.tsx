@@ -69,16 +69,6 @@ const PortfolioCommandCenter = lazy(() => import("./pages/PortfolioCommandCenter
 const ValueCreationPlan = lazy(() => import("./pages/ValueCreationPlan"));
 const DueDiligence = lazy(() => import("./pages/DueDiligence"));
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 2 * 60 * 1000,
-      gcTime: 10 * 60 * 1000,
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-  },
-});
 
 // Shared loading fallback for lazy-loaded pages
 function PageLoader() {
