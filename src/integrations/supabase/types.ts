@@ -1407,6 +1407,7 @@ export type Database = {
           notification_channels: Json
           org_id: string
           slack_webhook_url: string | null
+          teams_webhook_url: string | null
           threshold_operator: string | null
           threshold_value: number | null
           trigger_count: number
@@ -1426,6 +1427,7 @@ export type Database = {
           notification_channels?: Json
           org_id: string
           slack_webhook_url?: string | null
+          teams_webhook_url?: string | null
           threshold_operator?: string | null
           threshold_value?: number | null
           trigger_count?: number
@@ -1445,6 +1447,7 @@ export type Database = {
           notification_channels?: Json
           org_id?: string
           slack_webhook_url?: string | null
+          teams_webhook_url?: string | null
           threshold_operator?: string | null
           threshold_value?: number | null
           trigger_count?: number
