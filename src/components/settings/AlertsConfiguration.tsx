@@ -146,7 +146,7 @@ export function AlertsConfiguration() {
       notification_channels: form.notification_channels || {},
       slack_webhook_url: form.slack_webhook_url || null,
       webhook_url: form.webhook_url || null,
-      teams_webhook_url: (form as any).teams_webhook_url || null,
+      teams_webhook_url: form.teams_webhook_url || null,
       email_recipients: form.email_recipients || [],
       org_id: effectiveOrgId,
     };
@@ -217,7 +217,7 @@ export function AlertsConfiguration() {
     const ch = typeof alert.notification_channels === 'object' && alert.notification_channels ? alert.notification_channels : {};
     if ((ch as any).slack && alert.slack_webhook_url) badges.push({ label: "Slack", icon: Slack, ok: true });
     else if ((ch as any).slack) badges.push({ label: "Slack", icon: Slack, ok: false });
-    if ((ch as any).teams && (alert as any).teams_webhook_url) badges.push({ label: "Teams", icon: TeamsIcon, ok: true });
+    if ((ch as any).teams && alert.teams_webhook_url) badges.push({ label: "Teams", icon: TeamsIcon, ok: true });
     else if ((ch as any).teams) badges.push({ label: "Teams", icon: TeamsIcon, ok: false });
     if ((ch as any).webhook && alert.webhook_url) badges.push({ label: "Webhook", icon: Webhook, ok: true });
     else if ((ch as any).webhook) badges.push({ label: "Webhook", icon: Webhook, ok: false });
@@ -480,7 +480,7 @@ export function AlertsConfiguration() {
                   <div className="space-y-1">
                     <Input
                       placeholder="https://outlook.office.com/webhook/..."
-                      value={(form as any).teams_webhook_url || ""}
+                      value={form.teams_webhook_url || ""}
                       onChange={e => setForm(prev => ({ ...prev, teams_webhook_url: e.target.value }))}
                     />
                     <p className="text-xs text-muted-foreground">

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from './use-auth';
+import { useEffectiveOrg } from './use-effective-org';
 import { realtimeLogger as log } from '@/lib/logger';
 
 /**
@@ -8,7 +8,7 @@ import { realtimeLogger as log } from '@/lib/logger';
  * then dispatches matching alerts via the send-alert edge function.
  */
 export function useNotificationDispatcher() {
-  const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const recentlyFired = useRef<Set<string>>(new Set());
 
   const fireMatchingAlerts = useCallback(async (
@@ -57,7 +57,7 @@ export function useNotificationDispatcher() {
   }, []);
 
   useEffect(() => {
-    const orgId = userProfile?.org_id;
+    const orgId = effectiveOrgId;
     if (!orgId) return;
 
     let mounted = true;
@@ -136,5 +136,5 @@ export function useNotificationDispatcher() {
       supabase.removeChannel(agentRunsCh);
       supabase.removeChannel(campaignsCh);
     };
-  }, [userProfile?.org_id, fireMatchingAlerts]);
+  }, [effectiveOrgId, fireMatchingAlerts]);
 }
