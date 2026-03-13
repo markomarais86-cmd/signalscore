@@ -63,7 +63,7 @@ interface CostBreakdown {
 export default function QuickEnrich() {
   const navigate = useNavigate();
   const { userProfile } = useAuth();
-  const { effectiveOrgId } = useEffectiveOrg();
+  const { dataOrgId: effectiveOrgId } = useDataOrgId();
   const [step, setStep] = useState<WizardStep>("upload");
   
   // Upload state

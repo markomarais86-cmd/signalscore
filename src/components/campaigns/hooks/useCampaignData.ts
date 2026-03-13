@@ -27,7 +27,9 @@ export function useCampaignData(
   useICP: boolean,
   applySuppression: boolean = true
 ) {
-  const { userProfile } = useAuth();
+  const { dataOrgId, effectiveOrgId } = useDataOrgId();
+  const orgId = dataOrgId; // accounts/leads live in the data org
+  const scoreOrgId = effectiveOrgId; // scores live in child org
   const { suppressedDomains, totalCount: suppressionRuleCount } = useSuppressionRules();
   const [previewData, setPreviewData] = useState<AccountWithScore[] | null>(null);
   const [suppressedCount, setSuppressedCount] = useState(0);
