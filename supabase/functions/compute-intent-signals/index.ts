@@ -7,7 +7,7 @@ const corsHeaders = {
 };
 
 interface IntentSignal {
-  type: 'engagement_velocity' | 'multi_thread' | 'score_change' | 'coverage_gap';
+  type: 'engagement_velocity' | 'multi_thread' | 'score_change' | 'coverage_gap' | 'new_high_fit' | 'data_freshness';
   priority: 'critical' | 'high' | 'medium' | 'low';
   account_external_id: string;
   account_name: string | null;
@@ -62,6 +62,16 @@ serve(async (req) => {
     const coverageGapSignals = await computeCoverageGaps(supabase, org_id);
     signals.push(...coverageGapSignals);
 
+    // 5. NEW HIGH FIT - Accounts that recently crossed the 70-score threshold
+    console.log('[IntentSignals] Computing new high-fit signals...');
+    const newHighFitSignals = await computeNewHighFit(supabase, org_id);
+    signals.push(...newHighFitSignals);
+
+    // 6. DATA FRESHNESS - High-fit accounts with stale enrichment data
+    console.log('[IntentSignals] Computing data freshness signals...');
+    const freshnessSignals = await computeDataFreshness(supabase, org_id);
+    signals.push(...freshnessSignals);
+
     // Store signals in account_signals table
     console.log(`[IntentSignals] Storing ${signals.length} signals...`);
     
@@ -71,7 +81,7 @@ serve(async (req) => {
       .from('account_signals')
       .delete()
       .eq('org_id', org_id)
-      .in('signal_type', ['engagement_velocity', 'multi_thread', 'score_change', 'coverage_gap'])
+      .in('signal_type', ['engagement_velocity', 'multi_thread', 'score_change', 'coverage_gap', 'new_high_fit', 'data_freshness'])
       .lt('created_at', sevenDaysAgo);
 
     // Insert new signals
@@ -112,6 +122,8 @@ serve(async (req) => {
         multi_thread: signals.filter(s => s.type === 'multi_thread').length,
         score_change: signals.filter(s => s.type === 'score_change').length,
         coverage_gap: signals.filter(s => s.type === 'coverage_gap').length,
+        new_high_fit: signals.filter(s => s.type === 'new_high_fit').length,
+        data_freshness: signals.filter(s => s.type === 'data_freshness').length,
       },
       signals,
     }), {
@@ -132,7 +144,7 @@ serve(async (req) => {
 
 /**
  * Compute engagement velocity - accounts with increasing activity patterns
- * Falls back to score_history when activities table is empty
+ * Lowered threshold from 3 to 1 change per week for more realistic signal generation
  */
 async function computeEngagementVelocity(supabase: any, orgId: string): Promise<IntentSignal[]> {
   const signals: IntentSignal[] = [];
@@ -151,7 +163,6 @@ async function computeEngagementVelocity(supabase: any, orgId: string): Promise<
   let previousCounts: Record<string, number> = {};
 
   if (activityCount && activityCount > 0) {
-    // Use activities data
     const { data: recentActivities } = await supabase
       .from('activities')
       .select('account_external_id')
@@ -198,14 +209,14 @@ async function computeEngagementVelocity(supabase: any, orgId: string): Promise<
     });
   }
 
-  // Find accounts with significant increase (>50% more activity)
+  // LOWERED THRESHOLD: >= 1 recent change (was 3) and 50%+ increase
   const acceleratingAccounts: { id: string; recent: number; previous: number; increase: number }[] = [];
   
   for (const accountId of Object.keys(recentCounts)) {
     const recent = recentCounts[accountId];
     const previous = previousCounts[accountId] || 0;
     
-    if (recent >= 3 && (previous === 0 || (recent / Math.max(previous, 1)) >= 1.5)) {
+    if (recent >= 1 && (previous === 0 || (recent / Math.max(previous, 1)) >= 1.5)) {
       acceleratingAccounts.push({
         id: accountId,
         recent,
@@ -385,7 +396,6 @@ async function computeScoreChangeAlerts(supabase: any, orgId: string): Promise<I
 
 /**
  * Compute coverage gaps - high-fit accounts with no recent activity
- * Falls back to score_history when activities table is empty
  */
 async function computeCoverageGaps(supabase: any, orgId: string): Promise<IntentSignal[]> {
   const signals: IntentSignal[] = [];
@@ -401,7 +411,6 @@ async function computeCoverageGaps(supabase: any, orgId: string): Promise<Intent
   const highFitIds = highFitScores.map((s: any) => s.account_external_id);
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Check if activities has data, otherwise use score_history
   const { count: activityCount } = await supabase
     .from('activities')
     .select('*', { count: 'exact', head: true })
@@ -419,7 +428,6 @@ async function computeCoverageGaps(supabase: any, orgId: string): Promise<Intent
 
     activeIds = new Set((recentlyActiveAccounts || []).map((a: any) => a.account_external_id));
   } else {
-    // FALLBACK: Use score_history as proxy for recent engagement
     console.log('[IntentSignals] No activities, using score_history for coverage gaps');
     
     const { data: recentlyChangedAccounts } = await supabase
@@ -459,6 +467,116 @@ async function computeCoverageGaps(supabase: any, orgId: string): Promise<Intent
         },
       });
     }
+  }
+
+  return signals;
+}
+
+/**
+ * NEW: Compute new_high_fit - accounts that recently crossed the 70-score threshold
+ */
+async function computeNewHighFit(supabase: any, orgId: string): Promise<IntentSignal[]> {
+  const signals: IntentSignal[] = [];
+
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Find score_history entries where old_score < 70 and new_score >= 70 in last 7 days
+  const { data: newHighFit } = await supabase
+    .from('score_history')
+    .select('account_external_id, old_score, new_score, computed_at')
+    .eq('org_id', orgId)
+    .gte('computed_at', sevenDaysAgo)
+    .lt('old_score', 70)
+    .gte('new_score', 70)
+    .order('new_score', { ascending: false })
+    .limit(20);
+
+  if (!newHighFit || newHighFit.length === 0) return signals;
+
+  const accountIds = newHighFit.map((s: any) => s.account_external_id);
+  const { data: accounts } = await supabase
+    .from('accounts')
+    .select('external_id, name, industry_norm, employee_count')
+    .eq('org_id', orgId)
+    .in('external_id', accountIds);
+
+  const accountMap = new Map((accounts || []).map((a: any) => [a.external_id, a]));
+
+  for (const entry of newHighFit.slice(0, 10)) {
+    const account = accountMap.get(entry.account_external_id);
+    const improvement = entry.new_score - entry.old_score;
+    
+    signals.push({
+      type: 'new_high_fit',
+      priority: entry.new_score >= 85 ? 'high' : 'medium',
+      account_external_id: entry.account_external_id,
+      account_name: account?.name || null,
+      title: `Newly high-fit: score ${entry.old_score} → ${entry.new_score}`,
+      description: `${account?.name || 'Account'} just crossed the 70-point threshold with a ${improvement}-point improvement. ${account?.industry_norm ? `Industry: ${account.industry_norm}.` : ''} Prioritize for outreach.`,
+      metadata: {
+        old_score: entry.old_score,
+        new_score: entry.new_score,
+        improvement,
+        industry: account?.industry_norm,
+        employee_count: account?.employee_count,
+      },
+    });
+  }
+
+  return signals;
+}
+
+/**
+ * NEW: Compute data_freshness - high-fit accounts with stale enrichment data (>90 days old)
+ */
+async function computeDataFreshness(supabase: any, orgId: string): Promise<IntentSignal[]> {
+  const signals: IntentSignal[] = [];
+
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Get high-fit accounts with stale or no enrichment
+  const { data: highFitScores } = await supabase
+    .from('scores')
+    .select('account_external_id')
+    .eq('org_id', orgId)
+    .eq('fit_label', 'high');
+
+  if (!highFitScores || highFitScores.length === 0) return signals;
+
+  const highFitIds = highFitScores.map((s: any) => s.account_external_id);
+
+  // Find accounts with stale enrichment
+  const { data: staleAccounts } = await supabase
+    .from('accounts')
+    .select('external_id, name, enriched_at, enrichment_confidence')
+    .eq('org_id', orgId)
+    .in('external_id', highFitIds)
+    .or(`enriched_at.is.null,enriched_at.lt.${ninetyDaysAgo}`)
+    .order('enriched_at', { ascending: true, nullsFirst: true })
+    .limit(20);
+
+  for (const account of (staleAccounts || []).slice(0, 10)) {
+    const daysSinceEnrichment = account.enriched_at 
+      ? Math.round((Date.now() - new Date(account.enriched_at).getTime()) / (24 * 60 * 60 * 1000))
+      : null;
+
+    signals.push({
+      type: 'data_freshness',
+      priority: !account.enriched_at ? 'high' : 'medium',
+      account_external_id: account.external_id,
+      account_name: account.name,
+      title: account.enriched_at 
+        ? `Data is ${daysSinceEnrichment} days old`
+        : 'Never enriched',
+      description: account.enriched_at
+        ? `High-fit account with enrichment data over 90 days old. Re-enrich to ensure accuracy.`
+        : `High-fit account with no enrichment data. Run enrichment to improve scoring accuracy.`,
+      metadata: {
+        enriched_at: account.enriched_at,
+        days_since_enrichment: daysSinceEnrichment,
+        enrichment_confidence: account.enrichment_confidence,
+      },
+    });
   }
 
   return signals;

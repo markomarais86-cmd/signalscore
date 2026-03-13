@@ -27,7 +27,7 @@ export const helpDatabase: HelpItem[] = [
     description: 'Your complete guide to mastering LaunchPulse in under 10 minutes',
     content: `# Welcome to LaunchPulse
 
-LaunchPulse is your AI-powered platform for identifying, scoring, and prioritizing your ideal customers.
+LaunchPulse is your AI-powered Managed Demand Engine for identifying, scoring, enriching, and prioritizing your ideal customers.
 
 ## What You Can Do
 
@@ -35,20 +35,28 @@ LaunchPulse is your AI-powered platform for identifying, scoring, and prioritizi
 Upload your account data and get instant AI-powered fit scores (0-100) that tell you exactly which accounts match your Ideal Customer Profile.
 
 **2. Build Targeted Campaigns**
-Filter accounts by fit score, industry, size, and more to build laser-focused campaign lists.
+Use the Campaign Builder to create segmented outreach campaigns with Fuel Line types (ABM, Technographic, Firmographic, Persona).
 
 **3. Enrich Your Data**
-Automatically enhance your account data with firmographic information from multiple providers.
+Automatically enhance your account and lead data using our 6-stage Smart Enrichment Waterfall — Perplexity AI, Firecrawl, Multi-AI aggregation, PeopleDataLabs, Apollo, and Hunter.
 
-**4. Track Performance**
-Monitor your ICP coverage, data quality, and campaign performance from the Executive Dashboard.
+**4. Discover Intent Signals**
+AI-powered intent signals detect engagement velocity, multi-threading gaps, score changes, and coverage gaps across your accounts.
+
+**5. AI Chat (Cmd+K)**
+Natural language interface to query your data, trigger actions, and get instant answers.
+
+**6. List Builder**
+Search and filter your entire database with score-based filtering and export targeted lists.
 
 ## Quick Start Checklist
 
 1. ✅ Upload your accounts (CSV or CRM sync)
 2. ✅ Create your first ICP
-3. ✅ Review your fit score distribution
-4. ✅ Build your first campaign
+3. ✅ Run enrichment to fill data gaps
+4. ✅ Review your fit score distribution
+5. ✅ Compute intent signals
+6. ✅ Build your first campaign
 
 ## Need Help?
 
@@ -167,42 +175,32 @@ Every account receives a fit score from 0-100 based on how well it matches your 
 
 | Score | Level | What It Means |
 |-------|-------|---------------|
-| 80-100 | **High Fit** | Strong match. Prioritize for outreach. |
-| 60-79 | **Medium Fit** | Good potential. Worth further research. |
-| 0-59 | **Low Fit** | Poor match. Deprioritize or exclude. |
+| 70-100 | **High Fit (A)** | Strong match. Prioritize for outreach. |
+| 40-69 | **Medium Fit (B)** | Good potential. Worth further research. |
+| 0-39 | **Low Fit (C)** | Poor match. Deprioritize or exclude. |
 
 ## How Scoring Works
 
-### 1. Criteria Matching
+### 1. Server-Side Computation
+Scores are computed via the \`score-accounts\` edge function. This ensures consistent, accurate scoring across your entire database.
+
+### 2. Criteria Matching
 Each ICP criterion is checked against account attributes:
 - ✅ Full match = 100% of weight
 - ⚡ Partial match = Proportional points
 - ❌ No match = 0 points
 
-### 2. Weight Distribution
-Different criteria carry different weights:
-- **Industry**: 25% (highest impact)
-- **Company Size**: 20%
-- **Geography**: 15%
-- **Revenue**: 15%
-- **Tech Stack**: 15%
-- **Signals**: 10%
+### 3. Weight Distribution
+Different criteria carry different weights based on your ICP configuration:
+- **Industry**: Typically 20-25%
+- **Company Size**: 15-20%
+- **Geography**: 10-15%
+- **Revenue**: 15-20%
+- **Tech Stack**: 10-15%
+- **Signals**: 5-10%
 
-### 3. Score Calculation
-\`\`\`
-Final Score = Σ (Criterion Weight × Match Score)
-\`\`\`
-
-## Example
-
-Account: Acme Corp
-- Industry: SaaS ✅ (25 pts)
-- Size: 150 employees ✅ (20 pts)
-- Location: USA ✅ (15 pts)
-- Revenue: Unknown ⚡ (7.5 pts)
-- Tech: Salesforce ✅ (15 pts)
-
-**Total Score: 82.5 (High Fit)**
+### 4. Score History
+Every score change is tracked in \`score_history\`, enabling trend analysis and intent signal detection.
 
 ## Improving Accuracy
 
@@ -235,21 +233,21 @@ All accounts that could potentially use your product/service, regardless of your
 
 The portion of TAM that matches your ICP criteria and that you can actually serve.
 
-*In LaunchPulse: High + Medium fit accounts (score ≥ 60)*
+*In LaunchPulse: High + Medium fit accounts (score ≥ 40)*
 
 ### SOM (Serviceable Obtainable Market)
 **Your capture opportunity**
 
 The portion of SAM you can realistically win based on resources, competition, and capacity.
 
-*In LaunchPulse: High fit accounts (score ≥ 80) within your sales capacity*
+*In LaunchPulse: High fit accounts (score ≥ 70) within your sales capacity*
 
 ## How LaunchPulse Calculates
 
 | Metric | Calculation |
 |--------|-------------|
 | TAM | All accounts in database |
-| SAM | Accounts with fit score ≥ 60 |
+| SAM | Accounts with fit score ≥ 40 |
 | SOM | High-fit accounts ÷ Win rate × Capacity |
 
 ## Use Cases
@@ -267,53 +265,64 @@ The portion of SAM you can realistically win based on resources, competition, an
   },
   {
     id: 'data-sources',
-    title: 'Data Sources & Enrichment',
-    description: 'How your data is enhanced automatically',
-    content: `# Data Enrichment
+    title: 'Data Sources & Smart Enrichment',
+    description: 'How your data is enhanced through the 6-stage enrichment waterfall',
+    content: `# Smart Enrichment Waterfall
 
-LaunchPulse automatically enhances your account data using multiple enrichment providers.
+LaunchPulse uses a 6-stage intelligent enrichment waterfall to enhance your account and lead data. Each stage adds progressively deeper data, with early-exit optimization when 90% field coverage is achieved.
 
-## Enrichment Providers
+## Enrichment Stages
 
-| Provider | Best For | Data Types |
-|----------|----------|------------|
-| **Clearbit** | Firmographics | Logo, size, industry, tech |
-| **ZoomInfo** | B2B Intelligence | Contacts, org charts |
-| **Apollo** | Lead Data | Emails, direct dials |
-| **PDL** | Person Data | Job history, skills |
+| Stage | Provider | What It Does | Cost |
+|-------|----------|-------------|------|
+| **1. Cache** | Internal | Checks 30-day cached results first | Free |
+| **2. Perplexity AI** | Real-time search | Searches the web for current company information | Included |
+| **3. Firecrawl** | Web scraping | Structured extraction from company websites | Included |
+| **4. Multi-AI** | Claude, Gemini, Grok | Aggregates insights from multiple AI models | Included |
+| **5. Paid Fallbacks** | PeopleDataLabs, Apollo | Traditional B2B data APIs for verified firmographics | Per-record |
+| **6. Hunter** | Email verification | Verifies email deliverability | Per-record |
 
 ## What Gets Enriched
 
 ### Company Data
 - Employee count & growth rate
 - Revenue estimates
-- Industry classification
+- Industry classification (normalized)
 - Technology stack
-- Funding history
-- Social profiles
+- Funding history & total raised
+- Social profiles (LinkedIn, Twitter, Facebook)
+- Business model classification
+- SIC/NAICS codes
 
 ### Contact Data
-- Email verification
-- Phone numbers
+- Email verification status
+- Phone numbers (direct dial, mobile)
 - Job titles & seniority
 - Department classification
+- LinkedIn profiles
 
-## Enrichment Priority
+## Smart Features
 
-LaunchPulse uses a smart cascade:
-1. Check existing data quality
-2. Try primary provider (based on field type)
-3. Fall back to secondary providers
-4. Cache results to reduce costs
+### Early Exit
+If 90% of fields are already populated after any stage, enrichment stops — saving time and cost.
+
+### Circuit Breakers
+Paid APIs (Apollo, PDL) have automatic circuit breakers. If a provider returns errors, it's temporarily bypassed.
+
+### Accuracy Validators
+Each enriched field includes a confidence score. Low-confidence data is flagged for review.
+
+### Custom Vertical Attributes
+Define custom enrichment fields (e.g., "bed_count" for healthcare) with AI-powered extraction prompts.
 
 ## Monitoring Costs
 
 Go to **Settings → Enrichment** to:
-- View credits used per provider
-- Set monthly spending caps
+- View credits used (tracked in your organization settings)
 - See enrichment coverage rates
-- Track cost per enriched account`,
-    keywords: ['data', 'sources', 'enrichment', 'clearbit', 'zoominfo', 'apollo', 'pdl', 'providers', 'enhance'],
+- Monitor job progress in real-time
+- Review source breakdown per job`,
+    keywords: ['data', 'sources', 'enrichment', 'perplexity', 'firecrawl', 'apollo', 'pdl', 'hunter', 'waterfall', 'providers', 'enhance', 'ai'],
     category: 'concepts',
     relatedPages: ['/data-upload', '/settings', '/accounts']
   },
@@ -338,9 +347,9 @@ Your command center for ICP performance and data health.
 **High/Medium/Low breakdown** of your database
 
 **Healthy distribution**: 
-- High: 15-25%
-- Medium: 25-35%
-- Low: 40-60%
+- High (A): 15-25%
+- Medium (B): 25-35%
+- Low (C): 40-60%
 
 ### Data Quality Score
 **Completeness** of your account data (0-100%)
@@ -357,13 +366,16 @@ Your command center for ICP performance and data health.
 
 **Use for**: Territory planning, expansion decisions
 
+### Growth KPIs
+Weekly growth trends for accounts, leads, and scoring coverage.
+
 ## Interactive Features
 
 🖱️ **Click any card** to drill down into details
 
 🔍 **Filter by ICP** to see segment-specific metrics
 
-📊 **Export data** for offline analysis
+📊 **Smart Insights Panel** for AI-generated recommendations
 
 ⚡ **Set alerts** for threshold notifications
 
@@ -376,8 +388,177 @@ Your command center for ICP performance and data health.
     category: 'concepts',
     relatedPages: ['/']
   },
+  {
+    id: 'intent-signals',
+    title: 'Intent Signals & Alerts',
+    description: 'How LaunchPulse detects buying signals and engagement patterns',
+    content: `# Intent Signals
+
+LaunchPulse automatically computes intent signals that identify which accounts are showing buying behavior or need attention.
+
+## Signal Types
+
+### 🚀 Engagement Velocity
+Detects accounts with increasing activity week-over-week. Uses activity data or score history as a proxy.
+- **Threshold**: 50%+ increase in engagement vs prior week
+- **Priority**: High if 200%+ increase
+
+### 🧵 Multi-Threading Gaps
+Identifies high-fit accounts where you only have 1 contact engaged — a single point of failure.
+- **Triggers on**: High-fit accounts with exactly 1 linked lead
+- **Priority**: High for companies with 500+ employees
+
+### 📊 Score Changes
+Alerts when accounts experience significant ICP score movements (up or down).
+- **Threshold**: 15+ point gain or 20+ point drop
+- **Priority**: Critical for 30+ point changes
+
+### 🎯 Coverage Gaps
+Flags high-fit accounts with no recent engagement in the last 30 days.
+- **Triggers on**: High-fit accounts with zero recent activity
+- **Priority**: High for accounts with high propensity scores
+
+## Computing Signals
+
+1. Navigate to the **Dashboard** or **Intent Signals** panel
+2. Click **Compute Signals** to run the analysis
+3. Signals are stored in \`account_signals\` and auto-expire after 7 days
+4. Dismiss or action signals as you work through them
+
+## Acting on Signals
+
+Each signal includes:
+- **Account name** and link
+- **Priority level** (critical, high, medium, low)
+- **Recommended action** (e.g., add contacts, launch campaign)
+- **Context metadata** (counts, percentages, trends)
+
+## Signal-to-Campaign Routing
+
+High-priority signals can be routed directly into the Campaign Builder:
+- Intent signals → ABM fuel line
+- Score changes → Enterprise sequence
+- Coverage gaps → Firmographic targeting`,
+    keywords: ['intent', 'signals', 'engagement', 'velocity', 'multi-thread', 'score change', 'coverage gap', 'alerts', 'buying signals'],
+    category: 'concepts',
+    relatedPages: ['/', '/accounts']
+  },
 
   // ==================== WORKFLOWS ====================
+  {
+    id: 'campaign-builder',
+    title: 'Campaign Builder V2',
+    description: 'Build segmented outreach campaigns with the 7-step wizard',
+    content: `# Campaign Builder V2
+
+The Campaign Builder guides you through creating targeted outreach campaigns in 7 steps.
+
+## The 7 Steps
+
+### 1. Setup
+- Name your campaign
+- Select a **Fuel Line type**:
+  - **ABM**: Named accounts from signals/manual selection
+  - **Technographic**: Accounts using specific tech stack
+  - **Firmographic**: Industry + size + geography targeting
+  - **Persona**: Job title + seniority first approach
+
+### 2. Targeting
+- Set account filters (industry, size, geography, fit score)
+- Filters auto-configure based on Fuel Line type
+
+### 3. Sequence
+- Choose from templates: Enterprise, SMB, Partner
+- Customize email steps and timing
+
+### 4. Persona
+- Define target job titles and seniority
+- Set max contacts per account (2-3 recommended)
+
+### 5. Data Source
+- Select which accounts to include
+- Apply suppression lists (global or per-campaign)
+
+### 6. Preview
+- Review account count and contact count
+- See fit score distribution
+- Verify suppression exclusions
+
+### 7. Export
+- Download CSV or sync to CRM
+- Campaign saved with metadata for tracking
+
+## Fuel Line Types
+
+Each fuel line auto-configures targeting defaults:
+
+| Fuel Line | Best For | Auto-Config |
+|-----------|----------|-------------|
+| ABM | Signal-triggered accounts | Enterprise sequence, pre-loaded accounts |
+| Technographic | Tech-stack based targeting | Filters by tech_stack column |
+| Firmographic | Industry/size/geo targeting | Sets employee/revenue ranges |
+| Persona | Title-first targeting | Leads with persona filters first |
+
+## Best Practices
+
+✅ **Quality over quantity** - 100 high-fit > 1000 low-fit
+
+✅ **Include multiple personas** - Decision maker + influencer
+
+✅ **A/B test segments** - Compare different fuel line types
+
+✅ **Track outcomes** - Import results to optimize ICP`,
+    keywords: ['campaign', 'builder', 'wizard', 'fuel line', 'abm', 'technographic', 'firmographic', 'persona', 'sequence', 'export'],
+    category: 'workflows',
+    relatedPages: ['/campaigns']
+  },
+  {
+    id: 'list-builder',
+    title: 'Using the List Builder',
+    description: 'Search, filter, and export targeted account lists',
+    content: `# List Builder
+
+The List Builder provides a powerful search and filter interface for building targeted lists.
+
+## Search Capabilities
+
+### Company Filters
+- **Name/Domain search**: Free text search across accounts
+- **Industry**: Filter by normalized industry
+- **Employee Count**: Min/max ranges
+- **Revenue Range**: Revenue band filtering
+- **Geography**: Country, state, city
+- **Tech Stack**: Filter by technologies used
+
+### Fit Score Filtering
+- **Band A** (70-100): High-fit accounts
+- **Band B** (40-69): Medium-fit accounts
+- **Band C** (0-39): Low-fit accounts
+
+### Contact Filters
+- Job title search
+- Seniority level
+- Department
+
+## Working with Results
+
+### Score Columns
+Results display fit_score, overall_score, and intent_score alongside account data.
+
+### Export
+Click **Export CSV** to download your filtered results with all columns including scores.
+
+## Tips
+
+💡 Combine fit score bands with industry filters for targeted segments
+
+💡 Use the List Builder before campaigns to validate your targeting
+
+💡 Export results to share with your sales team`,
+    keywords: ['list', 'builder', 'search', 'filter', 'export', 'accounts', 'score', 'band'],
+    category: 'workflows',
+    relatedPages: ['/list-builder']
+  },
   {
     id: 'build-campaign',
     title: 'Building Campaign Lists',
@@ -436,61 +617,6 @@ Click **Build Campaign**:
     keywords: ['campaign', 'build', 'export', 'target', 'list', 'accounts', 'filter', 'outreach'],
     category: 'workflows',
     relatedPages: ['/accounts', '/leads']
-  },
-  {
-    id: 'crm-integration',
-    title: 'CRM Integration Setup',
-    description: 'Connect Salesforce or HubSpot in minutes',
-    content: `# CRM Integration
-
-Sync LaunchPulse data bi-directionally with your CRM.
-
-## Salesforce Setup
-
-1. Go to **Settings → Integrations**
-2. Click **Connect Salesforce**
-3. Log in and authorize LaunchPulse
-4. Map fields:
-   - Account → Account
-   - Contact → Lead
-   - Fit Score → Custom field
-5. Choose sync frequency (hourly/daily)
-6. Enable sync
-
-## HubSpot Setup
-
-1. Go to **Settings → Integrations**
-2. Click **Connect HubSpot**
-3. Authorize in HubSpot
-4. Select properties to sync
-5. Set sync schedule
-6. Activate
-
-## What Syncs
-
-| LaunchPulse | CRM |
-|-------------|-----|
-| Accounts | Accounts/Companies |
-| Leads | Contacts/Leads |
-| Fit Scores | Custom property |
-| ICP Segment | Custom property |
-| Enriched data | Mapped fields |
-
-## Sync Modes
-
-**One-way (LP → CRM)**: Safe, recommended to start
-**Bi-directional**: Updates flow both ways
-
-## Troubleshooting
-
-⚠️ **Sync failed**: Check API permissions
-
-⚠️ **Missing records**: Verify field mappings
-
-⚠️ **Duplicates**: Enable deduplication rules`,
-    keywords: ['crm', 'integration', 'salesforce', 'hubspot', 'sync', 'connect', 'setup'],
-    category: 'workflows',
-    relatedPages: ['/settings']
   },
   {
     id: 'closed-won-analysis',
@@ -564,7 +690,7 @@ Powerful filters to slice your data any way you need.
 ### ICP & Scoring
 - ICP Segment
 - Fit Score (slider or ranges)
-- High/Medium/Low buckets
+- High/Medium/Low buckets (A/B/C bands)
 
 ### Firmographics
 - Industry (hierarchical)
@@ -626,7 +752,7 @@ Speed up your workflow with these shortcuts.
 
 | Shortcut | Action |
 |----------|--------|
-| \`Cmd/Ctrl + K\` | Command palette |
+| \`Cmd/Ctrl + K\` | AI Chat / Command palette |
 | \`Cmd/Ctrl + /\` | Open help |
 | \`Cmd/Ctrl + ,\` | Settings |
 | \`Esc\` | Close dialogs |
@@ -736,7 +862,7 @@ Your criteria exclude most accounts.
 Accounts lack info needed for scoring.
 
 **Solution**:
-- Enable auto-enrichment
+- Run Smart Enrichment to fill data gaps
 - Upload more complete data
 - Wait for enrichment to complete
 
@@ -765,7 +891,7 @@ Your accounts aren't in your target market.
 
 ## Quick Wins
 
-⚡ Enable enrichment for missing firmographics
+⚡ Run enrichment for missing firmographics
 
 ⚡ Loosen 1-2 criteria and re-score
 
@@ -780,106 +906,63 @@ Your accounts aren't in your target market.
     description: 'Fixing data enrichment problems',
     content: `# Enrichment Troubleshooting
 
-## Check API Configuration
+## Understanding Enrichment Results
 
-1. Go to **Settings → Enrichment**
-2. Verify API keys are entered
-3. Click **Test Connection** for each provider
-4. Check remaining credits/quota
+When you run enrichment, records can have three outcomes:
+
+### ✅ Newly Enriched
+The waterfall found and added new data. Credits are deducted.
+
+### ⏭️ Already Complete
+The record already had 90%+ field coverage. The waterfall exits early — no credits used. This shows as "0 enriched" but is actually a good outcome.
+
+### ❌ Failed
+The waterfall couldn't find data from any provider. Common for small/new companies.
 
 ## Common Issues
 
-### "Enrichment stuck on pending"
-**Causes**: Rate limits, queue backlog
-**Fix**: Check rate limit settings, wait for queue to clear
+### "Enrichment shows 0 enriched"
+**Most likely cause**: Records are already enriched from prior runs. Check the "already complete" count.
+**Alternative cause**: Domain not found in any provider database.
 
-### "No data returned"
-**Causes**: Domain not in provider databases
-**Fix**: Try alternative providers, manually add critical data
+### "Enrichment stuck or slow"
+**Cause**: The 6-stage waterfall calls multiple AI providers sequentially. Each record can take 10-25 seconds.
+**Fix**: Reduce batch size or wait for completion. Jobs auto-pause at timeout and can be resumed.
 
 ### "Costs higher than expected"
-**Causes**: Auto-enrichment too aggressive
+**Cause**: Apollo and PDL stages use per-record pricing.
 **Fix**: 
-- Enrich only high-priority accounts
-- Use free tier first
+- Enable \`skipPaidProviders\` to use only free AI stages
 - Set monthly spending caps
+- Enrich only high-fit accounts first
 
 ### "Stale data"
-**Causes**: Cached from old enrichment
-**Fix**: Force re-enrichment in account settings
+**Cause**: Cached from old enrichment (30-day cache window)
+**Fix**: Force re-enrichment with \`forceAllStages: true\`
 
-## Provider Priority
+## Enrichment Waterfall Order
 
 LaunchPulse enriches in this order:
-1. Clearbit (free tier first)
-2. ZoomInfo (if configured)
-3. Apollo (if credits available)
-4. PDL (fallback)
+1. **Cache** (30-day lookback, free)
+2. **Perplexity AI** (real-time web search)
+3. **Firecrawl** (structured web scraping)
+4. **Multi-AI** (Claude, Gemini, Grok aggregation)
+5. **PeopleDataLabs** (if configured, per-record)
+6. **Apollo** (if configured, per-record)
+7. **Hunter** (email verification, per-record)
 
 ## Cost Optimization
 
-💰 Start with Clearbit free tier
+💰 AI stages (Perplexity, Firecrawl, Multi-AI) are included in your plan
 
-💰 Enrich in batches, not real-time
+💰 Paid stages (PDL, Apollo, Hunter) use per-record credits
 
-💰 Set spending caps per provider
+💰 Early-exit at 90% coverage saves unnecessary API calls
 
-💰 Focus on high-fit accounts first`,
-    keywords: ['enrichment', 'not working', 'api', 'key', 'stuck', 'pending', 'error', 'cost', 'credits'],
+💰 Focus on high-fit accounts first for best ROI`,
+    keywords: ['enrichment', 'not working', 'api', 'stuck', 'pending', 'error', 'cost', 'credits', 'waterfall', 'perplexity', 'firecrawl'],
     category: 'troubleshooting',
     relatedPages: ['/settings', '/accounts']
-  },
-  {
-    id: 'sync-failures',
-    title: 'CRM Sync Problems',
-    description: 'Resolving sync errors with Salesforce and HubSpot',
-    content: `# CRM Sync Troubleshooting
-
-## Check Sync Status
-
-1. Go to **Settings → Integrations**
-2. View sync history and errors
-3. Check last successful sync time
-
-## Common Errors
-
-### "Authentication failed"
-**Cause**: Token expired or revoked
-**Fix**: Disconnect and reconnect CRM
-
-### "Field mapping error"
-**Cause**: CRM field deleted or renamed
-**Fix**: Update field mappings in settings
-
-### "Rate limit exceeded"
-**Cause**: Too many API calls
-**Fix**: Reduce sync frequency, sync smaller batches
-
-### "Record not found"
-**Cause**: Record deleted in CRM
-**Fix**: Run reconciliation to clean up
-
-### "Duplicate detected"
-**Cause**: Multiple records with same domain
-**Fix**: Enable deduplication rules
-
-## Sync Modes
-
-**Full Sync**: Re-sync all records (hourly limit)
-**Incremental**: Only changed records (recommended)
-
-## Best Practices
-
-✅ Start with one-way sync (LP → CRM)
-
-✅ Test with small segment first
-
-✅ Monitor sync logs weekly
-
-✅ Set up error notifications`,
-    keywords: ['sync', 'crm', 'error', 'salesforce', 'hubspot', 'failed', 'authentication', 'mapping'],
-    category: 'troubleshooting',
-    relatedPages: ['/settings']
   },
 
   // ==================== FAQ ====================
@@ -901,14 +984,14 @@ Your data security is our top priority.
 - API keys encrypted and hashed
 
 ### Access Control
-- Role-based permissions
-- SSO/SAML support
+- Role-based permissions (Owner, Admin, Member, Viewer)
+- Row-Level Security (RLS) on all database tables
 - Audit logging for all actions
 
 ### Infrastructure
-- SOC 2 Type II compliant hosting
+- Hosted on Supabase (SOC 2 compliant)
 - Automatic backups (daily)
-- 99.9% uptime SLA
+- Edge functions run in isolated containers
 
 ### Compliance
 - GDPR compliant
@@ -936,36 +1019,38 @@ Contact security@launchpulse.com`,
     description: 'Understanding LaunchPulse pricing',
     content: `# Pricing Overview
 
+## Credit-Based Model
+
+LaunchPulse uses a credit-based system for enrichment and AI operations.
+
+### Enrichment Credits
+Your organization has an allocated pool of enrichment credits:
+- Credits are deducted when the waterfall successfully enriches a record with new data
+- Records that are already complete (cache hits) don't consume credits
+- AI-only stages (Perplexity, Firecrawl, Multi-AI) are included
+- Paid provider stages (PDL, Apollo, Hunter) use additional per-record credits
+
+### Credit Tracking
+View your credit usage in **Settings → Organization**:
+- Credits used vs total allocated
+- Usage trends over time
+- Per-job credit breakdown
+
 ## Plans
 
-### Starter
-- Up to 10,000 accounts
-- 2 ICPs
-- Basic enrichment
-- Email support
-
 ### Professional
-- Up to 100,000 accounts
+- Configurable account limits
 - Unlimited ICPs
-- Advanced enrichment
-- CRM integrations
-- Priority support
+- Full enrichment waterfall
+- AI Chat & Intent Signals
+- Campaign Builder
 
 ### Enterprise
 - Unlimited accounts
 - Custom integrations
 - Dedicated success manager
 - SLA guarantees
-- SSO/SAML
-
-## Enrichment Credits
-
-Enrichment is usage-based:
-- Clearbit: $0.05/account
-- ZoomInfo: $0.10/account
-- Apollo: $0.08/account
-
-Monthly caps available to control spending.
+- Custom AI agent configurations
 
 ## Questions?
 
@@ -980,35 +1065,27 @@ Contact sales@launchpulse.com for custom pricing.`,
     description: 'Campaign export limitations',
     content: `# Export Limits
 
-## By Plan
-
-| Plan | Accounts/Export | Contacts/Export | Exports/Month |
-|------|-----------------|-----------------|---------------|
-| Starter | 1,000 | 3,000 | 10 |
-| Professional | 10,000 | 30,000 | Unlimited |
-| Enterprise | Unlimited | Unlimited | Unlimited |
-
 ## Format Options
 
 All plans support:
 - CSV download
-- Direct CRM sync
-- Outreach platform integration
-
-## Tips for Large Exports
-
-If you need to export more than your limit:
-
-1. **Segment your list** - Export in batches by region or fit score
-2. **Use CRM sync** - Sync doesn't count against export limits
-3. **Upgrade plan** - Contact sales for higher limits
+- Direct CRM sync (Salesforce, HubSpot)
+- Campaign Builder export
 
 ## Export History
 
 View all exports in **Settings → Export History**:
 - Date and time
 - Number of records
-- Download link (7 days)`,
+- Campaign name and fuel line type
+
+## Tips for Large Exports
+
+If you need to export a large dataset:
+
+1. **Segment your list** - Export in batches by region or fit score band
+2. **Use CRM sync** - Sync doesn't count against export limits
+3. **Use the Campaign Builder** - Includes deduplication and suppression`,
     keywords: ['export', 'limit', 'download', 'campaign', 'maximum', 'restriction'],
     category: 'faq',
     relatedPages: ['/accounts', '/settings']
@@ -1092,14 +1169,14 @@ Create 2-3 tiers:
 ## Maintenance Routines
 
 ### Weekly
-- Review enrichment failures
-- Check sync error logs
+- Review enrichment job results
+- Check for failed enrichments
 - Spot-check new records
 
 ### Monthly
-- Run duplicate detection
+- Run account merge/dedup
 - Identify stale accounts
-- Review data quality scores
+- Review data quality on Dashboard
 
 ### Quarterly
 - Full database audit
@@ -1108,11 +1185,11 @@ Create 2-3 tiers:
 
 ## Quick Wins
 
-⚡ Enable auto-enrichment for new records
+⚡ Enable auto-enrichment for new records via AI Agents
 
 ⚡ Set up validation rules on upload
 
-⚡ Create data quality alerts
+⚡ Use intent signals to flag stale high-fit accounts
 
 ⚡ Standardize field formats`,
     keywords: ['data', 'quality', 'clean', 'accuracy', 'maintenance', 'hygiene', 'duplicates'],
@@ -1135,15 +1212,16 @@ Create 2-3 tiers:
 ## Account Selection
 
 ### Fit Score Thresholds
-- **ABM campaigns**: 80+ fit score
-- **Demand gen**: 70+ fit score
-- **Nurture**: 60+ fit score
+- **ABM campaigns**: 70+ fit score (Band A)
+- **Demand gen**: 40+ fit score (Band B+)
+- **Nurture**: All scored accounts
 
-### Diversity Matters
-Include a mix of:
-- Company sizes
-- Geographies
-- Sub-industries
+### Fuel Line Selection
+Match your data signal to the right fuel line:
+- **Intent signals** → ABM
+- **Tech stack match** → Technographic
+- **Industry/size fit** → Firmographic
+- **Title-first** → Persona
 
 ## Contact Selection
 
@@ -1167,7 +1245,7 @@ Focus on titles that:
 📊 Feed outcomes back to LaunchPulse
 
 📊 Refine ICP based on results`,
-    keywords: ['campaign', 'success', 'convert', 'best practice', 'outreach', 'abm'],
+    keywords: ['campaign', 'success', 'convert', 'best practice', 'outreach', 'abm', 'fuel line'],
     category: 'best-practices',
     relatedPages: ['/accounts', '/leads']
   },
@@ -1191,7 +1269,7 @@ Access your AI assistant anytime with **Cmd/Ctrl + K** or click the chat icon.
 ### Actions
 - "Create a campaign with top 50 high-fit accounts"
 - "Score these new accounts against my ICP"
-- "Export accounts with fit score above 80"
+- "Export accounts with fit score above 70"
 
 ### Analysis
 - "Why is Acme Corp a high-fit account?"
@@ -1213,6 +1291,13 @@ Access your AI assistant anytime with **Cmd/Ctrl + K** or click the chat icon.
 
 💡 **Request formats**: "Give me a table of..." or "Summarize the key points"
 
+## AI Memory
+
+The AI learns your preferences over time:
+- Preferred report formats
+- Common queries and shortcuts
+- Organization-specific context
+
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
@@ -1221,7 +1306,7 @@ Access your AI assistant anytime with **Cmd/Ctrl + K** or click the chat icon.
 | Escape | Close chat |
 | Enter | Send message |
 | Shift + Enter | New line |`,
-    keywords: ['ai', 'chat', 'assistant', 'natural language', 'ask', 'question', 'cmd k', 'search'],
+    keywords: ['ai', 'chat', 'assistant', 'natural language', 'ask', 'question', 'cmd k', 'search', 'memory'],
     category: 'concepts',
     relatedPages: ['/']
   },
@@ -1238,7 +1323,7 @@ AI Agents automate repetitive tasks in the background, saving you hours of manua
 ### Enrichment Agent
 Automatically enriches new accounts as they're added.
 - Triggers: New account upload, CRM sync
-- Actions: Fetch firmographics, tech stack, contacts
+- Actions: Runs 6-stage enrichment waterfall
 
 ### Scoring Agent
 Keeps fit scores up-to-date as data changes.
@@ -1248,7 +1333,7 @@ Keeps fit scores up-to-date as data changes.
 ### Monitoring Agent
 Watches for important changes in your data.
 - Triggers: Scheduled (daily/weekly)
-- Actions: Detect anomalies, send alerts
+- Actions: Compute intent signals, send alerts
 
 ### Cleanup Agent
 Maintains data quality automatically.
@@ -1266,6 +1351,14 @@ Maintains data quality automatically.
    - Notifications (email, in-app)
 5. Enable and save
 
+## Agent Registry
+
+The Agent Registry tracks:
+- Agent health scores
+- Success rates and latency
+- Total invocations
+- Last error details
+
 ## Monitoring Agents
 
 View agent activity in the **Agent Runs** panel:
@@ -1273,6 +1366,7 @@ View agent activity in the **Agent Runs** panel:
 - Records processed
 - Errors encountered
 - Run duration
+- Live progress metrics
 
 ## Best Practices
 
@@ -1283,75 +1377,81 @@ View agent activity in the **Agent Runs** panel:
 🤖 **Review regularly**: Check agent logs weekly
 
 🤖 **Adjust scope**: Narrow agents if they run too long`,
-    keywords: ['ai', 'agents', 'automation', 'background', 'enrichment', 'scoring', 'monitoring', 'schedule'],
+    keywords: ['ai', 'agents', 'automation', 'background', 'enrichment', 'scoring', 'monitoring', 'schedule', 'registry'],
     category: 'workflows',
     relatedPages: ['/ai-agents', '/settings']
   },
   {
     id: 'ai-enrichment',
     title: 'AI-Powered Enrichment',
-    description: 'How AI enhances your data beyond traditional providers',
+    description: 'How the Smart Enrichment Waterfall enhances your data',
     content: `# AI-Powered Enrichment
 
-Beyond traditional data providers, LaunchPulse uses AI to enrich accounts with insights that APIs can't provide.
+LaunchPulse uses a unique 6-stage waterfall that combines AI search, web scraping, and traditional data providers.
 
 ## How It Works
 
-### 1. Web Intelligence
-AI searches and analyzes:
-- Company websites
-- News articles
-- Press releases
-- Job postings
-- Social media
+### 1. Perplexity AI (Real-Time Search)
+AI searches the web for current company information:
+- Company websites, news, press releases
+- Job postings and hiring patterns
+- Social media presence
+- Recent announcements
 
-### 2. Pattern Recognition
-Identifies signals like:
-- Growth indicators
-- Technology adoption
-- Hiring patterns
-- Expansion plans
+### 2. Firecrawl (Structured Web Scraping)
+Extracts structured data from company websites:
+- Employee information
+- Product offerings
+- Technology indicators
+- Contact details
 
-### 3. Synthesis
-Combines findings into:
+### 3. Multi-AI Aggregation
+Combines insights from Claude, Gemini, and Grok:
+- Cross-validates findings
+- Fills gaps from different perspectives
 - Business model classification
-- Buying stage estimation
-- Risk indicators
+- Growth stage estimation
+
+### 4. Paid Provider Fallbacks
+Traditional B2B data APIs for verified firmographics:
+- **PeopleDataLabs**: Company data, contacts
+- **Apollo**: Email discovery, org charts
+
+### 5. Hunter (Email Verification)
+Verifies email deliverability for discovered contacts.
 
 ## AI vs Traditional Enrichment
 
 | Aspect | Traditional | AI-Powered |
 |--------|-------------|------------|
-| Source | API databases | Web + AI analysis |
-| Data age | Quarterly updates | Real-time |
-| Coverage | Structured fields | Unstructured insights |
-| Cost | Per-record | Included |
+| Source | Static API databases | Real-time web + AI analysis |
+| Data age | Quarterly updates | Current as of search time |
+| Coverage | Structured fields only | Structured + unstructured insights |
+| Custom fields | Not supported | Custom prompts for vertical data |
 
 ## Confidence Scoring
 
 Each AI-enriched field includes a confidence score:
-- **90-100%**: Very reliable, multiple sources
+- **90-100%**: Very reliable, multiple sources agree
 - **70-89%**: Likely accurate, some verification
 - **50-69%**: Possible, needs review
 - **<50%**: Low confidence, treat as suggestion
 
-## Enabling AI Enrichment
+## Custom Vertical Attributes
 
-1. Go to **Settings → Enrichment**
-2. Toggle **AI Enrichment** on
-3. Choose fields to enhance:
-   - Business model
-   - Tech signals
-   - Growth indicators
-4. Set enrichment priority
+Define custom enrichment fields for your industry:
+1. Go to **Settings → Custom Attributes**
+2. Define a field (e.g., "bed_count" for healthcare)
+3. Write an enrichment prompt
+4. AI will extract this data during enrichment
 
 ## Reviewing Results
 
-AI-enriched fields are marked with a ✨ icon. Click to see:
-- Source citations
-- Confidence score
-- Enrichment date`,
-    keywords: ['ai', 'enrichment', 'intelligence', 'signals', 'confidence', 'web', 'analysis', 'insights'],
+AI-enriched fields are marked with confidence indicators. Check the enrichment job details for:
+- Source breakdown (which provider found which field)
+- Confidence per field
+- Cost per record`,
+    keywords: ['ai', 'enrichment', 'intelligence', 'signals', 'confidence', 'web', 'analysis', 'insights', 'waterfall', 'perplexity', 'firecrawl'],
     category: 'concepts',
     relatedPages: ['/accounts', '/settings']
   },
@@ -1392,13 +1492,14 @@ Navigate to **Leads** to see all contacts:
 ## Lead-to-Account Matching
 
 LaunchPulse automatically links leads to accounts by:
-1. Email domain matching
-2. Company name fuzzy matching
-3. Manual override option
+1. **Email domain matching** (e.g., jane@acme.com → acme.com)
+2. **Website/domain matching**
+3. **Company name matching** (creates new accounts if needed)
+
+The \`bulk_match_all_leads\` function runs in batches of 2,000 leads, creating accounts with firmographic data from leads when no matching account exists.
 
 ### Unmatched Leads
 If a lead can't be matched:
-- Appears in "Orphan Leads" list
 - Can create new account from lead
 - Can manually assign to existing account
 
@@ -1427,74 +1528,6 @@ Leads receive scores based on:
     category: 'quickstart',
     relatedPages: ['/leads', '/accounts']
   },
-  {
-    id: 'lead-scoring',
-    title: 'Lead Scoring Explained',
-    description: 'How individual lead scores are calculated',
-    content: `# Lead Scoring
-
-Each lead receives a score that combines account fit with individual relevance.
-
-## Score Components
-
-### 1. Account Fit (60%)
-Inherited from the associated account:
-- If account is 80 fit → Lead starts at 48
-- Ensures you focus on leads at good accounts
-
-### 2. Persona Match (25%)
-How well the lead matches your target personas:
-- Title alignment (+10)
-- Seniority level (+8)
-- Department match (+7)
-
-### 3. Data Quality (15%)
-Contact information reliability:
-- Verified email (+8)
-- Direct phone (+4)
-- LinkedIn profile (+3)
-
-## Score Calculation
-
-\`\`\`
-Lead Score = (Account Fit × 0.6) + (Persona × 0.25) + (Quality × 0.15)
-\`\`\`
-
-## Example
-
-**Lead**: Jane Doe, VP Sales at Acme Corp
-
-| Component | Value | Weighted |
-|-----------|-------|----------|
-| Account Fit | 85 | 51 |
-| Persona Match | 90 | 22.5 |
-| Data Quality | 80 | 12 |
-| **Total** | | **85.5** |
-
-## Using Lead Scores
-
-### Campaign Prioritization
-- Score 80+: Priority outreach
-- Score 60-79: Secondary list
-- Score <60: Nurture only
-
-### Sales Handoff
-Only pass leads with:
-- Score 70+
-- Verified contact info
-- At high-fit accounts
-
-## Improving Scores
-
-📈 **Enrich accounts**: Better account data improves all lead scores
-
-📈 **Verify emails**: Clean contact data boosts quality score
-
-📈 **Refine personas**: Align personas with your best buyers`,
-    keywords: ['lead', 'score', 'scoring', 'persona', 'calculation', 'priority', 'quality'],
-    category: 'concepts',
-    relatedPages: ['/leads', '/icp-manager']
-  },
 
   // ==================== SETTINGS & ADMIN ====================
   {
@@ -1511,7 +1544,6 @@ Access settings via the gear icon in the sidebar.
 - Update name and email
 - Change password
 - Set timezone
-- Upload avatar
 
 ### Notifications
 - Email digest frequency
@@ -1524,14 +1556,12 @@ Access settings via the gear icon in the sidebar.
 ### General
 - Workspace name
 - Default ICP
-- Date format
-- Number format
+- Branded configuration
 
 ### Team Management
 - Invite users
 - Set roles (Admin, Member, Viewer)
 - Remove users
-- Transfer ownership
 
 ### API Keys
 - Generate API keys
@@ -1541,17 +1571,11 @@ Access settings via the gear icon in the sidebar.
 
 ## Integration Settings
 
-### CRM
-- Salesforce connection
-- HubSpot connection
-- Sync frequency
-- Field mappings
-
 ### Enrichment
-- Provider priorities
-- Spending caps
-- AI enrichment toggle
-- Credit balance
+- View credit balance and usage
+- Monitor enrichment jobs
+- Configure custom attribute definitions
+- Set enrichment preferences
 
 ### Webhooks
 - Outbound webhooks
@@ -1578,7 +1602,7 @@ Access settings via the gear icon in the sidebar.
 |---------|------|
 | Profile | Settings → Profile |
 | Team | Settings → Team |
-| Integrations | Settings → Integrations |
+| Enrichment | Settings → Enrichment |
 | API | Settings → API Keys |`,
     keywords: ['settings', 'configuration', 'profile', 'workspace', 'team', 'api', 'integrations'],
     category: 'workflows',
@@ -1593,13 +1617,6 @@ Access settings via the gear icon in the sidebar.
 Control what team members can see and do in LaunchPulse.
 
 ## Role Types
-
-### Owner
-Full administrative control:
-- All Admin permissions
-- Transfer ownership
-- Delete workspace
-- Billing management
 
 ### Admin
 Manage workspace and users:
@@ -1626,15 +1643,14 @@ Read-only access:
 
 ## Permission Matrix
 
-| Action | Owner | Admin | Member | Viewer |
-|--------|-------|-------|--------|--------|
-| View data | ✅ | ✅ | ✅ | ✅ |
-| Edit accounts | ✅ | ✅ | ✅ | ❌ |
-| Build campaigns | ✅ | ✅ | ✅ | ❌ |
-| Export data | ✅ | ✅ | ✅ | ❌ |
-| Manage ICPs | ✅ | ✅ | ❌ | ❌ |
-| User management | ✅ | ✅ | ❌ | ❌ |
-| Billing | ✅ | ❌ | ❌ | ❌ |
+| Action | Admin | Member | Viewer |
+|--------|-------|--------|--------|
+| View data | ✅ | ✅ | ✅ |
+| Edit accounts | ✅ | ✅ | ❌ |
+| Build campaigns | ✅ | ✅ | ❌ |
+| Export data | ✅ | ✅ | ❌ |
+| Manage ICPs | ✅ | ❌ | ❌ |
+| User management | ✅ | ❌ | ❌ |
 
 ## Managing Roles
 
@@ -1651,12 +1667,6 @@ Read-only access:
 3. Select new role
 4. Confirm change
 
-### Remove User
-1. Find user in team list
-2. Click **Remove**
-3. Confirm removal
-4. User loses access immediately
-
 ## Best Practices
 
 👥 **Least privilege**: Start with Viewer, upgrade as needed
@@ -1664,7 +1674,7 @@ Read-only access:
 👥 **Multiple admins**: Have 2+ admins for continuity
 
 👥 **Regular audits**: Review access quarterly`,
-    keywords: ['roles', 'permissions', 'access', 'admin', 'member', 'viewer', 'owner', 'team', 'users'],
+    keywords: ['roles', 'permissions', 'access', 'admin', 'member', 'viewer', 'team', 'users'],
     category: 'concepts',
     relatedPages: ['/settings']
   },
@@ -1698,7 +1708,7 @@ Hold **Cmd/Ctrl** and click for individual selection.
 |--------|-------------|
 | **Add to Campaign** | Create campaign from selection |
 | **Re-score** | Recalculate fit scores |
-| **Enrich** | Trigger enrichment |
+| **Enrich** | Trigger Smart Enrichment waterfall |
 | **Export** | Download as CSV |
 | **Update Field** | Edit common fields |
 | **Archive** | Remove from active view |
@@ -1727,20 +1737,6 @@ Find and merge duplicate accounts:
 4. Click **Merge**
 5. Leads auto-transfer to merged account
 
-## Archiving vs Deleting
-
-### Archive
-- Removes from main view
-- Data preserved
-- Can restore anytime
-- Excluded from scoring
-
-### Delete
-- Permanent removal
-- Cannot be undone
-- Associated leads orphaned
-- Use with caution
-
 ## Performance Tips
 
 ⚡ **Large operations**: Operations on 1000+ records run in background
@@ -1756,54 +1752,5 @@ Find and merge duplicate accounts:
   }
 ];
 
-// Video tutorials
-export const videoTutorials: VideoTutorial[] = [
-  {
-    id: 'quickstart-overview',
-    title: 'LaunchPulse in 5 Minutes',
-    description: 'A quick tour of the platform and key features',
-    duration: '5:00',
-    videoUrl: 'https://launchpulse.com/tutorials/quickstart',
-    category: 'Getting Started'
-  },
-  {
-    id: 'icp-creation',
-    title: 'Creating Your First ICP',
-    description: 'Step-by-step walkthrough of ICP creation',
-    duration: '8:30',
-    videoUrl: 'https://launchpulse.com/tutorials/icp-creation',
-    category: 'Getting Started'
-  },
-  {
-    id: 'data-upload-guide',
-    title: 'Uploading & Mapping Data',
-    description: 'How to import your accounts and leads',
-    duration: '6:15',
-    videoUrl: 'https://launchpulse.com/tutorials/data-upload',
-    category: 'Getting Started'
-  },
-  {
-    id: 'campaign-building',
-    title: 'Building High-Converting Campaigns',
-    description: 'Create targeted account lists for outreach',
-    duration: '10:00',
-    videoUrl: 'https://launchpulse.com/tutorials/campaigns',
-    category: 'Workflows'
-  },
-  {
-    id: 'crm-setup',
-    title: 'CRM Integration Setup',
-    description: 'Connect Salesforce or HubSpot in minutes',
-    duration: '7:45',
-    videoUrl: 'https://launchpulse.com/tutorials/crm-setup',
-    category: 'Integrations'
-  },
-  {
-    id: 'scoring-deep-dive',
-    title: 'Understanding Fit Scores',
-    description: 'How scoring works and how to optimize it',
-    duration: '12:00',
-    videoUrl: 'https://launchpulse.com/tutorials/scoring',
-    category: 'Concepts'
-  }
-];
+// Video tutorials - empty until real content is available
+export const videoTutorials: VideoTutorial[] = [];

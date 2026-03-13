@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export type IntentSignalType = 'engagement_velocity' | 'multi_thread' | 'score_change' | 'coverage_gap';
+export type IntentSignalType = 'engagement_velocity' | 'multi_thread' | 'score_change' | 'coverage_gap' | 'new_high_fit' | 'data_freshness';
 
 export interface IntentSignal {
   id: string;
@@ -28,6 +28,8 @@ interface IntentSignalsResult {
     multi_thread: number;
     score_change: number;
     coverage_gap: number;
+    new_high_fit: number;
+    data_freshness: number;
   };
   isLoading: boolean;
   isComputing: boolean;
@@ -45,13 +47,13 @@ export function useIntentSignals(orgId: string | undefined): IntentSignalsResult
   const { data, isLoading, error } = useQuery({
     queryKey: ['intent-signals', orgId],
     queryFn: async () => {
-      if (!orgId) return { signals: [], breakdown: { engagement_velocity: 0, multi_thread: 0, score_change: 0, coverage_gap: 0 } };
+      if (!orgId) return { signals: [], breakdown: { engagement_velocity: 0, multi_thread: 0, score_change: 0, coverage_gap: 0, new_high_fit: 0, data_freshness: 0 } };
 
       const { data: signals, error } = await supabase
         .from('account_signals')
         .select('*')
         .eq('org_id', orgId)
-        .in('signal_type', ['engagement_velocity', 'multi_thread', 'score_change', 'coverage_gap'])
+        .in('signal_type', ['engagement_velocity', 'multi_thread', 'score_change', 'coverage_gap', 'new_high_fit', 'data_freshness'])
         .is('dismissed_at', null)
         .is('actioned_at', null)
         .order('created_at', { ascending: false })
@@ -64,6 +66,8 @@ export function useIntentSignals(orgId: string | undefined): IntentSignalsResult
         multi_thread: 0,
         score_change: 0,
         coverage_gap: 0,
+        new_high_fit: 0,
+        data_freshness: 0,
       };
 
       for (const signal of signals || []) {
@@ -139,7 +143,7 @@ export function useIntentSignals(orgId: string | undefined): IntentSignalsResult
 
   return {
     signals: data?.signals || [],
-    breakdown: data?.breakdown || { engagement_velocity: 0, multi_thread: 0, score_change: 0, coverage_gap: 0 },
+    breakdown: data?.breakdown || { engagement_velocity: 0, multi_thread: 0, score_change: 0, coverage_gap: 0, new_high_fit: 0, data_freshness: 0 },
     isLoading,
     isComputing,
     error: error as Error | null,

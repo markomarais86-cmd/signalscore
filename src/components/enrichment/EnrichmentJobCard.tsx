@@ -282,13 +282,27 @@ export function EnrichmentJobCard({ job, onRefresh }: EnrichmentJobCardProps) {
             <Progress value={progress} className="h-2" />
           </div>
 
-          {/* Stats Row - Simplified for customers */}
+          {/* Stats Row - Distinguishes newly enriched vs already complete */}
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-4">
-              <span className="flex items-center gap-1 text-green-600">
-                <CheckCircle2 className="h-4 w-4" />
-                {job.enriched_records.toLocaleString()} updated
-              </span>
+              {job.enriched_records > 0 && (
+                <span className="flex items-center gap-1 text-green-600">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {job.enriched_records.toLocaleString()} newly enriched
+                </span>
+              )}
+              {job.processed_records > 0 && job.enriched_records === 0 && job.failed_records === 0 && (
+                <span className="flex items-center gap-1 text-blue-600">
+                  <CheckCircle2 className="h-4 w-4" />
+                  {job.processed_records.toLocaleString()} already complete
+                </span>
+              )}
+              {job.processed_records > job.enriched_records + job.failed_records && job.enriched_records > 0 && (
+                <span className="flex items-center gap-1 text-blue-600">
+                  <Zap className="h-4 w-4" />
+                  {(job.processed_records - job.enriched_records - job.failed_records).toLocaleString()} already complete
+                </span>
+              )}
               {job.failed_records > 0 && (
                 <span className="flex items-center gap-1 text-muted-foreground">
                   <XCircle className="h-4 w-4" />
