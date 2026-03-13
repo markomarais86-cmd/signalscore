@@ -136,16 +136,13 @@ export function AlertsConfiguration() {
 
   const openEdit = (alert: Alert) => {
     setEditingAlert(alert);
-    const channels = typeof alert.notification_channels === 'object' && alert.notification_channels
-      ? alert.notification_channels
-      : { slack: false, webhook: false, email: false, teams: false };
     setForm({
       name: alert.name,
       alert_type: alert.alert_type,
       threshold_value: alert.threshold_value,
       threshold_operator: alert.threshold_operator,
       is_active: alert.is_active,
-      notification_channels: channels,
+      notification_channels: alert.notification_channels,
       slack_webhook_url: alert.slack_webhook_url,
       webhook_url: alert.webhook_url,
       teams_webhook_url: alert.teams_webhook_url,
