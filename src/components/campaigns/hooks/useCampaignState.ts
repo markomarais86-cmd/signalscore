@@ -184,6 +184,7 @@ export function useCampaignState(insightContext?: InsightContext) {
     setState({
       step: 1,
       campaignName: "",
+      fuelLineType: 'firmographic',
       useICP: true,
       activeICP: null,
       filterCriteria: initialFilterCriteria,
