@@ -22,6 +22,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const { isCampaignBuilderOpen, closeCampaignBuilder, insightContext } = useCampaignContext();
+  useNotificationDispatcher();
 
   return (
     <SidebarProvider>
