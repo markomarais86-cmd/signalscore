@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRoles } from "@/hooks/use-roles";
 import { parseCSV, analyzeCrmExport, DueDiligenceReport } from "@/lib/due-diligence-engine";

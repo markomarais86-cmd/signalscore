@@ -1,14 +1,19 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useEffectiveOrg } from './use-effective-org';
+import { useRoles } from './use-roles';
 import { realtimeLogger as log } from '@/lib/logger';
 
 /**
  * Listens for high-priority signals, agent completions, and campaign results,
  * then dispatches matching alerts via the send-alert edge function.
+ * 
+ * Only activates for super_admin / org_admin roles to avoid
+ * unnecessary realtime subscriptions for regular users.
  */
 export function useNotificationDispatcher() {
   const { effectiveOrgId } = useEffectiveOrg();
+  const { isSuperAdmin, isOrgAdmin, loading: rolesLoading } = useRoles();
   const recentlyFired = useRef<Set<string>>(new Set());
 
   const fireMatchingAlerts = useCallback(async (
@@ -58,7 +63,8 @@ export function useNotificationDispatcher() {
 
   useEffect(() => {
     const orgId = effectiveOrgId;
-    if (!orgId) return;
+    // Skip subscriptions for non-admin users or while roles are loading
+    if (!orgId || rolesLoading || (!isSuperAdmin && !isOrgAdmin)) return;
 
     let mounted = true;
 
@@ -136,5 +142,5 @@ export function useNotificationDispatcher() {
       supabase.removeChannel(agentRunsCh);
       supabase.removeChannel(campaignsCh);
     };
-  }, [effectiveOrgId, fireMatchingAlerts]);
+  }, [effectiveOrgId, fireMatchingAlerts, isSuperAdmin, isOrgAdmin, rolesLoading]);
 }
