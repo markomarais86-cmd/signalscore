@@ -23,10 +23,13 @@ interface AccountWithScore {
 export function useCampaignData(
   filterCriteria: FilterCriteria,
   dataSource: 'all' | 'crm' | 'database',
-  useICP: boolean
+  useICP: boolean,
+  applySuppression: boolean = true
 ) {
   const { userProfile } = useAuth();
+  const { suppressedDomains, totalCount: suppressionRuleCount } = useSuppressionRules();
   const [previewData, setPreviewData] = useState<AccountWithScore[] | null>(null);
+  const [suppressedCount, setSuppressedCount] = useState(0);
   const [estimatedLeads, setEstimatedLeads] = useState(0);
   const [estimatedCost, setEstimatedCost] = useState(0);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
