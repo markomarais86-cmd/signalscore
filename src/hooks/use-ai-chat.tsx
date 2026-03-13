@@ -55,6 +55,9 @@ function parseActionFromResponse(content: string): { action: string; parameters:
   return null;
 }
 
+// Client-side actions that don't need the edge function router
+const CLIENT_ACTIONS = new Set(['navigate', 'open_campaign_builder', 'search_signals']);
+
 // Detect result type from action response
 function detectResultType(action: string, result: any): ChatMessage['resultType'] {
   if (!result) return undefined;
@@ -62,6 +65,11 @@ function detectResultType(action: string, result: any): ChatMessage['resultType'
   // Workflow actions
   if (result.isWorkflow || result.workflow_id) {
     return 'workflow';
+  }
+  
+  // Signal search returns accounts-like data
+  if (action === 'search_signals') {
+    return 'insights';
   }
   
   // Search actions
