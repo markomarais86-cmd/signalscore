@@ -47,7 +47,7 @@ export function useIntentSignals(orgId: string | undefined): IntentSignalsResult
   const { data, isLoading, error } = useQuery({
     queryKey: ['intent-signals', orgId],
     queryFn: async () => {
-      if (!orgId) return { signals: [], breakdown: { engagement_velocity: 0, multi_thread: 0, score_change: 0, coverage_gap: 0 } };
+      if (!orgId) return { signals: [], breakdown: { engagement_velocity: 0, multi_thread: 0, score_change: 0, coverage_gap: 0, new_high_fit: 0, data_freshness: 0 } };
 
       const { data: signals, error } = await supabase
         .from('account_signals')
