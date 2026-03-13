@@ -146,7 +146,7 @@ export function AlertsConfiguration() {
       notification_channels: form.notification_channels || {},
       slack_webhook_url: form.slack_webhook_url || null,
       webhook_url: form.webhook_url || null,
-      teams_webhook_url: (form as any).teams_webhook_url || null,
+      teams_webhook_url: form.teams_webhook_url || null,
       email_recipients: form.email_recipients || [],
       org_id: effectiveOrgId,
     };
