@@ -175,12 +175,15 @@ export function useEnrichedLeads(options: UseEnrichedLeadsOptions) {
       if (error) throw error;
 
       // Map database rows to our interface
-      const leads = ((data || []) as unknown as EnrichedLead[]).map(row => ({
-        ...row,
-        seniority_level: (row as any).seniority_level || (row as any).seniority || null,
-        department_category: (row as any).department_category || (row as any).department || null
-      }));
-      const newCursor = leads.length > 0 ? (leads[leads.length - 1] as any)[sortField] : null;
+      const leads = ((data || []) as unknown as EnrichedLead[]).map(row => {
+        const r = row as Record<string, unknown>;
+        return {
+          ...row,
+          seniority_level: (r.seniority_level as string) || (r.seniority as string) || null,
+          department_category: (r.department_category as string) || (r.department as string) || null,
+        };
+      });
+      const newCursor = leads.length > 0 ? String((leads[leads.length - 1] as Record<string, unknown>)[sortField] ?? '') : null;
 
       setState(prev => ({
         leads: loadMore ? [...prev.leads, ...leads] : leads,
