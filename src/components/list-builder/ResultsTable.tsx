@@ -252,6 +252,23 @@ export function ResultsTable({
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
+                      {r.overall_score > 0 ? (
+                        <Badge
+                          className={`text-xs ${
+                            r.fit_score >= 70
+                              ? "bg-[hsl(var(--signal-high))] text-white"
+                              : r.fit_score >= 40
+                              ? "bg-[hsl(var(--signal-medium))] text-black"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {r.fit_score}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
                       <Badge variant="secondary" className="text-xs">
                         {r.lead_count}
                       </Badge>
@@ -259,7 +276,7 @@ export function ResultsTable({
                   </TableRow>
                   {expandedIds.has(r.account_id) && (
                     <TableRow key={`${r.account_id}-leads`}>
-                      <TableCell colSpan={8} className="p-0 bg-muted/30">
+                      <TableCell colSpan={9} className="p-0 bg-muted/30">
                         <ExpandedLeads externalId={r.external_id} />
                       </TableCell>
                     </TableRow>
