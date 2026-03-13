@@ -140,7 +140,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     topResults?: any[];
   }>({});
   const [activeWorkflow, setActiveWorkflow] = useState<WorkflowStatus | null>(null);
-  const workflowPollRef = useRef<NodeJS.Timeout | null>(null);
+  const workflowPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Helper to get auth token with retry logic
   const getAuthToken = useCallback(async (): Promise<string | null> => {

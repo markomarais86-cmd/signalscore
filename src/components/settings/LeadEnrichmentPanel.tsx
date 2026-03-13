@@ -62,7 +62,7 @@ export function LeadEnrichmentPanel() {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Memoized refresh function
   const refreshData = useCallback(async () => {
