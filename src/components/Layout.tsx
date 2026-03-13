@@ -14,6 +14,7 @@ import { GlobalCommandPalette, CommandPaletteTrigger } from "@/components/Global
 import { OrgSwitcher, ImpersonationBanner } from "@/components/OrgSwitcher";
 import { GlobalAIAssistant } from "@/components/GlobalAIAssistant";
 import { useNotificationDispatcher } from "@/hooks/use-notification-dispatcher";
+import { FeatureErrorBoundary } from "@/components/FeatureErrorBoundary";
 
 interface LayoutProps {
   children: ReactNode;

@@ -7,6 +7,7 @@ import { ManagedUpgradeBanner } from "@/components/ManagedUpgradeBanner";
 import { useBrandedConfig } from "@/hooks/useBrandedConfig";
 import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useServiceType } from "@/hooks/use-service-type";
+import { FeatureErrorBoundary } from "@/components/FeatureErrorBoundary";
 
 interface CustomerLayoutProps {
   children: ReactNode;
