@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
 import type { DashboardMetricsCachedResult, DataCompletenessResult } from '@/types/supabase-rpc';
-import { unwrapRpcResult } from '@/types/supabase-rpc';
+import { unwrapRpcResult, callCustomRpc } from '@/types/supabase-rpc';
 
 const dashboardLogger = logger.scope('Dashboard');
 
