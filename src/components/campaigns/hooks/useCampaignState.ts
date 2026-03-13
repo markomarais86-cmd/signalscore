@@ -91,6 +91,22 @@ export function useCampaignState(insightContext?: InsightContext) {
     setState(prev => ({ ...prev, campaignName }));
   }, []);
 
+  const setFuelLineType = useCallback((fuelLineType: FuelLineType) => {
+    const config = FUEL_LINE_TYPES[fuelLineType];
+    setState(prev => ({
+      ...prev,
+      fuelLineType,
+      selectedTemplate: config.defaultTemplate,
+      sequenceSteps: SEQUENCE_TEMPLATES[config.defaultTemplate].steps,
+      filterCriteria: {
+        ...prev.filterCriteria,
+        managementLevels: config.defaultManagementLevels,
+        marketSegments: config.defaultMarketSegments,
+      },
+      dataSource: config.defaultDataSource,
+    }));
+  }, []);
+
   const setUseICP = useCallback((useICP: boolean) => {
     setState(prev => ({ ...prev, useICP }));
   }, []);
