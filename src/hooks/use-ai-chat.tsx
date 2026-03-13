@@ -238,6 +238,30 @@ export function useAIChat(options: UseAIChatOptions = {}) {
 
   const executeAction = useCallback(async (actionData: { action: string; parameters: Record<string, any> }) => {
     try {
+      // Handle client-side actions (no edge function needed)
+      if (actionData.action === 'navigate') {
+        const path = actionData.parameters?.path;
+        if (path && options.onNavigate) {
+          options.onNavigate(path);
+          toast.success(`Navigating to ${path}`);
+          return { action: 'navigate', success: true, result: { message: `Navigated to ${path}` } };
+        }
+        return { action: 'navigate', success: false, error: 'No navigation handler' };
+      }
+
+      if (actionData.action === 'open_campaign_builder') {
+        if (options.onOpenCampaignBuilder) {
+          options.onOpenCampaignBuilder(actionData.parameters || {});
+          toast.success('Opening Campaign Builder');
+          return { action: 'open_campaign_builder', success: true, result: { message: `Campaign Builder opened with ${actionData.parameters?.campaign_name || 'default'} configuration` } };
+        }
+        return { action: 'open_campaign_builder', success: false, error: 'Campaign builder not available' };
+      }
+
+      if (actionData.action === 'search_signals') {
+        return await executeSignalSearch(actionData.parameters);
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error('Please log in to execute actions');
