@@ -21,6 +21,8 @@ interface ExportOptions {
   previewData: any[] | null;
   estimatedLeads: number;
   duplicateEmails: Set<string>;
+  fuelLineType?: string;
+  signalSourceIds?: string[];
 }
 
 export function useCampaignExport() {
