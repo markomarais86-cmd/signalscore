@@ -47,11 +47,10 @@ export function useOrgSettings() {
       const current = settings || DEFAULTS;
       const merged = { ...current, ...updates };
 
-      // org_settings is a JSONB column; cast through unknown to satisfy strict types
-      const updatePayload: Record<string, unknown> = { org_settings: merged };
+      // org_settings is a JSONB column; use Json-compatible type
       const { error } = await supabase
         .from('organizations')
-        .update(updatePayload as typeof import('@/integrations/supabase/client').supabase extends { from(table: 'organizations'): { update(values: infer U): unknown } ? U : never } ? never : Record<string, unknown>)
+        .update({ org_settings: merged as unknown as Record<string, unknown> } as unknown as Parameters<typeof supabase.from<'organizations'>>[0] extends string ? never : Record<string, unknown>)
         .eq('id', effectiveOrgId);
 
       if (error) throw error;
