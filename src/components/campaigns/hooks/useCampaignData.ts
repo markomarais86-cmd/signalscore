@@ -71,7 +71,7 @@ export function useCampaignData(
   // Load Apollo TAM data when 'database' source is selected
   useEffect(() => {
     const loadApolloTamData = async () => {
-      if (!userProfile?.org_id || dataSource !== 'database') {
+      if (!orgId || dataSource !== 'database') {
         setApolloTamData(null);
         setApolloTamDomains([]);
         return;
@@ -81,7 +81,7 @@ export function useCampaignData(
         const { data: externalSource, error } = await supabase
           .from('external_data_sources')
           .select('*')
-          .eq('org_id', userProfile.org_id)
+          .eq('org_id', orgId)
           .eq('provider', 'apollo')
           .single();
         
@@ -100,7 +100,7 @@ export function useCampaignData(
     };
     
     loadApolloTamData();
-  }, [userProfile?.org_id, dataSource]);
+  }, [orgId, dataSource]);
 
   const loadPreview = useCallback(async (provider: 'apollo' | 'zoominfo' | 'clearbit') => {
     if (!userProfile?.org_id) return;
