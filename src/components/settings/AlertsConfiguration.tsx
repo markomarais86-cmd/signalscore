@@ -480,7 +480,7 @@ export function AlertsConfiguration() {
                   <div className="space-y-1">
                     <Input
                       placeholder="https://outlook.office.com/webhook/..."
-                      value={(form as any).teams_webhook_url || ""}
+                      value={form.teams_webhook_url || ""}
                       onChange={e => setForm(prev => ({ ...prev, teams_webhook_url: e.target.value }))}
                     />
                     <p className="text-xs text-muted-foreground">
