@@ -21,7 +21,7 @@ export function useDataChangeListener({
   debounceMs = 5000
 }: DataChangeListenerOptions) {
   const { userProfile } = useAuth();
-  const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
+  const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const lastTriggerTimes = useRef<Record<string, number>>({});
   
   // Use refs for callbacks to avoid re-subscriptions when callbacks change

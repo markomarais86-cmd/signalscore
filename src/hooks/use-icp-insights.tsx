@@ -43,7 +43,7 @@ export function useICPInsights() {
   const { toast } = useToast();
   
   const lastRefreshRef = useRef<number>(0);
-  const refreshTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Clear error on new generation
   const clearError = useCallback(() => setError(null), []);
