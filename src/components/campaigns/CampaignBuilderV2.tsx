@@ -270,6 +270,9 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
             setProvider={setProvider}
             estimatedCost={estimatedCost}
             apolloTamData={apolloTamData}
+            applySuppression={applySuppression}
+            setApplySuppression={setApplySuppression}
+            suppressionRuleCount={suppressionRuleCount}
           />
         );
       case 6:
