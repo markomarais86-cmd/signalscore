@@ -17,7 +17,7 @@ if (import.meta.env.PROD && import.meta.env.VITE_SENTRY_DSN) {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // Data fresh for 5 minutes
+      staleTime: 2 * 60 * 1000, // Data fresh for 2 minutes
       gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
       refetchOnWindowFocus: false,
       retry: 2,
