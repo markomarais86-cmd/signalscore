@@ -6,13 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, RotateCcw, Building2, Users, Layers } from "lucide-react";
+import { Search, RotateCcw, Building2, Users, Layers, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useDataOrgId } from "@/hooks/use-data-org";
 import {
   ListBuilderFilters,
   REVENUE_BUCKETS,
   EMPLOYEE_RANGES,
+  FIT_SCORE_RANGES,
   PERSONAS,
   LEVELS,
 } from "@/hooks/use-list-builder";
@@ -127,6 +128,7 @@ export function SearchFilters({
     filters.levels.length +
     (filters.hasEmail !== null ? 1 : 0) +
     (filters.hasPhone !== null ? 1 : 0) +
+    (filters.fitScoreMin !== null ? 1 : 0) +
     customAttrCount;
 
   return (
@@ -269,6 +271,41 @@ export function SearchFilters({
                 }
                 className="h-8 text-sm"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                <Target className="h-3 w-3" />
+                Fit Score
+              </Label>
+              <div className="flex flex-wrap gap-1.5">
+                {FIT_SCORE_RANGES.map((range) => {
+                  const isSelected =
+                    filters.fitScoreMin === range.min &&
+                    filters.fitScoreMax === range.max;
+                  return (
+                    <Badge
+                      key={range.label}
+                      variant={isSelected ? "default" : "outline"}
+                      className="cursor-pointer text-xs transition-colors hover:bg-primary/20"
+                      onClick={() => {
+                        if (isSelected) {
+                          update("fitScoreMin", null);
+                          update("fitScoreMax", null);
+                        } else {
+                          update("fitScoreMin", range.min);
+                          update("fitScoreMax", range.max);
+                        }
+                      }}
+                    >
+                      {range.label}
+                    </Badge>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Filter by ICP fit score band
+              </p>
             </div>
           </TabsContent>
 

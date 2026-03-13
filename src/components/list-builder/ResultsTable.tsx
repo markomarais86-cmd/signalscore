@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ChevronDown, ChevronRight, Download, Users, Globe, Building2, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Users, Globe, Building2, ExternalLink, Target } from "lucide-react";
 import { ListBuilderResult } from "@/hooks/use-list-builder";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveOrg } from "@/hooks/use-effective-org";
@@ -182,6 +182,9 @@ export function ResultsTable({
               <TableHead>Employees</TableHead>
               <TableHead>Location</TableHead>
               <TableHead className="text-center">
+                <Target className="h-3.5 w-3.5 mx-auto" />
+              </TableHead>
+              <TableHead className="text-center">
                 <Users className="h-3.5 w-3.5 mx-auto" />
               </TableHead>
             </TableRow>
@@ -189,7 +192,7 @@ export function ResultsTable({
           <TableBody>
             {results.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                   No accounts match your criteria. Try adjusting your filters.
                 </TableCell>
               </TableRow>
@@ -249,6 +252,23 @@ export function ResultsTable({
                       </div>
                     </TableCell>
                     <TableCell className="text-center">
+                      {r.overall_score > 0 ? (
+                        <Badge
+                          className={`text-xs ${
+                            r.fit_score >= 70
+                              ? "bg-[hsl(var(--signal-high))] text-white"
+                              : r.fit_score >= 40
+                              ? "bg-[hsl(var(--signal-medium))] text-black"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {r.fit_score}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">
                       <Badge variant="secondary" className="text-xs">
                         {r.lead_count}
                       </Badge>
@@ -256,7 +276,7 @@ export function ResultsTable({
                   </TableRow>
                   {expandedIds.has(r.account_id) && (
                     <TableRow key={`${r.account_id}-leads`}>
-                      <TableCell colSpan={8} className="p-0 bg-muted/30">
+                      <TableCell colSpan={9} className="p-0 bg-muted/30">
                         <ExpandedLeads externalId={r.external_id} />
                       </TableCell>
                     </TableRow>

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useDataOrgId } from "@/hooks/use-data-org";
 import { toast } from "sonner";
+import { callCustomRpc } from "@/types/supabase-rpc";
 
 export interface ListBuilderFilters {
   industries: string[];
@@ -19,6 +20,8 @@ export interface ListBuilderFilters {
   hasEmail: boolean | null;
   hasPhone: boolean | null;
   customAttributes: Record<string, string>;
+  fitScoreMin: number | null;
+  fitScoreMax: number | null;
 }
 
 export interface ListBuilderResult {
@@ -37,6 +40,9 @@ export interface ListBuilderResult {
   icp_qualified: boolean | null;
   lead_count: number;
   total_accounts: number;
+  fit_score: number;
+  overall_score: number;
+  intent_score: number;
 }
 
 export const EMPTY_FILTERS: ListBuilderFilters = {
@@ -54,6 +60,8 @@ export const EMPTY_FILTERS: ListBuilderFilters = {
   hasEmail: null,
   hasPhone: null,
   customAttributes: {},
+  fitScoreMin: null,
+  fitScoreMax: null,
 };
 
 export const REVENUE_BUCKETS = [
@@ -76,6 +84,12 @@ export const EMPLOYEE_RANGES = [
   { label: "5,000+", min: 5001, max: 999999 },
 ];
 
+export const FIT_SCORE_RANGES = [
+  { label: "A (70+)", min: 70, max: 100 },
+  { label: "B (40-69)", min: 40, max: 69 },
+  { label: "C (0-39)", min: 0, max: 39 },
+];
+
 export const PERSONAS = [
   "Business Decision Maker",
   "Business Influencer",
@@ -94,7 +108,7 @@ export const LEVELS = [
 ];
 
 export function useListBuilder() {
-  const { dataOrgId: effectiveOrgId } = useDataOrgId();
+  const { dataOrgId, effectiveOrgId } = useDataOrgId();
   const [filters, setFilters] = useState<ListBuilderFilters>(EMPTY_FILTERS);
   const [searchTriggered, setSearchTriggered] = useState(false);
   const [page, setPage] = useState(0);
@@ -102,12 +116,12 @@ export function useListBuilder() {
   const pageSize = 50;
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["list-builder", effectiveOrgId, filters, page],
+    queryKey: ["list-builder", dataOrgId, effectiveOrgId, filters, page],
     queryFn: async () => {
-      if (!effectiveOrgId) return { results: [], total: 0 };
+      if (!dataOrgId) return { results: [], total: 0 };
 
-      const { data, error } = await supabase.rpc("search_list_builder", {
-        p_org_id: effectiveOrgId,
+      const { data, error } = await callCustomRpc<ListBuilderResult[]>("search_list_builder", {
+        p_org_id: dataOrgId,
         p_industries: filters.industries.length > 0 ? filters.industries : null,
         p_revenue_buckets: filters.revenueBuckets.length > 0 ? filters.revenueBuckets : null,
         p_employee_min: filters.employeeMin,
@@ -124,15 +138,18 @@ export function useListBuilder() {
         p_custom_attributes: Object.keys(filters.customAttributes).length > 0 ? filters.customAttributes : null,
         p_page_offset: page * pageSize,
         p_page_limit: pageSize,
+        p_score_org_id: effectiveOrgId !== dataOrgId ? effectiveOrgId : null,
+        p_fit_score_min: filters.fitScoreMin,
+        p_fit_score_max: filters.fitScoreMax,
       });
 
       if (error) throw error;
 
-      const results = (data || []) as unknown as ListBuilderResult[];
+      const results = (data || []) as ListBuilderResult[];
       const total = results.length > 0 ? results[0].total_accounts : 0;
       return { results, total };
     },
-    enabled: searchTriggered && !!effectiveOrgId,
+    enabled: searchTriggered && !!dataOrgId,
   });
 
   const search = useCallback(() => {
@@ -181,6 +198,9 @@ export function useListBuilder() {
       "Business Model",
       "ICP Qualified",
       "Lead Count",
+      "Fit Score",
+      "Overall Score",
+      "Intent Score",
     ];
     const csvRows = [
       headers.join(","),
@@ -197,6 +217,9 @@ export function useListBuilder() {
           `"${r.business_model || ""}"`,
           r.icp_qualified ? "Yes" : "No",
           r.lead_count,
+          r.fit_score || 0,
+          r.overall_score || 0,
+          r.intent_score || 0,
         ].join(",")
       ),
     ];
