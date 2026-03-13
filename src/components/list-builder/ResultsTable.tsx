@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ChevronDown, ChevronRight, Download, Users, Globe, Building2, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Users, Globe, Building2, ExternalLink, Target } from "lucide-react";
 import { ListBuilderResult } from "@/hooks/use-list-builder";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffectiveOrg } from "@/hooks/use-effective-org";
