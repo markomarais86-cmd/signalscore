@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { SEQUENCE_TEMPLATES, SequenceStep, TemplateKey } from '../constants/campaign-config';
+import { SEQUENCE_TEMPLATES, SequenceStep, TemplateKey, FuelLineType, FUEL_LINE_TYPES } from '../constants/campaign-config';
 
 export interface FilterCriteria {
   employeeMin?: number;
