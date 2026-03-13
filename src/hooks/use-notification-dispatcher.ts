@@ -57,7 +57,7 @@ export function useNotificationDispatcher() {
   }, []);
 
   useEffect(() => {
-    const orgId = userProfile?.org_id;
+    const orgId = effectiveOrgId;
     if (!orgId) return;
 
     let mounted = true;
