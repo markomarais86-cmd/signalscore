@@ -66,6 +66,7 @@ import BrandedLanding from "./pages/BrandedLanding";
 import CustomerUpgrade from "./pages/CustomerUpgrade";
 import PortfolioCommandCenter from "./pages/PortfolioCommandCenter";
 import ValueCreationPlan from "./pages/ValueCreationPlan";
+import DueDiligence from "./pages/DueDiligence";
 
 const queryClient = new QueryClient();
 
@@ -248,6 +249,16 @@ function AppContent() {
                     <ProtectedRoute>
                       <Layout>
                         <ValueCreationPlan />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/due-diligence"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <DueDiligence />
                       </Layout>
                     </ProtectedRoute>
                   }
