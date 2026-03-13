@@ -13,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import { formatNumber } from "@/utils/format-numbers";
 import { useAuth } from "@/hooks/use-auth";
-import { useEffectiveOrg } from "@/hooks/use-effective-org";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { useToast } from "@/hooks/use-toast";
 import { leadsLogger } from "@/lib/logger";
 import { Label } from "@/components/ui/label";
