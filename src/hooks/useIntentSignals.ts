@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export type IntentSignalType = 'engagement_velocity' | 'multi_thread' | 'score_change' | 'coverage_gap';
+export type IntentSignalType = 'engagement_velocity' | 'multi_thread' | 'score_change' | 'coverage_gap' | 'new_high_fit' | 'data_freshness';
 
 export interface IntentSignal {
   id: string;
