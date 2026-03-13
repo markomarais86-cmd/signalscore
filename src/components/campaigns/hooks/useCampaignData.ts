@@ -166,7 +166,7 @@ export function useCampaignData(
         const { data: scoresData, error: scoresError } = await supabase
           .from('scores')
           .select('account_external_id, overall, fit, intent')
-          .eq('org_id', userProfile.org_id)
+          .eq('org_id', scoreOrgId || orgId)
           .in('account_external_id', batch);
         
         if (!scoresError && scoresData) {
