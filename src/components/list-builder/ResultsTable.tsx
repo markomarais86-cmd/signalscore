@@ -182,6 +182,9 @@ export function ResultsTable({
               <TableHead>Employees</TableHead>
               <TableHead>Location</TableHead>
               <TableHead className="text-center">
+                <Target className="h-3.5 w-3.5 mx-auto" />
+              </TableHead>
+              <TableHead className="text-center">
                 <Users className="h-3.5 w-3.5 mx-auto" />
               </TableHead>
             </TableRow>
