@@ -52,7 +52,9 @@ export function PreviewStep({
   excludeDuplicates,
   setExcludeDuplicates,
   onEstimateROI,
-  scoreBandBreakdown
+  scoreBandBreakdown,
+  suppressedCount = 0,
+  applySuppression = true
 }: PreviewStepProps) {
   if (isLoadingPreview) {
     return (
