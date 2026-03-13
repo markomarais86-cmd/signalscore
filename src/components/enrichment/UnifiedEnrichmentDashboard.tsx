@@ -54,7 +54,18 @@ export function UnifiedEnrichmentDashboard() {
     orgId: userProfile?.org_id || null,
     enabled: !!userProfile?.org_id,
     onComplete: (job) => {
-      toast.success(`Update complete! ${job.enriched_records} companies updated`);
+      const enriched = job.enriched_records || 0;
+      const processed = job.processed_records || 0;
+      const alreadyOk = Math.max(0, processed - enriched - (job.failed_records || 0));
+      if (enriched > 0 && alreadyOk > 0) {
+        toast.success(`Done! ${enriched} companies updated, ${alreadyOk} already up to date.`);
+      } else if (enriched > 0) {
+        toast.success(`Done! ${enriched} companies updated with new data.`);
+      } else if (alreadyOk > 0) {
+        toast.success(`All ${alreadyOk} companies are already up to date — no changes needed.`);
+      } else {
+        toast.success('Enrichment complete!');
+      }
       loadHistoricalData();
     },
     onError: (job) => {

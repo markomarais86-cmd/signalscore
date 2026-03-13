@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   Table, 
@@ -9,7 +9,7 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import { CheckCircle2, XCircle, Clock, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, XCircle, Clock, AlertTriangle, Zap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface HistoricalJob {
@@ -19,6 +19,7 @@ interface HistoricalJob {
   enriched_records: number;
   failed_records: number;
   total_records: number;
+  processed_records: number;
   completed_at: string | null;
   started_at: string | null;
   source_breakdown: Record<string, { attempted: number; enriched: number; failed: number }> | null;
@@ -31,9 +32,9 @@ interface EnrichmentHistoryProps {
 const providerLabels: Record<string, string> = {
   apollo: 'Apollo',
   pdl: 'PDL',
-  ai_free: 'AI Free',
+  ai_free: 'AI Research',
   smart_enrich: 'Smart',
-  clearbit: 'Clearbit',
+  launch_pulse: 'AI Research',
 };
 
 export function EnrichmentHistory({ jobs }: EnrichmentHistoryProps) {
@@ -49,19 +50,36 @@ export function EnrichmentHistory({ jobs }: EnrichmentHistoryProps) {
     return `${(durationMs / 3600000).toFixed(1)}h`;
   };
 
-  const getSuccessRate = (job: HistoricalJob) => {
-    if (job.total_records === 0) return 0;
-    return Math.round((job.enriched_records / job.total_records) * 100);
+  const getAlreadyComplete = (job: HistoricalJob) => {
+    const processed = job.processed_records || 0;
+    const enriched = job.enriched_records || 0;
+    const failed = job.failed_records || 0;
+    return Math.max(0, processed - enriched - failed);
   };
 
-  const getStatusIcon = (status: string, successRate: number) => {
-    if (status === 'failed') {
+  const getStatusIcon = (job: HistoricalJob) => {
+    if (job.status === 'failed') {
       return <XCircle className="h-4 w-4 text-destructive" />;
     }
-    if (status === 'completed_with_errors' || successRate < 80) {
+    const alreadyComplete = getAlreadyComplete(job);
+    // If most records were already complete, show a different icon
+    if (job.enriched_records === 0 && alreadyComplete > 0) {
+      return <Zap className="h-4 w-4 text-blue-600" />;
+    }
+    if (job.status === 'completed_with_errors' || job.failed_records > 0) {
       return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
     }
     return <CheckCircle2 className="h-4 w-4 text-green-600" />;
+  };
+
+  const getStatusLabel = (job: HistoricalJob) => {
+    if (job.status === 'failed') return 'Failed';
+    const alreadyComplete = getAlreadyComplete(job);
+    if (job.enriched_records === 0 && alreadyComplete > 0) {
+      return 'Up to date';
+    }
+    if (job.status === 'completed_with_errors') return 'Partial';
+    return job.status.replace('_', ' ');
   };
 
   if (jobs.length === 0) {
@@ -86,16 +104,16 @@ export function EnrichmentHistory({ jobs }: EnrichmentHistoryProps) {
               <TableRow>
                 <TableHead className="w-[100px]">Provider</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Enriched</TableHead>
-                <TableHead className="text-right">Failed</TableHead>
-                <TableHead className="text-right">Rate</TableHead>
+                <TableHead className="text-right">New Data</TableHead>
+                <TableHead className="text-right">Already OK</TableHead>
+                <TableHead className="text-right">Not Found</TableHead>
                 <TableHead className="text-right">Duration</TableHead>
-                <TableHead className="text-right">Completed</TableHead>
+                <TableHead className="text-right">When</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {jobs.map((job) => {
-                const successRate = getSuccessRate(job);
+                const alreadyComplete = getAlreadyComplete(job);
                 
                 return (
                   <TableRow key={job.id}>
@@ -106,29 +124,38 @@ export function EnrichmentHistory({ jobs }: EnrichmentHistoryProps) {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        {getStatusIcon(job.status, successRate)}
+                        {getStatusIcon(job)}
                         <span className="text-sm capitalize">
-                          {job.status.replace('_', ' ')}
+                          {getStatusLabel(job)}
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right font-medium text-green-600">
-                      {job.enriched_records.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right text-destructive">
-                      {job.failed_records.toLocaleString()}
+                    <TableCell className="text-right">
+                      {job.enriched_records > 0 ? (
+                        <span className="font-medium text-green-600">
+                          {job.enriched_records.toLocaleString()}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">0</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Badge 
-                        variant="secondary"
-                        className={
-                          successRate >= 80 ? 'bg-green-100 text-green-700' :
-                          successRate >= 60 ? 'bg-yellow-100 text-yellow-700' :
-                          'bg-red-100 text-red-700'
-                        }
-                      >
-                        {successRate}%
-                      </Badge>
+                      {alreadyComplete > 0 ? (
+                        <span className="text-blue-600">
+                          {alreadyComplete.toLocaleString()}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">0</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {job.failed_records > 0 ? (
+                        <span className="text-muted-foreground">
+                          {job.failed_records.toLocaleString()}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">0</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       <div className="flex items-center justify-end gap-1">
