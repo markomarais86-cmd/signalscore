@@ -17,6 +17,27 @@ import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
+interface NotificationChannels {
+  slack: boolean;
+  teams: boolean;
+  webhook: boolean;
+  email: boolean;
+}
+
+function parseChannels(raw: unknown): NotificationChannels {
+  const defaults: NotificationChannels = { slack: false, teams: false, webhook: false, email: false };
+  if (typeof raw === 'object' && raw !== null) {
+    const obj = raw as Record<string, unknown>;
+    return {
+      slack: !!obj.slack,
+      teams: !!obj.teams,
+      webhook: !!obj.webhook,
+      email: !!obj.email,
+    };
+  }
+  return defaults;
+}
+
 interface Alert {
   id: string;
   name: string;
@@ -24,7 +45,7 @@ interface Alert {
   threshold_value: number | null;
   threshold_operator: string | null;
   is_active: boolean;
-  notification_channels: any;
+  notification_channels: NotificationChannels;
   slack_webhook_url: string | null;
   webhook_url: string | null;
   teams_webhook_url: string | null;
