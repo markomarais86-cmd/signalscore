@@ -282,6 +282,17 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
                     <NavLink
+                      to="/value-creation"
+                      className={getNavCls("/value-creation")}
+                    >
+                      <CalendarCheck className="h-4 w-4" />
+                      <span>100-Day Plan</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
                       to="/admin/customer-onboarding"
                       className={getNavCls("/admin/customer-onboarding")}
                     >
