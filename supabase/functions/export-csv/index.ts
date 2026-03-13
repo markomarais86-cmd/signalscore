@@ -212,6 +212,13 @@ serve(async (req) => {
   }
 
   try {
+    // Validate authentication
+    const authResult = await validateAuth(req);
+    if (!authResult.success) {
+      console.error('[export-csv] Auth failed:', authResult.error);
+      return unauthorizedResponse(req, authResult.error);
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);

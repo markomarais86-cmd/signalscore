@@ -85,7 +85,7 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Health check
+  // Health check (public, no auth needed)
   const url = new URL(req.url);
   if (url.searchParams.get('health') === 'true') {
     return new Response(JSON.stringify({ 
@@ -97,11 +97,33 @@ serve(async (req) => {
     });
   }
 
+  // Validate authentication
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: authHeader } }
+  });
+
+  const token = authHeader.replace('Bearer ', '');
+  const { data: { user }, error: authError } = await authClient.auth.getUser(token);
+  if (authError || !user) {
+    return new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
+      status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
   const startTime = Date.now();
 
   try {
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
+      supabaseUrl,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
