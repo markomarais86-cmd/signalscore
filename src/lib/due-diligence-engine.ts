@@ -342,7 +342,7 @@ export function analyzeCrmExport(headers: string[], records: CrmRecord[], compan
       score: pipelineScore,
       totalDeals: stageCol ? records.length : 0,
       avgDealAge: null,
-      stageDistribution: stageDist,
+      stageDistribution: stageDist.map(d => ({ stage: d.name, count: d.count, pct: d.pct })),
       closedWonCount,
       closedWonPct: records.length > 0 ? Math.round((closedWonCount / records.length) * 100) : 0,
       avgWinRate: winRate,

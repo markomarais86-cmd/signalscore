@@ -339,7 +339,7 @@ export default function DueDiligencePage() {
                       <p className="text-[10px] text-muted-foreground">Stale Deals</p>
                     </div>
                   </div>
-                  <DistributionTable data={report.pipelineQuality.stageDistribution} label="Stage" />
+                  <DistributionTable data={report.pipelineQuality.stageDistribution.map(s => ({ name: s.stage, count: s.count, pct: s.pct }))} label="Stage" />
                 </div>
               )}
             </ScoreCard>
