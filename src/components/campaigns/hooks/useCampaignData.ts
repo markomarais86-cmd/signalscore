@@ -103,7 +103,7 @@ export function useCampaignData(
   }, [orgId, dataSource]);
 
   const loadPreview = useCallback(async (provider: 'apollo' | 'zoominfo' | 'clearbit') => {
-    if (!userProfile?.org_id) return;
+    if (!orgId) return;
     setIsLoadingPreview(true);
     
     try {
