@@ -111,9 +111,9 @@ function DistributionTable({ data, label }: { data: { name: string; count: numbe
 
 function FindingsPanel({ findings }: { findings: DueDiligenceReport["findings"] }) {
   const icons = {
-    positive: <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />,
-    warning: <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />,
-    critical: <XCircle className="h-4 w-4 text-red-500 shrink-0" />,
+    positive: <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />,
+    warning: <AlertTriangle className="h-4 w-4 text-[hsl(var(--status-warning))] shrink-0" />,
+    critical: <XCircle className="h-4 w-4 text-destructive shrink-0" />,
   };
   return (
     <Card>
