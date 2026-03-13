@@ -118,8 +118,7 @@ export function useCampaignData(
         let query = supabase
           .from('accounts')
           .select('external_id, name, domain, industry_norm, employee_count, revenue_range, country, state_province, city')
-          .eq('org_id', userProfile.org_id)
-          .range(page * pageSize, (page + 1) * pageSize - 1);
+          .eq('org_id', orgId)
         
         if (dataSource === 'crm') {
           query = query.in('data_source', ['crm', 'both']);
