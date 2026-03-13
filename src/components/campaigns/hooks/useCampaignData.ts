@@ -185,10 +185,21 @@ export function useCampaignData(
         };
       });
       
-      const filteredAccounts = accountsWithScores.filter((acc: any) => 
+      let filteredAccounts = accountsWithScores.filter((acc: any) => 
         acc.overall_score >= filterCriteria.fitScoreMin && 
         acc.overall_score <= filterCriteria.fitScoreMax
       );
+      
+      // Apply suppression filtering
+      if (applySuppression && suppressedDomains.size > 0) {
+        const beforeCount = filteredAccounts.length;
+        filteredAccounts = filteredAccounts.filter((acc: any) => 
+          !acc.domain || !suppressedDomains.has(acc.domain.toLowerCase())
+        );
+        setSuppressedCount(beforeCount - filteredAccounts.length);
+      } else {
+        setSuppressedCount(0);
+      }
       
       setPreviewData(filteredAccounts);
       
