@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useDataOrgId } from '@/hooks/use-data-org';
 import { FilterCriteria, ICPProfile } from './useCampaignState';
 import { campaignsLogger } from '@/lib/logger';
 import { HIGH_FIT_THRESHOLD, MEDIUM_FIT_THRESHOLD } from '@/lib/score-bands';
