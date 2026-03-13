@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign, FileText, Users, BarChart3, Bot, HelpCircle, Sparkles, ChevronDown, ClipboardList, Kanban, UserPlus, ShoppingCart, Search } from "lucide-react";
+import { Settings, LogOut, LayoutDashboard, Target, Database, Shield, TrendingUp, DollarSign, FileText, Users, BarChart3, Bot, HelpCircle, Sparkles, ChevronDown, ClipboardList, Kanban, UserPlus, ShoppingCart, Search, Building2 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/use-auth";
 import { useRoles } from "@/hooks/use-roles";
@@ -264,6 +264,18 @@ export function AppSidebar() {
                       <Shield className="h-4 w-4" />
                       <span>Admin</span>
                       <Badge variant="destructive" className="ml-auto text-xs">Super</Badge>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to="/portfolio"
+                      className={getNavCls("/portfolio")}
+                    >
+                      <Building2 className="h-4 w-4" />
+                      <span>Portfolio</span>
+                      <Badge variant="secondary" className="ml-auto text-xs">PE/VC</Badge>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

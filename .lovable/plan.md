@@ -1,150 +1,152 @@
 
+# LaunchPulse Fuel Line Engine — Implementation Plan
 
-# LaunchPulse — Full Application Analysis
+## Context
+LaunchPulse operates a **Managed Demand Engine** — we run campaigns on behalf of customers.
+We're borrowing the "Fuel Line" concept (segmented data pipelines into campaigns) but adapting it to our managed model where **we** control the infrastructure and customers action the output.
 
-## What LaunchPulse Is Today
-
-LaunchPulse is a **B2B account intelligence and GTM optimization platform** that helps revenue teams identify, score, enrich, and activate their best-fit accounts. It operates as a "Managed Demand Engine" — LaunchPulse manages the data infrastructure while customers action the output.
-
-### Core Capabilities (Built and Working)
-
-| Module | What It Does |
-|--------|-------------|
-| **ICP Manager** | Define multi-dimensional Ideal Customer Profiles (industry, geography, size, revenue, tech stack). AI-assisted ICP builder. Closed-won deal analysis to validate ICP against real conversion data. |
-| **Accounts** (12.4K+) | Firmographic database with infinite scroll, filtering, score breakdowns, detail drawers, bulk scoring. Data source toggling (CRM vs database). |
-| **Leads** (13.4K+) | Contact database with enriched fields (phone, email, LinkedIn), persona classification, suppression tracking, multi-phone display. |
-| **Scoring Engine** | Statistical V2.0 algorithm scoring accounts 0-100 across fit dimensions (industry, geography, size, revenue). Score bands (A/B/C). Score history timeline. Propensity model (ML-based). |
-| **Enrichment** | 8-stage waterfall: PDL, Clearbit, AI estimation, deep research. Data gaps visualization, accuracy reports, credits tracking, unified enrichment wizard. |
-| **Campaign Builder** | 7-step wizard (Setup → Targeting → Sequence → Persona → DataSource → Preview → Export). 4 Fuel Line types (ABM, Technographic, Firmographic, Persona). Suppression integration. Signal-to-campaign routing. |
-| **List Builder** | Filter/search accounts with sidebar filters, export to CSV. |
-| **Opportunities** | Kanban deal stage board, revenue attribution panel. |
-| **AI Agents** | 4 autonomous agents: Lead Qualification, Follow-Up Automation, Meeting Scheduler, Data Enrichment. Realtime health monitoring, proactive suggestions. |
-| **Integrations** | Salesforce, HubSpot OAuth. Zapier webhooks. Clay incoming webhooks. API key management. Data mapping. |
-| **Analytics** | Pipeline efficiency, capital efficiency (ROI/CAC), trend analysis, segmentation, fuel line performance tracking. |
-| **Presentations** | Auto-generated pitch decks/board reports from platform data. |
-| **Admin** | Multi-tenant org management, AI-powered customer onboarding, credit management, feature flags per org, audit logs. |
-| **Customer Dashboard** | Simplified view for managed customers: leads, tasks, pipeline at a glance. |
-| **Signals** | Real-time account signals (intent, tech changes, funding, hiring) with priority levels and dashboard action cards. |
-
-### Architecture Strengths
-- Multi-tenant with org isolation (RLS on all tables)
-- Parent/child org hierarchy for managed service model
-- Feature flags per organization
-- Credit-based enrichment with cost tracking
-- Dual interface: operator (full platform) vs customer (simplified dashboard)
+TPG doesn't have 28 databases — they repackage a handful of providers. We already have a strong enrichment waterfall (Apollo, PDL, Firecrawl, Perplexity, Hunter). The gap is in **how we route enriched data into campaigns**.
 
 ---
 
-## How LaunchPulse Compares to Google Tag Manager (GTM)
+## Current State
 
-**These are fundamentally different products.** GTM is a tag management system for deploying marketing/analytics scripts on websites. LaunchPulse is a B2B account intelligence platform.
+### What we have
+- **CampaignBuilderV2**: 7-step wizard (Setup → Targeting → Sequence → Persona → DataSource → Preview → Export)
+- **3 sequence templates**: Enterprise, SMB, Partner
+- **Enrichment waterfall**: 8-stage pipeline across 6+ providers
+- **ICP scoring**: Automated fit scoring with bulk jobs
+- **Account signals**: Intent, tech changes, funding events tracked in `account_signals`
+- **Suppression**: Basic dedup via `apollo_redemption_log.redeemed_emails`
 
-However, if you mean **"Go-To-Market" (GTM) platforms** — the competitive landscape — here is where LaunchPulse sits:
-
-| Competitor | What They Do | LaunchPulse Advantage | LaunchPulse Gap |
-|-----------|-------------|----------------------|-----------------|
-| **Apollo.io** | Prospecting database, sequences, enrichment | Deeper ICP scoring, managed service model, multi-source enrichment waterfall | Apollo has 275M+ contacts; LaunchPulse relies on external data |
-| **ZoomInfo** | Enterprise data provider, intent signals | 10-100x cheaper enrichment via waterfall, AI estimation fills gaps | ZoomInfo has proprietary first-party data at massive scale |
-| **6sense / Demandbase** | ABM platforms, intent data, ad orchestration | Simpler pricing, faster time-to-value, managed model | No native ad orchestration, no website visitor identification |
-| **Clay** | Enrichment workflows, data waterfall | Native scoring + campaign builder (Clay is data-only) | Clay has 75+ data providers; LaunchPulse has ~6 |
-| **HubSpot** | All-in-one CRM + marketing | Purpose-built for account intelligence; HubSpot is generalist | HubSpot owns the CRM relationship; LaunchPulse is a layer on top |
-| **Gong / Clari** | Revenue intelligence, call analytics | Different focus — LaunchPulse is pre-pipeline; they are in-pipeline | No conversation intelligence or forecasting |
-
-### LaunchPulse's Unique Position
-LaunchPulse is a **"managed demand engine"** — it sits between data providers and CRMs, doing the analytical work that most GTM teams cannot do themselves: ICP validation against closed-won data, multi-source enrichment at low cost, and statistical scoring. The managed service model (operator runs it for the customer) is rare in this space.
-
----
-
-## How Companies Would Use LaunchPulse
-
-### B2B SaaS Companies (Primary)
-1. Connect Salesforce/HubSpot → sync accounts and deals
-2. Analyze closed-won deals to validate/build ICP
-3. Score entire database against ICP → find A-band accounts
-4. Enrich missing firmographics and contacts
-5. Build campaigns from high-scoring accounts using Fuel Lines
-6. Push campaign lists back to CRM or outreach tools
-7. Track which ICP segments convert best over time
-
-### Sales-Led Organizations
-- Use List Builder to find targeted prospects matching ICP
-- AI agents auto-qualify inbound leads
-- Signal detection triggers outbound campaigns (funding round → ABM campaign)
-- Pipeline attribution shows which ICP segments drive revenue
-
-### Marketing Teams
-- TAM/SAM/SOM calculation based on ICP
-- Persona coverage gap analysis
-- Campaign deduplication before launch
-- Capital efficiency tracking (CAC by segment)
+### What's missing
+1. No concept of **Fuel Line type** — all campaigns use the same generic flow
+2. No **suppression list** management (global exclusions)
+3. No **signal-to-campaign routing** (signals exist but don't auto-trigger campaigns)
+4. No **fuel line performance tracking** (which data source/segment converts best)
+5. Sequence templates are hardcoded, not tied to fuel line type
 
 ---
 
-## How PE/VC Firms Would Use LaunchPulse
+## Phase 1: Fuel Line Types in Campaign Builder (UI-only, no migration)
 
-This is where LaunchPulse has **massive untapped potential** but is currently underbuilt:
+**Goal**: Let operators pick a fuel line type in Step 1 (Setup), which auto-configures targeting, persona, and sequence defaults.
 
-### Current Capability (Limited)
-- "Portfolio View" is listed as an Enterprise pricing feature but **is not actually built**
-- Capital efficiency page exists but is generic
-- Board report generation via Presentations
-- Multi-org admin allows managing multiple portfolio companies
+### Fuel Line Definitions
 
-### What PE/VC Firms Actually Need
+| Fuel Line | Description | Auto-config |
+|-----------|-------------|-------------|
+| **ABM** | Named accounts from signals/manual selection | Pre-selects signal-triggered accounts, Enterprise sequence |
+| **Technographic** | Accounts using specific tech stack | Filters by `tech_stack[]` column, SMB/Enterprise sequence based on size |
+| **Firmographic** | Industry + size + geography targeting | Uses existing segment filters, auto-sets employee/revenue ranges |
+| **Persona** | Job title + seniority + department first | Leads with persona filters, pulls matching accounts second |
 
-**1. Portfolio-Level GTM Diagnostics** — A PE firm buys 5-15 companies. They need a single dashboard showing GTM health across all portfolio companies: which ones have validated ICPs, which have data quality problems, which are targeting the wrong segments.
+### Files to modify
+- `src/components/campaigns/constants/campaign-config.ts` — Add `FUEL_LINE_TYPES` config with defaults per type
+- `src/components/campaigns/hooks/useCampaignState.ts` — Add `fuelLineType` to state, auto-apply defaults on selection
+- `src/components/campaigns/steps/SetupStep.tsx` — Add fuel line selector cards before campaign name
+- `src/components/campaigns/steps/TargetingStep.tsx` — Conditionally show filters based on fuel line type
 
-**2. Value Creation Playbook** — PE firms run a 100-day value creation plan post-acquisition. LaunchPulse could be the tool that operationalizes it: Day 1 connect CRM → Day 7 ICP validated → Day 30 TAM sized → Day 60 campaigns running.
-
-**3. Due Diligence Support** — Before acquiring a company, PE firms need to assess: Is their pipeline real? Are they targeting the right market? What is their actual TAM? LaunchPulse has all the data to answer this but no due diligence workflow.
-
-**4. Benchmarking Across Portfolio** — Compare conversion rates, ICP fit distributions, pipeline velocity, and capital efficiency across portfolio companies.
-
-**5. Board Reporting** — Monthly/quarterly board packages showing GTM progress with consistent metrics across portfolio.
+### No database changes needed — fuel line type is stored in campaign `metadata` JSON on export.
 
 ---
 
-## What Is Missing / What We Can Do Better
+## Phase 2: Suppression List Management
 
-### Critical Gaps
+**Goal**: Global and per-campaign suppression lists to prevent contacting excluded domains/emails.
 
-| Gap | Impact | Effort |
-|-----|--------|--------|
-| **No website visitor identification** | Cannot capture anonymous intent like 6sense/Demandbase | High (need IP-to-company resolution) |
-| **No email sequence execution** | Campaigns export to CRM but LaunchPulse cannot send emails | Medium (integrate with Outreach/SalesLoft APIs or build native) |
-| **No ad orchestration** | Cannot push audiences to LinkedIn Ads, Google Ads | Medium (API integrations) |
-| **Portfolio dashboard not built** | PE/VC use case is pricing-page-only; no actual feature | Medium |
-| **No real-time CRM writeback** | Campaign results and scores do not auto-sync back to CRM fields | Medium |
-| **No Slack/Teams notifications** | Signals and agent actions stay in-platform only | Low |
-| **No mobile experience** | Dashboard is desktop-only; execs check metrics on phones | Medium |
+### Database (migration)
+```sql
+CREATE TABLE suppression_lists (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id uuid REFERENCES organizations(id) NOT NULL,
+  name text NOT NULL,
+  list_type text NOT NULL DEFAULT 'domain', -- 'domain' | 'email' | 'company'
+  entries text[] NOT NULL DEFAULT '{}',
+  is_global boolean DEFAULT false,
+  created_by uuid,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
 
-### Product Improvements
+ALTER TABLE suppression_lists ENABLE ROW LEVEL SECURITY;
+```
 
-| Improvement | Description |
-|------------|-------------|
-| **Revenue attribution is weak** | Opportunities page exists but attribution logic is basic. Need multi-touch attribution tying campaigns → pipeline → closed revenue. |
-| **AI chat is underutilized** | Global AI assistant exists but is not deeply connected to platform actions. Should be able to "build me a campaign for A-band tech companies in DACH." |
-| **Onboarding is admin-only** | Customer self-service onboarding does not guide users through ICP setup → scoring → first campaign. |
-| **No competitive intelligence** | No tracking of competitor presence in accounts (technographic signals exist but not productized). |
-| **Signal detection is passive** | Signals are stored but the routing to campaigns (Phase 3) is the only automation. Need webhook-triggered workflows. |
-| **No territory management** | No rep-level territory assignment or quota tracking despite having geography data. |
-| **Reporting is template-only** | Report builder exists but cannot create custom dashboards with drag-and-drop widgets. |
+### Files to create
+- `src/components/campaigns/SuppressionListManager.tsx` — CRUD UI for suppression lists
+- `src/components/campaigns/steps/PreviewStep.tsx` — Show suppression count in preview stats
 
-### PE/VC Specific Features to Build
+### Files to modify
+- `src/components/campaigns/hooks/useCampaignData.ts` — Filter out suppressed domains/emails from preview
+- `src/components/campaigns/steps/DataSourceStep.tsx` — Add suppression list selector
 
-| Feature | Description |
-|---------|-------------|
-| **Portfolio Command Center** | Cross-org dashboard showing GTM health scores for all portfolio companies. Traffic light system (red/amber/green) per company. |
-| **100-Day Plan Tracker** | Pre-built value creation milestones with automated progress tracking. |
-| **Due Diligence Mode** | Read-only workspace that can ingest a target company's CRM export and produce an ICP/TAM/pipeline quality assessment without full onboarding. |
-| **Portfolio Benchmarking** | Compare metrics across portfolio: conversion rates, ICP fit distributions, enrichment coverage, pipeline velocity. |
-| **LP/Board Report Generator** | Auto-generate consistent board-ready GTM reports across portfolio in PDF/PPTX format. |
+---
 
-### Technical Debt
+## Phase 3: Signal-to-Campaign Routing
 
-- `AccountExclusions` save was a no-op stub (fixed in Phase 2)
-- Discovery page is a redirect stub — not a real feature
-- Demo mode uses hardcoded mock data (`DEMO_ACCOUNTS`)
-- Multiple skeleton/loading components that could be unified
-- 63 edge functions — need consolidation audit
+**Goal**: When high-priority signals fire, auto-suggest or auto-create campaigns with the right fuel line pre-selected.
 
+### How it works
+1. `account_signals` table already tracks: intent signals, tech stack changes, funding events
+2. New component watches for unactioned high-priority signals
+3. One-click "Create Campaign" from signal → opens CampaignBuilderV2 with:
+   - Fuel line auto-selected based on signal type
+   - Accounts pre-loaded from signal
+   - Sequence template pre-selected
+
+### Signal → Fuel Line mapping
+| Signal Type | Fuel Line | Sequence |
+|-------------|-----------|----------|
+| `intent` | ABM | Enterprise |
+| `tech_change` | Technographic | Enterprise |
+| `funding` | ABM | Enterprise |
+| `expansion` | Firmographic | Enterprise |
+| `new_hire` | Persona | SMB |
+
+### Files to create
+- `src/components/campaigns/SignalCampaignRouter.tsx` — Maps signals to campaign configs
+- `src/components/dashboard/SignalActionCards.tsx` — Dashboard cards with "Launch Campaign" CTA
+
+### Files to modify
+- `src/components/campaigns/CampaignBuilderV2.tsx` — Accept `signalContext` prop alongside `insightContext`
+
+---
+
+## Phase 4: Fuel Line Performance Tracking
+
+**Goal**: Track which fuel line type produces the best results so operators can optimize allocation.
+
+### Database (migration)
+```sql
+ALTER TABLE campaigns ADD COLUMN fuel_line_type text;
+ALTER TABLE campaigns ADD COLUMN signal_source_id uuid REFERENCES account_signals(id);
+```
+
+### New dashboard widget
+- Conversion rate by fuel line type
+- Cost per qualified lead by fuel line
+- Time-to-meeting by fuel line
+- Uses existing `campaigns` + `campaign_snapshots` data
+
+### Files to create
+- `src/components/campaigns/FuelLineAnalytics.tsx` — Performance dashboard
+- `src/hooks/use-fuel-line-metrics.ts` — Data fetching hook
+
+---
+
+## Implementation Order
+
+1. **Phase 1** (UI only, no migration) — 1 session
+2. **Phase 2** (migration + UI) — 1 session  
+3. **Phase 3** (routing logic) — 1 session
+4. **Phase 4** (analytics) — 1 session
+
+Each phase is independently shippable. Phase 1 has zero backend risk.
+
+---
+
+## What this is NOT
+- We are NOT adding 28 fake data sources
+- We are NOT rebranding existing providers as separate databases
+- We ARE making our existing enrichment waterfall smarter about HOW data flows into campaigns
+- We ARE giving operators control over campaign segmentation strategy
