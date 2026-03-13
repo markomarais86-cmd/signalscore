@@ -48,6 +48,8 @@ import { ICPProfileSummaryCard } from "@/components/executive/ICPProfileSummaryC
 import { StatusBar, buildStatusItems } from "@/components/executive/StatusBar";
 import { ExportToPdf } from "@/components/executive/ExportToPdf";
 import { SignalFeed } from "@/components/executive/SignalFeed";
+import { SignalActionCards } from "@/components/dashboard/SignalActionCards";
+import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import { useBrandedReport } from "@/hooks/use-branded-report";
 import { dashboardLogger } from "@/lib/logger";
 import { FileText } from "lucide-react";
@@ -89,6 +91,8 @@ export default function ExecutiveDashboard() {
   const [syncingApolloFromAlert, setSyncingApolloFromAlert] = useState(false);
   const [selectedAgentRunId, setSelectedAgentRunId] = useState<string | null>(null);
   const { generateReport, isGenerating } = useBrandedReport();
+  const [signalCampaignOpen, setSignalCampaignOpen] = useState(false);
+  const [signalCampaignContext, setSignalCampaignContext] = useState<any>(undefined);
   
 
   const totalAccounts = dashboardData?.metrics?.total_accounts || 0;
@@ -658,7 +662,20 @@ export default function ExecutiveDashboard() {
         ) : (
           <>
 
-            {/* Growth Command Center KPIs */}
+            {/* Signal-to-Campaign Action Cards */}
+            <SignalActionCards
+              onLaunchCampaign={(ctx) => {
+                setSignalCampaignContext({
+                  suggestedCampaignName: ctx.suggestedName,
+                  targetAccountIds: ctx.accountExternalIds,
+                  signalType: ctx.signalType,
+                  signalIds: ctx.signalIds,
+                });
+                setSignalCampaignOpen(true);
+              }}
+            />
+
+
             <GrowthCommandKPIs
               totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
               totalScored={sourceFilter === 'database' ? databaseScoredAccounts : sourceFilter === 'crm' ? crmScoredAccounts : totalScores}
@@ -776,6 +793,16 @@ export default function ExecutiveDashboard() {
           provider="Apollo"
           status={syncStatus}
           breakdown={syncBreakdown}
+        />
+        {/* Signal Campaign Builder */}
+        <CampaignBuilderV2
+          isOpen={signalCampaignOpen}
+          onClose={() => {
+            setSignalCampaignOpen(false);
+            setSignalCampaignContext(undefined);
+          }}
+          source="executive-dashboard"
+          insightContext={signalCampaignContext}
         />
         
       </div>

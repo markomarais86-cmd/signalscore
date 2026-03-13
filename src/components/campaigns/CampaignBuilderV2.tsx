@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { SIGNAL_FUEL_LINE_MAP } from "./constants/campaign-config";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,6 +92,19 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
       loadICP();
     }
   }, [isOpen, effectiveOrgId, icpId]);
+
+  // Auto-configure from signal context
+  useEffect(() => {
+    if (isOpen && insightContext?.signalType) {
+      const mapping = SIGNAL_FUEL_LINE_MAP[insightContext.signalType];
+      if (mapping) {
+        setFuelLineType(mapping.fuelLine);
+      }
+      if (insightContext.suggestedCampaignName) {
+        setCampaignName(insightContext.suggestedCampaignName);
+      }
+    }
+  }, [isOpen, insightContext]);
 
   // Reset on close
   useEffect(() => {
