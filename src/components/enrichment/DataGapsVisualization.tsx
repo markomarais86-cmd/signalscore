@@ -81,13 +81,24 @@ export function DataGapsVisualization() {
       if (data) {
         setActiveJob(data as ActiveJob);
         if (data.status === "completed") {
-          toast.success(`Enrichment complete! ${data.accounts_enriched} accounts enriched.`);
+          const enriched = data.accounts_enriched || 0;
+          const processed = data.processed_records || 0;
+          const alreadyOk = Math.max(0, processed - enriched - (data.fields_enriched ? 0 : 0));
+          if (enriched > 0) {
+            toast.success(`Enrichment complete! ${enriched} accounts updated with new data.`);
+          } else if (processed > 0) {
+            toast.success(`Enrichment complete! All ${processed} accounts are already up to date.`);
+          } else {
+            toast.success('Enrichment complete!');
+          }
           loadDataGaps();
-          // Clear active job after brief display
           setTimeout(() => setActiveJob(null), 5000);
         } else if (data.status === "failed") {
-          toast.error(`Enrichment interrupted after ${data.accounts_enriched || 0} accounts.`);
-          loadDataGaps(); // Refresh gaps even on failure
+          const enriched = data.accounts_enriched || 0;
+          toast.error(enriched > 0
+            ? `Enrichment interrupted after updating ${enriched} accounts.`
+            : 'Enrichment could not complete. Try again or reduce batch size.');
+          loadDataGaps();
         }
       }
     }, 3000);

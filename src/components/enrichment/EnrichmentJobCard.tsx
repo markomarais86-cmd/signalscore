@@ -30,7 +30,6 @@ const providerLabels: Record<string, string> = {
   pdl: 'Premium',
   ai_free: 'AI Research',
   smart_enrich: 'AI Research',
-  clearbit: 'Premium',
   launch_pulse: 'AI Research',
 };
 
@@ -39,7 +38,6 @@ const providerColors: Record<string, string> = {
   pdl: 'bg-primary/10 text-primary border-primary/20',
   ai_free: 'bg-green-500/10 text-green-700 border-green-200',
   smart_enrich: 'bg-green-500/10 text-green-700 border-green-200',
-  clearbit: 'bg-primary/10 text-primary border-primary/20',
   launch_pulse: 'bg-green-500/10 text-green-700 border-green-200',
 };
 

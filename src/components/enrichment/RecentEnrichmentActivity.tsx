@@ -181,9 +181,14 @@ function JobRow({
       ? formatDistanceToNow(new Date(job.started_at), { addSuffix: true })
       : "Unknown";
 
-  const successRate = job.processed_records > 0 
-    ? Math.round((job.accounts_enriched / job.processed_records) * 100) 
-    : 0;
+  const alreadyComplete = Math.max(0, (job.processed_records || 0) - (job.accounts_enriched || 0) - (job.failed_records || 0));
+
+  // Build a human-friendly summary
+  const parts: string[] = [];
+  if (job.accounts_enriched > 0) parts.push(`${job.accounts_enriched} new`);
+  if (alreadyComplete > 0) parts.push(`${alreadyComplete} already OK`);
+  if (job.failed_records > 0) parts.push(`${job.failed_records} not found`);
+  const summary = parts.length > 0 ? parts.join(' • ') : `${job.processed_records || 0} processed`;
 
   return (
     <div className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors">
@@ -194,13 +199,13 @@ function JobRow({
             {providerLabels[job.provider] || job.provider}
           </p>
           <p className="text-xs text-muted-foreground">
-            {job.accounts_enriched?.toLocaleString() || 0} accounts • {job.fields_enriched?.toLocaleString() || 0} fields • {timeAgo}
+            {summary} • {timeAgo}
           </p>
         </div>
       </div>
       <div className="flex items-center gap-2">
-        {job.status === "completed" && (
-          <span className="text-xs text-muted-foreground">{successRate}% success</span>
+        {job.status === "completed" && alreadyComplete > 0 && job.accounts_enriched === 0 && (
+          <span className="text-xs text-blue-600">Up to date</span>
         )}
         {getStatusBadge(job.status)}
       </div>
