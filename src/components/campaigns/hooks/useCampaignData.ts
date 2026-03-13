@@ -217,7 +217,7 @@ export function useCampaignData(
           const { count, error: leadsError } = await supabase
             .from('Leads')
             .select('id', { count: 'exact', head: true })
-            .eq('org_id', userProfile.org_id)
+            .eq('org_id', orgId)
             .in('account_external_id', batch)
             .not('email', 'is', null);
           
