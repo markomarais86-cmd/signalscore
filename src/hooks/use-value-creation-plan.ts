@@ -197,7 +197,7 @@ export function useValueCreationPlan(orgId: string | null) {
         .from("value_creation_plans")
         .insert({
           org_id: orgId,
-          created_by: userProfile.id,
+          created_by: userProfile.user_id,
         } as any)
         .select()
         .single();
