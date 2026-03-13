@@ -49,7 +49,7 @@ export function useOrgSettings() {
 
       const { error } = await supabase
         .from('organizations')
-        .update({ org_settings: merged as any })
+        .update({ org_settings: merged as unknown as Record<string, unknown> } as any)
         .eq('id', effectiveOrgId);
 
       if (error) throw error;

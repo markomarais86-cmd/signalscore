@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useEffectiveOrg } from './use-effective-org';
 import { useRoles } from './use-roles';
 import { realtimeLogger as log } from '@/lib/logger';
+import type { SignalPayload, AgentRunPayload, CampaignPayload } from '@/types/realtime-payloads';
 
 /**
  * Listens for high-priority signals, agent completions, and campaign results,
@@ -21,9 +22,9 @@ export function useNotificationDispatcher() {
     alertType: string,
     message: string,
     triggerValue: number,
-    contextData?: Record<string, any>
+    contextData?: Record<string, unknown>
   ) => {
-    const dedupeKey = `${alertType}-${Date.now().toString().slice(0, -4)}`; // ~10s window
+    const dedupeKey = `${alertType}-${Date.now().toString().slice(0, -4)}`;
     if (recentlyFired.current.has(dedupeKey)) return;
     recentlyFired.current.add(dedupeKey);
     setTimeout(() => recentlyFired.current.delete(dedupeKey), 30000);
@@ -63,7 +64,6 @@ export function useNotificationDispatcher() {
 
   useEffect(() => {
     const orgId = effectiveOrgId;
-    // Skip subscriptions for non-admin users or while roles are loading
     if (!orgId || rolesLoading || (!isSuperAdmin && !isOrgAdmin)) return;
 
     let mounted = true;
@@ -76,7 +76,7 @@ export function useNotificationDispatcher() {
         { event: 'INSERT', schema: 'public', table: 'account_signals', filter: `org_id=eq.${orgId}` },
         (payload) => {
           if (!mounted) return;
-          const sig = payload.new as any;
+          const sig = payload.new as SignalPayload;
           if (sig.signal_priority === 'high' || sig.signal_priority === 'critical') {
             fireMatchingAlerts(
               orgId,
@@ -98,8 +98,8 @@ export function useNotificationDispatcher() {
         { event: 'UPDATE', schema: 'public', table: 'ai_agent_runs' },
         (payload) => {
           if (!mounted) return;
-          const newRow = payload.new as any;
-          const oldRow = payload.old as any;
+          const newRow = payload.new as AgentRunPayload;
+          const oldRow = payload.old as Partial<AgentRunPayload>;
           if (oldRow?.status !== 'completed' && newRow.status === 'completed') {
             fireMatchingAlerts(
               orgId,
@@ -121,8 +121,8 @@ export function useNotificationDispatcher() {
         { event: 'UPDATE', schema: 'public', table: 'campaigns', filter: `org_id=eq.${orgId}` },
         (payload) => {
           if (!mounted) return;
-          const newRow = payload.new as any;
-          const oldRow = payload.old as any;
+          const newRow = payload.new as CampaignPayload;
+          const oldRow = payload.old as Partial<CampaignPayload>;
           if (oldRow?.status !== newRow.status && (newRow.status === 'completed' || newRow.status === 'sent')) {
             fireMatchingAlerts(
               orgId,

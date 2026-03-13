@@ -13,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { supabase } from "@/integrations/supabase/client";
 import { formatNumber } from "@/utils/format-numbers";
 import { useAuth } from "@/hooks/use-auth";
-import { useEffectiveOrg } from "@/hooks/use-effective-org";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { useToast } from "@/hooks/use-toast";
 import { leadsLogger } from "@/lib/logger";
 import { Label } from "@/components/ui/label";
@@ -97,7 +97,7 @@ export default function Leads() {
   const [hasAttemptedMatch, setHasAttemptedMatch] = useState(false);
   const [activeView, setActiveView] = useState<'all' | 'enriched'>('all');
   const { userProfile } = useAuth();
-  const { effectiveOrgId } = useEffectiveOrg();
+  const { dataOrgId: effectiveOrgId } = useDataOrgId();
   const { toast } = useToast();
   const { flags } = useFeatureFlags();
 
@@ -319,8 +319,8 @@ export default function Leads() {
 
   const getScoreBadge = (score?: number) => {
     if (!score || score === 0) return <Badge variant="outline">Unscored</Badge>;
-    if (score >= 60) return <Badge className="bg-green-500">Qualified ({score})</Badge>;
-    if (score >= 40) return <Badge variant="secondary">Medium ({score})</Badge>;
+    if (score >= 60) return <Badge className="bg-[hsl(var(--signal-high,142_76%_36%))] text-white">Qualified ({score})</Badge>;
+    if (score >= 40) return <Badge className="bg-[hsl(var(--signal-medium,48_96%_53%))] text-black">Medium ({score})</Badge>;
     return <Badge variant="destructive">Low ({score})</Badge>;
   };
 

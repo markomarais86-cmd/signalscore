@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/hooks/use-auth';
+import { useDataOrgId } from '@/hooks/use-data-org';
 import { FilterCriteria, ICPProfile } from './useCampaignState';
 import { campaignsLogger } from '@/lib/logger';
 import { HIGH_FIT_THRESHOLD, MEDIUM_FIT_THRESHOLD } from '@/lib/score-bands';
@@ -27,7 +27,9 @@ export function useCampaignData(
   useICP: boolean,
   applySuppression: boolean = true
 ) {
-  const { userProfile } = useAuth();
+  const { dataOrgId, effectiveOrgId } = useDataOrgId();
+  const orgId = dataOrgId; // accounts/leads live in the data org
+  const scoreOrgId = effectiveOrgId; // scores live in child org
   const { suppressedDomains, totalCount: suppressionRuleCount } = useSuppressionRules();
   const [previewData, setPreviewData] = useState<AccountWithScore[] | null>(null);
   const [suppressedCount, setSuppressedCount] = useState(0);
@@ -43,14 +45,14 @@ export function useCampaignData(
   // Real-time lead count as filters change
   useEffect(() => {
     const countLeadsRealtime = async () => {
-      if (!userProfile?.org_id) return;
+      if (!orgId) return;
       
       setIsCountingLeads(true);
       try {
         let query = supabase
           .from('Leads')
           .select('id', { count: 'exact', head: true })
-          .eq('org_id', userProfile.org_id)
+          .eq('org_id', orgId)
           .not('email', 'is', null);
         
         const { count } = await query;
@@ -64,12 +66,12 @@ export function useCampaignData(
     
     const debounce = setTimeout(countLeadsRealtime, 500);
     return () => clearTimeout(debounce);
-  }, [userProfile?.org_id, filterCriteria]);
+  }, [orgId, filterCriteria]);
 
   // Load Apollo TAM data when 'database' source is selected
   useEffect(() => {
     const loadApolloTamData = async () => {
-      if (!userProfile?.org_id || dataSource !== 'database') {
+      if (!orgId || dataSource !== 'database') {
         setApolloTamData(null);
         setApolloTamDomains([]);
         return;
@@ -79,7 +81,7 @@ export function useCampaignData(
         const { data: externalSource, error } = await supabase
           .from('external_data_sources')
           .select('*')
-          .eq('org_id', userProfile.org_id)
+          .eq('org_id', orgId)
           .eq('provider', 'apollo')
           .single();
         
@@ -98,10 +100,10 @@ export function useCampaignData(
     };
     
     loadApolloTamData();
-  }, [userProfile?.org_id, dataSource]);
+  }, [orgId, dataSource]);
 
   const loadPreview = useCallback(async (provider: 'apollo' | 'zoominfo' | 'clearbit') => {
-    if (!userProfile?.org_id) return;
+    if (!orgId) return;
     setIsLoadingPreview(true);
     
     try {
@@ -116,9 +118,9 @@ export function useCampaignData(
         let query = supabase
           .from('accounts')
           .select('external_id, name, domain, industry_norm, employee_count, revenue_range, country, state_province, city')
-          .eq('org_id', userProfile.org_id)
+          .eq('org_id', orgId)
           .range(page * pageSize, (page + 1) * pageSize - 1);
-        
+
         if (dataSource === 'crm') {
           query = query.in('data_source', ['crm', 'both']);
         } else if (dataSource === 'database') {
@@ -165,7 +167,7 @@ export function useCampaignData(
         const { data: scoresData, error: scoresError } = await supabase
           .from('scores')
           .select('account_external_id, overall, fit, intent')
-          .eq('org_id', userProfile.org_id)
+          .eq('org_id', scoreOrgId || orgId)
           .in('account_external_id', batch);
         
         if (!scoresError && scoresData) {
@@ -216,7 +218,7 @@ export function useCampaignData(
           const { count, error: leadsError } = await supabase
             .from('Leads')
             .select('id', { count: 'exact', head: true })
-            .eq('org_id', userProfile.org_id)
+            .eq('org_id', orgId)
             .in('account_external_id', batch)
             .not('email', 'is', null);
           
@@ -247,7 +249,7 @@ export function useCampaignData(
       setIsLoadingPreview(false);
       setLoadingProgress('');
     }
-  }, [userProfile?.org_id, filterCriteria, dataSource, useICP, applySuppression, suppressedDomains]);
+  }, [orgId, scoreOrgId, filterCriteria, dataSource, useICP, applySuppression, suppressedDomains]);
 
   const scoreBandBreakdown = useMemo(() => {
     if (!previewData) return { A: 0, B: 0, C: 0 };
