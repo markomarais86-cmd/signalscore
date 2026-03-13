@@ -45,14 +45,14 @@ export function useCampaignData(
   // Real-time lead count as filters change
   useEffect(() => {
     const countLeadsRealtime = async () => {
-      if (!userProfile?.org_id) return;
+      if (!orgId) return;
       
       setIsCountingLeads(true);
       try {
         let query = supabase
           .from('Leads')
           .select('id', { count: 'exact', head: true })
-          .eq('org_id', userProfile.org_id)
+          .eq('org_id', orgId)
           .not('email', 'is', null);
         
         const { count } = await query;
@@ -66,7 +66,7 @@ export function useCampaignData(
     
     const debounce = setTimeout(countLeadsRealtime, 500);
     return () => clearTimeout(debounce);
-  }, [userProfile?.org_id, filterCriteria]);
+  }, [orgId, filterCriteria]);
 
   // Load Apollo TAM data when 'database' source is selected
   useEffect(() => {
