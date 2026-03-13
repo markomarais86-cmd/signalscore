@@ -4,6 +4,8 @@ import { useCursorPagination } from './use-cursor-pagination';
 import { useToast } from './use-toast';
 import { logger } from '@/lib/logger';
 import { toastError } from '@/lib/friendly-errors';
+import { callCustomRpc } from '@/types/supabase-rpc';
+import type { FilteredAccountRow } from '@/types/supabase-rpc';
 
 interface Account {
   id: string;
