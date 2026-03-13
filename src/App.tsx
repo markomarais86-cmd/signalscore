@@ -261,7 +261,9 @@ function AppContent() {
                   element={
                     <ProtectedRoute>
                       <Layout>
-                        <DueDiligence />
+                        <FeatureErrorBoundary fallbackTitle="Due Diligence failed to load">
+                          <DueDiligence />
+                        </FeatureErrorBoundary>
                       </Layout>
                     </ProtectedRoute>
                   }

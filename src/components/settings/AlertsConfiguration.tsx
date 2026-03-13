@@ -469,11 +469,11 @@ export function AlertsConfiguration() {
                     <span className="text-sm font-medium">Slack</span>
                   </div>
                   <Switch
-                    checked={(form.notification_channels as any)?.slack || false}
+                    checked={parseChannels(form.notification_channels).slack}
                     onCheckedChange={v => updateChannel("slack", v)}
                   />
                 </div>
-                {(form.notification_channels as any)?.slack && (
+                {parseChannels(form.notification_channels).slack && (
                   <Input
                     placeholder="https://hooks.slack.com/services/..."
                     value={form.slack_webhook_url || ""}
@@ -490,11 +490,11 @@ export function AlertsConfiguration() {
                     <span className="text-sm font-medium">Microsoft Teams</span>
                   </div>
                   <Switch
-                    checked={(form.notification_channels as any)?.teams || false}
+                    checked={parseChannels(form.notification_channels).teams}
                     onCheckedChange={v => updateChannel("teams", v)}
                   />
                 </div>
-                {(form.notification_channels as any)?.teams && (
+                {parseChannels(form.notification_channels).teams && (
                   <div className="space-y-1">
                     <Input
                       placeholder="https://outlook.office.com/webhook/..."
@@ -516,11 +516,11 @@ export function AlertsConfiguration() {
                     <span className="text-sm font-medium">Webhook</span>
                   </div>
                   <Switch
-                    checked={(form.notification_channels as any)?.webhook || false}
+                    checked={parseChannels(form.notification_channels).webhook}
                     onCheckedChange={v => updateChannel("webhook", v)}
                   />
                 </div>
-                {(form.notification_channels as any)?.webhook && (
+                {parseChannels(form.notification_channels).webhook && (
                   <Input
                     placeholder="https://your-endpoint.com/webhook"
                     value={form.webhook_url || ""}
@@ -537,11 +537,11 @@ export function AlertsConfiguration() {
                     <span className="text-sm font-medium">Email</span>
                   </div>
                   <Switch
-                    checked={(form.notification_channels as any)?.email || false}
+                    checked={parseChannels(form.notification_channels).email}
                     onCheckedChange={v => updateChannel("email", v)}
                   />
                 </div>
-                {(form.notification_channels as any)?.email && (
+                {parseChannels(form.notification_channels).email && (
                   <Input
                     placeholder="admin@company.com, ops@company.com"
                     value={(form.email_recipients || []).join(", ")}
