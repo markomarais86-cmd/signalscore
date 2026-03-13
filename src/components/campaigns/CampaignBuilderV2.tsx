@@ -213,6 +213,8 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
           <SetupStep
             campaignName={campaignName}
             setCampaignName={setCampaignName}
+            fuelLineType={fuelLineType}
+            setFuelLineType={setFuelLineType}
             useICP={useICP}
             setUseICP={setUseICP}
             activeICP={activeICP}
