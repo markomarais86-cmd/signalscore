@@ -293,6 +293,8 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
             setExcludeDuplicates={setExcludeDuplicates}
             onEstimateROI={estimateROI}
             scoreBandBreakdown={scoreBandBreakdown}
+            suppressedCount={suppressedCount}
+            applySuppression={applySuppression}
           />
         );
       case 7:
