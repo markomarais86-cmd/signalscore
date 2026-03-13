@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { FilterCriteria, ICPProfile } from './useCampaignState';
 import { campaignsLogger } from '@/lib/logger';
 import { HIGH_FIT_THRESHOLD, MEDIUM_FIT_THRESHOLD } from '@/lib/score-bands';
+import { useSuppressionRules } from '@/hooks/use-suppression-rules';
 
 interface AccountWithScore {
   external_id: string;
