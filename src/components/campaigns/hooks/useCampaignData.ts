@@ -119,7 +119,8 @@ export function useCampaignData(
           .from('accounts')
           .select('external_id, name, domain, industry_norm, employee_count, revenue_range, country, state_province, city')
           .eq('org_id', orgId)
-        
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+
         if (dataSource === 'crm') {
           query = query.in('data_source', ['crm', 'both']);
         } else if (dataSource === 'database') {
