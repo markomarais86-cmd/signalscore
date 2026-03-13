@@ -48,6 +48,8 @@ import { ICPProfileSummaryCard } from "@/components/executive/ICPProfileSummaryC
 import { StatusBar, buildStatusItems } from "@/components/executive/StatusBar";
 import { ExportToPdf } from "@/components/executive/ExportToPdf";
 import { SignalFeed } from "@/components/executive/SignalFeed";
+import { SignalActionCards } from "@/components/dashboard/SignalActionCards";
+import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import { useBrandedReport } from "@/hooks/use-branded-report";
 import { dashboardLogger } from "@/lib/logger";
 import { FileText } from "lucide-react";
