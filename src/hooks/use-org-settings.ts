@@ -47,10 +47,12 @@ export function useOrgSettings() {
       const current = settings || DEFAULTS;
       const merged = { ...current, ...updates };
 
-      // org_settings is a JSONB column; use Json-compatible type
+      // org_settings is a JSONB column not in generated Update type; bypass via spread
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updateValue = { org_settings: merged } as any;
       const { error } = await supabase
         .from('organizations')
-        .update({ org_settings: merged as unknown as Record<string, unknown> } as unknown as Parameters<typeof supabase.from<'organizations'>>[0] extends string ? never : Record<string, unknown>)
+        .update(updateValue)
         .eq('id', effectiveOrgId);
 
       if (error) throw error;
