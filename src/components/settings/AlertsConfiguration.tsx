@@ -232,15 +232,15 @@ export function AlertsConfiguration() {
 
   const getChannelBadges = (alert: Alert) => {
     const badges: Array<{ label: string; icon: any; ok: boolean }> = [];
-    const ch = typeof alert.notification_channels === 'object' && alert.notification_channels ? alert.notification_channels : {};
-    if ((ch as any).slack && alert.slack_webhook_url) badges.push({ label: "Slack", icon: Slack, ok: true });
-    else if ((ch as any).slack) badges.push({ label: "Slack", icon: Slack, ok: false });
-    if ((ch as any).teams && alert.teams_webhook_url) badges.push({ label: "Teams", icon: TeamsIcon, ok: true });
-    else if ((ch as any).teams) badges.push({ label: "Teams", icon: TeamsIcon, ok: false });
-    if ((ch as any).webhook && alert.webhook_url) badges.push({ label: "Webhook", icon: Webhook, ok: true });
-    else if ((ch as any).webhook) badges.push({ label: "Webhook", icon: Webhook, ok: false });
-    if ((ch as any).email && alert.email_recipients?.length) badges.push({ label: "Email", icon: Mail, ok: true });
-    else if ((ch as any).email) badges.push({ label: "Email", icon: Mail, ok: false });
+    const ch = alert.notification_channels;
+    if (ch.slack && alert.slack_webhook_url) badges.push({ label: "Slack", icon: Slack, ok: true });
+    else if (ch.slack) badges.push({ label: "Slack", icon: Slack, ok: false });
+    if (ch.teams && alert.teams_webhook_url) badges.push({ label: "Teams", icon: TeamsIcon, ok: true });
+    else if (ch.teams) badges.push({ label: "Teams", icon: TeamsIcon, ok: false });
+    if (ch.webhook && alert.webhook_url) badges.push({ label: "Webhook", icon: Webhook, ok: true });
+    else if (ch.webhook) badges.push({ label: "Webhook", icon: Webhook, ok: false });
+    if (ch.email && alert.email_recipients?.length) badges.push({ label: "Email", icon: Mail, ok: true });
+    else if (ch.email) badges.push({ label: "Email", icon: Mail, ok: false });
     return badges;
   };
 
