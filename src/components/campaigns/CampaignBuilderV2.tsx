@@ -93,6 +93,19 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
     }
   }, [isOpen, effectiveOrgId, icpId]);
 
+  // Auto-configure from signal context
+  useEffect(() => {
+    if (isOpen && insightContext?.signalType) {
+      const mapping = SIGNAL_FUEL_LINE_MAP[insightContext.signalType];
+      if (mapping) {
+        setFuelLineType(mapping.fuelLine);
+      }
+      if (insightContext.suggestedCampaignName) {
+        setCampaignName(insightContext.suggestedCampaignName);
+      }
+    }
+  }, [isOpen, insightContext]);
+
   // Reset on close
   useEffect(() => {
     if (!isOpen) {
