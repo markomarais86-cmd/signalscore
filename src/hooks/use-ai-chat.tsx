@@ -363,7 +363,7 @@ export function useAIChat(options: UseAIChatOptions = {}) {
     setIsLoading(true);
 
     let assistantContent = '';
-    let streamHealthCheck: NodeJS.Timeout | null = null;
+    let streamHealthCheck: ReturnType<typeof setTimeout> | null = null;
     let lastActivity = Date.now();
 
     const updateAssistant = (chunk: string) => {

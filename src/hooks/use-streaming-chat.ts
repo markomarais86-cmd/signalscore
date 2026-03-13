@@ -36,7 +36,7 @@ export function useStreamingChat(options: UseStreamingChatOptions): StreamingCha
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const streamHealthCheckRef = useRef<NodeJS.Timeout | null>(null);
+  const streamHealthCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const cleanup = useCallback(() => {
     if (streamHealthCheckRef.current) {
