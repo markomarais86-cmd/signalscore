@@ -33,7 +33,12 @@ const PAGE_SUGGESTIONS: Record<string, string[]> = {
   '/': [
     'Analyze my pipeline health',
     'What accounts should I prioritize?',
-    'Find gaps in my data',
+    'Show me accounts with funding signals this week',
+  ],
+  '/dashboard': [
+    'Show me unactioned high-priority signals',
+    'Build me a campaign for A-band accounts in DACH',
+    'What accounts should I prioritize?',
   ],
   '/icp-manager': [
     'How can I improve my ICP?',
@@ -42,7 +47,7 @@ const PAGE_SUGGESTIONS: Record<string, string[]> = {
   ],
   '/accounts': [
     'Find tech companies with CTOs scoring above 70',
-    'Analyze my territory by geography',
+    'Build a campaign for A-band accounts in DACH',
     'Show recently funded high-fit accounts',
   ],
   '/leads': [
@@ -65,6 +70,11 @@ const PAGE_SUGGESTIONS: Record<string, string[]> = {
     'How do I connect my CRM?',
     'Set up Apollo integration',
     'Configure scoring weights',
+  ],
+  '/portfolio': [
+    'Show me the GTM health of all portfolio companies',
+    'Which company has the worst data quality?',
+    'Go to the 100-day plan tracker',
   ],
 };
 
