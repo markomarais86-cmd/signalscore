@@ -319,8 +319,8 @@ export default function Leads() {
 
   const getScoreBadge = (score?: number) => {
     if (!score || score === 0) return <Badge variant="outline">Unscored</Badge>;
-    if (score >= 60) return <Badge className="bg-green-500">Qualified ({score})</Badge>;
-    if (score >= 40) return <Badge variant="secondary">Medium ({score})</Badge>;
+    if (score >= 60) return <Badge className="bg-[hsl(var(--signal-high,142_76%_36%))] text-white">Qualified ({score})</Badge>;
+    if (score >= 40) return <Badge className="bg-[hsl(var(--signal-medium,48_96%_53%))] text-black">Medium ({score})</Badge>;
     return <Badge variant="destructive">Low ({score})</Badge>;
   };
 
