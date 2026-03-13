@@ -40,6 +40,8 @@ interface UseAIChatOptions {
   };
   onActionExecuted?: (action: ActionResult) => void;
   onWorkflowUpdate?: (status: WorkflowStatus) => void;
+  onNavigate?: (path: string) => void;
+  onOpenCampaignBuilder?: (params: Record<string, any>) => void;
 }
 
 // Parse action blocks from AI response
@@ -55,6 +57,9 @@ function parseActionFromResponse(content: string): { action: string; parameters:
   return null;
 }
 
+// Client-side actions that don't need the edge function router
+const CLIENT_ACTIONS = new Set(['navigate', 'open_campaign_builder', 'search_signals']);
+
 // Detect result type from action response
 function detectResultType(action: string, result: any): ChatMessage['resultType'] {
   if (!result) return undefined;
@@ -62,6 +67,11 @@ function detectResultType(action: string, result: any): ChatMessage['resultType'
   // Workflow actions
   if (result.isWorkflow || result.workflow_id) {
     return 'workflow';
+  }
+  
+  // Signal search returns accounts-like data
+  if (action === 'search_signals') {
+    return 'insights';
   }
   
   // Search actions
@@ -125,6 +135,68 @@ async function loadFromMemory(orgId: string, userId: string, key: string): Promi
     return data?.memory_value || null;
   } catch {
     return null;
+  }
+}
+
+// Client-side signal search
+async function executeSignalSearch(params: Record<string, any>): Promise<ActionResult> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return { action: 'search_signals', success: false, error: 'Not authenticated' };
+
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('org_id')
+      .eq('user_id', session.user.id)
+      .single();
+
+    if (!profile?.org_id) return { action: 'search_signals', success: false, error: 'No org' };
+
+    let query = supabase
+      .from('account_signals')
+      .select('*')
+      .eq('org_id', profile.org_id)
+      .order('created_at', { ascending: false })
+      .limit(params.limit || 25);
+
+    if (params.signal_type) {
+      query = query.eq('signal_type', params.signal_type);
+    }
+    if (params.priority) {
+      query = query.eq('signal_priority', params.priority);
+    }
+    if (params.unactioned_only) {
+      query = query.is('actioned_at', null).is('dismissed_at', null);
+    }
+    if (params.days) {
+      const since = new Date(Date.now() - params.days * 86400000).toISOString();
+      query = query.gte('created_at', since);
+    }
+
+    const { data: signals, error } = await query;
+    if (error) throw error;
+
+    const signalTypes: Record<string, number> = {};
+    (signals || []).forEach((s: any) => {
+      signalTypes[s.signal_type] = (signalTypes[s.signal_type] || 0) + 1;
+    });
+
+    return {
+      action: 'search_signals',
+      success: true,
+      result: {
+        message: `Found **${signals?.length || 0}** signals${params.signal_type ? ` of type "${params.signal_type}"` : ''}${params.days ? ` in the last ${params.days} days` : ''}.`,
+        total: signals?.length || 0,
+        signals: (signals || []).slice(0, 10),
+        signal_type_breakdown: signalTypes,
+        total_accounts: signals?.length || 0,
+        recommendations: signals && signals.length > 0
+          ? ['Build an ABM campaign from these signals', 'Show account details for the top signal']
+          : ['Try broadening your search window'],
+      },
+    };
+  } catch (e) {
+    return { action: 'search_signals', success: false, error: e instanceof Error ? e.message : 'Signal search failed' };
   }
 }
 
@@ -228,6 +300,30 @@ export function useAIChat(options: UseAIChatOptions = {}) {
 
   const executeAction = useCallback(async (actionData: { action: string; parameters: Record<string, any> }) => {
     try {
+      // Handle client-side actions (no edge function needed)
+      if (actionData.action === 'navigate') {
+        const path = actionData.parameters?.path;
+        if (path && options.onNavigate) {
+          options.onNavigate(path);
+          toast.success(`Navigating to ${path}`);
+          return { action: 'navigate', success: true, result: { message: `Navigated to ${path}` } };
+        }
+        return { action: 'navigate', success: false, error: 'No navigation handler' };
+      }
+
+      if (actionData.action === 'open_campaign_builder') {
+        if (options.onOpenCampaignBuilder) {
+          options.onOpenCampaignBuilder(actionData.parameters || {});
+          toast.success('Opening Campaign Builder');
+          return { action: 'open_campaign_builder', success: true, result: { message: `Campaign Builder opened with ${actionData.parameters?.campaign_name || 'default'} configuration` } };
+        }
+        return { action: 'open_campaign_builder', success: false, error: 'Campaign builder not available' };
+      }
+
+      if (actionData.action === 'search_signals') {
+        return await executeSignalSearch(actionData.parameters);
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         toast.error('Please log in to execute actions');

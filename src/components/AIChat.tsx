@@ -33,7 +33,12 @@ const PAGE_SUGGESTIONS: Record<string, string[]> = {
   '/': [
     'Analyze my pipeline health',
     'What accounts should I prioritize?',
-    'Find gaps in my data',
+    'Show me accounts with funding signals this week',
+  ],
+  '/dashboard': [
+    'Show me unactioned high-priority signals',
+    'Build me a campaign for A-band accounts in DACH',
+    'What accounts should I prioritize?',
   ],
   '/icp-manager': [
     'How can I improve my ICP?',
@@ -42,7 +47,7 @@ const PAGE_SUGGESTIONS: Record<string, string[]> = {
   ],
   '/accounts': [
     'Find tech companies with CTOs scoring above 70',
-    'Analyze my territory by geography',
+    'Build a campaign for A-band accounts in DACH',
     'Show recently funded high-fit accounts',
   ],
   '/leads': [
@@ -65,6 +70,11 @@ const PAGE_SUGGESTIONS: Record<string, string[]> = {
     'How do I connect my CRM?',
     'Set up Apollo integration',
     'Configure scoring weights',
+  ],
+  '/portfolio': [
+    'Show me the GTM health of all portfolio companies',
+    'Which company has the worst data quality?',
+    'Go to the 100-day plan tracker',
   ],
 };
 
@@ -98,6 +108,10 @@ const ACTION_LABELS: Record<string, string> = {
   update_icp: 'Update ICP',
   sync_to_crm: 'Sync to CRM',
   schedule_enrichment: 'Schedule Enrichment',
+  // Client-side actions
+  navigate: 'Navigate',
+  open_campaign_builder: 'Open Campaign Builder',
+  search_signals: 'Search Signals',
 };
 
 function MessageBubble({ message, onSendMessage }: { message: ChatMessage; onSendMessage: (msg: string) => void }) {
@@ -395,6 +409,26 @@ export function AIChat() {
     }
   }, [navigate, learnPreference]);
 
+  // Handle navigation from AI chat
+  const handleNavigate = useCallback((path: string) => {
+    navigate(path);
+  }, [navigate]);
+
+  // Handle campaign builder opening from AI chat
+  const handleOpenCampaignBuilder = useCallback((params: Record<string, any>) => {
+    // Dispatch event to open campaign builder with context
+    window.dispatchEvent(new CustomEvent('open-campaign-builder', {
+      detail: {
+        fuelLineType: params.fuel_line_type,
+        campaignName: params.campaign_name,
+        countries: params.countries,
+        industries: params.industries,
+        minScore: params.min_score,
+        jobTitles: params.job_titles,
+      }
+    }));
+  }, []);
+
   const { messages, isLoading, sendMessage, clearMessages, pendingAction, confirmAction, cancelAction, activeWorkflow, cancelWorkflow } = useAIChat({
     context: { 
       currentPage,
@@ -402,6 +436,8 @@ export function AIChat() {
       userPreferences: Object.keys(preferences).length > 0 ? preferences : undefined,
     },
     onActionExecuted: handleActionExecuted,
+    onNavigate: handleNavigate,
+    onOpenCampaignBuilder: handleOpenCampaignBuilder,
   });
 
   // Refresh AI suggestions when chat opens
