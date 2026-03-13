@@ -144,11 +144,6 @@ export default function DueDiligencePage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  if (!rolesLoading && !isSuperAdmin) {
-    navigate("/dashboard");
-    return null;
-  }
-
   const handleFileUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
