@@ -29,7 +29,9 @@ export function useDataOrgId() {
         .single();
 
       if (error || !data) return effectiveOrgId;
-      return (data as any).parent_org_id || effectiveOrgId;
+      // parent_org_id may not be in generated types yet
+      const row = data as { parent_org_id?: string | null };
+      return row.parent_org_id || effectiveOrgId;
     },
     enabled: !!effectiveOrgId,
     staleTime: 30 * 60 * 1000, // 30 min — rarely changes

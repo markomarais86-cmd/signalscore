@@ -1,22 +1,13 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import type { ScoreSnapshot } from "@/types/supabase-rpc";
 
 interface ScoreChange {
   id: string;
   account_external_id: string;
-  old_score: {
-    overall: number;
-    fit: number;
-    intent: number;
-    reachability: number;
-  } | null;
-  new_score: {
-    overall: number;
-    fit: number;
-    intent: number;
-    reachability: number;
-  };
+  old_score: ScoreSnapshot | null;
+  new_score: ScoreSnapshot;
   computed_at: string;
   change_reason: string | null;
 }
@@ -53,8 +44,8 @@ export function useScoreHistory(accountExternalId: string | null) {
       setHistory((data || []).map(item => ({
         id: item.id,
         account_external_id: item.account_external_id,
-        old_score: item.old_score as any,
-        new_score: item.new_score as any,
+        old_score: item.old_score as unknown as ScoreSnapshot | null,
+        new_score: item.new_score as unknown as ScoreSnapshot,
         computed_at: item.computed_at,
         change_reason: item.change_reason
       })));

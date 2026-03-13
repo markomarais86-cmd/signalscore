@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './use-auth';
 import { realtimeLogger as log } from '@/lib/logger';
+import type { AccountChangePayload, ScoringJobPayload, EnrichmentJobPayload } from '@/types/realtime-payloads';
 
 interface DataChangeListenerOptions {
   onAccountsChanged?: () => void;
@@ -24,12 +25,10 @@ export function useDataChangeListener({
   const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const lastTriggerTimes = useRef<Record<string, number>>({});
   
-  // Use refs for callbacks to avoid re-subscriptions when callbacks change
   const onAccountsChangedRef = useRef(onAccountsChanged);
   const onScoringCompletedRef = useRef(onScoringCompleted);
   const onEnrichmentCompletedRef = useRef(onEnrichmentCompleted);
   
-  // Keep refs in sync
   useEffect(() => {
     onAccountsChangedRef.current = onAccountsChanged;
   }, [onAccountsChanged]);
@@ -46,24 +45,20 @@ export function useDataChangeListener({
     const callback = callbackRef.current;
     if (!callback) return;
 
-    // Clear existing timer
     if (debounceTimers.current[key]) {
       clearTimeout(debounceTimers.current[key]);
     }
 
-    // Check if we've triggered recently (within last 30 seconds)
     const now = Date.now();
     const lastTrigger = lastTriggerTimes.current[key] || 0;
     const timeSinceLastTrigger = now - lastTrigger;
 
     if (timeSinceLastTrigger < 30000) {
-      // Too soon, just debounce
       debounceTimers.current[key] = setTimeout(() => {
         callbackRef.current?.();
         lastTriggerTimes.current[key] = Date.now();
       }, debounceMs);
     } else {
-      // It's been a while, trigger immediately but still debounce future calls
       debounceTimers.current[key] = setTimeout(() => {
         callbackRef.current?.();
         lastTriggerTimes.current[key] = Date.now();
@@ -76,7 +71,6 @@ export function useDataChangeListener({
 
     log.info('Setting up realtime subscriptions for org:', userProfile.org_id);
 
-    // Track mounted state to prevent state updates after unmount
     let isMounted = true;
 
     // Listen for account changes (inserts/updates)
@@ -95,9 +89,12 @@ export function useDataChangeListener({
           log.debug('Account change detected:', payload.eventType);
           if (payload.eventType === 'INSERT') {
             debouncedCallback('accounts-insert', onAccountsChangedRef);
-          } else if (payload.eventType === 'UPDATE' && (payload.new as any).propensity_score !== (payload.old as any)?.propensity_score) {
-            // Score was updated
-            debouncedCallback('accounts-score', onAccountsChangedRef);
+          } else if (payload.eventType === 'UPDATE') {
+            const newRow = payload.new as AccountChangePayload;
+            const oldRow = payload.old as Partial<AccountChangePayload>;
+            if (newRow.propensity_score !== oldRow?.propensity_score) {
+              debouncedCallback('accounts-score', onAccountsChangedRef);
+            }
           }
         }
       )
@@ -118,12 +115,12 @@ export function useDataChangeListener({
         },
         (payload) => {
           if (!isMounted) return;
-          const newStatus = (payload.new as any).status;
-          const oldStatus = (payload.old as any)?.status;
+          const newRow = payload.new as ScoringJobPayload;
+          const oldRow = payload.old as Partial<ScoringJobPayload>;
           
-          log.debug('Scoring job status change:', { oldStatus, newStatus });
+          log.debug('Scoring job status change:', { oldStatus: oldRow?.status, newStatus: newRow.status });
           
-          if (oldStatus !== 'completed' && newStatus === 'completed') {
+          if (oldRow?.status !== 'completed' && newRow.status === 'completed') {
             log.info('Scoring job completed, triggering refresh');
             debouncedCallback('scoring-completed', onScoringCompletedRef);
           }
@@ -146,12 +143,12 @@ export function useDataChangeListener({
         },
         (payload) => {
           if (!isMounted) return;
-          const newStatus = (payload.new as any).status;
-          const oldStatus = (payload.old as any)?.status;
+          const newRow = payload.new as EnrichmentJobPayload;
+          const oldRow = payload.old as Partial<EnrichmentJobPayload>;
           
-          log.debug('Enrichment job status change:', { oldStatus, newStatus });
+          log.debug('Enrichment job status change:', { oldStatus: oldRow?.status, newStatus: newRow.status });
           
-          if (oldStatus !== 'completed' && newStatus === 'completed') {
+          if (oldRow?.status !== 'completed' && newRow.status === 'completed') {
             log.info('Enrichment job completed, triggering refresh');
             debouncedCallback('enrichment-completed', onEnrichmentCompletedRef);
           }
@@ -161,7 +158,6 @@ export function useDataChangeListener({
         log.debug('Enrichment jobs channel status:', status);
       });
 
-    // Cleanup
     return () => {
       log.debug('Cleaning up subscriptions');
       isMounted = false;
@@ -169,13 +165,11 @@ export function useDataChangeListener({
       supabase.removeChannel(scoringChannel);
       supabase.removeChannel(enrichmentChannel);
       
-      // Clear all debounce timers
       Object.values(debounceTimers.current).forEach(timer => clearTimeout(timer));
       debounceTimers.current = {};
     };
-  }, [userProfile?.org_id, debouncedCallback]); // Removed callback dependencies
+  }, [userProfile?.org_id, debouncedCallback]);
 
-  // Cleanup timers on unmount
   useEffect(() => {
     return () => {
       Object.values(debounceTimers.current).forEach(timer => clearTimeout(timer));

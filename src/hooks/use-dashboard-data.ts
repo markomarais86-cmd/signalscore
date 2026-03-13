@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { logger } from '@/lib/logger';
+import type { DashboardMetricsCachedResult, DataCompletenessResult } from '@/types/supabase-rpc';
+import { unwrapRpcResult } from '@/types/supabase-rpc';
 
 const dashboardLogger = logger.scope('Dashboard');
 
@@ -18,7 +20,8 @@ async function computeDataCompleteness(dataOrgId: string, childOrgId?: string): 
       return 0;
     }
 
-    return (data as any)?.completeness || 0;
+    const result = unwrapRpcResult<DataCompletenessResult>(data);
+    return result?.completeness || 0;
   } catch (err) {
     dashboardLogger.error('Data completeness error:', err);
     return 0;
@@ -66,29 +69,27 @@ interface ExternalTAMData {
   totalLeads: number;
   provider: string;
   lastSyncedAt: string | null;
-  geography_breakdown?: any;
-  industry_breakdown?: any;
-  company_size_breakdown?: any;
-  revenue_breakdown?: any;
-  technology_breakdown?: any;
-  funding_breakdown?: any;
+  geography_breakdown?: unknown;
+  industry_breakdown?: unknown;
+  company_size_breakdown?: unknown;
+  revenue_breakdown?: unknown;
+  technology_breakdown?: unknown;
+  funding_breakdown?: unknown;
 }
 
 interface DashboardData {
   metrics: DashboardMetrics;
-  icpProfiles: any[];
+  icpProfiles: unknown[];
   tamData: ExternalTAMData | null;
 }
 
 export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' | 'database' = 'crm', dataOrgId?: string) {
-  // For data completeness, use the data org (parent) since accounts live there
   const resolvedDataOrgId = dataOrgId || orgId;
   return useQuery({
     queryKey: ['dashboard-metrics', orgId, sourceFilter, resolvedDataOrgId],
     queryFn: async (): Promise<DashboardData> => {
       if (!orgId) throw new Error('No org ID provided');
       
-      // Parallel fetch: ICP profiles + TAM data first (fast queries)
       const [icpResult, tamResult, dataCompleteness] = await Promise.all([
         supabase
           .from('icp_profiles')
@@ -122,12 +123,10 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
         throw icpResult.error;
       }
 
-      // TAM data is optional, don't throw if missing
       let resolvedTam = tamResult;
       if (tamResult.error) {
         dashboardLogger.warn('TAM fetch error for org', orgId, ':', tamResult.error);
       }
-      // Fallback: if child org TAM query returned nothing, try parent org
       if (!tamResult.data && !tamResult.error && resolvedDataOrgId && resolvedDataOrgId !== orgId) {
         dashboardLogger.info('TAM not found for child org, trying parent org:', resolvedDataOrgId);
         resolvedTam = await supabase
@@ -147,7 +146,6 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
         }
       }
       
-      // Fetch metrics from cached materialized view (much faster)
       let metricsResult;
       let campaignReadyResult;
       try {
@@ -162,22 +160,15 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
         ]);
       } catch (err) {
         dashboardLogger.error('Metrics RPC timeout/error:', err);
-        // Return empty metrics on timeout, don't block the whole page
         metricsResult = { data: null, error: err };
         campaignReadyResult = { data: 0, error: err };
       }
       
       if (metricsResult.error) {
         dashboardLogger.error('Metrics fetch error:', metricsResult.error);
-        // Don't throw - return default metrics so page loads
       }
 
-      // (duplicate TAM warning removed - already handled above)
-      
-      // Map the function response to expected structure (handles both array and direct object returns)
-      const rawMetrics = Array.isArray(metricsResult.data) 
-        ? (metricsResult.data as any)?.[0] 
-        : (metricsResult.data as any);
+      const rawMetrics = unwrapRpcResult<DashboardMetricsCachedResult>(metricsResult.data);
       
       const mappedMetrics: DashboardMetrics = {
         total_accounts: rawMetrics?.total_accounts || 0,
@@ -215,7 +206,6 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
         data_completeness: dataCompleteness,
       };
       
-      // Map TAM data - prefer metrics function data over separate TAM query
       const tamData: ExternalTAMData | null = rawMetrics?.apollo_accounts_available ? {
         totalAccounts: Number(rawMetrics.apollo_accounts_available) || 0,
         totalLeads: Number(rawMetrics.apollo_contacts_available) || 0,
@@ -247,9 +237,9 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
       };
     },
     enabled: !!orgId,
-    staleTime: 5 * 60 * 1000, // 5 minutes - instant navigation back
-    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes
-    refetchOnWindowFocus: false, // Don't refetch on every tab switch
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
     retry: 2,
   });
 }
@@ -271,16 +261,15 @@ export function useGeographyData(orgId: string | undefined, enabled: boolean = t
       return data;
     },
     enabled: !!resolvedOrgId && enabled,
-    staleTime: 10 * 60 * 1000, // Cache for 10 minutes
+    staleTime: 10 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
   });
 }
 
-// Hook for source filter toggle stats - derives directly from dashboard data to avoid race conditions
+// Hook for source filter toggle stats
 export function useSourceFilterStats(orgId: string | undefined) {
   const { data: dashboardData, isLoading } = useDashboardData(orgId, 'crm');
   
-  // Directly derive stats from loaded dashboard data - no separate query needed
   const stats = dashboardData?.metrics 
     ? {
         crm: dashboardData.metrics.total_crm_accounts || dashboardData.metrics.total_accounts || 0,

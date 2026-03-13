@@ -1,16 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { BrandedConfigRow } from "@/types/supabase-rpc";
 
-export interface BrandConfig {
-  org_id: string;
-  company_name: string | null;
-  logo_url: string | null;
-  brand_primary_color: string | null;
-  brand_secondary_color: string | null;
-  value_proposition: string | null;
-  target_persona_description: string | null;
-  calendly_base_url: string | null;
-}
+export type { BrandedConfigRow as BrandConfig };
 
 interface UseBrandedConfigBySlug {
   slug: string;
@@ -27,7 +19,7 @@ type UseBrandedConfigParams = UseBrandedConfigBySlug | UseBrandedConfigByOrgId;
 export function useBrandedConfig(params: UseBrandedConfigParams) {
   const { slug, orgId } = params;
 
-  return useQuery<BrandConfig | null>({
+  return useQuery<BrandedConfigRow | null>({
     queryKey: ["branded-config", slug || orgId],
     queryFn: async () => {
       if (slug) {
@@ -35,7 +27,7 @@ export function useBrandedConfig(params: UseBrandedConfigParams) {
           p_slug: slug,
         });
         if (error) throw error;
-        const rows = data as any[];
+        const rows = data as BrandedConfigRow[];
         return rows?.[0] ?? null;
       }
       if (orgId) {
@@ -43,7 +35,7 @@ export function useBrandedConfig(params: UseBrandedConfigParams) {
           p_org_id: orgId,
         });
         if (error) throw error;
-        const rows = data as any[];
+        const rows = data as BrandedConfigRow[];
         return rows?.[0] ?? null;
       }
       return null;
