@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRoles } from "@/hooks/use-roles";
 import { usePortfolioMetrics, HealthStatus, PortfolioCompanyMetrics } from "@/hooks/use-portfolio-metrics";
@@ -136,10 +136,13 @@ export default function PortfolioCommandCenter() {
   const { data: metrics, isLoading } = usePortfolioMetrics();
   const [search, setSearch] = useState("");
 
-  if (!rolesLoading && !isSuperAdmin) {
-    navigate("/dashboard");
-    return null;
-  }
+  useEffect(() => {
+    if (!rolesLoading && !isSuperAdmin) {
+      navigate("/dashboard");
+    }
+  }, [rolesLoading, isSuperAdmin, navigate]);
+
+  if (rolesLoading || !isSuperAdmin) return null;
 
   const filtered = (metrics ?? []).filter((m) =>
     m.name.toLowerCase().includes(search.toLowerCase())

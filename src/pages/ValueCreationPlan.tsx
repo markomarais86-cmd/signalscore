@@ -186,6 +186,23 @@ export default function ValueCreationPlanPage() {
         </Select>
       </div>
 
+      {/* No org selected */}
+      {!targetOrgId && !isLoading && (
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
+            <div className="rounded-full bg-muted p-4">
+              <Target className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <div className="text-center">
+              <h3 className="text-lg font-semibold">Select an Organization</h3>
+              <p className="text-sm text-muted-foreground mt-1 max-w-md">
+                Choose an organization from the dropdown above to view or initialize its 100-day plan.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* No plan state */}
       {!isLoading && !plan && targetOrgId && (
         <Card className="border-dashed">
@@ -208,12 +225,58 @@ export default function ValueCreationPlanPage() {
         </Card>
       )}
 
+      {/* Loading skeleton */}
       {isLoading && (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* Stat cards skeleton */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24" />)}
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i}>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-9 w-9 rounded-lg" />
+                    <div className="space-y-2 flex-1">
+                      <Skeleton className="h-6 w-16" />
+                      <Skeleton className="h-3 w-24" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-1.5 w-full mt-3" />
+                </CardContent>
+              </Card>
+            ))}
           </div>
-          <Skeleton className="h-64" />
+          {/* Phase timeline skeleton */}
+          <div className="flex items-center gap-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-32 rounded-lg" />
+            ))}
+          </div>
+          {/* Milestone cards skeleton */}
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-3">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-7 w-7 rounded-md" />
+                  <div className="space-y-1.5">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-3 w-16" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {Array.from({ length: 4 }).map((_, j) => (
+                  <div key={j} className="flex items-center gap-3 rounded-lg border p-3">
+                    <Skeleton className="h-5 w-5 rounded-full" />
+                    <div className="flex-1 space-y-1.5">
+                      <Skeleton className="h-4 w-48" />
+                      <Skeleton className="h-3 w-72" />
+                    </div>
+                    <Skeleton className="h-7 w-20 rounded-md" />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
 
