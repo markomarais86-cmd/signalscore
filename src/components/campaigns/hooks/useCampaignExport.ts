@@ -200,6 +200,7 @@ export function useCampaignExport() {
         }
         setCrmSyncStatus('success');
         toast({ title: "Campaign Created", description: `Successfully pushed ${formatNumber(estimatedLeads)} contacts to HubSpot` });
+        await saveCampaignRecord();
         setPushComplete(true);
       } else {
         // CSV Export
