@@ -217,7 +217,7 @@ export function AlertsConfiguration() {
     const ch = typeof alert.notification_channels === 'object' && alert.notification_channels ? alert.notification_channels : {};
     if ((ch as any).slack && alert.slack_webhook_url) badges.push({ label: "Slack", icon: Slack, ok: true });
     else if ((ch as any).slack) badges.push({ label: "Slack", icon: Slack, ok: false });
-    if ((ch as any).teams && (alert as any).teams_webhook_url) badges.push({ label: "Teams", icon: TeamsIcon, ok: true });
+    if ((ch as any).teams && alert.teams_webhook_url) badges.push({ label: "Teams", icon: TeamsIcon, ok: true });
     else if ((ch as any).teams) badges.push({ label: "Teams", icon: TeamsIcon, ok: false });
     if ((ch as any).webhook && alert.webhook_url) badges.push({ label: "Webhook", icon: Webhook, ok: true });
     else if ((ch as any).webhook) badges.push({ label: "Webhook", icon: Webhook, ok: false });
