@@ -254,6 +254,16 @@ function AppContent() {
                   }
                 />
                 <Route
+                  path="/due-diligence"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <DueDiligence />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/admin/customer-onboarding"
                   element={
                     <ProtectedRoute>
