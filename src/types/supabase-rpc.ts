@@ -2,6 +2,7 @@
  * Typed interfaces for custom Supabase RPCs and JSONB columns
  * that aren't in the auto-generated types.ts
  */
+import { supabase } from '@/integrations/supabase/client';
 
 // ── Dashboard RPCs ──────────────────────────────────────────
 
