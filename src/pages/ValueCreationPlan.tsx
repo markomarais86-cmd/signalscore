@@ -144,10 +144,12 @@ export default function ValueCreationPlanPage() {
     daysRemaining,
   } = useValueCreationPlan(targetOrgId);
 
-  if (!rolesLoading && !isSuperAdmin) {
-    navigate("/dashboard");
-    return null;
-  }
+  // Auth guard — must be in useEffect to avoid conditional returns before hooks
+  useEffect(() => {
+    if (!rolesLoading && !isSuperAdmin) {
+      navigate("/dashboard");
+    }
+  }, [rolesLoading, isSuperAdmin, navigate]);
 
   // Group milestones by phase
   const groupedByPhase: Record<string, Milestone[]> = {};
