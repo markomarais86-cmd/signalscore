@@ -8,7 +8,7 @@ import { realtimeLogger as log } from '@/lib/logger';
  * then dispatches matching alerts via the send-alert edge function.
  */
 export function useNotificationDispatcher() {
-  const { userProfile } = useAuth();
+  const { effectiveOrgId } = useEffectiveOrg();
   const recentlyFired = useRef<Set<string>>(new Set());
 
   const fireMatchingAlerts = useCallback(async (
