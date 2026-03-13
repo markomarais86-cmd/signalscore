@@ -219,8 +219,56 @@ export default function DueDiligencePage() {
         )}
       </div>
 
+      {/* Processing skeleton */}
+      {isProcessing && (
+        <div className="space-y-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex flex-col items-center gap-4 py-8">
+                <div className="relative">
+                  <div className="rounded-full bg-primary/10 p-5">
+                    <Shield className="h-10 w-10 text-primary animate-pulse" />
+                  </div>
+                </div>
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold">Analyzing CRM Export</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Processing {fileName}...
+                  </p>
+                </div>
+                <Progress value={65} className="w-64 h-2" />
+              </div>
+            </CardContent>
+          </Card>
+          <div className="grid lg:grid-cols-2 gap-4">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <Card key={i}>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-7 w-7 rounded-md" />
+                      <Skeleton className="h-4 w-28" />
+                    </div>
+                    <Skeleton className="h-9 w-12 rounded-md" />
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {Array.from({ length: 5 }).map((_, j) => (
+                    <div key={j} className="flex items-center gap-2">
+                      <Skeleton className="h-3 w-24" />
+                      <Skeleton className="h-1.5 flex-1" />
+                      <Skeleton className="h-3 w-8" />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Upload Section */}
-      {!report && (
+      {!report && !isProcessing && (
         <Card className="border-dashed">
           <CardContent className="flex flex-col items-center justify-center py-16 gap-6">
             <div className="rounded-full bg-primary/10 p-5">
@@ -251,7 +299,7 @@ export default function DueDiligencePage() {
                 <Button asChild disabled={isProcessing}>
                   <span>
                     <FileText className="h-4 w-4 mr-2" />
-                    {isProcessing ? "Analyzing..." : "Select CSV"}
+                    Select CSV
                   </span>
                 </Button>
               </label>
