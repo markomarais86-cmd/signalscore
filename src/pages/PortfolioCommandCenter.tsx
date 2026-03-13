@@ -136,10 +136,13 @@ export default function PortfolioCommandCenter() {
   const { data: metrics, isLoading } = usePortfolioMetrics();
   const [search, setSearch] = useState("");
 
-  if (!rolesLoading && !isSuperAdmin) {
-    navigate("/dashboard");
-    return null;
-  }
+  useEffect(() => {
+    if (!rolesLoading && !isSuperAdmin) {
+      navigate("/dashboard");
+    }
+  }, [rolesLoading, isSuperAdmin, navigate]);
+
+  if (rolesLoading || !isSuperAdmin) return null;
 
   const filtered = (metrics ?? []).filter((m) =>
     m.name.toLowerCase().includes(search.toLowerCase())
