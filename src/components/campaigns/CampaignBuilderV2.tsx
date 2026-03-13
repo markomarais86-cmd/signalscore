@@ -43,7 +43,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
   
   // Core state management
   const campaignState = useCampaignState(insightContext);
-  const { state, setStep, setCampaignName, setUseICP, setActiveICP,
+  const { state, setStep, setCampaignName, setFuelLineType, setUseICP, setActiveICP,
           setFilterCriteria, setSelectedTemplate,
           setSelectedTitles, setSelectedSeniority,
           setSelectedDepartments, setDataSource, setProvider,
