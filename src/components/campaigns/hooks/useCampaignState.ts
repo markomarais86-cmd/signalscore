@@ -65,6 +65,7 @@ export function useCampaignState(insightContext?: InsightContext) {
   const [state, setState] = useState<CampaignState>({
     step: 1,
     campaignName: insightContext?.suggestedCampaignName || "",
+    fuelLineType: 'firmographic',
     useICP: true,
     activeICP: null,
     filterCriteria: {
