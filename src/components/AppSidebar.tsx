@@ -293,6 +293,17 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
                     <NavLink
+                      to="/due-diligence"
+                      className={getNavCls("/due-diligence")}
+                    >
+                      <FileSearch className="h-4 w-4" />
+                      <span>Due Diligence</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
                       to="/admin/customer-onboarding"
                       className={getNavCls("/admin/customer-onboarding")}
                     >
