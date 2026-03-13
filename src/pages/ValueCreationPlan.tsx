@@ -151,6 +151,8 @@ export default function ValueCreationPlanPage() {
     }
   }, [rolesLoading, isSuperAdmin, navigate]);
 
+  if (rolesLoading || !isSuperAdmin) return null;
+
   // Group milestones by phase
   const groupedByPhase: Record<string, Milestone[]> = {};
   phases.forEach((p) => (groupedByPhase[p] = []));
