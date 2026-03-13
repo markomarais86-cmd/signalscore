@@ -28,6 +28,8 @@ interface IntentSignalsResult {
     multi_thread: number;
     score_change: number;
     coverage_gap: number;
+    new_high_fit: number;
+    data_freshness: number;
   };
   isLoading: boolean;
   isComputing: boolean;
