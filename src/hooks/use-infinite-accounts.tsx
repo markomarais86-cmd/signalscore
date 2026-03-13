@@ -251,8 +251,8 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
           p_campaign_ready: campaignReadyFilter || false,
         });
         
-        // RPC call - type inference works via Supabase's generated types
-        const { data, error } = await supabase.rpc('get_filtered_accounts' as any, {
+        // RPC call via typed helper
+        const { data, error } = await callCustomRpc<FilteredAccountRow[]>('get_filtered_accounts', {
           p_org_id: orgId,
           p_cursor: isLoadingMore ? pagination.state.cursor : null,
           p_limit: pageSize,
@@ -269,7 +269,7 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
 
         logger.debug('[useInfiniteAccounts] RPC result:', { 
           dataType: Array.isArray(data) ? 'array' : typeof data,
-          dataLength: Array.isArray(data) ? data.length : 'not an array',
+          dataLength: Array.isArray(data) ? (data as FilteredAccountRow[]).length : 'not an array',
           error 
         });
         if (error) {
@@ -278,8 +278,8 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
         }
 
         // Extract accounts and total count from RPC response
-        const rawData = (data || []) as unknown as Array<Account & { total_count: number }>;
-        const accounts = rawData.map(({ total_count, ...account }) => account) as Account[];
+        const rawData = (data || []) as FilteredAccountRow[];
+        const accounts = rawData.map(({ total_count, ...account }) => account) as unknown as Account[];
         const totalCount = rawData.length > 0 ? Number(rawData[0].total_count) : 0;
 
         // Update state

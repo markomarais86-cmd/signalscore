@@ -150,10 +150,10 @@ export function useDashboardData(orgId: string | undefined, sourceFilter: 'crm' 
       let campaignReadyResult;
       try {
         [metricsResult, campaignReadyResult] = await Promise.all([
-          supabase.rpc('get_dashboard_metrics_cached' as any, { 
+          callCustomRpc<DashboardMetricsCachedResult>('get_dashboard_metrics_cached', { 
             p_org_id: orgId
           }),
-          supabase.rpc('count_campaign_ready_accounts' as any, {
+          callCustomRpc<number>('count_campaign_ready_accounts', {
             p_org_id: orgId,
             p_data_source: sourceFilter === 'crm' ? 'crm' : sourceFilter === 'database' ? 'database' : null
           })

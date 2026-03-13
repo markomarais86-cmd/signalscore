@@ -92,6 +92,36 @@ export interface EnrichedLeadsMetricsResult {
   email_verified_count: number;
 }
 
+// ── Filtered Accounts RPC ───────────────────────────────────
+
+export interface FilteredAccountRow {
+  id: string;
+  external_id: string;
+  name: string | null;
+  domain: string | null;
+  industry_raw: string | null;
+  industry_norm: string | null;
+  employee_count: number | null;
+  revenue_range: string | null;
+  country: string | null;
+  updated_at: string;
+  data_source: string | null;
+  external_database_match: boolean | null;
+  enriched_from: string | null;
+  enriched_at: string | null;
+  total_count: number;
+}
+
+// ── Campaign Row (fuel line queries) ────────────────────────
+
+export interface CampaignFuelLineRow {
+  fuel_line_type: string | null;
+  total_accounts: number | null;
+  total_contacts: number | null;
+  signal_source_ids: string[] | null;
+  metadata: Record<string, unknown> | null;
+}
+
 // ── Helper to safely cast RPC results ───────────────────────
 
 /**
@@ -103,3 +133,18 @@ export function unwrapRpcResult<T>(data: unknown): T | null {
   if (Array.isArray(data)) return (data[0] as T) ?? null;
   return data as T;
 }
+
+/**
+ * Calls a custom RPC that isn't in the generated Supabase types.
+ * Wraps supabase.rpc with proper typing to avoid `as any` casts.
+ */
+export async function callCustomRpc<T = unknown>(
+  name: string,
+  params: Record<string, unknown> = {}
+): Promise<{ data: T | null; error: any }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase.rpc as any)(name, params);
+  return { data: data as T | null, error };
+}
+
+import { supabase } from '@/integrations/supabase/client';
