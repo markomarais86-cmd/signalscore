@@ -148,4 +148,3 @@ export async function callCustomRpc<T = unknown>(
   return { data: data as T | null, error };
 }
 
-import { supabase } from '@/integrations/supabase/client';
