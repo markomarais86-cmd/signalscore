@@ -7,6 +7,7 @@ import { ManagedUpgradeBanner } from "@/components/ManagedUpgradeBanner";
 import { useBrandedConfig } from "@/hooks/useBrandedConfig";
 import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useServiceType } from "@/hooks/use-service-type";
+import { FeatureErrorBoundary } from "@/components/FeatureErrorBoundary";
 
 interface CustomerLayoutProps {
   children: ReactNode;
@@ -39,7 +40,9 @@ export function CustomerLayout({ children }: CustomerLayoutProps) {
           </header>
           <div className="flex-1 p-2 sm:p-3 lg:p-4 overflow-auto space-y-4">
             {isManaged && <ManagedUpgradeBanner />}
-            {children}
+            <FeatureErrorBoundary>
+              {children}
+            </FeatureErrorBoundary>
           </div>
           <footer className="border-t bg-card/80 dark:bg-card/60 backdrop-blur-sm px-6 py-3 text-xs text-muted-foreground">
             <div className="flex items-center justify-between">

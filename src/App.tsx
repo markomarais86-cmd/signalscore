@@ -1,6 +1,6 @@
+import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./hooks/use-auth";
 import { FeatureFlagsProvider } from "./hooks/use-feature-flags";
@@ -12,7 +12,6 @@ import { Layout } from "./components/Layout";
 import { CustomerLayout } from "./components/CustomerLayout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { FeatureErrorBoundary } from "./components/FeatureErrorBoundary";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { useEffect } from "react";
 import { useAuth } from "./hooks/use-auth";
@@ -20,56 +19,65 @@ import { useOnboarding } from "./hooks/use-onboarding";
 import { useRoles } from "./hooks/use-roles";
 import { usePageTracking } from "./hooks/usePageTracking";
 import { logger } from "./lib/logger";
-import ExecutiveDashboard from "./pages/ExecutiveDashboard";
-import Landing from "./pages/Landing";
-import About from "./pages/About";
-import Product from "./pages/Product";
-import Pricing from "./pages/Pricing";
-import Contact from "./pages/Contact";
-import Demo from "./pages/Demo";
-import Auth from "./pages/Auth";
-import TermsOfService from "./pages/TermsOfService";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import DataProcessingAgreement from "./pages/DataProcessingAgreement";
-import Security from "./pages/Security";
-import Subprocessors from "./pages/Subprocessors";
-import ResetPassword from "./pages/ResetPassword";
-import ICPManager from "./pages/ICPManager";
-import Leads from "./pages/Leads";
-import Accounts from "./pages/Accounts";
-import DataUpload from "./pages/DataUpload";
-import Settings from "./pages/Settings";
-import AdminDashboard from "./pages/AdminDashboard";
-import PipelineEfficiency from "./pages/PipelineEfficiency";
-import CapitalEfficiency from "./pages/CapitalEfficiency";
-import ReportBuilder from "./pages/ReportBuilder";
-import Segmentation from "./pages/Segmentation";
-import Trends from "./pages/Trends";
-import NotFound from "./pages/NotFound";
-import AIAgents from "./pages/AIAgents";
-import CustomerDashboard from "./pages/CustomerDashboard";
 import { RoleAwareLayout } from "./components/RoleAwareLayout";
-import Enrichment from "./pages/Enrichment";
-import QuickEnrich from "./pages/QuickEnrich";
-import AgentTester from "./pages/AgentTester";
-import AITest from "./pages/AITest";
-import Help from "./pages/Help";
-import APIAccess from "./pages/APIAccess";
-import Tasks from "./pages/Tasks";
-import CustomerOnboarding from "./pages/admin/CustomerOnboarding";
-import ListBuilder from "./pages/ListBuilder";
-import Presentations from "./pages/Presentations";
 
-import PipelineAnalyticsPage from "./pages/PipelineAnalyticsPage";
-import Opportunities from "./pages/Opportunities";
-import AIFeedbackPage from "./pages/AIFeedbackPage";
-import BrandedLanding from "./pages/BrandedLanding";
-import CustomerUpgrade from "./pages/CustomerUpgrade";
-import PortfolioCommandCenter from "./pages/PortfolioCommandCenter";
-import ValueCreationPlan from "./pages/ValueCreationPlan";
-import DueDiligence from "./pages/DueDiligence";
+// Lazy-loaded page components for code splitting
+const ExecutiveDashboard = lazy(() => import("./pages/ExecutiveDashboard"));
+const Landing = lazy(() => import("./pages/Landing"));
+const About = lazy(() => import("./pages/About"));
+const Product = lazy(() => import("./pages/Product"));
+const Pricing = lazy(() => import("./pages/Pricing"));
+const Contact = lazy(() => import("./pages/Contact"));
+const Demo = lazy(() => import("./pages/Demo"));
+const Auth = lazy(() => import("./pages/Auth"));
+const TermsOfService = lazy(() => import("./pages/TermsOfService"));
+const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
+const DataProcessingAgreement = lazy(() => import("./pages/DataProcessingAgreement"));
+const Security = lazy(() => import("./pages/Security"));
+const Subprocessors = lazy(() => import("./pages/Subprocessors"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const ICPManager = lazy(() => import("./pages/ICPManager"));
+const Leads = lazy(() => import("./pages/Leads"));
+const Accounts = lazy(() => import("./pages/Accounts"));
+const DataUpload = lazy(() => import("./pages/DataUpload"));
+const Settings = lazy(() => import("./pages/Settings"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const PipelineEfficiency = lazy(() => import("./pages/PipelineEfficiency"));
+const CapitalEfficiency = lazy(() => import("./pages/CapitalEfficiency"));
+const ReportBuilder = lazy(() => import("./pages/ReportBuilder"));
+const Segmentation = lazy(() => import("./pages/Segmentation"));
+const Trends = lazy(() => import("./pages/Trends"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const AIAgents = lazy(() => import("./pages/AIAgents"));
+const CustomerDashboard = lazy(() => import("./pages/CustomerDashboard"));
+const Enrichment = lazy(() => import("./pages/Enrichment"));
+const QuickEnrich = lazy(() => import("./pages/QuickEnrich"));
+const AgentTester = lazy(() => import("./pages/AgentTester"));
+const AITest = lazy(() => import("./pages/AITest"));
+const Help = lazy(() => import("./pages/Help"));
+const APIAccess = lazy(() => import("./pages/APIAccess"));
+const Tasks = lazy(() => import("./pages/Tasks"));
+const CustomerOnboarding = lazy(() => import("./pages/admin/CustomerOnboarding"));
+const ListBuilder = lazy(() => import("./pages/ListBuilder"));
+const Presentations = lazy(() => import("./pages/Presentations"));
+const PipelineAnalyticsPage = lazy(() => import("./pages/PipelineAnalyticsPage"));
+const Opportunities = lazy(() => import("./pages/Opportunities"));
+const AIFeedbackPage = lazy(() => import("./pages/AIFeedbackPage"));
+const BrandedLanding = lazy(() => import("./pages/BrandedLanding"));
+const CustomerUpgrade = lazy(() => import("./pages/CustomerUpgrade"));
+const PortfolioCommandCenter = lazy(() => import("./pages/PortfolioCommandCenter"));
+const ValueCreationPlan = lazy(() => import("./pages/ValueCreationPlan"));
+const DueDiligence = lazy(() => import("./pages/DueDiligence"));
 
-const queryClient = new QueryClient();
+
+// Shared loading fallback for lazy-loaded pages
+function PageLoader() {
+  return (
+    <div className="flex items-center justify-center min-h-[50vh]">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+    </div>
+  );
+}
 
 function PageTracker() {
   usePageTracking();
@@ -78,18 +86,15 @@ function PageTracker() {
 
 /**
  * LandingRedirectWrapper - Shows Landing for guests, redirects authenticated users to dashboard
- * This ensures "/" shows the marketing page for SEO while maintaining app functionality
  */
 function LandingRedirectWrapper() {
   const { user, loading } = useAuth();
   const { isSuperAdmin, isOrgAdmin, loading: rolesLoading } = useRoles();
   
-  // While loading, show nothing (prevents flash)
   if (loading || rolesLoading) {
     return null;
   }
   
-  // Authenticated users go to appropriate dashboard
   if (user) {
     if (isSuperAdmin || isOrgAdmin) {
       return <Navigate to="/dashboard" replace />;
@@ -97,7 +102,6 @@ function LandingRedirectWrapper() {
     return <Navigate to="/my-dashboard" replace />;
   }
   
-  // Unauthenticated users see the landing page
   return <Landing />;
 }
 
@@ -105,7 +109,6 @@ function AppContent() {
   const { startOnboarding } = useOnboarding();
 
   useEffect(() => {
-    // Check if we should trigger onboarding wizard
     const showOnboarding = localStorage.getItem('show_onboarding');
     if (showOnboarding === 'true') {
       logger.debug('Triggering onboarding wizard');
@@ -125,358 +128,365 @@ function AppContent() {
       >
         <PageTracker />
         <OnboardingWizard />
-        <Routes>
-                {/* Public Marketing Pages */}
-                <Route path="/" element={<LandingRedirectWrapper />} />
-                <Route path="/landing" element={<Navigate to="/" replace />} />
-                <Route path="/about" element={<About />} />
-                <Route path="/product" element={<Product />} />
-                <Route path="/pricing" element={<Pricing />} />
-                <Route path="/contact" element={<Contact />} />
-                <Route path="/demo" element={<Demo />} />
-                
-                {/* Auth Pages */}
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                <Route path="/terms" element={<TermsOfService />} />
-                <Route path="/privacy" element={<PrivacyPolicy />} />
-                <Route path="/dpa" element={<DataProcessingAgreement />} />
-                <Route path="/security" element={<Security />} />
-                <Route path="/subprocessors" element={<Subprocessors />} />
-                <Route path="/p/:orgSlug" element={<BrandedLanding />} />
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            {/* Public Marketing Pages */}
+            <Route path="/" element={<LandingRedirectWrapper />} />
+            <Route path="/landing" element={<Navigate to="/" replace />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/product" element={<Product />} />
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/demo" element={<Demo />} />
+            
+            {/* Auth Pages */}
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/terms" element={<TermsOfService />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/dpa" element={<DataProcessingAgreement />} />
+            <Route path="/security" element={<Security />} />
+            <Route path="/subprocessors" element={<Subprocessors />} />
+            <Route path="/p/:orgSlug" element={<BrandedLanding />} />
+
+            {/* Customer routes */}
+            <Route
+              path="/upgrade"
+              element={
+                <ProtectedRoute>
+                  <CustomerLayout>
+                    <CustomerUpgrade />
+                  </CustomerLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/my-dashboard"
+              element={
+                <ProtectedRoute>
+                  <CustomerLayout>
+                    <CustomerDashboard />
+                  </CustomerLayout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Admin-only routes */}
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ExecutiveDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/icp-manager"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ICPManager />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/accounts"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Accounts />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/data-upload"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <DataUpload />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <AdminDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/customer-onboarding"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <CustomerOnboarding />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/customer-onboarding/:orgId"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <CustomerOnboarding />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/portfolio"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <PortfolioCommandCenter />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/value-creation"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ValueCreationPlan />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/due-diligence"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <DueDiligence />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/pipeline-efficiency"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <PipelineEfficiency />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/pipeline-analytics"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <PipelineAnalyticsPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ai-feedback"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <AIFeedbackPage />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/capital-efficiency"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <CapitalEfficiency />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/reports"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ReportBuilder />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/segmentation"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Segmentation />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/trends"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Trends />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/ai-agents"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <AIAgents />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/enrichment"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Enrichment />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/quick-enrich"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <QuickEnrich />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/list-builder"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <ListBuilder />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/api-access"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <APIAccess />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Shared routes (role-aware) */}
+            <Route
+              path="/leads"
+              element={
+                <ProtectedRoute>
+                  <RoleAwareLayout>
+                    <Leads />
+                  </RoleAwareLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <RoleAwareLayout>
+                    <Settings />
+                  </RoleAwareLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/opportunities"
+              element={
+                <ProtectedRoute>
+                  <RoleAwareLayout>
+                    <Opportunities />
+                  </RoleAwareLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tasks"
+              element={
+                <ProtectedRoute>
+                  <RoleAwareLayout>
+                    <Tasks />
+                  </RoleAwareLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/help"
+              element={
+                <ProtectedRoute>
+                  <RoleAwareLayout>
+                    <Help />
+                  </RoleAwareLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/presentations"
+              element={
+                <ProtectedRoute>
+                  <RoleAwareLayout>
+                    <Presentations />
+                  </RoleAwareLayout>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Test routes - only available in development */}
+            {import.meta.env.DEV && (
+              <>
                 <Route
-                  path="/upgrade"
-                  element={
-                    <ProtectedRoute>
-                      <CustomerLayout>
-                        <CustomerUpgrade />
-                      </CustomerLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/dashboard"
+                  path="/agent-tester"
                   element={
                     <ProtectedRoute>
                       <Layout>
-                        <ExecutiveDashboard />
+                        <AgentTester />
                       </Layout>
                     </ProtectedRoute>
                   }
                 />
                 <Route
-                  path="/my-dashboard"
-                  element={
-                    <ProtectedRoute>
-                      <CustomerLayout>
-                        <CustomerDashboard />
-                      </CustomerLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/icp-manager"
+                  path="/ai-test"
                   element={
                     <ProtectedRoute>
                       <Layout>
-                        <ICPManager />
+                        <AITest />
                       </Layout>
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path="/accounts"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Accounts />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/leads"
-                  element={
-                    <ProtectedRoute>
-                      <RoleAwareLayout>
-                        <Leads />
-                      </RoleAwareLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/data-upload"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <DataUpload />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/settings"
-                  element={
-                    <ProtectedRoute>
-                      <RoleAwareLayout>
-                        <Settings />
-                      </RoleAwareLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <AdminDashboard />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/portfolio"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <FeatureErrorBoundary fallbackTitle="Portfolio Command Center failed to load">
-                          <PortfolioCommandCenter />
-                        </FeatureErrorBoundary>
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/value-creation"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <FeatureErrorBoundary fallbackTitle="Value Creation Plan failed to load">
-                          <ValueCreationPlan />
-                        </FeatureErrorBoundary>
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/due-diligence"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <FeatureErrorBoundary fallbackTitle="Due Diligence failed to load">
-                          <DueDiligence />
-                        </FeatureErrorBoundary>
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/customer-onboarding"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <CustomerOnboarding />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/admin/customer-onboarding/:orgId"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <CustomerOnboarding />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/pipeline-efficiency"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <PipelineEfficiency />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                  />
-                <Route
-                  path="/opportunities"
-                  element={
-                    <ProtectedRoute>
-                      <RoleAwareLayout>
-                        <Opportunities />
-                      </RoleAwareLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/pipeline-analytics"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <PipelineAnalyticsPage />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/ai-feedback"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <AIFeedbackPage />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/capital-efficiency"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <CapitalEfficiency />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/reports"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <ReportBuilder />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/segmentation"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Segmentation />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                 <Route
-                  path="/trends"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Trends />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/ai-agents"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <AIAgents />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/enrichment"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <Enrichment />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/quick-enrich"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                      <QuickEnrich />
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
-                <Route
-                  path="/list-builder"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <ListBuilder />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                {/* Test routes - only available in development */}
-                {import.meta.env.DEV && (
-                  <>
-                    <Route
-                      path="/agent-tester"
-                      element={
-                        <ProtectedRoute>
-                          <Layout>
-                            <AgentTester />
-                          </Layout>
-                        </ProtectedRoute>
-                      }
-                    />
-                    <Route
-                      path="/ai-test"
-                      element={
-                        <ProtectedRoute>
-                          <Layout>
-                            <AITest />
-                          </Layout>
-                        </ProtectedRoute>
-                      }
-                    />
-                  </>
-                )}
-                <Route
-                  path="/discovery"
-                  element={<Navigate to="/icp-manager" replace />}
-                />
-                <Route
-                  path="/help"
-                  element={
-                    <ProtectedRoute>
-                      <Help />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/tasks"
-                  element={
-                    <ProtectedRoute>
-                      <RoleAwareLayout>
-                        <Tasks />
-                      </RoleAwareLayout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/api-access"
-                  element={
-                    <ProtectedRoute>
-                      <Layout>
-                        <APIAccess />
-                      </Layout>
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/presentations"
-                  element={
-                    <ProtectedRoute>
-                      <Presentations />
-                    </ProtectedRoute>
-                  }
-                />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+              </>
+            )}
+            <Route
+              path="/discovery"
+              element={<Navigate to="/icp-manager" replace />}
+            />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </>
   );
@@ -484,25 +494,23 @@ function AppContent() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="dark" storageKey="launchpulse-theme">
-        <AuthProvider>
-          <OrgSwitcherProvider>
-            <OnboardingProvider>
-              <CampaignContextProvider>
-                <FeatureFlagsProvider>
-                <TooltipProvider>
-                  <ErrorBoundary>
-                    <AppContent />
-                  </ErrorBoundary>
-                </TooltipProvider>
-                </FeatureFlagsProvider>
-              </CampaignContextProvider>
-            </OnboardingProvider>
-          </OrgSwitcherProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ThemeProvider attribute="class" defaultTheme="dark" storageKey="launchpulse-theme">
+      <AuthProvider>
+        <OrgSwitcherProvider>
+          <OnboardingProvider>
+            <CampaignContextProvider>
+              <FeatureFlagsProvider>
+              <TooltipProvider>
+                <ErrorBoundary>
+                  <AppContent />
+                </ErrorBoundary>
+              </TooltipProvider>
+              </FeatureFlagsProvider>
+            </CampaignContextProvider>
+          </OnboardingProvider>
+        </OrgSwitcherProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

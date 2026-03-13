@@ -14,6 +14,7 @@ import { GlobalCommandPalette, CommandPaletteTrigger } from "@/components/Global
 import { OrgSwitcher, ImpersonationBanner } from "@/components/OrgSwitcher";
 import { GlobalAIAssistant } from "@/components/GlobalAIAssistant";
 import { useNotificationDispatcher } from "@/hooks/use-notification-dispatcher";
+import { FeatureErrorBoundary } from "@/components/FeatureErrorBoundary";
 
 interface LayoutProps {
   children: ReactNode;
@@ -46,7 +47,9 @@ export function Layout({ children }: LayoutProps) {
           </header>
           <ImpersonationBanner />
           <div className="flex-1 p-2 sm:p-3 lg:p-4 overflow-auto">
-            {children}
+            <FeatureErrorBoundary>
+              {children}
+            </FeatureErrorBoundary>
           </div>
           <footer className="border-t bg-card/80 dark:bg-card/60 backdrop-blur-sm px-6 py-3 text-xs text-muted-foreground">
             <div className="flex items-center justify-between">
