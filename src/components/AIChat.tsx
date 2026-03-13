@@ -409,6 +409,26 @@ export function AIChat() {
     }
   }, [navigate, learnPreference]);
 
+  // Handle navigation from AI chat
+  const handleNavigate = useCallback((path: string) => {
+    navigate(path);
+  }, [navigate]);
+
+  // Handle campaign builder opening from AI chat
+  const handleOpenCampaignBuilder = useCallback((params: Record<string, any>) => {
+    // Dispatch event to open campaign builder with context
+    window.dispatchEvent(new CustomEvent('open-campaign-builder', {
+      detail: {
+        fuelLineType: params.fuel_line_type,
+        campaignName: params.campaign_name,
+        countries: params.countries,
+        industries: params.industries,
+        minScore: params.min_score,
+        jobTitles: params.job_titles,
+      }
+    }));
+  }, []);
+
   const { messages, isLoading, sendMessage, clearMessages, pendingAction, confirmAction, cancelAction, activeWorkflow, cancelWorkflow } = useAIChat({
     context: { 
       currentPage,
@@ -416,6 +436,8 @@ export function AIChat() {
       userPreferences: Object.keys(preferences).length > 0 ? preferences : undefined,
     },
     onActionExecuted: handleActionExecuted,
+    onNavigate: handleNavigate,
+    onOpenCampaignBuilder: handleOpenCampaignBuilder,
   });
 
   // Refresh AI suggestions when chat opens
