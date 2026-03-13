@@ -219,7 +219,9 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
     createCampaign({
       campaignName, filterCriteria, sequenceSteps, selectedTitles, selectedSeniority,
       selectedDepartments, provider, destination, dataSource, excludeDuplicates,
-      activeICP, previewData, estimatedLeads, duplicateEmails
+      activeICP, previewData, estimatedLeads, duplicateEmails,
+      fuelLineType,
+      signalSourceIds: insightContext?.signalIds,
     });
   };
 
