@@ -17,6 +17,42 @@ interface IntentSignal {
   score?: number;
 }
 
+/**
+ * Resolve the org architecture: data (accounts/leads) lives in the parent org,
+ * scores live in the child org. Returns { dataOrgId, scoreOrgId }.
+ */
+async function resolveOrgIds(supabase: any, orgId: string): Promise<{ dataOrgId: string; scoreOrgId: string }> {
+  const { data: org } = await supabase
+    .from('organizations')
+    .select('id, parent_org_id')
+    .eq('id', orgId)
+    .single();
+
+  if (!org) {
+    return { dataOrgId: orgId, scoreOrgId: orgId };
+  }
+
+  // If this org has a parent, data is in parent, scores are in this org
+  if (org.parent_org_id) {
+    return { dataOrgId: org.parent_org_id, scoreOrgId: orgId };
+  }
+
+  // If this org IS a parent, check if it has children (scores might be in child)
+  const { data: children } = await supabase
+    .from('organizations')
+    .select('id')
+    .eq('parent_org_id', orgId)
+    .limit(1);
+
+  if (children && children.length > 0) {
+    // Data in parent, scores in first child
+    return { dataOrgId: orgId, scoreOrgId: children[0].id };
+  }
+
+  // Standalone org
+  return { dataOrgId: orgId, scoreOrgId: orgId };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -40,39 +76,43 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Resolve parent/child org architecture
+    const { dataOrgId, scoreOrgId } = await resolveOrgIds(supabase, org_id);
+    console.log(`[IntentSignals] Resolved orgs: data=${dataOrgId}, scores=${scoreOrgId}`);
+
     const signals: IntentSignal[] = [];
 
-    // 1. ENGAGEMENT VELOCITY - Accounts with increasing activity
+    // 1. ENGAGEMENT VELOCITY
     console.log('[IntentSignals] Computing engagement velocity signals...');
-    const velocitySignals = await computeEngagementVelocity(supabase, org_id);
+    const velocitySignals = await computeEngagementVelocity(supabase, dataOrgId, scoreOrgId);
     signals.push(...velocitySignals);
 
-    // 2. MULTI-THREADING OPPORTUNITIES - Single-threaded high-fit accounts
+    // 2. MULTI-THREADING OPPORTUNITIES
     console.log('[IntentSignals] Computing multi-threading opportunities...');
-    const multiThreadSignals = await computeMultiThreadingOpportunities(supabase, org_id);
+    const multiThreadSignals = await computeMultiThreadingOpportunities(supabase, dataOrgId, scoreOrgId);
     signals.push(...multiThreadSignals);
 
-    // 3. SCORE CHANGE ALERTS - Significant ICP score changes
+    // 3. SCORE CHANGE ALERTS
     console.log('[IntentSignals] Computing score change alerts...');
-    const scoreChangeSignals = await computeScoreChangeAlerts(supabase, org_id);
+    const scoreChangeSignals = await computeScoreChangeAlerts(supabase, dataOrgId, scoreOrgId);
     signals.push(...scoreChangeSignals);
 
-    // 4. COVERAGE GAPS - High-fit accounts with no recent activity
+    // 4. COVERAGE GAPS
     console.log('[IntentSignals] Computing coverage gap signals...');
-    const coverageGapSignals = await computeCoverageGaps(supabase, org_id);
+    const coverageGapSignals = await computeCoverageGaps(supabase, dataOrgId, scoreOrgId);
     signals.push(...coverageGapSignals);
 
-    // 5. NEW HIGH FIT - Accounts that recently crossed the 70-score threshold
+    // 5. NEW HIGH FIT
     console.log('[IntentSignals] Computing new high-fit signals...');
-    const newHighFitSignals = await computeNewHighFit(supabase, org_id);
+    const newHighFitSignals = await computeNewHighFit(supabase, dataOrgId, scoreOrgId);
     signals.push(...newHighFitSignals);
 
-    // 6. DATA FRESHNESS - High-fit accounts with stale enrichment data
+    // 6. DATA FRESHNESS
     console.log('[IntentSignals] Computing data freshness signals...');
-    const freshnessSignals = await computeDataFreshness(supabase, org_id);
+    const freshnessSignals = await computeDataFreshness(supabase, dataOrgId, scoreOrgId);
     signals.push(...freshnessSignals);
 
-    // Store signals in account_signals table
+    // Store signals in account_signals table (store under the requested org_id)
     console.log(`[IntentSignals] Storing ${signals.length} signals...`);
     
     // Clear old intent signals (older than 7 days) for this org
@@ -84,10 +124,17 @@ serve(async (req) => {
       .in('signal_type', ['engagement_velocity', 'multi_thread', 'score_change', 'coverage_gap', 'new_high_fit', 'data_freshness'])
       .lt('created_at', sevenDaysAgo);
 
+    // Also clear current signals of these types to replace with fresh ones
+    await supabase
+      .from('account_signals')
+      .delete()
+      .eq('org_id', org_id)
+      .in('signal_type', ['engagement_velocity', 'multi_thread', 'score_change', 'coverage_gap', 'new_high_fit', 'data_freshness']);
+
     // Insert new signals
     if (signals.length > 0) {
       const signalRecords = signals.map(s => ({
-        org_id,
+        org_id: org_id, // Store under the requested org
         account_external_id: s.account_external_id,
         account_name: s.account_name,
         signal_type: s.type,
@@ -98,15 +145,16 @@ serve(async (req) => {
         expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
       }));
 
-      const { error: insertError } = await supabase
-        .from('account_signals')
-        .upsert(signalRecords, {
-          onConflict: 'org_id,account_external_id,signal_type',
-          ignoreDuplicates: false,
-        });
+      // Insert in batches of 50
+      for (let i = 0; i < signalRecords.length; i += 50) {
+        const batch = signalRecords.slice(i, i + 50);
+        const { error: insertError } = await supabase
+          .from('account_signals')
+          .insert(batch);
 
-      if (insertError) {
-        console.error('[IntentSignals] Error inserting signals:', insertError);
+        if (insertError) {
+          console.error(`[IntentSignals] Error inserting batch ${i}:`, insertError);
+        }
       }
     }
 
@@ -117,6 +165,7 @@ serve(async (req) => {
       success: true,
       duration_ms: duration,
       signals_computed: signals.length,
+      org_resolution: { dataOrgId, scoreOrgId },
       breakdown: {
         engagement_velocity: signals.filter(s => s.type === 'engagement_velocity').length,
         multi_thread: signals.filter(s => s.type === 'multi_thread').length,
@@ -142,22 +191,24 @@ serve(async (req) => {
   }
 });
 
+// FIT SCORE THRESHOLD: >= 70 is "high fit"
+const HIGH_FIT_THRESHOLD = 70;
+
 /**
  * Compute engagement velocity - accounts with increasing activity patterns
- * Lowered threshold from 3 to 1 change per week for more realistic signal generation
  */
-async function computeEngagementVelocity(supabase: any, orgId: string): Promise<IntentSignal[]> {
+async function computeEngagementVelocity(supabase: any, dataOrgId: string, scoreOrgId: string): Promise<IntentSignal[]> {
   const signals: IntentSignal[] = [];
   
   const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-  // Check if activities table has data
+  // Check activities table first
   const { count: activityCount } = await supabase
     .from('activities')
     .select('*', { count: 'exact', head: true })
-    .eq('org_id', orgId);
+    .eq('org_id', dataOrgId);
 
   let recentCounts: Record<string, number> = {};
   let previousCounts: Record<string, number> = {};
@@ -166,14 +217,14 @@ async function computeEngagementVelocity(supabase: any, orgId: string): Promise<
     const { data: recentActivities } = await supabase
       .from('activities')
       .select('account_external_id')
-      .eq('org_id', orgId)
+      .eq('org_id', dataOrgId)
       .gte('activity_date', sevenDaysAgo.toISOString())
       .not('account_external_id', 'is', null);
 
     const { data: previousActivities } = await supabase
       .from('activities')
       .select('account_external_id')
-      .eq('org_id', orgId)
+      .eq('org_id', dataOrgId)
       .gte('activity_date', fourteenDaysAgo.toISOString())
       .lt('activity_date', sevenDaysAgo.toISOString())
       .not('account_external_id', 'is', null);
@@ -185,19 +236,20 @@ async function computeEngagementVelocity(supabase: any, orgId: string): Promise<
       previousCounts[a.account_external_id] = (previousCounts[a.account_external_id] || 0) + 1;
     });
   } else {
-    // FALLBACK: Use score_history changes as proxy for engagement
+    // FALLBACK: Use score_history changes as proxy
     console.log('[IntentSignals] No activities found, using score_history as engagement proxy');
     
+    // Score history uses the scoreOrgId
     const { data: recentChanges } = await supabase
       .from('score_history')
       .select('account_external_id')
-      .eq('org_id', orgId)
+      .eq('org_id', scoreOrgId)
       .gte('computed_at', sevenDaysAgo.toISOString());
 
     const { data: previousChanges } = await supabase
       .from('score_history')
       .select('account_external_id')
-      .eq('org_id', orgId)
+      .eq('org_id', scoreOrgId)
       .gte('computed_at', fourteenDaysAgo.toISOString())
       .lt('computed_at', sevenDaysAgo.toISOString());
 
@@ -209,7 +261,7 @@ async function computeEngagementVelocity(supabase: any, orgId: string): Promise<
     });
   }
 
-  // LOWERED THRESHOLD: >= 1 recent change (was 3) and 50%+ increase
+  // Threshold: >= 1 recent change and 50%+ increase
   const acceleratingAccounts: { id: string; recent: number; previous: number; increase: number }[] = [];
   
   for (const accountId of Object.keys(recentCounts)) {
@@ -230,7 +282,7 @@ async function computeEngagementVelocity(supabase: any, orgId: string): Promise<
     const { data: accounts } = await supabase
       .from('accounts')
       .select('external_id, name')
-      .eq('org_id', orgId)
+      .eq('org_id', dataOrgId)
       .in('external_id', acceleratingAccounts.slice(0, 20).map(a => a.id));
 
     const accountMap = new Map((accounts || []).map((a: any) => [a.external_id, a.name]));
@@ -259,25 +311,34 @@ async function computeEngagementVelocity(supabase: any, orgId: string): Promise<
 }
 
 /**
- * Compute multi-threading opportunities - high-fit accounts with single contact engaged
+ * Compute multi-threading opportunities - high-fit accounts with single contact
+ * FIXED: Uses 'fit' column (numeric) instead of 'fit_label' (doesn't exist)
+ * FIXED: Cross-org lookup - scores in scoreOrgId, leads in dataOrgId
  */
-async function computeMultiThreadingOpportunities(supabase: any, orgId: string): Promise<IntentSignal[]> {
+async function computeMultiThreadingOpportunities(supabase: any, dataOrgId: string, scoreOrgId: string): Promise<IntentSignal[]> {
   const signals: IntentSignal[] = [];
 
+  // Use numeric 'fit' column with threshold
   const { data: highFitAccounts } = await supabase
     .from('scores')
-    .select('account_external_id, fit_label')
-    .eq('org_id', orgId)
-    .eq('fit_label', 'high');
+    .select('account_external_id, fit')
+    .eq('org_id', scoreOrgId)
+    .gte('fit', HIGH_FIT_THRESHOLD);
 
-  if (!highFitAccounts || highFitAccounts.length === 0) return signals;
+  if (!highFitAccounts || highFitAccounts.length === 0) {
+    console.log(`[IntentSignals] No high-fit accounts found (fit >= ${HIGH_FIT_THRESHOLD}) in score org ${scoreOrgId}`);
+    return signals;
+  }
+
+  console.log(`[IntentSignals] Found ${highFitAccounts.length} high-fit accounts for multi-threading check`);
 
   const highFitIds = highFitAccounts.map((s: any) => s.account_external_id);
 
+  // Leads are in the data org
   const { data: leads } = await supabase
     .from('Leads')
     .select('account_external_id, id')
-    .eq('org_id', orgId)
+    .eq('org_id', dataOrgId)
     .in('account_external_id', highFitIds);
 
   const leadCounts: Record<string, number> = {};
@@ -295,7 +356,7 @@ async function computeMultiThreadingOpportunities(supabase: any, orgId: string):
     const { data: accounts } = await supabase
       .from('accounts')
       .select('external_id, name, employee_count')
-      .eq('org_id', orgId)
+      .eq('org_id', dataOrgId)
       .in('external_id', singleThreaded.slice(0, 20));
 
     for (const account of (accounts || []).slice(0, 10)) {
@@ -311,7 +372,7 @@ async function computeMultiThreadingOpportunities(supabase: any, orgId: string):
         metadata: {
           lead_count: 1,
           employee_count: account.employee_count,
-          fit_label: 'high',
+          fit_score: highFitAccounts.find((s: any) => s.account_external_id === account.external_id)?.fit,
         },
       });
     }
@@ -323,7 +384,7 @@ async function computeMultiThreadingOpportunities(supabase: any, orgId: string):
 /**
  * Compute score change alerts - significant ICP score changes
  */
-async function computeScoreChangeAlerts(supabase: any, orgId: string): Promise<IntentSignal[]> {
+async function computeScoreChangeAlerts(supabase: any, dataOrgId: string, scoreOrgId: string): Promise<IntentSignal[]> {
   const signals: IntentSignal[] = [];
 
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -331,7 +392,7 @@ async function computeScoreChangeAlerts(supabase: any, orgId: string): Promise<I
   const { data: scoreHistory } = await supabase
     .from('score_history')
     .select('account_external_id, old_score, new_score, computed_at')
-    .eq('org_id', orgId)
+    .eq('org_id', scoreOrgId)
     .gte('computed_at', thirtyDaysAgo)
     .order('computed_at', { ascending: false });
 
@@ -362,7 +423,7 @@ async function computeScoreChangeAlerts(supabase: any, orgId: string): Promise<I
     const { data: accounts } = await supabase
       .from('accounts')
       .select('external_id, name')
-      .eq('org_id', orgId)
+      .eq('org_id', dataOrgId)
       .in('external_id', significantChanges.map(([id]) => id));
 
     const accountMap = new Map((accounts || []).map((a: any) => [a.external_id, a.name]));
@@ -397,14 +458,15 @@ async function computeScoreChangeAlerts(supabase: any, orgId: string): Promise<I
 /**
  * Compute coverage gaps - high-fit accounts with no recent activity
  */
-async function computeCoverageGaps(supabase: any, orgId: string): Promise<IntentSignal[]> {
+async function computeCoverageGaps(supabase: any, dataOrgId: string, scoreOrgId: string): Promise<IntentSignal[]> {
   const signals: IntentSignal[] = [];
 
+  // Use numeric fit column
   const { data: highFitScores } = await supabase
     .from('scores')
     .select('account_external_id')
-    .eq('org_id', orgId)
-    .eq('fit_label', 'high');
+    .eq('org_id', scoreOrgId)
+    .gte('fit', HIGH_FIT_THRESHOLD);
 
   if (!highFitScores || highFitScores.length === 0) return signals;
 
@@ -414,7 +476,7 @@ async function computeCoverageGaps(supabase: any, orgId: string): Promise<Intent
   const { count: activityCount } = await supabase
     .from('activities')
     .select('*', { count: 'exact', head: true })
-    .eq('org_id', orgId);
+    .eq('org_id', dataOrgId);
 
   let activeIds: Set<string>;
 
@@ -422,18 +484,17 @@ async function computeCoverageGaps(supabase: any, orgId: string): Promise<Intent
     const { data: recentlyActiveAccounts } = await supabase
       .from('activities')
       .select('account_external_id')
-      .eq('org_id', orgId)
+      .eq('org_id', dataOrgId)
       .gte('activity_date', thirtyDaysAgo)
       .in('account_external_id', highFitIds);
 
     activeIds = new Set((recentlyActiveAccounts || []).map((a: any) => a.account_external_id));
   } else {
-    console.log('[IntentSignals] No activities, using score_history for coverage gaps');
-    
+    // Use score_history for coverage gaps
     const { data: recentlyChangedAccounts } = await supabase
       .from('score_history')
       .select('account_external_id')
-      .eq('org_id', orgId)
+      .eq('org_id', scoreOrgId)
       .gte('computed_at', thirtyDaysAgo)
       .in('account_external_id', highFitIds);
 
@@ -446,7 +507,7 @@ async function computeCoverageGaps(supabase: any, orgId: string): Promise<Intent
     const { data: accounts } = await supabase
       .from('accounts')
       .select('external_id, name, employee_count, propensity_score')
-      .eq('org_id', orgId)
+      .eq('org_id', dataOrgId)
       .in('external_id', dormantHighFit.slice(0, 20))
       .order('employee_count', { ascending: false, nullsFirst: false });
 
@@ -473,21 +534,20 @@ async function computeCoverageGaps(supabase: any, orgId: string): Promise<Intent
 }
 
 /**
- * NEW: Compute new_high_fit - accounts that recently crossed the 70-score threshold
+ * Compute new_high_fit - accounts that recently crossed the 70-score threshold
  */
-async function computeNewHighFit(supabase: any, orgId: string): Promise<IntentSignal[]> {
+async function computeNewHighFit(supabase: any, dataOrgId: string, scoreOrgId: string): Promise<IntentSignal[]> {
   const signals: IntentSignal[] = [];
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Find score_history entries where old_score < 70 and new_score >= 70 in last 7 days
   const { data: newHighFit } = await supabase
     .from('score_history')
     .select('account_external_id, old_score, new_score, computed_at')
-    .eq('org_id', orgId)
+    .eq('org_id', scoreOrgId)
     .gte('computed_at', sevenDaysAgo)
-    .lt('old_score', 70)
-    .gte('new_score', 70)
+    .lt('old_score', HIGH_FIT_THRESHOLD)
+    .gte('new_score', HIGH_FIT_THRESHOLD)
     .order('new_score', { ascending: false })
     .limit(20);
 
@@ -497,7 +557,7 @@ async function computeNewHighFit(supabase: any, orgId: string): Promise<IntentSi
   const { data: accounts } = await supabase
     .from('accounts')
     .select('external_id, name, industry_norm, employee_count')
-    .eq('org_id', orgId)
+    .eq('org_id', dataOrgId)
     .in('external_id', accountIds);
 
   const accountMap = new Map((accounts || []).map((a: any) => [a.external_id, a]));
@@ -512,7 +572,7 @@ async function computeNewHighFit(supabase: any, orgId: string): Promise<IntentSi
       account_external_id: entry.account_external_id,
       account_name: account?.name || null,
       title: `Newly high-fit: score ${entry.old_score} → ${entry.new_score}`,
-      description: `${account?.name || 'Account'} just crossed the 70-point threshold with a ${improvement}-point improvement. ${account?.industry_norm ? `Industry: ${account.industry_norm}.` : ''} Prioritize for outreach.`,
+      description: `${account?.name || 'Account'} just crossed the ${HIGH_FIT_THRESHOLD}-point threshold with a ${improvement}-point improvement. ${account?.industry_norm ? `Industry: ${account.industry_norm}.` : ''} Prioritize for outreach.`,
       metadata: {
         old_score: entry.old_score,
         new_score: entry.new_score,
@@ -527,29 +587,28 @@ async function computeNewHighFit(supabase: any, orgId: string): Promise<IntentSi
 }
 
 /**
- * NEW: Compute data_freshness - high-fit accounts with stale enrichment data (>90 days old)
+ * Compute data_freshness - high-fit accounts with stale enrichment data (>90 days old)
  */
-async function computeDataFreshness(supabase: any, orgId: string): Promise<IntentSignal[]> {
+async function computeDataFreshness(supabase: any, dataOrgId: string, scoreOrgId: string): Promise<IntentSignal[]> {
   const signals: IntentSignal[] = [];
 
   const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Get high-fit accounts with stale or no enrichment
+  // Use numeric fit column
   const { data: highFitScores } = await supabase
     .from('scores')
     .select('account_external_id')
-    .eq('org_id', orgId)
-    .eq('fit_label', 'high');
+    .eq('org_id', scoreOrgId)
+    .gte('fit', HIGH_FIT_THRESHOLD);
 
   if (!highFitScores || highFitScores.length === 0) return signals;
 
   const highFitIds = highFitScores.map((s: any) => s.account_external_id);
 
-  // Find accounts with stale enrichment
   const { data: staleAccounts } = await supabase
     .from('accounts')
     .select('external_id, name, enriched_at, enrichment_confidence')
-    .eq('org_id', orgId)
+    .eq('org_id', dataOrgId)
     .in('external_id', highFitIds)
     .or(`enriched_at.is.null,enriched_at.lt.${ninetyDaysAgo}`)
     .order('enriched_at', { ascending: true, nullsFirst: true })

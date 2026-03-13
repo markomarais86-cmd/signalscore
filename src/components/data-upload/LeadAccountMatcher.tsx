@@ -9,12 +9,15 @@ import { useToast } from "@/hooks/use-toast";
 
 interface MatchingResult {
   success: boolean;
-  total_leads: number;
-  matched_to_existing: number;
-  new_accounts_created: number;
-  accounts_scored?: number;
-  failed: number;
-  errors?: Array<{ lead_id: string; reason: string }>;
+  processed: number;
+  matched: number;
+  created: number;
+  linked: number;
+  batches: number;
+  duration_ms: number;
+  has_more: boolean;
+  partial?: boolean;
+  error?: string;
 }
 
 interface LeadAccountMatcherProps {
@@ -31,7 +34,6 @@ export function LeadAccountMatcher({ onComplete }: LeadAccountMatcherProps) {
     setResult(null);
 
     try {
-      // Get current user's org_id
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
@@ -52,12 +54,12 @@ export function LeadAccountMatcher({ onComplete }: LeadAccountMatcherProps) {
       setResult(data as MatchingResult);
 
       if (data.success) {
+        const totalLinked = (data.matched || 0) + (data.linked || 0);
         toast({
           title: "Matching Complete",
-          description: `Linked ${data.matched_to_existing + data.new_accounts_created} leads to accounts${data.accounts_scored ? ` and scored ${data.accounts_scored} accounts` : ''}`,
+          description: `Processed ${data.processed} leads: ${data.matched} matched to existing, ${data.created} new accounts created, ${data.linked} linked${data.batches > 1 ? ` across ${data.batches} batches` : ''} in ${((data.duration_ms || 0) / 1000).toFixed(1)}s`,
         });
         
-        // Call onComplete callback after a brief delay to show results
         setTimeout(() => {
           onComplete?.();
         }, 2000);
@@ -126,48 +128,50 @@ export function LeadAccountMatcher({ onComplete }: LeadAccountMatcherProps) {
               )}
               <AlertDescription>
                 <div className="font-semibold mb-2">
-                  {result.success ? "Matching Completed Successfully" : "Matching Failed"}
+                  {result.success 
+                    ? (result.partial ? "Matching Partially Complete" : "Matching Completed Successfully")
+                    : "Matching Failed"}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Total Leads:</span>
-                    <Badge variant="secondary">{result.total_leads}</Badge>
+                    <span className="text-muted-foreground">Processed:</span>
+                    <Badge variant="secondary">{result.processed}</Badge>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">Matched:</span>
-                    <Badge variant="default">{result.matched_to_existing}</Badge>
+                    <Badge variant="default">{result.matched}</Badge>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Created:</span>
-                    <Badge variant="default">{result.new_accounts_created}</Badge>
+                    <span className="text-muted-foreground">Accounts Created:</span>
+                    <Badge variant="default">{result.created}</Badge>
                   </div>
-                  {result.accounts_scored !== undefined && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Newly Linked:</span>
+                    <Badge variant="outline">{result.linked}</Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Batches:</span>
+                    <Badge variant="secondary">{result.batches}</Badge>
+                  </div>
+                  {result.duration_ms && (
                     <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">Scored:</span>
-                      <Badge variant="outline">{result.accounts_scored}</Badge>
+                      <span className="text-muted-foreground">Duration:</span>
+                      <Badge variant="secondary">{(result.duration_ms / 1000).toFixed(1)}s</Badge>
                     </div>
                   )}
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Failed:</span>
-                    <Badge variant="destructive">{result.failed}</Badge>
-                  </div>
                 </div>
+                {result.has_more && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    More leads remain to be processed. Run matching again to continue.
+                  </p>
+                )}
               </AlertDescription>
             </Alert>
 
-            {result.errors && result.errors.length > 0 && (
+            {result.error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <div className="font-semibold mb-2">Sample Errors:</div>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    {result.errors.slice(0, 5).map((error, idx) => (
-                      <li key={idx}>
-                        Lead {error.lead_id}: {error.reason}
-                      </li>
-                    ))}
-                  </ul>
-                </AlertDescription>
+                <AlertDescription>{result.error}</AlertDescription>
               </Alert>
             )}
           </div>

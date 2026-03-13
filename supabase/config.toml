@@ -79,7 +79,7 @@ verify_jwt = true
 verify_jwt = true
 
 [functions.match-leads-to-accounts]
-verify_jwt = true
+verify_jwt = false
 
 [functions.enrich-contacts-persona]
 verify_jwt = true
