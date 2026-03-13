@@ -136,5 +136,5 @@ export function useNotificationDispatcher() {
       supabase.removeChannel(agentRunsCh);
       supabase.removeChannel(campaignsCh);
     };
-  }, [userProfile?.org_id, fireMatchingAlerts]);
+  }, [effectiveOrgId, fireMatchingAlerts]);
 }
