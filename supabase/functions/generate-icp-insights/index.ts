@@ -338,6 +338,22 @@ serve(async (req) => {
       throw new Error(`Failed to fetch deals: ${dealsError.message}`);
     }
 
+    // Get ICP profiles with criteria
+    const { data: icpProfiles, error: icpError } = await supabase
+      .from('icp_profiles')
+      .select('name, description, industries, sub_industries, revenue_ranges, company_sizes, geographies, regions, tech_stack, pain_points, buying_signals, buying_triggers, persona_job_titles, persona_departments, persona_seniority_levels, persona_decision_roles, excluded_industries, disqualifiers, weights, is_primary, status, use_case, company_stages, funding_status, competitive_landscape')
+      .eq('org_id', org_id)
+      .in('status', ['active', 'validated']);
+
+    if (icpError) {
+      console.warn('Failed to fetch ICP profiles:', icpError.message);
+    }
+
+    console.log(`[ICP Insights] Loaded ${icpProfiles?.length || 0} active ICP profiles`);
+
+    // Analyze closed-won deal patterns
+    const dealPatterns = analyzeDealPatterns(deals || [], accounts || []);
+
     // Calculate high-fit accounts first
     const highScoreAccounts = accounts?.filter(a => a.scores?.[0]?.overall >= 70) || [];
     const avgDealValue = deals?.reduce((sum, d) => sum + Number(d.deal_value), 0) / (deals?.length || 1);
