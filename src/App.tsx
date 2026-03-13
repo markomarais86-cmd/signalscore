@@ -66,6 +66,7 @@ import BrandedLanding from "./pages/BrandedLanding";
 import CustomerUpgrade from "./pages/CustomerUpgrade";
 import PortfolioCommandCenter from "./pages/PortfolioCommandCenter";
 import ValueCreationPlan from "./pages/ValueCreationPlan";
+import DueDiligence from "./pages/DueDiligence";
 
 const queryClient = new QueryClient();
 
