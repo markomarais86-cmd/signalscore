@@ -123,7 +123,7 @@ export function AlertsConfiguration() {
     if (error) {
       toast({ title: "Error", description: "Failed to load alerts", variant: "destructive" });
     } else {
-      setAlerts(data || []);
+      setAlerts((data || []).map(a => ({ ...a, notification_channels: parseChannels(a.notification_channels) })));
     }
     setLoading(false);
   };
