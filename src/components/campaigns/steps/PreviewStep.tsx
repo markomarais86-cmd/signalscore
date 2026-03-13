@@ -33,6 +33,8 @@ interface PreviewStepProps {
   setExcludeDuplicates: (value: boolean) => void;
   onEstimateROI: () => void;
   scoreBandBreakdown: { A: number; B: number; C: number };
+  suppressedCount?: number;
+  applySuppression?: boolean;
 }
 
 export function PreviewStep({
