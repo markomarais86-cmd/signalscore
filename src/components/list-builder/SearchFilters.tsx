@@ -128,6 +128,7 @@ export function SearchFilters({
     filters.levels.length +
     (filters.hasEmail !== null ? 1 : 0) +
     (filters.hasPhone !== null ? 1 : 0) +
+    (filters.fitScoreMin !== null ? 1 : 0) +
     customAttrCount;
 
   return (
