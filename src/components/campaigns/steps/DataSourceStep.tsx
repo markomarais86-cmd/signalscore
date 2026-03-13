@@ -87,6 +87,23 @@ export function DataSourceStep({
         </Select>
       </div>
 
+      {/* Suppression Toggle */}
+      {suppressionRuleCount > 0 && setApplySuppression && (
+        <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+          <div className="flex items-center gap-3">
+            <ShieldOff className="h-4 w-4 text-muted-foreground" />
+            <div>
+              <Label className="text-sm font-medium">Apply global suppression list</Label>
+              <p className="text-xs text-muted-foreground">
+                {suppressionRuleCount} domain{suppressionRuleCount !== 1 ? 's' : ''} will be excluded from results
+              </p>
+            </div>
+          </div>
+          <Switch checked={applySuppression} onCheckedChange={setApplySuppression} />
+        </div>
+      )}
+
+
       {dataSource === 'database' && (
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-4">
