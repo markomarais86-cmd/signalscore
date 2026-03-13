@@ -54,9 +54,12 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
           sequenceSteps, selectedTitles, selectedSeniority, selectedDepartments,
           dataSource, provider, destination, excludeDuplicates } = state;
 
+  // Suppression toggle
+  const [applySuppression, setApplySuppression] = useState(true);
+
   // Data fetching
-  const campaignData = useCampaignData(filterCriteria, dataSource, useICP);
-  const { previewData, estimatedLeads, estimatedCost, setEstimatedCost, isLoadingPreview,
+  const campaignData = useCampaignData(filterCriteria, dataSource, useICP, applySuppression);
+  const { previewData, suppressedCount, suppressionRuleCount, estimatedLeads, estimatedCost, setEstimatedCost, isLoadingPreview,
           loadingProgress, realtimeLeadCount, isCountingLeads, apolloTamData, apolloTamDomains,
           loadPreview, scoreBandBreakdown } = campaignData;
 
