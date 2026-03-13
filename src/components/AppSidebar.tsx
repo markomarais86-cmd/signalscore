@@ -270,6 +270,18 @@ export function AppSidebar() {
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
                     <NavLink
+                      to="/portfolio"
+                      className={getNavCls("/portfolio")}
+                    >
+                      <Building2 className="h-4 w-4" />
+                      <span>Portfolio</span>
+                      <Badge variant="secondary" className="ml-auto text-xs">PE/VC</Badge>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink
                       to="/admin/customer-onboarding"
                       className={getNavCls("/admin/customer-onboarding")}
                     >

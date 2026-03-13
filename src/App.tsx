@@ -232,6 +232,16 @@ function AppContent() {
                   }
                 />
                 <Route
+                  path="/portfolio"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <PortfolioCommandCenter />
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
                   path="/admin/customer-onboarding"
                   element={
                     <ProtectedRoute>
