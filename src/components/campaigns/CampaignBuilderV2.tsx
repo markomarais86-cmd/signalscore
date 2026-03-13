@@ -50,7 +50,7 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
           setDestination, setExcludeDuplicates, reset } = campaignState;
   
   // Destructure state for easier access
-  const { step, campaignName, useICP, activeICP, filterCriteria, selectedTemplate,
+  const { step, campaignName, fuelLineType, useICP, activeICP, filterCriteria, selectedTemplate,
           sequenceSteps, selectedTitles, selectedSeniority, selectedDepartments,
           dataSource, provider, destination, excludeDuplicates } = state;
 
