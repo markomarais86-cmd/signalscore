@@ -19,6 +19,9 @@ interface DataSourceStepProps {
   estimatedCost: number;
   apolloTamData: any;
   selectedAccountCount?: number;
+  applySuppression?: boolean;
+  setApplySuppression?: (value: boolean) => void;
+  suppressionRuleCount?: number;
 }
 
 export function DataSourceStep({
