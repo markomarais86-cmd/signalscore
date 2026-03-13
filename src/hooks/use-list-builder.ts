@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffectiveOrg } from "@/hooks/use-effective-org";
+import { useDataOrgId } from "@/hooks/use-data-org";
 import { toast } from "sonner";
 
 export interface ListBuilderFilters {
