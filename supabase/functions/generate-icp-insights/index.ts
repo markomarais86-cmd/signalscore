@@ -179,6 +179,71 @@ async function callAIWithToolCalling(
   }
 }
 
+interface DealPatterns {
+  totalDeals: number;
+  avgDealValue: number;
+  medianDealValue: number;
+  avgSalesCycleDays: number;
+  topIndustries: [string, number][];
+  topSizeRanges: [string, number][];
+  topGeos: [string, number][];
+  topRevenueRanges: [string, number][];
+  recentTrend: string; // 'growing' | 'stable' | 'declining'
+  largestDeal: number;
+  smallestDeal: number;
+}
+
+function analyzeDealPatterns(deals: any[], accounts: any[]): DealPatterns {
+  const accountMap = new Map(accounts.map((a: any) => [a.external_id, a]));
+  
+  const values = deals.map(d => Number(d.deal_value)).filter(v => v > 0).sort((a, b) => a - b);
+  const cycles = deals.map(d => d.sales_cycle_days).filter(Boolean);
+  
+  // Match deals to account firmographics
+  const industryCount: Record<string, number> = {};
+  const sizeCount: Record<string, number> = {};
+  const geoCount: Record<string, number> = {};
+  const revenueCount: Record<string, number> = {};
+  
+  for (const deal of deals) {
+    const account = accountMap.get(deal.account_external_id);
+    if (!account) continue;
+    if (account.industry_norm) industryCount[account.industry_norm] = (industryCount[account.industry_norm] || 0) + 1;
+    if (account.country) geoCount[account.country] = (geoCount[account.country] || 0) + 1;
+    if (account.revenue_range) revenueCount[account.revenue_range] = (revenueCount[account.revenue_range] || 0) + 1;
+    if (account.employee_count) {
+      const range = account.employee_count < 50 ? '1-50' :
+                    account.employee_count < 200 ? '51-200' :
+                    account.employee_count < 500 ? '201-500' :
+                    account.employee_count < 1000 ? '501-1000' : '1000+';
+      sizeCount[range] = (sizeCount[range] || 0) + 1;
+    }
+  }
+  
+  const sortDesc = (obj: Record<string, number>) => Object.entries(obj).sort((a, b) => b[1] - a[1]);
+  
+  // Trend: compare recent half vs older half
+  const sortedDeals = [...deals].sort((a, b) => new Date(a.close_date).getTime() - new Date(b.close_date).getTime());
+  const mid = Math.floor(sortedDeals.length / 2);
+  const olderAvg = mid > 0 ? sortedDeals.slice(0, mid).reduce((s, d) => s + Number(d.deal_value), 0) / mid : 0;
+  const newerAvg = mid > 0 ? sortedDeals.slice(mid).reduce((s, d) => s + Number(d.deal_value), 0) / (sortedDeals.length - mid) : 0;
+  const trend = newerAvg > olderAvg * 1.15 ? 'growing' : newerAvg < olderAvg * 0.85 ? 'declining' : 'stable';
+  
+  return {
+    totalDeals: deals.length,
+    avgDealValue: values.length > 0 ? values.reduce((s, v) => s + v, 0) / values.length : 0,
+    medianDealValue: values.length > 0 ? values[Math.floor(values.length / 2)] : 0,
+    avgSalesCycleDays: cycles.length > 0 ? Math.round(cycles.reduce((s: number, c: number) => s + c, 0) / cycles.length) : 0,
+    topIndustries: sortDesc(industryCount).slice(0, 5),
+    topSizeRanges: sortDesc(sizeCount).slice(0, 5),
+    topGeos: sortDesc(geoCount).slice(0, 5),
+    topRevenueRanges: sortDesc(revenueCount).slice(0, 5),
+    recentTrend: trend,
+    largestDeal: values.length > 0 ? values[values.length - 1] : 0,
+    smallestDeal: values.length > 0 ? values[0] : 0,
+  };
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
