@@ -39,6 +39,7 @@ export interface InsightContext {
 export interface CampaignState {
   step: number;
   campaignName: string;
+  fuelLineType: FuelLineType;
   useICP: boolean;
   activeICP: ICPProfile | null;
   filterCriteria: FilterCriteria;
