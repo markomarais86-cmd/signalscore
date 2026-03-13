@@ -248,7 +248,7 @@ export function useCampaignData(
       setIsLoadingPreview(false);
       setLoadingProgress('');
     }
-  }, [userProfile?.org_id, filterCriteria, dataSource, useICP, applySuppression, suppressedDomains]);
+  }, [orgId, scoreOrgId, filterCriteria, dataSource, useICP, applySuppression, suppressedDomains]);
 
   const scoreBandBreakdown = useMemo(() => {
     if (!previewData) return { A: 0, B: 0, C: 0 };
