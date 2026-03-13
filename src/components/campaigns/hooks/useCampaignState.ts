@@ -29,6 +29,8 @@ export interface InsightContext {
   insightTitle?: string;
   suggestedCampaignName?: string;
   targetAccountIds?: string[];
+  signalType?: string;
+  signalIds?: string[];
   filters?: {
     minScore?: number;
     industries?: string[];
