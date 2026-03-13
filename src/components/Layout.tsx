@@ -13,6 +13,7 @@ import { useCampaignContext } from "@/hooks/use-campaign-context";
 import { GlobalCommandPalette, CommandPaletteTrigger } from "@/components/GlobalCommandPalette";
 import { OrgSwitcher, ImpersonationBanner } from "@/components/OrgSwitcher";
 import { GlobalAIAssistant } from "@/components/GlobalAIAssistant";
+import { useNotificationDispatcher } from "@/hooks/use-notification-dispatcher";
 
 interface LayoutProps {
   children: ReactNode;
