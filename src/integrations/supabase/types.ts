@@ -7805,6 +7805,122 @@ export type Database = {
         }
         Relationships: []
       }
+      value_creation_milestones: {
+        Row: {
+          auto_detect: boolean
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          description: string | null
+          id: string
+          manual_notes: string | null
+          milestone_key: string
+          org_id: string
+          phase: string
+          plan_id: string
+          sort_order: number
+          target_day: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          auto_detect?: boolean
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          manual_notes?: string | null
+          milestone_key: string
+          org_id: string
+          phase: string
+          plan_id: string
+          sort_order?: number
+          target_day: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          auto_detect?: boolean
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          manual_notes?: string | null
+          milestone_key?: string
+          org_id?: string
+          phase?: string
+          plan_id?: string
+          sort_order?: number
+          target_day?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "value_creation_milestones_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "value_creation_milestones_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "value_creation_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      value_creation_plans: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          org_id: string
+          plan_name: string
+          started_at: string
+          status: string
+          target_completion_at: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          org_id: string
+          plan_name?: string
+          started_at?: string
+          status?: string
+          target_completion_at?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          org_id?: string
+          plan_name?: string
+          started_at?: string
+          status?: string
+          target_completion_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "value_creation_plans_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       verification_log: {
         Row: {
           confidence_score: number | null
