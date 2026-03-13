@@ -163,6 +163,7 @@ export function useAccountSignals(options?: {
     refetch,
     dismissSignal: dismissSignal.mutate,
     actionSignal: actionSignal.mutate,
+    bulkActionSignals: bulkActionSignals.mutateAsync,
     detectSignals: detectSignals.mutate,
     isDetecting: detectSignals.isPending,
   };
