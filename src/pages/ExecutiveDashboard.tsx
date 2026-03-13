@@ -794,6 +794,16 @@ export default function ExecutiveDashboard() {
           status={syncStatus}
           breakdown={syncBreakdown}
         />
+        {/* Signal Campaign Builder */}
+        <CampaignBuilderV2
+          isOpen={signalCampaignOpen}
+          onClose={() => {
+            setSignalCampaignOpen(false);
+            setSignalCampaignContext(undefined);
+          }}
+          source="executive-dashboard"
+          insightContext={signalCampaignContext}
+        />
         
       </div>
   );
