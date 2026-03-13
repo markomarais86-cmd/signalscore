@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from './use-auth';
+import { useEffectiveOrg } from './use-effective-org';
 import { realtimeLogger as log } from '@/lib/logger';
 
 /**
