@@ -64,6 +64,7 @@ import Opportunities from "./pages/Opportunities";
 import AIFeedbackPage from "./pages/AIFeedbackPage";
 import BrandedLanding from "./pages/BrandedLanding";
 import CustomerUpgrade from "./pages/CustomerUpgrade";
+import PortfolioCommandCenter from "./pages/PortfolioCommandCenter";
 
 const queryClient = new QueryClient();
 
