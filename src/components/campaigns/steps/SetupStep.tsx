@@ -6,12 +6,23 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { LaunchPulseMark } from "@/components/BrandLogo";
-import { DollarSign, AlertCircle, Target } from "lucide-react";
+import { DollarSign, AlertCircle, Target, Crosshair, Cpu, Building2, UserSearch } from "lucide-react";
 import { ICPProfile } from "../hooks/useCampaignState";
+import { FuelLineType, FUEL_LINE_TYPES } from "../constants/campaign-config";
+import { cn } from "@/lib/utils";
+
+const FUEL_LINE_ICONS: Record<string, React.ElementType> = {
+  Crosshair,
+  Cpu,
+  Building2,
+  UserSearch,
+};
 
 interface SetupStepProps {
   campaignName: string;
   setCampaignName: (name: string) => void;
+  fuelLineType: FuelLineType;
+  setFuelLineType: (type: FuelLineType) => void;
   useICP: boolean;
   setUseICP: (use: boolean) => void;
   activeICP: ICPProfile | null;
@@ -23,6 +34,8 @@ interface SetupStepProps {
 export function SetupStep({
   campaignName,
   setCampaignName,
+  fuelLineType,
+  setFuelLineType,
   useICP,
   setUseICP,
   activeICP,
@@ -32,6 +45,51 @@ export function SetupStep({
 }: SetupStepProps) {
   return (
     <div className="space-y-6">
+      {/* Fuel Line Selector */}
+      <div>
+        <Label className="mb-3 block text-sm font-semibold">Select Fuel Line</Label>
+        <div className="grid grid-cols-2 gap-3">
+          {(Object.entries(FUEL_LINE_TYPES) as [FuelLineType, typeof FUEL_LINE_TYPES[FuelLineType]][]).map(
+            ([key, config]) => {
+              const Icon = FUEL_LINE_ICONS[config.icon];
+              const isActive = fuelLineType === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFuelLineType(key)}
+                  className={cn(
+                    "relative flex items-start gap-3 rounded-lg border-2 p-3 text-left transition-all",
+                    isActive
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-border hover:border-primary/40 hover:bg-muted/50"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+                      isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {Icon && <Icon className="h-4 w-4" />}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">{config.label}</div>
+                    <div className="text-xs text-muted-foreground leading-snug">
+                      {config.description}
+                    </div>
+                  </div>
+                  {isActive && (
+                    <div className="absolute right-2 top-2 h-2 w-2 rounded-full bg-primary" />
+                  )}
+                </button>
+              );
+            }
+          )}
+        </div>
+      </div>
+
+      {/* Campaign Name */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <Label htmlFor="campaign-name">Campaign Name</Label>

@@ -43,14 +43,14 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
   
   // Core state management
   const campaignState = useCampaignState(insightContext);
-  const { state, setStep, setCampaignName, setUseICP, setActiveICP,
+  const { state, setStep, setCampaignName, setFuelLineType, setUseICP, setActiveICP,
           setFilterCriteria, setSelectedTemplate,
           setSelectedTitles, setSelectedSeniority,
           setSelectedDepartments, setDataSource, setProvider,
           setDestination, setExcludeDuplicates, reset } = campaignState;
   
   // Destructure state for easier access
-  const { step, campaignName, useICP, activeICP, filterCriteria, selectedTemplate,
+  const { step, campaignName, fuelLineType, useICP, activeICP, filterCriteria, selectedTemplate,
           sequenceSteps, selectedTitles, selectedSeniority, selectedDepartments,
           dataSource, provider, destination, excludeDuplicates } = state;
 
@@ -213,6 +213,8 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
           <SetupStep
             campaignName={campaignName}
             setCampaignName={setCampaignName}
+            fuelLineType={fuelLineType}
+            setFuelLineType={setFuelLineType}
             useICP={useICP}
             setUseICP={setUseICP}
             activeICP={activeICP}

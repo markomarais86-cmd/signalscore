@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { SEQUENCE_TEMPLATES, SequenceStep, TemplateKey } from '../constants/campaign-config';
+import { SEQUENCE_TEMPLATES, SequenceStep, TemplateKey, FuelLineType, FUEL_LINE_TYPES } from '../constants/campaign-config';
 
 export interface FilterCriteria {
   employeeMin?: number;
@@ -39,6 +39,7 @@ export interface InsightContext {
 export interface CampaignState {
   step: number;
   campaignName: string;
+  fuelLineType: FuelLineType;
   useICP: boolean;
   activeICP: ICPProfile | null;
   filterCriteria: FilterCriteria;
@@ -64,6 +65,7 @@ export function useCampaignState(insightContext?: InsightContext) {
   const [state, setState] = useState<CampaignState>({
     step: 1,
     campaignName: insightContext?.suggestedCampaignName || "",
+    fuelLineType: 'firmographic',
     useICP: true,
     activeICP: null,
     filterCriteria: {
@@ -87,6 +89,22 @@ export function useCampaignState(insightContext?: InsightContext) {
 
   const setCampaignName = useCallback((campaignName: string) => {
     setState(prev => ({ ...prev, campaignName }));
+  }, []);
+
+  const setFuelLineType = useCallback((fuelLineType: FuelLineType) => {
+    const config = FUEL_LINE_TYPES[fuelLineType];
+    setState(prev => ({
+      ...prev,
+      fuelLineType,
+      selectedTemplate: config.defaultTemplate,
+      sequenceSteps: SEQUENCE_TEMPLATES[config.defaultTemplate].steps,
+      filterCriteria: {
+        ...prev.filterCriteria,
+        managementLevels: config.defaultManagementLevels,
+        marketSegments: config.defaultMarketSegments,
+      },
+      dataSource: config.defaultDataSource,
+    }));
   }, []);
 
   const setUseICP = useCallback((useICP: boolean) => {
@@ -166,6 +184,7 @@ export function useCampaignState(insightContext?: InsightContext) {
     setState({
       step: 1,
       campaignName: "",
+      fuelLineType: 'firmographic',
       useICP: true,
       activeICP: null,
       filterCriteria: initialFilterCriteria,
@@ -185,6 +204,7 @@ export function useCampaignState(insightContext?: InsightContext) {
     state,
     setStep,
     setCampaignName,
+    setFuelLineType,
     setUseICP,
     setActiveICP,
     setFilterCriteria,
