@@ -1,152 +1,111 @@
 
-# LaunchPulse Fuel Line Engine — Implementation Plan
 
-## Context
-LaunchPulse operates a **Managed Demand Engine** — we run campaigns on behalf of customers.
-We're borrowing the "Fuel Line" concept (segmented data pipelines into campaigns) but adapting it to our managed model where **we** control the infrastructure and customers action the output.
+# Improvement Plan: Hardening, Performance, and Quality
 
-TPG doesn't have 28 databases — they repackage a handful of providers. We already have a strong enrichment waterfall (Apollo, PDL, Firecrawl, Perplexity, Hunter). The gap is in **how we route enriched data into campaigns**.
+This plan focuses on improving what already exists -- no new features.
 
 ---
 
-## Current State
+## 1. CRITICAL: Fix Security Vulnerabilities (7 errors found)
 
-### What we have
-- **CampaignBuilderV2**: 7-step wizard (Setup → Targeting → Sequence → Persona → DataSource → Preview → Export)
-- **3 sequence templates**: Enterprise, SMB, Partner
-- **Enrichment waterfall**: 8-stage pipeline across 6+ providers
-- **ICP scoring**: Automated fit scoring with bulk jobs
-- **Account signals**: Intent, tech changes, funding events tracked in `account_signals`
-- **Suppression**: Basic dedup via `apollo_redemption_log.redeemed_emails`
+The security scan revealed serious issues that could allow any authenticated user to escalate privileges or access other organizations' data:
 
-### What's missing
-1. No concept of **Fuel Line type** — all campaigns use the same generic flow
-2. No **suppression list** management (global exclusions)
-3. No **signal-to-campaign routing** (signals exist but don't auto-trigger campaigns)
-4. No **fuel line performance tracking** (which data source/segment converts best)
-5. Sequence templates are hardcoded, not tied to fuel line type
+| Severity | Issue | Fix |
+|---|---|---|
+| **ERROR** | `user_profiles` UPDATE policy has no WITH CHECK -- any user can change their own `role` to `admin` or change `org_id` to hijack another org | Add WITH CHECK preventing `role` and `org_id` modification |
+| **ERROR** | `quiz_responses` SELECT policy exposes all orgs' data to any authenticated user | Add org_id filter via join through `marketing_leads` |
+| **ERROR** | `credit_adjustments` readable AND writable by any authenticated user across orgs | Restrict both SELECT/INSERT to `org_id = get_current_user_org_id()` |
+| **ERROR** | `value_creation_plans` + `value_creation_milestones` fully open to all authenticated users | Add org_id filter to all 3 policies on each table |
+| **ERROR** | `system_health_checks` accessible by anonymous/unauthenticated users (policy scoped to `public` role) | Change policy role from `public` to `service_role` |
+| **ERROR** | `ai_provider_health` writable by anonymous users | Change policy role from `public` to `service_role` |
 
----
+Additionally, 13 **WARN** level RLS policies use `USING (true)` or `WITH CHECK (true)` on INSERT/UPDATE/DELETE -- these should all get org_id scoping.
 
-## Phase 1: Fuel Line Types in Campaign Builder (UI-only, no migration)
-
-**Goal**: Let operators pick a fuel line type in Step 1 (Setup), which auto-configures targeting, persona, and sequence defaults.
-
-### Fuel Line Definitions
-
-| Fuel Line | Description | Auto-config |
-|-----------|-------------|-------------|
-| **ABM** | Named accounts from signals/manual selection | Pre-selects signal-triggered accounts, Enterprise sequence |
-| **Technographic** | Accounts using specific tech stack | Filters by `tech_stack[]` column, SMB/Enterprise sequence based on size |
-| **Firmographic** | Industry + size + geography targeting | Uses existing segment filters, auto-sets employee/revenue ranges |
-| **Persona** | Job title + seniority + department first | Leads with persona filters, pulls matching accounts second |
-
-### Files to modify
-- `src/components/campaigns/constants/campaign-config.ts` — Add `FUEL_LINE_TYPES` config with defaults per type
-- `src/components/campaigns/hooks/useCampaignState.ts` — Add `fuelLineType` to state, auto-apply defaults on selection
-- `src/components/campaigns/steps/SetupStep.tsx` — Add fuel line selector cards before campaign name
-- `src/components/campaigns/steps/TargetingStep.tsx` — Conditionally show filters based on fuel line type
-
-### No database changes needed — fuel line type is stored in campaign `metadata` JSON on export.
+**Implementation**: Run SQL migrations via Supabase to drop and recreate the affected RLS policies with proper conditions.
 
 ---
 
-## Phase 2: Suppression List Management
+## 2. Secure Edge Functions (44 functions with verify_jwt = false)
 
-**Goal**: Global and per-campaign suppression lists to prevent contacting excluded domains/emails.
+Currently **44 edge functions** have `verify_jwt = false`, many of which should not be publicly callable:
 
-### Database (migration)
-```sql
-CREATE TABLE suppression_lists (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id uuid REFERENCES organizations(id) NOT NULL,
-  name text NOT NULL,
-  list_type text NOT NULL DEFAULT 'domain', -- 'domain' | 'email' | 'company'
-  entries text[] NOT NULL DEFAULT '{}',
-  is_global boolean DEFAULT false,
-  created_by uuid,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
+| Should stay `false` (webhooks/crons) | Should be `true` (user-initiated) |
+|---|---|
+| `salesforce-webhook`, `oauth-callback`, `calendly-webhook`, `clay-webhook-receiver`, `scheduled-*`, `check-sla-breaches`, `health-check` | `ai-chat`, `ai-actions-*`, `ai-orchestrator`, `ai-memory`, `ask-account-ai`, `enrich-unified`, `export-csv`, `upload-master-data`, `match-leads-to-accounts`, `generate-icp-insights`, `generate-account-insights`, `compute-intent-signals`, `firecrawl-scrape`, `discover-domain`, `standardize-industry` |
 
-ALTER TABLE suppression_lists ENABLE ROW LEVEL SECURITY;
+**Implementation**: Update `config.toml` to set `verify_jwt = true` on ~20 functions that handle user data but are currently open. Functions that need internal-only access should validate a shared secret header instead.
+
+---
+
+## 3. Performance: Add QueryClient Defaults
+
+The `QueryClient` at line 72 of `App.tsx` has zero configuration:
+
+```ts
+const queryClient = new QueryClient(); // no defaults
 ```
 
-### Files to create
-- `src/components/campaigns/SuppressionListManager.tsx` — CRUD UI for suppression lists
-- `src/components/campaigns/steps/PreviewStep.tsx` — Show suppression count in preview stats
+This means every query uses React Query's defaults (no staleTime, gc after 5min, retry 3 times). With 32+ hooks making queries, this causes excessive refetching.
 
-### Files to modify
-- `src/components/campaigns/hooks/useCampaignData.ts` — Filter out suppressed domains/emails from preview
-- `src/components/campaigns/steps/DataSourceStep.tsx` — Add suppression list selector
-
----
-
-## Phase 3: Signal-to-Campaign Routing
-
-**Goal**: When high-priority signals fire, auto-suggest or auto-create campaigns with the right fuel line pre-selected.
-
-### How it works
-1. `account_signals` table already tracks: intent signals, tech stack changes, funding events
-2. New component watches for unactioned high-priority signals
-3. One-click "Create Campaign" from signal → opens CampaignBuilderV2 with:
-   - Fuel line auto-selected based on signal type
-   - Accounts pre-loaded from signal
-   - Sequence template pre-selected
-
-### Signal → Fuel Line mapping
-| Signal Type | Fuel Line | Sequence |
-|-------------|-----------|----------|
-| `intent` | ABM | Enterprise |
-| `tech_change` | Technographic | Enterprise |
-| `funding` | ABM | Enterprise |
-| `expansion` | Firmographic | Enterprise |
-| `new_hire` | Persona | SMB |
-
-### Files to create
-- `src/components/campaigns/SignalCampaignRouter.tsx` — Maps signals to campaign configs
-- `src/components/dashboard/SignalActionCards.tsx` — Dashboard cards with "Launch Campaign" CTA
-
-### Files to modify
-- `src/components/campaigns/CampaignBuilderV2.tsx` — Accept `signalContext` prop alongside `insightContext`
+**Fix**: Add sensible global defaults:
+- `staleTime: 2 * 60 * 1000` (2 min) -- avoid redundant refetches on tab focus
+- `gcTime: 10 * 60 * 1000` (10 min)
+- `retry: 1` (instead of 3 -- faster failure feedback)
+- `refetchOnWindowFocus: false` (the app already uses realtime subscriptions)
 
 ---
 
-## Phase 4: Fuel Line Performance Tracking
+## 4. Performance: Lazy-Load Page Components
 
-**Goal**: Track which fuel line type produces the best results so operators can optimize allocation.
+All 30+ page components are eagerly imported in `App.tsx` (lines 23-70). Only `Settings.tsx` uses `lazy()` internally. This means the initial bundle includes every page.
 
-### Database (migration)
-```sql
-ALTER TABLE campaigns ADD COLUMN fuel_line_type text;
-ALTER TABLE campaigns ADD COLUMN signal_source_id uuid REFERENCES account_signals(id);
-```
-
-### New dashboard widget
-- Conversion rate by fuel line type
-- Cost per qualified lead by fuel line
-- Time-to-meeting by fuel line
-- Uses existing `campaigns` + `campaign_snapshots` data
-
-### Files to create
-- `src/components/campaigns/FuelLineAnalytics.tsx` — Performance dashboard
-- `src/hooks/use-fuel-line-metrics.ts` — Data fetching hook
+**Fix**: Convert all page imports in `App.tsx` to `React.lazy()` with a shared `Suspense` fallback. This would split the bundle into ~30 chunks loaded on demand, significantly improving initial load time.
 
 ---
 
-## Implementation Order
+## 5. Consistency: Wrap All Routes in FeatureErrorBoundary
 
-1. **Phase 1** (UI only, no migration) — 1 session
-2. **Phase 2** (migration + UI) — 1 session  
-3. **Phase 3** (routing logic) — 1 session
-4. **Phase 4** (analytics) — 1 session
+Currently only 3 routes (Portfolio, Value Creation, Due Diligence) use `FeatureErrorBoundary`. The other ~25 protected routes have no error isolation -- a crash in any page takes down the entire app.
 
-Each phase is independently shippable. Phase 1 has zero backend risk.
+**Fix**: Add `FeatureErrorBoundary` inside every `<Layout>` / `<RoleAwareLayout>` wrapper, or better yet, add it once inside the `Layout` component itself so it wraps `{children}` automatically.
 
 ---
 
-## What this is NOT
-- We are NOT adding 28 fake data sources
-- We are NOT rebranding existing providers as separate databases
-- We ARE making our existing enrichment waterfall smarter about HOW data flows into campaigns
-- We ARE giving operators control over campaign segmentation strategy
+## 6. Consistency: Standardize Layout Usage
+
+Routes use three different layout patterns inconsistently:
+
+| Pattern | Routes using it |
+|---|---|
+| `<Layout>` (admin only) | Dashboard, ICP, Accounts, Data Upload, Admin, Enrichment, etc. |
+| `<RoleAwareLayout>` (auto-switches) | Leads, Settings, Opportunities, Tasks |
+| `<CustomerLayout>` (customer only) | My Dashboard, Upgrade |
+| No layout at all | Help, Presentations |
+
+Routes like `/accounts` use `<Layout>` (admin-only) but should probably use `<RoleAwareLayout>` if customers can access them. `/help` and `/presentations` have no layout wrapper at all.
+
+**Fix**: Audit each route and standardize: use `<RoleAwareLayout>` for pages both roles access, `<Layout>` for admin-only pages.
+
+---
+
+## 7. Move Extensions Out of Public Schema
+
+The security scan flagged 2 extensions installed in `public`. Best practice is to use a dedicated `extensions` schema.
+
+**Fix**: Run `ALTER EXTENSION ... SET SCHEMA extensions` for the affected extensions.
+
+---
+
+## Implementation Priority
+
+| # | Task | Risk if skipped | Effort |
+|---|---|---|---|
+| 1 | Fix RLS privilege escalation (user_profiles) | **Critical** -- active exploit vector | Low (SQL only) |
+| 2 | Fix remaining RLS open policies (6 tables) | **High** -- cross-org data leaks | Low (SQL only) |
+| 3 | Secure edge functions (verify_jwt) | **High** -- public API abuse | Trivial (config) |
+| 4 | Add QueryClient defaults | Medium -- wasted bandwidth | Trivial |
+| 5 | Add FeatureErrorBoundary to Layout | Medium -- app crashes | Trivial |
+| 6 | Lazy-load pages | Medium -- slow initial load | Low |
+| 7 | Standardize route layouts | Low -- UX inconsistency | Low |
+| 8 | Move extensions to dedicated schema | Low -- best practice | Trivial |
+
