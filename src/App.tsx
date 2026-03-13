@@ -12,6 +12,7 @@ import { Layout } from "./components/Layout";
 import { CustomerLayout } from "./components/CustomerLayout";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { FeatureErrorBoundary } from "./components/FeatureErrorBoundary";
 import { OnboardingWizard } from "./components/onboarding/OnboardingWizard";
 import { useEffect } from "react";
 import { useAuth } from "./hooks/use-auth";
@@ -248,7 +249,9 @@ function AppContent() {
                   element={
                     <ProtectedRoute>
                       <Layout>
-                        <ValueCreationPlan />
+                        <FeatureErrorBoundary fallbackTitle="Value Creation Plan failed to load">
+                          <ValueCreationPlan />
+                        </FeatureErrorBoundary>
                       </Layout>
                     </ProtectedRoute>
                   }
@@ -258,7 +261,9 @@ function AppContent() {
                   element={
                     <ProtectedRoute>
                       <Layout>
-                        <DueDiligence />
+                        <FeatureErrorBoundary fallbackTitle="Due Diligence failed to load">
+                          <DueDiligence />
+                        </FeatureErrorBoundary>
                       </Layout>
                     </ProtectedRoute>
                   }

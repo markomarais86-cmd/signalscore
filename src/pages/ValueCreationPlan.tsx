@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRoles } from "@/hooks/use-roles";
 import { useEffectiveOrg } from "@/hooks/use-effective-org";
@@ -144,10 +144,14 @@ export default function ValueCreationPlanPage() {
     daysRemaining,
   } = useValueCreationPlan(targetOrgId);
 
-  if (!rolesLoading && !isSuperAdmin) {
-    navigate("/dashboard");
-    return null;
-  }
+  // Auth guard — must be in useEffect to avoid conditional returns before hooks
+  useEffect(() => {
+    if (!rolesLoading && !isSuperAdmin) {
+      navigate("/dashboard");
+    }
+  }, [rolesLoading, isSuperAdmin, navigate]);
+
+  if (rolesLoading || !isSuperAdmin) return null;
 
   // Group milestones by phase
   const groupedByPhase: Record<string, Milestone[]> = {};

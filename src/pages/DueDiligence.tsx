@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useRoles } from "@/hooks/use-roles";
 import { parseCSV, analyzeCrmExport, DueDiligenceReport } from "@/lib/due-diligence-engine";
@@ -186,10 +186,14 @@ export default function DueDiligencePage() {
     setCompanyName("");
   };
 
-  if (!rolesLoading && !isSuperAdmin) {
-    navigate("/dashboard");
-    return null;
-  }
+  // Auth guard — must be in useEffect to avoid conditional returns before hooks
+  useEffect(() => {
+    if (!rolesLoading && !isSuperAdmin) {
+      navigate("/dashboard");
+    }
+  }, [rolesLoading, isSuperAdmin, navigate]);
+
+  if (rolesLoading || !isSuperAdmin) return null;
 
   return (
     <div className="space-y-6">

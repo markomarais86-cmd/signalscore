@@ -2,9 +2,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useDataOrgId } from "@/hooks/use-data-org";
+import type { Database } from "@/integrations/supabase/types";
+
+type PlanInsert = Database["public"]["Tables"]["value_creation_plans"]["Insert"];
+type MilestoneInsert = Database["public"]["Tables"]["value_creation_milestones"]["Insert"];
+type MilestoneUpdate = Database["public"]["Tables"]["value_creation_milestones"]["Update"];
 
 // Default milestones for the 100-Day GTM Value Creation Plan
-const DEFAULT_MILESTONES = [
+const DEFAULT_MILESTONES: Omit<MilestoneInsert, "plan_id" | "org_id">[] = [
   // Phase 1: Foundation (Days 1-14)
   { milestone_key: "crm_connected", title: "CRM Connected", description: "Salesforce or HubSpot integrated and syncing", target_day: 1, phase: "Foundation", sort_order: 1 },
   { milestone_key: "data_imported", title: "Account Data Imported", description: "Initial account dataset uploaded or synced from CRM", target_day: 3, phase: "Foundation", sort_order: 2 },
@@ -99,7 +105,7 @@ async function autoDetectMilestones(orgId: string, dataOrgId: string): Promise<R
   const suppressionCount = suppressionResult.count ?? 0;
 
   const enrichmentPct = totalAccounts > 0 ? enrichedAccounts / totalAccounts : 0;
-  const fuelLineTypes = new Set(campaigns.map((c: any) => c.fuel_line_type).filter(Boolean));
+  const fuelLineTypes = new Set(campaigns.map((c) => c.fuel_line_type).filter(Boolean));
 
   results["data_imported"] = totalAccounts > 0;
   results["icp_defined"] = icpCount > 0;
@@ -123,21 +129,10 @@ export function useValueCreationPlan(orgId: string | null) {
   const { userProfile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { dataOrgId: resolvedDataOrgId } = useDataOrgId();
 
-  // Resolve data org
-  const { data: dataOrgId } = useQuery({
-    queryKey: ["data-org-for-plan", orgId],
-    queryFn: async () => {
-      if (!orgId) return null;
-      const { data } = await supabase
-        .from("organizations")
-        .select("parent_org_id")
-        .eq("id", orgId)
-        .single();
-      return (data as any)?.parent_org_id || orgId;
-    },
-    enabled: !!orgId,
-  });
+  // Use the centralized data org resolution
+  const dataOrgId = resolvedDataOrgId;
 
   // Fetch or create plan
   const { data: plan, isLoading: planLoading } = useQuery({
@@ -193,26 +188,28 @@ export function useValueCreationPlan(orgId: string | null) {
     mutationFn: async () => {
       if (!orgId || !userProfile) throw new Error("Missing org or user");
 
+      const planInsert: PlanInsert = {
+        org_id: orgId,
+        created_by: userProfile.user_id,
+      };
+
       const { data: newPlan, error: planError } = await supabase
         .from("value_creation_plans")
-        .insert({
-          org_id: orgId,
-          created_by: userProfile.user_id,
-        } as any)
+        .insert(planInsert)
         .select()
         .single();
 
       if (planError) throw planError;
 
-      const milestonesToInsert = DEFAULT_MILESTONES.map((m) => ({
-        plan_id: (newPlan as any).id,
+      const milestonesToInsert: MilestoneInsert[] = DEFAULT_MILESTONES.map((m) => ({
+        plan_id: newPlan.id,
         org_id: orgId,
         ...m,
       }));
 
       const { error: msError } = await supabase
         .from("value_creation_milestones")
-        .insert(milestonesToInsert as any);
+        .insert(milestonesToInsert);
 
       if (msError) throw msError;
       return newPlan;
@@ -221,7 +218,7 @@ export function useValueCreationPlan(orgId: string | null) {
       queryClient.invalidateQueries({ queryKey: ["value-creation-plan", orgId] });
       toast({ title: "100-Day Plan created", description: "Milestones initialized for this organization." });
     },
-    onError: (e: any) => {
+    onError: (e: Error) => {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     },
   });
@@ -229,13 +226,14 @@ export function useValueCreationPlan(orgId: string | null) {
   // Complete milestone mutation
   const completeMilestone = useMutation({
     mutationFn: async ({ milestoneId, notes }: { milestoneId: string; notes?: string }) => {
+      const update: MilestoneUpdate = {
+        completed_at: new Date().toISOString(),
+        completed_by: userProfile?.user_id,
+        manual_notes: notes || null,
+      };
       const { error } = await supabase
         .from("value_creation_milestones")
-        .update({
-          completed_at: new Date().toISOString(),
-          completed_by: userProfile?.user_id,
-          manual_notes: notes || null,
-        } as any)
+        .update(update)
         .eq("id", milestoneId);
       if (error) throw error;
     },
@@ -248,9 +246,10 @@ export function useValueCreationPlan(orgId: string | null) {
   // Uncomplete milestone
   const uncompleteMilestone = useMutation({
     mutationFn: async (milestoneId: string) => {
+      const update: MilestoneUpdate = { completed_at: null, completed_by: null };
       const { error } = await supabase
         .from("value_creation_milestones")
-        .update({ completed_at: null, completed_by: null } as any)
+        .update(update)
         .eq("id", milestoneId);
       if (error) throw error;
     },
