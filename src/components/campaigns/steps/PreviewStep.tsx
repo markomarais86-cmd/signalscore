@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { AlertTriangle, BarChart3, Loader2, TrendingUp, Zap } from "lucide-react";
+import { AlertTriangle, BarChart3, Loader2, TrendingUp, Zap, ShieldOff } from "lucide-react";
 import { MarketIntelligencePreview } from "../MarketIntelligencePreview";
 import { formatNumber } from "@/utils/format-numbers";
 import { LaunchPulseMark } from "@/components/BrandLogo";
@@ -33,6 +33,8 @@ interface PreviewStepProps {
   setExcludeDuplicates: (value: boolean) => void;
   onEstimateROI: () => void;
   scoreBandBreakdown: { A: number; B: number; C: number };
+  suppressedCount?: number;
+  applySuppression?: boolean;
 }
 
 export function PreviewStep({
@@ -50,7 +52,9 @@ export function PreviewStep({
   excludeDuplicates,
   setExcludeDuplicates,
   onEstimateROI,
-  scoreBandBreakdown
+  scoreBandBreakdown,
+  suppressedCount = 0,
+  applySuppression = true
 }: PreviewStepProps) {
   if (isLoadingPreview) {
     return (
@@ -131,6 +135,16 @@ export function PreviewStep({
         fitScoreMax={fitScoreMax}
       />
       
+      {/* Suppression Info */}
+      {applySuppression && suppressedCount > 0 && (
+        <Alert className="border-orange-500/50 bg-orange-500/10">
+          <ShieldOff className="h-4 w-4 text-orange-500" />
+          <AlertDescription>
+            <strong>{suppressedCount}</strong> account{suppressedCount !== 1 ? 's' : ''} excluded by suppression rules
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Deduplication Warning */}
       {duplicateEmails.size > 0 && (
         <Alert className="border-amber-500 bg-amber-500/10">

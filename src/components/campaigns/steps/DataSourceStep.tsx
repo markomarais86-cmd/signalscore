@@ -4,7 +4,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AlertCircle, Database, Globe, Zap, Info } from "lucide-react";
+import { AlertCircle, Database, Globe, Zap, Info, ShieldOff } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { ApolloCreditsDisplay } from "../ApolloCreditsDisplay";
 import { ProviderHealthBadge } from "../ProviderHealthBadge";
 import { formatNumber } from "@/utils/format-numbers";
@@ -18,6 +19,9 @@ interface DataSourceStepProps {
   estimatedCost: number;
   apolloTamData: any;
   selectedAccountCount?: number;
+  applySuppression?: boolean;
+  setApplySuppression?: (value: boolean) => void;
+  suppressionRuleCount?: number;
 }
 
 export function DataSourceStep({
@@ -27,7 +31,10 @@ export function DataSourceStep({
   setProvider,
   estimatedCost,
   apolloTamData,
-  selectedAccountCount = 0
+  selectedAccountCount = 0,
+  applySuppression = true,
+  setApplySuppression,
+  suppressionRuleCount = 0
 }: DataSourceStepProps) {
   // Real-time provider health from service_health table
   const { data: providerHealth, isLoading: isLoadingHealth } = useProviderHealth(['apollo', 'pdl', 'hunter']);
@@ -79,6 +86,23 @@ export function DataSourceStep({
           </SelectContent>
         </Select>
       </div>
+
+      {/* Suppression Toggle */}
+      {suppressionRuleCount > 0 && setApplySuppression && (
+        <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+          <div className="flex items-center gap-3">
+            <ShieldOff className="h-4 w-4 text-muted-foreground" />
+            <div>
+              <Label className="text-sm font-medium">Apply global suppression list</Label>
+              <p className="text-xs text-muted-foreground">
+                {suppressionRuleCount} domain{suppressionRuleCount !== 1 ? 's' : ''} will be excluded from results
+              </p>
+            </div>
+          </div>
+          <Switch checked={applySuppression} onCheckedChange={setApplySuppression} />
+        </div>
+      )}
+
 
       {dataSource === 'database' && (
         <div className="space-y-4">

@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { FilterCriteria, ICPProfile } from './useCampaignState';
 import { campaignsLogger } from '@/lib/logger';
 import { HIGH_FIT_THRESHOLD, MEDIUM_FIT_THRESHOLD } from '@/lib/score-bands';
+import { useSuppressionRules } from '@/hooks/use-suppression-rules';
 
 interface AccountWithScore {
   external_id: string;
@@ -23,10 +24,13 @@ interface AccountWithScore {
 export function useCampaignData(
   filterCriteria: FilterCriteria,
   dataSource: 'all' | 'crm' | 'database',
-  useICP: boolean
+  useICP: boolean,
+  applySuppression: boolean = true
 ) {
   const { userProfile } = useAuth();
+  const { suppressedDomains, totalCount: suppressionRuleCount } = useSuppressionRules();
   const [previewData, setPreviewData] = useState<AccountWithScore[] | null>(null);
+  const [suppressedCount, setSuppressedCount] = useState(0);
   const [estimatedLeads, setEstimatedLeads] = useState(0);
   const [estimatedCost, setEstimatedCost] = useState(0);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
@@ -182,10 +186,21 @@ export function useCampaignData(
         };
       });
       
-      const filteredAccounts = accountsWithScores.filter((acc: any) => 
+      let filteredAccounts = accountsWithScores.filter((acc: any) => 
         acc.overall_score >= filterCriteria.fitScoreMin && 
         acc.overall_score <= filterCriteria.fitScoreMax
       );
+      
+      // Apply suppression filtering
+      if (applySuppression && suppressedDomains.size > 0) {
+        const beforeCount = filteredAccounts.length;
+        filteredAccounts = filteredAccounts.filter((acc: any) => 
+          !acc.domain || !suppressedDomains.has(acc.domain.toLowerCase())
+        );
+        setSuppressedCount(beforeCount - filteredAccounts.length);
+      } else {
+        setSuppressedCount(0);
+      }
       
       setPreviewData(filteredAccounts);
       
@@ -232,7 +247,7 @@ export function useCampaignData(
       setIsLoadingPreview(false);
       setLoadingProgress('');
     }
-  }, [userProfile?.org_id, filterCriteria, dataSource, useICP]);
+  }, [userProfile?.org_id, filterCriteria, dataSource, useICP, applySuppression, suppressedDomains]);
 
   const scoreBandBreakdown = useMemo(() => {
     if (!previewData) return { A: 0, B: 0, C: 0 };
@@ -248,6 +263,8 @@ export function useCampaignData(
 
   return {
     previewData,
+    suppressedCount,
+    suppressionRuleCount,
     estimatedLeads,
     estimatedCost,
     setEstimatedCost,

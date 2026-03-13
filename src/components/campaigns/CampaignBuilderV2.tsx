@@ -54,9 +54,12 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
           sequenceSteps, selectedTitles, selectedSeniority, selectedDepartments,
           dataSource, provider, destination, excludeDuplicates } = state;
 
+  // Suppression toggle
+  const [applySuppression, setApplySuppression] = useState(true);
+
   // Data fetching
-  const campaignData = useCampaignData(filterCriteria, dataSource, useICP);
-  const { previewData, estimatedLeads, estimatedCost, setEstimatedCost, isLoadingPreview,
+  const campaignData = useCampaignData(filterCriteria, dataSource, useICP, applySuppression);
+  const { previewData, suppressedCount, suppressionRuleCount, estimatedLeads, estimatedCost, setEstimatedCost, isLoadingPreview,
           loadingProgress, realtimeLeadCount, isCountingLeads, apolloTamData, apolloTamDomains,
           loadPreview, scoreBandBreakdown } = campaignData;
 
@@ -267,6 +270,9 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
             setProvider={setProvider}
             estimatedCost={estimatedCost}
             apolloTamData={apolloTamData}
+            applySuppression={applySuppression}
+            setApplySuppression={setApplySuppression}
+            suppressionRuleCount={suppressionRuleCount}
           />
         );
       case 6:
@@ -287,6 +293,8 @@ export function CampaignBuilderV2({ isOpen, onClose, icpId, source, insightConte
             setExcludeDuplicates={setExcludeDuplicates}
             onEstimateROI={estimateROI}
             scoreBandBreakdown={scoreBandBreakdown}
+            suppressedCount={suppressedCount}
+            applySuppression={applySuppression}
           />
         );
       case 7:
