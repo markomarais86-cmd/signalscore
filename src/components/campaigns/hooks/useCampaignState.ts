@@ -204,6 +204,7 @@ export function useCampaignState(insightContext?: InsightContext) {
     state,
     setStep,
     setCampaignName,
+    setFuelLineType,
     setUseICP,
     setActiveICP,
     setFilterCriteria,

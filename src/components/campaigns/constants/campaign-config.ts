@@ -65,3 +65,64 @@ export const SEQUENCE_TEMPLATES: Record<string, SequenceTemplate> = {
 };
 
 export type TemplateKey = keyof typeof SEQUENCE_TEMPLATES;
+
+// ─── Fuel Line Types ───────────────────────────────────────────────────────────
+export type FuelLineType = 'abm' | 'technographic' | 'firmographic' | 'persona';
+
+export interface FuelLineConfig {
+  label: string;
+  description: string;
+  icon: string; // lucide icon name
+  defaultTemplate: TemplateKey;
+  defaultManagementLevels: string[];
+  defaultMarketSegments: string[];
+  defaultDataSource: 'all' | 'crm' | 'database';
+}
+
+export const FUEL_LINE_TYPES: Record<FuelLineType, FuelLineConfig> = {
+  abm: {
+    label: 'ABM',
+    description: 'Signal-triggered accounts with high-touch sequences',
+    icon: 'Crosshair',
+    defaultTemplate: 'enterprise',
+    defaultManagementLevels: ['C-Level', 'VP'],
+    defaultMarketSegments: ['Enterprise'],
+    defaultDataSource: 'all',
+  },
+  technographic: {
+    label: 'Technographic',
+    description: 'Target by tech stack — reach companies using specific tools',
+    icon: 'Cpu',
+    defaultTemplate: 'enterprise',
+    defaultManagementLevels: ['VP', 'Director'],
+    defaultMarketSegments: ['Enterprise', 'Mid-Market'],
+    defaultDataSource: 'database',
+  },
+  firmographic: {
+    label: 'Firmographic',
+    description: 'Filter by company size, revenue, and industry segments',
+    icon: 'Building2',
+    defaultTemplate: 'enterprise',
+    defaultManagementLevels: ['VP', 'C-Level'],
+    defaultMarketSegments: [],
+    defaultDataSource: 'all',
+  },
+  persona: {
+    label: 'Persona',
+    description: 'Lead with job titles, seniority, and departments first',
+    icon: 'UserSearch',
+    defaultTemplate: 'smb',
+    defaultManagementLevels: ['Director', 'Manager'],
+    defaultMarketSegments: [],
+    defaultDataSource: 'all',
+  },
+};
+
+// ─── Signal-to-Fuel-Line Mapping (Phase 3) ─────────────────────────────────────
+export const SIGNAL_FUEL_LINE_MAP: Record<string, { fuelLine: FuelLineType; template: TemplateKey }> = {
+  intent: { fuelLine: 'abm', template: 'enterprise' },
+  tech_change: { fuelLine: 'technographic', template: 'enterprise' },
+  funding: { fuelLine: 'abm', template: 'enterprise' },
+  expansion: { fuelLine: 'firmographic', template: 'enterprise' },
+  new_hire: { fuelLine: 'persona', template: 'smb' },
+};
