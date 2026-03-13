@@ -662,7 +662,20 @@ export default function ExecutiveDashboard() {
         ) : (
           <>
 
-            {/* Growth Command Center KPIs */}
+            {/* Signal-to-Campaign Action Cards */}
+            <SignalActionCards
+              onLaunchCampaign={(ctx) => {
+                setSignalCampaignContext({
+                  suggestedCampaignName: ctx.suggestedName,
+                  targetAccountIds: ctx.accountExternalIds,
+                  signalType: ctx.signalType,
+                  signalIds: ctx.signalIds,
+                });
+                setSignalCampaignOpen(true);
+              }}
+            />
+
+
             <GrowthCommandKPIs
               totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
               totalScored={sourceFilter === 'database' ? databaseScoredAccounts : sourceFilter === 'crm' ? crmScoredAccounts : totalScores}
