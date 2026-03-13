@@ -520,17 +520,62 @@ serve(async (req) => {
     const sortedGeos = Object.entries(geoDistribution).sort((a, b) => b[1] - a[1]);
     const underPenetratedGeos = sortedGeos.filter(([_, count]) => count < (accounts?.length || 1) * 0.05);
     
+    // Build ICP criteria context
+    const icpContext = (icpProfiles || []).map(icp => {
+      const parts = [`ICP "${icp.name}"${icp.is_primary ? ' (PRIMARY)' : ''}`];
+      if (icp.description) parts.push(`  Purpose: ${icp.description}`);
+      if (icp.industries?.length) parts.push(`  Target industries: ${icp.industries.join(', ')}`);
+      if (icp.sub_industries?.length) parts.push(`  Sub-industries: ${icp.sub_industries.join(', ')}`);
+      if (icp.revenue_ranges?.length) parts.push(`  Revenue ranges: ${icp.revenue_ranges.join(', ')}`);
+      if (icp.company_sizes?.length) parts.push(`  Company sizes: ${icp.company_sizes.join(', ')} employees`);
+      if (icp.geographies?.length) parts.push(`  Geographies: ${icp.geographies.join(', ')}`);
+      if (icp.tech_stack?.length) parts.push(`  Tech stack: ${icp.tech_stack.join(', ')}`);
+      if (icp.pain_points?.length) parts.push(`  Pain points: ${icp.pain_points.join(', ')}`);
+      if (icp.buying_signals?.length) parts.push(`  Buying signals: ${icp.buying_signals.join(', ')}`);
+      if (icp.buying_triggers?.length) parts.push(`  Buying triggers: ${icp.buying_triggers.join(', ')}`);
+      if (icp.persona_job_titles?.length) parts.push(`  Target titles: ${icp.persona_job_titles.join(', ')}`);
+      if (icp.persona_departments?.length) parts.push(`  Target depts: ${icp.persona_departments.join(', ')}`);
+      if (icp.persona_seniority_levels?.length) parts.push(`  Seniority: ${icp.persona_seniority_levels.join(', ')}`);
+      if (icp.excluded_industries?.length) parts.push(`  Excluded industries: ${icp.excluded_industries.join(', ')}`);
+      if (icp.funding_status?.length) parts.push(`  Funding: ${icp.funding_status.join(', ')}`);
+      if (icp.competitive_landscape?.length) parts.push(`  Competitors: ${icp.competitive_landscape.join(', ')}`);
+      if (icp.use_case) parts.push(`  Use case: ${icp.use_case}`);
+      return parts.join('\n');
+    }).join('\n\n');
+
+    // Build deal patterns context
+    const dp = dealPatterns;
+    const dealContext = dp.totalDeals > 0 ? `
+CLOSED-WON DEAL PATTERNS (${dp.totalDeals} deals):
+- Avg deal value: $${dp.avgDealValue.toFixed(0)} | Median: $${dp.medianDealValue.toFixed(0)} | Range: $${dp.smallestDeal.toFixed(0)}-$${dp.largestDeal.toFixed(0)}
+- Avg sales cycle: ${dp.avgSalesCycleDays || 'unknown'} days
+- Deal trend: ${dp.recentTrend} (comparing recent vs older deals)
+- Winning industries: ${dp.topIndustries.map(([name, count]) => `${name} (${count} wins)`).join(', ') || 'N/A'}
+- Winning company sizes: ${dp.topSizeRanges.map(([range, count]) => `${range} emp (${count} wins)`).join(', ') || 'N/A'}
+- Winning revenue ranges: ${dp.topRevenueRanges.map(([range, count]) => `${range} (${count} wins)`).join(', ') || 'N/A'}
+- Winning geographies: ${dp.topGeos.map(([geo, count]) => `${geo} (${count} wins)`).join(', ') || 'N/A'}` : `
+CLOSED-WON DEAL PATTERNS: No closed-won deals recorded yet.`;
+
     const systemPrompt = `You are a B2B sales intelligence analyst for LaunchPulse. Generate 8-10 diverse, actionable insights.
 
+You have access to the organization's ICP criteria and closed-won deal patterns. USE THEM to generate specific recommendations:
+- Compare pipeline accounts against ICP criteria to find alignment gaps or expansion opportunities
+- Identify accounts that match closed-won patterns but aren't being pursued
+- Flag accounts that DON'T match ICP criteria but are consuming resources
+- Suggest persona-specific outreach based on ICP persona definitions
+- Reference specific industries, company sizes, and geographies from the ICP when making recommendations
+
 INSIGHT CATEGORIES (generate at least one from each):
-1. OPPORTUNITIES: High-fit accounts ready for outreach, untapped segments, similar-to-closed-won patterns
-2. RISKS: Low engagement, score drops, stale data, churning signals
-3. ENGAGEMENT: Activity gaps, accounts needing follow-up, multi-threading opportunities
-4. COVERAGE: Contact gaps, missing personas, geographic expansion
-5. REVENUE: Deal patterns, pipeline opportunities, segment performance
+1. OPPORTUNITIES: Accounts matching closed-won patterns, ICP-aligned untapped segments, look-alike expansion
+2. RISKS: Accounts misaligned with ICP, score drops, stale data, deal velocity slowdowns
+3. ENGAGEMENT: Activity gaps in ICP-matched accounts, multi-threading with ICP personas
+4. COVERAGE: Missing ICP-defined personas, geographic gaps vs ICP targets, contact gaps in winning segments
+5. REVENUE: Deal patterns vs pipeline, ICP segment performance, sales cycle optimization
 
 RULES:
-- If lead coverage >= 85%, emphasize campaign execution and engagement insights
+- Reference specific ICP criteria (industries, sizes, personas) in your recommendations
+- Compare current pipeline against closed-won patterns to find actionable gaps
+- If lead coverage >= 85%, emphasize campaign execution targeting ICP segments
 - If data completeness >= 80%, focus on action insights not enrichment
 - Use specific numbers from data provided
 - Assign category: "action_required" for critical/high priority, "opportunity" for growth, "warning" for risks, "info" for insights
@@ -540,6 +585,9 @@ RULES:
 - Keep descriptions under 100 words`;
 
     const userPrompt = `Generate 8-10 diverse insights based on this data:
+
+${icpContext ? `ICP CRITERIA DEFINITIONS:\n${icpContext}\n` : 'ICP CRITERIA: No ICP profiles defined yet.\n'}
+${dealContext}
 
 ACCOUNT METRICS:
 - Total accounts: ${accounts?.length || 0}
@@ -569,10 +617,6 @@ DISTRIBUTIONS:
 - Top geography: ${sortedGeos[0]?.[0] || 'Unknown'} (${sortedGeos[0]?.[1] || 0})
 - Under-penetrated regions: ${underPenetratedGeos.length} (less than 5% each)
 - Top persona: ${Object.entries(personaDistribution).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Unknown'} (${Object.entries(personaDistribution).sort((a, b) => b[1] - a[1])[0]?.[1] || 0})
-
-DEAL CONTEXT:
-- Avg deal value: $${avgDealValue.toFixed(0)}
-- Closed deals: ${deals?.length || 0}
 
 STATUS SUMMARY:
 - Coverage: ${leadCoverageNum >= 85 ? 'EXCELLENT - focus on campaigns' : leadCoverageNum >= 60 ? 'MODERATE - some gaps' : 'NEEDS IMPROVEMENT'}
