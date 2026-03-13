@@ -494,25 +494,23 @@ function AppContent() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="dark" storageKey="launchpulse-theme">
-        <AuthProvider>
-          <OrgSwitcherProvider>
-            <OnboardingProvider>
-              <CampaignContextProvider>
-                <FeatureFlagsProvider>
-                <TooltipProvider>
-                  <ErrorBoundary>
-                    <AppContent />
-                  </ErrorBoundary>
-                </TooltipProvider>
-                </FeatureFlagsProvider>
-              </CampaignContextProvider>
-            </OnboardingProvider>
-          </OrgSwitcherProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+    <ThemeProvider attribute="class" defaultTheme="dark" storageKey="launchpulse-theme">
+      <AuthProvider>
+        <OrgSwitcherProvider>
+          <OnboardingProvider>
+            <CampaignContextProvider>
+              <FeatureFlagsProvider>
+              <TooltipProvider>
+                <ErrorBoundary>
+                  <AppContent />
+                </ErrorBoundary>
+              </TooltipProvider>
+              </FeatureFlagsProvider>
+            </CampaignContextProvider>
+          </OnboardingProvider>
+        </OrgSwitcherProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
