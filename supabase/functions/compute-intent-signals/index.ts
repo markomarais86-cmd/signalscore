@@ -210,8 +210,8 @@ async function computeEngagementVelocity(supabase: any, dataOrgId: string, score
     .select('*', { count: 'exact', head: true })
     .eq('org_id', dataOrgId);
 
-  let recentCounts: Record<string, number> = {};
-  let previousCounts: Record<string, number> = {};
+  const recentCounts: Record<string, number> = {};
+  const previousCounts: Record<string, number> = {};
 
   if (activityCount && activityCount > 0) {
     const { data: recentActivities } = await supabase

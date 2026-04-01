@@ -72,7 +72,7 @@ export function AIInsightsPanel({ formData, onApplyRecommendation }: AIInsightsP
     if (!aiRecommendation?.dataAnalysis) return;
 
     const { dataAnalysis } = aiRecommendation;
-    let updates: Partial<ICPFormData> = {};
+    const updates: Partial<ICPFormData> = {};
 
     switch (type) {
       case 'industry':

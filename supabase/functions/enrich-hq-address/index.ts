@@ -59,8 +59,8 @@ serve(async (req) => {
     }
 
     // Determine which provider to use
-    let useApollo = provider === 'apollo' || (provider === 'auto' && !!apolloApiKey);
-    let usePDL = provider === 'pdl' || (provider === 'auto' && !apolloApiKey && !!pdlApiKey);
+    const useApollo = provider === 'apollo' || (provider === 'auto' && !!apolloApiKey);
+    const usePDL = provider === 'pdl' || (provider === 'auto' && !apolloApiKey && !!pdlApiKey);
 
     if (!apolloApiKey && !pdlApiKey) {
       return new Response(

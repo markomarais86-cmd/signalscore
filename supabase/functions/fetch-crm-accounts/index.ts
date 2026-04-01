@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
       const instanceUrl = serverUrlMatch[1].split('/services')[0];
 
       // Build SOQL query
-      let whereConditions = [];
+      const whereConditions = [];
       
       if (searchTerm) {
         whereConditions.push(`(Name LIKE '%${searchTerm}%' OR Website LIKE '%${searchTerm}%')`);

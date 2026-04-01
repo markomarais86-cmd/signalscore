@@ -43,7 +43,7 @@ export function WhitespaceMappingCard({ icpId, icpName, tamEstimate, compact = f
 
     try {
       // Get CRM accounts count (accounts in our database)
-      let crmQuery = supabase
+      const crmQuery = supabase
         .from('accounts')
         .select('*', { count: 'exact', head: true })
         .eq('org_id', profile.org_id);

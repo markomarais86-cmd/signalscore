@@ -49,7 +49,7 @@ export function useCampaignData(
       
       setIsCountingLeads(true);
       try {
-        let query = supabase
+        const query = supabase
           .from('Leads')
           .select('id', { count: 'exact', head: true })
           .eq('org_id', orgId)

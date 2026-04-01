@@ -210,7 +210,7 @@ serve(async (req) => {
 
         if (error) throw error;
 
-        let capable = (data || []).filter(agent => {
+        const capable = (data || []).filter(agent => {
           const caps = agent.capabilities as AgentCapability[];
           return caps.some(c => c.name === capability || c.name.includes(capability));
         });
