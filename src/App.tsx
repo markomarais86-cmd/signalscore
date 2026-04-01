@@ -20,6 +20,7 @@ import { useRoles } from "./hooks/use-roles";
 import { usePageTracking } from "./hooks/usePageTracking";
 import { logger } from "./lib/logger";
 import { RoleAwareLayout } from "./components/RoleAwareLayout";
+import { FeatureFlaggedRoute } from "./components/FeatureFlaggedRoute";
 
 // Lazy-loaded page components for code splitting
 const ExecutiveDashboard = lazy(() => import("./pages/ExecutiveDashboard"));
