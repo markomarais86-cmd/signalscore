@@ -107,28 +107,13 @@ export default function About() {
         </section>
 
 
-        {/* Green Gradient CTA Banner */}
+        {/* CTA Banner — gradient, no external CDN images */}
         <section className="container mx-auto px-6 py-24">
           <ScrollReveal animation="scale">
             <div 
               className="relative rounded-3xl overflow-hidden py-20 px-8"
-              style={{ background: 'linear-gradient(135deg, #00C853 0%, #4ECDC4 100%)' }}
+              style={{ background: 'linear-gradient(135deg, hsl(161, 85%, 40%) 0%, hsl(180, 60%, 40%) 100%)' }}
             >
-              {/* Floating ICP chart - left */}
-              <img 
-                src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/69505f8e81701ec89798c0a8_icp-01.svg"
-                alt="ICP Chart"
-                className="absolute left-4 bottom-4 w-48 md:w-72 opacity-80 animate-float-gentle"
-              />
-              
-              {/* Floating TAM card - right */}
-              <img 
-                src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695060479ce89b8d2ce475be_TAM-01.svg"
-                alt="TAM Card"
-                className="absolute right-4 top-4 w-48 md:w-80 opacity-80 animate-float-gentle-delayed"
-              />
-              
-              {/* Centered content */}
               <div className="relative z-10 text-center max-w-2xl mx-auto">
                 <h2 className="text-3xl md:text-5xl font-bold mb-4 text-black italic">
                   A precise,<br />explainable GTM<br />intelligence layer

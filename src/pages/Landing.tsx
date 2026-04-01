@@ -15,6 +15,8 @@ import {
   HeroDashboardMockup,
   NewsletterSignup,
   QuizFunnel,
+  ICPVisualization,
+  TAMIndicator,
 } from "@/components/marketing";
 
 // Trust stats for social proof
@@ -101,10 +103,9 @@ export default function Landing() {
           </ScrollReveal>
         </MarketingHero>
 
-        {/* Pain Points Section - 2 column layout matching original */}
+        {/* Pain Points Section */}
         <section className="container mx-auto px-6 py-24">
           <div className="grid lg:grid-cols-2 gap-16 items-center max-w-6xl mx-auto">
-            {/* Left side - Text content */}
             <div>
               <ScrollReveal animation="fade-up">
                 <h2 className="text-3xl md:text-4xl font-bold mb-8 text-white">
@@ -121,34 +122,13 @@ export default function Landing() {
               </div>
             </div>
             
-            {/* Right side - Images */}
-            <div className="relative lg:block h-[400px]">
-              {/* Background shape */}
-              <img 
-                src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695012c6ca938bbd9d2d6114_bg_Grey.webp"
-                alt=""
-                className="absolute inset-0 w-full h-full object-cover opacity-30"
-                loading="lazy"
-              />
-              {/* ICP Chart - larger, positioned left */}
+            {/* Right side — native CSS visualizations */}
+            <div className="relative lg:block space-y-4">
               <ScrollReveal animation="fade-left" delay={0.2}>
-                <img 
-                  src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/695055dccf22527a26df6e62_icp-01.svg"
-                  alt="ICP Chart"
-                  className="absolute left-0 top-0 w-[400px] animate-float-gentle"
-                  loading="lazy"
-                  width="400"
-                />
+                <ICPVisualization className="animate-float-gentle" />
               </ScrollReveal>
-              {/* Revenue Stats - bottom right */}
               <ScrollReveal animation="fade-up" delay={0.4}>
-                <img 
-                  src="https://cdn.prod.website-files.com/694961d117761a0a17d0744b/694e6fd27d17f86e6ce24884_total-01.svg"
-                  alt="Revenue Stats"
-                  className="absolute right-0 bottom-0 w-[280px] animate-float-gentle-delayed"
-                  loading="lazy"
-                  width="280"
-                />
+                <TAMIndicator className="animate-float-gentle-delayed" />
               </ScrollReveal>
             </div>
           </div>
@@ -205,32 +185,29 @@ export default function Landing() {
           </ScrollReveal>
         </section>
 
-        {/* CTA Section - With Business Man Background */}
+        {/* CTA Section — gradient banner, no stock photo */}
         <ScrollReveal animation="fade-up">
-          <section className="relative w-full overflow-hidden">
-            <img 
-              src="/images/Business_Man.webp"
-              alt="Business professional reviewing GTM analytics dashboard"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
-            <div className="relative container mx-auto px-6 py-32">
-              <div className="max-w-xl">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 border border-primary/30 mb-6">
+          <section className="container mx-auto px-6 py-24">
+            <div
+              className="relative rounded-3xl overflow-hidden py-20 px-8"
+              style={{ background: 'linear-gradient(135deg, hsl(161, 85%, 30%) 0%, hsl(161, 85%, 50%) 50%, hsl(180, 60%, 35%) 100%)' }}
+            >
+              <div className="relative z-10 text-center max-w-2xl mx-auto">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/20 border border-white/20 mb-6">
                   <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
                   </span>
-                  <span className="text-sm text-primary font-medium">Limited Early Access Spots</span>
+                  <span className="text-sm text-white font-medium">Limited Early Access Spots</span>
                 </div>
                 <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
-                  Request Early<br />Access
+                  Request Early Access
                 </h2>
                 <p className="text-lg text-white/80 mb-8">
-                  Get a fast, explainable view of: who converts, who you should target next, and what's blocking yield today. Request early access to see LaunchPulse mapped against your CRM reality.
+                  Get a fast, explainable view of: who converts, who you should target next, and what's blocking yield today.
                 </p>
                 <Link to="/contact">
-                  <Button variant="glow" size="xl" className="text-lg gap-2">
+                  <Button size="xl" className="text-lg gap-2 bg-black text-white hover:bg-black/90">
                     Request Demo
                     <DiagonalArrow />
                   </Button>
