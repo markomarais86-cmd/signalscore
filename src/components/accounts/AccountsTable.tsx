@@ -159,7 +159,63 @@ export function AccountsTable({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Table>
+        {/* Mobile card layout */}
+        <div className="block sm:hidden space-y-3" role="list" aria-label="Accounts list">
+          {accounts.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <AlertCircle className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <p className="font-semibold">No accounts found</p>
+            </div>
+          ) : (
+            accounts.map((account) => {
+              const completeness = calculateDataCompleteness(account);
+              return (
+                <div
+                  key={account.id}
+                  role="listitem"
+                  className="border rounded-lg p-4 space-y-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => onAccountClick(account)}
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter") onAccountClick(account); }}
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-medium">{account.name || "Unknown Company"}</p>
+                      <p className="text-sm text-muted-foreground">{account.domain}</p>
+                    </div>
+                    {account.score?.overall ? (
+                      <div
+                        className={cn(
+                          "flex items-center justify-center w-10 h-10 rounded-lg font-bold text-sm",
+                          account.score.overall >= 80 ? "bg-[hsl(var(--signal-high))]/20 text-[hsl(var(--signal-high))]" :
+                          account.score.overall >= 60 ? "bg-[hsl(var(--signal-medium))]/20 text-[hsl(var(--signal-medium))]" :
+                          "bg-[hsl(var(--signal-low))]/20 text-[hsl(var(--signal-low))]"
+                        )}
+                        onClick={(e) => { e.stopPropagation(); onScoreClick(account); }}
+                      >
+                        {account.score.overall}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {account.industry_norm && <Badge variant="outline">{account.industry_norm}</Badge>}
+                    {account.country && <Badge variant="secondary">{account.country}</Badge>}
+                    <Badge variant={getSourceBadgeVariant(account.data_source || "crm")}>
+                      {getSourceLabel(account.data_source || "crm")}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    <span><Users className="inline h-3 w-3 mr-1" />{account.leads || 0} leads</span>
+                    <span>Quality: {completeness}%</span>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <Table className="hidden sm:table">
           <TableHeader>
             <TableRow>
               <TableHead className="w-12">
