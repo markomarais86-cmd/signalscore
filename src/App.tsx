@@ -52,7 +52,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const AIAgents = lazy(() => import("./pages/AIAgents"));
 const CustomerDashboard = lazy(() => import("./pages/CustomerDashboard"));
 const Enrichment = lazy(() => import("./pages/Enrichment"));
-const QuickEnrich = lazy(() => import("./pages/QuickEnrich"));
+
 const AgentTester = lazy(() => import("./pages/AgentTester"));
 const AITest = lazy(() => import("./pages/AITest"));
 const Help = lazy(() => import("./pages/Help"));
