@@ -1,7 +1,5 @@
 import { Globe, MapPin, Activity } from "lucide-react";
-import { SignalActionCards } from "@/components/dashboard/SignalActionCards";
-import { FuelLineAnalytics } from "@/components/campaigns/FuelLineAnalytics";
-import { CampaignAutomationManager } from "@/components/campaigns/CampaignAutomationManager";
+import { GrowthCommandKPIs } from "@/components/executive/GrowthCommandKPIs";
 import { GrowthCommandKPIs } from "@/components/executive/GrowthCommandKPIs";
 import { ICPCoveragePanel } from "@/components/executive/ICPCoveragePanel";
 import { ICPProfileSummaryCard } from "@/components/executive/ICPProfileSummaryCard";
