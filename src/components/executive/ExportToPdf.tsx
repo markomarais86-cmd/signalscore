@@ -66,11 +66,6 @@ export function ExportToPdf({
           <FileSpreadsheet className="h-4 w-4 mr-2" />
           Full Data Export (Excel)
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate('/presentations')}>
-          <Presentation className="h-4 w-4 mr-2" />
-          Pitch Deck
-        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onExport('csv')}>
           <Download className="h-4 w-4 mr-2" />
           Raw Data CSV
