@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { helpDatabase, videoTutorials, HelpItem } from '@/components/help/helpContent';
+import { TicketSubmissionForm } from '@/components/help/TicketSubmissionForm';
 
 // Simple markdown renderer for help content
 function renderMarkdown(content: string) {
@@ -388,7 +389,7 @@ export default function Help() {
       {/* Content */}
       <div className="container max-w-6xl py-8">
         <Tabs defaultValue="docs" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-lg grid-cols-4">
             <TabsTrigger value="docs" className="flex items-center gap-2">
               <BookOpen className="h-4 w-4" />
               Documentation
@@ -400,6 +401,10 @@ export default function Help() {
             <TabsTrigger value="faq" className="flex items-center gap-2">
               <MessageCircle className="h-4 w-4" />
               FAQ
+            </TabsTrigger>
+            <TabsTrigger value="support" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Support
             </TabsTrigger>
           </TabsList>
 
@@ -590,6 +595,44 @@ export default function Help() {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+          {/* Support Tab */}
+          <TabsContent value="support" className="space-y-6">
+            <div className="grid md:grid-cols-2 gap-6">
+              <TicketSubmissionForm />
+              <Card>
+                <CardHeader>
+                  <CardTitle>Other Ways to Get Help</CardTitle>
+                  <CardDescription>Choose the channel that works best for you</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-start gap-3 p-3 rounded-lg border">
+                    <MessageCircle className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-medium text-sm">AI Chat Assistant</p>
+                      <p className="text-xs text-muted-foreground">Press ⌘K to ask questions about your data in natural language.</p>
+                      <Button variant="link" size="sm" className="px-0 h-6" onClick={() => window.dispatchEvent(new CustomEvent('openAIChat'))}>
+                        Open AI Chat →
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 rounded-lg border">
+                    <BookOpen className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-medium text-sm">Documentation</p>
+                      <p className="text-xs text-muted-foreground">Browse our comprehensive docs for guides, API references, and best practices.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 rounded-lg border">
+                    <Zap className="h-5 w-5 text-primary mt-0.5" />
+                    <div>
+                      <p className="font-medium text-sm">Priority Support</p>
+                      <p className="text-xs text-muted-foreground">Enterprise customers get dedicated Slack channels and &lt;2hr response times.</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
