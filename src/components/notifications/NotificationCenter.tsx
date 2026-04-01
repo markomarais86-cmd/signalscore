@@ -3,27 +3,30 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Bell, CheckCircle, XCircle, Info, X, CheckCheck, ChevronRight, Database, Loader2 } from "lucide-react";
+import {
+  Bell, CheckCircle, XCircle, Info, X, CheckCheck, ChevronRight,
+  Database, Loader2, Zap, ClipboardList, AlertTriangle,
+} from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 
 const DISMISSED_KEY = "launchpulse_dismissed_notifications";
 const LAST_SEEN_KEY = "launchpulse_notifications_last_seen";
 const NOTIFICATION_MAX_AGE_HOURS = 48;
 
+type NotificationType = "agent_run" | "enrichment_job" | "signal" | "task_overdue";
+
 interface UnifiedNotification {
   id: string;
-  type: 'agent_run' | 'enrichment_job';
+  type: NotificationType;
   name: string;
   status: string;
   records_affected: number;
@@ -31,15 +34,15 @@ interface UnifiedNotification {
   timestamp: Date;
   agentType?: string;
   provider?: string;
+  priority?: string;
+  accountName?: string;
 }
 
 function getDismissedIds(): Set<string> {
   try {
     const saved = localStorage.getItem(DISMISSED_KEY);
     return saved ? new Set(JSON.parse(saved)) : new Set();
-  } catch {
-    return new Set();
-  }
+  } catch { return new Set(); }
 }
 
 function saveDismissedIds(ids: Set<string>) {
@@ -50,9 +53,7 @@ function getLastSeenTimestamp(): number {
   try {
     const saved = localStorage.getItem(LAST_SEEN_KEY);
     return saved ? parseInt(saved, 10) : 0;
-  } catch {
-    return 0;
-  }
+  } catch { return 0; }
 }
 
 function saveLastSeenTimestamp(timestamp: number) {
@@ -61,14 +62,23 @@ function saveLastSeenTimestamp(timestamp: number) {
 
 function formatProviderName(provider: string): string {
   const providerMap: Record<string, string> = {
-    'smart-waterfall': 'Smart Enrichment',
-    'apollo': 'Apollo',
-    'pdl': 'People Data Labs',
-    'ai-estimation': 'AI Estimation',
-    'deep-research': 'Deep Research',
+    "smart-waterfall": "Smart Enrichment",
+    apollo: "Apollo",
+    pdl: "People Data Labs",
+    "ai-estimation": "AI Estimation",
+    "deep-research": "Deep Research",
   };
   return providerMap[provider] || provider;
 }
+
+// ─── Tabs for filtering ──────────────────────────────────────
+
+const TABS: { value: string; label: string; types: NotificationType[] }[] = [
+  { value: "all", label: "All", types: [] },
+  { value: "signals", label: "Signals", types: ["signal"] },
+  { value: "tasks", label: "Tasks", types: ["task_overdue"] },
+  { value: "jobs", label: "Jobs", types: ["agent_run", "enrichment_job"] },
+];
 
 export function NotificationCenter() {
   const { userProfile } = useAuth();
@@ -76,20 +86,19 @@ export function NotificationCenter() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(getDismissedIds);
+  const [activeTab, setActiveTab] = useState("all");
 
-  // Query for AI agent runs
+  // ── Agent runs ──
   const { data: recentRuns } = useQuery({
     queryKey: ["agent-notifications", userProfile?.org_id],
     queryFn: async () => {
       if (!userProfile?.org_id) throw new Error("No organization found");
-
       const { data, error } = await supabase
         .from("ai_agent_runs")
         .select("*, ai_agents!inner(name, agent_type)")
         .in("ai_agents.agent_type", ["data_enrichment"])
         .order("started_at", { ascending: false })
         .limit(20);
-
       if (error) throw error;
       return data as any[];
     },
@@ -97,12 +106,11 @@ export function NotificationCenter() {
     refetchInterval: 30000,
   });
 
-  // Query for enrichment jobs
+  // ── Enrichment jobs ──
   const { data: enrichmentJobs } = useQuery({
     queryKey: ["enrichment-notifications", userProfile?.org_id],
     queryFn: async () => {
       if (!userProfile?.org_id) throw new Error("No organization found");
-
       const { data, error } = await supabase
         .from("enrichment_jobs")
         .select("*")
@@ -110,7 +118,6 @@ export function NotificationCenter() {
         .in("status", ["completed", "failed", "processing", "pending"])
         .order("created_at", { ascending: false })
         .limit(20);
-
       if (error) throw error;
       return data as any[];
     },
@@ -118,317 +125,325 @@ export function NotificationCenter() {
     refetchInterval: 30000,
   });
 
-  // Real-time subscription for enrichment jobs
+  // ── Account signals (high/critical only) ──
+  const { data: recentSignals } = useQuery({
+    queryKey: ["signal-notifications", userProfile?.org_id],
+    queryFn: async () => {
+      if (!userProfile?.org_id) return [];
+      const { data, error } = await supabase
+        .from("account_signals")
+        .select("id, title, signal_type, signal_priority, account_name, created_at")
+        .eq("org_id", userProfile.org_id)
+        .in("signal_priority", ["high", "critical"])
+        .is("dismissed_at", null)
+        .is("actioned_at", null)
+        .order("created_at", { ascending: false })
+        .limit(15);
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!userProfile?.org_id,
+    refetchInterval: 30000,
+  });
+
+  // ── Overdue tasks ──
+  const { data: overdueTasks } = useQuery({
+    queryKey: ["task-notifications", userProfile?.org_id],
+    queryFn: async () => {
+      if (!userProfile?.org_id) return [];
+      const { data, error } = await supabase
+        .from("lead_tasks")
+        .select("id, title, task_type, due_at, status")
+        .eq("org_id", userProfile.org_id)
+        .in("status", ["pending", "overdue"])
+        .lt("due_at", new Date().toISOString())
+        .order("due_at", { ascending: true })
+        .limit(10);
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!userProfile?.org_id,
+    refetchInterval: 60000,
+  });
+
+  // ── Real-time: enrichment jobs ──
   useEffect(() => {
     if (!userProfile?.org_id) return;
-
     const channel = supabase
-      .channel('notification-enrichment-jobs')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'enrichment_jobs',
-          filter: `org_id=eq.${userProfile.org_id}`,
-        },
-        (payload) => {
-          // Invalidate query to refetch
-          queryClient.invalidateQueries({ queryKey: ["enrichment-notifications", userProfile.org_id] });
-          
-          // Show toast for completed/failed jobs
-          const newJob = payload.new as any;
-          if (payload.eventType === 'UPDATE' && newJob) {
-            if (newJob.status === 'completed') {
-              toast({
-                title: "Enrichment Complete",
-                description: `${formatProviderName(newJob.provider || 'Enrichment')} finished - ${newJob.enriched_records || 0} records enriched`,
-              });
-            } else if (newJob.status === 'failed') {
-              toast({
-                title: "Enrichment Failed",
-                description: `${formatProviderName(newJob.provider || 'Enrichment')} encountered an error`,
-                variant: "destructive",
-              });
-            }
+      .channel("notification-enrichment-jobs")
+      .on("postgres_changes", { event: "*", schema: "public", table: "enrichment_jobs", filter: `org_id=eq.${userProfile.org_id}` }, (payload) => {
+        queryClient.invalidateQueries({ queryKey: ["enrichment-notifications", userProfile.org_id] });
+        const newJob = payload.new as any;
+        if (payload.eventType === "UPDATE" && newJob) {
+          if (newJob.status === "completed") {
+            toast({ title: "Enrichment Complete", description: `${formatProviderName(newJob.provider || "Enrichment")} finished - ${newJob.enriched_records || 0} records enriched` });
+          } else if (newJob.status === "failed") {
+            toast({ title: "Enrichment Failed", description: `${formatProviderName(newJob.provider || "Enrichment")} encountered an error`, variant: "destructive" });
           }
         }
-      )
+      })
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [userProfile?.org_id, queryClient, toast]);
 
-  // Real-time subscription for AI agent runs
+  // ── Real-time: agent runs ──
   useEffect(() => {
     if (!userProfile?.org_id) return;
-
     const channel = supabase
-      .channel('notification-agent-runs')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'ai_agent_runs',
-        },
-        (payload) => {
-          // Invalidate query to refetch
-          queryClient.invalidateQueries({ queryKey: ["agent-notifications", userProfile.org_id] });
-          
-          // Show toast for completed/failed runs
-          const newRun = payload.new as any;
-          if (payload.eventType === 'UPDATE' && newRun) {
-            if (newRun.status === 'completed') {
-              toast({
-                title: "Agent Run Complete",
-                description: `${newRun.records_affected || 0} records affected`,
-              });
-            } else if (newRun.status === 'failed') {
-              toast({
-                title: "Agent Run Failed",
-                description: newRun.error_message || "An error occurred",
-                variant: "destructive",
-              });
-            }
+      .channel("notification-agent-runs")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ai_agent_runs" }, (payload) => {
+        queryClient.invalidateQueries({ queryKey: ["agent-notifications", userProfile.org_id] });
+        const newRun = payload.new as any;
+        if (payload.eventType === "UPDATE" && newRun) {
+          if (newRun.status === "completed") {
+            toast({ title: "Agent Run Complete", description: `${newRun.records_affected || 0} records affected` });
+          } else if (newRun.status === "failed") {
+            toast({ title: "Agent Run Failed", description: newRun.error_message || "An error occurred", variant: "destructive" });
           }
         }
-      )
+      })
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [userProfile?.org_id, queryClient, toast]);
 
-  // Merge and normalize both sources - only show recent notifications
+  // ── Real-time: signals ──
+  useEffect(() => {
+    if (!userProfile?.org_id) return;
+    const channel = supabase
+      .channel("notification-signals")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "account_signals", filter: `org_id=eq.${userProfile.org_id}` }, (payload) => {
+        queryClient.invalidateQueries({ queryKey: ["signal-notifications", userProfile.org_id] });
+        const sig = payload.new as any;
+        if (sig.signal_priority === "high" || sig.signal_priority === "critical") {
+          toast({ title: `${sig.signal_priority === "critical" ? "🔴" : "🟠"} ${sig.title}`, description: sig.account_name || sig.signal_type });
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [userProfile?.org_id, queryClient, toast]);
+
+  // ── Merge all sources ──
   const allNotifications = useMemo<UnifiedNotification[]>(() => {
     const maxAgeMs = NOTIFICATION_MAX_AGE_HOURS * 60 * 60 * 1000;
     const cutoffTime = Date.now() - maxAgeMs;
 
-    const agentNotifications: UnifiedNotification[] = (recentRuns || [])
-      .filter(run => new Date(run.started_at).getTime() > cutoffTime)
-      .map(run => ({
-        id: `agent-${run.id}`,
-        type: 'agent_run' as const,
-        name: run.ai_agents?.name || "Agent",
-        status: run.status,
-        records_affected: run.records_affected || 0,
-        records_processed: run.records_processed || 0,
-        timestamp: new Date(run.started_at),
-        agentType: run.ai_agents?.agent_type,
+    const agentNotifs: UnifiedNotification[] = (recentRuns || [])
+      .filter((r) => new Date(r.started_at).getTime() > cutoffTime)
+      .map((r) => ({
+        id: `agent-${r.id}`, type: "agent_run" as const, name: r.ai_agents?.name || "Agent",
+        status: r.status, records_affected: r.records_affected || 0, records_processed: r.records_processed || 0,
+        timestamp: new Date(r.started_at), agentType: r.ai_agents?.agent_type,
       }));
 
-    const enrichmentNotifications: UnifiedNotification[] = (enrichmentJobs || [])
-      .filter(job => new Date(job.created_at).getTime() > cutoffTime)
-      .map(job => ({
-        id: `enrichment-${job.id}`,
-        type: 'enrichment_job' as const,
-        name: formatProviderName(job.provider || 'enrichment'),
-        status: job.status,
-        records_affected: job.enriched_records || 0,
-        records_processed: job.processed_records || job.total_records || 0,
-        timestamp: new Date(job.created_at),
-        provider: job.provider,
+    const enrichNotifs: UnifiedNotification[] = (enrichmentJobs || [])
+      .filter((j) => new Date(j.created_at).getTime() > cutoffTime)
+      .map((j) => ({
+        id: `enrichment-${j.id}`, type: "enrichment_job" as const, name: formatProviderName(j.provider || "enrichment"),
+        status: j.status, records_affected: j.enriched_records || 0, records_processed: j.processed_records || j.total_records || 0,
+        timestamp: new Date(j.created_at), provider: j.provider,
       }));
 
-    return [...agentNotifications, ...enrichmentNotifications]
+    const signalNotifs: UnifiedNotification[] = (recentSignals || [])
+      .filter((s) => new Date(s.created_at).getTime() > cutoffTime)
+      .map((s) => ({
+        id: `signal-${s.id}`, type: "signal" as const, name: s.title, status: s.signal_priority,
+        records_affected: 0, records_processed: 0, timestamp: new Date(s.created_at),
+        priority: s.signal_priority, accountName: s.account_name,
+      }));
+
+    const taskNotifs: UnifiedNotification[] = (overdueTasks || []).map((t) => ({
+      id: `task-${t.id}`, type: "task_overdue" as const, name: t.title, status: "overdue",
+      records_affected: 0, records_processed: 0, timestamp: new Date(t.due_at),
+    }));
+
+    return [...agentNotifs, ...enrichNotifs, ...signalNotifs, ...taskNotifs]
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  }, [recentRuns, enrichmentJobs]);
+  }, [recentRuns, enrichmentJobs, recentSignals, overdueTasks]);
 
-  // Don't clean up dismissed IDs - keep them so notifications stay dismissed
-  const visibleNotifications = allNotifications.filter(
-    notification => !dismissedIds.has(notification.id)
-  );
+  const visibleNotifications = allNotifications.filter((n) => !dismissedIds.has(n.id));
 
-  // Only count as "unread" notifications newer than last seen timestamp
   const lastSeen = getLastSeenTimestamp();
   const unreadCount = visibleNotifications.filter(
-    notification => 
-      (notification.status === "completed" || notification.status === "failed") &&
-      notification.timestamp.getTime() > lastSeen
+    (n) => n.timestamp.getTime() > lastSeen &&
+      (n.status === "completed" || n.status === "failed" || n.type === "signal" || n.type === "task_overdue")
   ).length;
 
-  const dismissNotification = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const newDismissed = new Set(dismissedIds);
-    newDismissed.add(id);
-    setDismissedIds(newDismissed);
-    saveDismissedIds(newDismissed);
-  };
+  const filteredNotifications = useMemo(() => {
+    const tab = TABS.find((t) => t.value === activeTab);
+    if (!tab || tab.value === "all") return visibleNotifications;
+    return visibleNotifications.filter((n) => tab.types.includes(n.type));
+  }, [visibleNotifications, activeTab]);
 
-  const dismissAll = () => {
-    const allIds = new Set([...dismissedIds, ...allNotifications.map(n => n.id)]);
+  const dismissNotification = useCallback((id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = new Set(dismissedIds);
+    updated.add(id);
+    setDismissedIds(updated);
+    saveDismissedIds(updated);
+  }, [dismissedIds]);
+
+  const dismissAll = useCallback(() => {
+    const allIds = new Set([...dismissedIds, ...allNotifications.map((n) => n.id)]);
     setDismissedIds(allIds);
     saveDismissedIds(allIds);
-    // Update last seen to current time
     saveLastSeenTimestamp(Date.now());
-  };
+  }, [dismissedIds, allNotifications]);
 
-  const getNavigationPath = (notification: UnifiedNotification): string => {
-    if (notification.type === 'enrichment_job') {
-      return "/accounts";
+  const handleOpen = useCallback((open: boolean) => {
+    if (open && unreadCount > 0) {
+      saveLastSeenTimestamp(Date.now());
     }
-    switch (notification.agentType) {
-      case "lead_qualification":
-        return "/leads?status=qualified";
-      case "follow_up":
-        return "/leads?status=follow_up_needed";
-      case "meeting_scheduler":
-        return "/leads?status=meeting_ready";
-      case "data_enrichment":
-        return "/accounts";
-      default:
-        return "/agents";
+  }, [unreadCount]);
+
+  const getNavigationPath = (n: UnifiedNotification): string => {
+    if (n.type === "signal") return "/accounts";
+    if (n.type === "task_overdue") return "/tasks";
+    if (n.type === "enrichment_job") return "/accounts";
+    switch (n.agentType) {
+      case "lead_qualification": return "/leads?status=qualified";
+      case "follow_up": return "/leads?status=follow_up_needed";
+      case "meeting_scheduler": return "/leads?status=meeting_ready";
+      case "data_enrichment": return "/accounts";
+      default: return "/ai-agents";
     }
   };
 
-  const handleNotificationClick = (notification: UnifiedNotification) => {
-    const path = getNavigationPath(notification);
-    navigate(path);
-  };
-
-  const getNotificationIcon = (notification: UnifiedNotification) => {
-    if (notification.type === 'enrichment_job') {
-      switch (notification.status) {
-        case "completed":
-          return <Database className="h-4 w-4 text-green-500" />;
-        case "failed":
-          return <XCircle className="h-4 w-4 text-red-500" />;
-        case "processing":
-          return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
-        default:
-          return <Database className="h-4 w-4 text-muted-foreground" />;
+  const getIcon = (n: UnifiedNotification) => {
+    if (n.type === "signal") {
+      return <Zap className={`h-4 w-4 ${n.priority === "critical" ? "text-destructive" : "text-amber-500"}`} />;
+    }
+    if (n.type === "task_overdue") {
+      return <AlertTriangle className="h-4 w-4 text-destructive" />;
+    }
+    if (n.type === "enrichment_job") {
+      switch (n.status) {
+        case "completed": return <Database className="h-4 w-4 text-green-500" />;
+        case "failed": return <XCircle className="h-4 w-4 text-destructive" />;
+        case "processing": return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
+        default: return <Database className="h-4 w-4 text-muted-foreground" />;
       }
     }
-    
-    switch (notification.status) {
-      case "completed":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case "failed":
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      default:
-        return <Info className="h-4 w-4 text-blue-500" />;
+    switch (n.status) {
+      case "completed": return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case "failed": return <XCircle className="h-4 w-4 text-destructive" />;
+      default: return <Info className="h-4 w-4 text-blue-500" />;
     }
   };
 
-  const getStatusText = (notification: UnifiedNotification): string => {
-    if (notification.type === 'enrichment_job') {
-      switch (notification.status) {
-        case "completed":
-          return "completed";
-        case "failed":
-          return "failed";
-        case "processing":
-          return "in progress";
-        case "pending":
-          return "pending";
-        default:
-          return notification.status;
-      }
+  const getDescription = (n: UnifiedNotification): string => {
+    if (n.type === "signal") return n.accountName || n.status;
+    if (n.type === "task_overdue") return `Due ${formatDistanceToNow(n.timestamp, { addSuffix: true })}`;
+    if (n.type === "enrichment_job") {
+      if (n.status === "pending") return `${n.records_processed} records queued`;
+      return `${n.records_affected} of ${n.records_processed} records enriched`;
     }
-    return notification.status;
+    return `${n.records_affected} of ${n.records_processed} records affected`;
   };
 
-  const getRecordsText = (notification: UnifiedNotification): string => {
-    if (notification.type === 'enrichment_job') {
-      if (notification.status === 'pending') {
-        return `${notification.records_processed} records queued`;
-      }
-      return `${notification.records_affected} of ${notification.records_processed} records enriched`;
+  const getStatusLabel = (n: UnifiedNotification): string => {
+    if (n.type === "signal") return n.priority === "critical" ? "Critical" : "High";
+    if (n.type === "task_overdue") return "Overdue";
+    if (n.type === "enrichment_job") {
+      const map: Record<string, string> = { completed: "Done", failed: "Failed", processing: "Running", pending: "Queued" };
+      return map[n.status] || n.status;
     }
-    return `${notification.records_affected} of ${notification.records_processed} records affected`;
+    return n.status;
   };
+
+  const getStatusVariant = (n: UnifiedNotification): "destructive" | "secondary" | "outline" => {
+    if (n.type === "task_overdue" || n.priority === "critical" || n.status === "failed") return "destructive";
+    if (n.status === "completed") return "secondary";
+    return "outline";
+  };
+
+  // Count per tab for badges
+  const tabCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: visibleNotifications.length };
+    for (const tab of TABS) {
+      if (tab.value !== "all") {
+        counts[tab.value] = visibleNotifications.filter((n) => tab.types.includes(n.type)).length;
+      }
+    }
+    return counts;
+  }, [visibleNotifications]);
 
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={handleOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <Badge
-              variant="destructive"
-              className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center"
-            >
-              {unreadCount}
+            <Badge variant="destructive" className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center">
+              {unreadCount > 9 ? "9+" : unreadCount}
             </Badge>
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-80">
+      <DropdownMenuContent align="end" className="w-96">
         <div className="flex items-center justify-between px-4 py-2 border-b">
-          <h3 className="font-semibold">Notifications</h3>
+          <h3 className="font-semibold text-sm">Notifications</h3>
           <div className="flex items-center gap-2">
-            {unreadCount > 0 && (
-              <Badge variant="secondary">{unreadCount} new</Badge>
-            )}
+            {unreadCount > 0 && <Badge variant="secondary" className="text-xs">{unreadCount} new</Badge>}
             {visibleNotifications.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                onClick={dismissAll}
-              >
-                <CheckCheck className="h-3 w-3 mr-1" />
-                Clear all
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground" onClick={dismissAll}>
+                <CheckCheck className="h-3 w-3 mr-1" /> Clear all
               </Button>
             )}
           </div>
         </div>
-        <ScrollArea className="h-[400px]">
-          {visibleNotifications.length > 0 ? (
-            visibleNotifications.map((notification) => (
-              <DropdownMenuItem 
-                key={notification.id} 
-                className="flex items-start gap-3 p-4 cursor-pointer group hover:bg-accent/50 transition-colors"
-                onClick={() => handleNotificationClick(notification)}
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="w-full justify-start rounded-none border-b bg-transparent h-9 px-2">
+            {TABS.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value} className="text-xs px-2 py-1 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none">
+                {tab.label}
+                {tabCounts[tab.value] > 0 && (
+                  <span className="ml-1 text-muted-foreground">({tabCounts[tab.value]})</span>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
+        <ScrollArea className="h-[380px]">
+          {filteredNotifications.length > 0 ? (
+            filteredNotifications.map((n) => (
+              <DropdownMenuItem
+                key={n.id}
+                className="flex items-start gap-3 p-3 cursor-pointer group hover:bg-accent/50 transition-colors"
+                onClick={() => navigate(getNavigationPath(n))}
               >
-                <div className="mt-0.5">{getNotificationIcon(notification)}</div>
-                <div className="flex-1 space-y-1">
-                  <p className="text-sm font-medium">
-                    {notification.name} {getStatusText(notification)}
-                  </p>
+                <div className="mt-0.5">{getIcon(n)}</div>
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  <p className="text-sm font-medium truncate">{n.name}</p>
+                  <p className="text-xs text-muted-foreground">{getDescription(n)}</p>
                   <p className="text-xs text-muted-foreground">
-                    {getRecordsText(notification)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
+                    {formatDistanceToNow(n.timestamp, { addSuffix: true })}
                   </p>
                 </div>
-                <div className="flex items-center gap-1">
-                  <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={(e) => dismissNotification(notification.id, e)}
-                  >
+                <div className="flex items-center gap-1 shrink-0">
+                  <Badge variant={getStatusVariant(n)} className="text-[10px] px-1.5">{getStatusLabel(n)}</Badge>
+                  <ChevronRight className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => dismissNotification(n.id, e)}>
                     <X className="h-3 w-3" />
                   </Button>
                 </div>
               </DropdownMenuItem>
             ))
           ) : (
-            <div className="p-4 text-center text-sm text-muted-foreground">
-              No notifications
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              <Bell className="h-8 w-8 mx-auto mb-2 opacity-30" />
+              <p className="font-medium text-foreground">No notifications</p>
+              <p className="text-xs mt-1">You're all caught up!</p>
             </div>
           )}
         </ScrollArea>
+
         {allNotifications.length > 0 && dismissedIds.size > 0 && (
           <>
             <DropdownMenuSeparator />
             <div className="p-2 text-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs text-muted-foreground"
-                onClick={() => {
-                  setDismissedIds(new Set());
-                  saveDismissedIds(new Set());
-                }}
-              >
+              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => { setDismissedIds(new Set()); saveDismissedIds(new Set()); }}>
                 Show {dismissedIds.size} dismissed
               </Button>
             </div>
