@@ -290,16 +290,7 @@ function AppContent() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/pipeline-analytics"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <PipelineAnalyticsPage />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/pipeline-analytics" element={<Navigate to="/pipeline-efficiency" replace />} />
             <Route
               path="/ai-feedback"
               element={
