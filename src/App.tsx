@@ -56,7 +56,7 @@ const Enrichment = lazy(() => import("./pages/Enrichment"));
 const AgentTester = lazy(() => import("./pages/AgentTester"));
 const AITest = lazy(() => import("./pages/AITest"));
 const Help = lazy(() => import("./pages/Help"));
-const APIAccess = lazy(() => import("./pages/APIAccess"));
+
 const Tasks = lazy(() => import("./pages/Tasks"));
 const CustomerOnboarding = lazy(() => import("./pages/admin/CustomerOnboarding"));
 const ListBuilder = lazy(() => import("./pages/ListBuilder"));
