@@ -99,7 +99,7 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
         (async () => {
           const { data, error } = await supabase
             .from('Leads')
-            .select('external_id, first_name, last_name, email, title_raw, title_normalized, seniority_level, department, phone, mobile, linkedin_url, account_external_id, status, lead_source, data_source')
+            .select('external_id, first_name, last_name, email, title_raw, title, level, industry, phone, mobile, linkedin_url, account_external_id, status, data_source')
             .eq('org_id', orgId)
             .order('last_name')
             .limit(10000);
@@ -112,15 +112,14 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
             'First Name': c.first_name || '',
             'Last Name': c.last_name || '',
             'Email': c.email || '',
-            'Title': c.title_raw || c.title_normalized || '',
-            'Seniority': c.seniority_level || '',
-            'Department': c.department || '',
+            'Title': c.title_raw || c.title || '',
+            'Level': c.level || '',
+            'Industry': c.industry || '',
             'Phone': c.phone || '',
             'Mobile': c.mobile || '',
             'LinkedIn': c.linkedin_url || '',
             'Account ID': c.account_external_id || '',
             'Status': c.status || '',
-            'Lead Source': c.lead_source || '',
             'Data Source': c.data_source || '',
           }));
 
