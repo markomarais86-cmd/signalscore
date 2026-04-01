@@ -299,6 +299,12 @@ export default function Settings() {
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">Exports</span>
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="api-dashboard" className="flex items-center gap-2 flex-shrink-0">
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">API Usage</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Account Settings */}
