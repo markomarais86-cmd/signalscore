@@ -1,13 +1,9 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSidebar } from "@/components/ui/sidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from "recharts";
-import { TrendingUp, Target, Database, Download, MapPin, Building2, Settings, AlertCircle, Users, RefreshCw, Activity, Search, Globe } from "lucide-react";
-import { LaunchPulseMark } from '@/components/BrandLogo';
+import { AlertCircle, Activity } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { useDataOrgId } from "@/hooks/use-data-org";
@@ -22,37 +18,17 @@ import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { useICPInsights } from "@/hooks/use-icp-insights";
 import { calculateTrends, TrendData } from "@/utils/trend-calculator";
 import { detectRisks, RiskItem } from "@/utils/risk-detector";
-import { UnifiedInsightsPanel, Insight } from "@/components/executive/UnifiedInsightsPanel";
 import { SyncProgressModal } from "@/components/settings/SyncProgressModal";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
-import { SourceFilterToggle, type SourceFilter } from "@/components/executive/SourceFilterToggle";
-import { EmptyState } from "@/components/EmptyState";
 import { WelcomeEmptyState } from "@/components/onboarding/WelcomeEmptyState";
-import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
-
-import { PowerUpButton } from "@/components/executive/PowerUpButton";
-
-// Simplified components
-import { GrowthCommandKPIs } from "@/components/executive/GrowthCommandKPIs";
-import { ICPDonutChart } from "@/components/executive/ICPDonutChart";
-import { ICPCoveragePanel } from "@/components/executive/ICPCoveragePanel";
-import { SimpleICPTable } from "@/components/executive/SimpleICPTable";
-import { SimpleTAMCard } from "@/components/executive/SimpleTAMCard";
-import { SimpleGeographyCard } from "@/components/executive/SimpleGeographyCard";
-import { DataHealthWidget } from "@/components/executive/DataHealthWidget";
-import { CollapsibleDashboardCard } from "@/components/executive/CollapsibleDashboardCard";
-import { ICPProfileSummaryCard } from "@/components/executive/ICPProfileSummaryCard";
-
 import { StatusBar, buildStatusItems } from "@/components/executive/StatusBar";
-import { ExportToPdf } from "@/components/executive/ExportToPdf";
-import { SignalFeed } from "@/components/executive/SignalFeed";
-import { SignalActionCards } from "@/components/dashboard/SignalActionCards";
+import { DashboardHeader } from "@/components/executive/DashboardHeader";
+import { DashboardContent } from "@/components/executive/DashboardContent";
 import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
-import { FuelLineAnalytics } from "@/components/campaigns/FuelLineAnalytics";
-import { CampaignAutomationManager } from "@/components/campaigns/CampaignAutomationManager";
+import type { SourceFilter } from "@/components/executive/SourceFilterToggle";
 import { dashboardLogger } from "@/lib/logger";
 
 export default function ExecutiveDashboard() {
@@ -62,666 +38,272 @@ export default function ExecutiveDashboard() {
   const { selectedOrg } = useOrgSwitcher();
   const { completeStep } = useOnboarding();
   const navigate = useNavigate();
-  const sidebar = useSidebar();
   const { insights, statistics, loading: insightsLoading, generateInsights } = useICPInsights();
   const { averageDealSize, conversionRate, updateSettings } = useOrgSettings();
-  
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('crm');
+
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("crm");
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgressOpen, setSyncProgressOpen] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<'syncing' | 'complete' | 'error'>('syncing');
+  const [syncStatus, setSyncStatus] = useState<"syncing" | "complete" | "error">("syncing");
   const [syncBreakdown, setSyncBreakdown] = useState<any>(null);
-  
-  // Use optimized React Query hooks with source filtering
+
   const { data: dashboardData, isLoading, error: queryError, refetch } = useDashboardData(effectiveOrgId, sourceFilter, dataOrgId ?? undefined);
   const { data: geographyData } = useGeographyData(effectiveOrgId, !!dashboardData, sourceFilter, dataOrgId ?? undefined);
   const { data: filterStats } = useSourceFilterStats(effectiveOrgId);
 
   const [isEnrichmentModalOpen, setIsEnrichmentModalOpen] = useState(false);
-  const [showAISuggestions, setShowAISuggestions] = useState(true);
-  const [showAllRisks, setShowAllRisks] = useState(false);
   const [refreshingInsights, setRefreshingInsights] = useState(false);
   const [trendData, setTrendData] = useState<TrendData | null>(null);
-  const [weeklyTrendData, setWeeklyTrendData] = useState<TrendData | null>(null);
   const [risks, setRisks] = useState<RiskItem[]>([]);
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
   const [isDataStale, setIsDataStale] = useState(false);
   const [activeScoringJob, setActiveScoringJob] = useState<any>(null);
   const [showHealthDashboard, setShowHealthDashboard] = useState(false);
   const [apolloStale, setApolloStale] = useState(false);
   const [syncingApolloFromAlert, setSyncingApolloFromAlert] = useState(false);
   const [selectedAgentRunId, setSelectedAgentRunId] = useState<string | null>(null);
-  
   const [signalCampaignOpen, setSignalCampaignOpen] = useState(false);
   const [signalCampaignContext, setSignalCampaignContext] = useState<any>(undefined);
-  
 
-  const totalAccounts = dashboardData?.metrics?.total_accounts || 0;
-  const totalScores = dashboardData?.metrics?.scored_accounts || 0;
-  const campaignReadyAccounts = dashboardData?.metrics?.campaign_ready_accounts || 0;
-  const campaignReadyLeads = dashboardData?.metrics?.campaign_ready_leads || 0;
-  const dataCompleteness = Math.round(dashboardData?.metrics?.data_completeness || 0);
-
-  const highFitAccounts = dashboardData?.metrics?.high_fit_accounts || 0;
-  const medFitAccounts = dashboardData?.metrics?.medium_fit_accounts || 0;
-  const lowFitAccounts = dashboardData?.metrics?.low_fit_accounts || 0;
-
-  const crmAccounts = dashboardData?.metrics?.total_crm_accounts || 0;
-  const databaseAccounts = dashboardData?.metrics?.total_database_accounts || 0;
-  const bothAccounts = dashboardData?.metrics?.both_accounts || 0;
-  const crmScoredAccounts = dashboardData?.metrics?.scored_crm_accounts || 0;
-  const databaseScoredAccounts = dashboardData?.metrics?.scored_database_accounts || 0;
-
-  const highFitCrmAccounts = dashboardData?.metrics?.high_fit_crm_accounts || 0;
-  const highFitDatabaseAccounts = dashboardData?.metrics?.high_fit_database_accounts || 0;
-  const medFitCrmAccounts = dashboardData?.metrics?.medium_fit_crm_accounts || 0;
-  const medFitDatabaseAccounts = dashboardData?.metrics?.medium_fit_database_accounts || 0;
-  const lowFitCrmAccounts = dashboardData?.metrics?.low_fit_crm_accounts || 0;
-  const lowFitDatabaseAccounts = dashboardData?.metrics?.low_fit_database_accounts || 0;
-
-  const totalLeads = dashboardData?.metrics?.total_leads || 0;
-  const crmLeads = dashboardData?.metrics?.total_crm_leads || 0;
-  const databaseLeads = dashboardData?.metrics?.total_database_leads || 0;
-  const highFitLeads = dashboardData?.metrics?.high_fit_leads || 0;
-  const medFitLeads = dashboardData?.metrics?.medium_fit_leads || 0;
-  const lowFitLeads = dashboardData?.metrics?.low_fit_leads || 0;
-  const highFitCrmLeads = dashboardData?.metrics?.high_fit_crm_leads || 0;
-  const highFitDatabaseLeads = dashboardData?.metrics?.high_fit_database_leads || 0;
-  const medFitCrmLeads = dashboardData?.metrics?.medium_fit_crm_leads || 0;
-  const medFitDatabaseLeads = dashboardData?.metrics?.medium_fit_database_leads || 0;
-  const lowFitCrmLeads = dashboardData?.metrics?.low_fit_crm_leads || 0;
-  const lowFitDatabaseLeads = dashboardData?.metrics?.low_fit_database_leads || 0;
-
-
+  // Derived metrics
+  const m = dashboardData?.metrics;
+  const totalAccounts = m?.total_accounts || 0;
+  const totalScores = m?.scored_accounts || 0;
+  const campaignReadyAccounts = m?.campaign_ready_accounts || 0;
+  const campaignReadyLeads = m?.campaign_ready_leads || 0;
+  const dataCompleteness = Math.round(m?.data_completeness || 0);
+  const highFitAccounts = m?.high_fit_accounts || 0;
+  const medFitAccounts = m?.medium_fit_accounts || 0;
+  const lowFitAccounts = m?.low_fit_accounts || 0;
+  const crmAccounts = m?.total_crm_accounts || 0;
+  const databaseAccounts = m?.total_database_accounts || 0;
+  const crmScoredAccounts = m?.scored_crm_accounts || 0;
+  const databaseScoredAccounts = m?.scored_database_accounts || 0;
+  const highFitCrmAccounts = m?.high_fit_crm_accounts || 0;
+  const highFitDatabaseAccounts = m?.high_fit_database_accounts || 0;
+  const medFitCrmAccounts = m?.medium_fit_crm_accounts || 0;
+  const medFitDatabaseAccounts = m?.medium_fit_database_accounts || 0;
+  const lowFitCrmAccounts = m?.low_fit_crm_accounts || 0;
+  const lowFitDatabaseAccounts = m?.low_fit_database_accounts || 0;
+  const totalLeads = m?.total_leads || 0;
+  const crmLeads = m?.total_crm_leads || 0;
+  const databaseLeads = m?.total_database_leads || 0;
+  const highFitLeads = m?.high_fit_leads || 0;
+  const medFitLeads = m?.medium_fit_leads || 0;
+  const lowFitLeads = m?.low_fit_leads || 0;
+  const highFitCrmLeads = m?.high_fit_crm_leads || 0;
+  const highFitDatabaseLeads = m?.high_fit_database_leads || 0;
+  const medFitCrmLeads = m?.medium_fit_crm_leads || 0;
+  const medFitDatabaseLeads = m?.medium_fit_database_leads || 0;
+  const lowFitCrmLeads = m?.low_fit_crm_leads || 0;
+  const lowFitDatabaseLeads = m?.low_fit_database_leads || 0;
   const icpProfiles = dashboardData?.icpProfiles || [];
   const tamData = dashboardData?.tamData;
-
   const geographyDistribution = geographyData || [];
-
   const hasData = totalAccounts > 0;
 
-  // Listen for significant data changes and auto-refresh
   useDataChangeListener({
     onAccountsChanged: async () => {
-      dashboardLogger.debug('Accounts changed, refreshing dashboard...');
+      dashboardLogger.debug("Accounts changed, refreshing dashboard...");
       await refetch();
-      toast.info('Dashboard updated with new account data');
-      // Auto-enrich newly imported unenriched accounts
+      toast.info("Dashboard updated with new account data");
       autoEnrichNewAccounts();
     },
     onScoringCompleted: async () => {
-      dashboardLogger.debug('Scoring completed, refreshing insights...');
+      dashboardLogger.debug("Scoring completed, refreshing insights...");
       await Promise.all([refetch(), generateInsights()]);
-      setLastRefreshed(new Date());
-      toast.success('Scoring complete! Dashboard and recommendations updated');
+      toast.success("Scoring complete! Dashboard and recommendations updated");
     },
     onEnrichmentCompleted: async () => {
-      dashboardLogger.debug('Enrichment completed, refreshing dashboard...');
+      dashboardLogger.debug("Enrichment completed, refreshing dashboard...");
       await refetch();
-      toast.success('Enrichment complete! Dashboard updated');
+      toast.success("Enrichment complete! Dashboard updated");
     },
-    debounceMs: 3000
+    debounceMs: 3000,
   });
 
   useEffect(() => {
     if (dashboardData) {
-      // Calculate 30-day trends
-      calculateTrends(effectiveOrgId || '', dashboardData?.metrics, '30d')
-        .then(setTrendData)
-        .catch((e) => dashboardLogger.error('Failed to calculate trends:', e));
-      
-      // Calculate 7-day (weekly) trends for fit levels
-      calculateTrends(effectiveOrgId || '', dashboardData?.metrics, '7d')
-        .then(setWeeklyTrendData)
-        .catch((e) => dashboardLogger.error('Failed to calculate weekly trends:', e));
-
-      // Detect risks asynchronously
-      detectRisks(effectiveOrgId || '', dashboardData?.metrics)
-        .then(setRisks)
-        .catch((e) => dashboardLogger.error('Failed to detect risks:', e));
-      
-      // Generate insights if we have data
-      if ((totalScores > 0 || totalAccounts > 0) && effectiveOrgId) {
-        generateInsights();
-      }
-
-      // Check for stale data and active scoring jobs
+      calculateTrends(effectiveOrgId || "", m, "30d").then(setTrendData).catch((e) => dashboardLogger.error("Trend calc failed:", e));
+      detectRisks(effectiveOrgId || "", m).then(setRisks).catch((e) => dashboardLogger.error("Risk detection failed:", e));
+      if ((totalScores > 0 || totalAccounts > 0) && effectiveOrgId) generateInsights();
       checkDataFreshness();
     }
-  }, [dashboardData?.metrics, effectiveOrgId, totalScores, totalAccounts]);
+  }, [m, effectiveOrgId, totalScores, totalAccounts]);
 
   const checkDataFreshness = async () => {
     if (!effectiveOrgId) return;
-
-    // Use dataOrgId for shared data queries (external_data_sources may be under parent org)
     const sharedDataOrgId = dataOrgId || effectiveOrgId;
-
     try {
-      // Check for active scoring jobs
-      const { data: activeJob } = await supabase
-        .from('bulk_scoring_jobs')
-        .select('*')
-        .eq('org_id', effectiveOrgId!)
-        .eq('status', 'processing')
-        .order('started_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
+      const { data: activeJob } = await supabase.from("bulk_scoring_jobs").select("*").eq("org_id", effectiveOrgId!).eq("status", "processing").order("started_at", { ascending: false }).limit(1).maybeSingle();
       setActiveScoringJob(activeJob);
 
-      // Check if ICP was updated after last scoring (ICP is per-child-org)
-      const { data: latestICP } = await supabase
-        .from('icp_profiles')
-        .select('created_at')
-        .eq('org_id', effectiveOrgId!)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      const { data: latestICP } = await supabase.from("icp_profiles").select("created_at").eq("org_id", effectiveOrgId!).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      const { data: latestScore } = await supabase.from("scores").select("computed_at").eq("org_id", effectiveOrgId!).order("computed_at", { ascending: false }).limit(1).maybeSingle();
+      if (latestICP && latestScore) setIsDataStale(new Date(latestICP.created_at) > new Date(latestScore.computed_at));
 
-      const { data: latestScore } = await supabase
-        .from('scores')
-        .select('computed_at')
-        .eq('org_id', effectiveOrgId!)
-        .order('computed_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (latestICP && latestScore) {
-        const icpDate = new Date(latestICP.created_at);
-        const scoreDate = new Date(latestScore.computed_at);
-        setIsDataStale(icpDate > scoreDate);
-      }
-
-      // Check if Apollo data is stale compared to ICP
-      const { data: primaryICP } = await supabase
-        .from('icp_profiles')
-        .select('created_at')
-        .eq('org_id', effectiveOrgId!)
-        .eq('is_primary', true)
-        .maybeSingle();
-
-      // Apollo external_data_sources may be stored under the parent org (shared data)
-      // Try child org first, then fall back to parent org
+      const { data: primaryICP } = await supabase.from("icp_profiles").select("created_at").eq("org_id", effectiveOrgId!).eq("is_primary", true).maybeSingle();
       let apolloData: { last_synced_at: string | null } | null = null;
-      
-      const { data: childApollo } = await supabase
-        .from('external_data_sources')
-        .select('last_synced_at')
-        .eq('org_id', effectiveOrgId!)
-        .eq('provider', 'apollo')
-        .maybeSingle();
-      
-      if (childApollo) {
-        apolloData = childApollo;
-      } else if (sharedDataOrgId !== effectiveOrgId) {
-        // Fall back to parent org for Apollo data
-        const { data: parentApollo } = await supabase
-          .from('external_data_sources')
-          .select('last_synced_at')
-          .eq('org_id', sharedDataOrgId)
-          .eq('provider', 'apollo')
-          .maybeSingle();
+      const { data: childApollo } = await supabase.from("external_data_sources").select("last_synced_at").eq("org_id", effectiveOrgId!).eq("provider", "apollo").maybeSingle();
+      if (childApollo) apolloData = childApollo;
+      else if (sharedDataOrgId !== effectiveOrgId) {
+        const { data: parentApollo } = await supabase.from("external_data_sources").select("last_synced_at").eq("org_id", sharedDataOrgId).eq("provider", "apollo").maybeSingle();
         apolloData = parentApollo;
       }
-
-      if (primaryICP?.created_at && apolloData?.last_synced_at) {
-        const icpTime = new Date(primaryICP.created_at).getTime();
-        const apolloTime = new Date(apolloData.last_synced_at).getTime();
-        setApolloStale(icpTime > apolloTime);
-      } else if (primaryICP?.created_at && !apolloData?.last_synced_at) {
-        // ICP exists but Apollo never synced
-        setApolloStale(true);
-      } else {
-        setApolloStale(false);
-      }
+      if (primaryICP?.created_at && apolloData?.last_synced_at) setApolloStale(new Date(primaryICP.created_at).getTime() > new Date(apolloData.last_synced_at).getTime());
+      else if (primaryICP?.created_at && !apolloData?.last_synced_at) setApolloStale(true);
+      else setApolloStale(false);
     } catch (error) {
-      dashboardLogger.error('Error checking data freshness:', error);
+      dashboardLogger.error("Error checking data freshness:", error);
     }
   };
 
-  // Poll for active scoring job status every 3 seconds
   useEffect(() => {
     if (!effectiveOrgId) return;
-
     checkDataFreshness();
-    
-    // Poll every 30 seconds to reduce DB load
-    const interval = setInterval(() => {
-      checkDataFreshness();
-    }, 30000);
-    
+    const interval = setInterval(checkDataFreshness, 30000);
     return () => clearInterval(interval);
   }, [effectiveOrgId]);
 
-  useEffect(() => {
-    if (effectiveOrgId) {
-      completeStep('viewed_dashboard');
-    }
-  }, [effectiveOrgId]);
-
-  useEffect(() => {
-    if (!insightsLoading && insights?.length === 0) {
-      setShowAISuggestions(true);
-    } else {
-      setShowAISuggestions(false);
-    }
-  }, [insights, insightsLoading]);
+  useEffect(() => { if (effectiveOrgId) completeStep("viewed_dashboard"); }, [effectiveOrgId]);
 
   const handleRefreshInsights = async () => {
-    if (!effectiveOrgId) {
-      toast.error("Can't refresh insights - No organization ID found");
-      return;
-    }
-
+    if (!effectiveOrgId) { toast.error("No organization ID found"); return; }
     setRefreshingInsights(true);
-    try {
-      await generateInsights();
-      setLastRefreshed(new Date());
-      toast.success("Insights refreshed successfully");
-    } catch (error: any) {
-      dashboardLogger.error("Error refreshing insights:", error);
-      toast.error(error.message || "Failed to refresh insights");
-    } finally {
-      setRefreshingInsights(false);
-    }
+    try { await generateInsights(); toast.success("Insights refreshed"); } catch (error: any) { toast.error(error.message || "Failed to refresh"); } finally { setRefreshingInsights(false); }
   };
 
   const handleSyncApollo = async () => {
-    if (!effectiveOrgId) {
-      toast.error('Organization not found');
-      return;
-    }
-
-    setIsSyncing(true);
-    setSyncProgressOpen(true);
-    setSyncStatus('syncing');
-    setSyncBreakdown(null);
-    
+    if (!effectiveOrgId) { toast.error("Organization not found"); return; }
+    setIsSyncing(true); setSyncProgressOpen(true); setSyncStatus("syncing"); setSyncBreakdown(null);
     try {
-      const { data, error } = await supabase.functions.invoke('sync-external-provider', {
-        body: {
-          org_id: effectiveOrgId,
-          provider: 'apollo'
-        }
-      });
-
+      const { data, error } = await supabase.functions.invoke("sync-external-provider", { body: { org_id: effectiveOrgId, provider: "apollo" } });
       if (error) throw error;
-
-      setSyncStatus('complete');
-      setSyncBreakdown({
-        accounts: data?.totalAccounts || 0,
-        leads: data?.totalContacts || 0,
-        geography: tamData?.geography_breakdown,
-        industry: tamData?.industry_breakdown
-      });
-
-      toast.success('Apollo sync completed! Refreshing dashboard...');
-      
-      // Auto-enrich new accounts after sync
+      setSyncStatus("complete");
+      setSyncBreakdown({ accounts: data?.totalAccounts || 0, leads: data?.totalContacts || 0, geography: tamData?.geography_breakdown, industry: tamData?.industry_breakdown });
+      toast.success("Apollo sync completed!");
       autoEnrichNewAccounts();
-      
-      // Refresh the dashboard data to show the new breakdowns
-      setTimeout(() => {
-        refetch();
-      }, 1000);
+      setTimeout(() => refetch(), 1000);
     } catch (error: any) {
-      dashboardLogger.error('Error syncing Apollo:', error);
-      setSyncStatus('error');
-      toast.error(error.message || 'Failed to sync Apollo data');
-    } finally {
-      setIsSyncing(false);
-    }
+      setSyncStatus("error"); toast.error(error.message || "Failed to sync Apollo data");
+    } finally { setIsSyncing(false); }
   };
 
-  if (authLoading) {
-    return <div className="flex justify-center items-center h-screen">Loading Auth...</div>;
-  }
-
-  if (!userProfile) {
-    return (
-      <Alert variant="destructive" className="mt-4">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          Please create a user profile to view this page. <Button variant="link" onClick={() => navigate('/profile')}>Go to Profile</Button>
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (queryError) {
-    dashboardLogger.error("React Query Error:", queryError.message);
-    return (
-      <Alert variant="destructive" className="mt-4">
-        <AlertCircle className="h-4 w-4" />
-        <AlertDescription>
-          Error loading dashboard data. Please try again. <Button variant="link" onClick={() => refetch()}>Retry</Button>
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
-  // Empty state for new users - check TAM data when in database mode
-  const effectiveAccountCount = sourceFilter === 'database' 
-    ? (tamData?.totalAccounts || 0) 
-    : totalAccounts;
-  const showEmptyState = effectiveAccountCount === 0 && totalScores === 0 && !isLoading;
-
-  // Build status items for StatusBar
-  const statusItems = buildStatusItems({
-    activeScoringJob,
-    apolloStale,
-    isDataStale,
-    dataCompleteness,
-    totalAccounts,
-    sourceFilter,
-    onSyncApollo: async () => {
-      setSyncingApolloFromAlert(true);
-      await handleSyncApollo();
-      setSyncingApolloFromAlert(false);
-      setApolloStale(false);
-    },
-    onGoToICP: () => navigate('/icp-manager'),
-    onEnrich: () => setIsEnrichmentModalOpen(true),
-    syncingApollo: syncingApolloFromAlert,
-    isChildOrg,
-    childOrgName: selectedOrg?.name
-  });
-
-  // Auto-enrich new accounts that haven't been enriched yet
   const autoEnrichNewAccounts = async () => {
     if (!effectiveOrgId) return;
     try {
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-      const { data: unenriched } = await supabase
-        .from("accounts")
-        .select("external_id")
-        .eq("org_id", effectiveOrgId)
-        .is("enriched_at", null)
-        .gte("updated_at", fiveMinutesAgo)
-        .limit(50);
-
+      const { data: unenriched } = await supabase.from("accounts").select("external_id").eq("org_id", effectiveOrgId).is("enriched_at", null).gte("updated_at", fiveMinutesAgo).limit(50);
       if (unenriched && unenriched.length > 0) {
         toast.info(`Auto-enriching ${unenriched.length} new accounts...`);
-        await supabase.functions.invoke("enrich-unified", {
-          body: {
-            record_type: "account",
-            org_id: effectiveOrgId,
-            record_ids: unenriched.map((a) => a.external_id),
-          },
-        });
+        await supabase.functions.invoke("enrich-unified", { body: { record_type: "account", org_id: effectiveOrgId, record_ids: unenriched.map((a) => a.external_id) } });
       }
-    } catch (err) {
-      dashboardLogger.error("Auto-enrich failed:", err);
-    }
+    } catch (err) { dashboardLogger.error("Auto-enrich failed:", err); }
   };
 
-  // Score accounts handler for command palette
   const handleScoreAccounts = async () => {
     try {
-      dashboardLogger.debug('Manual scoring trigger clicked');
-      const { data, error } = await supabase.functions.invoke('bulk-score-accounts', {
-        body: { org_id: effectiveOrgId, chunk_size: 5000 }
-      });
-      if (error) {
-        toast.error(error.message || 'Failed to start scoring');
-      } else {
-        toast.success('Scoring started! Processing in background...');
-        checkDataFreshness();
-      }
-    } catch (err) {
-      toast.error('Failed to start scoring');
-    }
+      const { error } = await supabase.functions.invoke("bulk-score-accounts", { body: { org_id: effectiveOrgId, chunk_size: 5000 } });
+      if (error) toast.error(error.message || "Failed to start scoring");
+      else { toast.success("Scoring started!"); checkDataFreshness(); }
+    } catch { toast.error("Failed to start scoring"); }
   };
 
+  if (authLoading) return <div className="flex justify-center items-center h-screen">Loading Auth...</div>;
+
+  if (!userProfile) return (
+    <Alert variant="destructive" className="mt-4"><AlertCircle className="h-4 w-4" /><AlertDescription>Please create a user profile. <Button variant="link" onClick={() => navigate("/profile")}>Go to Profile</Button></AlertDescription></Alert>
+  );
+
+  if (queryError) return (
+    <Alert variant="destructive" className="mt-4"><AlertCircle className="h-4 w-4" /><AlertDescription>Error loading dashboard. <Button variant="link" onClick={() => refetch()}>Retry</Button></AlertDescription></Alert>
+  );
+
+  const effectiveAccountCount = sourceFilter === "database" ? (tamData?.totalAccounts || 0) : totalAccounts;
+  const showEmptyState = effectiveAccountCount === 0 && totalScores === 0 && !isLoading;
+
+  const statusItems = buildStatusItems({
+    activeScoringJob, apolloStale, isDataStale, dataCompleteness, totalAccounts, sourceFilter,
+    onSyncApollo: async () => { setSyncingApolloFromAlert(true); await handleSyncApollo(); setSyncingApolloFromAlert(false); setApolloStale(false); },
+    onGoToICP: () => navigate("/icp-manager"),
+    onEnrich: () => setIsEnrichmentModalOpen(true),
+    syncingApollo: syncingApolloFromAlert,
+    isChildOrg,
+    childOrgName: selectedOrg?.name,
+  });
+
   return (
-    <div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-6 lg:space-y-8 min-h-screen pb-8">
+    <div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-4 md:space-y-6 lg:space-y-8 min-h-screen pb-8">
+      <DashboardHeader
+        sourceFilter={sourceFilter}
+        onSourceFilterChange={setSourceFilter}
+        filterStats={filterStats}
+        isSyncing={isSyncing}
+        isLoading={isLoading}
+        activeScoringJob={activeScoringJob}
+        showHealthDashboard={showHealthDashboard}
+        highFitAccounts={highFitAccounts}
+        effectiveOrgId={effectiveOrgId}
+        onSyncApollo={handleSyncApollo}
+        onRefresh={() => { refetch(); toast.success("Refreshing..."); }}
+        onScore={handleScoreAccounts}
+        onEnrich={() => setIsEnrichmentModalOpen(true)}
+        onToggleHealth={() => setShowHealthDashboard(!showHealthDashboard)}
+        onPowerUpComplete={() => refetch()}
+      />
 
-      {/* Header Section - Simplified */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold leading-tight truncate">Growth Command Center</h1>
-          <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">Real-time revenue intelligence across your TAM</p>
-        </div>
-
-        <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto">
-          <SourceFilterToggle
-            value={sourceFilter}
-            onChange={setSourceFilter}
-            stats={{ crm: filterStats?.crm || 0, database: filterStats?.database || 0 }}
-          />
-
-          {/* Data actions */}
-          {sourceFilter === 'database' && (
-            <Button variant="default" onClick={handleSyncApollo} disabled={isSyncing} size="sm">
-              <RefreshCw className={`h-4 w-4 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
-              <span className="hidden md:inline">{isSyncing ? 'Syncing...' : 'Sync Apollo'}</span>
-            </Button>
-          )}
-
-          <Button
-            variant="outline" size="sm"
-            onClick={() => { refetch(); toast.success('Refreshing...'); }}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          </Button>
-
-          <Button variant="outline" size="sm" onClick={handleScoreAccounts} disabled={!!activeScoringJob}>
-            <Target className="h-4 w-4 mr-1.5" />
-            <span className="hidden lg:inline">{activeScoringJob ? 'Scoring...' : 'Score'}</span>
-          </Button>
-
-          <Button variant="outline" size="sm" onClick={() => setIsEnrichmentModalOpen(true)}>
-            <LaunchPulseMark className="h-4 w-4 mr-1.5" />
-            <span className="hidden lg:inline">Enrich</span>
-          </Button>
-
-          <Button
-            variant={showHealthDashboard ? "default" : "outline"} size="sm"
-            onClick={() => setShowHealthDashboard(!showHealthDashboard)}
-          >
-            <Activity className="h-4 w-4" />
-          </Button>
-
-          <ExportToPdf onExport={() => {}} />
-
-          {effectiveOrgId && (
-            <PowerUpButton orgId={effectiveOrgId} onComplete={() => refetch()} />
-          )}
-
-          <QuickCampaignButton
-            highFitAccounts={highFitAccounts}
-            disabled={isLoading || highFitAccounts === 0}
-          />
-        </div>
-      </div>
-
-      {/* Consolidated Status Bar - Replaces scattered alerts */}
       <StatusBar items={statusItems} />
 
+      {showHealthDashboard && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" />System Health Monitor</CardTitle>
+            <CardDescription>Real-time monitoring of CRM sync, enrichment, scoring, and automations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SystemHealthDashboard onViewAgentRun={(runId) => setSelectedAgentRunId(runId)} />
+          </CardContent>
+        </Card>
+      )}
 
-        {/* Phase 5: System Health Dashboard */}
-        {showHealthDashboard && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                System Health Monitor
-              </CardTitle>
-              <CardDescription>
-                Real-time monitoring of CRM sync, enrichment, scoring, and automations
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SystemHealthDashboard onViewAgentRun={(runId) => setSelectedAgentRunId(runId)} />
-            </CardContent>
-          </Card>
-        )}
+      <AgentRunDetailSheet runId={selectedAgentRunId} open={!!selectedAgentRunId} onOpenChange={(open) => !open && setSelectedAgentRunId(null)} />
 
-        {/* Agent Run Detail Sheet */}
-        <AgentRunDetailSheet
-          runId={selectedAgentRunId}
-          open={!!selectedAgentRunId}
-          onOpenChange={(open) => !open && setSelectedAgentRunId(null)}
+      {isLoading ? (
+        <DashboardSkeleton />
+      ) : showEmptyState ? (
+        <WelcomeEmptyState />
+      ) : (
+        <DashboardContent
+          sourceFilter={sourceFilter}
+          totalAccounts={totalAccounts} totalScores={totalScores}
+          highFitAccounts={highFitAccounts} medFitAccounts={medFitAccounts} lowFitAccounts={lowFitAccounts}
+          dataCompleteness={dataCompleteness} campaignReadyAccounts={campaignReadyAccounts} campaignReadyLeads={campaignReadyLeads}
+          averageDealSize={averageDealSize} conversionRate={conversionRate}
+          crmAccounts={crmAccounts} databaseAccounts={databaseAccounts}
+          crmScoredAccounts={crmScoredAccounts} databaseScoredAccounts={databaseScoredAccounts}
+          highFitCrmAccounts={highFitCrmAccounts} highFitDatabaseAccounts={highFitDatabaseAccounts}
+          medFitCrmAccounts={medFitCrmAccounts} medFitDatabaseAccounts={medFitDatabaseAccounts}
+          lowFitCrmAccounts={lowFitCrmAccounts} lowFitDatabaseAccounts={lowFitDatabaseAccounts}
+          totalLeads={totalLeads} crmLeads={crmLeads} databaseLeads={databaseLeads}
+          highFitLeads={highFitLeads} medFitLeads={medFitLeads} lowFitLeads={lowFitLeads}
+          highFitCrmLeads={highFitCrmLeads} highFitDatabaseLeads={highFitDatabaseLeads}
+          medFitCrmLeads={medFitCrmLeads} medFitDatabaseLeads={medFitDatabaseLeads}
+          lowFitCrmLeads={lowFitCrmLeads} lowFitDatabaseLeads={lowFitDatabaseLeads}
+          tamData={tamData} geographyDistribution={geographyDistribution} icpProfiles={icpProfiles}
+          risks={risks} insights={insights || []} effectiveOrgId={effectiveOrgId}
+          onRefreshInsights={handleRefreshInsights}
+          onSettingsChange={({ averageDealSize: ds, conversionRate: cr }) => updateSettings({ average_deal_size: ds, conversion_rate: cr })}
+          onLaunchCampaign={(ctx) => { setSignalCampaignContext(ctx); setSignalCampaignOpen(true); }}
         />
+      )}
 
-        {/* Note: Active scoring job is now shown in StatusBar above */}
-
-        {isLoading ? (
-          <DashboardSkeleton />
-        ) : showEmptyState ? (
-          <WelcomeEmptyState />
-        ) : (
-          <>
-
-            {/* Signal-to-Campaign Action Cards */}
-            <SignalActionCards
-              onLaunchCampaign={(ctx) => {
-                setSignalCampaignContext({
-                  suggestedCampaignName: ctx.suggestedName,
-                  targetAccountIds: ctx.accountExternalIds,
-                  signalType: ctx.signalType,
-                  signalIds: ctx.signalIds,
-                });
-                setSignalCampaignOpen(true);
-              }}
-            />
-
-            {/* Fuel Line Performance */}
-            <FuelLineAnalytics />
-
-            {/* Campaign Automation Rules */}
-            <CampaignAutomationManager />
-
-            <GrowthCommandKPIs
-              totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-              totalScored={sourceFilter === 'database' ? databaseScoredAccounts : sourceFilter === 'crm' ? crmScoredAccounts : totalScores}
-              medFitAccounts={sourceFilter === 'database' ? medFitDatabaseAccounts : sourceFilter === 'crm' ? medFitCrmAccounts : medFitAccounts}
-              dataCompleteness={dataCompleteness}
-              highFitAccounts={sourceFilter === 'database' ? highFitDatabaseAccounts : sourceFilter === 'crm' ? highFitCrmAccounts : highFitAccounts}
-              campaignReadyAccounts={campaignReadyAccounts}
-              pipelinePotential={campaignReadyAccounts * averageDealSize * 0.25}
-              revenueAtRisk={
-                totalAccounts > 0
-                  ? Math.round((totalAccounts - totalScores) * averageDealSize * conversionRate)
-                  : 0
-              }
-              averageDealSize={averageDealSize}
-            />
-
-            {/* Central ICP Coverage Panel - Source-filtered */}
-            <ICPCoveragePanel
-              highFitAccounts={sourceFilter === 'database' ? highFitDatabaseAccounts : sourceFilter === 'crm' ? highFitCrmAccounts : highFitAccounts}
-              medFitAccounts={sourceFilter === 'database' ? medFitDatabaseAccounts : sourceFilter === 'crm' ? medFitCrmAccounts : medFitAccounts}
-              lowFitAccounts={sourceFilter === 'database' ? lowFitDatabaseAccounts : sourceFilter === 'crm' ? lowFitCrmAccounts : lowFitAccounts}
-              totalScored={sourceFilter === 'database' ? databaseScoredAccounts : sourceFilter === 'crm' ? crmScoredAccounts : totalScores}
-              highFitLeads={sourceFilter === 'database' ? highFitDatabaseLeads : sourceFilter === 'crm' ? highFitCrmLeads : highFitLeads}
-              medFitLeads={sourceFilter === 'database' ? medFitDatabaseLeads : sourceFilter === 'crm' ? medFitCrmLeads : medFitLeads}
-              lowFitLeads={sourceFilter === 'database' ? lowFitDatabaseLeads : sourceFilter === 'crm' ? lowFitCrmLeads : lowFitLeads}
-              totalLeads={sourceFilter === 'database' ? databaseLeads : sourceFilter === 'crm' ? crmLeads : totalLeads}
-            />
-
-            {/* ICP Profile Summary */}
-            <ICPProfileSummaryCard icpProfiles={icpProfiles} />
-
-            {/* Main Content Grid - 3 columns for visual balance */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left Column - ICP Coverage Table */}
-              <SimpleICPTable
-                crmAccounts={crmAccounts}
-                databaseAccounts={databaseAccounts}
-                highFitCrmAccounts={highFitCrmAccounts}
-                highFitDatabaseAccounts={highFitDatabaseAccounts}
-                medFitCrmAccounts={medFitCrmAccounts}
-                medFitDatabaseAccounts={medFitDatabaseAccounts}
-                apolloAccounts={tamData?.totalAccounts}
-                apolloHighFitEstimate={
-                  tamData?.totalAccounts && tamData?.industry_breakdown
-                    ? Math.round(tamData.totalAccounts * 0.35)
-                    : undefined
-                }
-                apolloMedFitEstimate={
-                  tamData?.totalAccounts && tamData?.industry_breakdown
-                    ? Math.round(tamData.totalAccounts * 0.25)
-                    : undefined
-                }
-              />
-              
-              {/* Center Column - TAM/SAM/SOM Card */}
-              <CollapsibleDashboardCard title="Market Sizing" icon={<Globe className="h-4 w-4 text-primary" />} defaultOpen>
-                <SimpleTAMCard
-                  totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}
-                  highFitAccounts={sourceFilter === 'database' ? highFitDatabaseAccounts : sourceFilter === 'crm' ? highFitCrmAccounts : highFitAccounts}
-                  medFitAccounts={sourceFilter === 'database' ? medFitDatabaseAccounts : sourceFilter === 'crm' ? medFitCrmAccounts : medFitAccounts}
-                  campaignReadyAccounts={campaignReadyAccounts}
-                  averageDealSize={averageDealSize}
-                  conversionRate={conversionRate}
-                  onSettingsChange={({ averageDealSize: ds, conversionRate: cr }) => {
-                    updateSettings({ average_deal_size: ds, conversion_rate: cr });
-                  }}
-                />
-              </CollapsibleDashboardCard>
-              
-              {/* Right Column - Geography Card */}
-              <CollapsibleDashboardCard title="Top Geographies" icon={<MapPin className="h-4 w-4 text-primary" />} defaultOpen>
-                <SimpleGeographyCard
-                  geoData={
-                    sourceFilter === 'database' && tamData?.geography_breakdown
-                      ? Object.entries(tamData.geography_breakdown as Record<string, { accounts?: number }>).map(([country, data]) => ({
-                          country,
-                          count: typeof data === 'object' ? (data.accounts || 0) : (typeof data === 'number' ? data : 0),
-                        })).sort((a, b) => b.count - a.count)
-                      : geographyDistribution.map(g => ({ country: g.country, count: g.count }))
-                  }
-                />
-              </CollapsibleDashboardCard>
-            </div>
-
-            {/* Data Health & AI Insights - 2 column layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Data Health Widget */}
-              <CollapsibleDashboardCard title="Data Health" icon={<Activity className="h-4 w-4 text-primary" />} defaultOpen>
-                <DataHealthWidget />
-              </CollapsibleDashboardCard>
-              
-              {/* AI Insights - 2 columns */}
-              <div className="lg:col-span-2">
-                <UnifiedInsightsPanel
-                  risks={risks}
-                  insights={insights || []}
-                  orgId={effectiveOrgId}
-                  onRefresh={handleRefreshInsights}
-                  campaignReadyCount={campaignReadyAccounts}
-                  completenessScore={dataCompleteness}
-                  totalScored={totalScores}
-                />
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Quick Enrichment Modal */}
-        <EnrichmentModal open={isEnrichmentModalOpen} onOpenChange={setIsEnrichmentModalOpen} />
-        
-        {/* Sync Progress Modal */}
-        <SyncProgressModal
-          open={syncProgressOpen}
-          onOpenChange={setSyncProgressOpen}
-          provider="Apollo"
-          status={syncStatus}
-          breakdown={syncBreakdown}
-        />
-        {/* Signal Campaign Builder */}
-        <CampaignBuilderV2
-          isOpen={signalCampaignOpen}
-          onClose={() => {
-            setSignalCampaignOpen(false);
-            setSignalCampaignContext(undefined);
-          }}
-          source="executive-dashboard"
-          insightContext={signalCampaignContext}
-        />
-        
-      </div>
+      <EnrichmentModal open={isEnrichmentModalOpen} onOpenChange={setIsEnrichmentModalOpen} />
+      <SyncProgressModal open={syncProgressOpen} onOpenChange={setSyncProgressOpen} provider="Apollo" status={syncStatus} breakdown={syncBreakdown} />
+      <CampaignBuilderV2
+        isOpen={signalCampaignOpen}
+        onClose={() => { setSignalCampaignOpen(false); setSignalCampaignContext(undefined); }}
+        source="executive-dashboard"
+        insightContext={signalCampaignContext}
+      />
+    </div>
   );
 }
