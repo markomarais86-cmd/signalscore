@@ -90,7 +90,7 @@ export default function ExecutiveDashboard() {
   const [apolloStale, setApolloStale] = useState(false);
   const [syncingApolloFromAlert, setSyncingApolloFromAlert] = useState(false);
   const [selectedAgentRunId, setSelectedAgentRunId] = useState<string | null>(null);
-  const { generateReport, isGenerating } = useBrandedReport();
+  
   const [signalCampaignOpen, setSignalCampaignOpen] = useState(false);
   const [signalCampaignContext, setSignalCampaignContext] = useState<any>(undefined);
   
