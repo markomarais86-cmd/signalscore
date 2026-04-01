@@ -107,7 +107,7 @@ export function SignalActionCards({ onLaunchCampaign, className }: SignalActionC
                     signalType: type,
                     signalIds: typeSignals.map((s) => s.id),
                     accountExternalIds: [...new Set(typeSignals.map((s) => s.account_external_id))],
-                    suggestedName: `${SIGNAL_LABELS[type] || type} Campaign`,
+                    suggestedName: `${humanizeSignalType(type)} Campaign`,
                   })
                 }
                 className="flex flex-col items-start gap-2 p-4 rounded-lg border bg-card hover:bg-accent/50 hover:border-primary/40 transition-all text-left group"
