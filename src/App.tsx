@@ -20,6 +20,7 @@ import { useRoles } from "./hooks/use-roles";
 import { usePageTracking } from "./hooks/usePageTracking";
 import { logger } from "./lib/logger";
 import { RoleAwareLayout } from "./components/RoleAwareLayout";
+import { FeatureFlaggedRoute } from "./components/FeatureFlaggedRoute";
 
 // Lazy-loaded page components for code splitting
 const ExecutiveDashboard = lazy(() => import("./pages/ExecutiveDashboard"));
@@ -242,12 +243,15 @@ function AppContent() {
                 </ProtectedRoute>
               }
             />
+            {/* PE/VC Portfolio routes - feature flagged */}
             <Route
               path="/portfolio"
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <PortfolioCommandCenter />
+                    <FeatureFlaggedRoute flag="portfolio_management">
+                      <PortfolioCommandCenter />
+                    </FeatureFlaggedRoute>
                   </Layout>
                 </ProtectedRoute>
               }
@@ -257,7 +261,9 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <ValueCreationPlan />
+                    <FeatureFlaggedRoute flag="portfolio_management">
+                      <ValueCreationPlan />
+                    </FeatureFlaggedRoute>
                   </Layout>
                 </ProtectedRoute>
               }
@@ -267,7 +273,9 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <DueDiligence />
+                    <FeatureFlaggedRoute flag="portfolio_management">
+                      <DueDiligence />
+                    </FeatureFlaggedRoute>
                   </Layout>
                 </ProtectedRoute>
               }
@@ -282,16 +290,7 @@ function AppContent() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/pipeline-analytics"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <PipelineAnalyticsPage />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/pipeline-analytics" element={<Navigate to="/pipeline-efficiency" replace />} />
             <Route
               path="/ai-feedback"
               element={
@@ -362,16 +361,7 @@ function AppContent() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/quick-enrich"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <QuickEnrich />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/quick-enrich" element={<Navigate to="/enrichment" replace />} />
             <Route
               path="/list-builder"
               element={
@@ -382,16 +372,7 @@ function AppContent() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/api-access"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <APIAccess />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/api-access" element={<Navigate to="/settings?tab=api" replace />} />
 
             {/* Shared routes (role-aware) */}
             <Route

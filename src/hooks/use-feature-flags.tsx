@@ -17,6 +17,7 @@ interface FeatureFlags {
   trend_analysis: boolean;
   data_enrichment: boolean;
   sales: boolean;
+  portfolio_management: boolean;
 }
 
 interface FeatureFlagsContextType {
@@ -49,6 +50,8 @@ const defaultFlags: FeatureFlags = {
   trend_analysis: false,
   // Sales
   sales: true,
+  // PE/VC Portfolio Management
+  portfolio_management: false,
 };
 
 export function FeatureFlagsProvider({ children }: { children: ReactNode }) {

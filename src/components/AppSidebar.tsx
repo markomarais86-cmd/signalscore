@@ -257,10 +257,7 @@ export function AppSidebar() {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
-                    <NavLink
-                      to="/admin"
-                      className={getNavCls("/admin")}
-                    >
+                    <NavLink to="/admin" className={getNavCls("/admin")}>
                       <Shield className="h-4 w-4" />
                       <span>Admin</span>
                       <Badge variant="destructive" className="ml-auto text-xs">Super</Badge>
@@ -269,10 +266,25 @@ export function AppSidebar() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
-                    <NavLink
-                      to="/portfolio"
-                      className={getNavCls("/portfolio")}
-                    >
+                    <NavLink to="/admin/customer-onboarding" className={getNavCls("/admin/customer-onboarding")}>
+                      <UserPlus className="h-4 w-4" />
+                      <span>Customer Onboarding</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* PE/VC Portfolio - Feature flagged */}
+        {flags.portfolio_management && isSuperAdmin && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <NavLink to="/portfolio" className={getNavCls("/portfolio")}>
                       <Building2 className="h-4 w-4" />
                       <span>Portfolio</span>
                       <Badge variant="secondary" className="ml-auto text-xs">PE/VC</Badge>
@@ -281,10 +293,7 @@ export function AppSidebar() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
-                    <NavLink
-                      to="/value-creation"
-                      className={getNavCls("/value-creation")}
-                    >
+                    <NavLink to="/value-creation" className={getNavCls("/value-creation")}>
                       <CalendarCheck className="h-4 w-4" />
                       <span>100-Day Plan</span>
                     </NavLink>
@@ -292,23 +301,9 @@ export function AppSidebar() {
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild>
-                    <NavLink
-                      to="/due-diligence"
-                      className={getNavCls("/due-diligence")}
-                    >
+                    <NavLink to="/due-diligence" className={getNavCls("/due-diligence")}>
                       <FileSearch className="h-4 w-4" />
                       <span>Due Diligence</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to="/admin/customer-onboarding"
-                      className={getNavCls("/admin/customer-onboarding")}
-                    >
-                      <UserPlus className="h-4 w-4" />
-                      <span>Customer Onboarding</span>
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
