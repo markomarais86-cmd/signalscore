@@ -25,8 +25,16 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-unused-vars": "off",
       "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-empty-object-type": "off",
+      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/ban-ts-comment": "off",
       "no-case-declarations": "off",
       "no-useless-escape": "warn",
+      "no-empty": "warn",
+      "no-var": "warn",
+      "no-control-regex": "warn",
+      "no-constant-binary-expression": "warn",
+      "prefer-const": "warn",
     },
   }
 );
