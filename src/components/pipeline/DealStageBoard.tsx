@@ -31,6 +31,34 @@ export function DealStageBoard() {
     );
   }
 
+  if (deals.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Deal Pipeline</h2>
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus className="h-4 w-4 mr-1" /> New Deal
+          </Button>
+        </div>
+        <Card className="border-dashed border-2 border-muted-foreground/20">
+          <CardContent className="py-10 text-center space-y-3">
+            <DollarSign className="h-10 w-10 text-muted-foreground mx-auto" />
+            <div>
+              <h3 className="font-semibold text-lg">No deals yet</h3>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                Create your first deal to start tracking pipeline stages and revenue attribution.
+              </p>
+            </div>
+            <Button onClick={() => setShowCreate(true)}>
+              <Plus className="h-4 w-4 mr-2" /> Create First Deal
+            </Button>
+          </CardContent>
+        </Card>
+        <CreateDealDialog open={showCreate} onClose={() => setShowCreate(false)} />
+      </div>
+    );
+  }
+
   return (
     <>
       <div className="flex items-center justify-between mb-4">

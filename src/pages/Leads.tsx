@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { WelcomeEmptyState } from "@/components/onboarding/WelcomeEmptyState";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1097,12 +1098,14 @@ export default function Leads() {
           />
 
           {leads.length === 0 && !isLoading && (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">
-                {searchTerm || statusFilter !== "all" 
-                  ? "No leads match your current filters" 
-                  : "No leads found. Upload some data to get started."}
-              </p>
+            <div className="py-6">
+              {searchTerm || statusFilter !== "all" ? (
+                <div className="text-center py-12">
+                  <p className="text-muted-foreground">No leads match your current filters</p>
+                </div>
+              ) : (
+                <WelcomeEmptyState highlightStep="upload_data" compact />
+              )}
             </div>
           )}
         </CardContent>
