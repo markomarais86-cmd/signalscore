@@ -106,7 +106,7 @@ async function processAccounts(
   console.log("[BulkEmbeddings] Processing accounts...");
 
   // Get accounts that need embeddings
-  let query = supabase
+  const query = supabase
     .from("accounts")
     .select("external_id, name, domain, industry_norm, employee_count, revenue_range, city, state_province, country, business_model, tech_stack")
     .eq("org_id", org_id)
@@ -196,7 +196,7 @@ async function processLeads(
 ): Promise<{ processed: number; success: number; failed: number }> {
   console.log("[BulkEmbeddings] Processing leads...");
 
-  let query = supabase
+  const query = supabase
     .from("Leads")
     .select("id, first_name, last_name, name, title, company, location_city, location_region, seniority_level, department")
     .eq("org_id", org_id)

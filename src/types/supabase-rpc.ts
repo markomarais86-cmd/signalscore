@@ -143,7 +143,7 @@ export async function callCustomRpc<T = unknown>(
   name: string,
   params: Record<string, unknown> = {}
 ): Promise<{ data: T | null; error: any }> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const { data, error } = await (supabase.rpc as any)(name, params);
   return { data: data as T | null, error };
 }

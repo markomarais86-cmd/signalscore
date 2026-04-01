@@ -48,7 +48,7 @@ export function useOrgSettings() {
       const merged = { ...current, ...updates };
 
       // org_settings is a JSONB column not in generated Update type; bypass via spread
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       const updateValue = { org_settings: merged } as any;
       const { error } = await supabase
         .from('organizations')

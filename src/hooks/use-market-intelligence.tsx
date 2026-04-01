@@ -225,7 +225,7 @@ export function useMarketIntelligence(options: UseMarketIntelligenceOptions = {}
       const scoreMap = new Map(scoresResult.map(s => [s.account_external_id, s]));
       
       // Filter accounts by score range
-      let filteredAccounts = accountsResult.filter(acc => {
+      const filteredAccounts = accountsResult.filter(acc => {
         const score = scoreMap.get(acc.external_id);
         const overallScore = score?.overall || 0;
         return overallScore >= fitScoreMin && overallScore <= fitScoreMax;

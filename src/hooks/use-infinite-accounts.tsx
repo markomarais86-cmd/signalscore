@@ -217,8 +217,8 @@ export function useInfiniteAccounts(options: UseInfiniteAccountsOptions) {
         }
 
         // Collect account IDs from various filters
-        let fitFilterAccountIds: string[] | null = null;
-        let campaignReadyAccountIds: string[] | null = null;
+        const fitFilterAccountIds: string[] | null = null;
+        const campaignReadyAccountIds: string[] | null = null;
 
         // Determine fit score range
         let fitMin: number | null = null;

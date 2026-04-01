@@ -762,7 +762,7 @@ async function getFields(supabase: any, orgId: string, body: any) {
       throw new Error('No credentials found');
     }
 
-    let fields = {
+    const fields = {
       accounts: [],
       contacts: [],
       leads: []

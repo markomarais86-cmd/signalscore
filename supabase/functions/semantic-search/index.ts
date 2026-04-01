@@ -161,7 +161,7 @@ async function enrichSearchResults(
   const enriched = [];
 
   for (const result of results) {
-    let enrichedData = { ...result };
+    const enrichedData = { ...result };
 
     if (result.source_type === "account") {
       const { data: account } = await supabase

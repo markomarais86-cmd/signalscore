@@ -108,7 +108,7 @@ export function SEOHead({
     // Update canonical URL
     const fullCanonicalUrl = `${baseUrl}${canonicalPath}`;
     
-    let canonicalLink = document.querySelector('link[rel="canonical"]');
+    const canonicalLink = document.querySelector('link[rel="canonical"]');
     if (canonicalLink) {
       canonicalLink.setAttribute("href", fullCanonicalUrl);
     }

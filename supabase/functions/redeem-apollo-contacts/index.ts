@@ -162,7 +162,7 @@ serve(async (req) => {
 
     // Step 3: Call Apollo People Search API
     // Build seniority filter based on persona_filters
-    let seniorityLevels: string[] = [];
+    const seniorityLevels: string[] = [];
     if (persona_filters && persona_filters.length > 0) {
       const seniorityMap: Record<string, string[]> = {
         'Technical Decision Maker': ['c_suite', 'vp', 'director'],
