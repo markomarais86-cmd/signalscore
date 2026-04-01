@@ -60,7 +60,7 @@ const Help = lazy(() => import("./pages/Help"));
 const Tasks = lazy(() => import("./pages/Tasks"));
 const CustomerOnboarding = lazy(() => import("./pages/admin/CustomerOnboarding"));
 const ListBuilder = lazy(() => import("./pages/ListBuilder"));
-const Presentations = lazy(() => import("./pages/Presentations"));
+// Presentations removed — was a stub
 
 const Opportunities = lazy(() => import("./pages/Opportunities"));
 const AIFeedbackPage = lazy(() => import("./pages/AIFeedbackPage"));
