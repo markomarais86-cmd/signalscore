@@ -4,7 +4,7 @@ import { useCursorPagination } from './use-cursor-pagination';
 import { useToast } from './use-toast';
 import { toastError } from '@/lib/friendly-errors';
 
-interface Lead {
+export interface Lead {
   id: number;
   external_id: string;
   name: string | null;
