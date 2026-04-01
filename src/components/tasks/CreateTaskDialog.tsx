@@ -104,7 +104,7 @@ export function CreateTaskDialog() {
                 <SelectItem value="unassigned">Unassigned</SelectItem>
                 {teamMembers?.filter(m => m.user_id !== user?.id).map((member) => (
                   <SelectItem key={member.user_id} value={member.user_id}>
-                    {member.display_name || member.email || member.user_id.slice(0, 8)}
+                    {member.full_name || member.user_id.slice(0, 8)}
                   </SelectItem>
                 ))}
               </SelectContent>
