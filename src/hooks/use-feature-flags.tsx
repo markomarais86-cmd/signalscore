@@ -17,6 +17,7 @@ interface FeatureFlags {
   trend_analysis: boolean;
   data_enrichment: boolean;
   sales: boolean;
+  portfolio_management: boolean;
 }
 
 interface FeatureFlagsContextType {
