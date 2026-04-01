@@ -24,13 +24,13 @@ export function CustomerLayout({ children }: CustomerLayoutProps) {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background" style={brandStyles}>
+        <div className="min-h-screen flex w-full bg-background" style={brandStyles} role="presentation">
         <CustomerSidebar />
-        <main className="flex-1 flex flex-col">
-          <header className="relative z-20 border-b bg-card/80 dark:bg-card/60 backdrop-blur-sm shadow-sm">
+        <main className="flex-1 flex flex-col" role="main" aria-label="Main content">
+          <header className="relative z-20 border-b bg-card/80 dark:bg-card/60 backdrop-blur-sm shadow-sm" role="banner">
             <div className="h-14 flex items-center justify-between px-6">
               <div className="flex items-center gap-4">
-                <SidebarTrigger />
+                <SidebarTrigger aria-label="Toggle sidebar navigation" />
               </div>
               <div className="flex items-center gap-2">
                 <NotificationCenter />
@@ -38,7 +38,7 @@ export function CustomerLayout({ children }: CustomerLayoutProps) {
               </div>
             </div>
           </header>
-          <div className="flex-1 p-2 sm:p-3 lg:p-4 overflow-auto space-y-4">
+          <div className="flex-1 p-2 sm:p-3 lg:p-4 overflow-auto space-y-4" id="main-content">
             {isManaged && <ManagedUpgradeBanner />}
             <FeatureErrorBoundary>
               {children}
