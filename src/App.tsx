@@ -243,12 +243,15 @@ function AppContent() {
                 </ProtectedRoute>
               }
             />
+            {/* PE/VC Portfolio routes - feature flagged */}
             <Route
               path="/portfolio"
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <PortfolioCommandCenter />
+                    <FeatureFlaggedRoute flag="portfolio_management">
+                      <PortfolioCommandCenter />
+                    </FeatureFlaggedRoute>
                   </Layout>
                 </ProtectedRoute>
               }
@@ -258,7 +261,9 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <ValueCreationPlan />
+                    <FeatureFlaggedRoute flag="portfolio_management">
+                      <ValueCreationPlan />
+                    </FeatureFlaggedRoute>
                   </Layout>
                 </ProtectedRoute>
               }
@@ -268,7 +273,9 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <DueDiligence />
+                    <FeatureFlaggedRoute flag="portfolio_management">
+                      <DueDiligence />
+                    </FeatureFlaggedRoute>
                   </Layout>
                 </ProtectedRoute>
               }
