@@ -27,10 +27,10 @@ export function CreateTaskDialog() {
     queryFn: async () => {
       if (!userProfile?.org_id) return [];
       const { data } = await supabase
-        .from("profiles")
-        .select("user_id, display_name, email")
+        .from("user_profiles")
+        .select("user_id, full_name, role")
         .eq("org_id", userProfile.org_id);
-      return data || [];
+      return (data || []) as { user_id: string; full_name: string | null; role: string }[];
     },
     enabled: !!userProfile?.org_id && open,
   });
