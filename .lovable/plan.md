@@ -1,170 +1,202 @@
 
-# LaunchPulse Fuel Line Engine — Implementation Plan
+# LaunchPulse / SignalScore — Master Plan
 
-## Context
+## Part A: Fuel Line Engine (COMPLETED)
+
+_Original implementation plan — all 5 phases shipped._
+
+### Context
 LaunchPulse operates a **Managed Demand Engine** — we run campaigns on behalf of customers.
-We're borrowing the "Fuel Line" concept (segmented data pipelines into campaigns) but adapting it to our managed model where **we** control the infrastructure and customers action the output.
+The "Fuel Line" concept (segmented data pipelines into campaigns) adapts to our managed model where **we** control the infrastructure and customers action the output.
 
-TPG doesn't have 28 databases — they repackage a handful of providers. We already have a strong enrichment waterfall (Apollo, PDL, Firecrawl, Perplexity, Hunter). The gap is in **how we route enriched data into campaigns**.
-
----
-
-## Current State
-
-### What we have
-- **CampaignBuilderV2**: 7-step wizard (Setup → Targeting → Sequence → Persona → DataSource → Preview → Export)
-- **3 sequence templates**: Enterprise, SMB, Partner
-- **Enrichment waterfall**: 8-stage pipeline across 6+ providers
-- **ICP scoring**: Automated fit scoring with bulk jobs
-- **Account signals**: Intent, tech changes, funding events tracked in `account_signals`
-- **Suppression**: Basic dedup via `apollo_redemption_log.redeemed_emails`
-
-### What's missing
-1. No concept of **Fuel Line type** — all campaigns use the same generic flow
-2. No **suppression list** management (global exclusions)
-3. No **signal-to-campaign routing** (signals exist but don't auto-trigger campaigns)
-4. No **fuel line performance tracking** (which data source/segment converts best)
-5. Sequence templates are hardcoded, not tied to fuel line type
+### Completed Phases
+1. **Phase 1** — Fuel Line Types in Campaign Builder ✅
+2. **Phase 2** — Suppression List Management ✅
+3. **Phase 3** — Signal-to-Campaign Routing ✅
+4. **Phase 4** — Fuel Line Performance Tracking ✅
+5. **Phase 5** — Automated Campaign Triggers ✅
 
 ---
 
-## Phase 1: Fuel Line Types in Campaign Builder (UI-only, no migration)
+## Part B: Full App Audit & Improvement Plan
 
-**Goal**: Let operators pick a fuel line type in Step 1 (Setup), which auto-configures targeting, persona, and sequence defaults.
+_Generated: 2026-04-01_
 
-### Fuel Line Definitions
-
-| Fuel Line | Description | Auto-config |
-|-----------|-------------|-------------|
-| **ABM** | Named accounts from signals/manual selection | Pre-selects signal-triggered accounts, Enterprise sequence |
-| **Technographic** | Accounts using specific tech stack | Filters by `tech_stack[]` column, SMB/Enterprise sequence based on size |
-| **Firmographic** | Industry + size + geography targeting | Uses existing segment filters, auto-sets employee/revenue ranges |
-| **Persona** | Job title + seniority + department first | Leads with persona filters, pulls matching accounts second |
-
-### Files to modify
-- `src/components/campaigns/constants/campaign-config.ts` — Add `FUEL_LINE_TYPES` config with defaults per type
-- `src/components/campaigns/hooks/useCampaignState.ts` — Add `fuelLineType` to state, auto-apply defaults on selection
-- `src/components/campaigns/steps/SetupStep.tsx` — Add fuel line selector cards before campaign name
-- `src/components/campaigns/steps/TargetingStep.tsx` — Conditionally show filters based on fuel line type
-
-### No database changes needed — fuel line type is stored in campaign `metadata` JSON on export.
+### Legend
+- ✅ **Real** — Live Supabase data, working CRUD, deployed edge functions
+- ⚠️ **Partial** — Has backend but incomplete features or missing edge functions
+- 🔴 **Stub/Static** — Hardcoded UI, no real data, or non-functional
+- 🟡 **Needs Improvement** — Works but won't meet customer expectations
 
 ---
 
-## Phase 2: Suppression List Management
+### PAGE-BY-PAGE AUDIT
 
-**Goal**: Global and per-campaign suppression lists to prevent contacting excluded domains/emails.
+#### 🟢 CORE PAGES — Production Ready
 
-### Database (migration)
-```sql
-CREATE TABLE suppression_lists (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id uuid REFERENCES organizations(id) NOT NULL,
-  name text NOT NULL,
-  list_type text NOT NULL DEFAULT 'domain', -- 'domain' | 'email' | 'company'
-  entries text[] NOT NULL DEFAULT '{}',
-  is_global boolean DEFAULT false,
-  created_by uuid,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
+| Page | Status | Data Source | Notes |
+|------|--------|-------------|-------|
+| **Executive Dashboard** (`/dashboard`) | ✅ Real | `useDashboardData` → Supabase RPC + queries | KPIs, ICP coverage, geography, data health. Solid. Source filter working. |
+| **ICP Manager** (`/icp-manager`) | ✅ Real | Supabase CRUD + `generate-icp-recommendations` + `bulk-score-accounts` | Full lifecycle: create, edit, score, sync Apollo. Best page in the app. |
+| **Accounts** (`/accounts`) | ✅ Real | Supabase queries + predictions hook | Filtering, sorting, enrichment status, ICP scoring. Strong. |
+| **Leads/Contacts** (`/leads`) | ✅ Real | Supabase queries + `match_leads_to_accounts_fast` RPC | Lead matching, filtering, data quality indicators. |
+| **Data Upload** (`/data-upload`) | ✅ Real | `bulk-upload` edge function, CSV parsing | Multi-step upload wizard, field mapping, chunked processing. |
+| **Enrichment** (`/enrichment`) | ✅ Real | `get_enrichment_page_stats` RPC + multiple enrich-* edge functions | Provider selection, cost estimation, waterfall enrichment. |
+| **Admin Dashboard** (`/admin`) | ✅ Real | Supabase auth + `get_users_with_emails` RPC | User management, org management, role assignment. |
+| **Settings** (`/settings`) | ✅ Real | Supabase CRUD | Multi-tab: profile, org, integrations, API keys, benchmarks. |
+| **Auth** (`/auth`) | ✅ Real | Supabase Auth | Login, signup, password reset. |
+| **AI Agents** (`/ai-agents`) | ✅ Real | Supabase queries + `run-agent` edge function | Agent CRUD, run history, real execution. |
 
-ALTER TABLE suppression_lists ENABLE ROW LEVEL SECURITY;
-```
+#### 🟡 FUNCTIONAL BUT NEEDS IMPROVEMENT
 
-### Files to create
-- `src/components/campaigns/SuppressionListManager.tsx` — CRUD UI for suppression lists
-- `src/components/campaigns/steps/PreviewStep.tsx` — Show suppression count in preview stats
+| Page | Status | Issue | Customer Impact |
+|------|--------|-------|-----------------|
+| **Customer Dashboard** (`/my-dashboard`) | ⚠️ Partial | Real data but very sparse — no charts, insights, or ICP visibility | Customers will feel shortchanged |
+| **Tasks** (`/tasks`) | ✅ Real | `lead_tasks` table. Basic list — no calendar, team assignments, reminders | Won't compete with CRM task managers |
+| **Opportunities** (`/opportunities`) | ✅ Real | `deals` table. Kanban + attribution | No forecasting or win/loss drilldown |
+| **Segmentation** (`/segmentation`) | ✅ Real | `segments` table. Create/delete works | JSON config instead of visual filter builder — poor UX |
+| **List Builder** (`/list-builder`) | ✅ Real | Supabase queries | Works but disconnected from campaigns |
+| **AI Feedback** (`/ai-feedback`) | ✅ Real | `ai_decision_feedback` table | Niche — only useful after AI enrichment |
 
-### Files to modify
-- `src/components/campaigns/hooks/useCampaignData.ts` — Filter out suppressed domains/emails from preview
-- `src/components/campaigns/steps/DataSourceStep.tsx` — Add suppression list selector
+#### 🟡 EDGE FUNCTION DEPENDENT
 
----
+| Page | Status | Edge Function | Risk |
+|------|--------|---------------|------|
+| **Pipeline Efficiency** (`/pipeline-efficiency`) | ⚠️ | `pipeline-metrics` ✅ exists | Works if data populated |
+| **Capital Efficiency** (`/capital-efficiency`) | ⚠️ | `capital-metrics` ✅ exists | Niche — most customers won't have investment data |
+| **Trends** (`/trends`) | ⚠️ | `trend-metrics` ✅ exists | Requires time-series data accumulation |
 
-## Phase 3: Signal-to-Campaign Routing
+#### 🔴 STUBS & NON-FUNCTIONAL
 
-**Goal**: When high-priority signals fire, auto-suggest or auto-create campaigns with the right fuel line pre-selected.
+| Page | Status | Issue |
+|------|--------|-------|
+| **Report Builder** (`/reports`) | 🔴 Stub | Creates configs but generates nothing. No PDF/Excel output. |
+| **Presentations** (`/presentations`) | 🔴 Stub | 33 lines. No real data integration. |
+| **Customer Upgrade** (`/upgrade`) | 🔴 Static | Static pricing cards, no Stripe. "Upgrade" does nothing. |
+| **Help** (`/help`) | 🟡 Static | 643 lines hardcoded FAQ. No search, tickets, or live chat. |
 
-### How it works
-1. `account_signals` table already tracks: intent signals, tech stack changes, funding events
-2. New component watches for unactioned high-priority signals
-3. One-click "Create Campaign" from signal → opens CampaignBuilderV2 with:
-   - Fuel line auto-selected based on signal type
-   - Accounts pre-loaded from signal
-   - Sequence template pre-selected
+#### 🔵 FEATURE-FLAGGED (PE/VC)
 
-### Signal → Fuel Line mapping
-| Signal Type | Fuel Line | Sequence |
-|-------------|-----------|----------|
-| `intent` | ABM | Enterprise |
-| `tech_change` | Technographic | Enterprise |
-| `funding` | ABM | Enterprise |
-| `expansion` | Firmographic | Enterprise |
-| `new_hire` | Persona | SMB |
+| Page | Flag | Status |
+|------|------|--------|
+| **Portfolio Command Center** (`/portfolio`) | `portfolio_management` | ⚠️ Partial |
+| **Value Creation Plan** (`/value-creation`) | `portfolio_management` | 🔴 Stub |
+| **Due Diligence** (`/due-diligence`) | `portfolio_management` | 🔴 Stub |
 
-### Files to create
-- `src/components/campaigns/SignalCampaignRouter.tsx` — Maps signals to campaign configs
-- `src/components/dashboard/SignalActionCards.tsx` — Dashboard cards with "Launch Campaign" CTA
+#### 🟢 MARKETING PAGES — Working
 
-### Files to modify
-- `src/components/campaigns/CampaignBuilderV2.tsx` — Accept `signalContext` prop alongside `insightContext`
+Landing, About, Product, Pricing, Contact, Demo, Legal pages (terms, privacy, DPA, security, subprocessors) — all complete.
 
 ---
 
-## Phase 4: Fuel Line Performance Tracking
+### WHAT CUSTOMERS WILL LOVE ✅
 
-**Goal**: Track which fuel line type produces the best results so operators can optimize allocation.
+1. **ICP Manager** — Define ideal customer profile, auto-score, Apollo sync
+2. **Executive Dashboard** — Real KPIs, source filtering, data health
+3. **Enrichment Engine** — Multi-provider waterfall, cost tracking, 151 edge functions
+4. **Data Upload** — CSV upload with intelligent field mapping
+5. **AI Agents** — Configurable automation with real execution logs
+6. **Account Scoring** — Propensity scores, fit/intent/reachability breakdown
 
-### Database (migration)
-```sql
-ALTER TABLE campaigns ADD COLUMN fuel_line_type text;
-ALTER TABLE campaigns ADD COLUMN signal_source_id uuid REFERENCES account_signals(id);
-```
+### WHAT CUSTOMERS WON'T LIKE ❌
 
-### New dashboard widget
-- Conversion rate by fuel line type
-- Cost per qualified lead by fuel line
-- Time-to-meeting by fuel line
-- Uses existing `campaigns` + `campaign_snapshots` data
+1. **Customer Dashboard is bare** — Standard users get almost nothing useful
+2. **Report Builder is fake** — Creates "configs" but generates nothing
+3. **Upgrade page does nothing** — No payment integration
+4. **Segmentation UX is poor** — JSON config instead of visual filter builder
+5. **No email/notification system** — Alerts exist in DB but no delivery mechanism
+6. **Help is a static FAQ** — No search, no tickets, no live chat
+7. **Tasks lack depth** — No assignments, no calendar view, no reminders
+8. **Presentations is a stub** — Barely functional
 
-### Files to create
-- `src/components/campaigns/FuelLineAnalytics.tsx` — Performance dashboard
-- `src/hooks/use-fuel-line-metrics.ts` — Data fetching hook
+### BEST PRACTICES ASSESSMENT
 
----
-
-## Implementation Order
-
-1. **Phase 1** (UI only, no migration) — ✅ Complete
-2. **Phase 2** (migration + UI) — ✅ Complete
-3. **Phase 3** (routing logic) — ✅ Complete
-4. **Phase 4** (analytics) — ✅ Complete
-5. **Phase 5** (automated triggers) — ✅ Complete
-
-Each phase is independently shippable. Phase 1 has zero backend risk.
-
----
-
-## Phase 5: Automated Campaign Triggers
-
-**Goal**: Auto-create campaigns when signals meet configurable thresholds — no manual intervention needed.
-
-### Database
-- `campaign_automation_rules` — configurable rules with signal type, fuel line, thresholds, cooldown
-- `campaign_automation_log` — audit trail of every auto-triggered campaign
-
-### Edge Function
-- `evaluate-automation-triggers` — checks all enabled rules against unactioned signals, creates campaigns when thresholds are met, marks signals as actioned
-
-### UI
-- `CampaignAutomationManager` — create/edit/toggle rules, view recent trigger log
-- Integrated into Executive Dashboard below Fuel Line Analytics
+| Area | Status | Gap |
+|------|--------|-----|
+| Role-based access | ✅ | — |
+| Auth security | ✅ | — |
+| Code splitting | ✅ | — |
+| Error boundaries | ✅ | — |
+| Feature flags | ✅ | — |
+| Dark mode | ✅ | — |
+| Data export | ✅ | — |
+| Audit logging | ✅ | — |
+| Onboarding wizard | ✅ | — |
+| Empty states | ✅ | — |
+| SEO | ⚠️ | Marketing pages need meta tags, JSON-LD |
+| Analytics/tracking | ⚠️ | `usePageTracking` exists but no GA/Segment |
+| Billing/payments | 🔴 | No Stripe, no usage metering |
+| Email transactional | 🔴 | Auth emails only, no general notifications |
+| Mobile responsive | 🟡 | Complex tables break on mobile |
 
 ---
 
-## What this is NOT
-- We are NOT adding 28 fake data sources
-- We are NOT rebranding existing providers as separate databases
-- We ARE making our existing enrichment waterfall smarter about HOW data flows into campaigns
-- We ARE giving operators control over campaign segmentation strategy
+### PHASED IMPROVEMENT PLAN
+
+#### Phase 1: Quick Wins & Credibility (1-2 weeks)
+_Remove anything that makes the product look unfinished_
+
+- [ ] Delete or hide Report Builder — replace with "Coming Soon" or remove from nav
+- [ ] Delete or hide Presentations stub
+- [ ] Fix Customer Upgrade — integrate Stripe or replace with "Contact Sales" CTA
+- [ ] Remove Capital Efficiency from default nav — add as feature flag
+- [ ] Improve Segmentation UX — visual filter dropdowns instead of JSON
+- [ ] Clean up dead files: `Discovery.tsx`, `PipelineAnalyticsPage.tsx`, `QuickEnrich.tsx`
+
+#### Phase 2: Customer Dashboard Overhaul (2-3 weeks)
+_Make standard users want to log in_
+
+- [ ] Add KPI cards — ICP fit score, enrichment status, recent activity
+- [ ] Add account score distribution chart
+- [ ] Add recent signals/alerts feed
+- [ ] Add quick actions — "View top accounts", "See overdue tasks", "Export data"
+- [ ] Add welcome/getting-started checklist
+- [ ] Show ICP qualification breakdown
+
+#### Phase 3: Revenue & Billing (3-4 weeks)
+_Enable self-service monetization_
+
+- [ ] Integrate Stripe for subscriptions
+- [ ] Add usage metering — enrichment credits, API calls, seats
+- [ ] Build proper Upgrade flow — tier selection → checkout → confirmation
+- [ ] Add billing history in Settings
+- [ ] Implement credit-based enrichment limits
+
+#### Phase 4: Communication & Notifications (2-3 weeks)
+_Keep users engaged and informed_
+
+- [ ] Email notifications — enrichment/scoring complete, weekly digest
+- [ ] In-app notification center with unread count
+- [ ] Slack/webhook alerts — wire up `send-alert` edge function
+- [ ] Task due date reminders
+
+#### Phase 5: Advanced Features (4-6 weeks)
+_Competitive differentiation_
+
+- [ ] Report Builder v2 — actual PDF/Excel generation with templates
+- [ ] Visual Segment Builder — drag-and-drop filter rules
+- [ ] Calendar view for Tasks
+- [ ] Deal forecasting in Opportunities
+- [ ] Win/Loss analysis drilldown
+- [ ] Interactive Help Center — search, videos, ticket submission
+
+#### Phase 6: Scale & Polish (Ongoing)
+_Enterprise readiness_
+
+- [ ] SSO/SAML authentication
+- [ ] Audit log viewer in admin panel
+- [ ] API rate limiting dashboard
+- [ ] Mobile-responsive table redesign
+- [ ] Performance monitoring with Sentry custom transactions
+- [ ] i18n framework
+- [ ] WCAG 2.1 AA accessibility audit
+
+---
+
+### INFRASTRUCTURE NOTES
+
+- **151 edge functions** deployed
+- **xlsx dependency** removed from npm, loaded via CDN
+- **PE/VC pages** gated behind `portfolio_management` feature flag
+- **Active redirects**: `/quick-enrich` → `/enrichment`, `/api-access` → `/settings?tab=api`, `/pipeline-analytics` → `/pipeline-efficiency`
+- **Dead files to clean**: `Discovery.tsx`, `PipelineAnalyticsPage.tsx`, `QuickEnrich.tsx`
