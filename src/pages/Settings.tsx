@@ -735,6 +735,15 @@ export default function Settings() {
             <ExportHistory />
           </Suspense>
         </TabsContent>
+
+        {/* API Usage Dashboard - Admin Only */}
+        {isAdmin && (
+          <TabsContent value="api-dashboard" className="space-y-6">
+            <Suspense fallback={<SettingsSkeleton />}>
+              <APIRateLimitDashboard />
+            </Suspense>
+          </TabsContent>
+        )}
       </Tabs>
 
     </div>
