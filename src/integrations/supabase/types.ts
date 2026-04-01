@@ -7264,6 +7264,44 @@ export type Database = {
           },
         ]
       }
+      rescore_queue: {
+        Row: {
+          account_external_id: string
+          changed_fields: string[] | null
+          id: string
+          org_id: string
+          processed_at: string | null
+          queued_at: string
+          reason: string
+        }
+        Insert: {
+          account_external_id: string
+          changed_fields?: string[] | null
+          id?: string
+          org_id: string
+          processed_at?: string | null
+          queued_at?: string
+          reason?: string
+        }
+        Update: {
+          account_external_id?: string
+          changed_fields?: string[] | null
+          id?: string
+          org_id?: string
+          processed_at?: string | null
+          queued_at?: string
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rescore_queue_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revenue_assumptions: {
         Row: {
           acv_source: string
