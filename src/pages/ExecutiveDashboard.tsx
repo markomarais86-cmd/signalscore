@@ -52,9 +52,7 @@ import { SignalFeed } from "@/components/executive/SignalFeed";
 import { SignalActionCards } from "@/components/dashboard/SignalActionCards";
 import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import { FuelLineAnalytics } from "@/components/campaigns/FuelLineAnalytics";
-import { useBrandedReport } from "@/hooks/use-branded-report";
 import { dashboardLogger } from "@/lib/logger";
-import { FileText } from "lucide-react";
 
 export default function ExecutiveDashboard() {
   const { userProfile, loading: authLoading } = useAuth();
@@ -92,7 +90,7 @@ export default function ExecutiveDashboard() {
   const [apolloStale, setApolloStale] = useState(false);
   const [syncingApolloFromAlert, setSyncingApolloFromAlert] = useState(false);
   const [selectedAgentRunId, setSelectedAgentRunId] = useState<string | null>(null);
-  const { generateReport, isGenerating } = useBrandedReport();
+  
   const [signalCampaignOpen, setSignalCampaignOpen] = useState(false);
   const [signalCampaignContext, setSignalCampaignContext] = useState<any>(undefined);
   
@@ -478,100 +476,59 @@ export default function ExecutiveDashboard() {
     <div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-6 lg:space-y-8 min-h-screen pb-8">
 
       {/* Header Section - Simplified */}
-      <div className="flex items-center justify-between flex-wrap gap-3 lg:gap-4">
-        <div>
-          <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">Growth Command Center</h1>
-          <p className="text-xs lg:text-sm text-muted-foreground mt-1">Real-time revenue intelligence across your total addressable market</p>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-semibold leading-tight truncate">Growth Command Center</h1>
+          <p className="text-xs text-muted-foreground mt-0.5 hidden sm:block">Real-time revenue intelligence across your TAM</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          
+
+        <div className="flex items-center gap-1.5 flex-wrap w-full sm:w-auto">
           <SourceFilterToggle
             value={sourceFilter}
             onChange={setSourceFilter}
-            stats={{
-              crm: filterStats?.crm || 0,
-              database: filterStats?.database || 0,
-            }}
+            stats={{ crm: filterStats?.crm || 0, database: filterStats?.database || 0 }}
           />
-          
-          {/* Primary Actions - Grouped */}
-          <div className="flex items-center gap-1.5">
-            {sourceFilter === 'database' && (
-              <Button 
-                variant="default" 
-                onClick={handleSyncApollo}
-                disabled={isSyncing}
-                size="sm"
-                className="bg-primary hover:shadow-md transition-shadow"
-              >
-                <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                {isSyncing ? 'Syncing...' : 'Sync Apollo'}
-              </Button>
-            )}
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                refetch();
-                toast.success('Refreshing dashboard data...');
-              }}
-              disabled={isLoading}
-              size="sm"
-              className="hover:shadow-sm transition-shadow"
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
+
+          {/* Data actions */}
+          {sourceFilter === 'database' && (
+            <Button variant="default" onClick={handleSyncApollo} disabled={isSyncing} size="sm">
+              <RefreshCw className={`h-4 w-4 mr-1.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span className="hidden md:inline">{isSyncing ? 'Syncing...' : 'Sync Apollo'}</span>
             </Button>
-          </div>
-          
-          {/* Secondary Actions */}
-          <div className="flex items-center gap-1.5">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={handleScoreAccounts}
-              disabled={!!activeScoringJob}
-              className="hover:shadow-sm transition-shadow active:scale-[0.98]"
-            >
-              <Target className="mr-2 h-4 w-4" />
-              {activeScoringJob ? 'Scoring...' : 'Score'}
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setIsEnrichmentModalOpen(true)}
-              className="hover:shadow-sm transition-shadow active:scale-[0.98]"
-            >
-              <LaunchPulseMark className="mr-2 h-4 w-4" />
-              Enrich
-            </Button>
-            <Button 
-              variant={showHealthDashboard ? "default" : "outline"} 
-              size="sm" 
-              onClick={() => setShowHealthDashboard(!showHealthDashboard)}
-              className="hover:shadow-sm transition-shadow active:scale-[0.98]"
-            >
-              <Activity className="mr-2 h-4 w-4" />
-              Health
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => generateReport()}
-              disabled={isGenerating}
-              className="hover:shadow-sm transition-shadow active:scale-[0.98]"
-              title="Generate Board Report PDF"
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              {isGenerating ? "Generating..." : "Board Report"}
-            </Button>
-            <ExportToPdf onExport={() => {}} />
-          </div>
-          
+          )}
+
+          <Button
+            variant="outline" size="sm"
+            onClick={() => { refetch(); toast.success('Refreshing...'); }}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={handleScoreAccounts} disabled={!!activeScoringJob}>
+            <Target className="h-4 w-4 mr-1.5" />
+            <span className="hidden lg:inline">{activeScoringJob ? 'Scoring...' : 'Score'}</span>
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={() => setIsEnrichmentModalOpen(true)}>
+            <LaunchPulseMark className="h-4 w-4 mr-1.5" />
+            <span className="hidden lg:inline">Enrich</span>
+          </Button>
+
+          <Button
+            variant={showHealthDashboard ? "default" : "outline"} size="sm"
+            onClick={() => setShowHealthDashboard(!showHealthDashboard)}
+          >
+            <Activity className="h-4 w-4" />
+          </Button>
+
+          <ExportToPdf onExport={() => {}} />
+
           {effectiveOrgId && (
             <PowerUpButton orgId={effectiveOrgId} onComplete={() => refetch()} />
           )}
-          
-          <QuickCampaignButton 
+
+          <QuickCampaignButton
             highFitAccounts={highFitAccounts}
             disabled={isLoading || highFitAccounts === 0}
           />
