@@ -52,16 +52,16 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const AIAgents = lazy(() => import("./pages/AIAgents"));
 const CustomerDashboard = lazy(() => import("./pages/CustomerDashboard"));
 const Enrichment = lazy(() => import("./pages/Enrichment"));
-const QuickEnrich = lazy(() => import("./pages/QuickEnrich"));
+
 const AgentTester = lazy(() => import("./pages/AgentTester"));
 const AITest = lazy(() => import("./pages/AITest"));
 const Help = lazy(() => import("./pages/Help"));
-const APIAccess = lazy(() => import("./pages/APIAccess"));
+
 const Tasks = lazy(() => import("./pages/Tasks"));
 const CustomerOnboarding = lazy(() => import("./pages/admin/CustomerOnboarding"));
 const ListBuilder = lazy(() => import("./pages/ListBuilder"));
 const Presentations = lazy(() => import("./pages/Presentations"));
-const PipelineAnalyticsPage = lazy(() => import("./pages/PipelineAnalyticsPage"));
+
 const Opportunities = lazy(() => import("./pages/Opportunities"));
 const AIFeedbackPage = lazy(() => import("./pages/AIFeedbackPage"));
 const BrandedLanding = lazy(() => import("./pages/BrandedLanding"));
