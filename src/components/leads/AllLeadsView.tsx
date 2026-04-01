@@ -28,7 +28,7 @@ interface AllLeadsViewProps {
   loadMore: () => void;
   refresh: () => void;
   retry: () => void;
-  lastError: string | null;
+  lastError: Error | null;
   searchTerm: string;
   setSearchTerm: (v: string) => void;
   statusFilter: string;
