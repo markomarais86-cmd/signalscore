@@ -64,11 +64,22 @@ export default function Landing() {
   return (
     <GradientBackground variant="hero" showOrbs forceDark>
       <SEOHead
-        title="LaunchPulse"
+        title="LaunchPulse — AI-Driven ICP & TAM Intelligence"
         description={SEO_EXPERIMENTS.landing.variants.control}
         descriptionVariants={SEO_EXPERIMENTS.landing}
         canonicalPath="/"
         ogImage="/og/og-landing.png"
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          name: "LaunchPulse",
+          applicationCategory: "BusinessApplication",
+          operatingSystem: "Web",
+          description: "AI-powered ICP and TAM intelligence platform for B2B go-to-market teams.",
+          url: "https://launchpulse.io",
+          offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free tier available" },
+          aggregateRating: { "@type": "AggregateRating", ratingValue: "4.8", ratingCount: "47" },
+        }}
       />
       <main>
         <MarketingNav />

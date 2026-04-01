@@ -13,6 +13,7 @@ interface SEOHeadProps {
   descriptionVariants?: DescriptionVariants;
   canonicalPath?: string;
   ogImage?: string;
+  jsonLd?: Record<string, unknown>;
 }
 
 /**
@@ -26,6 +27,7 @@ export function SEOHead({
   descriptionVariants,
   canonicalPath = "",
   ogImage = "/og/og-default.png",
+  jsonLd,
 }: SEOHeadProps) {
   // Construct absolute URL for OG image (required by social platforms)
   const baseUrl = "https://launchpulse.io";
@@ -122,7 +124,23 @@ export function SEOHead({
     if (twitterUrl) {
       twitterUrl.setAttribute("content", fullCanonicalUrl);
     }
-  }, [title, finalDescription, canonicalPath, ogImage, absoluteOgImage]);
+    // JSON-LD structured data
+    if (jsonLd) {
+      let script = document.getElementById('seo-jsonld') as HTMLScriptElement | null;
+      if (!script) {
+        script = document.createElement('script');
+        script.type = 'application/ld+json';
+        script.id = 'seo-jsonld';
+        document.head.appendChild(script);
+      }
+      script.textContent = JSON.stringify(jsonLd);
+    }
+
+    return () => {
+      const script = document.getElementById('seo-jsonld');
+      if (script) script.remove();
+    };
+  }, [title, finalDescription, canonicalPath, ogImage, absoluteOgImage, jsonLd]);
 
   return null;
 }

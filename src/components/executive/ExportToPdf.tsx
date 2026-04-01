@@ -1,10 +1,10 @@
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Presentation, Loader2, FileSpreadsheet } from "lucide-react";
+import { Download, FileText, Loader2, FileSpreadsheet } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
+  
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useBrandedReport } from "@/hooks/use-branded-report";
@@ -65,11 +65,6 @@ export function ExportToPdf({
         <DropdownMenuItem onClick={handleExcelExport} disabled={isBusy}>
           <FileSpreadsheet className="h-4 w-4 mr-2" />
           Full Data Export (Excel)
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate('/presentations')}>
-          <Presentation className="h-4 w-4 mr-2" />
-          Pitch Deck
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => onExport('csv')}>
           <Download className="h-4 w-4 mr-2" />
