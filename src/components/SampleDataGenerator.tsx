@@ -73,8 +73,8 @@ export function SampleDataGenerator() {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            This will create sample companies like TechCorp Solutions, DataFlow Industries, 
-            and others with realistic contact information and scoring data.
+            This will create 30 accounts across 6 industries and 10 countries, 25 contacts, 
+            30 scores, 10 leads, 8 deals, 5 intent signals, pipeline stages, and capital tracking data.
           </AlertDescription>
         </Alert>
 
