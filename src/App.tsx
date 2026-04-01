@@ -370,16 +370,7 @@ function AppContent() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/quick-enrich"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <QuickEnrich />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/quick-enrich" element={<Navigate to="/enrichment" replace />} />
             <Route
               path="/list-builder"
               element={
@@ -390,15 +381,7 @@ function AppContent() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/api-access"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <APIAccess />
-                  </Layout>
-                </ProtectedRoute>
-              }
+            <Route path="/api-access" element={<Navigate to="/settings?tab=api" replace />} />
             />
 
             {/* Shared routes (role-aware) */}
