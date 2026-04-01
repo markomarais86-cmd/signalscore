@@ -1,6 +1,16 @@
-import * as XLSX from 'xlsx';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+
+// Dynamically load SheetJS from CDN to avoid npm install issues
+let XLSX: any = null;
+
+async function loadXLSX() {
+  if (XLSX) return XLSX;
+  // @ts-ignore - dynamic CDN import
+  const module = await import('https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs');
+  XLSX = module;
+  return XLSX;
+}
 
 interface ExportOptions {
   orgId: string;
@@ -10,19 +20,17 @@ interface ExportOptions {
   includeScores?: boolean;
 }
 
-function applyHeaderStyle(ws: XLSX.WorkSheet, range: XLSX.Range) {
-  // xlsx community edition doesn't support cell styles natively,
-  // but we set column widths for readability
+function applyHeaderStyle(ws: any, range: any) {
   if (!range) return;
-  const cols: XLSX.ColInfo[] = [];
+  const cols: any[] = [];
   for (let c = range.s.c; c <= range.e.c; c++) {
     cols.push({ wch: 20 });
   }
   ws['!cols'] = cols;
 }
 
-function downloadWorkbook(wb: XLSX.WorkBook, filename: string) {
-  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+function downloadWorkbook(xlsx: any, wb: any, filename: string) {
+  const wbout = xlsx.write(wb, { bookType: 'xlsx', type: 'array' });
   const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -46,9 +54,9 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
   toast.info('Generating Excel report...');
 
   try {
-    const wb = XLSX.utils.book_new();
+    const xlsx = await loadXLSX();
+    const wb = xlsx.utils.book_new();
 
-    // Fetch data in parallel
     const promises: Promise<void>[] = [];
 
     // === Accounts Sheet ===
@@ -85,10 +93,10 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
             'Last Updated': a.updated_at ? new Date(a.updated_at).toLocaleDateString() : '',
           }));
 
-          const ws = XLSX.utils.json_to_sheet(rows);
-          const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+          const ws = xlsx.utils.json_to_sheet(rows);
+          const range = xlsx.utils.decode_range(ws['!ref'] || 'A1');
           applyHeaderStyle(ws, range);
-          XLSX.utils.book_append_sheet(wb, ws, 'Accounts');
+          xlsx.utils.book_append_sheet(wb, ws, 'Accounts');
         })()
       );
     }
@@ -123,10 +131,10 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
             'Data Source': c.data_source || '',
           }));
 
-          const ws = XLSX.utils.json_to_sheet(rows);
-          const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+          const ws = xlsx.utils.json_to_sheet(rows);
+          const range = xlsx.utils.decode_range(ws['!ref'] || 'A1');
           applyHeaderStyle(ws, range);
-          XLSX.utils.book_append_sheet(wb, ws, 'Contacts');
+          xlsx.utils.book_append_sheet(wb, ws, 'Contacts');
         })()
       );
     }
@@ -159,10 +167,10 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
             'Updated': d.updated_at ? new Date(d.updated_at).toLocaleDateString() : '',
           }));
 
-          const ws = XLSX.utils.json_to_sheet(rows);
-          const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+          const ws = xlsx.utils.json_to_sheet(rows);
+          const range = xlsx.utils.decode_range(ws['!ref'] || 'A1');
           applyHeaderStyle(ws, range);
-          XLSX.utils.book_append_sheet(wb, ws, 'Deals');
+          xlsx.utils.book_append_sheet(wb, ws, 'Deals');
         })()
       );
     }
@@ -192,10 +200,10 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
             'Version': s.scoring_version || '',
           }));
 
-          const ws = XLSX.utils.json_to_sheet(rows);
-          const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+          const ws = xlsx.utils.json_to_sheet(rows);
+          const range = xlsx.utils.decode_range(ws['!ref'] || 'A1');
           applyHeaderStyle(ws, range);
-          XLSX.utils.book_append_sheet(wb, ws, 'Scores');
+          xlsx.utils.book_append_sheet(wb, ws, 'Scores');
         })()
       );
     }
@@ -235,16 +243,14 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
           ['Total Scores', scoreCount || 0],
         ];
 
-        const ws = XLSX.utils.aoa_to_sheet(summaryData);
+        const ws = xlsx.utils.aoa_to_sheet(summaryData);
         ws['!cols'] = [{ wch: 25 }, { wch: 30 }];
-        // Insert Summary as first sheet
-        XLSX.utils.book_append_sheet(wb, ws, 'Summary');
+        xlsx.utils.book_append_sheet(wb, ws, 'Summary');
       })()
     );
 
     await Promise.all(promises);
 
-    // Reorder so Summary is first
     if (wb.SheetNames.includes('Summary')) {
       const idx = wb.SheetNames.indexOf('Summary');
       wb.SheetNames.splice(idx, 1);
@@ -252,7 +258,7 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
     }
 
     const dateStr = new Date().toISOString().split('T')[0];
-    downloadWorkbook(wb, `launchpulse-export-${dateStr}.xlsx`);
+    downloadWorkbook(xlsx, wb, `launchpulse-export-${dateStr}.xlsx`);
     toast.success('Excel report downloaded!');
   } catch (err: any) {
     console.error('Excel export error:', err);
