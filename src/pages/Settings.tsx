@@ -56,6 +56,7 @@ const ZapierIntegration = lazy(() => import("@/components/settings/ZapierIntegra
 const APIKeyManager = lazy(() => import("@/components/settings/APIKeyManager").then(m => ({ default: m.APIKeyManager })));
 const ExternalDataProviders = lazy(() => import("@/components/settings/ExternalDataProviders").then(m => ({ default: m.ExternalDataProviders })));
 const RateLimitSettings = lazy(() => import("@/components/settings/RateLimitSettings").then(m => ({ default: m.RateLimitSettings })));
+const APIRateLimitDashboard = lazy(() => import("@/components/settings/APIRateLimitDashboard").then(m => ({ default: m.APIRateLimitDashboard })));
 const AutomationSettings = lazy(() => import("@/components/settings/AutomationSettings").then(m => ({ default: m.AutomationSettings })));
 const ZapierWebhookManager = lazy(() => import("@/components/settings/ZapierWebhookManager").then(m => ({ default: m.ZapierWebhookManager })));
 const ClayIncomingWebhooks = lazy(() => import("@/components/settings/ClayIncomingWebhooks").then(m => ({ default: m.ClayIncomingWebhooks })));
@@ -298,6 +299,12 @@ export default function Settings() {
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">Exports</span>
           </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="api-dashboard" className="flex items-center gap-2 flex-shrink-0">
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden sm:inline">API Usage</span>
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Account Settings */}
@@ -728,6 +735,15 @@ export default function Settings() {
             <ExportHistory />
           </Suspense>
         </TabsContent>
+
+        {/* API Usage Dashboard - Admin Only */}
+        {isAdmin && (
+          <TabsContent value="api-dashboard" className="space-y-6">
+            <Suspense fallback={<SettingsSkeleton />}>
+              <APIRateLimitDashboard />
+            </Suspense>
+          </TabsContent>
+        )}
       </Tabs>
 
     </div>

@@ -27,13 +27,13 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
+        <div className="min-h-screen flex w-full bg-background" role="presentation">
         <AppSidebar />
-        <main className="flex-1 flex flex-col">
-          <header className="relative z-20 border-b bg-card/80 dark:bg-card/60 backdrop-blur-sm shadow-sm">
+        <main className="flex-1 flex flex-col" role="main" aria-label="Main content">
+          <header className="relative z-20 border-b bg-card/80 dark:bg-card/60 backdrop-blur-sm shadow-sm" role="banner">
             <div className="h-12 sm:h-14 flex items-center justify-between px-3 sm:px-6">
               <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-                <SidebarTrigger />
+                <SidebarTrigger aria-label="Toggle sidebar navigation" />
                 <span className="hidden sm:inline"><CommandPaletteTrigger /></span>
                 <OrgSwitcher />
               </div>
@@ -46,7 +46,7 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </header>
           <ImpersonationBanner />
-          <div className="flex-1 p-2 sm:p-3 lg:p-4 overflow-auto">
+          <div className="flex-1 p-2 sm:p-3 lg:p-4 overflow-auto" id="main-content">
             <FeatureErrorBoundary>
               {children}
             </FeatureErrorBoundary>
