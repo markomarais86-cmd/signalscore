@@ -32,12 +32,16 @@ function parseRevenueRange(range: string | null | undefined): number {
   
   const cleanRange = range.toLowerCase().replace(/[$,]/g, '');
   
-  if (cleanRange.includes('1b') || cleanRange.includes('billion')) return 1000000000;
-  if (cleanRange.includes('500m')) return 500000000;
-  if (cleanRange.includes('100m')) return 100000000;
-  if (cleanRange.includes('50m')) return 50000000;
-  if (cleanRange.includes('10m')) return 10000000;
-  if (cleanRange.includes('1m')) return 1000000;
+  // Extract the first number for range strings like "50m-100m"
+  const rangeMatch = cleanRange.match(/^(\d+)([mb])/);
+  if (rangeMatch) {
+    const num = parseInt(rangeMatch[1], 10);
+    const unit = rangeMatch[2];
+    if (unit === 'b') return num * 1000000000;
+    return num * 1000000;
+  }
+  
+  if (cleanRange.includes('billion')) return 1000000000;
   
   const match = cleanRange.match(/(\d+)/);
   return match ? parseInt(match[1], 10) * 1000000 : 0;
