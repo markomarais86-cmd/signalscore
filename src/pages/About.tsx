@@ -42,10 +42,18 @@ export default function About() {
   return (
     <GradientBackground variant="hero" showOrbs forceDark>
       <SEOHead
-        title="LaunchPulse | About"
+        title="About LaunchPulse — Evidence-Based GTM Intelligence"
         description="Built for RevOps and GTM leaders who are tired of targeting based on assumptions. LaunchPulse delivers evidence-based ICP clarity in days, not months."
         canonicalPath="/about"
         ogImage="/og/og-about.png"
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "LaunchPulse",
+          url: "https://launchpulse.io",
+          description: "AI-powered ICP and TAM intelligence for B2B go-to-market teams.",
+          contactPoint: { "@type": "ContactPoint", contactType: "sales", email: "sales@launchpulse.com" },
+        }}
       />
       <main>
         <MarketingNav />

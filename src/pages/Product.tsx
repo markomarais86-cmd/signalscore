@@ -117,11 +117,19 @@ export default function Product() {
   return (
     <GradientBackground variant="hero" showOrbs forceDark>
       <SEOHead
-        title="LaunchPulse | Product"
+        title="LaunchPulse Product — ICP Builder, TAM Generator & Enrichment"
         description={SEO_EXPERIMENTS.product.variants.control}
         descriptionVariants={SEO_EXPERIMENTS.product}
         canonicalPath="/product"
         ogImage="/og/og-product.png"
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "WebPage",
+          name: "LaunchPulse Product",
+          description: "AI-powered ICP Builder, TAM Generator, CRM Insight Layer, and multi-provider data enrichment.",
+          url: "https://launchpulse.io/product",
+          isPartOf: { "@type": "WebSite", name: "LaunchPulse", url: "https://launchpulse.io" },
+        }}
       />
       <main>
         <MarketingNav />
