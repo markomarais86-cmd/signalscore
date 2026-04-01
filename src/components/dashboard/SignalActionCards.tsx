@@ -32,7 +32,20 @@ const SIGNAL_LABELS: Record<string, string> = {
   funding: "New Funding",
   expansion: "Expansion",
   new_hire: "New Hires",
+  data_freshness: "Data Freshness",
+  multi_thread: "Multi-Thread",
+  competitor: "Competitor Activity",
+  contract_renewal: "Contract Renewal",
+  leadership_change: "Leadership Change",
 };
+
+/** Convert snake_case signal types to readable labels */
+function humanizeSignalType(type: string): string {
+  if (SIGNAL_LABELS[type]) return SIGNAL_LABELS[type];
+  return type
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export function SignalActionCards({ onLaunchCampaign, className }: SignalActionCardsProps) {
   const { signals, isLoading } = useAccountSignals({ limit: 100 });
