@@ -144,19 +144,16 @@ export default function Segmentation() {
         </div>
 
         {segments.length === 0 && !isCreating && !isLoading && (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Users className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No segments yet</h3>
-              <p className="text-muted-foreground text-center mb-4">
-                Create your first segment to organize accounts
-              </p>
-              <Button onClick={() => setIsCreating(true)}>
+          <div className="space-y-4">
+            <WelcomeEmptyState highlightStep="upload_data" compact />
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground mb-2">Or create a segment to organize accounts</p>
+              <Button variant="outline" onClick={() => setIsCreating(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Create Segment
               </Button>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         )}
       </div>
     </Layout>
