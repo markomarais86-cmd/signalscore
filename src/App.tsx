@@ -382,7 +382,6 @@ function AppContent() {
               }
             />
             <Route path="/api-access" element={<Navigate to="/settings?tab=api" replace />} />
-            />
 
             {/* Shared routes (role-aware) */}
             <Route
