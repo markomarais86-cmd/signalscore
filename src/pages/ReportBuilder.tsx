@@ -1,5 +1,4 @@
 import { useState } from 'react';
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,22 +6,30 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useReports } from '@/hooks/use-reports';
-import { FileText, Plus, Calendar, Download, Trash2 } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
+import { FileText, Plus, Trash2, Download, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import {
+  fetchReportData,
+  TEMPLATE_GENERATORS,
+  generateExcelReport,
+  downloadBlob,
+} from '@/lib/report-generator';
 
 const REPORT_TEMPLATES = [
   { id: 'executive', name: 'Executive Summary', description: 'High-level KPIs and insights' },
   { id: 'sales', name: 'Sales Performance', description: 'Pipeline, conversion, and revenue metrics' },
   { id: 'icp', name: 'ICP Analysis', description: 'Account fit and segmentation breakdown' },
   { id: 'pipeline', name: 'Pipeline Health', description: 'Stage-by-stage funnel analysis' },
-  { id: 'capital', name: 'Capital Efficiency', description: 'ROI, CAC, and investment metrics' },
 ];
 
 export default function ReportBuilder() {
   const { reports, isLoading, createReport, deleteReport } = useReports();
+  const { userProfile } = useAuth();
   const { toast } = useToast();
   const [isCreating, setIsCreating] = useState(false);
+  const [exportingId, setExportingId] = useState<string | null>(null);
   const [newReport, setNewReport] = useState({
     name: '',
     description: '',
@@ -32,24 +39,37 @@ export default function ReportBuilder() {
 
   const handleCreateReport = async () => {
     if (!newReport.name || !newReport.template_id) {
-      toast({
-        title: 'Validation Error',
-        description: 'Please fill in report name and select a template',
-        variant: 'destructive',
-      });
+      toast({ title: 'Validation Error', description: 'Please fill in report name and select a template', variant: 'destructive' });
       return;
     }
-
     await createReport(newReport);
     setNewReport({ name: '', description: '', template_id: '', config: {} });
     setIsCreating(false);
   };
 
-  const handleExportReport = (reportId: string) => {
-    toast({
-      title: 'Export Started',
-      description: 'Your report is being generated...',
-    });
+  const handleExport = async (reportId: string, templateId: string, reportName: string, format: 'pdf' | 'excel') => {
+    if (!userProfile?.org_id) return;
+    setExportingId(`${reportId}-${format}`);
+    try {
+      const data = await fetchReportData(userProfile.org_id);
+      const safeName = reportName.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+      if (format === 'pdf') {
+        const generator = TEMPLATE_GENERATORS[templateId] || TEMPLATE_GENERATORS.executive;
+        const doc = generator(data);
+        doc.save(`${safeName}.pdf`);
+      } else {
+        const blob = await generateExcelReport(data, templateId);
+        downloadBlob(blob, `${safeName}.xlsx`);
+      }
+
+      toast({ title: 'Report Generated', description: `${reportName} exported as ${format.toUpperCase()}` });
+    } catch (error: any) {
+      console.error('Export error:', error);
+      toast({ title: 'Export Failed', description: error.message || 'Failed to generate report', variant: 'destructive' });
+    } finally {
+      setExportingId(null);
+    }
   };
 
   return (
@@ -58,7 +78,7 @@ export default function ReportBuilder() {
         <div>
           <h1 className="text-3xl font-bold">Report Builder</h1>
           <p className="text-muted-foreground mt-2">
-            Create custom reports and schedule automated delivery
+            Generate PDF & Excel reports from your live data
           </p>
         </div>
         <Button onClick={() => setIsCreating(!isCreating)}>
@@ -71,7 +91,7 @@ export default function ReportBuilder() {
         <Card>
           <CardHeader>
             <CardTitle>Create New Report</CardTitle>
-            <CardDescription>Configure your custom report settings</CardDescription>
+            <CardDescription>Configure your report template</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -83,7 +103,6 @@ export default function ReportBuilder() {
                 onChange={(e) => setNewReport({ ...newReport, name: e.target.value })}
               />
             </div>
-
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
               <Textarea
@@ -93,9 +112,8 @@ export default function ReportBuilder() {
                 onChange={(e) => setNewReport({ ...newReport, description: e.target.value })}
               />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="template">Template</Label>
+              <Label>Template</Label>
               <Select
                 value={newReport.template_id}
                 onValueChange={(value) => setNewReport({ ...newReport, template_id: value })}
@@ -104,18 +122,17 @@ export default function ReportBuilder() {
                   <SelectValue placeholder="Select a template" />
                 </SelectTrigger>
                 <SelectContent>
-                  {REPORT_TEMPLATES.map((template) => (
-                    <SelectItem key={template.id} value={template.id}>
+                  {REPORT_TEMPLATES.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
                       <div>
-                        <div className="font-medium">{template.name}</div>
-                        <div className="text-xs text-muted-foreground">{template.description}</div>
+                        <div className="font-medium">{t.name}</div>
+                        <div className="text-xs text-muted-foreground">{t.description}</div>
                       </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
             <div className="flex gap-2">
               <Button onClick={handleCreateReport}>Create Report</Button>
               <Button variant="outline" onClick={() => setIsCreating(false)}>Cancel</Button>
@@ -127,42 +144,43 @@ export default function ReportBuilder() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {reports.map((report) => {
           const template = REPORT_TEMPLATES.find(t => t.id === report.template_id);
+          const isPdfExporting = exportingId === `${report.id}-pdf`;
+          const isXlExporting = exportingId === `${report.id}-excel`;
           return (
             <Card key={report.id}>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <FileText className="h-8 w-8 text-primary" />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => deleteReport(report.id)}
-                  >
+                  <Button variant="ghost" size="icon" onClick={() => deleteReport(report.id)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
                 <CardTitle className="text-lg">{report.name}</CardTitle>
-                <CardDescription>
-                  {report.description || template?.description}
-                </CardDescription>
+                <CardDescription>{report.description || template?.description}</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {template && (
-                    <Badge variant="outline">{template.name}</Badge>
-                  )}
+                  {template && <Badge variant="outline">{template.name}</Badge>}
                   <div className="flex gap-2">
                     <Button
                       size="sm"
                       variant="outline"
                       className="flex-1"
-                      onClick={() => handleExportReport(report.id)}
+                      disabled={!!exportingId}
+                      onClick={() => handleExport(report.id, report.template_id || 'executive', report.name, 'pdf')}
                     >
-                      <Download className="h-4 w-4 mr-1" />
-                      Export
+                      {isPdfExporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Download className="h-4 w-4 mr-1" />}
+                      PDF
                     </Button>
-                    <Button size="sm" variant="outline" className="flex-1">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      Schedule
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      disabled={!!exportingId}
+                      onClick={() => handleExport(report.id, report.template_id || 'executive', report.name, 'excel')}
+                    >
+                      {isXlExporting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-1" />}
+                      Excel
                     </Button>
                   </div>
                 </div>
@@ -178,7 +196,7 @@ export default function ReportBuilder() {
             <FileText className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">No reports yet</h3>
             <p className="text-muted-foreground text-center mb-4">
-              Create your first custom report to get started
+              Create a report to generate PDF or Excel exports from your live data
             </p>
             <Button onClick={() => setIsCreating(true)}>
               <Plus className="h-4 w-4 mr-2" />
