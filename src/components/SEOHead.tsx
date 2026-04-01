@@ -13,6 +13,7 @@ interface SEOHeadProps {
   descriptionVariants?: DescriptionVariants;
   canonicalPath?: string;
   ogImage?: string;
+  jsonLd?: Record<string, unknown>;
 }
 
 /**
