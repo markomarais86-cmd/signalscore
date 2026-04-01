@@ -137,7 +137,7 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
         (async () => {
           const { data, error } = await supabase
             .from('deals')
-            .select('external_id, name, stage, amount, close_date, owner_name, account_external_id, loss_reason, created_at, updated_at')
+            .select('external_id, name, stage, amount, expected_close_date, closed_date, owner_name, account_external_id, loss_reason, created_at, updated_at')
             .eq('org_id', orgId)
             .order('created_at', { ascending: false })
             .limit(5000);
@@ -150,7 +150,8 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
             'Deal Name': d.name || '',
             'Stage': d.stage || '',
             'Amount': d.amount || '',
-            'Close Date': d.close_date ? new Date(d.close_date).toLocaleDateString() : '',
+            'Expected Close': d.expected_close_date ? new Date(d.expected_close_date).toLocaleDateString() : '',
+            'Closed Date': d.closed_date ? new Date(d.closed_date).toLocaleDateString() : '',
             'Owner': d.owner_name || '',
             'Account ID': d.account_external_id || '',
             'Loss Reason': d.loss_reason || '',
