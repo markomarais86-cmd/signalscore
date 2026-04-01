@@ -56,6 +56,7 @@ const ZapierIntegration = lazy(() => import("@/components/settings/ZapierIntegra
 const APIKeyManager = lazy(() => import("@/components/settings/APIKeyManager").then(m => ({ default: m.APIKeyManager })));
 const ExternalDataProviders = lazy(() => import("@/components/settings/ExternalDataProviders").then(m => ({ default: m.ExternalDataProviders })));
 const RateLimitSettings = lazy(() => import("@/components/settings/RateLimitSettings").then(m => ({ default: m.RateLimitSettings })));
+const APIRateLimitDashboard = lazy(() => import("@/components/settings/APIRateLimitDashboard").then(m => ({ default: m.APIRateLimitDashboard })));
 const AutomationSettings = lazy(() => import("@/components/settings/AutomationSettings").then(m => ({ default: m.AutomationSettings })));
 const ZapierWebhookManager = lazy(() => import("@/components/settings/ZapierWebhookManager").then(m => ({ default: m.ZapierWebhookManager })));
 const ClayIncomingWebhooks = lazy(() => import("@/components/settings/ClayIncomingWebhooks").then(m => ({ default: m.ClayIncomingWebhooks })));
