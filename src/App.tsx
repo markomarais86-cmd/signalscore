@@ -425,16 +425,7 @@ function AppContent() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/presentations"
-              element={
-                <ProtectedRoute>
-                  <RoleAwareLayout>
-                    <Presentations />
-                  </RoleAwareLayout>
-                </ProtectedRoute>
-              }
-            />
+            {/* Presentations route removed — was a stub */}
 
             {/* Test routes - only available in development */}
             {import.meta.env.DEV && (
