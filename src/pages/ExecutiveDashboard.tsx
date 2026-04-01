@@ -52,6 +52,7 @@ import { SignalFeed } from "@/components/executive/SignalFeed";
 import { SignalActionCards } from "@/components/dashboard/SignalActionCards";
 import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import { FuelLineAnalytics } from "@/components/campaigns/FuelLineAnalytics";
+import { CampaignAutomationManager } from "@/components/campaigns/CampaignAutomationManager";
 import { dashboardLogger } from "@/lib/logger";
 
 export default function ExecutiveDashboard() {
@@ -588,6 +589,9 @@ export default function ExecutiveDashboard() {
 
             {/* Fuel Line Performance */}
             <FuelLineAnalytics />
+
+            {/* Campaign Automation Rules */}
+            <CampaignAutomationManager />
 
             <GrowthCommandKPIs
               totalAccounts={sourceFilter === 'database' ? (tamData?.totalAccounts || 0) : totalAccounts}

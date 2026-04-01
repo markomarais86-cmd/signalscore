@@ -136,12 +136,30 @@ ALTER TABLE campaigns ADD COLUMN signal_source_id uuid REFERENCES account_signal
 
 ## Implementation Order
 
-1. **Phase 1** (UI only, no migration) — 1 session
-2. **Phase 2** (migration + UI) — 1 session  
-3. **Phase 3** (routing logic) — 1 session
-4. **Phase 4** (analytics) — 1 session
+1. **Phase 1** (UI only, no migration) — ✅ Complete
+2. **Phase 2** (migration + UI) — ✅ Complete
+3. **Phase 3** (routing logic) — ✅ Complete
+4. **Phase 4** (analytics) — ✅ Complete
+5. **Phase 5** (automated triggers) — ✅ Complete
 
 Each phase is independently shippable. Phase 1 has zero backend risk.
+
+---
+
+## Phase 5: Automated Campaign Triggers
+
+**Goal**: Auto-create campaigns when signals meet configurable thresholds — no manual intervention needed.
+
+### Database
+- `campaign_automation_rules` — configurable rules with signal type, fuel line, thresholds, cooldown
+- `campaign_automation_log` — audit trail of every auto-triggered campaign
+
+### Edge Function
+- `evaluate-automation-triggers` — checks all enabled rules against unactioned signals, creates campaigns when thresholds are met, marks signals as actioned
+
+### UI
+- `CampaignAutomationManager` — create/edit/toggle rules, view recent trigger log
+- Integrated into Executive Dashboard below Fuel Line Analytics
 
 ---
 
