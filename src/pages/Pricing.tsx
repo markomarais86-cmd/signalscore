@@ -495,34 +495,30 @@ export default function Pricing() {
           </div>
         </section>
 
-        {/* CTA Section */}
+        {/* CTA Section — gradient banner */}
         <ScrollReveal animation="fade-up">
-          <section className="relative w-full overflow-hidden">
-            <img 
-              src="/images/Business_Man.webp"
-              alt="Business professional reviewing GTM analytics dashboard"
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-transparent" />
-            <div className="relative container mx-auto px-6 py-32">
-              <div className="max-w-xl">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/20 border border-primary/30 mb-6">
+          <section className="container mx-auto px-6 py-24">
+            <div
+              className="relative rounded-3xl overflow-hidden py-20 px-8"
+              style={{ background: 'linear-gradient(135deg, hsl(161, 85%, 30%) 0%, hsl(161, 85%, 50%) 50%, hsl(180, 60%, 35%) 100%)' }}
+            >
+              <div className="relative z-10 text-center max-w-xl mx-auto">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/20 border border-white/20 mb-6">
                   <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
                   </span>
-                  <span className="text-sm text-primary font-medium">Early Adopter Pricing Available</span>
+                  <span className="text-sm text-white font-medium">Early Adopter Pricing Available</span>
                 </div>
                 <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
                   Ready to Get<br />Started?
                 </h2>
                 <p className="text-lg text-white/80 mb-8">
-                  Schedule a demo and see how SignalScore can transform your GTM strategy.
+                  Schedule a demo and see how LaunchPulse can transform your GTM strategy.
                 </p>
                 <Button 
                   size="xl" 
-                  variant="glow" 
-                  className="text-lg gap-2"
+                  className="text-lg gap-2 bg-black text-white hover:bg-black/90"
                   onClick={() => handlePricingRequest("Demo Request")}
                 >
                   Request Demo
