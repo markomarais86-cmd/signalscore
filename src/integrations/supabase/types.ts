@@ -1986,6 +1986,147 @@ export type Database = {
           },
         ]
       }
+      campaign_automation_log: {
+        Row: {
+          account_count: number
+          account_external_ids: string[]
+          campaign_id: string | null
+          campaign_name: string | null
+          created_at: string
+          fuel_line_type: string
+          id: string
+          org_id: string
+          rule_id: string | null
+          rule_name: string
+          signal_count: number
+          signal_ids: string[]
+          signal_type: string
+          status: string
+        }
+        Insert: {
+          account_count?: number
+          account_external_ids?: string[]
+          campaign_id?: string | null
+          campaign_name?: string | null
+          created_at?: string
+          fuel_line_type: string
+          id?: string
+          org_id: string
+          rule_id?: string | null
+          rule_name: string
+          signal_count?: number
+          signal_ids?: string[]
+          signal_type: string
+          status?: string
+        }
+        Update: {
+          account_count?: number
+          account_external_ids?: string[]
+          campaign_id?: string | null
+          campaign_name?: string | null
+          created_at?: string
+          fuel_line_type?: string
+          id?: string
+          org_id?: string
+          rule_id?: string | null
+          rule_name?: string
+          signal_count?: number
+          signal_ids?: string[]
+          signal_type?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_automation_log_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_automation_log_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_automation_log_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_automation_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_automation_rules: {
+        Row: {
+          cooldown_hours: number
+          created_at: string
+          created_by: string | null
+          description: string | null
+          fuel_line_type: string
+          id: string
+          is_enabled: boolean
+          last_triggered_at: string | null
+          min_accounts: number
+          min_signals: number
+          name: string
+          org_id: string
+          priority_filter: string[]
+          sequence_template: string
+          signal_type: string
+          trigger_count: number
+          updated_at: string
+        }
+        Insert: {
+          cooldown_hours?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          fuel_line_type: string
+          id?: string
+          is_enabled?: boolean
+          last_triggered_at?: string | null
+          min_accounts?: number
+          min_signals?: number
+          name: string
+          org_id: string
+          priority_filter?: string[]
+          sequence_template?: string
+          signal_type: string
+          trigger_count?: number
+          updated_at?: string
+        }
+        Update: {
+          cooldown_hours?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          fuel_line_type?: string
+          id?: string
+          is_enabled?: boolean
+          last_triggered_at?: string | null
+          min_accounts?: number
+          min_signals?: number
+          name?: string
+          org_id?: string
+          priority_filter?: string[]
+          sequence_template?: string
+          signal_type?: string
+          trigger_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_automation_rules_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_naming_registry: {
         Row: {
           campaign_name: string
