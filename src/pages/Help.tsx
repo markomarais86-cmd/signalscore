@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { helpDatabase, videoTutorials, HelpItem } from '@/components/help/helpContent';
+import { TicketSubmissionForm } from '@/components/help/TicketSubmissionForm';
 
 // Simple markdown renderer for help content
 function renderMarkdown(content: string) {
