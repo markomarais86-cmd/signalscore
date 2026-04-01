@@ -74,7 +74,18 @@ export function useAutomationRules() {
     mutationFn: async (rule: Partial<AutomationRule>) => {
       const { data, error } = await supabase
         .from("campaign_automation_rules")
-        .insert({ ...rule, org_id: orgId! })
+        .insert({
+          name: rule.name || "",
+          signal_type: rule.signal_type || "intent",
+          fuel_line_type: rule.fuel_line_type || "abm",
+          sequence_template: rule.sequence_template || "enterprise",
+          min_signals: rule.min_signals ?? 3,
+          min_accounts: rule.min_accounts ?? 2,
+          priority_filter: rule.priority_filter || ["high", "critical"],
+          cooldown_hours: rule.cooldown_hours ?? 72,
+          description: rule.description || null,
+          org_id: orgId!,
+        })
         .select()
         .single();
       if (error) throw error;
