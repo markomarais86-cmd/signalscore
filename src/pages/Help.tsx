@@ -389,7 +389,7 @@ export default function Help() {
       {/* Content */}
       <div className="container max-w-6xl py-8">
         <Tabs defaultValue="docs" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-lg grid-cols-4">
             <TabsTrigger value="docs" className="flex items-center gap-2">
               <BookOpen className="h-4 w-4" />
               Documentation
@@ -401,6 +401,10 @@ export default function Help() {
             <TabsTrigger value="faq" className="flex items-center gap-2">
               <MessageCircle className="h-4 w-4" />
               FAQ
+            </TabsTrigger>
+            <TabsTrigger value="support" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Support
             </TabsTrigger>
           </TabsList>
 
