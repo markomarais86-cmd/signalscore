@@ -173,9 +173,9 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
         (async () => {
           const { data, error } = await supabase
             .from('scores')
-            .select('account_external_id, icp_id, overall_score, fit_score, intent_score, reachability_score, band, scored_at, version')
+            .select('account_external_id, icp_id, overall, fit, intent, reachability, computed_at, scoring_version')
             .eq('org_id', orgId)
-            .order('overall_score', { ascending: false })
+            .order('overall', { ascending: false })
             .limit(10000);
 
           if (error) throw error;
@@ -184,13 +184,12 @@ export async function exportToExcel(options: ExportOptions): Promise<void> {
           const rows = data.map(s => ({
             'Account ID': s.account_external_id,
             'ICP Profile': s.icp_id || '',
-            'Overall Score': s.overall_score,
-            'Fit Score': s.fit_score,
-            'Intent Score': s.intent_score,
-            'Reachability': s.reachability_score,
-            'Band': s.band || '',
-            'Scored At': s.scored_at ? new Date(s.scored_at).toLocaleDateString() : '',
-            'Version': s.version || '',
+            'Overall Score': s.overall,
+            'Fit Score': s.fit,
+            'Intent Score': s.intent,
+            'Reachability': s.reachability,
+            'Scored At': s.computed_at ? new Date(s.computed_at).toLocaleDateString() : '',
+            'Version': s.scoring_version || '',
           }));
 
           const ws = XLSX.utils.json_to_sheet(rows);
