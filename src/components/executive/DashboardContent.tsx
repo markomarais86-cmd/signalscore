@@ -84,20 +84,6 @@ export function DashboardContent(props: DashboardContentProps) {
 
   return (
     <>
-      <SignalActionCards
-        onLaunchCampaign={(ctx) =>
-          onLaunchCampaign({
-            suggestedCampaignName: ctx.suggestedName,
-            targetAccountIds: ctx.accountExternalIds,
-            signalType: ctx.signalType,
-            signalIds: ctx.signalIds,
-          })
-        }
-      />
-
-      <FuelLineAnalytics />
-      <CampaignAutomationManager />
-
       <GrowthCommandKPIs
         totalAccounts={sf === "database" ? (tamData?.totalAccounts || 0) : totalAccounts}
         totalScored={pick(crmScoredAccounts, databaseScoredAccounts, totalScores)}
