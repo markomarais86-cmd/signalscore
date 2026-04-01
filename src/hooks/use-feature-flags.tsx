@@ -50,6 +50,8 @@ const defaultFlags: FeatureFlags = {
   trend_analysis: false,
   // Sales
   sales: true,
+  // PE/VC Portfolio Management
+  portfolio_management: false,
 };
 
 export function FeatureFlagsProvider({ children }: { children: ReactNode }) {
