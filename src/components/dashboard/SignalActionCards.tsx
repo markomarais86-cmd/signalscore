@@ -120,7 +120,7 @@ export function SignalActionCards({ onLaunchCampaign, className }: SignalActionC
                   <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
                 <div>
-                  <div className="text-sm font-medium">{SIGNAL_LABELS[type] || type}</div>
+                  <div className="text-sm font-medium">{humanizeSignalType(type)}</div>
                   <div className="text-xs text-muted-foreground">
                     {[...new Set(typeSignals.map((s) => s.account_external_id))].length} accounts · {fuelLineLabel}
                   </div>
