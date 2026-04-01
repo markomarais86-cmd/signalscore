@@ -32,7 +32,20 @@ const SIGNAL_LABELS: Record<string, string> = {
   funding: "New Funding",
   expansion: "Expansion",
   new_hire: "New Hires",
+  data_freshness: "Data Freshness",
+  multi_thread: "Multi-Thread",
+  competitor: "Competitor Activity",
+  contract_renewal: "Contract Renewal",
+  leadership_change: "Leadership Change",
 };
+
+/** Convert snake_case signal types to readable labels */
+function humanizeSignalType(type: string): string {
+  if (SIGNAL_LABELS[type]) return SIGNAL_LABELS[type];
+  return type
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 export function SignalActionCards({ onLaunchCampaign, className }: SignalActionCardsProps) {
   const { signals, isLoading } = useAccountSignals({ limit: 100 });
@@ -94,7 +107,7 @@ export function SignalActionCards({ onLaunchCampaign, className }: SignalActionC
                     signalType: type,
                     signalIds: typeSignals.map((s) => s.id),
                     accountExternalIds: [...new Set(typeSignals.map((s) => s.account_external_id))],
-                    suggestedName: `${SIGNAL_LABELS[type] || type} Campaign`,
+                    suggestedName: `${humanizeSignalType(type)} Campaign`,
                   })
                 }
                 className="flex flex-col items-start gap-2 p-4 rounded-lg border bg-card hover:bg-accent/50 hover:border-primary/40 transition-all text-left group"
@@ -107,7 +120,7 @@ export function SignalActionCards({ onLaunchCampaign, className }: SignalActionC
                   <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
                 <div>
-                  <div className="text-sm font-medium">{SIGNAL_LABELS[type] || type}</div>
+                  <div className="text-sm font-medium">{humanizeSignalType(type)}</div>
                   <div className="text-xs text-muted-foreground">
                     {[...new Set(typeSignals.map((s) => s.account_external_id))].length} accounts · {fuelLineLabel}
                   </div>
