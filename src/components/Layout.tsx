@@ -31,16 +31,16 @@ export function Layout({ children }: LayoutProps) {
         <AppSidebar />
         <main className="flex-1 flex flex-col">
           <header className="relative z-20 border-b bg-card/80 dark:bg-card/60 backdrop-blur-sm shadow-sm">
-            <div className="h-14 flex items-center justify-between px-6">
-              <div className="flex items-center gap-4">
+            <div className="h-12 sm:h-14 flex items-center justify-between px-3 sm:px-6">
+              <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                 <SidebarTrigger />
-                <CommandPaletteTrigger />
+                <span className="hidden sm:inline"><CommandPaletteTrigger /></span>
                 <OrgSwitcher />
               </div>
-              <div className="flex items-center gap-2">
-                <ExportQueueManager />
+              <div className="flex items-center gap-1 sm:gap-2">
+                <span className="hidden md:inline"><ExportQueueManager /></span>
                 <NotificationCenter />
-                <HelpPanel currentPath={location.pathname} />
+                <span className="hidden sm:inline"><HelpPanel currentPath={location.pathname} /></span>
                 <ThemeToggle />
               </div>
             </div>

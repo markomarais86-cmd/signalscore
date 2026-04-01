@@ -73,8 +73,8 @@ export function SampleDataGenerator() {
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            This will create sample companies like TechCorp Solutions, DataFlow Industries, 
-            and others with realistic contact information and scoring data.
+            This will create 30 accounts across 6 industries and 10 countries, 25 contacts, 
+            30 scores, 10 leads, 8 deals, 5 intent signals, pipeline stages, and capital tracking data.
           </AlertDescription>
         </Alert>
 
@@ -108,7 +108,7 @@ export function SampleDataGenerator() {
               </AlertDescription>
             </Alert>
             
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <div className="text-center p-3 bg-muted rounded-lg">
                 <div className="text-2xl font-bold text-primary">{result.accounts_inserted}</div>
                 <div className="text-sm text-muted-foreground">Accounts</div>
@@ -118,19 +118,28 @@ export function SampleDataGenerator() {
                 <div className="text-sm text-muted-foreground">Contacts</div>
               </div>
               <div className="text-center p-3 bg-muted rounded-lg">
+                <div className="text-2xl font-bold text-primary">{result.scores_inserted}</div>
+                <div className="text-sm text-muted-foreground">Scores</div>
+              </div>
+              <div className="text-center p-3 bg-muted rounded-lg">
                 <div className="text-2xl font-bold text-primary">{result.icp_inserted}</div>
                 <div className="text-sm text-muted-foreground">ICP Profiles</div>
               </div>
               <div className="text-center p-3 bg-muted rounded-lg">
-                <div className="text-2xl font-bold text-primary">{result.scores_inserted}</div>
-                <div className="text-sm text-muted-foreground">Scores</div>
+                <div className="text-2xl font-bold text-primary">{result.leads_inserted}</div>
+                <div className="text-sm text-muted-foreground">Leads</div>
+              </div>
+              <div className="text-center p-3 bg-muted rounded-lg">
+                <div className="text-2xl font-bold text-primary">{(result as any).deals_inserted || 0}</div>
+                <div className="text-sm text-muted-foreground">Deals</div>
               </div>
             </div>
             
             <div className="flex flex-wrap gap-2 justify-center">
-              <Badge variant="secondary">Enterprise Technology Focus</Badge>
-              <Badge variant="secondary">Global Companies</Badge>
+              <Badge variant="secondary">6 Industries</Badge>
+              <Badge variant="secondary">10 Countries</Badge>
               <Badge variant="secondary">C-Level Contacts</Badge>
+              <Badge variant="secondary">Intent Signals</Badge>
             </div>
           </div>
         )}
