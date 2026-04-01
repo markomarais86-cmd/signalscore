@@ -61,7 +61,7 @@ const Tasks = lazy(() => import("./pages/Tasks"));
 const CustomerOnboarding = lazy(() => import("./pages/admin/CustomerOnboarding"));
 const ListBuilder = lazy(() => import("./pages/ListBuilder"));
 const Presentations = lazy(() => import("./pages/Presentations"));
-const PipelineAnalyticsPage = lazy(() => import("./pages/PipelineAnalyticsPage"));
+
 const Opportunities = lazy(() => import("./pages/Opportunities"));
 const AIFeedbackPage = lazy(() => import("./pages/AIFeedbackPage"));
 const BrandedLanding = lazy(() => import("./pages/BrandedLanding"));
