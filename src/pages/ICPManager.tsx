@@ -15,7 +15,7 @@ import { ICPDetailView } from "@/components/icp/ICPDetailView";
 import { ICPProfile } from "@/types/icp";
 import { HeroMetric } from "@/components/executive/HeroMetric";
 import { useFeatureFlags } from "@/hooks/use-feature-flags";
-import { DEMO_ICP_PROFILES } from "@/data/mockData";
+import { DEMO_ICP_PROFILES } from "@/data/demoDataGenerator";
 import { DemoModeBanner } from "@/components/DemoModeBanner";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";

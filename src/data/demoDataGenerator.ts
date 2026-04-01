@@ -219,3 +219,26 @@ export function generateDemoData(seed: number = 42, accountCount: number = 60) {
     },
   };
 }
+
+export const DEMO_ICP_PROFILES = [
+  {
+    id: 'demo-icp-1',
+    org_id: 'demo-org',
+    name: 'Enterprise Technology Companies',
+    description: 'Mid-to-large technology companies with strong digital transformation initiatives',
+    industries: ['Technology', 'Software Development', 'Data Analytics', 'Cloud Services'],
+    sub_industries: ['SaaS', 'Enterprise Software', 'Cloud Infrastructure', 'AI/ML Platforms'],
+    company_sizes: [200, 500, 1000],
+    revenue_ranges: ['$10M-$50M', '$50M-$100M', '$100M-$500M'],
+    geographies: ['United States', 'Canada', 'United Kingdom', 'Germany'],
+    persona_job_titles: ['Chief Technology Officer', 'VP of Engineering', 'Head of Data Science', 'Chief Information Officer'],
+    persona_seniority_levels: ['C-Level', 'VP', 'Director'],
+    persona_departments: ['Engineering', 'IT', 'Data Science', 'Product'],
+    status: 'active' as const,
+    confidence_score: 85,
+    tam_estimate: 45000000,
+    match_count: 6,
+    created_at: new Date().toISOString(),
+    tags: ['Enterprise', 'Technology', 'B2B']
+  }
+];

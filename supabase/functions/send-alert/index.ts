@@ -1,5 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.87.0";
+import { sendWebhook } from "./channels/webhook.ts";
+import { sendSlack } from "./channels/slack.ts";
+import { sendTeams } from "./channels/teams.ts";
+import { sendEmail } from "./channels/email.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -15,121 +19,6 @@ interface AlertPayload {
   message: string;
   contextData?: Record<string, any>;
 }
-
-// --- Notification senders ---
-
-async function sendWebhook(url: string, payload: AlertPayload) {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      type: 'alert',
-      alert_type: payload.alertType,
-      alert_name: payload.alertName,
-      trigger_value: payload.triggerValue,
-      threshold_value: payload.thresholdValue,
-      message: payload.message,
-      context: payload.contextData,
-      timestamp: new Date().toISOString(),
-    }),
-  });
-  return response.ok
-    ? { channel: 'webhook', success: true }
-    : { channel: 'webhook', success: false, error: `HTTP ${response.status}` };
-}
-
-function buildSlackBlocks(payload: AlertPayload) {
-  return {
-    blocks: [
-      {
-        type: 'header',
-        text: { type: 'plain_text', text: `🚨 Alert: ${payload.alertName}`, emoji: true },
-      },
-      {
-        type: 'section',
-        fields: [
-          { type: 'mrkdwn', text: `*Type:*\n${payload.alertType}` },
-          { type: 'mrkdwn', text: `*Trigger Value:*\n${payload.triggerValue}` },
-          { type: 'mrkdwn', text: `*Threshold:*\n${payload.thresholdValue}` },
-        ],
-      },
-      { type: 'section', text: { type: 'mrkdwn', text: payload.message } },
-      {
-        type: 'context',
-        elements: [{ type: 'mrkdwn', text: `Triggered at ${new Date().toISOString()}` }],
-      },
-    ],
-  };
-}
-
-async function sendSlack(url: string, payload: AlertPayload) {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(buildSlackBlocks(payload)),
-  });
-  return response.ok
-    ? { channel: 'slack', success: true }
-    : { channel: 'slack', success: false, error: `HTTP ${response.status}` };
-}
-
-function buildTeamsCard(payload: AlertPayload) {
-  return {
-    type: 'message',
-    attachments: [
-      {
-        contentType: 'application/vnd.microsoft.card.adaptive',
-        contentUrl: null,
-        content: {
-          $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
-          type: 'AdaptiveCard',
-          version: '1.4',
-          body: [
-            {
-              type: 'TextBlock',
-              text: `🚨 Alert: ${payload.alertName}`,
-              weight: 'Bolder',
-              size: 'Large',
-              color: 'Attention',
-            },
-            {
-              type: 'FactSet',
-              facts: [
-                { title: 'Type', value: payload.alertType },
-                { title: 'Trigger Value', value: String(payload.triggerValue) },
-                { title: 'Threshold', value: String(payload.thresholdValue) },
-              ],
-            },
-            {
-              type: 'TextBlock',
-              text: payload.message,
-              wrap: true,
-            },
-            {
-              type: 'TextBlock',
-              text: `Triggered at ${new Date().toISOString()}`,
-              isSubtle: true,
-              size: 'Small',
-            },
-          ],
-        },
-      },
-    ],
-  };
-}
-
-async function sendTeams(url: string, payload: AlertPayload) {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(buildTeamsCard(payload)),
-  });
-  return response.ok
-    ? { channel: 'teams', success: true }
-    : { channel: 'teams', success: false, error: `HTTP ${response.status}` };
-}
-
-// --- Main handler ---
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -169,9 +58,6 @@ serve(async (req) => {
     }
 
     const alertPayload = payload as AlertPayload;
-    const results: Array<{ channel: string; success: boolean; error?: string }> = [];
-
-    // Fire all channels in parallel
     const promises: Promise<{ channel: string; success: boolean; error?: string }>[] = [];
 
     if (alert.webhook_url) {
@@ -183,15 +69,16 @@ serve(async (req) => {
     if (alert.teams_webhook_url) {
       promises.push(sendTeams(alert.teams_webhook_url, alertPayload).catch(e => ({ channel: 'teams', success: false, error: e.message })));
     }
+    if (alert.email_recipients && alert.email_recipients.length > 0) {
+      promises.push(sendEmail(alert.email_recipients, alertPayload, supabase).catch(e => ({ channel: 'email', success: false, error: e.message })));
+    }
 
-    const settled = await Promise.all(promises);
-    results.push(...settled);
+    const results = await Promise.all(promises);
 
     for (const r of results) {
       console.log(`[send-alert] ${r.channel}: ${r.success ? 'ok' : r.error}`);
     }
 
-    // Log to alert_history
     const notificationSent = results.some(r => r.success);
     const notificationError = results
       .filter(r => !r.success)
