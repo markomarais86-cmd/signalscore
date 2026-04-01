@@ -27,6 +27,7 @@ export function SEOHead({
   descriptionVariants,
   canonicalPath = "",
   ogImage = "/og/og-default.png",
+  jsonLd,
 }: SEOHeadProps) {
   // Construct absolute URL for OG image (required by social platforms)
   const baseUrl = "https://launchpulse.io";
