@@ -1,6 +1,5 @@
 import { Globe, MapPin, Activity } from "lucide-react";
 import { GrowthCommandKPIs } from "@/components/executive/GrowthCommandKPIs";
-import { GrowthCommandKPIs } from "@/components/executive/GrowthCommandKPIs";
 import { ICPCoveragePanel } from "@/components/executive/ICPCoveragePanel";
 import { ICPProfileSummaryCard } from "@/components/executive/ICPProfileSummaryCard";
 import { SimpleICPTable } from "@/components/executive/SimpleICPTable";
