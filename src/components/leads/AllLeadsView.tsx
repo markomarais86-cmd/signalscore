@@ -18,38 +18,6 @@ import { Link2, AlertTriangle, Users } from "lucide-react";
 import { InfiniteScrollTrigger } from "@/components/InfiniteScrollTrigger";
 import { WelcomeEmptyState } from "@/components/onboarding/WelcomeEmptyState";
 
-interface Lead {
-  id: string;
-  external_id: string;
-  name: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  phone: string | null;
-  mobile: string | null;
-  title: string | null;
-  persona: string | null;
-  company: string | null;
-  website: string | null;
-  industry: string | null;
-  employee_count: number | null;
-  revenue_range: string | null;
-  country: string | null;
-  state_province: string | null;
-  status: string | null;
-  account_external_id: string | null;
-  contact_external_id: string | null;
-  icp_qualified: boolean | null;
-  icp_fail_reasons: string[] | null;
-  enrichment_overall_score: number | null;
-  enrichment_field_scores: Record<string, number> | null;
-  linkedin_url: string | null;
-  still_at_company: string | null;
-  direct_phone: string | null;
-  enriched_at: string | null;
-  account?: { name: string | null; domain: string | null; industry_norm: string | null; employee_count: number | null; revenue_range: string | null; country: string | null } | null;
-  score?: { overall: number; fit: number; intent: number; reachability: number; reasons: any } | null;
-}
 
 interface AllLeadsViewProps {
   leads: Lead[];
