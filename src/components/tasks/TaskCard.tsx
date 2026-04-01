@@ -1,8 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle2, Clock, Phone, Mail, Calendar, AlertTriangle, Linkedin } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { CheckCircle2, Clock, Phone, Mail, Calendar, AlertTriangle, Linkedin, User } from "lucide-react";
+import { formatDistanceToNow, differenceInHours } from "date-fns";
 import type { LeadTask } from "@/hooks/use-tasks";
 
 const tierColors: Record<string, string> = {
@@ -38,8 +39,12 @@ export function TaskCard({ task, onComplete, onStartProgress }: TaskCardProps) {
   const isOverdue = task.status !== "completed" && new Date(task.due_at) < new Date();
   const displayStatus = isOverdue && task.status === "pending" ? "overdue" : task.status;
 
+  // Due-date warning: within 4 hours
+  const hoursUntilDue = differenceInHours(new Date(task.due_at), new Date());
+  const isDueSoon = !isOverdue && task.status !== "completed" && hoursUntilDue >= 0 && hoursUntilDue <= 4;
+
   return (
-    <Card className={isOverdue && task.status !== "completed" ? "border-destructive/40" : ""}>
+    <Card className={isOverdue && task.status !== "completed" ? "border-destructive/40" : isDueSoon ? "border-amber-400/40" : ""}>
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0">
@@ -60,9 +65,28 @@ export function TaskCard({ task, onComplete, onStartProgress }: TaskCardProps) {
                     {task.title.match(/^\[(P[123])\]/)![1]}
                   </Badge>
                 )}
+
+                {/* Assignee */}
+                {task.assigned_to && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge variant="secondary" className="gap-1 text-xs">
+                        <User className="h-3 w-3" />
+                        Assigned
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="text-xs">{task.assigned_to}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+
+                {/* Due date */}
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   {isOverdue && task.status !== "completed" ? (
-                    <><AlertTriangle className="h-3 w-3 text-destructive" /> Overdue</>
+                    <><AlertTriangle className="h-3 w-3 text-destructive" /> Overdue by {formatDistanceToNow(new Date(task.due_at))}</>
+                  ) : isDueSoon ? (
+                    <><AlertTriangle className="h-3 w-3 text-amber-500" /> Due in {formatDistanceToNow(new Date(task.due_at))}</>
                   ) : (
                     <>
                       <Clock className="h-3 w-3" />
