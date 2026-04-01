@@ -28,6 +28,7 @@ import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
 import { SourceFilterToggle, type SourceFilter } from "@/components/executive/SourceFilterToggle";
 import { EmptyState } from "@/components/EmptyState";
+import { WelcomeEmptyState } from "@/components/onboarding/WelcomeEmptyState";
 import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
