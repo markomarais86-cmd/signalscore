@@ -109,6 +109,22 @@ export default function Leads() {
     }
   };
 
+  if (lastError && leads.length === 0 && !isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">Leads</h1>
+          <p className="text-xs lg:text-sm text-muted-foreground mt-1">All people linked to accounts in your pipeline</p>
+        </div>
+        <QueryErrorState
+          error={lastError instanceof Error ? lastError : new Error(String(lastError))}
+          onRetry={retry}
+          title="Unable to load leads"
+        />
+      </div>
+    );
+  }
+
   if ((isLoading && leads.length === 0) || isMatching) {
     return (
       <div className="space-y-6">
