@@ -41,14 +41,14 @@ interface StatusBarProps {
 const statusConfig = {
   info: {
     icon: AlertCircle,
-    bgClass: 'bg-blue-500/10 border-blue-500/30',
-    iconClass: 'text-blue-500',
+    bgClass: 'bg-accent/50 border-accent',
+    iconClass: 'text-primary',
     badgeVariant: 'secondary' as const
   },
   warning: {
     icon: AlertTriangle,
-    bgClass: 'bg-amber-500/10 border-amber-500/30',
-    iconClass: 'text-amber-500',
+    bgClass: 'bg-status-warning/10 border-status-warning/30',
+    iconClass: 'text-status-warning',
     badgeVariant: 'secondary' as const
   },
   error: {
@@ -59,8 +59,8 @@ const statusConfig = {
   },
   success: {
     icon: CheckCircle2,
-    bgClass: 'bg-green-500/10 border-green-500/30',
-    iconClass: 'text-green-500',
+    bgClass: 'bg-primary/10 border-primary/30',
+    iconClass: 'text-primary',
     badgeVariant: 'secondary' as const
   },
   progress: {
