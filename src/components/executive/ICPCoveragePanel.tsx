@@ -118,20 +118,20 @@ export function ICPCoveragePanel({
               <button
                 key={item.name}
                 type="button"
-                className="group grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[0.95rem] border border-border/70 bg-background/40 px-3 py-3 text-left transition-colors hover:border-primary/20 hover:bg-muted/10"
+                className="group grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[0.95rem] px-3 py-3 text-left transition-colors hover:bg-muted/10"
                 onClick={() => navigate(isAccounts ? `/accounts?fit=${fitParam}` : `/leads?fit=${fitParam}`)}
               >
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
                 <div className="min-w-0">
-                  <span className="text-[13px] font-medium text-foreground transition-colors group-hover:text-primary">{item.name}</span>
+                  <span className="text-[14px] font-medium text-foreground transition-colors group-hover:text-primary">{item.name}</span>
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border/50">
                     <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${Math.max(p, 4)}%`, backgroundColor: item.color }} />
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: item.color }} />
-                  <span className="text-[13px] font-medium text-foreground tabular-nums">{item.value.toLocaleString()}</span>
-                  <span className="w-10 text-right text-[12px] text-muted-foreground tabular-nums">{p.toFixed(0)}%</span>
+                  <span className="text-[14px] font-medium text-foreground tabular-nums">{item.value.toLocaleString()}</span>
+                  <span className="w-10 text-right text-[13px] text-muted-foreground tabular-nums">{p.toFixed(0)}%</span>
                 </div>
               </button>
             );

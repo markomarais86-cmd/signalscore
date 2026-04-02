@@ -33,19 +33,19 @@ export function SimpleGeographyCard({ geoData, className }: SimpleGeographyCardP
             <button
               key={item.country}
               type="button"
-              className="group grid w-full grid-cols-[auto_1fr] items-center gap-3 rounded-[0.95rem] border border-border/70 bg-background/35 px-4 py-3 text-left transition-all hover:border-primary/20 hover:bg-muted/10 animate-fade-in-up"
+              className="group grid w-full grid-cols-[auto_1fr] items-center gap-3 rounded-[0.95rem] px-4 py-3 text-left transition-all hover:bg-muted/10 animate-fade-in-up"
               style={{ animationDelay: `${idx * 50}ms` }}
               onClick={() => navigate(`/accounts?country=${encodeURIComponent(item.country)}`)}
             >
-              <span className="font-heading text-[1rem] font-semibold tracking-[-0.05em] text-muted-foreground/55 tabular-nums">
+              <span className="font-heading text-[1rem] font-semibold tracking-[-0.05em] text-muted-foreground/80 tabular-nums">
                 {String(idx + 1).padStart(2, "0")}
               </span>
               <div className="min-w-0">
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="min-w-0 truncate text-[13px] font-medium text-foreground transition-colors group-hover:text-primary">
+                  <span className="min-w-0 truncate text-[14px] font-medium text-foreground transition-colors group-hover:text-primary">
                     {item.country}
                   </span>
-                  <span className="text-[12px] text-muted-foreground tabular-nums">
+                  <span className="text-[13px] text-muted-foreground tabular-nums">
                     {item.percentage?.toFixed(0)}%
                   </span>
                 </div>
@@ -56,7 +56,7 @@ export function SimpleGeographyCard({ geoData, className }: SimpleGeographyCardP
                       style={{ width: `${barPct}%`, opacity: 1 - idx * 0.08 }}
                     />
                   </div>
-                  <span className="w-12 shrink-0 text-right text-[12px] text-muted-foreground tabular-nums">
+                  <span className="w-12 shrink-0 text-right text-[13px] text-muted-foreground tabular-nums">
                     {item.count.toLocaleString()}
                   </span>
                 </div>

@@ -60,10 +60,10 @@ export function SimpleICPTable({
 
               <div className="text-right">
                 <p className="metric-panel__label">Scored volume</p>
-                <p className="mt-2 text-[13px] font-medium text-foreground tabular-nums">
+                <p className="mt-2 text-[14px] font-medium text-foreground tabular-nums">
                   {r.total.toLocaleString()}
                 </p>
-                <p className="mt-1 text-[12px] text-primary tabular-nums">{r.pct}% ICP fit</p>
+                <p className="mt-1 text-[13px] text-primary tabular-nums">{r.pct}% ICP fit</p>
               </div>
             </div>
 

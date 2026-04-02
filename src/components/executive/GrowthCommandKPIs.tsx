@@ -82,7 +82,7 @@ function KPITile({
       </div>
 
       {sub && (
-        <p className="mt-2 text-[12px] leading-5 text-muted-foreground/70">
+        <p className="mt-2 text-[13px] leading-5 text-muted-foreground">
           {sub}
         </p>
       )}

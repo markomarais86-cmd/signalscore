@@ -333,17 +333,17 @@
   }
 
   .source-row {
-    @apply rounded-[0.95rem] border px-4 py-4 text-left transition-colors;
-    border-color: hsl(var(--border) / 0.72);
-    background: hsl(var(--background) / 0.4);
+    @apply rounded-[0.95rem] px-4 py-4 text-left transition-colors;
+    background: hsl(var(--muted) / 0.06);
   }
   .source-row:hover {
-    border-color: hsl(var(--primary) / 0.28);
-    background: hsl(var(--muted) / 0.18);
+    background: hsl(var(--muted) / 0.16);
   }
   .dark .source-row {
-    border-color: hsl(216 12% 22%);
-    background: hsl(216 12% 10% / 0.68);
+    background: hsl(216 12% 10% / 0.4);
+  }
+  .dark .source-row:hover {
+    background: hsl(216 12% 14% / 0.6);
   }
   .source-row__track {
     @apply h-2 overflow-hidden rounded-full;

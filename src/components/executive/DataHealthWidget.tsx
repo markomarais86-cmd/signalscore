@@ -118,7 +118,7 @@ export function DataHealthWidget() {
         </div>
       )}
 
-      <div className="flex items-center justify-between px-1 text-[12px] text-muted-foreground">
+      <div className="flex items-center justify-between px-1 text-[13px] text-muted-foreground">
         <span>{metrics.totalAccounts.toLocaleString()} accounts</span>
         <span className="tabular-nums">{metrics.accountsEnriched.toLocaleString()} enriched</span>
       </div>
