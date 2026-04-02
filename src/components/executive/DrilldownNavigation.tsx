@@ -301,7 +301,7 @@ export function DrilldownNavigation({ onExport }: DrilldownNavigationProps) {
           </Breadcrumb>
         </div>
 
-        <ExportToPdf onExport={onExport} />
+        <ExportToPdf />
       </div>
 
       {/* Level Header */}
