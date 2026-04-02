@@ -198,7 +198,9 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <Accounts />
+                    <Suspense fallback={<PageSuspenseFallback variant="table" />}>
+                      <Accounts />
+                    </Suspense>
                   </Layout>
                 </ProtectedRoute>
               }
