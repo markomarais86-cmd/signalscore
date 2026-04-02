@@ -246,7 +246,7 @@
     color: hsl(var(--primary));
   }
   .section-title {
-    @apply font-heading text-[1.25rem] font-semibold tracking-[-0.05em] text-foreground;
+    @apply font-heading text-[1.5rem] font-semibold tracking-[-0.05em] text-foreground;
   }
 
   /* ── Stat Card — premium depth ── */
