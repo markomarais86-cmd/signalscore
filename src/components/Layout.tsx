@@ -46,7 +46,7 @@ export function Layout({ children }: LayoutProps) {
             </div>
           </header>
           <ImpersonationBanner />
-          <div className="flex-1 p-2 sm:p-3 lg:p-4 overflow-auto" id="main-content">
+          <div className="flex-1 p-4 sm:p-5 lg:p-6 overflow-auto" id="main-content">
             <FeatureErrorBoundary>
               {children}
             </FeatureErrorBoundary>
