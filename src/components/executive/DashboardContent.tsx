@@ -13,7 +13,6 @@ import type { RiskItem } from "@/utils/risk-detector";
 
 interface DashboardContentProps {
   sourceFilter: SourceFilter;
-  // Metrics
   totalAccounts: number;
   totalScores: number;
   highFitAccounts: number;
@@ -24,7 +23,6 @@ interface DashboardContentProps {
   campaignReadyLeads: number;
   averageDealSize: number;
   conversionRate: number;
-  // Source-filtered
   crmAccounts: number;
   databaseAccounts: number;
   crmScoredAccounts: number;
@@ -35,7 +33,6 @@ interface DashboardContentProps {
   medFitDatabaseAccounts: number;
   lowFitCrmAccounts: number;
   lowFitDatabaseAccounts: number;
-  // Leads
   totalLeads: number;
   crmLeads: number;
   databaseLeads: number;
@@ -48,18 +45,14 @@ interface DashboardContentProps {
   medFitDatabaseLeads: number;
   lowFitCrmLeads: number;
   lowFitDatabaseLeads: number;
-  // TAM
   tamData: any;
   geographyDistribution: { country: string; count: number }[];
   icpProfiles: any[];
-  // Insights
   risks: RiskItem[];
   insights: Insight[];
   effectiveOrgId: string | undefined;
   onRefreshInsights: () => void;
-  // Settings
   onSettingsChange: (v: { averageDealSize: number; conversionRate: number }) => void;
-  // Signals
   onLaunchCampaign: (ctx: any) => void;
 }
 
@@ -82,7 +75,7 @@ export function DashboardContent(props: DashboardContentProps) {
   const pick = <T,>(crm: T, db: T, all: T) => sf === "database" ? db : sf === "crm" ? crm : all;
 
   return (
-    <>
+    <div className="space-y-5">
       <GrowthCommandKPIs
         totalAccounts={sf === "database" ? (tamData?.totalAccounts || 0) : totalAccounts}
         totalScored={pick(crmScoredAccounts, databaseScoredAccounts, totalScores)}
@@ -108,59 +101,61 @@ export function DashboardContent(props: DashboardContentProps) {
 
       <ICPProfileSummaryCard icpProfiles={icpProfiles} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-        <SimpleICPTable
-          crmAccounts={crmAccounts}
-          databaseAccounts={databaseAccounts}
-          highFitCrmAccounts={highFitCrmAccounts}
-          highFitDatabaseAccounts={highFitDatabaseAccounts}
-          medFitCrmAccounts={medFitCrmAccounts}
-          medFitDatabaseAccounts={medFitDatabaseAccounts}
-          apolloAccounts={tamData?.totalAccounts}
-          apolloHighFitEstimate={
-            tamData?.totalAccounts && tamData?.industry_breakdown
-              ? Math.round(tamData.totalAccounts * 0.35)
-              : undefined
-          }
-          apolloMedFitEstimate={
-            tamData?.totalAccounts && tamData?.industry_breakdown
-              ? Math.round(tamData.totalAccounts * 0.25)
-              : undefined
-          }
-        />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div>
+          <CollapsibleDashboardCard title="ICP by Source" defaultOpen>
+            <SimpleICPTable
+              crmAccounts={crmAccounts}
+              databaseAccounts={databaseAccounts}
+              highFitCrmAccounts={highFitCrmAccounts}
+              highFitDatabaseAccounts={highFitDatabaseAccounts}
+              medFitCrmAccounts={medFitCrmAccounts}
+              medFitDatabaseAccounts={medFitDatabaseAccounts}
+              apolloAccounts={tamData?.totalAccounts}
+              apolloHighFitEstimate={tamData?.totalAccounts && tamData?.industry_breakdown ? Math.round(tamData.totalAccounts * 0.35) : undefined}
+              apolloMedFitEstimate={tamData?.totalAccounts && tamData?.industry_breakdown ? Math.round(tamData.totalAccounts * 0.25) : undefined}
+            />
+          </CollapsibleDashboardCard>
+        </div>
 
-        <CollapsibleDashboardCard title="Market Sizing" icon={<Globe className="h-4 w-4 text-primary" />} defaultOpen>
-          <SimpleTAMCard
-            totalAccounts={sf === "database" ? (tamData?.totalAccounts || 0) : totalAccounts}
-            highFitAccounts={pick(highFitCrmAccounts, highFitDatabaseAccounts, highFitAccounts)}
-            medFitAccounts={pick(medFitCrmAccounts, medFitDatabaseAccounts, medFitAccounts)}
-            campaignReadyAccounts={campaignReadyAccounts}
-            averageDealSize={averageDealSize}
-            conversionRate={conversionRate}
-            onSettingsChange={({ averageDealSize: ds, conversionRate: cr }) => onSettingsChange({ averageDealSize: ds, conversionRate: cr })}
-          />
-        </CollapsibleDashboardCard>
+        <div>
+          <CollapsibleDashboardCard title="Market Sizing" defaultOpen>
+            <SimpleTAMCard
+              totalAccounts={sf === "database" ? (tamData?.totalAccounts || 0) : totalAccounts}
+              highFitAccounts={pick(highFitCrmAccounts, highFitDatabaseAccounts, highFitAccounts)}
+              medFitAccounts={pick(medFitCrmAccounts, medFitDatabaseAccounts, medFitAccounts)}
+              campaignReadyAccounts={campaignReadyAccounts}
+              averageDealSize={averageDealSize}
+              conversionRate={conversionRate}
+              onSettingsChange={({ averageDealSize: ds, conversionRate: cr }) => onSettingsChange({ averageDealSize: ds, conversionRate: cr })}
+            />
+          </CollapsibleDashboardCard>
+        </div>
 
-        <CollapsibleDashboardCard title="Top Geographies" icon={<MapPin className="h-4 w-4 text-primary" />} defaultOpen>
-          <SimpleGeographyCard
-            geoData={
-              sf === "database" && tamData?.geography_breakdown
-                ? Object.entries(tamData.geography_breakdown as Record<string, { accounts?: number }>)
-                    .map(([country, data]) => ({
-                      country,
-                      count: typeof data === "object" ? (data.accounts || 0) : typeof data === "number" ? data : 0,
-                    }))
-                    .sort((a, b) => b.count - a.count)
-                : geographyDistribution.map((g) => ({ country: g.country, count: g.count }))
-            }
-          />
-        </CollapsibleDashboardCard>
+        <div>
+          <CollapsibleDashboardCard title="Top Geographies" defaultOpen>
+            <SimpleGeographyCard
+              geoData={
+                sf === "database" && tamData?.geography_breakdown
+                  ? Object.entries(tamData.geography_breakdown as Record<string, { accounts?: number }>)
+                      .map(([country, data]) => ({
+                        country,
+                        count: typeof data === "object" ? (data.accounts || 0) : typeof data === "number" ? data : 0,
+                      }))
+                      .sort((a, b) => b.count - a.count)
+                  : geographyDistribution.map((g) => ({ country: g.country, count: g.count }))
+              }
+            />
+          </CollapsibleDashboardCard>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-        <CollapsibleDashboardCard title="Data Health" icon={<Activity className="h-4 w-4 text-primary" />} defaultOpen>
-          <DataHealthWidget />
-        </CollapsibleDashboardCard>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div>
+          <CollapsibleDashboardCard title="Data Health" defaultOpen>
+            <DataHealthWidget />
+          </CollapsibleDashboardCard>
+        </div>
 
         <div className="lg:col-span-2">
           <UnifiedInsightsPanel
@@ -174,6 +169,6 @@ export function DashboardContent(props: DashboardContentProps) {
           />
         </div>
       </div>
-    </>
+    </div>
   );
 }

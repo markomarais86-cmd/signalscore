@@ -1,9 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import { Database, Cloud } from "lucide-react";
+import { Cloud, Database } from "lucide-react";
 
 interface SimpleICPTableProps {
   crmAccounts: number;
@@ -27,60 +23,45 @@ export function SimpleICPTable({
 }: SimpleICPTableProps) {
   const navigate = useNavigate();
   const crmIcpFit = highFitCrmAccounts + medFitCrmAccounts;
-  const crmPercentage = crmAccounts > 0 ? Math.round((crmIcpFit / crmAccounts) * 100) : 0;
+  const crmPct = crmAccounts > 0 ? Math.round((crmIcpFit / crmAccounts) * 100) : 0;
 
-  const effectiveDatabaseAccounts = apolloAccounts ?? databaseAccounts;
-  const effectiveHighFitDatabase = apolloHighFitEstimate ?? highFitDatabaseAccounts;
-  const effectiveMedFitDatabase = apolloMedFitEstimate ?? medFitDatabaseAccounts;
-  const dbIcpFit = effectiveHighFitDatabase + effectiveMedFitDatabase;
-  const databasePercentage = effectiveDatabaseAccounts > 0 ? Math.round((dbIcpFit / effectiveDatabaseAccounts) * 100) : 0;
+  const dbTotal = apolloAccounts ?? databaseAccounts;
+  const dbHigh = apolloHighFitEstimate ?? highFitDatabaseAccounts;
+  const dbMed = apolloMedFitEstimate ?? medFitDatabaseAccounts;
+  const dbIcpFit = dbHigh + dbMed;
+  const dbPct = dbTotal > 0 ? Math.round((dbIcpFit / dbTotal) * 100) : 0;
 
-  const data = [
-    { source: "CRM", icon: Cloud, total: crmAccounts, icpFit: crmIcpFit, percentage: crmPercentage },
-    { source: "Database", icon: Database, total: effectiveDatabaseAccounts, icpFit: dbIcpFit, percentage: databasePercentage, isExternal: !!apolloAccounts },
+  const rows = [
+    { source: "CRM", icon: Cloud, total: crmAccounts, fit: crmIcpFit, pct: crmPct, est: false },
+    { source: "Database", icon: Database, total: dbTotal, fit: dbIcpFit, pct: dbPct, est: !!apolloAccounts },
   ];
 
   return (
-    <Card className={`${className ?? ""} border bg-card`}>
-      <CardContent className="p-5">
-        <div className="mb-4 flex items-center gap-2">
-          <Database className="h-4 w-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground">ICP by Source</h3>
-        </div>
-
-        <Table>
-          <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="w-28 text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Source</TableHead>
-              <TableHead className="text-right text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Scored</TableHead>
-              <TableHead className="text-right text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">ICP-Fit</TableHead>
-              <TableHead className="text-right text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">%</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.map((row) => (
-              <TableRow
-                key={row.source}
-                className="cursor-pointer border-border transition-colors hover:bg-muted/20"
-                onClick={() => navigate(`/accounts?source=${row.source.toLowerCase()}`)}
-              >
-                <TableCell className="py-3">
-                  <div className="flex items-center gap-1.5">
-                    <row.icon className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-xs font-medium text-foreground">{row.source}</span>
-                    {row.isExternal && (
-                      <span className="rounded border px-1 py-0.5 text-[9px] text-muted-foreground">est.</span>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell className="text-right text-xs font-mono text-foreground tabular-nums">{row.total.toLocaleString()}</TableCell>
-                <TableCell className="text-right text-xs font-mono text-foreground tabular-nums">{row.icpFit.toLocaleString()}</TableCell>
-                <TableCell className="text-right text-xs font-mono text-foreground tabular-nums">{row.percentage}%</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+    <div className={`${className ?? ""} rounded-lg border bg-card`}>
+      {/* Header */}
+      <div className="grid grid-cols-4 gap-0 border-b px-4 py-2">
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Source</span>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider text-right">Scored</span>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider text-right">ICP Fit</span>
+        <span className="text-[10px] text-muted-foreground uppercase tracking-wider text-right">%</span>
+      </div>
+      {/* Rows */}
+      {rows.map((r) => (
+        <button
+          key={r.source}
+          type="button"
+          className="grid w-full grid-cols-4 gap-0 items-center px-4 py-2.5 text-left transition-colors hover:bg-muted/10 border-b last:border-b-0"
+          onClick={() => navigate(`/accounts?source=${r.source.toLowerCase()}`)}
+        >
+          <div className="flex items-center gap-1.5">
+            <r.icon className="h-3 w-3 text-muted-foreground" />
+            <span className="text-xs text-foreground">{r.source}</span>
+          </div>
+          <span className="text-xs font-mono tabular-nums text-foreground text-right">{r.total.toLocaleString()}</span>
+          <span className="text-xs font-mono tabular-nums text-foreground text-right">{r.fit.toLocaleString()}</span>
+          <span className="text-xs font-mono tabular-nums text-foreground text-right">{r.pct}%</span>
+        </button>
+      ))}
+    </div>
   );
 }
