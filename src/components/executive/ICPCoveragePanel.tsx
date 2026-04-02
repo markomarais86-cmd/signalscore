@@ -29,6 +29,7 @@ export function ICPCoveragePanel({
   totalLeads = 0,
   className,
 }: ICPCoveragePanelProps) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"accounts" | "leads">("accounts");
 
   const icpFitAccounts = highFitAccounts + medFitAccounts;
