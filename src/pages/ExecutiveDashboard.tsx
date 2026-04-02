@@ -26,6 +26,7 @@ import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboa
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
 import { StatusBar, buildStatusItems } from "@/components/executive/StatusBar";
 import { DashboardHeader } from "@/components/executive/DashboardHeader";
+import { DashboardHeroBanner } from "@/components/executive/DashboardHeroBanner";
 import { DashboardContent } from "@/components/executive/DashboardContent";
 import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import type { SourceFilter } from "@/components/executive/SourceFilterToggle";
