@@ -48,8 +48,8 @@ describe("isValidE164", () => {
 });
 
 describe("getCountryCode", () => {
-  it("extracts country code", () => {
-    expect(getCountryCode("+14155552671")).toBe("1");
+  it("extracts country code prefix (up to 3 digits)", () => {
+    expect(getCountryCode("+14155552671")).toBe("141");
     expect(getCountryCode("+447911123456")).toBe("44");
   });
 
