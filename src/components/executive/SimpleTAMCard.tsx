@@ -195,11 +195,17 @@ export function SimpleTAMCard({
             
             {/* Mini metrics */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 rounded-lg bg-muted/30">
+              <div
+                className="p-3 rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate("/accounts?fit=high")}
+              >
                 <p className="text-xl font-bold text-foreground">{formatCurrency(samValue)}</p>
                 <p className="text-xs text-muted-foreground">SAM ({samPercentage.toFixed(0)}%)</p>
               </div>
-              <div className="p-3 rounded-lg bg-muted/30">
+              <div
+                className="p-3 rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate("/accounts?fit=high&enriched=true")}
+              >
                 <p className="text-xl font-bold text-foreground">{formatCurrency(somValue)}</p>
                 <p className="text-xs text-muted-foreground">SOM ({somPercentage.toFixed(0)}%)</p>
               </div>
