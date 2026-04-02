@@ -59,10 +59,10 @@ export function SimpleTAMCard({
 
   return (
     <div className={className}>
-      <div className="flex items-start justify-between gap-4 px-5 pt-2">
+      <div className="flex items-start justify-between gap-4 px-5 pt-4">
         <div className="space-y-2">
           <p className="metric-panel__label">Total addressable market</p>
-          <p className="font-heading text-[2.65rem] font-semibold tracking-[-0.07em] text-foreground tabular-nums">{fmt(tam)}</p>
+          <p className="font-heading text-[3rem] font-semibold tracking-[-0.07em] text-foreground tabular-nums">{fmt(tam)}</p>
           <p className="text-[14px] text-muted-foreground">{tamAccts.toLocaleString()} matching accounts</p>
         </div>
 
@@ -91,7 +91,7 @@ export function SimpleTAMCard({
         </Popover>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 px-5 pb-5 pt-5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 px-5 pb-5 pt-4 sm:grid-cols-2">
         <button type="button" className="metric-panel" onClick={() => navigate("/accounts?fit=high") }>
           <p className="metric-panel__label">Serviceable market</p>
           <p className="metric-panel__value">{fmt(sam)}</p>

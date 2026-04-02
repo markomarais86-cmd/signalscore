@@ -78,22 +78,19 @@ export function ICPCoveragePanel({
         </Tabs>
       </div>
 
-      <div className="p-5">
+      <div className="px-5 pb-5 pt-4">
         <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <button type="button" className="metric-panel" onClick={() => navigate(isAccounts ? "/accounts" : "/leads")}>
+          <button type="button" className="metric-panel border-b border-border/30 pb-4 md:border-b-0 md:border-r md:pb-0 md:pr-3" onClick={() => navigate(isAccounts ? "/accounts" : "/leads")}>
             <p className="metric-panel__label">Total scored</p>
             <p className="metric-panel__value">{total.toLocaleString()}</p>
-            <p className="metric-panel__hint">All evaluated records</p>
           </button>
-          <button type="button" className="metric-panel" onClick={() => navigate(isAccounts ? "/accounts?fit=high" : "/leads?fit=high")}>
+          <button type="button" className="metric-panel border-b border-border/30 pb-4 md:border-b-0 md:border-r md:pb-0 md:pr-3" onClick={() => navigate(isAccounts ? "/accounts?fit=high" : "/leads?fit=high")}>
             <p className="metric-panel__label">ICP fit</p>
             <p className="metric-panel__value">{icpFit.toLocaleString()}</p>
-            <p className="metric-panel__hint">High and medium fit combined</p>
           </button>
           <div className="metric-panel">
             <p className="metric-panel__label">Coverage rate</p>
             <p className="metric-panel__value text-primary">{pct}%</p>
-            <p className="metric-panel__hint">Fit share of scored volume</p>
           </div>
         </div>
 
@@ -128,8 +125,7 @@ export function ICPCoveragePanel({
                     <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${Math.max(p, 4)}%`, backgroundColor: item.color }} />
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: item.color }} />
+                <div className="flex items-center gap-2">
                   <span className="text-[14px] font-medium text-foreground tabular-nums">{item.value.toLocaleString()}</span>
                   <span className="w-10 text-right text-[13px] text-muted-foreground tabular-nums">{p.toFixed(0)}%</span>
                 </div>

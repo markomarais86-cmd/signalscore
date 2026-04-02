@@ -42,7 +42,7 @@ export function SimpleICPTable({
 
   return (
     <div className={className}>
-      <div className="space-y-3 px-5 pb-5 pt-2">
+      <div className="space-y-3 px-5 pb-5 pt-4">
         {rows.map((r) => (
           <button
             key={r.source}
@@ -53,7 +53,7 @@ export function SimpleICPTable({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="metric-panel__label">{r.source}</p>
-                <p className="mt-2 font-heading text-[1.65rem] font-semibold tracking-[-0.05em] text-foreground tabular-nums">
+                <p className="mt-2 font-heading text-[1.5rem] font-semibold tracking-[-0.04em] text-foreground tabular-nums">
                   {r.fit.toLocaleString()}
                 </p>
               </div>

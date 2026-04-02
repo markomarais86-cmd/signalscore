@@ -26,20 +26,17 @@ export function SimpleGeographyCard({ geoData, className }: SimpleGeographyCardP
 
   return (
     <div className={className}>
-      <div className="space-y-2 px-5 pb-5 pt-2">
+      <div className="space-y-2 px-5 pb-5 pt-4">
         {topCountries.map((item, idx) => {
           const barPct = (item.count / maxCount) * 100;
           return (
             <button
               key={item.country}
               type="button"
-              className="group grid w-full grid-cols-[auto_1fr] items-center gap-3 rounded-[0.95rem] px-4 py-3 text-left transition-all hover:bg-muted/10 animate-fade-in-up"
+              className="group grid w-full grid-cols-[1fr] items-center gap-3 rounded-[0.95rem] px-4 py-3 text-left transition-all hover:bg-muted/10 animate-fade-in-up"
               style={{ animationDelay: `${idx * 50}ms` }}
               onClick={() => navigate(`/accounts?country=${encodeURIComponent(item.country)}`)}
             >
-              <span className="font-heading text-[1rem] font-semibold tracking-[-0.05em] text-muted-foreground/80 tabular-nums">
-                {String(idx + 1).padStart(2, "0")}
-              </span>
               <div className="min-w-0">
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="min-w-0 truncate text-[14px] font-medium text-foreground transition-colors group-hover:text-primary">
