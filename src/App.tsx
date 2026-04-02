@@ -71,13 +71,11 @@ const ValueCreationPlan = lazy(() => import("./pages/ValueCreationPlan"));
 const DueDiligence = lazy(() => import("./pages/DueDiligence"));
 
 
+import { PageSuspenseFallback } from "@/components/PageSuspenseFallback";
+
 // Shared loading fallback for lazy-loaded pages
 function PageLoader() {
-  return (
-    <div className="flex items-center justify-center min-h-[50vh]">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-    </div>
-  );
+  return <PageSuspenseFallback variant="minimal" />;
 }
 
 function PageTracker() {
