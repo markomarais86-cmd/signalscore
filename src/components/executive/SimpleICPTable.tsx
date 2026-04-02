@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -35,6 +36,7 @@ export function SimpleICPTable({
   apolloMedFitEstimate,
   className,
 }: SimpleICPTableProps) {
+  const navigate = useNavigate();
   const crmIcpFit = highFitCrmAccounts + medFitCrmAccounts;
   const crmPercentage = crmAccounts > 0 
     ? Math.round((crmIcpFit / crmAccounts) * 100) 
@@ -90,7 +92,11 @@ export function SimpleICPTable({
           </TableHeader>
           <TableBody>
             {data.map((row) => (
-              <TableRow key={row.source} className="border-border/50 hover:bg-muted/30 transition-colors">
+              <TableRow
+                key={row.source}
+                className="border-border/50 hover:bg-muted/30 transition-colors cursor-pointer"
+                onClick={() => navigate(`/accounts?source=${row.source.toLowerCase()}`)}
+              >
                 <TableCell className="py-4">
                   <div className="flex items-center gap-2">
                     <row.icon className="h-4 w-4 text-muted-foreground" />

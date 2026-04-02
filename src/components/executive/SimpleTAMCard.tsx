@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,7 @@ export function SimpleTAMCard({
   className,
   onSettingsChange,
 }: SimpleTAMCardProps) {
+  const navigate = useNavigate();
   const averageDealSize = initialDealSize;
   const conversionRate = initialConversion;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -193,11 +195,17 @@ export function SimpleTAMCard({
             
             {/* Mini metrics */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 rounded-lg bg-muted/30">
+              <div
+                className="p-3 rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate("/accounts?fit=high")}
+              >
                 <p className="text-xl font-bold text-foreground">{formatCurrency(samValue)}</p>
                 <p className="text-xs text-muted-foreground">SAM ({samPercentage.toFixed(0)}%)</p>
               </div>
-              <div className="p-3 rounded-lg bg-muted/30">
+              <div
+                className="p-3 rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => navigate("/accounts?fit=high&enriched=true")}
+              >
                 <p className="text-xl font-bold text-foreground">{formatCurrency(somValue)}</p>
                 <p className="text-xs text-muted-foreground">SOM ({somPercentage.toFixed(0)}%)</p>
               </div>
@@ -209,7 +217,11 @@ export function SimpleTAMCard({
             {/* TAM/SAM/SOM Grid */}
             <div className="grid grid-cols-3 gap-4 mb-6">
               {segments.map((segment) => (
-                <div key={segment.label} className="text-center">
+                <div
+                  key={segment.label}
+                  className="text-center cursor-pointer hover:bg-muted/30 rounded-lg p-1 transition-colors"
+                  onClick={() => navigate("/accounts?fit=high")}
+                >
                   <p 
                     className="text-2xl font-bold tracking-tight"
                     style={{ color: segment.color }}

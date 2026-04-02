@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { MapPin } from "lucide-react";
 
@@ -16,6 +17,7 @@ export function SimpleGeographyCard({
   geoData,
   className,
 }: SimpleGeographyCardProps) {
+  const navigate = useNavigate();
   const totalAccounts = geoData.reduce((sum, g) => sum + g.count, 0);
   
   // Get top 5 countries
@@ -44,7 +46,11 @@ export function SimpleGeographyCard({
         ) : (
           <div className="space-y-3">
             {topCountries.map((item, idx) => (
-              <div key={item.country} className="space-y-1.5">
+              <div
+                key={item.country}
+                className="space-y-1.5 cursor-pointer hover:bg-muted/30 rounded-md px-2 py-1 -mx-2 transition-colors"
+                onClick={() => navigate(`/accounts?country=${encodeURIComponent(item.country)}`)}
+              >
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium text-foreground truncate max-w-[150px]">
                     {item.country}

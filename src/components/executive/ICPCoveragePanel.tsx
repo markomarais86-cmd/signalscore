@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
@@ -28,6 +29,7 @@ export function ICPCoveragePanel({
   totalLeads = 0,
   className,
 }: ICPCoveragePanelProps) {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"accounts" | "leads">("accounts");
 
   const icpFitAccounts = highFitAccounts + medFitAccounts;
@@ -94,11 +96,17 @@ export function ICPCoveragePanel({
 
         {/* Summary Metrics */}
         <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="text-center p-3 rounded-lg bg-muted/30">
+          <div
+            className="text-center p-3 rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+            onClick={() => navigate(activeTab === "accounts" ? "/accounts" : "/leads")}
+          >
             <p className="text-2xl font-bold text-foreground">{currentTotal.toLocaleString()}</p>
             <p className="text-xs text-muted-foreground">Total {activeTab === "accounts" ? "Scored" : "Leads"}</p>
           </div>
-          <div className="text-center p-3 rounded-lg bg-primary/10 border border-primary/20">
+          <div
+            className="text-center p-3 rounded-lg bg-primary/10 border border-primary/20 cursor-pointer hover:bg-primary/15 transition-colors"
+            onClick={() => navigate(activeTab === "accounts" ? "/accounts?fit=high" : "/leads?fit=high")}
+          >
             <p className="text-2xl font-bold text-primary">{currentIcpFit.toLocaleString()}</p>
             <p className="text-xs text-muted-foreground">ICP-Fit</p>
           </div>
@@ -154,7 +162,14 @@ export function ICPCoveragePanel({
             {currentData.map((item) => {
               const percentage = currentTotal > 0 ? (item.value / currentTotal) * 100 : 0;
               return (
-                <div key={item.name} className="flex items-center justify-between">
+                <div
+                  key={item.name}
+                  className="flex items-center justify-between cursor-pointer hover:bg-muted/30 rounded-md px-2 py-1 -mx-2 transition-colors"
+                  onClick={() => {
+                    const fitParam = item.name === "High-Fit" ? "high" : item.name === "Medium-Fit" ? "medium" : "low";
+                    navigate(activeTab === "accounts" ? `/accounts?fit=${fitParam}` : `/leads?fit=${fitParam}`);
+                  }}
+                >
                   <div className="flex items-center gap-3">
                     <div 
                       className="w-3 h-3 rounded-full shadow-sm"
