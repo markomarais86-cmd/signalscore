@@ -105,13 +105,10 @@ export function GrowthCommandKPIs({
       {tiles.map((tile) => (
         <Card
           key={tile.label}
-          className={cn(
-            "cursor-pointer group relative overflow-hidden border shadow-sm hover:shadow-lg transition-all duration-300",
-            getBenchmarkBg(tile.benchmarkPercent)
-          )}
+          className="cursor-pointer group relative overflow-hidden border bg-card shadow-sm hover:shadow-md transition-shadow duration-200"
           onClick={tile.onClick}
         >
-          <CardContent className="p-4 space-y-2">
+          <CardContent className="p-5 space-y-3">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-md bg-primary/10">
                 <tile.icon className="h-4 w-4 text-primary" />
@@ -120,14 +117,13 @@ export function GrowthCommandKPIs({
                 {tile.label}
               </p>
             </div>
-            <p className={cn("text-3xl font-bold tracking-tight", getBenchmarkColor(tile.benchmarkPercent))}>
+            <p className={cn("text-3xl font-bold tracking-tight font-mono", getBenchmarkColor(tile.benchmarkPercent))}>
               {tile.value}
             </p>
             <p className="text-xs text-muted-foreground leading-snug">
               {tile.soWhat}
             </p>
           </CardContent>
-          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none bg-gradient-to-br from-primary/5 via-transparent to-transparent" />
         </Card>
       ))}
     </div>
