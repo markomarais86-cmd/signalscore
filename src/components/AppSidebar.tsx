@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 
 // Core navigation - always visible
 const coreNavigation = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "ICP Manager", url: "/icp-manager", icon: Target },
 ];
 
