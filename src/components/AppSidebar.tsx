@@ -44,7 +44,7 @@ const salesNavigation = [
 
 // Configure section - collapsible
 const configureNavigation = [
-  { title: "AI Agents", url: "/ai-agents", icon: Bot },
+  // AI Agents hidden from nav — code retained for future use
   { title: "Settings", url: "/settings", icon: Settings },
   { title: "Help", url: "/help", icon: HelpCircle },
 ];

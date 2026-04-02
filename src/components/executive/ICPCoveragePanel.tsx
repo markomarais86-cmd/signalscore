@@ -162,7 +162,14 @@ export function ICPCoveragePanel({
             {currentData.map((item) => {
               const percentage = currentTotal > 0 ? (item.value / currentTotal) * 100 : 0;
               return (
-                <div key={item.name} className="flex items-center justify-between">
+                <div
+                  key={item.name}
+                  className="flex items-center justify-between cursor-pointer hover:bg-muted/30 rounded-md px-2 py-1 -mx-2 transition-colors"
+                  onClick={() => {
+                    const fitParam = item.name === "High-Fit" ? "high" : item.name === "Medium-Fit" ? "medium" : "low";
+                    navigate(activeTab === "accounts" ? `/accounts?fit=${fitParam}` : `/leads?fit=${fitParam}`);
+                  }}
+                >
                   <div className="flex items-center gap-3">
                     <div 
                       className="w-3 h-3 rounded-full shadow-sm"

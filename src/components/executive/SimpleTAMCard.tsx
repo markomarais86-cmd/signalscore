@@ -217,7 +217,11 @@ export function SimpleTAMCard({
             {/* TAM/SAM/SOM Grid */}
             <div className="grid grid-cols-3 gap-4 mb-6">
               {segments.map((segment) => (
-                <div key={segment.label} className="text-center">
+                <div
+                  key={segment.label}
+                  className="text-center cursor-pointer hover:bg-muted/30 rounded-lg p-1 transition-colors"
+                  onClick={() => navigate("/accounts?fit=high")}
+                >
                   <p 
                     className="text-2xl font-bold tracking-tight"
                     style={{ color: segment.color }}
