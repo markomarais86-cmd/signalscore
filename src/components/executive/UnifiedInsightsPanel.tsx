@@ -2,23 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { 
-  AlertTriangle, 
-  Zap, 
-  Target, 
-  TrendingUp, 
-  X, 
-  RefreshCw,
-  Sparkles,
-  Download,
-  ChevronDown,
-  Loader2
-} from "lucide-react";
+import { RefreshCw, Sparkles, ChevronDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
@@ -27,8 +13,12 @@ import { WorkflowConfirmDialog } from "./WorkflowConfirmDialog";
 import { DataCompletenessCard } from "@/components/insights/DataCompletenessCard";
 import { enrichmentLogger as log } from "@/lib/logger";
 import { TIMING, ENRICHMENT } from "@/lib/constants";
+import { RiskItem } from "@/utils/risk-detector";
 
-import { RiskItem, RiskSeverity } from "@/utils/risk-detector";
+import type { EnrichmentProgress, UnifiedItem } from "./insights/types";
+import { EnrichmentProgressBanner } from "./insights/EnrichmentProgressBanner";
+import { InsightsTabs } from "./insights/InsightsTabs";
+import { QuickActions } from "./insights/QuickActions";
 
 export interface Insight {
   id?: string;
@@ -47,16 +37,6 @@ export interface Insight {
   relatedRisk?: string;
 }
 
-interface EnrichmentProgress {
-  jobId: string;
-  status: string;
-  processed: number;
-  total: number;
-  enriched: number;
-  lastProgressUpdate?: string;
-  isStalled?: boolean;
-}
-
 interface UnifiedInsightsPanelProps {
   risks: RiskItem[];
   insights: Insight[];
@@ -68,327 +48,56 @@ interface UnifiedInsightsPanelProps {
   totalScored?: number;
 }
 
-type UnifiedItem = {
-  id: string;
-  type: 'risk' | 'insight';
-  priority: number;
-  severity?: RiskSeverity;
-  category?: string;
-  title: string;
-  description: string;
-  impact: string;
-  count?: number;
-  action?: string;
-  route?: string;
-  filter?: Record<string, any>;
-  relatedRisk?: string;
-  source: RiskItem | Insight;
-};
+// --- Helpers ---
 
-export function UnifiedInsightsPanel({
-  risks,
-  insights,
-  orgId,
-  onRefresh,
-  onAction,
-  campaignReadyCount = 0,
-  completenessScore = 0,
-  totalScored = 0
-}: UnifiedInsightsPanelProps) {
-  const navigate = useNavigate();
-  const { userProfile } = useAuth();
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [enrichmentModalOpen, setEnrichmentModalOpen] = useState(false);
-  const [selectedEnrichmentFields, setSelectedEnrichmentFields] = useState<string[]>([]);
-  const [workflowDialogOpen, setWorkflowDialogOpen] = useState(false);
-  const [selectedWorkflowType, setSelectedWorkflowType] = useState<string | null>(null);
-  const [workflowContext, setWorkflowContext] = useState<Record<string, unknown>>({});
-  const [isInsightsLoading, setIsInsightsLoading] = useState(false);
-  
-  // Persist collapse state to localStorage
-  const [isOpen, setIsOpen] = useState(() => {
-    const stored = localStorage.getItem('unified-insights-panel-open');
-    return stored !== null ? stored === 'true' : true;
-  });
-  
-  // Save collapse state to localStorage when it changes
-  useEffect(() => {
-    localStorage.setItem('unified-insights-panel-open', String(isOpen));
-  }, [isOpen]);
-  
-  // Enrichment progress state
-  const [enrichmentProgress, setEnrichmentProgress] = useState<EnrichmentProgress | null>(null);
-  const [isStartingEnrichment, setIsStartingEnrichment] = useState(false);
-  
-  // Refs to avoid stale closures
-  const enrichmentProgressRef = useRef<EnrichmentProgress | null>(null);
-  const isStartingEnrichmentRef = useRef(false);
-  
-  useEffect(() => {
-    enrichmentProgressRef.current = enrichmentProgress;
-  }, [enrichmentProgress]);
-  
-  useEffect(() => {
-    isStartingEnrichmentRef.current = isStartingEnrichment;
-  }, [isStartingEnrichment]);
-
-  const effectiveOrgId = orgId || userProfile?.org_id;
-
-  // Check for active enrichment jobs on mount - with better stuck job detection
-  const checkActiveEnrichmentJob = useCallback(async () => {
-    if (!effectiveOrgId) return;
-    
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    
-    // First, try to find an active job with actual progress
-    const { data: activeJobs } = await supabase
-      .from('enrichment_jobs')
-      .select('id, status, processed_records, total_records, enriched_records, last_progress_update, error_message, created_at')
-      .eq('org_id', effectiveOrgId)
-      .eq('provider', 'ai_free')
-      .in('status', ['pending', 'processing'])
-      .order('created_at', { ascending: false })
-      .limit(5);
-    
-    // Filter out stuck jobs (0 processed_records for >5 minutes)
-    const validActiveJob = activeJobs?.find(job => {
-      // Jobs with progress are always valid
-      if ((job.processed_records || 0) > 0) return true;
-      // For jobs with 0 progress, only consider if created recently (within 5 min)
-      return new Date(job.created_at) > new Date(fiveMinutesAgo);
-    });
-    
-    const activeJob = validActiveJob || null;
-    
-    if (activeJob) {
-      const lastUpdate = activeJob.last_progress_update ? new Date(activeJob.last_progress_update) : null;
-      const isStalled = activeJob.status === 'processing' && lastUpdate && 
-        (new Date().getTime() - lastUpdate.getTime() > TIMING.JOB_STALL_THRESHOLD);
-      
-      setEnrichmentProgress({
-        jobId: activeJob.id,
-        status: activeJob.status,
-        processed: activeJob.processed_records || 0,
-        total: activeJob.total_records || 0,
-        enriched: activeJob.enriched_records || 0,
-        lastProgressUpdate: activeJob.last_progress_update,
-        isStalled
-      });
-      return;
-    }
-    
-    // Check for paused jobs that need auto-resume
-    const { data: pausedJob } = await supabase
-      .from('enrichment_jobs')
-      .select('id, status, processed_records, total_records, enriched_records, last_progress_update, error_message')
-      .eq('org_id', effectiveOrgId)
-      .eq('provider', 'ai_free')
-      .eq('status', 'paused')
-      .gt('total_records', 0)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    
-    if (pausedJob) {
-      const needsAutoResume = pausedJob.error_message?.includes('Auto-paused') || 
-                              pausedJob.error_message?.includes('stalled');
-      
-      setEnrichmentProgress({
-        jobId: pausedJob.id,
-        status: pausedJob.status,
-        processed: pausedJob.processed_records || 0,
-        total: pausedJob.total_records || 0,
-        enriched: pausedJob.enriched_records || 0,
-        lastProgressUpdate: pausedJob.last_progress_update,
-        isStalled: needsAutoResume
-      });
-    }
-  }, [effectiveOrgId]);
-
-  // Resume a stalled job
-  const resumeStalledJob = async () => {
-    if (!enrichmentProgress?.jobId) return;
-    
-    setIsStartingEnrichment(true);
-    try {
-      await supabase
-        .from('enrichment_jobs')
-        .update({ 
-          status: 'paused', 
-          paused_at: new Date().toISOString(),
-          can_pause: true
-        })
-        .eq('id', enrichmentProgress.jobId);
-      
-      setEnrichmentProgress(prev => prev ? { ...prev, status: 'paused', isStalled: false } : null);
-      
-      const { error } = await supabase.functions.invoke('enrich-unified', {
-        body: { 
-          jobId: enrichmentProgress.jobId, 
-          resumeFromCheckpoint: true,
-          batchSize: enrichmentProgress.total
-        }
-      });
-      
-      if (error) throw error;
-      
-      toast.success('Resuming enrichment job...', {
-        description: `Continuing from ${enrichmentProgress.processed} processed records`
-      });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to resume job';
-      toast.error(message);
-    } finally {
-      setIsStartingEnrichment(false);
-    }
+function mapNextActionToLabel(nextAction?: string): string | undefined {
+  if (!nextAction) return undefined;
+  const map: Record<string, string> = {
+    build_campaign: 'Prepare Campaign',
+    enrich_data: 'Enrich Data',
+    score_accounts: 'Score Accounts',
+    view_accounts: 'View Accounts',
+    contact_leads: 'Find Contacts',
+    export_csv: 'Export Data',
+    review_accounts: 'Review Accounts',
   };
+  return map[nextAction] || nextAction.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
 
-  useEffect(() => {
-    checkActiveEnrichmentJob();
-  }, [checkActiveEnrichmentJob]);
-
-  // Auto-load insights on mount if none exist
-  useEffect(() => {
-    const shouldLoadInsights = insights.length === 0 && risks.length === 0 && onRefresh && !isRefreshing;
-    if (shouldLoadInsights) {
-      setIsInsightsLoading(true);
-      onRefresh();
-      // Clear loading state after a timeout (in case onRefresh doesn't set it)
-      const timeout = setTimeout(() => setIsInsightsLoading(false), 5000);
-      return () => clearTimeout(timeout);
-    }
-  }, []);  // Only run on mount
-  
-  // Clear loading state when insights arrive
-  useEffect(() => {
-    if (insights.length > 0 || risks.length > 0) {
-      setIsInsightsLoading(false);
-    }
-  }, [insights.length, risks.length]);
-
-  // Poll for enrichment progress when active
-  useEffect(() => {
-    if (!enrichmentProgress?.jobId) return;
-    
-    const currentJobId = enrichmentProgress.jobId;
-    
-    const pollProgress = async () => {
-      const { data: status } = await supabase
-        .from('enrichment_jobs')
-        .select('status, enriched_records, processed_records, total_records, last_progress_update, error_message')
-        .eq('id', currentJobId)
-        .single();
-      
-      if (status) {
-        if (['completed', 'completed_with_errors', 'completed_with_failures'].includes(status.status)) {
-          setEnrichmentProgress(null);
-          toast.success(`Enrichment complete! ${status.enriched_records} accounts enriched`);
-          onRefresh?.();
-        } else if (['failed', 'cancelled'].includes(status.status)) {
-          setEnrichmentProgress(null);
-          toast.error('Enrichment failed');
-        } else if (status.status === 'paused' && status.error_message?.includes('Auto-paused')) {
-          log.info('Job auto-paused, triggering auto-resume...');
-          
-          setEnrichmentProgress(prev => prev ? { 
-            ...prev, 
-            status: 'paused', 
-            isStalled: false,
-            processed: status.processed_records || prev.processed,
-            enriched: status.enriched_records || prev.enriched,
-          } : null);
-          
-          setTimeout(async () => {
-            try {
-              const { data: freshJob } = await supabase
-                .from('enrichment_jobs')
-                .select('total_records')
-                .eq('id', currentJobId)
-                .single();
-              
-              const totalRecords = freshJob?.total_records || status.total_records || ENRICHMENT.DEFAULT_BATCH_SIZE;
-              
-              log.info(`Auto-resuming job ${currentJobId}...`);
-              const { error } = await supabase.functions.invoke('enrich-unified', {
-                body: { 
-                  jobId: currentJobId, 
-                  resumeFromCheckpoint: true,
-                  batchSize: totalRecords
-                }
-              });
-              if (error) log.error('Auto-resume failed:', error);
-            } catch (err) {
-              log.error('Auto-resume error:', err);
-            }
-          }, TIMING.AUTO_RESUME_DELAY);
-        } else {
-          const lastUpdate = status.last_progress_update ? new Date(status.last_progress_update) : null;
-          const isStalled = status.status === 'processing' && lastUpdate && 
-            (new Date().getTime() - lastUpdate.getTime() > TIMING.JOB_STALL_THRESHOLD);
-          
-          const isPausedAndResumable = status.status === 'paused';
-          
-          setEnrichmentProgress({
-            jobId: currentJobId,
-            status: status.status,
-            processed: status.processed_records || 0,
-            total: status.total_records || 0,
-            enriched: status.enriched_records || 0,
-            lastProgressUpdate: status.last_progress_update,
-            isStalled: isStalled || isPausedAndResumable
-          });
-          
-          if (isStalled && !isStartingEnrichmentRef.current && status.status === 'processing') {
-            log.info('Job stalled, triggering auto-resume...');
-            resumeStalledJob();
-          }
-        }
-      }
-    };
-    
-    const interval = setInterval(pollProgress, TIMING.ENRICHMENT_POLL_INTERVAL);
-    return () => clearInterval(interval);
-  }, [enrichmentProgress?.jobId, onRefresh]);
-
-  const mapNextActionToLabel = (nextAction?: string): string | undefined => {
-    if (!nextAction) return undefined;
-    const map: Record<string, string> = {
-      build_campaign: 'Prepare Campaign',
-      enrich_data: 'Enrich Data',
-      score_accounts: 'Score Accounts',
-      view_accounts: 'View Accounts',
-      contact_leads: 'Find Contacts',
-      export_csv: 'Export Data',
-      review_accounts: 'Review Accounts',
-    };
-    return map[nextAction] || nextAction.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+function mapNextActionToRoute(nextAction?: string): string | undefined {
+  if (!nextAction) return undefined;
+  const map: Record<string, string> = {
+    score_accounts: '/accounts',
+    view_accounts: '/accounts',
+    review_accounts: '/accounts',
+    export_csv: '/accounts',
+    enrich_contacts: '/accounts',
+    enrich_data: '/accounts',
+    build_campaign: '/accounts',
+    contact_leads: '/accounts',
+    search_accounts: '/accounts',
   };
+  return map[nextAction];
+}
 
-  const mapNextActionToRoute = (nextAction?: string): string | undefined => {
-    if (!nextAction) return undefined;
-    const map: Record<string, string> = {
-      score_accounts: '/accounts',
-      view_accounts: '/accounts',
-      review_accounts: '/accounts',
-      export_csv: '/accounts',
-      enrich_contacts: '/accounts',
-      enrich_data: '/accounts',
-      build_campaign: '/accounts',
-      contact_leads: '/accounts',
-      search_accounts: '/accounts',
-    };
-    return map[nextAction];
-  };
+function inferWorkflowType(actionText: string): string | null {
+  const lower = actionText.toLowerCase();
+  if (/find.*contact|contact|leads/.test(lower)) return 'build_target_list';
+  if (/penetrate|expand|target|build.*list|whitespace/.test(lower)) return 'build_target_list';
+  if (/enrich|fill|complete|missing/.test(lower)) return 'enrich_data';
+  if (/score|calculate|rescore/.test(lower)) return 'score_accounts';
+  if (/optimize|refine|improve.*icp|tune/.test(lower)) return 'optimize_icp';
+  if (/campaign|outreach|prepare|launch/.test(lower)) return 'prepare_campaign';
+  if (/audit|quality|clean|standardize|duplicate/.test(lower)) return 'audit_data_quality';
+  return null;
+}
 
-  // Merge and prioritize all items
-  const unifiedItems: UnifiedItem[] = [
+function buildUnifiedItems(risks: RiskItem[], insights: Insight[], dismissedIds: Set<string>): UnifiedItem[] {
+  return [
     ...risks.map(risk => ({
       id: risk.id,
       type: 'risk' as const,
-      priority: risk.severity === 'critical' || risk.severity === 'high' ? 10 
-        : risk.severity === 'medium' ? 7 
-        : 4,
+      priority: risk.severity === 'critical' || risk.severity === 'high' ? 10 : risk.severity === 'medium' ? 7 : 4,
       severity: risk.severity,
       title: risk.title,
       description: risk.description,
@@ -397,15 +106,12 @@ export function UnifiedInsightsPanel({
       action: risk.fix?.label || (risk.fix?.action === 'enrich' ? 'Enrich Data' : risk.fix?.action === 'navigate' ? 'View Details' : undefined),
       route: undefined,
       filter: risk.filter,
-      source: risk
+      source: risk,
     })),
     ...insights.map(insight => {
       let priority = 5;
-      if (insight.priority === 'high' || (typeof insight.priority === 'number' && insight.priority >= 80)) {
-        priority = 8;
-      } else if (insight.priority === 'low' || (typeof insight.priority === 'number' && insight.priority <= 40)) {
-        priority = 3;
-      }
+      if (insight.priority === 'high' || (typeof insight.priority === 'number' && insight.priority >= 80)) priority = 8;
+      else if (insight.priority === 'low' || (typeof insight.priority === 'number' && insight.priority <= 40)) priority = 3;
       return {
         id: insight.id || `insight-${Math.random()}`,
         type: 'insight' as const,
@@ -418,43 +124,242 @@ export function UnifiedInsightsPanel({
         route: insight.route || mapNextActionToRoute((insight as any).nextAction),
         filter: insight.filter,
         relatedRisk: insight.relatedRisk,
-        source: insight
+        source: insight,
       };
-    })
+    }),
   ].filter(item => !dismissedIds.has(item.id));
+}
 
-  const urgent = unifiedItems.filter(item => item.priority >= 8).sort((a, b) => b.priority - a.priority);
-  const quickWins = unifiedItems.filter(item => item.priority >= 5 && item.priority < 8).sort((a, b) => b.priority - a.priority);
-  const strategic = unifiedItems.filter(item => item.priority < 5).sort((a, b) => b.priority - a.priority);
+// --- Main Component ---
 
-  const handleDismiss = async (item: UnifiedItem, e: React.MouseEvent) => {
-    e.stopPropagation();
-    
-    if (!userProfile?.org_id) {
-      toast.error('Unable to dismiss');
+export function UnifiedInsightsPanel({
+  risks,
+  insights,
+  orgId,
+  onRefresh,
+  onAction,
+  campaignReadyCount = 0,
+  totalScored = 0,
+}: UnifiedInsightsPanelProps) {
+  const navigate = useNavigate();
+  const { userProfile } = useAuth();
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [enrichmentModalOpen, setEnrichmentModalOpen] = useState(false);
+  const [selectedEnrichmentFields, setSelectedEnrichmentFields] = useState<string[]>([]);
+  const [workflowDialogOpen, setWorkflowDialogOpen] = useState(false);
+  const [selectedWorkflowType, setSelectedWorkflowType] = useState<string | null>(null);
+  const [workflowContext, setWorkflowContext] = useState<Record<string, unknown>>({});
+  const [isInsightsLoading, setIsInsightsLoading] = useState(false);
+
+  const [isOpen, setIsOpen] = useState(() => {
+    const stored = localStorage.getItem('unified-insights-panel-open');
+    return stored !== null ? stored === 'true' : true;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('unified-insights-panel-open', String(isOpen));
+  }, [isOpen]);
+
+  // Enrichment state
+  const [enrichmentProgress, setEnrichmentProgress] = useState<EnrichmentProgress | null>(null);
+  const [isStartingEnrichment, setIsStartingEnrichment] = useState(false);
+  const isStartingEnrichmentRef = useRef(false);
+
+  useEffect(() => { isStartingEnrichmentRef.current = isStartingEnrichment; }, [isStartingEnrichment]);
+
+  const effectiveOrgId = orgId || userProfile?.org_id;
+
+  // --- Enrichment job management ---
+
+  const checkActiveEnrichmentJob = useCallback(async () => {
+    if (!effectiveOrgId) return;
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+
+    const { data: activeJobs } = await supabase
+      .from('enrichment_jobs')
+      .select('id, status, processed_records, total_records, enriched_records, last_progress_update, error_message, created_at')
+      .eq('org_id', effectiveOrgId)
+      .eq('provider', 'ai_free')
+      .in('status', ['pending', 'processing'])
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    const validActiveJob = activeJobs?.find(job => {
+      if ((job.processed_records || 0) > 0) return true;
+      return new Date(job.created_at) > new Date(fiveMinutesAgo);
+    });
+
+    if (validActiveJob) {
+      const lastUpdate = validActiveJob.last_progress_update ? new Date(validActiveJob.last_progress_update) : null;
+      const isStalled = validActiveJob.status === 'processing' && lastUpdate &&
+        (new Date().getTime() - lastUpdate.getTime() > TIMING.JOB_STALL_THRESHOLD);
+      setEnrichmentProgress({
+        jobId: validActiveJob.id,
+        status: validActiveJob.status,
+        processed: validActiveJob.processed_records || 0,
+        total: validActiveJob.total_records || 0,
+        enriched: validActiveJob.enriched_records || 0,
+        lastProgressUpdate: validActiveJob.last_progress_update,
+        isStalled,
+      });
       return;
     }
 
+    const { data: pausedJob } = await supabase
+      .from('enrichment_jobs')
+      .select('id, status, processed_records, total_records, enriched_records, last_progress_update, error_message')
+      .eq('org_id', effectiveOrgId)
+      .eq('provider', 'ai_free')
+      .eq('status', 'paused')
+      .gt('total_records', 0)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (pausedJob) {
+      const needsAutoResume = pausedJob.error_message?.includes('Auto-paused') || pausedJob.error_message?.includes('stalled');
+      setEnrichmentProgress({
+        jobId: pausedJob.id, status: pausedJob.status,
+        processed: pausedJob.processed_records || 0, total: pausedJob.total_records || 0,
+        enriched: pausedJob.enriched_records || 0, lastProgressUpdate: pausedJob.last_progress_update,
+        isStalled: needsAutoResume,
+      });
+    }
+  }, [effectiveOrgId]);
+
+  const resumeStalledJob = async () => {
+    if (!enrichmentProgress?.jobId) return;
+    setIsStartingEnrichment(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('User not authenticated');
+      await supabase.from('enrichment_jobs').update({
+        status: 'paused', paused_at: new Date().toISOString(), can_pause: true,
+      }).eq('id', enrichmentProgress.jobId);
+      setEnrichmentProgress(prev => prev ? { ...prev, status: 'paused', isStalled: false } : null);
+      const { error } = await supabase.functions.invoke('enrich-unified', {
+        body: { jobId: enrichmentProgress.jobId, resumeFromCheckpoint: true, batchSize: enrichmentProgress.total },
+      });
+      if (error) throw error;
+      toast.success('Resuming enrichment job...', { description: `Continuing from ${enrichmentProgress.processed} processed records` });
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Failed to resume job');
+    } finally {
+      setIsStartingEnrichment(false);
+    }
+  };
+
+  useEffect(() => { checkActiveEnrichmentJob(); }, [checkActiveEnrichmentJob]);
+
+  // Auto-load insights
+  useEffect(() => {
+    if (insights.length === 0 && risks.length === 0 && onRefresh && !isRefreshing) {
+      setIsInsightsLoading(true);
+      onRefresh();
+      const timeout = setTimeout(() => setIsInsightsLoading(false), 5000);
+      return () => clearTimeout(timeout);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (insights.length > 0 || risks.length > 0) setIsInsightsLoading(false);
+  }, [insights.length, risks.length]);
+
+  // Poll enrichment progress
+  useEffect(() => {
+    if (!enrichmentProgress?.jobId) return;
+    const currentJobId = enrichmentProgress.jobId;
+
+    const pollProgress = async () => {
+      const { data: status } = await supabase
+        .from('enrichment_jobs')
+        .select('status, enriched_records, processed_records, total_records, last_progress_update, error_message')
+        .eq('id', currentJobId)
+        .single();
+
+      if (!status) return;
+
+      if (['completed', 'completed_with_errors', 'completed_with_failures'].includes(status.status)) {
+        setEnrichmentProgress(null);
+        toast.success(`Enrichment complete! ${status.enriched_records} accounts enriched`);
+        onRefresh?.();
+      } else if (['failed', 'cancelled'].includes(status.status)) {
+        setEnrichmentProgress(null);
+        toast.error('Enrichment failed');
+      } else if (status.status === 'paused' && status.error_message?.includes('Auto-paused')) {
+        log.info('Job auto-paused, triggering auto-resume...');
+        setEnrichmentProgress(prev => prev ? { ...prev, status: 'paused', isStalled: false, processed: status.processed_records || prev.processed, enriched: status.enriched_records || prev.enriched } : null);
+        setTimeout(async () => {
+          try {
+            const { data: freshJob } = await supabase.from('enrichment_jobs').select('total_records').eq('id', currentJobId).single();
+            const totalRecords = freshJob?.total_records || status.total_records || ENRICHMENT.DEFAULT_BATCH_SIZE;
+            log.info(`Auto-resuming job ${currentJobId}...`);
+            const { error } = await supabase.functions.invoke('enrich-unified', { body: { jobId: currentJobId, resumeFromCheckpoint: true, batchSize: totalRecords } });
+            if (error) log.error('Auto-resume failed:', error);
+          } catch (err) { log.error('Auto-resume error:', err); }
+        }, TIMING.AUTO_RESUME_DELAY);
+      } else {
+        const lastUpdate = status.last_progress_update ? new Date(status.last_progress_update) : null;
+        const isStalled = status.status === 'processing' && lastUpdate && (new Date().getTime() - lastUpdate.getTime() > TIMING.JOB_STALL_THRESHOLD);
+        setEnrichmentProgress({
+          jobId: currentJobId, status: status.status,
+          processed: status.processed_records || 0, total: status.total_records || 0,
+          enriched: status.enriched_records || 0, lastProgressUpdate: status.last_progress_update,
+          isStalled: isStalled || status.status === 'paused',
+        });
+        if (isStalled && !isStartingEnrichmentRef.current && status.status === 'processing') {
+          log.info('Job stalled, triggering auto-resume...');
+          resumeStalledJob();
+        }
+      }
+    };
+
+    const interval = setInterval(pollProgress, TIMING.ENRICHMENT_POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [enrichmentProgress?.jobId, onRefresh]);
+
+  // --- Handlers ---
+
+  const handleItemClick = (item: UnifiedItem) => {
+    if (item.type === 'risk') {
+      const risk = item.source as RiskItem;
+      if (risk.fix?.action === 'navigate' && risk.fix.target) { navigate(risk.fix.target); return; }
+      if (risk.fix?.action === 'enrich') { setSelectedEnrichmentFields(risk.fix.fields || ['all']); setEnrichmentModalOpen(true); return; }
+    }
+    if (item.route) {
+      const url = new URL(item.route, window.location.origin);
+      if (item.filter) Object.entries(item.filter).forEach(([key, value]) => url.searchParams.set(key, String(value)));
+      navigate(url.pathname + url.search);
+      return;
+    }
+    if (item.action) {
+      const actionLower = item.action.toLowerCase();
+      if (/enrich/i.test(actionLower)) { handleEnrichAction('enrich_ai_free'); return; }
+      if (/score|calculate|rescore/i.test(actionLower)) { navigate('/accounts?action=score'); return; }
+      if (/find.*contact|contact|leads/i.test(actionLower)) { navigate('/accounts?action=find_contacts'); return; }
+      const wfType = inferWorkflowType(item.action);
+      if (wfType && effectiveOrgId) {
+        setSelectedWorkflowType(wfType);
+        setWorkflowContext({ insightId: item.id, title: item.title, filter: item.filter });
+        setWorkflowDialogOpen(true);
         return;
       }
+    }
+    navigate('/accounts');
+  };
 
+  const handleDismiss = async (item: UnifiedItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!userProfile?.org_id) { toast.error('Unable to dismiss'); return; }
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { toast.error('User not authenticated'); return; }
       if (item.type === 'insight') {
-        const { error } = await supabase
-          .from('dismissed_recommendations')
-          .insert({
-            org_id: userProfile.org_id,
-            user_id: user.id,
-            recommendation_id: item.id,
-            recommendation_type: item.category || 'insight',
-          });
-
+        const { error } = await supabase.from('dismissed_recommendations').insert({
+          org_id: userProfile.org_id, user_id: user.id,
+          recommendation_id: item.id, recommendation_type: item.category || 'insight',
+        });
         if (error) throw error;
       }
-
       setDismissedIds(prev => new Set([...prev, item.id]));
       toast.success('Item dismissed');
     } catch (error: any) {
@@ -465,272 +370,39 @@ export function UnifiedInsightsPanel({
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    try {
-      await onRefresh?.();
-      toast.success('Insights refreshed');
-    } catch (error) {
-      toast.error('Failed to refresh');
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-
-  const inferWorkflowType = (actionText: string): string | null => {
-    const lower = actionText.toLowerCase();
-    if (/find.*contact|contact|leads/.test(lower)) return 'build_target_list';
-    if (/penetrate|expand|target|build.*list|whitespace/.test(lower)) return 'build_target_list';
-    if (/enrich|fill|complete|missing/.test(lower)) return 'enrich_data';
-    if (/score|calculate|rescore/.test(lower)) return 'score_accounts';
-    if (/optimize|refine|improve.*icp|tune/.test(lower)) return 'optimize_icp';
-    if (/campaign|outreach|prepare|launch/.test(lower)) return 'prepare_campaign';
-    if (/audit|quality|clean|standardize|duplicate/.test(lower)) return 'audit_data_quality';
-    return null;
-  };
-
-  const handleItemClick = (item: UnifiedItem) => {
-    // 1. Risk with navigate fix action
-    if (item.type === 'risk') {
-      const risk = item.source as RiskItem;
-      if (risk.fix?.action === 'navigate' && risk.fix.target) {
-        navigate(risk.fix.target);
-        return;
-      }
-      if (risk.fix?.action === 'enrich') {
-        setSelectedEnrichmentFields(risk.fix.fields || ['all']);
-        setEnrichmentModalOpen(true);
-        return;
-      }
-    }
-
-    // 2. Has a route — navigate
-    if (item.route) {
-      const url = new URL(item.route, window.location.origin);
-      if (item.filter) {
-        Object.entries(item.filter).forEach(([key, value]) => {
-          url.searchParams.set(key, String(value));
-        });
-      }
-      navigate(url.pathname + url.search);
-      return;
-    }
-
-    // 3. Infer workflow from action text
-    if (item.action) {
-      const actionLower = item.action.toLowerCase();
-
-      // Direct enrich keyword -> open enrichment modal
-      if (/enrich/i.test(actionLower)) {
-        handleEnrichAction('enrich_ai_free');
-        return;
-      }
-
-      // Score keyword -> navigate to accounts with score action
-      if (/score|calculate|rescore/i.test(actionLower)) {
-        navigate('/accounts?action=score');
-        return;
-      }
-
-      // Contact/find keyword -> navigate to accounts with find_contacts action
-      if (/find.*contact|contact|leads/i.test(actionLower)) {
-        navigate('/accounts?action=find_contacts');
-        return;
-      }
-
-      const workflowType = inferWorkflowType(item.action);
-      if (workflowType && effectiveOrgId) {
-        setSelectedWorkflowType(workflowType);
-        setWorkflowContext({ insightId: item.id, title: item.title, filter: item.filter });
-        setWorkflowDialogOpen(true);
-        return;
-      }
-    }
-
-    // 4. Fallback — navigate to accounts instead of dead-end toast
-    navigate('/accounts');
+    try { await onRefresh?.(); toast.success('Insights refreshed'); }
+    catch { toast.error('Failed to refresh'); }
+    finally { setIsRefreshing(false); }
   };
 
   const handleEnrichAction = async (action: string, params?: Record<string, unknown>) => {
     if (action === 'enrich_ai_free' && !isStartingEnrichment && effectiveOrgId) {
-      if (enrichmentProgress && enrichmentProgress.status === 'paused') {
-        toast.info('Resuming existing enrichment job...');
-        resumeStalledJob();
-        return;
-      }
-      
-      if (enrichmentProgress && ['pending', 'processing'].includes(enrichmentProgress.status)) {
-        toast.info('Enrichment already in progress', {
-          description: `${enrichmentProgress.processed}/${enrichmentProgress.total} processed`
-        });
-        return;
-      }
-      
+      if (enrichmentProgress && enrichmentProgress.status === 'paused') { toast.info('Resuming existing enrichment job...'); resumeStalledJob(); return; }
+      if (enrichmentProgress && ['pending', 'processing'].includes(enrichmentProgress.status)) { toast.info('Enrichment already in progress', { description: `${enrichmentProgress.processed}/${enrichmentProgress.total} processed` }); return; }
       setIsStartingEnrichment(true);
       try {
         const batchSize = (params?.batch_size as number) || ENRICHMENT.DEFAULT_BATCH_SIZE;
-        
-        const { data: job, error: jobError } = await supabase
-          .from('enrichment_jobs')
-          .insert({
-            org_id: effectiveOrgId,
-            provider: 'ai_free',
-            job_type: 'accounts',
-            status: 'pending',
-            total_records: batchSize
-          })
-          .select()
-          .single();
-        
+        const { data: job, error: jobError } = await supabase.from('enrichment_jobs').insert({ org_id: effectiveOrgId, provider: 'ai_free', job_type: 'accounts', status: 'pending', total_records: batchSize }).select().single();
         if (jobError) throw jobError;
-        
-        setEnrichmentProgress({
-          jobId: job.id,
-          status: 'pending',
-          processed: 0,
-          total: batchSize,
-          enriched: 0
-        });
-        
-        const { error } = await supabase.functions.invoke('enrich-unified', {
-          body: { jobId: job.id, batchSize }
-        });
-        
+        setEnrichmentProgress({ jobId: job.id, status: 'pending', processed: 0, total: batchSize, enriched: 0 });
+        const { error } = await supabase.functions.invoke('enrich-unified', { body: { jobId: job.id, batchSize } });
         if (error) throw error;
-        
-        toast.success('AI Enrichment started!', {
-          description: `Processing up to ${batchSize} accounts...`
-        });
+        toast.success('AI Enrichment started!', { description: `Processing up to ${batchSize} accounts...` });
       } catch (err: unknown) {
         setEnrichmentProgress(null);
-        const message = err instanceof Error ? err.message : 'Failed to start enrichment';
-        toast.error(message);
-      } finally {
-        setIsStartingEnrichment(false);
-      }
+        toast.error(err instanceof Error ? err.message : 'Failed to start enrichment');
+      } finally { setIsStartingEnrichment(false); }
       return;
     }
-    
-    // Pass to parent handler
     onAction?.(action, params);
   };
 
-  const getIcon = (item: UnifiedItem) => {
-    if (item.type === 'risk') {
-      return AlertTriangle;
-    }
-    switch (item.category) {
-      case 'revenue': return TrendingUp;
-      case 'signal': return Zap;
-      default: return Target;
-    }
-  };
+  // --- Build items ---
 
-  const getColorClass = (item: UnifiedItem) => {
-    if (item.type === 'risk') {
-      switch (item.severity) {
-        case 'critical':
-        case 'high':
-          return 'border-executive-red/30 bg-executive-red/5 hover:bg-executive-red/10';
-        case 'medium':
-        case 'low':
-          return 'border-executive-amber/30 bg-executive-amber/5 hover:bg-executive-amber/10';
-        default: return 'border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10';
-      }
-    }
-    switch (item.category) {
-      case 'revenue': return 'border-executive-green/40 bg-executive-green/5 hover:bg-executive-green/10';
-      case 'signal': return 'border-purple-500/40 bg-purple-500/5 hover:bg-purple-500/10';
-      default: return 'border-primary/40 bg-primary/5 hover:bg-primary/10';
-    }
-  };
-
-  const renderItemCard = (item: UnifiedItem) => {
-    const Icon = getIcon(item);
-    const colorClass = getColorClass(item);
-
-    return (
-      <div
-        key={item.id}
-        className={cn(
-          "relative border-2 rounded-lg p-4 transition-all duration-200 cursor-pointer group hover:translate-y-[-2px] hover:shadow-md backdrop-blur-sm",
-          colorClass
-        )}
-        onClick={() => handleItemClick(item)}
-      >
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-          onClick={(e) => handleDismiss(item, e)}
-        >
-          <X className="h-3 w-3" />
-        </Button>
-
-        <div className="flex items-start gap-3 mb-3">
-          <div className="p-2 rounded-lg bg-background/80">
-            <Icon className="h-5 w-5" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h4 className="font-semibold text-sm line-clamp-1">{item.title}</h4>
-              {item.type === 'risk' && item.severity && (
-                <Badge 
-                  variant={
-                    item.severity === 'critical' || item.severity === 'high' 
-                      ? 'destructive' 
-                      : 'outline'
-                  }
-                  className="text-xs"
-                >
-                  {item.severity}
-                </Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground line-clamp-2">
-              {item.description}
-            </p>
-            {item.relatedRisk && (
-              <p className="text-xs text-primary mt-1">
-                ↳ Related to: {item.relatedRisk}
-              </p>
-            )}
-          </div>
-          {item.count && (
-            <div className="text-right shrink-0">
-              <div className="text-xl font-bold">{item.count.toLocaleString()}</div>
-              <div className="text-xs text-muted-foreground">affected</div>
-            </div>
-          )}
-        </div>
-
-        <div className="pt-2 border-t space-y-2">
-          <div className="text-xs font-medium text-primary">
-            Impact: {item.impact}
-          </div>
-          {item.action && (
-            <Button 
-              size="sm" 
-              className="w-full h-7 text-xs transition-all duration-200 hover:scale-[1.02]"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleItemClick(item);
-              }}
-            >
-              {inferWorkflowType(item.action) && (
-                <Sparkles className="h-3 w-3 mr-1" />
-              )}
-              {item.action}
-            </Button>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const progressPercent = enrichmentProgress && enrichmentProgress.total > 0
-    ? Math.round((enrichmentProgress.processed / enrichmentProgress.total) * 100)
-    : 0;
-
+  const unifiedItems = buildUnifiedItems(risks, insights, dismissedIds);
+  const urgent = unifiedItems.filter(i => i.priority >= 8).sort((a, b) => b.priority - a.priority);
+  const quickWins = unifiedItems.filter(i => i.priority >= 5 && i.priority < 8).sort((a, b) => b.priority - a.priority);
+  const strategic = unifiedItems.filter(i => i.priority < 5).sort((a, b) => b.priority - a.priority);
   const totalItems = urgent.length + quickWins.length + strategic.length;
 
   return (
@@ -742,271 +414,65 @@ export function UnifiedInsightsPanel({
               <Button variant="ghost" className="p-0 h-auto hover:bg-transparent flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-primary" />
                 <CardTitle className="text-lg">Smart Insights & Actions</CardTitle>
-                {totalItems > 0 && (
-                  <Badge variant="secondary" className="ml-1">
-                    {totalItems}
-                  </Badge>
-                )}
+                {totalItems > 0 && <Badge variant="secondary" className="ml-1">{totalItems}</Badge>}
                 {enrichmentProgress && (
                   <Badge className={`ml-1 ${
-                    enrichmentProgress.status === 'paused'
-                      ? 'bg-amber-500/20 text-amber-600'
-                      : enrichmentProgress.isStalled 
-                      ? 'bg-destructive/20 text-destructive' 
-                      : 'bg-primary/20 text-primary animate-pulse'
+                    enrichmentProgress.status === 'paused' ? 'bg-status-warning/20 text-status-warning'
+                    : enrichmentProgress.isStalled ? 'bg-destructive/20 text-destructive'
+                    : 'bg-primary/20 text-primary animate-pulse'
                   }`}>
-                    {enrichmentProgress.status === 'paused' 
-                      ? '⏸️ Paused' 
-                      : enrichmentProgress.isStalled 
-                      ? '⚠️ Stalled' 
-                      : 'Enriching...'}
+                    {enrichmentProgress.status === 'paused' ? '⏸️ Paused' : enrichmentProgress.isStalled ? '⚠️ Stalled' : 'Enriching...'}
                   </Badge>
                 )}
                 <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
               </Button>
             </CollapsibleTrigger>
             {onRefresh && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleRefresh();
-                }}
-                disabled={isRefreshing}
-              >
+              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleRefresh(); }} disabled={isRefreshing}>
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               </Button>
             )}
           </div>
-          <CardDescription>
-            AI-driven recommendations and risk mitigation prioritized by impact
-          </CardDescription>
+          <CardDescription>AI-driven recommendations and risk mitigation prioritized by impact</CardDescription>
           {!isOpen && totalItems > 0 && (
-            <p className="text-xs text-primary mt-1 animate-pulse">
-              ↑ Click to expand and view {totalItems} insight{totalItems > 1 ? 's' : ''}
-            </p>
+            <p className="text-xs text-primary mt-1 animate-pulse">↑ Click to expand and view {totalItems} insight{totalItems > 1 ? 's' : ''}</p>
           )}
         </CardHeader>
 
         <CollapsibleContent>
           <CardContent className="space-y-4 pt-0 max-h-[500px] overflow-y-auto">
-            {/* Active Enrichment Progress Banner */}
             {enrichmentProgress && (
-              <div className={`p-3 rounded-lg border ${
-                enrichmentProgress.status === 'paused'
-                  ? 'bg-amber-500/5 border-amber-500/30' 
-                  : enrichmentProgress.isStalled
-                  ? 'bg-destructive/5 border-destructive/30'
-                  : 'bg-primary/5 border-primary/20'
-              }`}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    {enrichmentProgress.status === 'paused' ? (
-                      <AlertTriangle className="h-4 w-4 text-amber-500" />
-                    ) : enrichmentProgress.isStalled ? (
-                      <AlertTriangle className="h-4 w-4 text-destructive" />
-                    ) : (
-                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                    )}
-                    <span className="font-medium text-sm">
-                      {enrichmentProgress.status === 'paused'
-                        ? 'Enrichment Paused'
-                        : enrichmentProgress.isStalled 
-                        ? 'Enrichment Stalled' 
-                        : 'AI Enrichment in Progress'}
-                    </span>
-                    {enrichmentProgress.status === 'paused' && (
-                      <Badge variant="outline" className="text-amber-600 border-amber-500/50">
-                        {enrichmentProgress.total - enrichmentProgress.processed} remaining
-                      </Badge>
-                    )}
-                    {enrichmentProgress.isStalled && enrichmentProgress.status !== 'paused' && (
-                      <Badge variant="outline" className="text-destructive border-destructive/50">
-                        No progress for 5+ min
-                      </Badge>
-                    )}
-                  </div>
-                  <Badge variant="secondary">
-                    {enrichmentProgress.enriched} enriched
-                  </Badge>
-                </div>
-                <Progress value={progressPercent} className="h-2" />
-                <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                  <span>{enrichmentProgress.processed} / {enrichmentProgress.total} processed</span>
-                  <span>{progressPercent}%</span>
-                </div>
-                {(enrichmentProgress.status === 'paused' || enrichmentProgress.isStalled) && (
-                  <div className="mt-3 flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      onClick={resumeStalledJob}
-                      disabled={isStartingEnrichment}
-                      className="h-7 text-xs"
-                    >
-                      {isStartingEnrichment ? (
-                        <>
-                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          Resuming...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw className="h-3 w-3 mr-1" />
-                          Resume Job
-                        </>
-                      )}
-                    </Button>
-                    <span className="text-xs text-muted-foreground">
-                      {enrichmentProgress.status === 'paused' 
-                        ? 'Click to continue processing'
-                        : 'Edge function may have timed out'}
-                    </span>
-                  </div>
-                )}
-              </div>
+              <EnrichmentProgressBanner
+                progress={enrichmentProgress}
+                isStartingEnrichment={isStartingEnrichment}
+                onResume={resumeStalledJob}
+              />
             )}
 
-            {/* Data Completeness Summary */}
             {effectiveOrgId && <DataCompletenessCard orgId={effectiveOrgId} />}
 
-            {/* Insights Tabs */}
-            <Tabs defaultValue="urgent" className="w-full">
-              <TabsList className="grid w-full grid-cols-3 mb-4">
-                <TabsTrigger value="urgent" className="flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  Urgent ({urgent.length})
-                </TabsTrigger>
-                <TabsTrigger value="quick-wins" className="flex items-center gap-2">
-                  <Zap className="h-4 w-4" />
-                  Quick Wins ({quickWins.length})
-                </TabsTrigger>
-                <TabsTrigger value="strategic" className="flex items-center gap-2">
-                  <Target className="h-4 w-4" />
-                  Strategic ({strategic.length})
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="urgent" className="space-y-3">
-                {isInsightsLoading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {[1, 2].map(i => (
-                      <div key={i} className="h-32 rounded-lg bg-muted/50 animate-pulse" />
-                    ))}
-                  </div>
-                ) : urgent.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {urgent.map(renderItemCard)}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-executive-green" />
-                    <p className="text-sm font-medium">No urgent items</p>
-                    <p className="text-xs mt-1">All critical issues resolved</p>
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="quick-wins" className="space-y-3">
-                {isInsightsLoading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {[1, 2, 3].map(i => (
-                      <div key={i} className="h-32 rounded-lg bg-muted/50 animate-pulse" />
-                    ))}
-                  </div>
-                ) : quickWins.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {quickWins.map(renderItemCard)}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Zap className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm font-medium">No quick wins available</p>
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="strategic" className="space-y-3">
-                {isInsightsLoading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {[1, 2, 3].map(i => (
-                      <div key={i} className="h-32 rounded-lg bg-muted/50 animate-pulse" />
-                    ))}
-                  </div>
-                ) : strategic.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {strategic.map(renderItemCard)}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Target className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm font-medium">No strategic items</p>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-
-            {/* Quick Actions */}
-            <div className="pt-4 border-t">
-              <h3 className="text-sm font-semibold mb-3">Quick Actions</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {totalScored === 0 && (
-                  <Button 
-                    onClick={() => navigate('/icp-manager')} 
-                    variant="outline"
-                    size="sm"
-                    className="justify-start"
-                  >
-                    <Target className="h-4 w-4 mr-2" />
-                    Define ICP
-                  </Button>
-                )}
-                {campaignReadyCount > 0 && (
-                  <Button 
-                    onClick={() => navigate('/accounts?campaign_ready=true')} 
-                    variant="outline"
-                    size="sm"
-                    className="justify-start"
-                  >
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    {campaignReadyCount} Campaign-Ready
-                  </Button>
-                )}
-                <Button 
-                  onClick={() => handleEnrichAction('enrich_ai_free')} 
-                  variant="outline"
-                  size="sm"
-                  className="justify-start"
-                  disabled={isStartingEnrichment || (enrichmentProgress !== null && ['pending', 'processing'].includes(enrichmentProgress.status))}
-                >
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  {enrichmentProgress ? 'Enriching...' : 'Enrich Data'}
-                </Button>
-                <Button 
-                  onClick={() => navigate('/data-upload')} 
-                  variant="outline"
-                  size="sm"
-                  className="justify-start"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Upload Data
-                </Button>
-              </div>
-            </div>
-
-            <EnrichmentModal
-              open={enrichmentModalOpen}
-              onOpenChange={setEnrichmentModalOpen}
-              targetFields={selectedEnrichmentFields}
+            <InsightsTabs
+              urgent={urgent}
+              quickWins={quickWins}
+              strategic={strategic}
+              isLoading={isInsightsLoading}
+              onDismiss={handleDismiss}
+              onClick={handleItemClick}
+              inferWorkflowType={inferWorkflowType}
             />
 
+            <QuickActions
+              totalScored={totalScored}
+              campaignReadyCount={campaignReadyCount}
+              isStartingEnrichment={isStartingEnrichment}
+              enrichmentProgress={enrichmentProgress}
+              onEnrichAction={handleEnrichAction}
+            />
+
+            <EnrichmentModal open={enrichmentModalOpen} onOpenChange={setEnrichmentModalOpen} targetFields={selectedEnrichmentFields} />
+
             {effectiveOrgId && (
-              <WorkflowConfirmDialog
-                open={workflowDialogOpen}
-                onOpenChange={setWorkflowDialogOpen}
-                workflowType={selectedWorkflowType}
-                orgId={effectiveOrgId}
-                context={workflowContext}
-              />
+              <WorkflowConfirmDialog open={workflowDialogOpen} onOpenChange={setWorkflowDialogOpen} workflowType={selectedWorkflowType} orgId={effectiveOrgId} context={workflowContext} />
             )}
           </CardContent>
         </CollapsibleContent>

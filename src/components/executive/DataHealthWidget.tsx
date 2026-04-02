@@ -16,12 +16,16 @@ interface DataHealthMetrics {
   overallScore: number;
 }
 
-function HealthBar({ pct, label }: { pct: number; label: string }) {
+function HealthBar({ pct, label, onClick }: { pct: number; label: string; onClick?: () => void }) {
   const color = pct >= 80 ? "bg-primary" : pct >= 50 ? "bg-status-warning" : "bg-destructive";
   return (
-    <div className="group grid grid-cols-[1fr_auto] items-center gap-4 rounded-[0.95rem] px-4 py-3 transition-colors hover:bg-muted/10">
+    <button
+      type="button"
+      className="group grid w-full grid-cols-[1fr_auto] items-center gap-4 rounded-[0.95rem] px-4 py-3 text-left transition-colors hover:bg-muted/10"
+      onClick={onClick}
+    >
       <div>
-        <span className="text-[14px] font-medium text-foreground transition-colors group-hover:text-foreground">{label}</span>
+        <span className="text-[14px] font-medium text-foreground transition-colors group-hover:text-primary">{label}</span>
       </div>
       <div className="flex items-center gap-3">
         <div className="h-2 w-24 overflow-hidden rounded-full bg-border/50">
@@ -32,7 +36,7 @@ function HealthBar({ pct, label }: { pct: number; label: string }) {
         </div>
         <span className="w-9 text-right text-[13px] font-medium text-foreground tabular-nums">{pct}%</span>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -74,16 +78,16 @@ export function DataHealthWidget() {
     return (
       <div className="p-5 text-center">
         <p className="mb-2 text-sm text-muted-foreground">No accounts to analyze</p>
-        <Button variant="outline" size="sm" className="h-7 text-[12px]" onClick={() => navigate("/upload")}>Upload</Button>
+        <Button variant="outline" size="sm" className="h-7 text-[12px]" onClick={() => navigate("/data-upload")}>Upload</Button>
       </div>
     );
   }
 
   const fields = [
-    { label: "Industry", pct: Math.round((metrics.accountsWithIndustry / metrics.totalAccounts) * 100) },
-    { label: "Revenue", pct: Math.round((metrics.accountsWithRevenue / metrics.totalAccounts) * 100) },
-    { label: "Employees", pct: Math.round((metrics.accountsWithEmployees / metrics.totalAccounts) * 100) },
-    { label: "Leads", pct: Math.round((metrics.accountsWithContacts / metrics.totalAccounts) * 100) },
+    { label: "Industry", pct: Math.round((metrics.accountsWithIndustry / metrics.totalAccounts) * 100), route: "/enrichment" },
+    { label: "Revenue", pct: Math.round((metrics.accountsWithRevenue / metrics.totalAccounts) * 100), route: "/enrichment" },
+    { label: "Employees", pct: Math.round((metrics.accountsWithEmployees / metrics.totalAccounts) * 100), route: "/enrichment" },
+    { label: "Leads", pct: Math.round((metrics.accountsWithContacts / metrics.totalAccounts) * 100), route: "/leads" },
   ];
 
   const lowest = fields.reduce((prev, curr) => curr.pct < prev.pct ? curr : prev);
@@ -105,7 +109,7 @@ export function DataHealthWidget() {
 
       <div className="space-y-2">
         {fields.map((f) => (
-          <HealthBar key={f.label} label={f.label} pct={f.pct} />
+          <HealthBar key={f.label} label={f.label} pct={f.pct} onClick={() => navigate(f.route)} />
         ))}
       </div>
 

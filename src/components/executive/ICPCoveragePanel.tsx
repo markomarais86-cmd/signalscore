@@ -88,10 +88,10 @@ export function ICPCoveragePanel({
             <p className="metric-panel__label">ICP fit</p>
             <p className="metric-panel__value">{icpFit.toLocaleString()}</p>
           </button>
-          <div className="metric-panel">
+          <button type="button" className="metric-panel" onClick={() => navigate(isAccounts ? "/accounts?fit=high&fit=medium" : "/leads?fit=high&fit=medium")}>
             <p className="metric-panel__label">Coverage rate</p>
             <p className="metric-panel__value text-primary">{pct}%</p>
-          </div>
+          </button>
         </div>
 
         <div className="mb-5 flex h-3 overflow-hidden rounded-full bg-border/50">
