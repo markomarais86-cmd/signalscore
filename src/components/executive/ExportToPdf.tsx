@@ -8,26 +8,25 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useBrandedReport } from "@/hooks/use-branded-report";
-import { useNavigate } from "react-router-dom";
 import { useEffectiveOrg } from "@/hooks/use-effective-org";
 import { exportToExcel } from "@/utils/exportToExcel";
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface ExportToPdfProps {
-  onExport: (format: 'pdf' | 'pptx' | 'csv') => void;
   variant?: "default" | "outline" | "secondary" | "ghost";
   size?: "default" | "sm" | "lg" | "icon";
 }
 
 export function ExportToPdf({ 
-  onExport, 
   variant = "outline",
   size = "sm"
 }: ExportToPdfProps) {
   const { generateReport, isGenerating } = useBrandedReport();
   const { effectiveOrgId } = useEffectiveOrg();
-  const navigate = useNavigate();
   const [isExportingExcel, setIsExportingExcel] = useState(false);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
 
   const handlePdfExport = async () => {
     await generateReport();
@@ -43,7 +42,50 @@ export function ExportToPdf({
     }
   };
 
-  const isBusy = isGenerating || isExportingExcel;
+  const handleCsvExport = async () => {
+    if (!effectiveOrgId) return;
+    setIsExportingCsv(true);
+    try {
+      const { data: accounts, error } = await supabase
+        .from("accounts")
+        .select("external_id, name, domain, industry_norm, revenue_range, employee_count, country, icp_qualified, propensity_score, enriched_at")
+        .eq("org_id", effectiveOrgId)
+        .limit(10000);
+
+      if (error) throw error;
+      if (!accounts || accounts.length === 0) {
+        toast.info("No accounts to export");
+        return;
+      }
+
+      const headers = Object.keys(accounts[0]);
+      const csvRows = [
+        headers.join(","),
+        ...accounts.map(row =>
+          headers.map(h => {
+            const val = (row as Record<string, unknown>)[h];
+            const str = val == null ? "" : String(val);
+            return str.includes(",") || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
+          }).join(",")
+        ),
+      ];
+      const blob = new Blob([csvRows.join("\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `accounts-export-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${accounts.length} accounts`);
+    } catch (err) {
+      toast.error("CSV export failed");
+      console.error(err);
+    } finally {
+      setIsExportingCsv(false);
+    }
+  };
+
+  const isBusy = isGenerating || isExportingExcel || isExportingCsv;
 
   return (
     <DropdownMenu>
@@ -54,7 +96,7 @@ export function ExportToPdf({
           ) : (
             <Download className="h-4 w-4 mr-2" />
           )}
-          {isGenerating ? 'Generating...' : isExportingExcel ? 'Exporting...' : 'Export Report'}
+          {isGenerating ? 'Generating...' : isExportingExcel ? 'Exporting...' : isExportingCsv ? 'Exporting...' : 'Export Report'}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
@@ -66,7 +108,7 @@ export function ExportToPdf({
           <FileSpreadsheet className="h-4 w-4 mr-2" />
           Full Data Export (Excel)
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onExport('csv')}>
+        <DropdownMenuItem onClick={handleCsvExport} disabled={isBusy}>
           <Download className="h-4 w-4 mr-2" />
           Raw Data CSV
         </DropdownMenuItem>

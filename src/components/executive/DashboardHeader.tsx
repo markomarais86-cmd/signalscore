@@ -65,7 +65,7 @@ export function DashboardHeader({
           Enrich
         </Button>
 
-        <ExportToPdf onExport={() => {}} />
+        <ExportToPdf />
         {effectiveOrgId && <PowerUpButton orgId={effectiveOrgId} onComplete={onPowerUpComplete} />}
         <QuickCampaignButton highFitAccounts={highFitAccounts} disabled={isLoading || highFitAccounts === 0} />
       </div>
