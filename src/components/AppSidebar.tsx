@@ -110,7 +110,6 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild>
                     <NavLink
                       to={item.url}
-                      end={item.url === "/"}
                       className={getNavCls(item.url)}
                     >
                       <item.icon className="h-4 w-4" />
