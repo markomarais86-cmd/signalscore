@@ -21,14 +21,14 @@ export function DashboardHeroBanner({
   summaryText,
 }: DashboardHeroBannerProps) {
   return (
-    <div className="hero-banner px-6 py-5">
-      <div className="relative flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div className="space-y-1.5">
-          <h1 className="text-xl font-bold tracking-tight text-white font-heading">
+    <div className="hero-banner px-6 py-6">
+      <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+        <div className="space-y-2">
+          <h1 className="font-heading text-[1.85rem] font-semibold tracking-[-0.05em] text-white sm:text-[2.1rem]">
             {getGreeting()}
           </h1>
           {summaryText && (
-            <p className="text-xs text-white/40 max-w-md leading-relaxed">
+            <p className="max-w-xl text-sm leading-6 text-white/60 sm:text-[15px]">
               {summaryText}
             </p>
           )}
