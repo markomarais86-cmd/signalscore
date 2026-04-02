@@ -80,10 +80,10 @@ export function DataHealthWidget() {
   }
 
   const fields = [
-    { label: "Industry", pct: Math.round((metrics.accountsWithIndustry / metrics.totalAccounts) * 100) },
-    { label: "Revenue", pct: Math.round((metrics.accountsWithRevenue / metrics.totalAccounts) * 100) },
-    { label: "Employees", pct: Math.round((metrics.accountsWithEmployees / metrics.totalAccounts) * 100) },
-    { label: "Leads", pct: Math.round((metrics.accountsWithContacts / metrics.totalAccounts) * 100) },
+    { label: "Industry", pct: Math.round((metrics.accountsWithIndustry / metrics.totalAccounts) * 100), route: "/enrichment" },
+    { label: "Revenue", pct: Math.round((metrics.accountsWithRevenue / metrics.totalAccounts) * 100), route: "/enrichment" },
+    { label: "Employees", pct: Math.round((metrics.accountsWithEmployees / metrics.totalAccounts) * 100), route: "/enrichment" },
+    { label: "Leads", pct: Math.round((metrics.accountsWithContacts / metrics.totalAccounts) * 100), route: "/leads" },
   ];
 
   const lowest = fields.reduce((prev, curr) => curr.pct < prev.pct ? curr : prev);
