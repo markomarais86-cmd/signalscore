@@ -184,7 +184,7 @@
     @apply rounded-lg border bg-card overflow-hidden;
   }
   .widget-card .widget-header {
-    @apply flex items-center justify-between px-4 py-3 border-b;
+    @apply flex items-center justify-between px-4 py-3;
   }
 
   /* ── Shadows ── */
