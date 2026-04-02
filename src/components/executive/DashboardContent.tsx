@@ -1,4 +1,3 @@
-import { Globe, MapPin, Activity } from "lucide-react";
 import { GrowthCommandKPIs } from "@/components/executive/GrowthCommandKPIs";
 import { ICPCoveragePanel } from "@/components/executive/ICPCoveragePanel";
 import { ICPProfileSummaryCard } from "@/components/executive/ICPProfileSummaryCard";
@@ -6,7 +5,6 @@ import { SimpleICPTable } from "@/components/executive/SimpleICPTable";
 import { SimpleTAMCard } from "@/components/executive/SimpleTAMCard";
 import { SimpleGeographyCard } from "@/components/executive/SimpleGeographyCard";
 import { DataHealthWidget } from "@/components/executive/DataHealthWidget";
-import { CollapsibleDashboardCard } from "@/components/executive/CollapsibleDashboardCard";
 import { UnifiedInsightsPanel, Insight } from "@/components/executive/UnifiedInsightsPanel";
 import type { SourceFilter } from "@/components/executive/SourceFilterToggle";
 import type { RiskItem } from "@/utils/risk-detector";
@@ -56,6 +54,14 @@ interface DashboardContentProps {
   onLaunchCampaign: (ctx: any) => void;
 }
 
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <h2 className="text-[11px] font-medium text-muted-foreground uppercase tracking-[0.1em] py-2 px-0.5">
+      {title}
+    </h2>
+  );
+}
+
 export function DashboardContent(props: DashboardContentProps) {
   const {
     sourceFilter: sf,
@@ -76,6 +82,7 @@ export function DashboardContent(props: DashboardContentProps) {
 
   return (
     <div className="space-y-5">
+      {/* KPI Row */}
       <GrowthCommandKPIs
         totalAccounts={sf === "database" ? (tamData?.totalAccounts || 0) : totalAccounts}
         totalScored={pick(crmScoredAccounts, databaseScoredAccounts, totalScores)}
@@ -88,6 +95,7 @@ export function DashboardContent(props: DashboardContentProps) {
         averageDealSize={averageDealSize}
       />
 
+      {/* ICP Coverage — widget card */}
       <ICPCoveragePanel
         highFitAccounts={pick(highFitCrmAccounts, highFitDatabaseAccounts, highFitAccounts)}
         medFitAccounts={pick(medFitCrmAccounts, medFitDatabaseAccounts, medFitAccounts)}
@@ -101,9 +109,14 @@ export function DashboardContent(props: DashboardContentProps) {
 
       <ICPProfileSummaryCard icpProfiles={icpProfiles} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div>
-          <CollapsibleDashboardCard title="ICP by Source" defaultOpen>
+      {/* 3-column widget grid */}
+      <div>
+        <SectionHeader title="Market Intelligence" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <div className="widget-card">
+            <div className="widget-header">
+              <span className="text-xs font-medium text-foreground">ICP by Source</span>
+            </div>
             <SimpleICPTable
               crmAccounts={crmAccounts}
               databaseAccounts={databaseAccounts}
@@ -115,11 +128,12 @@ export function DashboardContent(props: DashboardContentProps) {
               apolloHighFitEstimate={tamData?.totalAccounts && tamData?.industry_breakdown ? Math.round(tamData.totalAccounts * 0.35) : undefined}
               apolloMedFitEstimate={tamData?.totalAccounts && tamData?.industry_breakdown ? Math.round(tamData.totalAccounts * 0.25) : undefined}
             />
-          </CollapsibleDashboardCard>
-        </div>
+          </div>
 
-        <div>
-          <CollapsibleDashboardCard title="Market Sizing" defaultOpen>
+          <div className="widget-card">
+            <div className="widget-header">
+              <span className="text-xs font-medium text-foreground">Market Sizing</span>
+            </div>
             <SimpleTAMCard
               totalAccounts={sf === "database" ? (tamData?.totalAccounts || 0) : totalAccounts}
               highFitAccounts={pick(highFitCrmAccounts, highFitDatabaseAccounts, highFitAccounts)}
@@ -129,11 +143,12 @@ export function DashboardContent(props: DashboardContentProps) {
               conversionRate={conversionRate}
               onSettingsChange={({ averageDealSize: ds, conversionRate: cr }) => onSettingsChange({ averageDealSize: ds, conversionRate: cr })}
             />
-          </CollapsibleDashboardCard>
-        </div>
+          </div>
 
-        <div>
-          <CollapsibleDashboardCard title="Top Geographies" defaultOpen>
+          <div className="widget-card">
+            <div className="widget-header">
+              <span className="text-xs font-medium text-foreground">Top Geographies</span>
+            </div>
             <SimpleGeographyCard
               geoData={
                 sf === "database" && tamData?.geography_breakdown
@@ -146,15 +161,17 @@ export function DashboardContent(props: DashboardContentProps) {
                   : geographyDistribution.map((g) => ({ country: g.country, count: g.count }))
               }
             />
-          </CollapsibleDashboardCard>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div>
-          <CollapsibleDashboardCard title="Data Health" defaultOpen>
-            <DataHealthWidget />
-          </CollapsibleDashboardCard>
+      {/* Data Health + Insights */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="widget-card">
+          <div className="widget-header">
+            <span className="text-xs font-medium text-foreground">Data Health</span>
+          </div>
+          <DataHealthWidget />
         </div>
 
         <div className="lg:col-span-2">

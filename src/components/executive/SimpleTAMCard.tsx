@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Settings, TrendingUp } from "lucide-react";
+import { Settings } from "lucide-react";
 
 interface SimpleTAMCardProps {
   tamValue?: number;
@@ -49,8 +49,8 @@ export function SimpleTAMCard({
   const somPct = highFitAccounts > 0 ? (campaignReadyAccounts / highFitAccounts) * 100 : 0;
 
   return (
-    <div className={`${className ?? ""} rounded-lg border bg-card`}>
-      {/* Settings trigger */}
+    <div className={className}>
+      {/* Settings */}
       <div className="flex justify-end px-3 pt-2">
         <Popover open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
           <PopoverTrigger asChild>
@@ -96,17 +96,6 @@ export function SimpleTAMCard({
           <p className="text-lg font-semibold font-mono tabular-nums text-foreground mt-0.5">{fmt(som)}</p>
           <p className="text-[11px] text-muted-foreground/60 font-mono tabular-nums">{somPct.toFixed(0)}% of SAM</p>
         </button>
-      </div>
-
-      {/* Footer insight */}
-      <div className="flex items-center gap-1.5 px-4 py-2.5 border-t text-[11px] text-muted-foreground">
-        <TrendingUp className="h-3 w-3 shrink-0" />
-        <span>
-          {totalAccounts === 0 ? "No accounts yet."
-            : samPct >= 50 ? "Strong ICP alignment."
-            : samPct >= 25 ? "Moderate concentration."
-            : "Low concentration — sharpen targeting."}
-        </span>
       </div>
     </div>
   );

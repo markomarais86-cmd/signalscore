@@ -26,6 +26,7 @@ import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboa
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
 import { StatusBar, buildStatusItems } from "@/components/executive/StatusBar";
 import { DashboardHeader } from "@/components/executive/DashboardHeader";
+import { DashboardHeroBanner } from "@/components/executive/DashboardHeroBanner";
 import { DashboardContent } from "@/components/executive/DashboardContent";
 import { CampaignBuilderV2 } from "@/components/campaigns/CampaignBuilderV2";
 import type { SourceFilter } from "@/components/executive/SourceFilterToggle";
@@ -231,6 +232,11 @@ export default function ExecutiveDashboard() {
     childOrgName: selectedOrg?.name,
   });
 
+  const summaryParts: string[] = [];
+  if (highFitAccounts > 0) summaryParts.push(`${highFitAccounts} priority accounts`);
+  if (campaignReadyAccounts > 0) summaryParts.push(`${campaignReadyAccounts} campaign-ready`);
+  const summaryText = summaryParts.length > 0 ? `You have ${summaryParts.join(" and ")}` : "Get started by importing your account data";
+
   return (
     <div className="mx-auto min-h-screen w-full max-w-[1440px] space-y-4 px-4 pb-10 sm:px-5 lg:px-6">
       <DashboardHeader
@@ -249,6 +255,13 @@ export default function ExecutiveDashboard() {
         onEnrich={() => setIsEnrichmentModalOpen(true)}
         onToggleHealth={() => setShowHealthDashboard(!showHealthDashboard)}
         onPowerUpComplete={() => refetch()}
+      />
+
+      <DashboardHeroBanner
+        sourceFilter={sourceFilter}
+        onSourceFilterChange={setSourceFilter}
+        filterStats={filterStats}
+        summaryText={summaryText}
       />
 
       <StatusBar items={statusItems} />

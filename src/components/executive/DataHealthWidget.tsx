@@ -48,12 +48,12 @@ export function DataHealthWidget() {
   });
 
   if (isLoading) {
-    return <div className="rounded-lg border bg-card p-4 space-y-2"><Skeleton className="h-3 w-20" /><Skeleton className="h-1.5 w-full" /></div>;
+    return <div className="p-4 space-y-2"><Skeleton className="h-3 w-20" /><Skeleton className="h-1.5 w-full" /></div>;
   }
 
   if (!metrics || metrics.totalAccounts === 0) {
     return (
-      <div className="rounded-lg border bg-card p-5 text-center">
+      <div className="p-5 text-center">
         <p className="text-xs text-muted-foreground mb-2">No accounts to analyze</p>
         <Button variant="outline" size="sm" className="h-6 text-[11px]" onClick={() => navigate("/upload")}>Upload</Button>
       </div>
@@ -70,7 +70,7 @@ export function DataHealthWidget() {
   const lowest = fields.reduce((prev, curr) => curr.pct < prev.pct ? curr : prev);
 
   return (
-    <div className="rounded-lg border bg-card">
+    <div>
       {/* Overall */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <span className="text-xs text-muted-foreground">Overall</span>

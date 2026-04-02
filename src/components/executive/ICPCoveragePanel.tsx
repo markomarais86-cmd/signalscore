@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
 interface ICPCoveragePanelProps {
   highFitAccounts: number;
@@ -32,14 +31,14 @@ export function ICPCoveragePanel({
   const isAccounts = activeTab === "accounts";
   const data = isAccounts
     ? [
-        { name: "High", value: highFitAccounts, color: FIT_COLORS.high },
-        { name: "Medium", value: medFitAccounts, color: FIT_COLORS.medium },
-        { name: "Low", value: lowFitAccounts, color: FIT_COLORS.low },
+        { name: "High Fit", value: highFitAccounts, color: FIT_COLORS.high },
+        { name: "Medium Fit", value: medFitAccounts, color: FIT_COLORS.medium },
+        { name: "Low Fit", value: lowFitAccounts, color: FIT_COLORS.low },
       ]
     : [
-        { name: "High", value: highFitLeads, color: FIT_COLORS.high },
-        { name: "Medium", value: medFitLeads, color: FIT_COLORS.medium },
-        { name: "Low", value: lowFitLeads, color: FIT_COLORS.low },
+        { name: "High Fit", value: highFitLeads, color: FIT_COLORS.high },
+        { name: "Medium Fit", value: medFitLeads, color: FIT_COLORS.medium },
+        { name: "Low Fit", value: lowFitLeads, color: FIT_COLORS.low },
       ];
 
   const total = isAccounts ? totalScored : totalLeads;
@@ -55,8 +54,9 @@ export function ICPCoveragePanel({
   }
 
   return (
-    <div className={`${className ?? ""} rounded-lg border bg-card`}>
-      <div className="flex items-center justify-between border-b px-5 py-3">
+    <div className={`${className ?? ""} widget-card`}>
+      {/* Header */}
+      <div className="widget-header">
         <span className="text-sm font-medium text-foreground">ICP Coverage</span>
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "accounts" | "leads")}>
           <TabsList className="h-7 bg-transparent p-0 gap-0">
@@ -74,57 +74,52 @@ export function ICPCoveragePanel({
         {/* 3 metric cells */}
         <div className="grid grid-cols-3 gap-px rounded-md border bg-border overflow-hidden mb-5">
           <button type="button" className="bg-card px-3 py-3 text-left hover:bg-muted/10" onClick={() => navigate(isAccounts ? "/accounts" : "/leads")}>
-            <p className="text-[11px] text-muted-foreground">Total</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total</p>
             <p className="text-lg font-semibold font-mono tabular-nums text-foreground mt-0.5">{total.toLocaleString()}</p>
           </button>
           <button type="button" className="bg-card px-3 py-3 text-left hover:bg-muted/10" onClick={() => navigate(isAccounts ? "/accounts?fit=high" : "/leads?fit=high")}>
-            <p className="text-[11px] text-muted-foreground">ICP Fit</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">ICP Fit</p>
             <p className="text-lg font-semibold font-mono tabular-nums text-foreground mt-0.5">{icpFit.toLocaleString()}</p>
           </button>
           <div className="bg-card px-3 py-3 text-left">
-            <p className="text-[11px] text-muted-foreground">Coverage</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Coverage</p>
             <p className="text-lg font-semibold font-mono tabular-nums text-foreground mt-0.5">{pct}%</p>
           </div>
         </div>
 
-        {/* Chart + list */}
-        <div className="grid items-center gap-5 lg:grid-cols-[180px_1fr]">
-          <div className="relative mx-auto h-44 w-44 lg:mx-0">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={data} cx="50%" cy="50%" innerRadius={54} outerRadius={76} paddingAngle={2} dataKey="value" stroke="hsl(var(--card))" strokeWidth={2}>
-                  {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-semibold font-mono tabular-nums text-foreground">{pct}%</span>
-            </div>
-          </div>
+        {/* Stacked bar */}
+        <div className="h-2 rounded-full overflow-hidden flex mb-5">
+          {data.map((item) => {
+            const w = total > 0 ? (item.value / total) * 100 : 0;
+            return w > 0 ? (
+              <div key={item.name} className="h-full first:rounded-l-full last:rounded-r-full" style={{ width: `${w}%`, backgroundColor: item.color }} />
+            ) : null;
+          })}
+        </div>
 
-          <div className="space-y-0 divide-y divide-border">
-            {data.map((item) => {
-              const p = total > 0 ? (item.value / total) * 100 : 0;
-              const fitParam = item.name === "High" ? "high" : item.name === "Medium" ? "medium" : "low";
-              return (
-                <button
-                  key={item.name}
-                  type="button"
-                  className="flex w-full items-center justify-between py-2.5 px-1 text-left transition-colors hover:bg-muted/10"
-                  onClick={() => navigate(isAccounts ? `/accounts?fit=${fitParam}` : `/leads?fit=${fitParam}`)}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="text-xs text-foreground">{item.name}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-xs font-mono tabular-nums text-foreground">{item.value.toLocaleString()}</span>
-                    <span className="text-[11px] font-mono tabular-nums text-muted-foreground w-8 text-right">{p.toFixed(0)}%</span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+        {/* Segment rows */}
+        <div className="space-y-0 divide-y divide-border">
+          {data.map((item) => {
+            const p = total > 0 ? (item.value / total) * 100 : 0;
+            const fitParam = item.name.split(" ")[0].toLowerCase();
+            return (
+              <button
+                key={item.name}
+                type="button"
+                className="flex w-full items-center justify-between py-2.5 px-1 text-left transition-colors hover:bg-muted/10"
+                onClick={() => navigate(isAccounts ? `/accounts?fit=${fitParam}` : `/leads?fit=${fitParam}`)}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
+                  <span className="text-xs text-foreground">{item.name}</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <span className="text-xs font-mono tabular-nums text-foreground">{item.value.toLocaleString()}</span>
+                  <span className="text-[11px] font-mono tabular-nums text-muted-foreground w-8 text-right">{p.toFixed(0)}%</span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
