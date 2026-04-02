@@ -160,6 +160,8 @@ export default function PortfolioCommandCenter() {
     navigate("/dashboard");
   };
 
+  const sorted = filtered.sort((a, b) => a.healthScore - b.healthScore);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -226,107 +228,149 @@ export default function PortfolioCommandCenter() {
                   <Skeleton key={i} className="h-12" />
                 ))}
               </div>
-            ) : (
-              <div className="overflow-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Company</TableHead>
-                      <TableHead className="text-center">Health</TableHead>
-                      <TableHead className="text-center">ICP</TableHead>
-                      <TableHead className="text-right">Accounts</TableHead>
-                      <TableHead className="text-center">Scoring %</TableHead>
-                      <TableHead className="text-center">Enrichment %</TableHead>
-                      <TableHead className="text-right">Leads</TableHead>
-                      <TableHead className="text-right">Campaigns</TableHead>
-                      <TableHead className="text-right">Signals</TableHead>
-                      <TableHead className="w-10" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filtered.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
-                          No portfolio companies found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filtered
-                        .sort((a, b) => a.healthScore - b.healthScore) // worst first
-                        .map((company) => (
-                          <TableRow
-                            key={company.id}
-                            className="cursor-pointer hover:bg-muted/50 transition-colors"
-                            onClick={() => handleDrillDown(company.id)}
-                          >
-                            <TableCell className="font-medium">
-                              <div className="flex items-center gap-2">
-                                <div className={`h-2 w-2 rounded-full ${healthColors[company.overallHealth]}`} />
-                                {company.name}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <HealthBadge status={company.overallHealth} />
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {company.icpDefined ? (
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <Badge variant="secondary" className="gap-1">
-                                      <Target className="h-3 w-3" />
-                                      {company.icpCount}
-                                    </Badge>
-                                  </TooltipTrigger>
-                                  <TooltipContent>{company.icpCount} ICP profile(s) defined</TooltipContent>
-                                </Tooltip>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">Not set</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right font-mono text-sm">
-                              {formatNumber(company.totalAccounts)}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Progress value={company.scoringCoverage} className="h-1.5 flex-1" />
-                                <span className="text-xs font-mono w-8 text-right">{company.scoringCoverage}%</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Progress value={company.enrichmentCoverage} className="h-1.5 flex-1" />
-                                <span className="text-xs font-mono w-8 text-right">{company.enrichmentCoverage}%</span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-right font-mono text-sm">
-                              {formatNumber(company.totalLeads)}
-                            </TableCell>
-                            <TableCell className="text-right font-mono text-sm">
-                              {company.totalCampaigns}
-                              {company.activeCampaigns > 0 && (
-                                <span className="text-emerald-500 ml-1 text-xs">({company.activeCampaigns} live)</span>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {company.activeSignals > 0 ? (
-                                <Badge variant="outline" className="text-xs border-amber-500/30 text-amber-600 dark:text-amber-400">
-                                  {company.activeSignals}
-                                </Badge>
-                              ) : (
-                                <span className="text-xs text-muted-foreground">0</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Button variant="ghost" size="icon" className="h-7 w-7">
-                                <ArrowRight className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                    )}
-                  </TableBody>
-                </Table>
+            ) : sorted.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground">
+                No portfolio companies found
               </div>
+            ) : (
+              <>
+                {/* Mobile cards */}
+                <div className="block sm:hidden space-y-3 p-4">
+                  {sorted.map((company) => (
+                    <div
+                      key={company.id}
+                      className="border rounded-lg p-4 bg-card cursor-pointer hover:bg-muted/50 transition-colors space-y-3"
+                      onClick={() => handleDrillDown(company.id)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className={`h-2 w-2 rounded-full ${healthColors[company.overallHealth]}`} />
+                          <span className="font-medium">{company.name}</span>
+                        </div>
+                        <HealthBadge status={company.overallHealth} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-muted-foreground text-xs">ICP</span>
+                          <div>{company.icpDefined ? <Badge variant="secondary" className="gap-1"><Target className="h-3 w-3" />{company.icpCount}</Badge> : <span className="text-xs text-muted-foreground">Not set</span>}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground text-xs">Accounts</span>
+                          <div className="font-mono">{formatNumber(company.totalAccounts)}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground text-xs">Scoring</span>
+                          <div className="flex items-center gap-1"><Progress value={company.scoringCoverage} className="h-1.5 flex-1" /><span className="text-xs font-mono">{company.scoringCoverage}%</span></div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground text-xs">Enrichment</span>
+                          <div className="flex items-center gap-1"><Progress value={company.enrichmentCoverage} className="h-1.5 flex-1" /><span className="text-xs font-mono">{company.enrichmentCoverage}%</span></div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground text-xs">Leads</span>
+                          <div className="font-mono">{formatNumber(company.totalLeads)}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground text-xs">Signals</span>
+                          <div>{company.activeSignals > 0 ? <Badge variant="outline" className="text-xs border-amber-500/30 text-amber-600 dark:text-amber-400">{company.activeSignals}</Badge> : <span className="text-muted-foreground">0</span>}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop table */}
+                <div className="hidden sm:block overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Company</TableHead>
+                        <TableHead className="text-center">Health</TableHead>
+                        <TableHead className="text-center">ICP</TableHead>
+                        <TableHead className="text-right">Accounts</TableHead>
+                        <TableHead className="text-center">Scoring %</TableHead>
+                        <TableHead className="text-center">Enrichment %</TableHead>
+                        <TableHead className="text-right">Leads</TableHead>
+                        <TableHead className="text-right">Campaigns</TableHead>
+                        <TableHead className="text-right">Signals</TableHead>
+                        <TableHead className="w-10" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sorted.map((company) => (
+                        <TableRow
+                          key={company.id}
+                          className="cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => handleDrillDown(company.id)}
+                        >
+                          <TableCell className="font-medium">
+                            <div className="flex items-center gap-2">
+                              <div className={`h-2 w-2 rounded-full ${healthColors[company.overallHealth]}`} />
+                              {company.name}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <HealthBadge status={company.overallHealth} />
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {company.icpDefined ? (
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <Badge variant="secondary" className="gap-1">
+                                    <Target className="h-3 w-3" />
+                                    {company.icpCount}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>{company.icpCount} ICP profile(s) defined</TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Not set</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {formatNumber(company.totalAccounts)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Progress value={company.scoringCoverage} className="h-1.5 flex-1" />
+                              <span className="text-xs font-mono w-8 text-right">{company.scoringCoverage}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Progress value={company.enrichmentCoverage} className="h-1.5 flex-1" />
+                              <span className="text-xs font-mono w-8 text-right">{company.enrichmentCoverage}%</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {formatNumber(company.totalLeads)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-sm">
+                            {company.totalCampaigns}
+                            {company.activeCampaigns > 0 && (
+                              <span className="text-emerald-500 ml-1 text-xs">({company.activeCampaigns} live)</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {company.activeSignals > 0 ? (
+                              <Badge variant="outline" className="text-xs border-amber-500/30 text-amber-600 dark:text-amber-400">
+                                {company.activeSignals}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">0</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Button variant="ghost" size="icon" className="h-7 w-7">
+                              <ArrowRight className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
