@@ -167,7 +167,7 @@ export function StatusBar({ items, className }: StatusBarProps) {
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       {progressCount > 0 && <Badge variant="default" className="h-5 px-1.5">{progressCount} running</Badge>}
                       {errorCount > 0 && <Badge variant="destructive" className="h-5 px-1.5">{errorCount}</Badge>}
-                      {warningCount > 0 && <Badge variant="secondary" className="h-5 px-1.5 bg-amber-500/20 text-amber-700">{warningCount}</Badge>}
+                      {warningCount > 0 && <Badge variant="secondary" className="h-5 px-1.5 bg-status-warning/20 text-status-warning">{warningCount}</Badge>}
                       {infoCount > 0 && <Badge variant="secondary" className="h-5 px-1.5">{infoCount}</Badge>}
                     </div>
                   )}

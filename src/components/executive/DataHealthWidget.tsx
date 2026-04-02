@@ -109,7 +109,7 @@ export function DataHealthWidget() {
 
       <div className="space-y-2">
         {fields.map((f) => (
-          <HealthBar key={f.label} label={f.label} pct={f.pct} />
+          <HealthBar key={f.label} label={f.label} pct={f.pct} onClick={() => navigate(f.route)} />
         ))}
       </div>
 
