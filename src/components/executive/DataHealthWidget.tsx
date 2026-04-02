@@ -19,9 +19,9 @@ interface DataHealthMetrics {
 function HealthBar({ pct, label }: { pct: number; label: string }) {
   const color = pct >= 80 ? "bg-primary" : pct >= 50 ? "bg-status-warning" : "bg-destructive";
   return (
-    <div className="group grid grid-cols-[1fr_auto] items-center gap-4 rounded-[0.95rem] border border-border/70 bg-background/35 px-4 py-3 transition-colors hover:border-primary/15 hover:bg-muted/10">
+    <div className="group grid grid-cols-[1fr_auto] items-center gap-4 rounded-[0.95rem] px-4 py-3 transition-colors hover:bg-muted/10">
       <div>
-        <span className="text-[13px] font-medium text-foreground/88 transition-colors group-hover:text-foreground">{label}</span>
+        <span className="text-[14px] font-medium text-foreground transition-colors group-hover:text-foreground">{label}</span>
       </div>
       <div className="flex items-center gap-3">
         <div className="h-2 w-24 overflow-hidden rounded-full bg-border/50">
@@ -30,7 +30,7 @@ function HealthBar({ pct, label }: { pct: number; label: string }) {
             style={{ width: `${pct}%` }}
           />
         </div>
-        <span className="w-9 text-right text-[12px] font-medium text-foreground tabular-nums">{pct}%</span>
+        <span className="w-9 text-right text-[13px] font-medium text-foreground tabular-nums">{pct}%</span>
       </div>
     </div>
   );
