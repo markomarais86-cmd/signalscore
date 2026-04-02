@@ -55,22 +55,23 @@ function KPITile({
   return (
     <button
       type="button"
-      className="stat-card text-left p-4 group focus:outline-none focus-visible:ring-1 focus-visible:ring-primary animate-fade-in-up"
+      className="stat-card group animate-fade-in-up p-5 text-left focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
       style={{ animationDelay: `${delay}ms` }}
       onClick={onClick}
     >
       <div className={`stat-accent ${accentClass}`} />
 
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2 leading-none">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="mb-2 text-[11px] font-medium tracking-[0.02em] text-muted-foreground/80">
             {label}
           </p>
-          <p className="text-2xl font-semibold font-mono tabular-nums text-foreground leading-none tracking-tight">
-            {rawValue === 0 && !formatFn ? "—" : displayValue}
+          <p className="font-heading text-[1.9rem] font-semibold leading-none tracking-[-0.05em] text-foreground tabular-nums sm:text-[2.1rem]">
+            {displayValue}
           </p>
         </div>
-        <div className="opacity-40 group-hover:opacity-70 transition-opacity pt-3">
+
+        <div className="pt-3 opacity-35 transition-opacity group-hover:opacity-70">
           <MiniSparkline
             data={generateTrendFromSeed(sparkSeed, rawValue)}
             width={56}
@@ -81,7 +82,7 @@ function KPITile({
       </div>
 
       {sub && (
-        <p className="text-[11px] text-muted-foreground/60 mt-2 leading-none font-mono tabular-nums">
+        <p className="mt-2 text-[12px] leading-5 text-muted-foreground/70">
           {sub}
         </p>
       )}
@@ -89,7 +90,6 @@ function KPITile({
   );
 }
 
-/** Generates a deterministic 7-point trend from a seed */
 function generateTrendFromSeed(seed: number, target: number): number[] {
   const base = target || 50;
   const points: number[] = [];
@@ -116,21 +116,21 @@ export function GrowthCommandKPIs({
   const marketCoverage = totalScored > 0 ? Math.round((icpFitAccounts / totalScored) * 100) : 0;
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
       <KPITile
-        label="Market Coverage"
+        label="Market coverage"
         rawValue={marketCoverage}
-        formatFn={(v) => totalScored > 0 ? `${v}%` : "—"}
-        sub={totalScored > 0 ? `${icpFitAccounts.toLocaleString()} of ${totalScored.toLocaleString()}` : null}
+        formatFn={(v) => `${v}%`}
+        sub={totalScored > 0 ? `${icpFitAccounts.toLocaleString()} of ${totalScored.toLocaleString()} scored` : null}
         onClick={() => navigate("/accounts")}
         accentClass={ACCENT_COLORS[0]}
         sparkSeed={1}
         delay={0}
       />
       <KPITile
-        label="Data Completeness"
+        label="Data completeness"
         rawValue={dataCompleteness}
-        formatFn={(v) => (dataCompleteness === 0 && totalScored === 0) ? "—" : `${v}%`}
+        formatFn={(v) => `${v}%`}
         sub={null}
         onClick={() => navigate("/enrichment")}
         accentClass={ACCENT_COLORS[1]}
@@ -138,19 +138,19 @@ export function GrowthCommandKPIs({
         delay={60}
       />
       <KPITile
-        label="Priority Accounts"
+        label="Priority accounts"
         rawValue={highFitAccounts}
-        sub={totalScored > 0 ? `${((highFitAccounts / totalScored) * 100).toFixed(1)}% of scored` : null}
+        sub={totalScored > 0 ? `${((highFitAccounts / totalScored) * 100).toFixed(1)}% of scored accounts` : null}
         onClick={() => navigate("/accounts?fit=high")}
         accentClass={ACCENT_COLORS[2]}
         sparkSeed={3}
         delay={120}
       />
       <KPITile
-        label="Pipeline Potential"
+        label="Pipeline potential"
         rawValue={pipelinePotential}
         formatFn={formatCurrency}
-        sub={`${campaignReadyAccounts.toLocaleString()} ready`}
+        sub={`${campaignReadyAccounts.toLocaleString()} campaign-ready`}
         onClick={() => navigate("/accounts")}
         accentClass={ACCENT_COLORS[3]}
         sparkSeed={4}
@@ -158,10 +158,10 @@ export function GrowthCommandKPIs({
         delay={180}
       />
       <KPITile
-        label="Revenue at Risk"
+        label="Revenue at risk"
         rawValue={revenueAtRisk}
         formatFn={formatCurrency}
-        sub={totalAccounts > 0 ? `${totalAccounts - totalScored} unscored` : null}
+        sub={totalAccounts > 0 ? `${totalAccounts - totalScored} unscored accounts` : null}
         onClick={() => navigate("/accounts")}
         accentClass={ACCENT_COLORS[4]}
         sparkSeed={5}

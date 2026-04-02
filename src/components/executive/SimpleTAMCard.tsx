@@ -27,9 +27,15 @@ function fmt(value: number): string {
 }
 
 export function SimpleTAMCard({
-  tamValue, totalAccounts, highFitAccounts, medFitAccounts = 0, campaignReadyAccounts,
-  averageDealSize: initDS = 75000, conversionRate: initCR = 0.15,
-  className, onSettingsChange,
+  tamValue,
+  totalAccounts,
+  highFitAccounts,
+  medFitAccounts = 0,
+  campaignReadyAccounts,
+  averageDealSize: initDS = 75000,
+  conversionRate: initCR = 0.15,
+  className,
+  onSettingsChange,
 }: SimpleTAMCardProps) {
   const navigate = useNavigate();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -39,7 +45,10 @@ export function SimpleTAMCard({
   useEffect(() => setTmpDS(initDS), [initDS]);
   useEffect(() => setTmpCR(initCR * 100), [initCR]);
 
-  const save = () => { setIsSettingsOpen(false); onSettingsChange?.({ averageDealSize: tmpDS, conversionRate: tmpCR / 100 }); };
+  const save = () => {
+    setIsSettingsOpen(false);
+    onSettingsChange?.({ averageDealSize: tmpDS, conversionRate: tmpCR / 100 });
+  };
 
   const tamAccts = highFitAccounts + medFitAccounts;
   const tam = tamValue && tamValue > 0 ? tamValue : tamAccts * initDS;
@@ -50,12 +59,11 @@ export function SimpleTAMCard({
 
   return (
     <div className={className}>
-      {/* Settings */}
       <div className="flex justify-end px-3 pt-2">
         <Popover open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-              <Settings className="h-3 w-3 text-muted-foreground" />
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground">
+              <Settings className="h-3.5 w-3.5" />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-56" align="end">
@@ -69,32 +77,30 @@ export function SimpleTAMCard({
                 <Input type="number" min="1" max="100" value={tmpCR} onChange={(e) => setTmpCR(Number(e.target.value))} className="h-7 text-xs" />
               </div>
               <div className="flex gap-1.5 pt-1">
-                <Button size="sm" variant="outline" onClick={() => setIsSettingsOpen(false)} className="flex-1 h-6 text-[11px]">Cancel</Button>
-                <Button size="sm" onClick={save} className="flex-1 h-6 text-[11px]">Apply</Button>
+                <Button size="sm" variant="outline" onClick={() => setIsSettingsOpen(false)} className="h-6 flex-1 text-[11px]">Cancel</Button>
+                <Button size="sm" onClick={save} className="h-6 flex-1 text-[11px]">Apply</Button>
               </div>
             </div>
           </PopoverContent>
         </Popover>
       </div>
 
-      {/* TAM hero */}
-      <div className="px-4 pb-4 text-center">
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Addressable Market</p>
-        <p className="text-3xl font-semibold font-mono tabular-nums text-foreground mt-1">{fmt(tam)}</p>
-        <p className="text-[11px] text-muted-foreground/60 font-mono tabular-nums mt-1">{tamAccts.toLocaleString()} accounts</p>
+      <div className="px-4 pb-5 text-center">
+        <p className="text-[11px] font-medium tracking-[0.02em] text-muted-foreground/75">Total addressable market</p>
+        <p className="mt-1 font-heading text-[2.65rem] font-semibold tracking-[-0.06em] text-foreground tabular-nums">{fmt(tam)}</p>
+        <p className="mt-1 text-sm text-muted-foreground/70">{tamAccts.toLocaleString()} matching accounts</p>
       </div>
 
-      {/* SAM / SOM */}
       <div className="grid grid-cols-2 gap-px border-t bg-border">
-        <button type="button" className="bg-card px-3 py-3 text-left hover:bg-muted/10" onClick={() => navigate("/accounts?fit=high")}>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">SAM</p>
-          <p className="text-lg font-semibold font-mono tabular-nums text-foreground mt-0.5">{fmt(sam)}</p>
-          <p className="text-[11px] text-muted-foreground/60 font-mono tabular-nums">{samPct.toFixed(0)}% of TAM</p>
+        <button type="button" className="bg-card px-4 py-4 text-left transition-colors hover:bg-muted/10" onClick={() => navigate("/accounts?fit=high")}>
+          <p className="text-[11px] font-medium text-muted-foreground/75">Serviceable market</p>
+          <p className="mt-1 font-heading text-[1.45rem] font-semibold tracking-[-0.04em] text-foreground tabular-nums">{fmt(sam)}</p>
+          <p className="mt-1 text-[12px] text-muted-foreground/70">{samPct.toFixed(0)}% of TAM</p>
         </button>
-        <button type="button" className="bg-card px-3 py-3 text-left hover:bg-muted/10" onClick={() => navigate("/accounts?fit=high&enriched=true")}>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">SOM</p>
-          <p className="text-lg font-semibold font-mono tabular-nums text-foreground mt-0.5">{fmt(som)}</p>
-          <p className="text-[11px] text-muted-foreground/60 font-mono tabular-nums">{somPct.toFixed(0)}% of SAM</p>
+        <button type="button" className="bg-card px-4 py-4 text-left transition-colors hover:bg-muted/10" onClick={() => navigate("/accounts?fit=high&enriched=true")}>
+          <p className="text-[11px] font-medium text-muted-foreground/75">Obtainable market</p>
+          <p className="mt-1 font-heading text-[1.45rem] font-semibold tracking-[-0.04em] text-foreground tabular-nums">{fmt(som)}</p>
+          <p className="mt-1 text-[12px] text-muted-foreground/70">{somPct.toFixed(0)}% of SAM</p>
         </button>
       </div>
     </div>

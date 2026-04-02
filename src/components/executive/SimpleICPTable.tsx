@@ -14,10 +14,15 @@ interface SimpleICPTableProps {
 }
 
 export function SimpleICPTable({
-  crmAccounts, databaseAccounts,
-  highFitCrmAccounts, highFitDatabaseAccounts,
-  medFitCrmAccounts, medFitDatabaseAccounts,
-  apolloAccounts, apolloHighFitEstimate, apolloMedFitEstimate,
+  crmAccounts,
+  databaseAccounts,
+  highFitCrmAccounts,
+  highFitDatabaseAccounts,
+  medFitCrmAccounts,
+  medFitDatabaseAccounts,
+  apolloAccounts,
+  apolloHighFitEstimate,
+  apolloMedFitEstimate,
   className,
 }: SimpleICPTableProps) {
   const navigate = useNavigate();
@@ -37,24 +42,23 @@ export function SimpleICPTable({
 
   return (
     <div className={className}>
-      {/* Header */}
-      <div className="grid grid-cols-4 gap-0 border-b px-4 py-2">
-        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Source</span>
-        <span className="text-[10px] text-muted-foreground uppercase tracking-wider text-right">Scored</span>
-        <span className="text-[10px] text-muted-foreground uppercase tracking-wider text-right">ICP Fit</span>
-        <span className="text-[10px] text-muted-foreground uppercase tracking-wider text-right">%</span>
+      <div className="grid grid-cols-4 gap-0 border-b px-4 py-2.5">
+        <span className="text-[11px] font-medium text-muted-foreground/70">Source</span>
+        <span className="text-right text-[11px] font-medium text-muted-foreground/70">Scored</span>
+        <span className="text-right text-[11px] font-medium text-muted-foreground/70">ICP fit</span>
+        <span className="text-right text-[11px] font-medium text-muted-foreground/70">Share</span>
       </div>
       {rows.map((r) => (
         <button
           key={r.source}
           type="button"
-          className="grid w-full grid-cols-4 gap-0 items-center px-4 py-2.5 text-left transition-colors hover:bg-muted/10 border-b last:border-b-0"
+          className="grid w-full grid-cols-4 items-center gap-0 border-b px-4 py-3 text-left transition-colors hover:bg-muted/10 last:border-b-0"
           onClick={() => navigate(`/accounts?source=${r.source.toLowerCase()}`)}
         >
-          <span className="text-xs text-foreground">{r.source}</span>
-          <span className="text-xs font-mono tabular-nums text-foreground text-right">{r.total.toLocaleString()}</span>
-          <span className="text-xs font-mono tabular-nums text-foreground text-right">{r.fit.toLocaleString()}</span>
-          <span className="text-xs font-mono tabular-nums text-foreground text-right">{r.pct}%</span>
+          <span className="text-[13px] font-medium text-foreground">{r.source}</span>
+          <span className="text-right text-[13px] font-medium text-foreground tabular-nums">{r.total.toLocaleString()}</span>
+          <span className="text-right text-[13px] font-medium text-foreground tabular-nums">{r.fit.toLocaleString()}</span>
+          <span className="text-right text-[13px] font-medium text-primary tabular-nums">{r.pct}%</span>
         </button>
       ))}
     </div>
