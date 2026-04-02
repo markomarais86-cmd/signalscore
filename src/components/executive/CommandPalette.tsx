@@ -191,12 +191,12 @@ export function CommandPalette({
       keywords: ['pipeline', 'deals', 'sales', 'analytics'],
     },
     {
-      id: 'nav-discovery',
-      label: 'Go to Discovery',
+      id: 'nav-icp',
+      label: 'Go to ICP Manager',
       icon: Search,
-      action: () => navigate('/discovery'),
+      action: () => navigate('/icp-manager'),
       group: 'navigation',
-      keywords: ['discovery', 'search', 'find'],
+      keywords: ['discovery', 'search', 'find', 'icp'],
     },
     {
       id: 'nav-segments',

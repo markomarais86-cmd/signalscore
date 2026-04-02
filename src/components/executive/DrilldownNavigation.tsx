@@ -19,7 +19,7 @@ interface DrilldownLevel {
 }
 
 interface DrilldownNavigationProps {
-  onExport: (format: 'pdf' | 'pptx' | 'csv') => void;
+  onExport?: (format: 'pdf' | 'pptx' | 'csv') => void;
 }
 
 interface DrilldownContext {
@@ -27,7 +27,7 @@ interface DrilldownContext {
   country?: string;
 }
 
-export function DrilldownNavigation({ onExport }: DrilldownNavigationProps) {
+export function DrilldownNavigation({ }: DrilldownNavigationProps) {
   const [breadcrumbs, setBreadcrumbs] = useState<DrilldownLevel[]>([]);
   const [currentData, setCurrentData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);

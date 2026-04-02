@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
 
 // Core navigation - always visible
 const coreNavigation = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "ICP Manager", url: "/icp-manager", icon: Target },
 ];
 
@@ -57,7 +57,7 @@ export function AppSidebar() {
   const currentPath = location.pathname;
 
   const isActive = (path: string) => {
-    if (path === "/") return currentPath === "/";
+    if (path === "/dashboard") return currentPath === "/" || currentPath === "/dashboard";
     return currentPath.startsWith(path);
   };
 
@@ -110,7 +110,6 @@ export function AppSidebar() {
                   <SidebarMenuButton asChild>
                     <NavLink
                       to={item.url}
-                      end={item.url === "/"}
                       className={getNavCls(item.url)}
                     >
                       <item.icon className="h-4 w-4" />
