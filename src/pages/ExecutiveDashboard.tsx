@@ -21,6 +21,7 @@ import { detectRisks, RiskItem } from "@/utils/risk-detector";
 import { SyncProgressModal } from "@/components/settings/SyncProgressModal";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
+import { QueryErrorState } from "@/components/QueryErrorState";
 import { WelcomeEmptyState } from "@/components/onboarding/WelcomeEmptyState";
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
@@ -284,6 +285,12 @@ export default function ExecutiveDashboard() {
 
       {isLoading ? (
         <DashboardSkeleton />
+      ) : queryError ? (
+        <QueryErrorState
+          error={queryError instanceof Error ? queryError : new Error(String(queryError))}
+          onRetry={() => refetch()}
+          title="Unable to load dashboard data"
+        />
       ) : showEmptyState ? (
         <WelcomeEmptyState />
       ) : (

@@ -15,6 +15,7 @@ import { useInfiniteLeads } from "@/hooks/use-infinite-leads";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { useLeadsMetrics } from "@/hooks/use-leads-metrics";
 import { TableSkeleton } from "@/components/TableSkeleton";
+import { QueryErrorState } from "@/components/QueryErrorState";
 import { AllLeadsView } from "@/components/leads/AllLeadsView";
 import { EnrichedLeadsView } from "@/components/leads/EnrichedLeadsView";
 
@@ -107,6 +108,22 @@ export default function Leads() {
       toast({ title: "Scoring failed", description: error instanceof Error ? error.message : "Could not rescore account", variant: "destructive" });
     }
   };
+
+  if (lastError && leads.length === 0 && !isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-semibold leading-tight">Leads</h1>
+          <p className="text-xs lg:text-sm text-muted-foreground mt-1">All people linked to accounts in your pipeline</p>
+        </div>
+        <QueryErrorState
+          error={lastError instanceof Error ? lastError : new Error(String(lastError))}
+          onRetry={retry}
+          title="Unable to load leads"
+        />
+      </div>
+    );
+  }
 
   if ((isLoading && leads.length === 0) || isMatching) {
     return (

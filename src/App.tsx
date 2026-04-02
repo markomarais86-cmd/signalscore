@@ -71,13 +71,11 @@ const ValueCreationPlan = lazy(() => import("./pages/ValueCreationPlan"));
 const DueDiligence = lazy(() => import("./pages/DueDiligence"));
 
 
+import { PageSuspenseFallback } from "@/components/PageSuspenseFallback";
+
 // Shared loading fallback for lazy-loaded pages
 function PageLoader() {
-  return (
-    <div className="flex items-center justify-center min-h-[50vh]">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-    </div>
-  );
+  return <PageSuspenseFallback variant="minimal" />;
 }
 
 function PageTracker() {
@@ -178,7 +176,9 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <ExecutiveDashboard />
+                    <Suspense fallback={<PageSuspenseFallback variant="dashboard" />}>
+                      <ExecutiveDashboard />
+                    </Suspense>
                   </Layout>
                 </ProtectedRoute>
               }
@@ -198,7 +198,9 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <Accounts />
+                    <Suspense fallback={<PageSuspenseFallback variant="table" />}>
+                      <Accounts />
+                    </Suspense>
                   </Layout>
                 </ProtectedRoute>
               }
@@ -380,7 +382,9 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <RoleAwareLayout>
-                    <Leads />
+                    <Suspense fallback={<PageSuspenseFallback variant="table" />}>
+                      <Leads />
+                    </Suspense>
                   </RoleAwareLayout>
                 </ProtectedRoute>
               }
@@ -390,7 +394,9 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <RoleAwareLayout>
-                    <Settings />
+                    <Suspense fallback={<PageSuspenseFallback variant="settings" />}>
+                      <Settings />
+                    </Suspense>
                   </RoleAwareLayout>
                 </ProtectedRoute>
               }
