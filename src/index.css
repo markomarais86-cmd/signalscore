@@ -258,11 +258,11 @@
     border-top-color: hsl(216 12% 22%);
   }
   .hero-stat__label {
-    @apply text-[12px] font-medium uppercase tracking-[0.12em];
+    @apply text-[13px] font-medium;
     color: hsl(var(--muted-foreground));
   }
   .hero-stat__value {
-    @apply font-heading text-[1.25rem] font-semibold tracking-[-0.05em] text-foreground;
+    @apply font-heading text-[1rem] font-semibold tracking-[-0.03em] text-foreground tabular-nums;
   }
 
   .dashboard-toolbar {
