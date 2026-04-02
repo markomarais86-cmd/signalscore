@@ -351,11 +351,11 @@
     background: hsl(216 12% 14% / 0.7);
   }
   .metric-panel__label {
-    @apply text-[12px] font-medium uppercase tracking-[0.1em];
+    @apply text-[13px] font-medium;
     color: hsl(var(--muted-foreground));
   }
   .metric-panel__value {
-    @apply mt-2 font-heading text-[1.85rem] font-semibold tracking-[-0.05em] text-foreground tabular-nums;
+    @apply mt-2 font-heading text-[1.5rem] font-semibold tracking-[-0.04em] text-foreground tabular-nums;
   }
   .metric-panel__hint {
     @apply mt-1 text-[13px] leading-5;
