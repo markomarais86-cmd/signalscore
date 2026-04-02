@@ -110,8 +110,8 @@ export function DataHealthWidget() {
       </div>
 
       {lowest.pct < 70 && (
-        <div className="flex items-center justify-between rounded-[0.95rem] border border-border/70 bg-background/35 px-4 py-3">
-          <span className="text-[12px] text-muted-foreground">{lowest.label} needs attention</span>
+        <div className="flex items-center justify-between rounded-[0.95rem] px-4 py-3 bg-muted/8">
+          <span className="text-[13px] text-muted-foreground">{lowest.label} needs attention</span>
           <Button variant="ghost" size="sm" className="h-7 gap-0.5 rounded-full px-2 text-[12px] text-primary hover:text-primary" onClick={() => navigate("/enrichment")}>
             Enrich <ArrowRight className="h-3 w-3" />
           </Button>
