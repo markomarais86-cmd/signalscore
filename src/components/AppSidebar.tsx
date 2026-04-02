@@ -57,7 +57,7 @@ export function AppSidebar() {
   const currentPath = location.pathname;
 
   const isActive = (path: string) => {
-    if (path === "/") return currentPath === "/";
+    if (path === "/dashboard") return currentPath === "/" || currentPath === "/dashboard";
     return currentPath.startsWith(path);
   };
 
