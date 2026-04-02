@@ -1,7 +1,6 @@
 import { useState, ReactNode } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ChevronRight } from "lucide-react";
 
 interface CollapsibleDashboardCardProps {
   title: string;
@@ -14,18 +13,11 @@ export function CollapsibleDashboardCard({ title, icon, defaultOpen = true, chil
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-0">
-      <div className="mb-2 flex items-center justify-between gap-2 px-1">
-        <div className="flex min-w-0 items-center gap-2">
-          {icon && <span className="text-muted-foreground">{icon}</span>}
-          <span className="truncate text-xs font-semibold text-foreground uppercase tracking-[0.08em]">{title}</span>
-        </div>
-        <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-            {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          </Button>
-        </CollapsibleTrigger>
-      </div>
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger className="flex w-full items-center gap-1.5 py-2 px-0.5 text-left group">
+        <ChevronRight className={`h-3 w-3 text-muted-foreground transition-transform ${isOpen ? "rotate-90" : ""}`} />
+        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-[0.1em]">{title}</span>
+      </CollapsibleTrigger>
       <CollapsibleContent>
         {children}
       </CollapsibleContent>

@@ -25,34 +25,18 @@ interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({
-  sourceFilter,
-  onSourceFilterChange,
-  filterStats,
-  isSyncing,
-  isLoading,
-  activeScoringJob,
-  showHealthDashboard,
-  highFitAccounts,
-  effectiveOrgId,
-  onSyncApollo,
-  onRefresh,
-  onScore,
-  onEnrich,
-  onToggleHealth,
-  onPowerUpComplete,
+  sourceFilter, onSourceFilterChange, filterStats,
+  isSyncing, isLoading, activeScoringJob, showHealthDashboard,
+  highFitAccounts, effectiveOrgId,
+  onSyncApollo, onRefresh, onScore, onEnrich, onToggleHealth, onPowerUpComplete,
 }: DashboardHeaderProps) {
   return (
-    <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-      <div className="min-w-0">
-        <h1 className="text-xl font-semibold leading-none tracking-tight text-foreground sm:text-2xl">
-          Growth Command Center
-        </h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Revenue intelligence across ICP coverage, market opportunity, and campaign readiness.
-        </p>
+    <div className="flex items-center justify-between gap-4 py-1">
+      <div>
+        <h1 className="text-lg font-semibold text-foreground leading-none">Growth Command Center</h1>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex items-center gap-1">
         <SourceFilterToggle
           value={sourceFilter}
           onChange={onSourceFilterChange}
@@ -60,41 +44,32 @@ export function DashboardHeader({
         />
 
         {sourceFilter === "database" && (
-          <Button variant="default" onClick={onSyncApollo} disabled={isSyncing} size="sm" className="h-7 text-xs">
-            <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
-            <span>{isSyncing ? "Syncing" : "Sync Apollo"}</span>
+          <Button variant="default" onClick={onSyncApollo} disabled={isSyncing} size="sm" className="h-7 text-[11px] px-2.5">
+            <RefreshCw className={`h-3 w-3 ${isSyncing ? "animate-spin" : ""}`} />
+            {isSyncing ? "Syncing" : "Sync"}
           </Button>
         )}
 
-        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onRefresh} disabled={isLoading}>
+        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onRefresh} disabled={isLoading}>
           <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
         </Button>
 
-        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onScore} disabled={!!activeScoringJob}>
-          <Target className="h-3.5 w-3.5" />
-          <span>{activeScoringJob ? "Scoring" : "Score"}</span>
+        <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={onScore} disabled={!!activeScoringJob}>
+          <Target className="h-3 w-3" />
+          Score
         </Button>
 
-        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onEnrich}>
-          <LaunchPulseMark className="h-3.5 w-3.5" />
-          <span>Enrich</span>
+        <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={onEnrich}>
+          <LaunchPulseMark className="h-3 w-3" />
+          Enrich
         </Button>
 
-        <Button
-          variant={showHealthDashboard ? "default" : "outline"}
-          size="sm"
-          className="h-7 text-xs"
-          onClick={onToggleHealth}
-        >
+        <Button variant="ghost" size="sm" className={`h-7 w-7 p-0 ${showHealthDashboard ? "text-primary" : ""}`} onClick={onToggleHealth}>
           <Activity className="h-3.5 w-3.5" />
         </Button>
 
         <ExportToPdf onExport={() => {}} />
-
-        {effectiveOrgId && (
-          <PowerUpButton orgId={effectiveOrgId} onComplete={onPowerUpComplete} />
-        )}
-
+        {effectiveOrgId && <PowerUpButton orgId={effectiveOrgId} onComplete={onPowerUpComplete} />}
         <QuickCampaignButton highFitAccounts={highFitAccounts} disabled={isLoading || highFitAccounts === 0} />
       </div>
     </div>
