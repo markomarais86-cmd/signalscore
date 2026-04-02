@@ -38,7 +38,7 @@ export function CustomerLayout({ children }: CustomerLayoutProps) {
               </div>
             </div>
           </header>
-          <div className="flex-1 p-2 sm:p-3 lg:p-4 overflow-auto space-y-4" id="main-content">
+          <div className="flex-1 p-4 sm:p-5 lg:p-6 overflow-auto space-y-4" id="main-content">
             {isManaged && <ManagedUpgradeBanner />}
             <FeatureErrorBoundary>
               {children}
