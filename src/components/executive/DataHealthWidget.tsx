@@ -74,7 +74,7 @@ export function DataHealthWidget() {
     return (
       <div className="p-5 text-center">
         <p className="mb-2 text-sm text-muted-foreground">No accounts to analyze</p>
-        <Button variant="outline" size="sm" className="h-7 text-[12px]" onClick={() => navigate("/upload")}>Upload</Button>
+        <Button variant="outline" size="sm" className="h-7 text-[12px]" onClick={() => navigate("/data-upload")}>Upload</Button>
       </div>
     );
   }
