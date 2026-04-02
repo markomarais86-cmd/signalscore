@@ -47,6 +47,7 @@ export function SimpleTAMCard({
   className,
   onSettingsChange,
 }: SimpleTAMCardProps) {
+  const navigate = useNavigate();
   const averageDealSize = initialDealSize;
   const conversionRate = initialConversion;
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
