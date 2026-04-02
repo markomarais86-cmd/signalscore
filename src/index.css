@@ -308,23 +308,27 @@
   }
 
   .metric-panel {
-    @apply rounded-[0.9rem] border px-4 py-4 text-left transition-colors;
-    border-color: hsl(var(--border) / 0.8);
-    background: hsl(var(--background) / 0.44);
+    @apply rounded-[0.9rem] px-4 py-4 text-left transition-colors;
+    background: hsl(var(--muted) / 0.08);
+  }
+  .metric-panel:hover {
+    background: hsl(var(--muted) / 0.16);
   }
   .dark .metric-panel {
-    border-color: hsl(216 12% 22%);
-    background: hsl(216 12% 10% / 0.7);
+    background: hsl(216 12% 10% / 0.5);
+  }
+  .dark .metric-panel:hover {
+    background: hsl(216 12% 14% / 0.7);
   }
   .metric-panel__label {
-    @apply text-[11px] font-medium uppercase tracking-[0.12em];
+    @apply text-[12px] font-medium uppercase tracking-[0.1em];
     color: hsl(var(--muted-foreground));
   }
   .metric-panel__value {
-    @apply mt-2 font-heading text-[1.65rem] font-semibold tracking-[-0.05em] text-foreground tabular-nums;
+    @apply mt-2 font-heading text-[1.85rem] font-semibold tracking-[-0.05em] text-foreground tabular-nums;
   }
   .metric-panel__hint {
-    @apply mt-1 text-[12px] leading-5;
+    @apply mt-1 text-[13px] leading-5;
     color: hsl(var(--muted-foreground));
   }
 
