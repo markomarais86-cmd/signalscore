@@ -27,7 +27,7 @@ interface DrilldownContext {
   country?: string;
 }
 
-export function DrilldownNavigation({ onExport }: DrilldownNavigationProps) {
+export function DrilldownNavigation({ }: DrilldownNavigationProps) {
   const [breadcrumbs, setBreadcrumbs] = useState<DrilldownLevel[]>([]);
   const [currentData, setCurrentData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
