@@ -32,28 +32,28 @@ export function DashboardHeader({
 }: DashboardHeaderProps) {
   return (
     <div className="flex items-center justify-between gap-4 py-1">
-      <h1 className="text-lg font-semibold text-foreground leading-none font-heading">
+      <h1 className="font-heading text-[1.05rem] font-semibold leading-none tracking-[-0.03em] text-foreground">
         Growth Command Center
       </h1>
 
       <div className="flex items-center gap-1">
         {sourceFilter === "database" && (
-          <Button variant="default" onClick={onSyncApollo} disabled={isSyncing} size="sm" className="h-7 text-[11px] px-2.5">
+          <Button variant="default" onClick={onSyncApollo} disabled={isSyncing} size="sm" className="h-8 px-3 text-[12px] font-medium">
             <RefreshCw className={`h-3 w-3 ${isSyncing ? "animate-spin" : ""}`} />
             {isSyncing ? "Syncing" : "Sync"}
           </Button>
         )}
 
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onRefresh} disabled={isLoading}>
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onRefresh} disabled={isLoading}>
           <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
         </Button>
 
-        <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={onScore} disabled={!!activeScoringJob}>
+        <Button variant="ghost" size="sm" className="h-8 px-2.5 text-[12px] font-medium" onClick={onScore} disabled={!!activeScoringJob}>
           <Target className="h-3 w-3" />
           Score
         </Button>
 
-        <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={onEnrich}>
+        <Button variant="ghost" size="sm" className="h-8 px-2.5 text-[12px] font-medium" onClick={onEnrich}>
           <LaunchPulseMark className="h-3 w-3" />
           Enrich
         </Button>

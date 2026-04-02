@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -21,8 +21,14 @@ const FIT_COLORS = {
 };
 
 export function ICPCoveragePanel({
-  highFitAccounts, medFitAccounts, lowFitAccounts, totalScored,
-  highFitLeads = 0, medFitLeads = 0, lowFitLeads = 0, totalLeads = 0,
+  highFitAccounts,
+  medFitAccounts,
+  lowFitAccounts,
+  totalScored,
+  highFitLeads = 0,
+  medFitLeads = 0,
+  lowFitLeads = 0,
+  totalLeads = 0,
   className,
 }: ICPCoveragePanelProps) {
   const navigate = useNavigate();
@@ -31,22 +37,19 @@ export function ICPCoveragePanel({
   const isAccounts = activeTab === "accounts";
   const data = isAccounts
     ? [
-        { name: "High Fit", value: highFitAccounts, color: FIT_COLORS.high },
-        { name: "Medium Fit", value: medFitAccounts, color: FIT_COLORS.medium },
-        { name: "Low Fit", value: lowFitAccounts, color: FIT_COLORS.low },
+        { name: "High fit", value: highFitAccounts, color: FIT_COLORS.high },
+        { name: "Medium fit", value: medFitAccounts, color: FIT_COLORS.medium },
+        { name: "Low fit", value: lowFitAccounts, color: FIT_COLORS.low },
       ]
     : [
-        { name: "High Fit", value: highFitLeads, color: FIT_COLORS.high },
-        { name: "Medium Fit", value: medFitLeads, color: FIT_COLORS.medium },
-        { name: "Low Fit", value: lowFitLeads, color: FIT_COLORS.low },
+        { name: "High fit", value: highFitLeads, color: FIT_COLORS.high },
+        { name: "Medium fit", value: medFitLeads, color: FIT_COLORS.medium },
+        { name: "Low fit", value: lowFitLeads, color: FIT_COLORS.low },
       ];
 
   const total = isAccounts ? totalScored : totalLeads;
   const icpFit = data[0].value + data[1].value;
   const pct = total > 0 ? Math.round((icpFit / total) * 100) : 0;
-
-  // Unique ID for gradient
-  const gradId = useMemo(() => `cov-grad-${Math.random().toString(36).slice(2, 8)}`, []);
 
   if (totalScored === 0) {
     return (
@@ -58,15 +61,16 @@ export function ICPCoveragePanel({
 
   return (
     <div className={`${className ?? ""} widget-card`}>
-      {/* Header */}
       <div className="widget-header">
-        <span className="text-sm font-medium text-foreground">ICP Coverage</span>
+        <span className="font-heading text-[15px] font-medium tracking-[-0.02em] text-foreground">
+          ICP coverage
+        </span>
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "accounts" | "leads")}>
-          <TabsList className="h-7 bg-transparent p-0 gap-0">
-            <TabsTrigger value="accounts" className="h-7 rounded-none border-b-2 border-transparent px-3 text-[11px] text-muted-foreground data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none">
+          <TabsList className="h-8 gap-0 bg-transparent p-0">
+            <TabsTrigger value="accounts" className="h-8 rounded-none border-b-2 border-transparent px-3 text-[12px] font-medium text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none">
               Accounts
             </TabsTrigger>
-            <TabsTrigger value="leads" className="h-7 rounded-none border-b-2 border-transparent px-3 text-[11px] text-muted-foreground data-[state=active]:border-primary data-[state=active]:text-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none">
+            <TabsTrigger value="leads" className="h-8 rounded-none border-b-2 border-transparent px-3 text-[12px] font-medium text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none">
               Leads
             </TabsTrigger>
           </TabsList>
@@ -74,37 +78,34 @@ export function ICPCoveragePanel({
       </div>
 
       <div className="p-5">
-        {/* 3 metric cells */}
-        <div className="grid grid-cols-3 gap-px rounded-md border bg-border overflow-hidden mb-5">
-          <button type="button" className="bg-card px-3 py-3 text-left hover:bg-muted/10 transition-colors" onClick={() => navigate(isAccounts ? "/accounts" : "/leads")}>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total</p>
-            <p className="text-lg font-semibold font-mono tabular-nums text-foreground mt-0.5">{total.toLocaleString()}</p>
+        <div className="mb-5 grid grid-cols-3 gap-px overflow-hidden rounded-md border bg-border">
+          <button type="button" className="bg-card px-4 py-4 text-left transition-colors hover:bg-muted/10" onClick={() => navigate(isAccounts ? "/accounts" : "/leads")}>
+            <p className="text-[11px] font-medium text-muted-foreground/75">Total</p>
+            <p className="mt-1 font-heading text-[1.55rem] font-semibold tracking-[-0.04em] text-foreground tabular-nums">{total.toLocaleString()}</p>
           </button>
-          <button type="button" className="bg-card px-3 py-3 text-left hover:bg-muted/10 transition-colors" onClick={() => navigate(isAccounts ? "/accounts?fit=high" : "/leads?fit=high")}>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">ICP Fit</p>
-            <p className="text-lg font-semibold font-mono tabular-nums text-foreground mt-0.5">{icpFit.toLocaleString()}</p>
+          <button type="button" className="bg-card px-4 py-4 text-left transition-colors hover:bg-muted/10" onClick={() => navigate(isAccounts ? "/accounts?fit=high" : "/leads?fit=high")}>
+            <p className="text-[11px] font-medium text-muted-foreground/75">ICP fit</p>
+            <p className="mt-1 font-heading text-[1.55rem] font-semibold tracking-[-0.04em] text-foreground tabular-nums">{icpFit.toLocaleString()}</p>
           </button>
-          <div className="bg-card px-3 py-3 text-left">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Coverage</p>
-            <p className="text-lg font-semibold font-mono tabular-nums text-primary mt-0.5">{pct}%</p>
+          <div className="bg-card px-4 py-4 text-left">
+            <p className="text-[11px] font-medium text-muted-foreground/75">Coverage</p>
+            <p className="mt-1 font-heading text-[1.55rem] font-semibold tracking-[-0.04em] text-primary tabular-nums">{pct}%</p>
           </div>
         </div>
 
-        {/* Animated stacked bar with rounded ends */}
-        <div className="h-3 rounded-full overflow-hidden flex bg-border/50 mb-5">
+        <div className="mb-5 flex h-3 overflow-hidden rounded-full bg-border/50">
           {data.map((item) => {
             const w = total > 0 ? (item.value / total) * 100 : 0;
             return w > 0 ? (
               <div
                 key={item.name}
-                className="h-full first:rounded-l-full last:rounded-r-full transition-all duration-700 ease-out"
+                className="h-full transition-all duration-700 ease-out first:rounded-l-full last:rounded-r-full"
                 style={{ width: `${w}%`, backgroundColor: item.color }}
               />
             ) : null;
           })}
         </div>
 
-        {/* Segment rows */}
         <div className="space-y-1">
           {data.map((item) => {
             const p = total > 0 ? (item.value / total) * 100 : 0;
@@ -113,16 +114,16 @@ export function ICPCoveragePanel({
               <button
                 key={item.name}
                 type="button"
-                className="flex w-full items-center justify-between py-2 px-2 rounded-md text-left transition-colors hover:bg-muted/10 group"
+                className="group flex w-full items-center justify-between rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/10"
                 onClick={() => navigate(isAccounts ? `/accounts?fit=${fitParam}` : `/leads?fit=${fitParam}`)}
               >
                 <div className="flex items-center gap-2.5">
                   <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: item.color }} />
-                  <span className="text-xs text-foreground group-hover:text-primary transition-colors">{item.name}</span>
+                  <span className="text-[13px] font-medium text-foreground transition-colors group-hover:text-primary">{item.name}</span>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-xs font-mono tabular-nums text-foreground font-medium">{item.value.toLocaleString()}</span>
-                  <span className="text-[11px] font-mono tabular-nums text-muted-foreground w-10 text-right">{p.toFixed(0)}%</span>
+                  <span className="text-[13px] font-medium text-foreground tabular-nums">{item.value.toLocaleString()}</span>
+                  <span className="w-10 text-right text-[12px] text-muted-foreground tabular-nums">{p.toFixed(0)}%</span>
                 </div>
               </button>
             );

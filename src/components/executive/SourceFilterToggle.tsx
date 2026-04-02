@@ -32,7 +32,7 @@ export function SourceFilterToggle({ value, onChange, stats }: SourceFilterToggl
   ];
 
   return (
-    <div className="flex items-center gap-2 p-1 bg-muted rounded-lg">
+    <div className="flex items-center gap-1 rounded-lg bg-muted/70 p-1">
       {filters.map((filter) => {
         const Icon = filter.icon;
         const isActive = value === filter.value;
@@ -43,12 +43,12 @@ export function SourceFilterToggle({ value, onChange, stats }: SourceFilterToggl
             variant={isActive ? "default" : "ghost"}
             size="sm"
             onClick={() => onChange(filter.value)}
-            className="gap-2"
+            className="h-9 gap-2 px-3 text-[12px] font-medium"
             title={filter.tooltip}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-3.5 w-3.5" />
             {filter.label}
-            <Badge variant={isActive ? "secondary" : "outline"} className="ml-1">
+            <Badge variant={isActive ? "secondary" : "outline"} className="ml-1 text-[11px] font-medium tabular-nums">
               {filter.count.toLocaleString()}
             </Badge>
           </Button>

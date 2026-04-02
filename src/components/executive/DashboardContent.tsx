@@ -56,7 +56,7 @@ interface DashboardContentProps {
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <h2 className="text-[11px] font-medium text-muted-foreground uppercase tracking-[0.1em] py-2 px-0.5">
+    <h2 className="py-2 px-0.5 font-heading text-[15px] font-medium tracking-[-0.02em] text-foreground/90">
       {title}
     </h2>
   );

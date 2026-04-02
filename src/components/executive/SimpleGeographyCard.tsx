@@ -21,7 +21,7 @@ export function SimpleGeographyCard({ geoData, className }: SimpleGeographyCardP
   const maxCount = Math.max(...topCountries.map((c) => c.count), 1);
 
   if (topCountries.length === 0) {
-    return <div className={`${className ?? ""} p-6 text-center text-xs text-muted-foreground`}>No geography data</div>;
+    return <div className={`${className ?? ""} p-6 text-center text-sm text-muted-foreground`}>No geography data</div>;
   }
 
   return (
@@ -33,20 +33,20 @@ export function SimpleGeographyCard({ geoData, className }: SimpleGeographyCardP
             <button
               key={item.country}
               type="button"
-              className="flex w-full items-center gap-3 px-3 py-2 text-left rounded-md transition-all hover:bg-muted/10 group animate-fade-in-up"
+              className="group flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-all hover:bg-muted/10 animate-fade-in-up"
               style={{ animationDelay: `${idx * 50}ms` }}
               onClick={() => navigate(`/accounts?country=${encodeURIComponent(item.country)}`)}
             >
-              <span className="text-xs text-foreground truncate flex-1 min-w-0 group-hover:text-primary transition-colors">
+              <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-foreground transition-colors group-hover:text-primary">
                 {item.country}
               </span>
-              <div className="w-20 h-1.5 rounded-full bg-border/50 overflow-hidden shrink-0">
+              <div className="h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-border/50">
                 <div
                   className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
                   style={{ width: `${barPct}%`, opacity: 1 - idx * 0.1 }}
                 />
               </div>
-              <span className="text-[11px] font-mono tabular-nums text-muted-foreground w-12 text-right shrink-0">
+              <span className="w-12 shrink-0 text-right text-[12px] text-muted-foreground tabular-nums">
                 {item.count.toLocaleString()}
               </span>
             </button>
