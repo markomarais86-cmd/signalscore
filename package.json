@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
-    "prepare": "husky"
+    "prepare": "node -e \"try{require('husky')()}catch(e){}\""
   },
   "lint-staged": {
     "*.{ts,tsx}": [
