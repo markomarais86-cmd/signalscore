@@ -1,10 +1,11 @@
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Target, Activity } from "lucide-react";
+import { RefreshCw, Target, Activity, Zap } from "lucide-react";
 import { LaunchPulseMark } from "@/components/BrandLogo";
 import { SourceFilterToggle, type SourceFilter } from "@/components/executive/SourceFilterToggle";
 import { ExportToPdf } from "@/components/executive/ExportToPdf";
 import { PowerUpButton } from "@/components/executive/PowerUpButton";
 import { QuickCampaignButton } from "@/components/executive/QuickCampaignButton";
+import { useAuth } from "@/hooks/use-auth";
 
 interface DashboardHeaderProps {
   sourceFilter: SourceFilter;
@@ -24,53 +25,86 @@ interface DashboardHeaderProps {
   onPowerUpComplete: () => void;
 }
 
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 export function DashboardHeader({
   sourceFilter, onSourceFilterChange, filterStats,
   isSyncing, isLoading, activeScoringJob, showHealthDashboard,
   highFitAccounts, effectiveOrgId,
   onSyncApollo, onRefresh, onScore, onEnrich, onToggleHealth, onPowerUpComplete,
 }: DashboardHeaderProps) {
+  const { userProfile } = useAuth();
+  const firstName = userProfile?.full_name?.split(" ")[0] || "";
+
   return (
-    <div className="flex items-center justify-between gap-4 py-1">
-      <div>
-        <h1 className="text-lg font-semibold text-foreground leading-none">Growth Command Center</h1>
+    <div className="space-y-4">
+      {/* Greeting banner */}
+      <div className="rounded-xl bg-gradient-to-r from-primary/20 via-primary/10 to-transparent border border-primary/20 px-6 py-5">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-primary/20 flex items-center justify-center">
+            <Zap className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-foreground">
+              {getGreeting()}{firstName ? `, ${firstName}` : ""}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              {highFitAccounts > 0
+                ? `You have ${highFitAccounts} A-tier accounts and active signals`
+                : "Your growth command center is ready"}
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div className="flex items-center gap-1">
+      {/* Action bar */}
+      <div className="flex items-center justify-between gap-3">
         <SourceFilterToggle
           value={sourceFilter}
           onChange={onSourceFilterChange}
           stats={{ crm: filterStats?.crm || 0, database: filterStats?.database || 0 }}
         />
 
-        {sourceFilter === "database" && (
-          <Button variant="default" onClick={onSyncApollo} disabled={isSyncing} size="sm" className="h-7 text-[11px] px-2.5">
-            <RefreshCw className={`h-3 w-3 ${isSyncing ? "animate-spin" : ""}`} />
-            {isSyncing ? "Syncing" : "Sync"}
+        <div className="flex items-center gap-1.5">
+          {sourceFilter === "database" && (
+            <Button variant="default" onClick={onSyncApollo} disabled={isSyncing} size="sm" className="h-8 text-xs">
+              <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+              {isSyncing ? "Syncing" : "Sync Apollo"}
+            </Button>
+          )}
+
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={onRefresh} disabled={isLoading}>
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
           </Button>
-        )}
 
-        <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={onRefresh} disabled={isLoading}>
-          <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
-        </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={onScore} disabled={!!activeScoringJob}>
+            <Target className="h-3.5 w-3.5" />
+            Score
+          </Button>
 
-        <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={onScore} disabled={!!activeScoringJob}>
-          <Target className="h-3 w-3" />
-          Score
-        </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={onEnrich}>
+            <LaunchPulseMark className="h-3.5 w-3.5" />
+            Enrich
+          </Button>
 
-        <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2" onClick={onEnrich}>
-          <LaunchPulseMark className="h-3 w-3" />
-          Enrich
-        </Button>
+          <Button
+            variant={showHealthDashboard ? "default" : "outline"}
+            size="sm"
+            className="h-8 text-xs"
+            onClick={onToggleHealth}
+          >
+            <Activity className="h-3.5 w-3.5" />
+          </Button>
 
-        <Button variant="ghost" size="sm" className={`h-7 w-7 p-0 ${showHealthDashboard ? "text-primary" : ""}`} onClick={onToggleHealth}>
-          <Activity className="h-3.5 w-3.5" />
-        </Button>
-
-        <ExportToPdf onExport={() => {}} />
-        {effectiveOrgId && <PowerUpButton orgId={effectiveOrgId} onComplete={onPowerUpComplete} />}
-        <QuickCampaignButton highFitAccounts={highFitAccounts} disabled={isLoading || highFitAccounts === 0} />
+          <ExportToPdf onExport={() => {}} />
+          {effectiveOrgId && <PowerUpButton orgId={effectiveOrgId} onComplete={onPowerUpComplete} />}
+          <QuickCampaignButton highFitAccounts={highFitAccounts} disabled={isLoading || highFitAccounts === 0} />
+        </div>
       </div>
     </div>
   );
