@@ -7,6 +7,12 @@ interface DashboardHeroBannerProps {
   summaryText?: string;
 }
 
+function formatCompactNumber(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 10_000 ? 0 : 1)}K`;
+  return value.toLocaleString();
+}
+
 function getGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
@@ -20,24 +26,44 @@ export function DashboardHeroBanner({
   filterStats,
   summaryText,
 }: DashboardHeroBannerProps) {
+  const crmCount = filterStats?.crm || 0;
+  const databaseCount = filterStats?.database || 0;
+
   return (
-    <div className="hero-banner px-6 py-6">
-      <div className="relative flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-        <div className="space-y-2">
-          <h1 className="font-heading text-[1.85rem] font-semibold tracking-[-0.05em] text-white sm:text-[2.1rem]">
-            {getGreeting()}
-          </h1>
+    <div className="hero-banner">
+      <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-6">
+          <div className="space-y-3">
+            <p className="hero-kicker">{getGreeting()}</p>
+            <h1 className="hero-title">Growth Command Center</h1>
+          </div>
           {summaryText && (
-            <p className="max-w-xl text-sm leading-6 text-white/60 sm:text-[15px]">
-              {summaryText}
-            </p>
+            <p className="hero-summary">{summaryText}</p>
           )}
+
+          <div className="hero-stat-strip">
+            <div className="hero-stat">
+              <span className="hero-stat__label">CRM records</span>
+              <span className="hero-stat__value">{formatCompactNumber(crmCount)}</span>
+            </div>
+            <div className="hero-stat">
+              <span className="hero-stat__label">Database records</span>
+              <span className="hero-stat__value">{formatCompactNumber(databaseCount)}</span>
+            </div>
+            <div className="hero-stat">
+              <span className="hero-stat__label">Active scope</span>
+              <span className="hero-stat__value">{sourceFilter === "crm" ? "CRM" : "Database"}</span>
+            </div>
+          </div>
         </div>
-        <SourceFilterToggle
-          value={sourceFilter}
-          onChange={onSourceFilterChange}
-          stats={{ crm: filterStats?.crm || 0, database: filterStats?.database || 0 }}
-        />
+
+        <div className="relative lg:max-w-[22rem]">
+          <SourceFilterToggle
+            value={sourceFilter}
+            onChange={onSourceFilterChange}
+            stats={{ crm: crmCount, database: databaseCount }}
+          />
+        </div>
       </div>
     </div>
   );

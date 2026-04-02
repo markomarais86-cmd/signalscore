@@ -42,25 +42,37 @@ export function SimpleICPTable({
 
   return (
     <div className={className}>
-      <div className="grid grid-cols-4 gap-0 border-b px-4 py-2.5">
-        <span className="text-[11px] font-medium text-muted-foreground/70">Source</span>
-        <span className="text-right text-[11px] font-medium text-muted-foreground/70">Scored</span>
-        <span className="text-right text-[11px] font-medium text-muted-foreground/70">ICP fit</span>
-        <span className="text-right text-[11px] font-medium text-muted-foreground/70">Share</span>
+      <div className="space-y-3 px-5 pb-5 pt-2">
+        {rows.map((r) => (
+          <button
+            key={r.source}
+            type="button"
+            className="source-row w-full"
+            onClick={() => navigate(`/accounts?source=${r.source.toLowerCase()}`)}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="metric-panel__label">{r.source}</p>
+                <p className="mt-2 font-heading text-[1.4rem] font-semibold tracking-[-0.05em] text-foreground tabular-nums">
+                  {r.fit.toLocaleString()}
+                </p>
+              </div>
+
+              <div className="text-right">
+                <p className="metric-panel__label">Scored volume</p>
+                <p className="mt-2 text-[13px] font-medium text-foreground tabular-nums">
+                  {r.total.toLocaleString()}
+                </p>
+                <p className="mt-1 text-[12px] text-primary tabular-nums">{r.pct}% ICP fit</p>
+              </div>
+            </div>
+
+            <div className="source-row__track mt-3">
+              <div className="source-row__fill" style={{ width: `${Math.max(r.pct, 3)}%` }} />
+            </div>
+          </button>
+        ))}
       </div>
-      {rows.map((r) => (
-        <button
-          key={r.source}
-          type="button"
-          className="grid w-full grid-cols-4 items-center gap-0 border-b px-4 py-3 text-left transition-colors hover:bg-muted/10 last:border-b-0"
-          onClick={() => navigate(`/accounts?source=${r.source.toLowerCase()}`)}
-        >
-          <span className="text-[13px] font-medium text-foreground">{r.source}</span>
-          <span className="text-right text-[13px] font-medium text-foreground tabular-nums">{r.total.toLocaleString()}</span>
-          <span className="text-right text-[13px] font-medium text-foreground tabular-nums">{r.fit.toLocaleString()}</span>
-          <span className="text-right text-[13px] font-medium text-primary tabular-nums">{r.pct}%</span>
-        </button>
-      ))}
     </div>
   );
 }

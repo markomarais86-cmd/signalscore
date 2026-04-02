@@ -54,11 +54,12 @@ interface DashboardContentProps {
   onLaunchCampaign: (ctx: any) => void;
 }
 
-function SectionHeader({ title }: { title: string }) {
+function SectionHeader({ title, kicker }: { title: string; kicker: string }) {
   return (
-    <h2 className="py-2 px-0.5 font-heading text-[15px] font-medium tracking-[-0.02em] text-foreground/90">
-      {title}
-    </h2>
+    <div className="dashboard-section-header">
+      <p className="section-kicker">{kicker}</p>
+      <h2 className="section-title">{title}</h2>
+    </div>
   );
 }
 
@@ -81,7 +82,7 @@ export function DashboardContent(props: DashboardContentProps) {
   const pick = <T,>(crm: T, db: T, all: T) => sf === "database" ? db : sf === "crm" ? crm : all;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       {/* KPI Row */}
       <GrowthCommandKPIs
         totalAccounts={sf === "database" ? (tamData?.totalAccounts || 0) : totalAccounts}
@@ -95,27 +96,35 @@ export function DashboardContent(props: DashboardContentProps) {
         averageDealSize={averageDealSize}
       />
 
-      {/* ICP Coverage — widget card */}
-      <ICPCoveragePanel
-        highFitAccounts={pick(highFitCrmAccounts, highFitDatabaseAccounts, highFitAccounts)}
-        medFitAccounts={pick(medFitCrmAccounts, medFitDatabaseAccounts, medFitAccounts)}
-        lowFitAccounts={pick(lowFitCrmAccounts, lowFitDatabaseAccounts, lowFitAccounts)}
-        totalScored={pick(crmScoredAccounts, databaseScoredAccounts, totalScores)}
-        highFitLeads={pick(highFitCrmLeads, highFitDatabaseLeads, highFitLeads)}
-        medFitLeads={pick(medFitCrmLeads, medFitDatabaseLeads, medFitLeads)}
-        lowFitLeads={pick(lowFitCrmLeads, lowFitDatabaseLeads, lowFitLeads)}
-        totalLeads={pick(crmLeads, databaseLeads, totalLeads)}
-      />
+      <div className="space-y-3">
+        <SectionHeader title="ICP posture" kicker="Coverage" />
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.15fr_0.85fr]">
+          <ICPCoveragePanel
+            className="h-full"
+            highFitAccounts={pick(highFitCrmAccounts, highFitDatabaseAccounts, highFitAccounts)}
+            medFitAccounts={pick(medFitCrmAccounts, medFitDatabaseAccounts, medFitAccounts)}
+            lowFitAccounts={pick(lowFitCrmAccounts, lowFitDatabaseAccounts, lowFitAccounts)}
+            totalScored={pick(crmScoredAccounts, databaseScoredAccounts, totalScores)}
+            highFitLeads={pick(highFitCrmLeads, highFitDatabaseLeads, highFitLeads)}
+            medFitLeads={pick(medFitCrmLeads, medFitDatabaseLeads, medFitLeads)}
+            lowFitLeads={pick(lowFitCrmLeads, lowFitDatabaseLeads, lowFitLeads)}
+            totalLeads={pick(crmLeads, databaseLeads, totalLeads)}
+          />
 
-      <ICPProfileSummaryCard icpProfiles={icpProfiles} />
+          <ICPProfileSummaryCard icpProfiles={icpProfiles} />
+        </div>
+      </div>
 
       {/* 3-column widget grid */}
-      <div>
-        <SectionHeader title="Market Intelligence" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <div className="widget-card">
+      <div className="space-y-3">
+        <SectionHeader title="Market intelligence" kicker="Planning" />
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <div className="widget-card h-full">
             <div className="widget-header">
-              <span className="text-xs font-medium text-foreground">ICP by Source</span>
+              <div>
+                <p className="widget-eyebrow">Source mix</p>
+                <span className="widget-title">ICP by source</span>
+              </div>
             </div>
             <SimpleICPTable
               crmAccounts={crmAccounts}
@@ -130,9 +139,12 @@ export function DashboardContent(props: DashboardContentProps) {
             />
           </div>
 
-          <div className="widget-card">
+          <div className="widget-card h-full">
             <div className="widget-header">
-              <span className="text-xs font-medium text-foreground">Market Sizing</span>
+              <div>
+                <p className="widget-eyebrow">Model</p>
+                <span className="widget-title">Market sizing</span>
+              </div>
             </div>
             <SimpleTAMCard
               totalAccounts={sf === "database" ? (tamData?.totalAccounts || 0) : totalAccounts}
@@ -145,9 +157,12 @@ export function DashboardContent(props: DashboardContentProps) {
             />
           </div>
 
-          <div className="widget-card">
+          <div className="widget-card h-full">
             <div className="widget-header">
-              <span className="text-xs font-medium text-foreground">Top Geographies</span>
+              <div>
+                <p className="widget-eyebrow">Territory</p>
+                <span className="widget-title">Top geographies</span>
+              </div>
             </div>
             <SimpleGeographyCard
               geoData={
@@ -166,15 +181,20 @@ export function DashboardContent(props: DashboardContentProps) {
       </div>
 
       {/* Data Health + Insights */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <div className="widget-card">
+      <div className="space-y-3">
+        <SectionHeader title="Execution health" kicker="Quality" />
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[0.82fr_1.18fr]">
+          <div className="widget-card h-full">
           <div className="widget-header">
-            <span className="text-xs font-medium text-foreground">Data Health</span>
+            <div>
+              <p className="widget-eyebrow">Readiness</p>
+              <span className="widget-title">Data health</span>
+            </div>
           </div>
           <DataHealthWidget />
         </div>
 
-        <div className="lg:col-span-2">
+          <div>
           <UnifiedInsightsPanel
             risks={risks}
             insights={insights || []}
@@ -184,6 +204,7 @@ export function DashboardContent(props: DashboardContentProps) {
             completenessScore={dataCompleteness}
             totalScored={totalScores}
           />
+          </div>
         </div>
       </div>
     </div>

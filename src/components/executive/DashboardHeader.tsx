@@ -25,35 +25,42 @@ interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({
-  sourceFilter, onSourceFilterChange, filterStats,
-  isSyncing, isLoading, activeScoringJob, showHealthDashboard,
-  highFitAccounts, effectiveOrgId,
-  onSyncApollo, onRefresh, onScore, onEnrich, onToggleHealth, onPowerUpComplete,
+  isSyncing,
+  isLoading,
+  activeScoringJob,
+  highFitAccounts,
+  effectiveOrgId,
+  onSyncApollo,
+  onRefresh,
+  onScore,
+  onEnrich,
+  onPowerUpComplete,
 }: DashboardHeaderProps) {
   return (
-    <div className="flex items-center justify-between gap-4 py-1">
-      <h1 className="font-heading text-[1.05rem] font-semibold leading-none tracking-[-0.03em] text-foreground">
-        Growth Command Center
-      </h1>
+    <div className="dashboard-toolbar">
+      <div className="min-w-0 space-y-1">
+        <p className="section-kicker">Overview</p>
+        <p className="font-heading text-[0.98rem] font-medium tracking-[-0.04em] text-foreground/85">
+          Revenue operating system
+        </p>
+      </div>
 
-      <div className="flex items-center gap-1">
-        {sourceFilter === "database" && (
-          <Button variant="default" onClick={onSyncApollo} disabled={isSyncing} size="sm" className="h-8 px-3 text-[12px] font-medium">
+      <div className="flex flex-wrap items-center justify-end gap-1.5">
+        <Button variant="default" onClick={onSyncApollo} disabled={isSyncing} size="sm" className="h-9 rounded-full px-4 text-[12px] font-medium">
             <RefreshCw className={`h-3 w-3 ${isSyncing ? "animate-spin" : ""}`} />
             {isSyncing ? "Syncing" : "Sync"}
           </Button>
-        )}
 
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onRefresh} disabled={isLoading}>
+        <Button variant="ghost" size="sm" className="h-9 w-9 rounded-full p-0" onClick={onRefresh} disabled={isLoading}>
           <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} />
         </Button>
 
-        <Button variant="ghost" size="sm" className="h-8 px-2.5 text-[12px] font-medium" onClick={onScore} disabled={!!activeScoringJob}>
+        <Button variant="ghost" size="sm" className="h-9 rounded-full px-3.5 text-[12px] font-medium" onClick={onScore} disabled={!!activeScoringJob}>
           <Target className="h-3 w-3" />
           Score
         </Button>
 
-        <Button variant="ghost" size="sm" className="h-8 px-2.5 text-[12px] font-medium" onClick={onEnrich}>
+        <Button variant="ghost" size="sm" className="h-9 rounded-full px-3.5 text-[12px] font-medium" onClick={onEnrich}>
           <LaunchPulseMark className="h-3 w-3" />
           Enrich
         </Button>

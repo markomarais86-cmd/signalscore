@@ -235,10 +235,12 @@ export default function ExecutiveDashboard() {
   const summaryParts: string[] = [];
   if (highFitAccounts > 0) summaryParts.push(`${highFitAccounts} priority accounts`);
   if (campaignReadyAccounts > 0) summaryParts.push(`${campaignReadyAccounts} campaign-ready`);
-  const summaryText = summaryParts.length > 0 ? `You have ${summaryParts.join(" and ")}` : "Get started by importing your account data";
+  const summaryText = summaryParts.length > 0
+    ? `Priority coverage is live with ${summaryParts.join(" and ")}.`
+    : "Bring in account data to surface fit, market coverage, and launch-ready opportunities.";
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-[1440px] space-y-4 px-4 pb-10 sm:px-5 lg:px-6">
+    <div className="executive-shell mx-auto min-h-screen w-full max-w-[1440px] space-y-5 px-4 pb-10 pt-4 sm:px-5 lg:px-6">
       <DashboardHeader
         sourceFilter={sourceFilter}
         onSourceFilterChange={setSourceFilter}
