@@ -21,6 +21,7 @@ import { detectRisks, RiskItem } from "@/utils/risk-detector";
 import { SyncProgressModal } from "@/components/settings/SyncProgressModal";
 import { EnrichmentModal } from "@/components/executive/EnrichmentModal";
 import { DashboardSkeleton } from "@/components/DashboardSkeleton";
+import { QueryErrorState } from "@/components/QueryErrorState";
 import { WelcomeEmptyState } from "@/components/onboarding/WelcomeEmptyState";
 import { SystemHealthDashboard } from "@/components/settings/SystemHealthDashboard";
 import { AgentRunDetailSheet } from "@/components/insights/AgentRunDetailSheet";
