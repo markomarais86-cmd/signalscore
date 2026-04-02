@@ -1,5 +1,3 @@
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Database, Building2 } from "lucide-react";
 
 export type SourceFilter = 'crm' | 'database';
@@ -32,26 +30,27 @@ export function SourceFilterToggle({ value, onChange, stats }: SourceFilterToggl
   ];
 
   return (
-    <div className="flex items-center gap-1 rounded-lg bg-muted/70 p-1">
+    <div className="segmented-filter">
       {filters.map((filter) => {
         const Icon = filter.icon;
         const isActive = value === filter.value;
         
         return (
-          <Button
+          <button
             key={filter.value}
-            variant={isActive ? "default" : "ghost"}
-            size="sm"
+            type="button"
             onClick={() => onChange(filter.value)}
-            className="h-9 gap-2 px-3 text-[12px] font-medium"
+            className="segmented-filter__button"
+            data-active={isActive}
+            aria-pressed={isActive}
             title={filter.tooltip}
           >
             <Icon className="h-3.5 w-3.5" />
             {filter.label}
-            <Badge variant={isActive ? "secondary" : "outline"} className="ml-1 text-[11px] font-medium tabular-nums">
+            <span className="segmented-filter__count">
               {filter.count.toLocaleString()}
-            </Badge>
-          </Button>
+            </span>
+          </button>
         );
       })}
     </div>

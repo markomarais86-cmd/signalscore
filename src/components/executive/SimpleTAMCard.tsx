@@ -59,10 +59,16 @@ export function SimpleTAMCard({
 
   return (
     <div className={className}>
-      <div className="flex justify-end px-3 pt-2">
+      <div className="flex items-start justify-between gap-4 px-5 pt-2">
+        <div className="space-y-2">
+          <p className="metric-panel__label">Total addressable market</p>
+          <p className="font-heading text-[2.65rem] font-semibold tracking-[-0.07em] text-foreground tabular-nums">{fmt(tam)}</p>
+          <p className="text-sm text-muted-foreground/80">{tamAccts.toLocaleString()} matching accounts</p>
+        </div>
+
         <Popover open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
           <PopoverTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground">
+            <Button variant="ghost" size="sm" className="mt-1 h-8 w-8 rounded-full p-0 text-muted-foreground">
               <Settings className="h-3.5 w-3.5" />
             </Button>
           </PopoverTrigger>
@@ -85,22 +91,16 @@ export function SimpleTAMCard({
         </Popover>
       </div>
 
-      <div className="px-4 pb-5 text-center">
-        <p className="text-[11px] font-medium tracking-[0.02em] text-muted-foreground/75">Total addressable market</p>
-        <p className="mt-1 font-heading text-[2.65rem] font-semibold tracking-[-0.06em] text-foreground tabular-nums">{fmt(tam)}</p>
-        <p className="mt-1 text-sm text-muted-foreground/70">{tamAccts.toLocaleString()} matching accounts</p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-px border-t bg-border">
-        <button type="button" className="bg-card px-4 py-4 text-left transition-colors hover:bg-muted/10" onClick={() => navigate("/accounts?fit=high")}>
-          <p className="text-[11px] font-medium text-muted-foreground/75">Serviceable market</p>
-          <p className="mt-1 font-heading text-[1.45rem] font-semibold tracking-[-0.04em] text-foreground tabular-nums">{fmt(sam)}</p>
-          <p className="mt-1 text-[12px] text-muted-foreground/70">{samPct.toFixed(0)}% of TAM</p>
+      <div className="grid grid-cols-1 gap-3 px-5 pb-5 pt-5 sm:grid-cols-2">
+        <button type="button" className="metric-panel" onClick={() => navigate("/accounts?fit=high") }>
+          <p className="metric-panel__label">Serviceable market</p>
+          <p className="metric-panel__value">{fmt(sam)}</p>
+          <p className="metric-panel__hint">{samPct.toFixed(0)}% of TAM</p>
         </button>
-        <button type="button" className="bg-card px-4 py-4 text-left transition-colors hover:bg-muted/10" onClick={() => navigate("/accounts?fit=high&enriched=true")}>
-          <p className="text-[11px] font-medium text-muted-foreground/75">Obtainable market</p>
-          <p className="mt-1 font-heading text-[1.45rem] font-semibold tracking-[-0.04em] text-foreground tabular-nums">{fmt(som)}</p>
-          <p className="mt-1 text-[12px] text-muted-foreground/70">{somPct.toFixed(0)}% of SAM</p>
+        <button type="button" className="metric-panel" onClick={() => navigate("/accounts?fit=high&enriched=true")}>
+          <p className="metric-panel__label">Obtainable market</p>
+          <p className="metric-panel__value">{fmt(som)}</p>
+          <p className="metric-panel__hint">{somPct.toFixed(0)}% of SAM</p>
         </button>
       </div>
     </div>

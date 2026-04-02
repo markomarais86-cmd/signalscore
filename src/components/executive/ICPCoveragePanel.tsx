@@ -62,15 +62,16 @@ export function ICPCoveragePanel({
   return (
     <div className={`${className ?? ""} widget-card`}>
       <div className="widget-header">
-        <span className="font-heading text-[15px] font-medium tracking-[-0.02em] text-foreground">
-          ICP coverage
-        </span>
+        <div>
+          <p className="widget-eyebrow">Coverage snapshot</p>
+          <span className="widget-title">ICP coverage</span>
+        </div>
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "accounts" | "leads")}>
-          <TabsList className="h-8 gap-0 bg-transparent p-0">
-            <TabsTrigger value="accounts" className="h-8 rounded-none border-b-2 border-transparent px-3 text-[12px] font-medium text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none">
+          <TabsList className="h-9 rounded-full border border-border bg-background/70 p-1">
+            <TabsTrigger value="accounts" className="h-7 rounded-full px-3 text-[12px] font-medium text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:shadow-none">
               Accounts
             </TabsTrigger>
-            <TabsTrigger value="leads" className="h-8 rounded-none border-b-2 border-transparent px-3 text-[12px] font-medium text-muted-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none">
+            <TabsTrigger value="leads" className="h-7 rounded-full px-3 text-[12px] font-medium text-muted-foreground data-[state=active]:bg-muted data-[state=active]:text-foreground data-[state=active]:shadow-none">
               Leads
             </TabsTrigger>
           </TabsList>
@@ -78,18 +79,21 @@ export function ICPCoveragePanel({
       </div>
 
       <div className="p-5">
-        <div className="mb-5 grid grid-cols-3 gap-px overflow-hidden rounded-md border bg-border">
-          <button type="button" className="bg-card px-4 py-4 text-left transition-colors hover:bg-muted/10" onClick={() => navigate(isAccounts ? "/accounts" : "/leads")}>
-            <p className="text-[11px] font-medium text-muted-foreground/75">Total</p>
-            <p className="mt-1 font-heading text-[1.55rem] font-semibold tracking-[-0.04em] text-foreground tabular-nums">{total.toLocaleString()}</p>
+        <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <button type="button" className="metric-panel" onClick={() => navigate(isAccounts ? "/accounts" : "/leads")}>
+            <p className="metric-panel__label">Total scored</p>
+            <p className="metric-panel__value">{total.toLocaleString()}</p>
+            <p className="metric-panel__hint">All evaluated records</p>
           </button>
-          <button type="button" className="bg-card px-4 py-4 text-left transition-colors hover:bg-muted/10" onClick={() => navigate(isAccounts ? "/accounts?fit=high" : "/leads?fit=high")}>
-            <p className="text-[11px] font-medium text-muted-foreground/75">ICP fit</p>
-            <p className="mt-1 font-heading text-[1.55rem] font-semibold tracking-[-0.04em] text-foreground tabular-nums">{icpFit.toLocaleString()}</p>
+          <button type="button" className="metric-panel" onClick={() => navigate(isAccounts ? "/accounts?fit=high" : "/leads?fit=high")}>
+            <p className="metric-panel__label">ICP fit</p>
+            <p className="metric-panel__value">{icpFit.toLocaleString()}</p>
+            <p className="metric-panel__hint">High and medium fit combined</p>
           </button>
-          <div className="bg-card px-4 py-4 text-left">
-            <p className="text-[11px] font-medium text-muted-foreground/75">Coverage</p>
-            <p className="mt-1 font-heading text-[1.55rem] font-semibold tracking-[-0.04em] text-primary tabular-nums">{pct}%</p>
+          <div className="metric-panel">
+            <p className="metric-panel__label">Coverage rate</p>
+            <p className="metric-panel__value text-primary">{pct}%</p>
+            <p className="metric-panel__hint">Fit share of scored volume</p>
           </div>
         </div>
 
@@ -114,14 +118,18 @@ export function ICPCoveragePanel({
               <button
                 key={item.name}
                 type="button"
-                className="group flex w-full items-center justify-between rounded-md px-2 py-2 text-left transition-colors hover:bg-muted/10"
+                className="group grid w-full grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[0.95rem] border border-border/70 bg-background/40 px-3 py-3 text-left transition-colors hover:border-primary/20 hover:bg-muted/10"
                 onClick={() => navigate(isAccounts ? `/accounts?fit=${fitParam}` : `/leads?fit=${fitParam}`)}
               >
-                <div className="flex items-center gap-2.5">
-                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: item.color }} />
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                <div className="min-w-0">
                   <span className="text-[13px] font-medium text-foreground transition-colors group-hover:text-primary">{item.name}</span>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-border/50">
+                    <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${Math.max(p, 4)}%`, backgroundColor: item.color }} />
+                  </div>
                 </div>
                 <div className="flex items-center gap-4">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: item.color }} />
                   <span className="text-[13px] font-medium text-foreground tabular-nums">{item.value.toLocaleString()}</span>
                   <span className="w-10 text-right text-[12px] text-muted-foreground tabular-nums">{p.toFixed(0)}%</span>
                 </div>

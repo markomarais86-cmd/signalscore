@@ -17,18 +17,20 @@ interface DataHealthMetrics {
 }
 
 function HealthBar({ pct, label }: { pct: number; label: string }) {
-  const color = pct >= 80 ? "bg-primary" : pct >= 50 ? "bg-executive-amber" : "bg-destructive";
+  const color = pct >= 80 ? "bg-primary" : pct >= 50 ? "bg-status-warning" : "bg-destructive";
   return (
-    <div className="group flex items-center justify-between rounded-sm px-4 py-2.5 transition-colors hover:bg-muted/5">
-      <span className="text-[13px] text-muted-foreground transition-colors group-hover:text-foreground">{label}</span>
-      <div className="flex items-center gap-2.5">
-        <div className="h-1.5 w-20 overflow-hidden rounded-full bg-border/50">
+    <div className="group grid grid-cols-[1fr_auto] items-center gap-4 rounded-[0.95rem] border border-border/70 bg-background/35 px-4 py-3 transition-colors hover:border-primary/15 hover:bg-muted/10">
+      <div>
+        <span className="text-[13px] font-medium text-foreground/88 transition-colors group-hover:text-foreground">{label}</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="h-2 w-24 overflow-hidden rounded-full bg-border/50">
           <div
             className={`h-full rounded-full ${color} transition-all duration-700 ease-out`}
             style={{ width: `${pct}%` }}
           />
         </div>
-        <span className="w-8 text-right text-[12px] font-medium text-foreground tabular-nums">{pct}%</span>
+        <span className="w-9 text-right text-[12px] font-medium text-foreground tabular-nums">{pct}%</span>
       </div>
     </div>
   );
@@ -85,31 +87,38 @@ export function DataHealthWidget() {
   ];
 
   const lowest = fields.reduce((prev, curr) => curr.pct < prev.pct ? curr : prev);
-  const scoreColor = metrics.overallScore >= 80 ? "text-primary" : metrics.overallScore >= 50 ? "text-executive-amber" : "text-destructive";
+  const scoreColor = metrics.overallScore >= 80 ? "text-primary" : metrics.overallScore >= 50 ? "text-status-warning" : "text-destructive";
 
   return (
-    <div>
-      <div className="px-4 py-4 text-center">
-        <p className="mb-1 text-[11px] font-medium tracking-[0.02em] text-muted-foreground/75">Health score</p>
-        <p className={`font-heading text-[2.5rem] font-semibold tracking-[-0.06em] tabular-nums ${scoreColor}`}>{metrics.overallScore}%</p>
+    <div className="space-y-4 px-5 pb-5 pt-2">
+      <div className="metric-panel">
+        <p className="metric-panel__label">Health score</p>
+        <div className="mt-3 flex items-end justify-between gap-4">
+          <p className={`font-heading text-[3rem] font-semibold tracking-[-0.08em] tabular-nums ${scoreColor}`}>{metrics.overallScore}%</p>
+          <div className="text-right">
+            <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Weakest field</p>
+            <p className="mt-1 font-heading text-[1.1rem] font-semibold tracking-[-0.04em] text-foreground">{lowest.label}</p>
+          </div>
+        </div>
+        <p className="metric-panel__hint">{metrics.totalAccounts.toLocaleString()} accounts profiled across core enrichment fields</p>
       </div>
 
-      <div className="space-y-0">
+      <div className="space-y-2">
         {fields.map((f) => (
           <HealthBar key={f.label} label={f.label} pct={f.pct} />
         ))}
       </div>
 
       {lowest.pct < 70 && (
-        <div className="mt-1 flex items-center justify-between px-4 py-2.5">
+        <div className="flex items-center justify-between rounded-[0.95rem] border border-border/70 bg-background/35 px-4 py-3">
           <span className="text-[12px] text-muted-foreground">{lowest.label} needs attention</span>
-          <Button variant="ghost" size="sm" className="h-6 gap-0.5 px-1.5 text-[12px] text-primary hover:text-primary" onClick={() => navigate("/enrichment")}>
+          <Button variant="ghost" size="sm" className="h-7 gap-0.5 rounded-full px-2 text-[12px] text-primary hover:text-primary" onClick={() => navigate("/enrichment")}>
             Enrich <ArrowRight className="h-3 w-3" />
           </Button>
         </div>
       )}
 
-      <div className="flex items-center justify-between border-t px-4 py-2.5 text-[12px] text-muted-foreground">
+      <div className="flex items-center justify-between px-1 text-[12px] text-muted-foreground">
         <span>{metrics.totalAccounts.toLocaleString()} accounts</span>
         <span className="tabular-nums">{metrics.accountsEnriched.toLocaleString()} enriched</span>
       </div>
