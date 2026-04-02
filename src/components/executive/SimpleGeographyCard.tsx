@@ -19,69 +19,65 @@ export function SimpleGeographyCard({
 }: SimpleGeographyCardProps) {
   const navigate = useNavigate();
   const totalAccounts = geoData.reduce((sum, g) => sum + g.count, 0);
-  
-  // Get top 5 countries
+
   const topCountries = geoData
     .slice(0, 5)
-    .map(item => ({
+    .map((item) => ({
       ...item,
       percentage: totalAccounts > 0 ? (item.count / totalAccounts) * 100 : 0,
     }));
 
-  const maxPercentage = Math.max(...topCountries.map(c => c.percentage), 1);
+  const maxPercentage = Math.max(...topCountries.map((c) => c.percentage || 0), 1);
 
   return (
-    <Card className={`${className} floating-card border-border/30 bg-card/90 backdrop-blur-xl shadow-xl shadow-primary/5 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500`}>
+    <Card className={`${className ?? ""} border bg-card shadow-sm`}>
       <CardContent className="p-6">
-        {/* Header */}
-        <div className="flex items-center gap-2 mb-4">
-          <div className="p-1.5 rounded-md bg-primary/10">
-            <MapPin className="h-4 w-4 text-primary" />
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-primary/10 p-2">
+              <MapPin className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-foreground">Top Geographies</h3>
+              <p className="text-xs text-muted-foreground">Regional concentration across scored accounts.</p>
+            </div>
           </div>
-          <span className="text-sm font-medium text-muted-foreground">Top Geographies</span>
+          <div className="rounded-full border border-border bg-muted/20 px-3 py-1 text-xs text-muted-foreground">
+            {totalAccounts.toLocaleString()} total
+          </div>
         </div>
 
         {topCountries.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">No geography data available</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">No geography data available</p>
         ) : (
-          <div className="space-y-3">
-            {topCountries.map((item, idx) => (
-              <div
+          <div className="space-y-4">
+            {topCountries.map((item) => (
+              <button
                 key={item.country}
-                className="space-y-1.5 cursor-pointer hover:bg-muted/30 rounded-md px-2 py-1 -mx-2 transition-colors"
+                type="button"
+                className="block w-full rounded-xl border bg-muted/10 px-4 py-3 text-left transition-colors hover:bg-muted/20"
                 onClick={() => navigate(`/accounts?country=${encodeURIComponent(item.country)}`)}
               >
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium text-foreground truncate max-w-[150px]">
-                    {item.country}
-                  </span>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <span>{item.count.toLocaleString()}</span>
-                    <span className="text-xs">({item.percentage.toFixed(0)}%)</span>
+                <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                  <span className="truncate font-medium text-foreground">{item.country}</span>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-mono text-foreground">{item.count.toLocaleString()}</span>
+                    <span>({item.percentage?.toFixed(0)}%)</span>
                   </div>
                 </div>
-                <div className="h-2 bg-muted/30 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full rounded-full transition-all duration-700"
-                    style={{ 
-                      width: `${(item.percentage / maxPercentage) * 100}%`,
-                      background: `linear-gradient(90deg, hsl(161 85% 60%) 0%, hsl(161 85% 50%) 100%)`,
-                      boxShadow: idx === 0 ? '0 0 8px hsl(161 85% 60% / 0.5)' : undefined,
+                <div className="h-2 rounded-full bg-muted/40 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${((item.percentage || 0) / maxPercentage) * 100}%`,
+                      backgroundColor: "hsl(var(--primary))",
                     }}
                   />
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         )}
-
-        {/* Total */}
-        <div className="mt-4 pt-4 border-t border-border/50">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>Total accounts with geography</span>
-            <span className="font-medium text-foreground">{totalAccounts.toLocaleString()}</span>
-          </div>
-        </div>
       </CardContent>
     </Card>
   );
