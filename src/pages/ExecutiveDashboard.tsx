@@ -232,7 +232,7 @@ export default function ExecutiveDashboard() {
   });
 
   return (
-    <div className="w-full px-2 sm:px-4 lg:px-6 xl:px-8 space-y-4 md:space-y-6 lg:space-y-8 min-h-screen pb-8">
+    <div className="mx-auto min-h-screen w-full max-w-[1680px] space-y-6 px-4 pb-10 sm:px-6 lg:space-y-8 lg:px-8 xl:px-10">
       <DashboardHeader
         sourceFilter={sourceFilter}
         onSourceFilterChange={setSourceFilter}

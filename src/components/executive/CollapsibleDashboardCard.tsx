@@ -15,13 +15,13 @@ export function CollapsibleDashboardCard({ title, icon, defaultOpen = true, chil
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="space-y-0">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          {icon && <div className="p-1.5 rounded-md bg-primary/10">{icon}</div>}
-          <span className="text-sm font-medium text-muted-foreground">{title}</span>
+      <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm">
+        <div className="flex min-w-0 items-center gap-3">
+          {icon && <div className="rounded-lg bg-primary/10 p-2">{icon}</div>}
+          <span className="truncate text-sm font-semibold text-foreground">{title}</span>
         </div>
         <CollapsibleTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
             {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
         </CollapsibleTrigger>

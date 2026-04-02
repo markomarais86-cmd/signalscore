@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { Target, Building2, Users } from "lucide-react";
 
@@ -10,13 +10,18 @@ interface ICPCoveragePanelProps {
   medFitAccounts: number;
   lowFitAccounts: number;
   totalScored: number;
-  // Leads data
   highFitLeads?: number;
   medFitLeads?: number;
   lowFitLeads?: number;
   totalLeads?: number;
   className?: string;
 }
+
+const FIT_COLORS = {
+  high: "hsl(var(--fit-high))",
+  medium: "hsl(var(--fit-medium))",
+  low: "hsl(var(--fit-low))",
+};
 
 export function ICPCoveragePanel({
   highFitAccounts,
@@ -36,57 +41,57 @@ export function ICPCoveragePanel({
   const icpFitLeadsCount = highFitLeads + medFitLeads;
 
   const accountsData = [
-    { name: "High-Fit", value: highFitAccounts, color: "hsl(161 85% 60%)" },
-    { name: "Medium-Fit", value: medFitAccounts, color: "hsl(43 96% 56%)" },
-    { name: "Low-Fit", value: lowFitAccounts, color: "hsl(0 84% 60%)" },
+    { name: "High-Fit", value: highFitAccounts, color: FIT_COLORS.high },
+    { name: "Medium-Fit", value: medFitAccounts, color: FIT_COLORS.medium },
+    { name: "Low-Fit", value: lowFitAccounts, color: FIT_COLORS.low },
   ];
 
   const leadsData = [
-    { name: "High-Fit", value: highFitLeads, color: "hsl(161 85% 60%)" },
-    { name: "Medium-Fit", value: medFitLeads, color: "hsl(43 96% 56%)" },
-    { name: "Low-Fit", value: lowFitLeads, color: "hsl(0 84% 60%)" },
+    { name: "High-Fit", value: highFitLeads, color: FIT_COLORS.high },
+    { name: "Medium-Fit", value: medFitLeads, color: FIT_COLORS.medium },
+    { name: "Low-Fit", value: lowFitLeads, color: FIT_COLORS.low },
   ];
 
   const currentData = activeTab === "accounts" ? accountsData : leadsData;
   const currentTotal = activeTab === "accounts" ? totalScored : totalLeads;
   const currentIcpFit = activeTab === "accounts" ? icpFitAccounts : icpFitLeadsCount;
-  const currentIcpFitPercentage = currentTotal > 0 
-    ? Math.round((currentIcpFit / currentTotal) * 100) 
-    : 0;
+  const currentIcpFitPercentage = currentTotal > 0 ? Math.round((currentIcpFit / currentTotal) * 100) : 0;
 
   if (totalScored === 0) {
     return (
-      <Card className={`${className} floating-card border-border/50 bg-card/80 backdrop-blur-sm`}>
-        <CardContent className="flex flex-col items-center justify-center h-80 p-6">
-          <Target className="h-12 w-12 text-muted-foreground mb-3" />
-          <p className="text-muted-foreground text-sm">No scored accounts yet</p>
+      <Card className={`${className ?? ""} border bg-card shadow-sm`}>
+        <CardContent className="flex h-80 flex-col items-center justify-center p-8 text-center">
+          <div className="mb-4 rounded-full bg-primary/10 p-4">
+            <Target className="h-8 w-8 text-primary" />
+          </div>
+          <p className="text-sm font-medium text-foreground">No scored accounts yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">Run scoring to populate ICP coverage.</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className={`${className} floating-card border-border/30 bg-card/90 backdrop-blur-xl shadow-2xl shadow-primary/10`}>
-      <CardContent className="p-8">
-        {/* Header with Tabs */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
+    <Card className={`${className ?? ""} border bg-card shadow-sm`}>
+      <CardContent className="p-6 lg:p-8">
+        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-primary/10 p-2.5">
               <Target className="h-5 w-5 text-primary" />
             </div>
             <div>
               <h3 className="text-lg font-semibold text-foreground">ICP Coverage Overview</h3>
-              <p className="text-xs text-muted-foreground">Breakdown by fit level</p>
+              <p className="mt-1 text-sm text-muted-foreground">Breakdown by fit level across your scored records.</p>
             </div>
           </div>
-          
+
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "accounts" | "leads")}>
-            <TabsList className="bg-muted/50">
-              <TabsTrigger value="accounts" className="text-xs gap-1.5">
+            <TabsList className="h-9 bg-muted p-1">
+              <TabsTrigger value="accounts" className="gap-1.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                 <Building2 className="h-3 w-3" />
                 Accounts
               </TabsTrigger>
-              <TabsTrigger value="leads" className="text-xs gap-1.5">
+              <TabsTrigger value="leads" className="gap-1.5 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                 <Users className="h-3 w-3" />
                 Leads
               </TabsTrigger>
@@ -94,53 +99,48 @@ export function ICPCoveragePanel({
           </Tabs>
         </div>
 
-        {/* Summary Metrics */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div
-            className="text-center p-3 rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+        <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <button
+            type="button"
+            className="rounded-xl border bg-muted/20 px-4 py-4 text-left transition-colors hover:bg-muted/30"
             onClick={() => navigate(activeTab === "accounts" ? "/accounts" : "/leads")}
           >
-            <p className="text-2xl font-bold text-foreground">{currentTotal.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">Total {activeTab === "accounts" ? "Scored" : "Leads"}</p>
-          </div>
-          <div
-            className="text-center p-3 rounded-lg bg-primary/10 border border-primary/20 cursor-pointer hover:bg-primary/15 transition-colors"
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Total</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight font-mono text-foreground">{currentTotal.toLocaleString()}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{activeTab === "accounts" ? "Scored accounts" : "Available leads"}</p>
+          </button>
+
+          <button
+            type="button"
+            className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-4 text-left transition-colors hover:bg-primary/10"
             onClick={() => navigate(activeTab === "accounts" ? "/accounts?fit=high" : "/leads?fit=high")}
           >
-            <p className="text-2xl font-bold text-primary">{currentIcpFit.toLocaleString()}</p>
-            <p className="text-xs text-muted-foreground">ICP-Fit</p>
-          </div>
-          <div className="text-center p-3 rounded-lg bg-muted/30">
-            <p className="text-2xl font-bold text-foreground">{currentIcpFitPercentage}%</p>
-            <p className="text-xs text-muted-foreground">Coverage</p>
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-primary">ICP-Fit</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight font-mono text-primary">{currentIcpFit.toLocaleString()}</p>
+            <p className="mt-1 text-xs text-muted-foreground">High + medium fit records</p>
+          </button>
+
+          <div className="rounded-xl border bg-muted/20 px-4 py-4 text-left">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">Coverage</p>
+            <p className="mt-2 text-3xl font-semibold tracking-tight font-mono text-foreground">{currentIcpFitPercentage}%</p>
+            <p className="mt-1 text-xs text-muted-foreground">Of the current scored set</p>
           </div>
         </div>
 
-        {/* Main Content: Donut + Legend */}
-        <div className="flex items-center gap-8">
-          {/* Donut Chart */}
-          <div className="relative w-48 h-48 flex-shrink-0">
+        <div className="grid items-center gap-8 lg:grid-cols-[240px_1fr]">
+          <div className="relative mx-auto h-56 w-56 lg:mx-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <defs>
-                  <filter id="donut-glow">
-                    <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-                    <feMerge>
-                      <feMergeNode in="coloredBlur"/>
-                      <feMergeNode in="SourceGraphic"/>
-                    </feMerge>
-                  </filter>
-                </defs>
                 <Pie
                   data={currentData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={55}
-                  outerRadius={80}
-                  paddingAngle={3}
+                  innerRadius={64}
+                  outerRadius={90}
+                  paddingAngle={2}
                   dataKey="value"
-                  strokeWidth={0}
-                  filter="url(#donut-glow)"
+                  stroke="hsl(var(--background))"
+                  strokeWidth={4}
                 >
                   {currentData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -148,43 +148,35 @@ export function ICPCoveragePanel({
                 </Pie>
               </PieChart>
             </ResponsiveContainer>
-            
-            {/* Center Label */}
+
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-[10px] font-semibold text-primary uppercase tracking-widest">ICP</span>
-              <span className="text-4xl font-bold text-foreground">{currentIcpFitPercentage}%</span>
-              <span className="text-[10px] text-muted-foreground">ICP-Fit</span>
+              <span className="text-[10px] font-medium uppercase tracking-[0.24em] text-primary">ICP</span>
+              <span className="mt-1 text-4xl font-semibold font-mono text-foreground">{currentIcpFitPercentage}%</span>
+              <span className="mt-1 text-[11px] text-muted-foreground">Coverage</span>
             </div>
           </div>
 
-          {/* Legend with Counts */}
-          <div className="flex-1 space-y-3">
+          <div className="space-y-3">
             {currentData.map((item) => {
               const percentage = currentTotal > 0 ? (item.value / currentTotal) * 100 : 0;
+              const fitParam = item.name === "High-Fit" ? "high" : item.name === "Medium-Fit" ? "medium" : "low";
+
               return (
-                <div
+                <button
                   key={item.name}
-                  className="flex items-center justify-between cursor-pointer hover:bg-muted/30 rounded-md px-2 py-1 -mx-2 transition-colors"
-                  onClick={() => {
-                    const fitParam = item.name === "High-Fit" ? "high" : item.name === "Medium-Fit" ? "medium" : "low";
-                    navigate(activeTab === "accounts" ? `/accounts?fit=${fitParam}` : `/leads?fit=${fitParam}`);
-                  }}
+                  type="button"
+                  className="flex w-full items-center justify-between rounded-xl border bg-muted/10 px-4 py-3 text-left transition-colors hover:bg-muted/20"
+                  onClick={() => navigate(activeTab === "accounts" ? `/accounts?fit=${fitParam}` : `/leads?fit=${fitParam}`)}
                 >
                   <div className="flex items-center gap-3">
-                    <div 
-                      className="w-3 h-3 rounded-full shadow-sm"
-                      style={{ 
-                        backgroundColor: item.color,
-                        boxShadow: `0 0 8px ${item.color}40`
-                      }}
-                    />
+                    <span className="h-3 w-3 rounded-full border border-background" style={{ backgroundColor: item.color }} />
                     <span className="text-sm font-medium text-foreground">{item.name}</span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold text-foreground">{item.value.toLocaleString()}</span>
-                    <span className="text-xs text-muted-foreground w-12 text-right">{percentage.toFixed(0)}%</span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-semibold font-mono text-foreground">{item.value.toLocaleString()}</span>
+                    <span className="w-12 text-right text-xs text-muted-foreground">{percentage.toFixed(0)}%</span>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
