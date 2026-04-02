@@ -63,10 +63,10 @@ function KPITile({
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="mb-2 text-[11px] font-medium tracking-[0.02em] text-muted-foreground/80">
+          <p className="mb-2 text-[13px] font-medium text-muted-foreground">
             {label}
           </p>
-          <p className="font-heading text-[1.9rem] font-semibold leading-none tracking-[-0.05em] text-foreground tabular-nums sm:text-[2.1rem]">
+          <p className="font-heading text-[2.2rem] font-semibold leading-none tracking-[-0.05em] text-foreground tabular-nums sm:text-[2.5rem]">
             {displayValue}
           </p>
         </div>
