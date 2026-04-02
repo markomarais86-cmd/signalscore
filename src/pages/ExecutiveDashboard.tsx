@@ -285,6 +285,12 @@ export default function ExecutiveDashboard() {
 
       {isLoading ? (
         <DashboardSkeleton />
+      ) : queryError ? (
+        <QueryErrorState
+          error={queryError instanceof Error ? queryError : new Error(String(queryError))}
+          onRetry={() => refetch()}
+          title="Unable to load dashboard data"
+        />
       ) : showEmptyState ? (
         <WelcomeEmptyState />
       ) : (
