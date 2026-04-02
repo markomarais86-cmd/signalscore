@@ -17,6 +17,7 @@ export function SimpleGeographyCard({
   geoData,
   className,
 }: SimpleGeographyCardProps) {
+  const navigate = useNavigate();
   const totalAccounts = geoData.reduce((sum, g) => sum + g.count, 0);
   
   // Get top 5 countries
