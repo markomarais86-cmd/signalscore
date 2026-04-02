@@ -56,23 +56,23 @@ export function SimplifiedHeroMetrics({
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {metrics.map((metric, idx) => (
         <Card
           key={metric.label}
-          className={`${metric.floatClass} cursor-pointer group relative overflow-hidden border-border/30 bg-card/90 backdrop-blur-xl shadow-lg shadow-primary/5 hover:shadow-2xl hover:shadow-primary/15`}
+          className="cursor-pointer group relative overflow-hidden border bg-card shadow-sm hover:shadow-md transition-shadow duration-200"
           onClick={metric.onClick}
         >
-          <CardContent className="p-6">
+          <CardContent className="p-5">
             <div className="flex items-center justify-between gap-4">
-              <div className="space-y-1">
+              <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-md bg-primary/10">
                     <metric.icon className="h-4 w-4 text-primary" />
                   </div>
                   <p className="text-sm font-medium text-muted-foreground">{metric.label}</p>
                 </div>
-                <p className="text-4xl font-bold tracking-tight text-foreground">{metric.value}</p>
+                <p className="text-4xl font-bold tracking-tight font-mono text-foreground">{metric.value}</p>
                 <p className="text-xs text-muted-foreground">{metric.subtitle}</p>
               </div>
               <div className="w-24 h-16">
@@ -80,14 +80,11 @@ export function SimplifiedHeroMetrics({
                   <BarChart data={miniChartData} barCategoryGap="15%">
                     <defs>
                       <linearGradient id={`barGradient-${idx}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="hsl(161 85% 60%)" stopOpacity={0.9} />
-                        <stop offset="100%" stopColor="hsl(161 85% 60%)" stopOpacity={0.2} />
+                        <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
+                        <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.15} />
                       </linearGradient>
                     </defs>
-                    <Bar
-                      dataKey="value"
-                      radius={[3, 3, 0, 0]}
-                    >
+                    <Bar dataKey="value" radius={[3, 3, 0, 0]}>
                       {miniChartData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={`url(#barGradient-${idx})`} />
                       ))}
@@ -97,8 +94,6 @@ export function SimplifiedHeroMetrics({
               </div>
             </div>
           </CardContent>
-          {/* Glow effect on hover */}
-          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none bg-gradient-to-br from-primary/10 via-transparent to-transparent" />
         </Card>
       ))}
     </div>
