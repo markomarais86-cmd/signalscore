@@ -36,6 +36,7 @@ export function SimpleICPTable({
   apolloMedFitEstimate,
   className,
 }: SimpleICPTableProps) {
+  const navigate = useNavigate();
   const crmIcpFit = highFitCrmAccounts + medFitCrmAccounts;
   const crmPercentage = crmAccounts > 0 
     ? Math.round((crmIcpFit / crmAccounts) * 100) 
