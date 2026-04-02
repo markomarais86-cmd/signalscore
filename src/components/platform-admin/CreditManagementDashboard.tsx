@@ -168,7 +168,30 @@ export const CreditManagementDashboard = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
+            {/* Mobile cards */}
+            <div className="block sm:hidden space-y-3">
+              {atRiskOrgs.map((org) => (
+                <div key={org.id} className="border rounded-lg p-3 bg-card space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{org.name}</span>
+                    <Badge variant="outline">{getPlanDisplayName(org.plan_id)}</Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Progress value={org.usagePercent} className="flex-1 h-2" />
+                    <span className={`text-sm font-medium ${org.usagePercent >= 90 ? 'text-destructive' : 'text-orange-500'}`}>{org.usagePercent}%</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{org.enrichment_credits_used}/{org.enrichment_credits_total}</span>
+                    <Button size="sm" variant="outline" onClick={() => setTopUpOrg(org)}>
+                      <Gift className="h-3 w-3 mr-1" />Top-Up
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop table */}
+            <Table className="hidden sm:table">
               <TableHeader>
                 <TableRow>
                   <TableHead>Organization</TableHead>
@@ -198,23 +221,15 @@ export const CreditManagementDashboard = () => {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Progress 
-                          value={org.usagePercent} 
-                          className="w-20 h-2"
-                        />
+                        <Progress value={org.usagePercent} className="w-20 h-2" />
                         <span className={`text-sm font-medium ${org.usagePercent >= 90 ? 'text-red-500' : 'text-orange-500'}`}>
                           {org.usagePercent}%
                         </span>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setTopUpOrg(org)}
-                      >
-                        <Gift className="h-3 w-3 mr-1" />
-                        Top-Up
+                      <Button size="sm" variant="outline" onClick={() => setTopUpOrg(org)}>
+                        <Gift className="h-3 w-3 mr-1" />Top-Up
                       </Button>
                     </TableCell>
                   </TableRow>
