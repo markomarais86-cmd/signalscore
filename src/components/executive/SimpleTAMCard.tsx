@@ -91,7 +91,7 @@ export function SimpleTAMCard({
         </Popover>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 px-5 pb-5 pt-5 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 px-5 pb-5 pt-4 sm:grid-cols-2">
         <button type="button" className="metric-panel" onClick={() => navigate("/accounts?fit=high") }>
           <p className="metric-panel__label">Serviceable market</p>
           <p className="metric-panel__value">{fmt(sam)}</p>

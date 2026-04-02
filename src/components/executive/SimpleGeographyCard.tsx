@@ -26,7 +26,7 @@ export function SimpleGeographyCard({ geoData, className }: SimpleGeographyCardP
 
   return (
     <div className={className}>
-      <div className="space-y-2 px-5 pb-5 pt-2">
+      <div className="space-y-2 px-5 pb-5 pt-4">
         {topCountries.map((item, idx) => {
           const barPct = (item.count / maxCount) * 100;
           return (

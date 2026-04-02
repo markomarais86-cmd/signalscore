@@ -90,17 +90,17 @@ export function DataHealthWidget() {
   const scoreColor = metrics.overallScore >= 80 ? "text-primary" : metrics.overallScore >= 50 ? "text-status-warning" : "text-destructive";
 
   return (
-    <div className="space-y-4 px-5 pb-5 pt-2">
-      <div className="metric-panel">
-        <p className="metric-panel__label">Health score</p>
+    <div className="space-y-4 px-5 pb-5 pt-4">
+      <div className="px-4 py-4">
+        <p className="text-[13px] font-medium text-muted-foreground">Health score</p>
         <div className="mt-3 flex items-end justify-between gap-4">
           <p className={`font-heading text-[3rem] font-semibold tracking-[-0.08em] tabular-nums ${scoreColor}`}>{metrics.overallScore}%</p>
           <div className="text-right">
-            <p className="text-[12px] font-medium uppercase tracking-[0.1em] text-muted-foreground">Weakest field</p>
-            <p className="mt-1 font-heading text-[1.15rem] font-semibold tracking-[-0.04em] text-foreground">{lowest.label}</p>
+            <p className="text-[13px] font-medium text-muted-foreground">Weakest field</p>
+            <p className="mt-1 font-heading text-[1rem] font-semibold tracking-[-0.03em] text-foreground">{lowest.label}</p>
           </div>
         </div>
-        <p className="metric-panel__hint">{metrics.totalAccounts.toLocaleString()} accounts profiled across core enrichment fields</p>
+        <p className="mt-1 text-[13px] leading-5 text-muted-foreground">{metrics.totalAccounts.toLocaleString()} accounts profiled across core enrichment fields</p>
       </div>
 
       <div className="space-y-2">

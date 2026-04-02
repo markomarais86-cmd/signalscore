@@ -66,7 +66,7 @@ function KPITile({
           <p className="mb-2 text-[13px] font-medium text-muted-foreground">
             {label}
           </p>
-          <p className="font-heading text-[2.2rem] font-semibold leading-none tracking-[-0.05em] text-foreground tabular-nums sm:text-[2.5rem]">
+          <p className="font-heading text-[2rem] font-semibold leading-none tracking-[-0.05em] text-foreground tabular-nums">
             {displayValue}
           </p>
         </div>

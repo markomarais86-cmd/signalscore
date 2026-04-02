@@ -125,8 +125,7 @@ export function ICPCoveragePanel({
                     <div className="h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${Math.max(p, 4)}%`, backgroundColor: item.color }} />
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: item.color }} />
+                <div className="flex items-center gap-2">
                   <span className="text-[14px] font-medium text-foreground tabular-nums">{item.value.toLocaleString()}</span>
                   <span className="w-10 text-right text-[13px] text-muted-foreground tabular-nums">{p.toFixed(0)}%</span>
                 </div>
