@@ -382,7 +382,9 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <RoleAwareLayout>
-                    <Leads />
+                    <Suspense fallback={<PageSuspenseFallback variant="table" />}>
+                      <Leads />
+                    </Suspense>
                   </RoleAwareLayout>
                 </ProtectedRoute>
               }
