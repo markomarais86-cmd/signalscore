@@ -38,7 +38,6 @@ export function SimplifiedHeroMetrics({
       subtitle: sourceFilter === "database" ? `Via ${tamProvider || "Database"}` : "In your CRM",
       icon: Building2,
       onClick: () => navigate("/accounts"),
-      floatClass: "floating-card-left",
     },
     {
       label: "Total Leads",
@@ -46,7 +45,6 @@ export function SimplifiedHeroMetrics({
       subtitle: sourceFilter === "database" ? "Available contacts" : "In your pipeline",
       icon: Users,
       onClick: () => navigate("/leads"),
-      floatClass: "floating-card",
     },
     {
       label: "Campaign Ready",
@@ -54,7 +52,6 @@ export function SimplifiedHeroMetrics({
       subtitle: "Ready for outreach",
       icon: Rocket,
       onClick: () => navigate("/leads?campaign_ready=true"),
-      floatClass: "floating-card-right",
     },
   ];
 
