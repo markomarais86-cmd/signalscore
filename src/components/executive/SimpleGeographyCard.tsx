@@ -21,11 +21,11 @@ export function SimpleGeographyCard({ geoData, className }: SimpleGeographyCardP
   const maxCount = Math.max(...topCountries.map((c) => c.count), 1);
 
   if (topCountries.length === 0) {
-    return <div className={`${className ?? ""} rounded-lg border bg-card p-6 text-center text-xs text-muted-foreground`}>No geography data</div>;
+    return <div className={`${className ?? ""} p-6 text-center text-xs text-muted-foreground`}>No geography data</div>;
   }
 
   return (
-    <div className={`${className ?? ""} rounded-lg border bg-card`}>
+    <div className={className}>
       <div className="divide-y divide-border">
         {topCountries.map((item) => (
           <button
