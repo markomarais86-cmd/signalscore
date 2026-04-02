@@ -249,7 +249,40 @@ export const CreditManagementDashboard = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
+          {/* Mobile cards */}
+          <div className="block sm:hidden space-y-3">
+            {organizations.map((org) => {
+              const unlimited = isUnlimited(org.plan_id) || org.enrichment_credits_total === null;
+              const planRemaining = unlimited ? Infinity : Math.max(0, (org.enrichment_credits_total || 0) - org.enrichment_credits_used);
+              return (
+                <div key={org.id} className="border rounded-lg p-3 bg-card space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{org.name}</span>
+                    <Badge variant={unlimited ? "default" : "outline"}>{getPlanDisplayName(org.plan_id)}</Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-xs text-muted-foreground">Used</span>
+                      <div>{unlimited ? org.enrichment_credits_used.toLocaleString() : `${org.enrichment_credits_used}/${org.enrichment_credits_total}`}</div>
+                    </div>
+                    <div>
+                      <span className="text-xs text-muted-foreground">Available</span>
+                      <div className="font-medium">{unlimited ? <Badge><InfinityIcon className="h-3 w-3 mr-1" />Unlimited</Badge> : (planRemaining + org.enrichment_credits_bonus).toLocaleString()}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    {org.enrichment_credits_bonus > 0 ? <Badge variant="secondary">{org.enrichment_credits_bonus} bonus</Badge> : <span />}
+                    <Button size="sm" variant="ghost" onClick={() => setTopUpOrg(org)}>
+                      <Gift className="h-3 w-3 mr-1" />Top-Up
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <Table className="hidden sm:table">
             <TableHeader>
               <TableRow>
                 <TableHead>Organization</TableHead>
@@ -264,8 +297,6 @@ export const CreditManagementDashboard = () => {
               {organizations.map((org) => {
                 const unlimited = isUnlimited(org.plan_id) || org.enrichment_credits_total === null;
                 const planRemaining = unlimited ? Infinity : Math.max(0, (org.enrichment_credits_total || 0) - org.enrichment_credits_used);
-                const totalAvailable = unlimited ? "Unlimited" : planRemaining + org.enrichment_credits_bonus;
-                
                 return (
                   <TableRow key={org.id}>
                     <TableCell className="font-medium">{org.name}</TableCell>
@@ -296,13 +327,8 @@ export const CreditManagementDashboard = () => {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setTopUpOrg(org)}
-                      >
-                        <Gift className="h-3 w-3 mr-1" />
-                        Top-Up
+                      <Button size="sm" variant="ghost" onClick={() => setTopUpOrg(org)}>
+                        <Gift className="h-3 w-3 mr-1" />Top-Up
                       </Button>
                     </TableCell>
                   </TableRow>
