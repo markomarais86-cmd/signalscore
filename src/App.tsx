@@ -176,7 +176,9 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <Layout>
-                    <ExecutiveDashboard />
+                    <Suspense fallback={<PageSuspenseFallback variant="dashboard" />}>
+                      <ExecutiveDashboard />
+                    </Suspense>
                   </Layout>
                 </ProtectedRoute>
               }
