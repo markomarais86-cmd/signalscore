@@ -19,7 +19,7 @@ interface DrilldownLevel {
 }
 
 interface DrilldownNavigationProps {
-  onExport: (format: 'pdf' | 'pptx' | 'csv') => void;
+  onExport?: (format: 'pdf' | 'pptx' | 'csv') => void;
 }
 
 interface DrilldownContext {
