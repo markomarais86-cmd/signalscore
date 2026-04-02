@@ -97,7 +97,52 @@ export function EnrichmentHistory({ jobs }: EnrichmentHistoryProps) {
     <div className="space-y-3">
       <h3 className="text-lg font-semibold">Recent History</h3>
       
-      <Card>
+      {/* Mobile cards */}
+      <div className="block sm:hidden space-y-3">
+        {jobs.map((job) => {
+          const alreadyComplete = getAlreadyComplete(job);
+          return (
+            <Card key={job.id}>
+              <CardContent className="p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Badge variant="outline" className="font-normal">
+                    {providerLabels[job.provider] || job.provider}
+                  </Badge>
+                  <div className="flex items-center gap-1.5 text-sm">
+                    {getStatusIcon(job)}
+                    <span className="capitalize">{getStatusLabel(job)}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-sm">
+                  <div>
+                    <span className="text-xs text-muted-foreground">New Data</span>
+                    <div className={job.enriched_records > 0 ? "font-medium text-green-600" : "text-muted-foreground"}>
+                      {job.enriched_records.toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">Already OK</span>
+                    <div className={alreadyComplete > 0 ? "text-blue-600" : "text-muted-foreground"}>
+                      {alreadyComplete.toLocaleString()}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">Not Found</span>
+                    <div className="text-muted-foreground">{job.failed_records.toLocaleString()}</div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1"><Clock className="h-3 w-3" />{calculateDuration(job)}</div>
+                  <span>{job.completed_at ? formatDistanceToNow(new Date(job.completed_at), { addSuffix: true }) : '-'}</span>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Desktop table */}
+      <Card className="hidden sm:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
@@ -114,7 +159,6 @@ export function EnrichmentHistory({ jobs }: EnrichmentHistoryProps) {
             <TableBody>
               {jobs.map((job) => {
                 const alreadyComplete = getAlreadyComplete(job);
-                
                 return (
                   <TableRow key={job.id}>
                     <TableCell>
@@ -125,34 +169,26 @@ export function EnrichmentHistory({ jobs }: EnrichmentHistoryProps) {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {getStatusIcon(job)}
-                        <span className="text-sm capitalize">
-                          {getStatusLabel(job)}
-                        </span>
+                        <span className="text-sm capitalize">{getStatusLabel(job)}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
                       {job.enriched_records > 0 ? (
-                        <span className="font-medium text-green-600">
-                          {job.enriched_records.toLocaleString()}
-                        </span>
+                        <span className="font-medium text-green-600">{job.enriched_records.toLocaleString()}</span>
                       ) : (
                         <span className="text-muted-foreground">0</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
                       {alreadyComplete > 0 ? (
-                        <span className="text-blue-600">
-                          {alreadyComplete.toLocaleString()}
-                        </span>
+                        <span className="text-blue-600">{alreadyComplete.toLocaleString()}</span>
                       ) : (
                         <span className="text-muted-foreground">0</span>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
                       {job.failed_records > 0 ? (
-                        <span className="text-muted-foreground">
-                          {job.failed_records.toLocaleString()}
-                        </span>
+                        <span className="text-muted-foreground">{job.failed_records.toLocaleString()}</span>
                       ) : (
                         <span className="text-muted-foreground">0</span>
                       )}

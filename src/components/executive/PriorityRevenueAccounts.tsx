@@ -281,7 +281,50 @@ export function PriorityRevenueAccounts({ icpId, limit = 25 }: PriorityRevenueAc
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Table>
+        {/* Mobile cards */}
+        <div className="block sm:hidden space-y-3">
+          {visible.map((acc) => {
+            const ActionIcon = acc.nextAction.icon;
+            return (
+              <div
+                key={acc.accountExternalId}
+                className="border rounded-lg p-3 bg-card cursor-pointer hover:bg-muted/50 transition-colors space-y-2"
+                onClick={() => navigate('/accounts')}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium text-sm">{acc.name}</span>
+                    {acc.industry && (
+                      <Badge variant="secondary" className="text-[10px] ml-2 px-1.5 py-0">
+                        {acc.industry}
+                      </Badge>
+                    )}
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-16">Readiness</span>
+                  <div className="h-2 flex-1 rounded-full bg-secondary overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${acc.readiness}%`, backgroundColor: readinessColor(acc.readiness) }} />
+                  </div>
+                  <span className="text-xs font-semibold w-7 text-right tabular-nums">{acc.readiness}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div><span className="text-muted-foreground">Fit</span><div className="font-medium tabular-nums">{acc.fit}</div></div>
+                  <div><span className="text-muted-foreground">Intent</span><div className="font-medium tabular-nums">{acc.intent}</div></div>
+                  <div><span className="text-muted-foreground">Leads</span><div className="font-medium tabular-nums">{acc.contactCount}</div></div>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <div>{acc.deal ? <Badge variant="outline" className="text-xs">{acc.deal.stage}</Badge> : <span className="text-muted-foreground">No deal</span>}</div>
+                  <div className="flex items-center gap-1 text-muted-foreground"><ActionIcon className="h-3 w-3" />{acc.nextAction.label}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop table */}
+        <Table className="hidden sm:table">
           <TableHeader>
             <TableRow>
               <TableHead>Account</TableHead>
