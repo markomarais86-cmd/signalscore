@@ -96,8 +96,8 @@ export function DataHealthWidget() {
         <div className="mt-3 flex items-end justify-between gap-4">
           <p className={`font-heading text-[3rem] font-semibold tracking-[-0.08em] tabular-nums ${scoreColor}`}>{metrics.overallScore}%</p>
           <div className="text-right">
-            <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">Weakest field</p>
-            <p className="mt-1 font-heading text-[1.1rem] font-semibold tracking-[-0.04em] text-foreground">{lowest.label}</p>
+            <p className="text-[12px] font-medium uppercase tracking-[0.1em] text-muted-foreground">Weakest field</p>
+            <p className="mt-1 font-heading text-[1.15rem] font-semibold tracking-[-0.04em] text-foreground">{lowest.label}</p>
           </div>
         </div>
         <p className="metric-panel__hint">{metrics.totalAccounts.toLocaleString()} accounts profiled across core enrichment fields</p>
