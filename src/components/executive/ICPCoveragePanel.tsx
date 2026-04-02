@@ -96,11 +96,17 @@ export function ICPCoveragePanel({
 
         {/* Summary Metrics */}
         <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="text-center p-3 rounded-lg bg-muted/30">
+          <div
+            className="text-center p-3 rounded-lg bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+            onClick={() => navigate(activeTab === "accounts" ? "/accounts" : "/leads")}
+          >
             <p className="text-2xl font-bold text-foreground">{currentTotal.toLocaleString()}</p>
             <p className="text-xs text-muted-foreground">Total {activeTab === "accounts" ? "Scored" : "Leads"}</p>
           </div>
-          <div className="text-center p-3 rounded-lg bg-primary/10 border border-primary/20">
+          <div
+            className="text-center p-3 rounded-lg bg-primary/10 border border-primary/20 cursor-pointer hover:bg-primary/15 transition-colors"
+            onClick={() => navigate(activeTab === "accounts" ? "/accounts?fit=high" : "/leads?fit=high")}
+          >
             <p className="text-2xl font-bold text-primary">{currentIcpFit.toLocaleString()}</p>
             <p className="text-xs text-muted-foreground">ICP-Fit</p>
           </div>
