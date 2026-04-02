@@ -51,7 +51,7 @@ export function Layout({ children }: LayoutProps) {
               {children}
             </FeatureErrorBoundary>
           </div>
-          <footer className="border-t bg-card/80 dark:bg-card/60 backdrop-blur-sm px-6 py-3 text-xs text-muted-foreground">
+          <footer className="hidden sm:block border-t bg-card/80 dark:bg-card/60 backdrop-blur-sm px-6 py-3 text-xs text-muted-foreground">
             <div className="flex items-center justify-between">
               <span>© 2025 LaunchPulse. All rights reserved.</span>
               <button className="hover:text-primary transition-colors font-medium">
