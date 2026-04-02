@@ -42,7 +42,7 @@ export function SimpleICPTable({
 
   return (
     <div className={className}>
-      <div className="space-y-3 px-5 pb-5 pt-2">
+      <div className="space-y-3 px-5 pb-5 pt-4">
         {rows.map((r) => (
           <button
             key={r.source}
