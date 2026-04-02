@@ -43,7 +43,19 @@ export default function Subprocessors() {
             as described in our <Link to="/dpa" className="text-primary hover:underline">Data Processing Agreement</Link>.
           </p>
 
-          <div className="overflow-x-auto">
+          {/* Mobile cards */}
+          <div className="block sm:hidden space-y-3">
+            {subprocessors.map((sp) => (
+              <div key={sp.name} className="border border-white/10 rounded-lg p-4 bg-white/5 space-y-1">
+                <div className="text-white font-medium">{sp.name}</div>
+                <div className="text-white/70 text-sm">{sp.purpose}</div>
+                <div className="text-white/50 text-xs">{sp.location}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="border-b border-white/20">

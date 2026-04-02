@@ -125,56 +125,89 @@ export const CreditAdjustmentHistory = ({ orgId, limit = 50 }: CreditAdjustmentH
           No credit adjustments found
         </div>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Time</TableHead>
-                {!orgId && <TableHead>Organization</TableHead>}
-                <TableHead>Type</TableHead>
-                <TableHead>Change</TableHead>
-                <TableHead>By</TableHead>
-                <TableHead>Reason</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {adjustments.map((adj) => {
-                const config = typeConfig[adj.adjustment_type] || typeConfig.manual;
-                return (
-                  <TableRow key={adj.id}>
-                    <TableCell className="text-muted-foreground text-sm">
+        <>
+          {/* Mobile cards */}
+          <div className="block sm:hidden space-y-3">
+            {adjustments.map((adj) => {
+              const config = typeConfig[adj.adjustment_type] || typeConfig.manual;
+              return (
+                <div key={adj.id} className="border rounded-lg p-3 bg-card space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Badge variant={config.variant} className="gap-1">
+                      {config.icon}
+                      {config.label}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
                       {formatDistanceToNow(new Date(adj.created_at), { addSuffix: true })}
-                    </TableCell>
-                    {!orgId && (
-                      <TableCell className="font-medium">
-                        {adj.organizations?.name || "Unknown"}
+                    </span>
+                  </div>
+                  {!orgId && (
+                    <div className="text-sm font-medium">{adj.organizations?.name || "Unknown"}</div>
+                  )}
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-mono">{formatChange(adj)}</span>
+                    <span>{adj.performed_by === "system" ? <Badge variant="outline">System</Badge> : adj.performed_by}</span>
+                  </div>
+                  {adj.reason && (
+                    <p className="text-xs text-muted-foreground truncate">{adj.reason}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden sm:block border rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Time</TableHead>
+                  {!orgId && <TableHead>Organization</TableHead>}
+                  <TableHead>Type</TableHead>
+                  <TableHead>Change</TableHead>
+                  <TableHead>By</TableHead>
+                  <TableHead>Reason</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {adjustments.map((adj) => {
+                  const config = typeConfig[adj.adjustment_type] || typeConfig.manual;
+                  return (
+                    <TableRow key={adj.id}>
+                      <TableCell className="text-muted-foreground text-sm">
+                        {formatDistanceToNow(new Date(adj.created_at), { addSuffix: true })}
                       </TableCell>
-                    )}
-                    <TableCell>
-                      <Badge variant={config.variant} className="gap-1">
-                        {config.icon}
-                        {config.label}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {formatChange(adj)}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {adj.performed_by === "system" ? (
-                        <Badge variant="outline">System</Badge>
-                      ) : (
-                        adj.performed_by
+                      {!orgId && (
+                        <TableCell className="font-medium">
+                          {adj.organizations?.name || "Unknown"}
+                        </TableCell>
                       )}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
-                      {adj.reason || "-"}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+                      <TableCell>
+                        <Badge variant={config.variant} className="gap-1">
+                          {config.icon}
+                          {config.label}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {formatChange(adj)}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {adj.performed_by === "system" ? (
+                          <Badge variant="outline">System</Badge>
+                        ) : (
+                          adj.performed_by
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
+                        {adj.reason || "-"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </>
       )}
     </div>
   );
