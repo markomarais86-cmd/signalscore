@@ -53,17 +53,17 @@ export function SimpleICPTable({
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="metric-panel__label">{r.source}</p>
-                <p className="mt-2 font-heading text-[1.4rem] font-semibold tracking-[-0.05em] text-foreground tabular-nums">
+                <p className="mt-2 font-heading text-[1.65rem] font-semibold tracking-[-0.05em] text-foreground tabular-nums">
                   {r.fit.toLocaleString()}
                 </p>
               </div>
 
               <div className="text-right">
                 <p className="metric-panel__label">Scored volume</p>
-                <p className="mt-2 text-[13px] font-medium text-foreground tabular-nums">
+                <p className="mt-2 text-[14px] font-medium text-foreground tabular-nums">
                   {r.total.toLocaleString()}
                 </p>
-                <p className="mt-1 text-[12px] text-primary tabular-nums">{r.pct}% ICP fit</p>
+                <p className="mt-1 text-[13px] text-primary tabular-nums">{r.pct}% ICP fit</p>
               </div>
             </div>
 

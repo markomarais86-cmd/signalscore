@@ -63,7 +63,7 @@ export function SimpleTAMCard({
         <div className="space-y-2">
           <p className="metric-panel__label">Total addressable market</p>
           <p className="font-heading text-[2.65rem] font-semibold tracking-[-0.07em] text-foreground tabular-nums">{fmt(tam)}</p>
-          <p className="text-sm text-muted-foreground/80">{tamAccts.toLocaleString()} matching accounts</p>
+          <p className="text-[14px] text-muted-foreground">{tamAccts.toLocaleString()} matching accounts</p>
         </div>
 
         <Popover open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
