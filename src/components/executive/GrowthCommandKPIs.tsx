@@ -1,4 +1,3 @@
-import { Card, CardContent } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 
 interface GrowthCommandKPIsProps {
@@ -18,6 +17,14 @@ function formatCurrency(value: number) {
   if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`;
   return `$${value.toLocaleString()}`;
 }
+
+const ACCENT_COLORS = [
+  "bg-primary",          // mint green
+  "bg-primary/70",       // lighter mint
+  "bg-accent",           // dark green
+  "bg-primary/50",       // soft mint
+  "bg-destructive/70",   // muted red for risk
+] as const;
 
 export function GrowthCommandKPIs({
   totalAccounts,
@@ -68,22 +75,26 @@ export function GrowthCommandKPIs({
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-5 gap-px rounded-lg border bg-border overflow-hidden">
-      {tiles.map((tile) => (
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+      {tiles.map((tile, i) => (
         <button
           key={tile.label}
           type="button"
-          className="bg-card px-4 py-4 text-left transition-colors hover:bg-muted/10 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+          className="stat-card text-left p-4 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary animate-fade-in-up"
+          style={{ animationDelay: `${i * 60}ms` }}
           onClick={tile.onClick}
         >
-          <p className="text-[11px] text-muted-foreground mb-1.5 leading-none">
+          {/* Accent bar */}
+          <div className={`stat-accent ${ACCENT_COLORS[i]}`} />
+
+          <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2 leading-none">
             {tile.label}
           </p>
-          <p className="text-[22px] font-semibold font-mono tabular-nums text-foreground leading-none tracking-tight">
+          <p className="text-2xl font-semibold font-mono tabular-nums text-foreground leading-none tracking-tight">
             {tile.value}
           </p>
           {tile.sub && (
-            <p className="text-[11px] text-muted-foreground/60 mt-1.5 leading-none font-mono tabular-nums">
+            <p className="text-[11px] text-muted-foreground/60 mt-2 leading-none font-mono tabular-nums">
               {tile.sub}
             </p>
           )}
