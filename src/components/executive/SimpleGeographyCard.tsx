@@ -26,21 +26,32 @@ export function SimpleGeographyCard({ geoData, className }: SimpleGeographyCardP
 
   return (
     <div className={className}>
-      <div className="divide-y divide-border">
-        {topCountries.map((item) => (
-          <button
-            key={item.country}
-            type="button"
-            className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/10"
-            onClick={() => navigate(`/accounts?country=${encodeURIComponent(item.country)}`)}
-          >
-            <span className="text-xs text-foreground truncate flex-1 min-w-0">{item.country}</span>
-            <div className="w-24 h-1 rounded-full bg-border overflow-hidden shrink-0">
-              <div className="h-full rounded-full bg-primary" style={{ width: `${(item.count / maxCount) * 100}%` }} />
-            </div>
-            <span className="text-[11px] font-mono tabular-nums text-muted-foreground w-12 text-right shrink-0">{item.count.toLocaleString()}</span>
-          </button>
-        ))}
+      <div className="space-y-0.5 p-1">
+        {topCountries.map((item, idx) => {
+          const barPct = (item.count / maxCount) * 100;
+          return (
+            <button
+              key={item.country}
+              type="button"
+              className="flex w-full items-center gap-3 px-3 py-2 text-left rounded-md transition-all hover:bg-muted/10 group animate-fade-in-up"
+              style={{ animationDelay: `${idx * 50}ms` }}
+              onClick={() => navigate(`/accounts?country=${encodeURIComponent(item.country)}`)}
+            >
+              <span className="text-xs text-foreground truncate flex-1 min-w-0 group-hover:text-primary transition-colors">
+                {item.country}
+              </span>
+              <div className="w-20 h-1.5 rounded-full bg-border/50 overflow-hidden shrink-0">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-700 ease-out"
+                  style={{ width: `${barPct}%`, opacity: 1 - idx * 0.1 }}
+                />
+              </div>
+              <span className="text-[11px] font-mono tabular-nums text-muted-foreground w-12 text-right shrink-0">
+                {item.count.toLocaleString()}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
