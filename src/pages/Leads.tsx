@@ -15,6 +15,7 @@ import { useInfiniteLeads } from "@/hooks/use-infinite-leads";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { useLeadsMetrics } from "@/hooks/use-leads-metrics";
 import { TableSkeleton } from "@/components/TableSkeleton";
+import { QueryErrorState } from "@/components/QueryErrorState";
 import { AllLeadsView } from "@/components/leads/AllLeadsView";
 import { EnrichedLeadsView } from "@/components/leads/EnrichedLeadsView";
 
