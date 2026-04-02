@@ -59,10 +59,10 @@ export function SimpleTAMCard({
 
   return (
     <div className={className}>
-      <div className="flex items-start justify-between gap-4 px-5 pt-2">
+      <div className="flex items-start justify-between gap-4 px-5 pt-4">
         <div className="space-y-2">
           <p className="metric-panel__label">Total addressable market</p>
-          <p className="font-heading text-[2.65rem] font-semibold tracking-[-0.07em] text-foreground tabular-nums">{fmt(tam)}</p>
+          <p className="font-heading text-[3rem] font-semibold tracking-[-0.07em] text-foreground tabular-nums">{fmt(tam)}</p>
           <p className="text-[14px] text-muted-foreground">{tamAccts.toLocaleString()} matching accounts</p>
         </div>
 
