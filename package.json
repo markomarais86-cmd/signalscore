@@ -11,7 +11,13 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --max-warnings 0"
+    ]
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
