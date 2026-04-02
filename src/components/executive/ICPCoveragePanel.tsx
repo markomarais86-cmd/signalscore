@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -45,6 +45,9 @@ export function ICPCoveragePanel({
   const icpFit = data[0].value + data[1].value;
   const pct = total > 0 ? Math.round((icpFit / total) * 100) : 0;
 
+  // Unique ID for gradient
+  const gradId = useMemo(() => `cov-grad-${Math.random().toString(36).slice(2, 8)}`, []);
+
   if (totalScored === 0) {
     return (
       <div className={`${className ?? ""} rounded-lg border bg-card p-8 text-center`}>
@@ -73,32 +76,36 @@ export function ICPCoveragePanel({
       <div className="p-5">
         {/* 3 metric cells */}
         <div className="grid grid-cols-3 gap-px rounded-md border bg-border overflow-hidden mb-5">
-          <button type="button" className="bg-card px-3 py-3 text-left hover:bg-muted/10" onClick={() => navigate(isAccounts ? "/accounts" : "/leads")}>
+          <button type="button" className="bg-card px-3 py-3 text-left hover:bg-muted/10 transition-colors" onClick={() => navigate(isAccounts ? "/accounts" : "/leads")}>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total</p>
             <p className="text-lg font-semibold font-mono tabular-nums text-foreground mt-0.5">{total.toLocaleString()}</p>
           </button>
-          <button type="button" className="bg-card px-3 py-3 text-left hover:bg-muted/10" onClick={() => navigate(isAccounts ? "/accounts?fit=high" : "/leads?fit=high")}>
+          <button type="button" className="bg-card px-3 py-3 text-left hover:bg-muted/10 transition-colors" onClick={() => navigate(isAccounts ? "/accounts?fit=high" : "/leads?fit=high")}>
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">ICP Fit</p>
             <p className="text-lg font-semibold font-mono tabular-nums text-foreground mt-0.5">{icpFit.toLocaleString()}</p>
           </button>
           <div className="bg-card px-3 py-3 text-left">
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Coverage</p>
-            <p className="text-lg font-semibold font-mono tabular-nums text-foreground mt-0.5">{pct}%</p>
+            <p className="text-lg font-semibold font-mono tabular-nums text-primary mt-0.5">{pct}%</p>
           </div>
         </div>
 
-        {/* Stacked bar */}
-        <div className="h-2 rounded-full overflow-hidden flex mb-5">
+        {/* Animated stacked bar with rounded ends */}
+        <div className="h-3 rounded-full overflow-hidden flex bg-border/50 mb-5">
           {data.map((item) => {
             const w = total > 0 ? (item.value / total) * 100 : 0;
             return w > 0 ? (
-              <div key={item.name} className="h-full first:rounded-l-full last:rounded-r-full" style={{ width: `${w}%`, backgroundColor: item.color }} />
+              <div
+                key={item.name}
+                className="h-full first:rounded-l-full last:rounded-r-full transition-all duration-700 ease-out"
+                style={{ width: `${w}%`, backgroundColor: item.color }}
+              />
             ) : null;
           })}
         </div>
 
         {/* Segment rows */}
-        <div className="space-y-0 divide-y divide-border">
+        <div className="space-y-1">
           {data.map((item) => {
             const p = total > 0 ? (item.value / total) * 100 : 0;
             const fitParam = item.name.split(" ")[0].toLowerCase();
@@ -106,16 +113,16 @@ export function ICPCoveragePanel({
               <button
                 key={item.name}
                 type="button"
-                className="flex w-full items-center justify-between py-2.5 px-1 text-left transition-colors hover:bg-muted/10"
+                className="flex w-full items-center justify-between py-2 px-2 rounded-md text-left transition-colors hover:bg-muted/10 group"
                 onClick={() => navigate(isAccounts ? `/accounts?fit=${fitParam}` : `/leads?fit=${fitParam}`)}
               >
-                <div className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />
-                  <span className="text-xs text-foreground">{item.name}</span>
+                <div className="flex items-center gap-2.5">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: item.color }} />
+                  <span className="text-xs text-foreground group-hover:text-primary transition-colors">{item.name}</span>
                 </div>
                 <div className="flex items-center gap-4">
-                  <span className="text-xs font-mono tabular-nums text-foreground">{item.value.toLocaleString()}</span>
-                  <span className="text-[11px] font-mono tabular-nums text-muted-foreground w-8 text-right">{p.toFixed(0)}%</span>
+                  <span className="text-xs font-mono tabular-nums text-foreground font-medium">{item.value.toLocaleString()}</span>
+                  <span className="text-[11px] font-mono tabular-nums text-muted-foreground w-10 text-right">{p.toFixed(0)}%</span>
                 </div>
               </button>
             );

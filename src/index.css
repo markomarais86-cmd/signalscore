@@ -167,21 +167,38 @@
     pointer-events: none;
   }
 
-  /* ── Stat Card — accent bar on top ── */
+  /* ── Stat Card — premium depth ── */
   .stat-card {
-    @apply relative overflow-hidden rounded-lg border bg-card transition-all duration-200;
+    @apply relative overflow-hidden rounded-lg border bg-card transition-all duration-300;
+    border-color: hsl(var(--border));
   }
   .stat-card:hover {
     transform: translateY(-2px);
-    box-shadow: var(--shadow-medium);
+    border-color: hsl(var(--primary) / 0.3);
+    box-shadow: 0 8px 24px -8px hsl(var(--primary) / 0.1), 0 2px 8px -2px hsl(0 0% 0% / 0.08);
+  }
+  .dark .stat-card {
+    background: linear-gradient(180deg, hsl(216 12% 14%) 0%, hsl(216 12% 11%) 100%);
+    border-color: hsl(216 12% 22%);
+  }
+  .dark .stat-card:hover {
+    border-color: hsl(var(--primary) / 0.4);
+    box-shadow: 0 0 20px -4px hsl(var(--primary) / 0.12), 0 8px 24px -8px hsl(0 0% 0% / 0.4);
   }
   .stat-card .stat-accent {
     @apply absolute top-0 left-0 right-0 h-[2px];
   }
 
-  /* ── Widget Card ── */
+  /* ── Widget Card — premium depth ── */
   .widget-card {
-    @apply rounded-lg border bg-card overflow-hidden;
+    @apply rounded-lg border bg-card overflow-hidden transition-all duration-300;
+  }
+  .dark .widget-card {
+    background: linear-gradient(180deg, hsl(216 12% 14%) 0%, hsl(216 12% 11%) 100%);
+    border-color: hsl(216 12% 22%);
+  }
+  .widget-card:hover {
+    border-color: hsl(var(--primary) / 0.2);
   }
   .widget-card .widget-header {
     @apply flex items-center justify-between px-4 py-3;
