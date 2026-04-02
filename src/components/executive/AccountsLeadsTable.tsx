@@ -114,8 +114,44 @@ export function AccountsLeadsTable({
           </div>
         )}
 
-        {/* Compact Table */}
-        <div className="mt-0">
+        {/* Mobile cards */}
+        <div className="block sm:hidden space-y-3 mt-0">
+          {tableRows.map((row) => {
+            const Icon = row.icon;
+            const accountsHighFitPct = calculatePercentage(row.accounts.highFit, row.accounts.total);
+            const leadsHighFitPct = calculatePercentage(row.leads.highFit, row.leads.total);
+            return (
+              <div
+                key={row.source}
+                className={cn(
+                  "border rounded-lg p-3 bg-card cursor-pointer hover:bg-muted/50 transition-colors space-y-2",
+                  row.isTotal && "bg-muted/20 border-primary/20"
+                )}
+                onClick={() => navigate(row.route)}
+              >
+                <div className="flex items-center gap-2 font-medium">
+                  <Icon className="h-4 w-4 text-muted-foreground" />
+                  {row.source}
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-xs text-muted-foreground">Accounts</span>
+                    <div className="font-mono">{row.accounts.total.toLocaleString()} / {row.accounts.highFit.toLocaleString()}</div>
+                    <Badge variant="outline" className={cn("text-xs mt-0.5", getPercentageColor(accountsHighFitPct))}>{accountsHighFitPct}% high-fit</Badge>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground">Leads</span>
+                    <div className="font-mono">{row.leads.total.toLocaleString()} / {row.leads.highFit.toLocaleString()}</div>
+                    <Badge variant="outline" className={cn("text-xs mt-0.5", getPercentageColor(leadsHighFitPct))}>{leadsHighFitPct}% high-fit</Badge>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden sm:block mt-0">
             <div className="rounded-lg border">
               <div className="overflow-x-auto">
                 <table className="w-full">
