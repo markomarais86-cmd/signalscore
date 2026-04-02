@@ -16,15 +16,9 @@ interface GrowthCommandKPIsProps {
 }
 
 function getBenchmarkColor(percent: number) {
-  if (percent >= 70) return "text-green-500";
-  if (percent >= 40) return "text-yellow-500";
+  if (percent >= 70) return "text-primary";
+  if (percent >= 40) return "text-status-warning";
   return "text-destructive";
-}
-
-function getBenchmarkBg(percent: number) {
-  if (percent >= 70) return "bg-green-500/10 border-green-500/20";
-  if (percent >= 40) return "bg-yellow-500/10 border-yellow-500/20";
-  return "bg-destructive/10 border-destructive/20";
 }
 
 function formatCurrency(value: number) {
